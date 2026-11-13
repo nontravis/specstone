@@ -294,19 +294,16 @@ void main() {
     );
   });
 
-  test('f02/us05/fr02/e05, f02/us05/fr02/e06: reorder leaves doc_ref values and implements pointers as written', () async {
+  test('f02/us05/fr02/e05, f02/us05/fr02/e06: reorder leaves doc_ref values and covers pointers as written', () async {
     final root = await writeWriteProject();
     final personaBefore = readDoc(root, persona);
     final storyBefore = readDoc(root, story1);
+    final archBefore = readDoc(root, loginArch);
     reorder(root, 'user_story:login/reset_password', '1');
     expect(readDoc(root, persona), personaBefore);
     expect(readDoc(root, '$f/us02_email_login/USER_STORY.md'), storyBefore);
-    expect(
-      readDoc(root, '$f/us02_email_login/fr01_validate_credentials.md'),
-      contains(
-        '  - app/lib/src/login/credential_validator.dart:CredentialValidator\n',
-      ),
-    );
+    expect(readDoc(root, loginArch), archBefore);
+    expect(readDoc(root, loginArch), contains('  - app/lib/src/login/\n'));
   });
 
   test('f02/us05/fr02/e10, f01/us07/fr01: refs and the reorder rewrite read the same mention lines, a link form in a code span and a stray ]( included', () async {
@@ -2074,7 +2071,10 @@ void main() {
       extra: {
         for (final MapEntry(:key, :value) in {
           '.specstone/config.yaml': twinConfig(),
-          '.specstone/templates/implementation.yaml': recordLayer,
+          // The shared architecture docs of the fixture stay shared: a layer
+          // takes them back from the shipped per-target pack.
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
           'flutter_ws/app/lib/login.dart': 'class SignIn {}\n',
           'jaspr_ws/app/lib/login.dart': 'class SignIn {}\n',
           'docs/$flutterLogin': loginRecord,

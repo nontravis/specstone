@@ -12,7 +12,7 @@ import '../../helpers/temp_tree.dart';
 
 void main() {
   late DocIndex index;
-  setUpAll(() async => index = await indexWith());
+  setUpAll(() async => index = await indexWith(loginRecords));
   List<String> names(ReadAnswer a) => [
     for (final d in a.json['docs']! as List) (d as Map)['name']! as String,
   ];

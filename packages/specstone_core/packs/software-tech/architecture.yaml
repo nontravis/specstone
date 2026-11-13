@@ -3,12 +3,14 @@ description: |-
   The architecture of one feature: which components exist, who calls whom, and where each runs.
   Title it `# <Feature name> architecture`, such as `# Rendering architecture`, with no number.
   Aim for under 150 lines; keep one file per feature spec folder.
-  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
+  The target's record holds each story's and FR's status and code paths; `covers` names the target's own code only.
   Write no code samples; this doc describes structure, and the implementation belongs in code.
   Write one rule per ID: one Components row per component, each rule one sentence.
   A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, such as `architecture:rendering#components`.
 path: specs/f{nn}_{slug}/ARCHITECTURE.md
 parent: feature
+per_target: true
 fields:
   - id: covers
     type: output_ref
@@ -16,7 +18,7 @@ fields:
     required: true
     pointer: prefix
     description: |-
-      Lists the folders or files of code that the feature's spec folder covers, each relative to the code root (`code_root` in `.specstone/config.yaml`, else the project root).
+      Lists the folders or files of code that the feature's spec folder covers, each relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
       A path matches by longest prefix, so a folder covers every file under it.
 sections:
   - id: component_diagram

@@ -24,22 +24,6 @@ const _brokenRecord = 'specs/f01_login/IMPLEMENTATION.md';
 
 /// Returns the files that plant a code path to nothing in the login record.
 Map<String, String> _brokenRecordFiles() => {
-  '.specstone/templates/implementation.yaml':
-      'id: implementation\n'
-      'description: One feature record per target.\n'
-      'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-      'parent: feature\n'
-      'per_target: true\n'
-      'fields:\n'
-      '  - id: statuses\n'
-      '    type: record_status\n'
-      '    list: true\n'
-      '  - id: implements\n'
-      '    type: output_ref\n'
-      '    list: true\n'
-      '    pointer: item_exact\n',
-  ...edit(loginStory, [('status: implemented\n', '')]),
-  ...fr('status: implemented\n', ''),
   'docs/$_brokenRecord':
       "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
       "implements:\n  - 'email_login/check_password:app/lib/gone.dart:X'\n"
@@ -263,7 +247,7 @@ void main() {
         checkOf(project, target: 'fr:login/email_login/check_password'),
         FindingKind.fieldUndeclared,
       ),
-      ['$loginFr:6: field_undeclared'],
+      ['$loginFr:5: field_undeclared'],
     );
   });
 
@@ -322,7 +306,6 @@ void main() {
       extra: {
         ..._brokenRecordFiles(),
         ...edit(loginStory, [
-          ('status: implemented\n', ''),
           (
             'I reach my work',
             'I reach my work, see [gone](gone/USER_STORY.md)',

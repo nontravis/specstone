@@ -14,6 +14,7 @@ const softwareTechIds = <String>[
   'auth',
   'domain',
   'error',
+  'implementation',
   'integration',
   'tech_stack',
   'topic',
@@ -181,12 +182,35 @@ const softwareTechSources = <String, List<({String title, String url})>>{
     ),
     (title: 'Diátaxis, Reference', url: 'https://diataxis.fr/reference/'),
   ],
+  'implementation': [
+    (
+      title: 'OpenFastTrace, Terminology',
+      url:
+          'https://github.com/itsallcode/openfasttrace/blob/main/doc/'
+          'user_guide.md',
+    ),
+    (
+      title: 'Sphinx-CodeLinks, Source tracing directive',
+      url: 'https://github.com/useblocks/sphinx-codelinks',
+    ),
+    (
+      title: 'Doorstop, Item reference',
+      url: 'https://doorstop.readthedocs.io/en/latest/',
+    ),
+    (
+      title: 'MDN browser-compat-data, Compat data schema',
+      url:
+          'https://github.com/mdn/browser-compat-data/blob/main/schemas/'
+          'compat-data-schema.md',
+    ),
+  ],
 };
 
 /// The line target each doc type's description states (US-07 FR-02 E04).
 String lineTargetOf(String id) => switch (id) {
   'tech_stack' => 'about 80 lines',
   'architecture' => 'under 150 lines',
+  'implementation' => 'one line per entry in `statuses`',
   _ => 'about 150 to 200 lines',
 };
 

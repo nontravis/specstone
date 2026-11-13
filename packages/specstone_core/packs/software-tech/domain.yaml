@@ -3,11 +3,12 @@ description: |-
   The domain model of one feature: the concepts it owns, how they are shaped, and the invariants that hold.
   Title it `# <Feature name> domain`, such as `# Rendering domain`, with no number.
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
-  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Write one rule per ID: one bullet per invariant, each rule one sentence.
   A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, such as `architecture:rendering#components`.
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
+per_target: true
 sections:
   - id: entities
     header: Entities

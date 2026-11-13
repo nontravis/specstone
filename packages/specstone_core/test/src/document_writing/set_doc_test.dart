@@ -1150,25 +1150,25 @@ void main() {
       '==> login/email_login (user_story) · $story1 · field vision · base ${baseHashOf('vision:\n  - PV-02\n')} <==\n',
     );
   });
-  test('f02/us01/s4, f02/us01/fr03/e02, dw-s03/inv4: an implements edit leaves an approved FR approved', () async {
+  test('f02/us01/s4, f02/us01/fr03/e02, dw-s03/inv4: an FR declares no implements field under the shipped pack, so set refuses it and writes nothing', () async {
     final root = await writeWriteProject();
-    const target = 'fr:login/email_login/validate_credentials';
-    final answer = writeIn(
-      root,
-      (s) => answerSet(
-        s,
-        fieldReq(target, 'implements', fieldBase(root, target, 'implements')),
-        '- app/lib/src/login/password_check.dart:checkPassword\n',
-      ),
-    );
-    expect(readDoc(root, fr11), isNot(contains('draft:')));
+    final before = readDoc(root, fr11);
     expect(
-      readDoc(root, fr11),
-      contains(
-        'implements:\n  - app/lib/src/login/password_check.dart:checkPassword\n',
+      () => writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          fieldReq(
+            'fr:login/email_login/validate_credentials',
+            'implements',
+            emptyBaseHash,
+          ),
+          '- app/lib/src/login/password_check.dart:checkPassword\n',
+        ),
       ),
+      throwsWriteFault(WriteFaultCode.fieldUnknown),
     );
-    expect(answer.json['draft'], isFalse);
+    expect(readDoc(root, fr11), before);
   });
   test(
     'f02/us01/s9, f02/us01/fr03/e04: draft and approved are field_not_writable',
@@ -1267,18 +1267,9 @@ void main() {
     );
     expect(answer.json['draft'], isFalse);
   });
-  test('document_writing/approve_drafts/mark_doc_approved E09: an implements write and a covers write leave an approved doc approved', () async {
+  test('document_writing/approve_drafts/mark_doc_approved E09: a covers write leaves an approved doc approved', () async {
     final root = await writeWriteProject();
-    const fr = 'fr:login/email_login/validate_credentials';
     const arch = 'architecture:login';
-    writeIn(
-      root,
-      (s) => answerSet(
-        s,
-        fieldReq(fr, 'implements', fieldBase(root, fr, 'implements')),
-        '- app/lib/src/login/password_check.dart:checkPassword\n',
-      ),
-    );
     writeIn(
       root,
       (s) => answerSet(
@@ -2634,10 +2625,10 @@ void main() {
 
     test('an output_ref field marks no draft', () async {
       final root = await writeWriteProject();
-      const fr = 'fr:login/reset_password/expire_reset_link';
+      const arch = 'architecture:login';
       final part = spliceIn(
         root,
-        fieldReq(fr, 'implements', fieldBase(root, fr, 'implements')),
+        fieldReq(arch, 'covers', fieldBase(root, arch, 'covers')),
         '- a.dart\n',
       );
       expect(part.marksDraft, isFalse);

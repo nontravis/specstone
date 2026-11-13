@@ -2,6 +2,8 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show FieldType, PointerKind;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -365,12 +367,17 @@ void main() {
   group('$_fr E38', () {
     test('a doc is judged by the type it had before the run: a field the '
         'final type dropped still stays out of its hash', () {
-      final held = _typeAt(_storyPath)!;
-      expect(held.fields.map((f) => f.id), contains('implements'));
-      final dropped = held.copyWith(
+      final dropped = _typeAt(_storyPath)!;
+      expect(dropped.fields.map((f) => f.id), isNot(contains('implements')));
+      final held = dropped.copyWith(
         fields: [
-          for (final field in held.fields)
-            if (field.id != 'implements') field,
+          ...dropped.fields,
+          const MergedField(
+            id: 'implements',
+            type: FieldType.outputRef,
+            list: true,
+            pointer: PointerKind.exact,
+          ),
         ],
       );
       const written = '---\nimplements:\n  - app/a.dart\n---\n# B\n';

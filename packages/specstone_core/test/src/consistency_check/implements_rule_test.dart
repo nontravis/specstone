@@ -71,13 +71,7 @@ Map<String, String> _withRecord(
   String record, {
   String path = _recordPath,
   Map<String, String> config = const {},
-}) => {
-  '.specstone/templates/implementation.yaml': _recordLayer,
-  ...edit(loginStory, [('status: implemented\n', '')]),
-  ...fr('status: implemented\n', ''),
-  'docs/$path': record,
-  ...config,
-};
+}) => {'docs/$path': record, ...config};
 
 Future<Directory> _project(
   String record, {
@@ -372,10 +366,9 @@ void main() {
           'docs/prds/notes.md':
               '---\nimplements:\n  - app/lib/gone.dart:X\n---\n\n# Notes\n',
           ...edit(loginStory, [
-            ('status: implemented\n', ''),
             (
-              'implements:\n  - app/lib/login.dart:SignInPage\n',
-              'implements:\n  - app/lib/gone.dart:X\n',
+              '  - PG-01\n---',
+              '  - PG-01\nimplements:\n  - app/lib/gone.dart:X\n---',
             ),
           ]),
         },

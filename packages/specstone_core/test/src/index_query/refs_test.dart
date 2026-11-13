@@ -28,7 +28,6 @@ void main() {
       answerRefs(index, 'login/email_login').text,
       '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md <==\n'
       'Outbound\n- persona: buyer (persona)\n- link: password_rules (reference)\n'
-      '- implements: app/lib/src/login/sign_in_page.dart:SignInPage\n'
       'Inbound\n- link: login/email_login/validate_credentials (fr)\n'
       'Mentions\n- none\nUntyped mentions\n- none\n',
     );
@@ -213,10 +212,6 @@ void main() {
       expect(doc['outbound'], [
         {'kind': 'persona', 'name': 'buyer', 'docType': 'persona'},
         {'kind': 'link', 'name': 'password_rules', 'docType': 'reference'},
-        {
-          'kind': 'implements',
-          'pointer': 'app/lib/src/login/sign_in_page.dart:SignInPage',
-        },
       ]);
       expect(doc['inbound'], [
         {
@@ -224,6 +219,12 @@ void main() {
           'name': 'login/email_login/validate_credentials',
           'docType': 'fr',
         },
+      ]);
+      final arch =
+          (answerRefs(index, 'architecture:login').json['docs']! as List).single
+              as Map;
+      expect(arch['outbound'], [
+        {'kind': 'covers', 'pointer': 'app/lib/src/login/'},
       ]);
     },
   );
@@ -717,20 +718,17 @@ void main() {
     });
   });
 
-  test('index_query/follow_references/list_doc_references E03: an implements entry stays outbound as written, and a mention in a code file is no inbound pointer', () async {
+  test('index_query/follow_references/list_doc_references E03: a code pointer stays outbound as written, and a mention in a code file is no inbound pointer', () async {
     final withCode = await indexWith({
       'app/lib/src/login/sign_in_page.dart':
           '/// Lays out `login/email_login`.\nclass SignInPage {}\n',
     });
-    final answer = answerRefs(withCode, 'login/email_login');
     expect(
-      answer.text,
-      contains(
-        '- implements: app/lib/src/login/sign_in_page.dart:SignInPage\n',
-      ),
+      answerRefs(withCode, 'architecture:login').text,
+      contains('- covers: app/lib/src/login/\n'),
     );
     expect(
-      answer.text,
+      answerRefs(withCode, 'login/email_login').text,
       contains('Mentions\n- none\nUntyped mentions\n- none\n'),
     );
   });

@@ -116,7 +116,7 @@ void main() {
         await writeCheckProject(extra: fr('  - S2\n', '  - $entry\n')),
       );
       expect(spots(report, FindingKind.scenarioTraceUnresolved), [
-        '$loginFr:4: scenario_trace_unresolved',
+        '$loginFr:3: scenario_trace_unresolved',
       ]);
       expect(
         report.findings
@@ -284,7 +284,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:14: role_unresolved',
+      '$loginStory:11: role_unresolved',
       'prds/personas/buyer/PERSONA.md:3: role_unresolved',
     ]);
     expect(
@@ -308,7 +308,7 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.roleUnresolved), [
-        '$loginStory:14: role_unresolved',
+        '$loginStory:11: role_unresolved',
       ]);
       expect(
         report.findings
@@ -342,7 +342,7 @@ void main() {
         },
       ),
     );
-    expect(spots(report), ['$loginStory:4: vision_goal_widened']);
+    expect(spots(report), ['$loginStory:3: vision_goal_widened']);
     expect(report.findings.single.toJson()['id'], 'PG-03');
     expect(
       report.findings.single.message,
@@ -357,8 +357,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$loginStory:4: vision_goal_unresolved',
-      '$loginStory:4: vision_goal_widened',
+      '$loginStory:3: vision_goal_unresolved',
+      '$loginStory:3: vision_goal_widened',
     ]);
   });
 
@@ -372,12 +372,12 @@ void main() {
       await writeCheckProject(without: {'docs/$projectDoc'}),
     );
     expect(spots(report, FindingKind.roleUnresolved), [
-      '$loginStory:14: role_unresolved',
+      '$loginStory:11: role_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
       '$loginFeature:3: vision_goal_unresolved',
       '$loginFeature:5: vision_goal_unresolved',
-      '$loginStory:4: vision_goal_unresolved',
+      '$loginStory:3: vision_goal_unresolved',
     ]);
   });
 
@@ -836,7 +836,6 @@ void main() {
       await writeCheckProject(
         extra: {
           '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-          ...fr('implements:\n  - app/lib/login.dart:checkPassword\n', ''),
         },
       ),
     );
@@ -956,7 +955,9 @@ void main() {
   test('f04/us03/fr04/e05: a merged set with no record doc type runs no implemented-status rule', () async {
     final report = checkOf(
       await writeCheckProject(
-        extra: fr('implements:\n  - app/lib/login.dart:checkPassword\n', ''),
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+        },
       ),
     );
     expect(spots(report, FindingKind.implementsMissing), isEmpty);
@@ -1057,10 +1058,10 @@ void main() {
     );
     expect(spots(report, FindingKind.roleUnresolved), isEmpty);
     expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$loginStory:4: vision_goal_unresolved',
+      '$loginStory:3: vision_goal_unresolved',
     ]);
     expect(spots(report, FindingKind.visionGoalWidened), [
-      '$loginStory:4: vision_goal_widened',
+      '$loginStory:3: vision_goal_widened',
     ]);
     final unresolvedReviewer = checkOf(
       await writeCheckProject(
@@ -1080,7 +1081,7 @@ void main() {
       ),
     );
     expect(spots(unresolvedReviewer, FindingKind.roleUnresolved), [
-      '$loginStory:14: role_unresolved',
+      '$loginStory:11: role_unresolved',
     ]);
   });
 
@@ -1204,24 +1205,24 @@ void main() {
 
     test('f04/us03/fr01/e09: a story of another feature is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/pay/card#S1'), [
-        '$cartAddFr:4 shop/pay/card#S1',
+        '$cartAddFr:3 shop/pay/card#S1',
       ]);
     });
 
     test('f04/us03/fr01/e10: a sibling story with no such scenario is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/cart/drop_item#S9'), [
-        '$cartAddFr:4 shop/cart/drop_item#S9',
+        '$cartAddFr:3 shop/cart/drop_item#S9',
       ]);
     });
 
     test('f04/us03/fr01/e04: a story that no doc carries is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/cart/nothing#S1'), [
-        '$cartAddFr:4 shop/cart/nothing#S1',
+        '$cartAddFr:3 shop/cart/nothing#S1',
       ]);
     });
 
     test('f04/us03/fr01/e04: a lettered scenario number is scenario_trace_unresolved', () async {
-      expect(await unresolvedWith('S6a'), ['$cartAddFr:4 S6a']);
+      expect(await unresolvedWith('S6a'), ['$cartAddFr:3 S6a']);
     });
 
     test('f04/us03/fr01/e09: two stories whose feature doc is gone are no siblings', () async {
@@ -1237,7 +1238,7 @@ void main() {
         docPath: loginFr,
       );
       expect(spots(report, FindingKind.scenarioTraceUnresolved), [
-        '$loginFr:4: scenario_trace_unresolved',
+        '$loginFr:3: scenario_trace_unresolved',
       ]);
     });
   });

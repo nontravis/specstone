@@ -2015,7 +2015,7 @@ void main() {
       final root = await writeTwinProject(
         extra: {
           ...check.edit(check.loginStory, [
-            ('status: implemented\n', 'draft: true\n'),
+            ('goals:\n', 'draft: true\ngoals:\n'),
           ]),
           'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
             'implemented',

@@ -120,7 +120,7 @@ void main() {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: edit(loginFr, [
-          ('status: implemented\n', 'status: implemented\ndraft: true\n'),
+          ('traced_from:\n', 'draft: true\ntraced_from:\n'),
           ('  - S2 ${fingerprintFor(loginScenario2)}', '  - S2 000000000000'),
         ]),
       ),

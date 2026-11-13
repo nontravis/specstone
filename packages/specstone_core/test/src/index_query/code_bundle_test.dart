@@ -21,7 +21,7 @@ void main() {
   late ReadSession session;
   late DocIndex index;
   setUpAll(() async {
-    project = await writeLoginProject();
+    project = await writeLoginProject(extra: loginRecords);
     session = openSession(project);
     addTearDown(session.close);
     index = session.index;
@@ -33,6 +33,7 @@ void main() {
     '$s/ARCHITECTURE.md',
     '$s/DOMAIN.md',
     '$s/ERROR.md',
+    '$s/IMPLEMENTATION.md',
   };
   Bundle code(String p, BundleMode m, {bool noProject = false}) =>
       pickCodeBundle(

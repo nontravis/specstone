@@ -7,6 +7,13 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+
+/// The FR with [line] added as the last frontmatter line.
+Map<String, String> _frWithKey(String line) => fr(
+  '${fingerprintFor(loginScenario2)}\n---',
+  '${fingerprintFor(loginScenario2)}\n$line\n---',
+);
 
 void main() {
   test('f04/us01/fr03/e01, f04/us01/fr03: a missing required field is reported at line 1', () async {
@@ -29,7 +36,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or demonstration',
+      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or demonstration',
     );
     expect(report.findings.single.toJson()['value'], 'maybe');
   });
@@ -44,7 +51,7 @@ void main() {
       ),
     );
     expect(spots(report, FindingKind.fieldValueMismatch), [
-      '$loginFr:4: field_value_mismatch',
+      '$loginFr:3: field_value_mismatch',
       'prds/personas/buyer/PERSONA.md:6: field_value_mismatch',
     ]);
   });
@@ -53,17 +60,15 @@ void main() {
     'f04/us01/fr03/e04: a key no layer defines is field_undeclared at its line',
     () async {
       final report = checkOf(
-        await writeCheckProject(
-          extra: fr('checkPassword\n---', 'checkPassword\npriority: high\n---'),
-        ),
+        await writeCheckProject(extra: _frWithKey('priority: high')),
       );
-      expect(spots(report), ['$loginFr:11: field_undeclared']);
+      expect(spots(report), ['$loginFr:8: field_undeclared']);
     },
   );
 
   test('f04/us01/fr03/e05, cc-s03/inv2, review focus 4: approved follows the merged set, with no F-04 change', () async {
     final project = await writeCheckProject(
-      extra: fr('checkPassword\n---', 'checkPassword\napproved: true\n---'),
+      extra: _frWithKey('approved: true'),
     );
     final session = openSession(project);
     addTearDown(session.close);
@@ -73,7 +78,7 @@ void main() {
         .any((f) => f.id == 'approved');
     expect(
       spots(runCheck(session), FindingKind.fieldUndeclared),
-      builtIn ? isEmpty : ['$loginFr:11: field_undeclared'],
+      builtIn ? isEmpty : ['$loginFr:8: field_undeclared'],
     );
   });
 
@@ -88,9 +93,7 @@ void main() {
       'consistency_check/find_template_breaks/check_frontmatter_fields $label: approved raises no field finding',
       () async {
         final report = checkOf(
-          await writeCheckProject(
-            extra: fr('checkPassword\n---', 'checkPassword\n$written\n---'),
-          ),
+          await writeCheckProject(extra: _frWithKey(written)),
         );
         expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
         expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
@@ -119,32 +122,24 @@ void main() {
     () {
       const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
 
-      Map<String, String> recordProject(
-        String recordFrontmatter, {
-        String typeId = 'implementation',
-      }) => {
-        '.specstone/templates/$typeId.yaml':
-            'id: $typeId\n'
-            'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-            'parent: feature\n'
-            'per_target: true\n'
-            'fields:\n'
-            '  - id: statuses\n'
-            '    type: record_status\n'
-            '    list: true\n'
-            '  - id: implements\n'
-            '    type: output_ref\n'
-            '    list: true\n'
-            '    pointer: item_exact\n',
+      /// The record doc with [recordFrontmatter]; the shipped pack types it.
+      Map<String, String> recordProject(String recordFrontmatter) => {
         'docs/$recordPath': '---\n$recordFrontmatter---\n\n# Login record\n',
+      };
+
+      /// The story and the FR, each writing the status the record now holds.
+      final withStatus = {
+        ...edit(loginStory, [
+          ('---\ngoals:', '---\nstatus: implemented\ngoals:'),
+        ]),
+        ...fr('---\ntraced_from:', '---\nstatus: implemented\ntraced_from:'),
       };
 
       test('f04/us01/fr03/e11: a story or FR writing status is requirement_status_written while the merged set holds the record doc type', () async {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},
-            extra: recordProject(''),
+            extra: {...recordProject(''), ...withStatus},
           ),
         );
         expect(spots(report, FindingKind.requirementStatusWritten), [
@@ -163,7 +158,14 @@ void main() {
       });
 
       test('f04/us01/fr03/e11: the same docs with no record doc type in the merged set take no finding', () async {
-        final report = checkOf(await writeCheckProject());
+        final report = checkOf(
+          await writeCheckProject(
+            extra: {
+              ...withStatus,
+              '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+            },
+          ),
+        );
         expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
       });
 
@@ -171,11 +173,7 @@ void main() {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},
-            extra: {
-              ...recordProject(''),
-              ...edit(loginStory, [('status: implemented\n', '')]),
-              ...fr('status: implemented\n', ''),
-            },
+            extra: recordProject(''),
           ),
         );
         expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
@@ -204,7 +202,21 @@ void main() {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},
-            extra: recordProject('', typeId: 'target_record'),
+            extra: {
+              ...withStatus,
+              '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+              '.specstone/templates/target_record.yaml':
+                  'id: target_record\n'
+                  'description: One feature record per target.\n'
+                  'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+                  'parent: feature\n'
+                  'per_target: true\n'
+                  'fields:\n'
+                  '  - id: statuses\n'
+                  '    type: record_status\n'
+                  '    list: true\n',
+              ...recordProject(''),
+            },
           ),
         );
         expect(spots(report, FindingKind.requirementStatusWritten), [
@@ -293,13 +305,42 @@ void main() {
     },
   );
 
+  test('f04/us01/fr03/e12: an FR that still writes implements under the shipped pack, which declares no such field on fr, is field_undeclared naming the field', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: _frWithKey('implements:\n  - app/lib/login.dart:checkPassword'),
+      ),
+    );
+    final found = report.findings
+        .where((f) => f.kind == FindingKind.fieldUndeclared)
+        .toList();
+    expect(found.map((f) => '${f.path}:${f.line}'), ['$loginFr:8']);
+    expect(found.single.toJson()['field'], 'implements');
+  });
+
+  test('f04/us01/fr03/e12: a story that still writes implements is field_undeclared the same way', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: edit(loginStory, [
+          (
+            '  - PG-01\n---',
+            '  - PG-01\nimplements:\n  - app/lib/login.dart:SignInPage\n---',
+          ),
+        ]),
+      ),
+    );
+    expect(spots(report, FindingKind.fieldUndeclared), [
+      '$loginStory:5: field_undeclared',
+    ]);
+  });
+
   test('f04/us01/fr03/e07: invalid frontmatter is frontmatter_invalid only, and its warning is not printed', () async {
     final report = checkOf(
       await writeCheckProject(
-        extra: fr('status: implemented\n', 'status: "implemented\n'),
+        extra: fr('verify_method: test\n', 'verify_method: "test\n'),
       ),
     );
-    expect(spots(report), ['$loginFr:10: frontmatter_invalid']);
+    expect(spots(report), ['$loginFr:7: frontmatter_invalid']);
     expect(report.warnings, isEmpty);
   });
 
@@ -327,11 +368,9 @@ void main() {
 
   test('f04/us01/fr03/e04: an undeclared key with an empty value is still field_undeclared', () async {
     final report = checkOf(
-      await writeCheckProject(
-        extra: fr('checkPassword\n---', 'checkPassword\npriority:\n---'),
-      ),
+      await writeCheckProject(extra: _frWithKey('priority:')),
     );
-    expect(spots(report), ['$loginFr:11: field_undeclared']);
+    expect(spots(report), ['$loginFr:8: field_undeclared']);
   });
 
   group('f04/us01/fr03/e09: a required field group', () {

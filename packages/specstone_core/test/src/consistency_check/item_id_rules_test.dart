@@ -49,7 +49,7 @@ void main() {
       found.single.path,
       'prds/features/f01_login/us01_email_login/USER_STORY.md',
     );
-    expect(found.single.line, 22);
+    expect(found.single.line, 19);
     expect(found.single.message, 'the item opens with no BR- ID');
     expect(
       found.single.toJson(),
@@ -112,8 +112,8 @@ void main() {
         kind: FindingKind.itemIdDuplicate,
       );
       expect(found, hasLength(1), reason: repeat);
-      expect(found.single.line, 32);
-      expect(found.single.message, '$repeat is already held at line 26');
+      expect(found.single.line, 29);
+      expect(found.single.message, '$repeat is already held at line 23');
       expect(
         found.single.toJson(),
         allOf(

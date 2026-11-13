@@ -10,6 +10,12 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
+import 'package:specstone_core/src/setup_migration/record_placement.dart'
+    show typeBeforeMoves;
+import 'package:specstone_core/src/templates/pack_migration.dart'
+    show MoveToRecord;
+import 'package:specstone_core/src/templates/shipped_pack_files.dart'
+    show shippedPackVersions;
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -1329,14 +1335,25 @@ void main() {
         files: {featurePath: '# Login\n', storyPath: storyText, frPath: frText},
       );
 
+      // Approved as the shipped pack stood before the step: the type still
+      // declared `implements`, a field the hash leaves out.
       String approved(String text, String docTypeId) => withApprovalHash(
         text,
-        TemplateResolver()
-            .resolveCarried(
-              packNames: const ['prd-core', 'software-tech'],
-              homeDirectory: null,
-            )
-            .lookup(docTypeId),
+        typeBeforeMoves(
+          TemplateResolver()
+              .resolveCarried(
+                packNames: const ['prd-core', 'software-tech'],
+                homeDirectory: null,
+              )
+              .lookup(docTypeId)!,
+          [
+            MoveToRecord(
+              docTypes: [docTypeId],
+              fields: const ['status', 'implements'],
+              to: 'implementation',
+            ),
+          ],
+        ),
       );
 
       String planHash(String dryOut) {
@@ -1466,6 +1483,95 @@ void main() {
         }
         expect(_head(root), before);
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(File('${root.path}/$recordPath').existsSync(), isFalse);
+      });
+    });
+
+    group('f06/us02: the shipped software-tech 1.5.0 record', () {
+      const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+
+      Future<Directory> project(String storyText) => gitFixture({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+        featurePath: '# Login\n',
+        storyPath: storyText,
+        frPath: '---\nstatus: planned\n---\n# Validate credentials\n',
+      });
+
+      test('f06/us02/s11: a 1.4.0 project moves its values into a draft '
+          'record of the shipped implementation type, with no one-time '
+          'pass', () async {
+        final h = await writeTree({});
+        final root = await project(
+          '---\nstatus: implemented\nimplements:\n'
+          '  - app/lib/login/sign_in.dart:SignIn\n---\n# Email login\n',
+        );
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(dry.out, contains('software-tech 1.4.0 -> 1.5.0'));
+        expect(
+          dry.out,
+          contains(
+            'from 1.4.0: move_to_record user_story, fr status, implements '
+            '-> implementation: 2 docs\n',
+          ),
+        );
+        expect(dry.out, isNot(contains('renumber ids:')));
+        expect(dry.out, isNot(contains('agent files:')));
+
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        final record = _read(root, recordPath);
+        expect(record, contains('draft: true'));
+        expect(record, contains("'email_login:implemented'"));
+        expect(
+          record,
+          contains("'email_login:app/lib/login/sign_in.dart:SignIn'"),
+        );
+        expect(_read(root, storyPath), isNot(contains('status:')));
+        expect(_read(root, frPath), isNot(contains('status:')));
+        final check = await _run(root, h, ['check', '--json']);
+        final kinds = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            (finding! as Map<String, Object?>)['kind'],
+        ];
+        expect(kinds, isNot(contains('field_undeclared')));
+        expect(kinds, isNot(contains('requirement_status_written')));
+      });
+
+      test('f06/us02/s13: a status no entry takes refuses the shipped run '
+          'and writes nothing', () async {
+        final h = await writeTree({});
+        final root = await project('---\nstatus: wip\n---\n# Email login\n');
+        final before = _head(root);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 65, reason: dry.err);
+        expect(
+          dry.err,
+          startsWith('${storyPath.substring('docs/'.length)}: status: '),
+        );
+        expect(_head(root), before);
         expect(File('${root.path}/$recordPath').existsSync(), isFalse);
       });
     });

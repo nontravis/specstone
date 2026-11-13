@@ -21,9 +21,9 @@ const brokenLink = ' See [x](../../../nowhere.md).';
 /// The targets are `flutter` (`flutter_ws`) and `jaspr` (`jaspr_ws`), each with
 /// a `login.dart`. `architecture` and `tech_stack` are per-target with one twin
 /// each, since a shared doc with code paths is a finding; the API doc stays
-/// shared. The feature, the API doc, and each twin hold one broken link,
-/// so each finding names its doc. A key in [extra] replaces or adds a file; a
-/// path in [without] drops one.
+/// shared, and no record is written. The feature, the API doc, and each twin
+/// hold one broken link, so each finding names its doc. A key in [extra]
+/// replaces or adds a file; a path in [without] drops one.
 Future<Directory> writeTwinProject({
   Map<String, String> extra = const {},
   Set<String> without = const {},
@@ -49,6 +49,8 @@ Future<Directory> writeTwinProject({
     without: {
       'docs/$loginArchitecture',
       'docs/$techStack',
+      // A target owns its records: the two-target project writes none here.
+      'docs/$loginRecord',
       'app/lib/login.dart',
       ...without,
     },
@@ -57,27 +59,13 @@ Future<Directory> writeTwinProject({
           '${shippedPinsConfig()}targets:\n'
           '  flutter:\n    code_root: flutter_ws\n'
           '  jaspr:\n    code_root: jaspr_ws\n',
-      '.specstone/templates/architecture.yaml':
-          'id: architecture\nper_target: true\n',
-      '.specstone/templates/implementation.yaml':
-          'id: implementation\n'
-          'description: One feature record per target.\n'
-          'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-          'parent: feature\n'
-          'per_target: true\n'
-          'fields:\n'
-          '  - id: statuses\n'
-          '    type: record_status\n'
-          '    list: true\n',
-      '.specstone/templates/tech_stack.yaml':
-          'id: tech_stack\nper_target: true\n',
+      // The shipped pack makes every spec doc type per target; the API doc
+      // stays shared here, so a layer takes it back.
+      '.specstone/templates/api.yaml': 'id: api\nper_target: false\n',
       'docs/specs/flutter/TECH_STACK.md': techTwin,
       'docs/specs/jaspr/TECH_STACK.md': techTwin,
       'docs/$flutterArchitecture': twin,
       'docs/$jasprArchitecture': twin,
-      // The record holds each item's status, so the shared docs write none.
-      ...edit(loginStory, [('status: implemented\n', '')]),
-      ...fr('status: implemented\n', ''),
       ...edit(loginApi, [
         ('Signs the Agent in.', 'Signs the Agent in.$brokenLink'),
       ]),

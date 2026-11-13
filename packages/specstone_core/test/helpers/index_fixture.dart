@@ -30,26 +30,21 @@ final loginProject = <String, String>{
       '---\nvision:\n  - PV-01\nslug:\n  - sign-in\n---\n\n# Login\n\n'
       '## Problem\nUsers sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n',
   'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
-      '---\nstatus: planned\ndraft: true\ngoals:\n'
-      '  - PG-01\npersona:\n  - buyer\nimplements:\n  - app/lib/src/login/sign_in_page.dart:SignInPage\n---\n\n'
+      '---\ndraft: true\ngoals:\n'
+      '  - PG-01\npersona:\n  - buyer\n---\n\n'
       '# Agent signs in with email\n\n## Use Case\nSign in with an email. See [password rules]'
       '(../../../references/password_rules/REFERENCE.md).\n\n## Acceptance Criteria\n'
       '- Given the system will lock the account after five failed sign-ins\n',
   'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
-      '---\nstatus: implemented\n'
-      'implements:\n  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n'
-      '# Validate credentials\n\n## Statement\nThe system shall check the email and the password. See the '
+      '---\nverify_method: test\n---\n\n# Validate credentials\n\n## Statement\nThe system shall check the email and the password. See the '
       '[story](USER_STORY.md).\n\n## Edge cases\n<!-- fill in later -->\n1. E01 — A wrong password → refused.\n',
   'docs/prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md':
-      '---\nstatus: planned\n---\n\n'
-      '# Lock after failures\n\n## Statement\nThe system shall lock the account for 15 minutes after five failed '
+      '---\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\nThe system shall lock the account for 15 minutes after five failed '
       'sign-ins.\n\n## Rationale\nN/A\n',
   'docs/prds/features/f01_login/us01_email_login/nf01_login_latency.md':
       '# Login latency\n\n## Statement\n'
       'The system shall answer a sign-in within 300 ms.\n',
-  'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md':
-      '---\nstatus: planned\n---\n\n'
-      '# Agent resets a password\n\n## Use Case\nReset it.\n',
+  'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md': '---\nslug:\n  - reset\n---\n\n# Agent resets a password\n\n## Use Case\nReset it.\n',
   'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
       '# Send a reset link\n\n'
       '## Statement\nThe system shall mail a link.\n',
@@ -64,12 +59,9 @@ final loginProject = <String, String>{
       '# Login errors\n\n## Error catalog\n- locked\n',
   'docs/prds/features/f02_signup/FEATURE.md':
       '---\nstatus: planned\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
-  'docs/prds/features/f02_signup/us01_create_account/USER_STORY.md':
-      '---\nstatus: implemented\n---\n\n'
-      '# Agent creates an account\n\n## Use Case\nCreate one.\n',
+  'docs/prds/features/f02_signup/us01_create_account/USER_STORY.md': '---\nslug:\n  - signup\n---\n\n# Agent creates an account\n\n## Use Case\nCreate one.\n',
   'docs/prds/features/f02_signup/us01_create_account/fr01_store_account.md':
-      '---\nstatus: implemented\n'
-      'implements:\n  - app/lib/src/signup/account_store.dart:AccountStore\n---\n\n# Store the account\n\n'
+      '---\nverify_method: test\n---\n\n# Store the account\n\n'
       '## Statement\nThe system shall store it.\n',
   'docs/specs/f02_signup/ARCHITECTURE.md':
       '---\ncovers:\n  - app/lib/src/signup/\n---\n\n# Sign-up architecture\n\n'
@@ -96,6 +88,26 @@ final loginProject = <String, String>{
   'app/lib/src/login/login_form.dart': '',
   'app/lib/src/signup/account_store.dart': '',
   'app/lib/src/tokens/token_store.dart': '',
+};
+
+/// The records of the two features of [loginProject]: the statuses and the
+/// code the stories and FRs held before the pack moved them into records.
+///
+/// Keys are paths relative to the project root; a test adds them as `extra`.
+const loginRecords = <String, String>{
+  'docs/specs/f01_login/IMPLEMENTATION.md':
+      "---\nstatuses:\n  - 'email_login:planned'\n"
+      "  - 'email_login/validate_credentials:implemented'\n"
+      "  - 'email_login/lock_after_failures:planned'\n"
+      "  - 'reset_password:planned'\nimplements:\n"
+      "  - 'email_login:app/lib/src/login/sign_in_page.dart:SignInPage'\n"
+      "  - 'email_login/validate_credentials:app/lib/src/login/credential_validator.dart:CredentialValidator'\n"
+      '---\n\n# Login implementation\n',
+  'docs/specs/f02_signup/IMPLEMENTATION.md':
+      "---\nstatuses:\n  - 'create_account:implemented'\n"
+      "  - 'create_account/store_account:implemented'\nimplements:\n"
+      "  - 'create_account/store_account:app/lib/src/signup/account_store.dart:AccountStore'\n"
+      '---\n\n# Sign-up implementation\n',
 };
 
 /// Writes [loginProject] under a new temp folder and returns that folder.

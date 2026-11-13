@@ -271,28 +271,38 @@ void main() {
   });
   group('feature status', () {
     const written = '---\nstatus: implemented\n---\n\n# F\n';
-    String story(String status) => '---\nstatus: $status\n---\n\n# S\n';
+    const story = '# S\n';
+    String record(List<String> statuses) =>
+        '---\nstatuses:\n${[for (final s in statuses) "  - '$s'\n"].join()}'
+        '---\n\n# Record\n';
     late DocIndex statuses;
     String? statusOf(String folder) =>
         statuses.statusOf(statuses.at('prds/features/$folder/FEATURE.md')!);
     setUpAll(
       () async => statuses = await indexWith({
+        ...loginRecords,
         'docs/prds/features/f03_empty/FEATURE.md': '# Empty\n',
         'docs/prds/features/f04_old/FEATURE.md': written,
-        'docs/prds/features/f04_old/us01_a/USER_STORY.md': story('deprecated'),
-        'docs/prds/features/f04_old/us02_b/USER_STORY.md': story('deprecated'),
+        'docs/prds/features/f04_old/us01_a/USER_STORY.md': story,
+        'docs/prds/features/f04_old/us02_b/USER_STORY.md': story,
+        'docs/specs/f04_old/IMPLEMENTATION.md': record([
+          'a:deprecated',
+          'b:deprecated',
+        ]),
         'docs/prds/features/f05_mixed/FEATURE.md': written,
-        'docs/prds/features/f05_mixed/us01_a/USER_STORY.md': story(
-          'implemented',
-        ),
-        'docs/prds/features/f05_mixed/us02_b/USER_STORY.md': story(
-          'deprecated',
-        ),
+        'docs/prds/features/f05_mixed/us01_a/USER_STORY.md': story,
+        'docs/prds/features/f05_mixed/us02_b/USER_STORY.md': story,
+        'docs/specs/f05_mixed/IMPLEMENTATION.md': record([
+          'a:implemented',
+          'b:deprecated',
+        ]),
         'docs/prds/features/f06_half/FEATURE.md': written,
-        'docs/prds/features/f06_half/us01_a/USER_STORY.md': story(
-          'implemented',
-        ),
-        'docs/prds/features/f06_half/us02_b/USER_STORY.md': story('planned'),
+        'docs/prds/features/f06_half/us01_a/USER_STORY.md': story,
+        'docs/prds/features/f06_half/us02_b/USER_STORY.md': story,
+        'docs/specs/f06_half/IMPLEMENTATION.md': record([
+          'a:implemented',
+          'b:planned',
+        ]),
       }),
     );
     test('f01/us02/fr02, f01/us02/fr02/e01, s03/inv17: a feature with no story is planned', () {
@@ -344,16 +354,11 @@ void main() {
   });
   group('nested feature status', () {
     test('f01/us02/fr02/e06, sf-c3: shop is planned while pay/refund is, and implemented once all four stories are', () async {
-      final half = await nestedIndexWith();
+      final half = await nestedIndexWith(nestedRecords());
       expect(half.statusOf(half.at(shopFeature)!), 'planned');
       expect(half.statusOf(half.at(cartFeature)!), 'implemented');
       expect(half.statusOf(half.at(payFeature)!), 'planned');
-      final done = await nestedIndexWith({
-        'docs/$payRefund': nestedFiles()['docs/$payRefund']!.replaceFirst(
-          'status: planned',
-          'status: implemented',
-        ),
-      });
+      final done = await nestedIndexWith(nestedRecords(refund: 'implemented'));
       expect(done.statusOf(done.at(shopFeature)!), 'implemented');
     });
   });

@@ -16,38 +16,16 @@ void main() {
   });
 
   for (final id in ['user_story', 'fr']) {
-    test('f03/us07/fr01, f03/us07/fr02/e09, f03/us07/fr03/e02: the $id layer '
-        'writes the implements field and nothing else', () {
-      final layer = shippedLayer(id, pack: 'software-tech');
-      expect(layer.id, isNull);
-      expect(layer.description, isNull);
-      expect(layer.path, isNull);
-      expect(layer.writesParent, isFalse);
-      expect(layer.extendsId, isNull);
-      expect(layer.sections, isEmpty);
-      expect(layer.lint, isNull);
-      expect(layer.reference, isNull);
-      expect(layer.fields.map((f) => f.id), ['implements']);
-    });
-
     test(
-      'f03/us07/s4, f03/us07/fr01, f03/us07/fr01/e07: with software-tech, '
-      '$id adds one optional exact implements list after the prd-core fields',
+      'f03/us07/s4, f03/us07/fr01/e08: with software-tech, $id adds no field '
+      'to the prd-core fields, so it carries no code pointer',
       () {
         final merged = prdCoreDocType(both, id);
         final base = prdCoreDocType(prdOnly, id);
-        expect(merged.fields.map((f) => f.id), [
-          ...base.fields.map((f) => f.id),
-          'implements',
-        ]);
-        final implements = fieldOf(merged, 'implements');
-        expect(implements.type, FieldType.outputRef);
-        expect(implements.list, isTrue);
-        expect(implements.required, isFalse);
-        expect(implements.pointer, PointerKind.exact);
+        expect(merged.fields.map((f) => f.id), base.fields.map((f) => f.id));
         expect(
-          implements.description,
-          allOf(contains('`path[:Symbol]`'), contains('code root')),
+          merged.fields.where((f) => f.type == FieldType.outputRef),
+          isEmpty,
         );
       },
     );
@@ -70,7 +48,7 @@ void main() {
         [for (final r in base.reference ?? <ReferenceEntry>[]) r.toJson()],
       );
       expect(merged.pack, 'prd-core');
-      expect(merged.files, [...base.files, 'packs/software-tech/$id.yaml']);
+      expect(merged.files, base.files);
     });
   }
 
@@ -98,8 +76,6 @@ void main() {
       unorderedEquals([
         'software-tech/pack.yaml',
         for (final id in softwareTechIds) 'software-tech/$id.yaml',
-        'software-tech/user_story.yaml',
-        'software-tech/fr.yaml',
       ]),
     );
     expect(

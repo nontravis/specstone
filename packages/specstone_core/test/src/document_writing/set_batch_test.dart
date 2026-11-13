@@ -635,18 +635,20 @@ void main() {
         ('no final newline', (String text) => text.trimRight()),
       ]) {
         test(shape, () async {
-          final original = ending(writeProject['docs/$fr11']!);
-          final root = await writeWriteProject(extra: {'docs/$fr11': original});
+          final original = ending(writeProject['docs/$loginArch']!);
+          final root = await writeWriteProject(
+            extra: {'docs/$loginArch': original},
+          );
           final text = edit(
-            getText(root, [fr11]),
-            'CredentialValidator',
-            'CredentialChecker',
+            getText(root, [loginArch]),
+            'app/lib/src/login/',
+            'app/lib/src/signin/',
           );
 
           final answer = runBatch(root, text);
 
-          final written = readDoc(root, fr11);
-          expect(written, contains('CredentialChecker'));
+          final written = readDoc(root, loginArch);
+          expect(written, contains('app/lib/src/signin/'));
           expect(written, isNot(contains('draft:')));
           expect(
             RegExp('approved: "[0-9a-f]{12}"').firstMatch(written)!.group(0),
@@ -662,18 +664,18 @@ void main() {
     '$_wb INV-4: a whole-doc block that changes the text before the title as well as an output_ref field marks an approved doc draft',
     () async {
       final root = await writeWriteProject();
-      var text = getText(root, [fr11]);
-      text = edit(text, 'CredentialValidator', 'CredentialChecker');
+      var text = getText(root, [loginArch]);
+      text = edit(text, 'app/lib/src/login/', 'app/lib/src/signin/');
       text = edit(
         text,
-        '# Validate credentials\n',
-        'Preface text.\n\n# Validate credentials\n',
+        '# Login architecture\n',
+        'Preface text.\n\n# Login architecture\n',
       );
 
       final answer = runBatch(root, text);
 
-      expect(readDoc(root, fr11), contains('Preface text.'));
-      expect(readDoc(root, fr11), contains('draft: true\n'));
+      expect(readDoc(root, loginArch), contains('Preface text.'));
+      expect(readDoc(root, loginArch), contains('draft: true\n'));
       expect(answer.json['blocks'], [containsPair('draft', true)]);
     },
   );
@@ -1281,15 +1283,15 @@ void main() {
     () async {
       final root = await writeWriteProject();
       final text = edit(
-        getText(root, [fr11]),
-        'credential_validator.dart:CredentialValidator',
-        'credential_validator.dart:CredentialChecker',
+        getText(root, [loginArch]),
+        'app/lib/src/login/',
+        'app/lib/src/signin/',
       );
 
       final answer = runBatch(root, text);
 
-      expect(readDoc(root, fr11), isNot(contains('draft:')));
-      expect(readDoc(root, fr11), contains('CredentialChecker'));
+      expect(readDoc(root, loginArch), isNot(contains('draft:')));
+      expect(readDoc(root, loginArch), contains('app/lib/src/signin/'));
       expect(answer.json['blocks'], [containsPair('draft', false)]);
       expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
     },
@@ -1300,15 +1302,15 @@ void main() {
     () async {
       final root = await writeWriteProject();
       var text = edit(
-        getText(root, [fr11]),
-        'CredentialValidator',
-        'CredentialChecker',
+        getText(root, [loginArch]),
+        'app/lib/src/login/',
+        'app/lib/src/signin/',
       );
-      text = edit(text, 'check the email', 'check the email twice, then');
+      text = edit(text, 'Collects the email', 'Collects the email twice');
 
       runBatch(root, text);
 
-      expect(readDoc(root, fr11), contains('draft: true\n'));
+      expect(readDoc(root, loginArch), contains('draft: true\n'));
     },
   );
 

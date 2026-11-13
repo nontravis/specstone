@@ -376,7 +376,12 @@ void main() {
       'f10/us03/s2, f10/us03/fr01/e02: with no record doc type each step '
       'prints its FRs and - none, whatever the docs hold in implements',
       () async {
-        final answer = await _code([_step('1', 1)]);
+        final answer = await _code(
+          [_step('1', 1)],
+          extra: {
+            '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          },
+        );
 
         expect(
           answer.text,

@@ -3,11 +3,12 @@ description: |-
   The error taxonomy of one feature: its codes, how a client acts on each, and when a call retries.
   Title it `# <Feature name> errors`, such as `# Rendering errors`, with no number.
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
-  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Put no stack trace or internals in any error body.
   Write one rule per ID: one catalog row per code, each rule one sentence.
 path: specs/f{nn}_{slug}/ERROR.md
 parent: feature
+per_target: true
 sections:
   - id: error_envelope
     header: Error envelope

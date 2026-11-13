@@ -66,7 +66,7 @@ void main() {
       'goals:\n  - PG-01\npersona:\n  - buyer\n',
     );
     final report = checkOf(await writeCheckProject(extra: story));
-    expect(spots(report), ['$loginStory:7: doc_ref_unresolved']);
+    expect(spots(report), ['$loginStory:6: doc_ref_unresolved']);
     expect(
       report.findings.single.toJson(),
       allOf(containsPair('field', 'persona'), containsPair('value', 'buyer')),

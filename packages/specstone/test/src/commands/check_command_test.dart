@@ -44,7 +44,7 @@ void main() {
     expect(await runner.run(['check']), 1);
     expect(
       out.toString(),
-      '$loginFr:6: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
+      '$loginFr:5: field_value_mismatch: verify_method is maybe; it takes test, analysis, inspection, or '
       'demonstration\n1 finding\n',
     );
   });
@@ -116,7 +116,7 @@ void main() {
       'kind': 'field_value_mismatch',
       'docPath': loginFr,
       'name': 'login/email_login/check_password',
-      'line': 6,
+      'line': 5,
       'message': 'verify_method is maybe; it takes test, analysis, inspection, or demonstration',
       'waitsFor': 'agent',
       'field': 'verify_method',
@@ -172,7 +172,7 @@ void main() {
       expect(lines.last, '2 findings');
       final tagged = lines.where((l) => l.endsWith(' (waits for the Owner)'));
       expect(tagged, hasLength(1));
-      expect(tagged.single, startsWith('$loginStory:3: approval_stale: '));
+      expect(tagged.single, startsWith('$loginStory:2: approval_stale: '));
     });
   });
 
@@ -270,7 +270,7 @@ void main() {
       expect(await runner.run(['check']), 1);
       expect(
         out.toString(),
-        '$loginFr:8: suspect: S2 changed after it was confirmed, recorded ${fingerprintFor(loginScenario2)}; '
+        '$loginFr:7: suspect: S2 changed after it was confirmed, recorded ${fingerprintFor(loginScenario2)}; '
         'read Scenario 2 of $loginStory below, then record S2 with the fingerprint after it\n'
         '${block.split('\n').map((l) => '    $l\n').join()}'
         '    fingerprint $fingerprint\n'
@@ -502,7 +502,7 @@ void main() {
     expect(await stale.runner.run(['check']), 1);
     expect(
       stale.out.toString(),
-      "$loginStory:3: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve (waits for the Owner)\n"
+      "$loginStory:2: approval_stale: the doc changed since the Owner approved it; it waits for the Owner's specstone approve (waits for the Owner)\n"
       '$loginApi:1: format_drift: the file differs from what `specstone format` writes; run '
       '`specstone format docs/$loginApi`\n'
       '2 findings\n',

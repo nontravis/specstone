@@ -277,6 +277,7 @@ void main() {
     final report = checkOf(
       await writeCheckProject(
         extra: {
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
           'docs/$_recordPath': _record(
             statuses: ['ghost:skipped', ':implemented'],
             code: ['ghost:lib/a.dart'],

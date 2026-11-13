@@ -572,9 +572,10 @@ AgentWritePlan _agentFilesOf(
   );
 }
 
-/// Whether [upgrades] move a prd-core or software-tech pin up from below the
-/// version this binary carries: the one trigger of every one-time pass
-/// (apply_steps_and_pins E14, E18); group 3's D18 pass reads it too (R54).
+/// Whether [upgrades] move a prd-core or software-tech pin up from below its
+/// fixed `agentFilesSince` version, not the version this binary carries: the
+/// one trigger of every one-time pass (apply_steps_and_pins E14, E18, E39);
+/// group 3's D18 pass reads it too (R54).
 bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
   final since = agentFilesSince[upgrade.pack];
   return since != null && upgrade.pin.compareTo(since) < 0;

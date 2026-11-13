@@ -17,9 +17,14 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart'
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show agentFilesSince;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/record_placement.dart'
+    show typeBeforeMoves;
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pack_migration.dart'
+    show MoveToRecord;
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
@@ -117,11 +122,19 @@ void main() {
   _moveToRecordTests();
   _planInputTests();
 
-  test('agentFilesSince matches the shipped versions of its packs', () {
+  test('agentFilesSince stays at the fixed versions, none past a shipped '
+      'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
     final shipped = shippedPackVersions();
     for (final entry in agentFilesSince.entries) {
-      expect(shipped[entry.key], entry.value.toString());
+      final carried = PackVersion.parse(
+        shipped[entry.key]!,
+        file: 'shipped_pack_files',
+        key: entry.key,
+      );
+      expect(carried.compareTo(entry.value), greaterThanOrEqualTo(0));
     }
+    expect(agentFilesSince['software-tech'].toString(), '1.4.0');
+    expect(shipped['software-tech'], '1.5.0');
   });
 
   test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
@@ -1019,7 +1032,7 @@ void _agentFilesTests() {
         '.specstone/AGENT.md',
         'CLAUDE.md',
       ]);
-      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.4.0'));
+      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.5.0'));
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
@@ -2087,15 +2100,26 @@ MigrateFault _refusedPlan(({Directory project, Directory home}) fixture) {
 Map<String, Object?> _valuesOf(String text) =>
     frontmatterValuesOf(Doc.parse(text));
 
-/// [lf] stamped with the approval hash it has under the shipped packs.
+/// [lf] stamped with the approval hash it has under the shipped packs as
+/// they stood before the `move_to_record` step: the type still declared
+/// `implements`, a field the hash leaves out.
 String _approvedUnderShipped(String lf, String docTypeId) => withApprovalHash(
   lf,
-  TemplateResolver()
-      .resolveCarried(
-        packNames: const ['prd-core', 'software-tech'],
-        homeDirectory: null,
-      )
-      .lookup(docTypeId),
+  typeBeforeMoves(
+    TemplateResolver()
+        .resolveCarried(
+          packNames: const ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        )
+        .lookup(docTypeId)!,
+    [
+      MoveToRecord(
+        docTypes: [docTypeId],
+        fields: const ['status', 'implements'],
+        to: 'implementation',
+      ),
+    ],
+  ),
 );
 
 /// The doc type [docTypeId] of the fixture's packs at their available versions.
@@ -2386,7 +2410,6 @@ void _moveToRecordTests() {
 
     test('$_fr E38: the hash before the run counts the code field the final '
         'type no longer declares, so the doc stays approved', () async {
-      const dropped = 'fields:\n  - {id: implements, disabled: true}\n';
       final fixture = await _recordFixture(
         docs: {
           _featurePath: '# Login\n',
@@ -2394,10 +2417,6 @@ void _moveToRecordTests() {
             _implementedStory,
             'user_story',
           ),
-        },
-        packFiles: {
-          '.specstone/packs/acme/user_story.yaml': dropped,
-          '.specstone/packs/acme/fr.yaml': dropped,
         },
       );
       expect(
@@ -2437,6 +2456,90 @@ void _moveToRecordTests() {
       expect(_valuesOf(plan.creates.single.text)['statuses'], [
         'email_login:implemented',
       ]);
+    });
+
+    group('$_fr, the shipped software-tech 1.5.0 pack', () {
+      Future<Directory> shippedProject({
+        Map<String, String> extra = const {},
+      }) => writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        for (final MapEntry(:key, :value) in _loginDocs.entries)
+          'docs/$key': value,
+        ...extra,
+      });
+
+      test(
+        'E39: the move from 1.4.0 to 1.5.0 runs no one-time pass, the '
+        'move_to_record step alone beside the passes every upgrade runs',
+        () async {
+          final project = await shippedProject(
+            extra: {'CLAUDE.md': '# Owner rules\n'},
+          );
+
+          final plan = _planAt(project);
+
+          final text = plan.toText();
+          expect(text, contains('software-tech 1.4.0 -> 1.5.0'));
+          expect(
+            text,
+            contains(
+              '  from 1.4.0: move_to_record user_story, fr status, implements '
+              '-> implementation: 2 docs\n',
+            ),
+          );
+          expect(text, isNot(contains('renumber ids:')));
+          expect(text, isNot(contains('number labels:')));
+          expect(text, isNot(contains('agent files:')));
+          expect(plan.agentFiles!.rootWrites, isEmpty);
+          expect(plan.agentFiles!.topWrites, isEmpty);
+        },
+      );
+
+      test(
+        'E33, S11, S13: a story and an FR move their status and code '
+        'paths into a new draft record of the shipped implementation type',
+        () async {
+          final plan = _planAt(await shippedProject());
+
+          final record = plan.creates.singleWhere(
+            (create) => create.path == 'docs/$_recordPath',
+          );
+          expect(record.note, ' (draft)');
+          expect(_valuesOf(record.text), {
+            'draft': true,
+            'statuses': [
+              'email_login:implemented',
+              'email_login/validate_credentials:planned',
+            ],
+            'implements': ['email_login:app/lib/login/sign_in.dart:SignIn'],
+          });
+          for (final path in [_loginStoryPath, _loginFrPath]) {
+            final text = _rewriteAt(plan, 'docs/$path').text;
+            expect(text, isNot(contains('status:')));
+            expect(text, isNot(contains('implements:')));
+          }
+          expect(
+            plan.toText(),
+            contains('commit 2, creates:\n  $_recordPath (draft)\n'),
+          );
+        },
+      );
+
+      test('E36: no override is written, since the shipped record path '
+          'already lies in its feature folder', () async {
+        final plan = _planAt(await shippedProject());
+
+        expect(
+          plan.creates.map((create) => create.path),
+          isNot(contains(_overrideFile)),
+        );
+        expect(
+          plan.rewrites.map((rewrite) => rewrite.path),
+          isNot(contains(_overrideFile)),
+        );
+      });
     });
 
     test('$_fr E39: a pack that is no one-time trigger runs no one-time '

@@ -63,8 +63,7 @@ final Map<String, String> _plainProject = <String, String>{
       '## Use Case\n\nSign in with an email.\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n\n'
       '- **Given** a registered email\n',
   'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
-      '---\nstatus: implemented\ntraced_from: US-01\nverify_method: test\nimplements:\n'
-      '  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n# Validate credentials\n\n'
+      '---\ntraced_from: US-01\nverify_method: test\n---\n\n# Validate credentials\n\n'
       '## Statement\n\nThe system shall check the email and the password.\n',
   'docs/prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md':
       '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n'

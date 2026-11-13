@@ -4,10 +4,11 @@ description: |-
   Title it `# <Feature name> auth`, such as `# Rendering auth`, with no number.
   Write this doc only when the feature has access rules.
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
-  Never write `status:`; whether code exists lives on the story and FR `status` and their `implements` entries only.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Write one rule per ID: one matrix row per resource and operation, each rule one sentence.
 path: specs/f{nn}_{slug}/AUTH.md
 parent: feature
+per_target: true
 sections:
   - id: roles
     header: Roles

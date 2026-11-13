@@ -26,8 +26,7 @@ const _storyKey = 'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
 String _padded(String start, int length) => start.padRight(length, '.');
 
 final _e09Fr =
-    '---\nstatus: implemented\ntraced_from:\n  - S1\n  - S2\n'
-    'implements:\n  - app/lib/src/login/credential_validator.dart:CredentialValidator\n---\n\n'
+    '---\ntraced_from:\n  - S1\n  - S2\n---\n\n'
     '# Validate credentials\n\n## Statement\n'
     '${_padded('The system shall check the email and the password.', 165)}\n\n'
     '## Edge cases\n${_padded('1. E01 — A wrong password → refused', 106)}\n'
@@ -48,7 +47,7 @@ List<Map<String, Object?>> _jsonSections(DocIndex index, String target) =>
 
 void main() {
   late DocIndex index;
-  setUpAll(() async => index = await indexWith());
+  setUpAll(() async => index = await indexWith(loginRecords));
   int tokensOf(String key) => tokenSizeOf(loginProject[key]!);
 
   test('f01/us02/s1, f01/us02/fr01/e01: the whole tree, tops in tree order, children two spaces deeper', () async {
@@ -85,7 +84,7 @@ void main() {
       index,
       target: 'login',
     ).text.trim().split('\n');
-    expect(lines, hasLength(11));
+    expect(lines, hasLength(12));
     expect(lines.first, startsWith('login (feature)'));
   });
   test(
@@ -195,14 +194,16 @@ void main() {
 
   group('index_query/view_docs_tree/print_docs_tree', () {
     late DocIndex e09;
-    setUpAll(() async => e09 = await indexWith({_frKey: _e09Fr}));
+    setUpAll(
+      () async => e09 = await indexWith({...loginRecords, _frKey: _e09Fr}),
+    );
 
     test('E09: a typed doc target prints each section and item with its characters', () async {
       expect(
         answerStructure(e09, target: _frTarget).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_e09Fr)} tokens\n'
         '  statement · 179 chars\n'
-        '    line 14 · 165 chars\n'
+        '    line 11 · 165 chars\n'
         '  edge_cases · 243 chars\n'
         '    E01 · 106 chars\n'
         '    E02 · 121 chars\n',
@@ -231,15 +232,15 @@ void main() {
             'key': 'statement',
             'chars': 179,
             'items': [
-              {'line': 14, 'chars': 165},
+              {'line': 11, 'chars': 165},
             ],
           },
           {
             'key': 'edge_cases',
             'chars': 243,
             'items': [
-              {'id': 'E01', 'line': 18, 'chars': 106},
-              {'id': 'E02', 'line': 19, 'chars': 121},
+              {'id': 'E01', 'line': 15, 'chars': 106},
+              {'id': 'E02', 'line': 16, 'chars': 121},
             ],
           },
         ]);
@@ -247,14 +248,14 @@ void main() {
     );
 
     test('E11: a lead prints first as _lead with its items, as text', () async {
-      final index = await indexWith({_frKey: _leadFr});
+      final index = await indexWith({...loginRecords, _frKey: _leadFr});
       expect(
         answerStructure(index, target: _frTarget).text,
         'login/email_login/validate_credentials (fr) — Validate credentials · implemented · ${tokenSizeOf(_leadFr)} tokens\n'
         '  _lead · 681 chars\n'
-        '    line 12 · 681 chars\n'
+        '    line 9 · 681 chars\n'
         '  statement · 179 chars\n'
-        '    line 16 · 165 chars\n'
+        '    line 13 · 165 chars\n'
         '  edge_cases · 243 chars\n'
         '    E01 · 106 chars\n'
         '    E02 · 121 chars\n',
@@ -264,14 +265,14 @@ void main() {
     test(
       'E11: a lead gives the first sections entry key _lead under --json',
       () async {
-        final index = await indexWith({_frKey: _leadFr});
+        final index = await indexWith({...loginRecords, _frKey: _leadFr});
         final sections = _jsonSections(index, _frTarget);
 
         expect(sections.first, {
           'key': '_lead',
           'chars': 681,
           'items': [
-            {'line': 12, 'chars': 681},
+            {'line': 9, 'chars': 681},
           ],
         });
         expect(
@@ -299,7 +300,7 @@ void main() {
         '# Validate credentials\n\n',
         '# Validate credentials\n\n   \n\n',
       );
-      final index = await indexWith({_frKey: blank});
+      final index = await indexWith({...loginRecords, _frKey: blank});
 
       expect(
         answerStructure(index, target: _frTarget).text,
@@ -311,29 +312,29 @@ void main() {
       'E11: a doc with no title line takes its whole head as the lead',
       () async {
         final untitled = _leadFr.replaceFirst('# Validate credentials\n\n', '');
-        final index = await indexWith({_frKey: untitled});
+        final index = await indexWith({...loginRecords, _frKey: untitled});
 
         expect(_jsonSections(index, _frTarget), [
           {
             'key': '_lead',
             'chars': 681,
             'items': [
-              {'line': 10, 'chars': 681},
+              {'line': 7, 'chars': 681},
             ],
           },
           {
             'key': 'statement',
             'chars': 179,
             'items': [
-              {'line': 14, 'chars': 165},
+              {'line': 11, 'chars': 165},
             ],
           },
           {
             'key': 'edge_cases',
             'chars': 243,
             'items': [
-              {'id': 'E01', 'line': 18, 'chars': 106},
-              {'id': 'E02', 'line': 19, 'chars': 121},
+              {'id': 'E01', 'line': 15, 'chars': 106},
+              {'id': 'E02', 'line': 16, 'chars': 121},
             ],
           },
         ]);
@@ -347,22 +348,22 @@ void main() {
         '${_padded('2. E02 — An unknown email → refused', 121)}\n\n'
         '## Statement\n${_padded('The system shall check the email and the password.', 165)}\n',
       );
-      final index = await indexWith({_frKey: shuffled});
+      final index = await indexWith({...loginRecords, _frKey: shuffled});
 
       expect(_jsonSections(index, _frTarget), [
         {
           'key': 'edge_cases',
           'chars': 243,
           'items': [
-            {'id': 'E01', 'line': 18, 'chars': 106},
-            {'id': 'E02', 'line': 19, 'chars': 121},
+            {'id': 'E01', 'line': 15, 'chars': 106},
+            {'id': 'E02', 'line': 16, 'chars': 121},
           ],
         },
         {
           'key': 'statement',
           'chars': 179,
           'items': [
-            {'line': 14, 'chars': 165},
+            {'line': 11, 'chars': 165},
           ],
         },
       ]);
@@ -373,29 +374,29 @@ void main() {
         '## Edge cases',
         '## Statement\nsecond\n\n## Edge cases',
       );
-      final index = await indexWith({_frKey: repeated});
+      final index = await indexWith({...loginRecords, _frKey: repeated});
 
       expect(_jsonSections(index, _frTarget), [
         {
           'key': 'statement',
           'chars': 178,
           'items': [
-            {'line': 13, 'chars': 165},
+            {'line': 10, 'chars': 165},
           ],
         },
         {
           'key': 'statement',
           'chars': 19,
           'items': [
-            {'line': 16, 'chars': 6},
+            {'line': 13, 'chars': 6},
           ],
         },
         {
           'key': 'edge_cases',
           'chars': 242,
           'items': [
-            {'id': 'E01', 'line': 19, 'chars': 106},
-            {'id': 'E02', 'line': 20, 'chars': 121},
+            {'id': 'E01', 'line': 16, 'chars': 106},
+            {'id': 'E02', 'line': 17, 'chars': 121},
           ],
         },
       ]);
@@ -403,11 +404,11 @@ void main() {
 
     test('E09: a lettered item ID prints as a line, never as an ID', () async {
       final lettered = _e09Fr.replaceFirst('2. E02 —', '2. E02a —');
-      final index = await indexWith({_frKey: lettered});
+      final index = await indexWith({...loginRecords, _frKey: lettered});
       final lines = answerStructure(index, target: _frTarget).text.split('\n');
 
       expect(lines, contains('    E01 · 106 chars'));
-      expect(lines, contains(matches(RegExp(r'^    line 19 · \d+ chars$'))));
+      expect(lines, contains(matches(RegExp(r'^    line 16 · \d+ chars$'))));
       expect(lines.where((l) => l.contains('E02a')), isEmpty);
     });
 
@@ -434,7 +435,7 @@ void main() {
       expect(lines.where((l) => l.contains('(user_story)')), hasLength(2));
       expect(
         lines.where((l) => l.contains(' (') && l.contains(' tokens')),
-        hasLength(11),
+        hasLength(12),
       );
     });
 

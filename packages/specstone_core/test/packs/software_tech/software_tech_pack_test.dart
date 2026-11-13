@@ -16,7 +16,7 @@ import '../../helpers/temp_tree.dart';
 void main() {
   group('software-tech manifest', () {
     test(
-      'f03/us07/fr01: software-tech ships at 1.4.0 and extends prd-core',
+      'f03/us07/fr01: software-tech ships at 1.5.0 and extends prd-core',
       () {
         final bytes = shippedPackFiles['software-tech/pack.yaml'];
         expect(bytes, isNotNull);
@@ -25,7 +25,7 @@ void main() {
           file: 'packs/software-tech/pack.yaml',
         );
         expect(manifest.name, 'software-tech');
-        expect(manifest.version.toString(), '1.4.0');
+        expect(manifest.version.toString(), '1.5.0');
         expect(manifest.extendsPack, 'prd-core');
       },
     );
@@ -66,7 +66,7 @@ void main() {
       set = await resolveSoftwareTech();
     });
 
-    test('f03/us07/fr01/e01: the set holds the eleven prd-core and the eight '
+    test('f03/us07/fr01/e01: the set holds the eleven prd-core and the nine '
         'software-tech doc types', () {
       expect(
         set.docTypes.map((d) => d.id).toList(),
@@ -80,7 +80,7 @@ void main() {
       }
     });
 
-    test('f03/us07/fr01: every spec doc path starts specs/, and the six '
+    test('f03/us07/fr01: every spec doc path starts specs/, and the seven '
         'per-feature doc types take parent feature', () {
       const perFeature = <String, String>{
         'architecture': 'ARCHITECTURE',
@@ -89,6 +89,7 @@ void main() {
         'integration': 'INTEGRATION',
         'error': 'ERROR',
         'auth': 'AUTH',
+        'implementation': 'IMPLEMENTATION',
       };
       for (final MapEntry(:key, :value) in perFeature.entries) {
         final docType = prdCoreDocType(set, key);
@@ -197,18 +198,17 @@ void main() {
 
       expect(codePathFields.map((e) => '${e.$1}.${e.$2.id}'), [
         'architecture.covers',
-        'fr.implements',
+        'implementation.implements',
         'tech_stack.code',
         'topic.covers',
-        'user_story.implements',
       ]);
       for (final (docTypeId, field) in codePathFields) {
         expect(
           field.description,
           allOf(
             contains(
-              'relative to the code root (`code_root` in '
-              '`.specstone/config.yaml`, else the project root)',
+              "relative to the code root of the doc's target "
+              '(`.specstone/config.yaml`, else the project root)',
             ),
             isNot(contains('relative to the project root')),
           ),

@@ -340,7 +340,11 @@ void main() {
     expect(bases['title'], 'ff5b5994d060');
     expect((bases['sections']! as Map)['acceptance_criteria'], '6d6a67fa9a00');
     expect((bases['sections']! as Map)['rules'], emptyBaseHash);
-    expect((bases['fields']! as Map)['status'], 'e721f319d794');
+    expect((bases['fields']! as Map)['status'], emptyBaseHash);
+    expect(
+      (bases['fields']! as Map)['goals'],
+      baseHashOf('goals:\n  - PG-01\n'),
+    );
     expect((bases['fields']! as Map)['approved'], emptyBaseHash);
     expect((bases['sections']! as Map).keys, [
       'use_case',
@@ -357,7 +361,6 @@ void main() {
       'vision',
       'goals',
       'persona',
-      'implements',
     ]);
     expect(story.containsKey('base'), isFalse);
     final untyped =

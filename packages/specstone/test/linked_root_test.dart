@@ -59,22 +59,6 @@ void main() {
     final project = await writeCheckProject(
       extra: {
         '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
-        '.specstone/templates/implementation.yaml':
-            'id: implementation\n'
-            'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-            'parent: feature\n'
-            'per_target: true\n'
-            'fields:\n'
-            '  - id: statuses\n'
-            '    type: record_status\n'
-            '    list: true\n'
-            '  - id: implements\n'
-            '    type: output_ref\n'
-            '    list: true\n'
-            '    pointer: item_exact\n',
-        ...edit(loginStory, [('status: implemented\n', '')]),
-        ...fr('status: implemented\n', ''),
         'docs/$_record':
             "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
             "implements:\n  - 'email_login/check_password:lib/a.dart'\n"

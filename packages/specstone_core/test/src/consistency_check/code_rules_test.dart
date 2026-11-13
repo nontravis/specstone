@@ -45,8 +45,10 @@ String _tech(List<String> roots) => doc(
 /// Returns the login story and FR as written by a project that has not
 /// implemented either.
 Map<String, String> _planned() => {
-  ...edit(loginStory, [('status: implemented\n', 'status: planned\n')]),
-  ...edit(loginFr, [('status: implemented\n', 'status: planned\n')]),
+  'docs/$loginRecord': _record([
+    'email_login:planned',
+    'email_login/check_password:planned',
+  ]),
 };
 
 /// Writes the two-target project with one `tech_stack` doc per target.
@@ -56,8 +58,9 @@ Future<Directory> _twin({
 }) => writeTwinProject(
   without: {'docs/$techStack', ...without},
   extra: {
-    '.specstone/templates/tech_stack.yaml':
-        'id: tech_stack\nper_target: true\n',
+    // The shared topic of the shared-doc tests: a layer takes it back from
+    // the shipped per-target pack.
+    '.specstone/templates/topic.yaml': 'id: topic\nper_target: false\n',
     'docs/$_flutterTech': _tech(['app/lib/']),
     'docs/$_jasprTech': _tech(['app/lib/']),
     ...extra,
@@ -308,7 +311,10 @@ void main() {
       final done = checkOf(
         await writeCheckProject(
           extra: {
-            ...edit(loginFr, [('status: implemented\n', 'status: planned\n')]),
+            'docs/$loginRecord': _record([
+              'email_login:implemented',
+              'email_login/check_password:planned',
+            ]),
             ...narrow('app/lib/login/'),
           },
         ),
@@ -329,6 +335,9 @@ void main() {
             'docs/prds/features/f02_shop/us01_email_login/USER_STORY.md':
                 checkProjectFiles()['docs/$loginStory']!,
             'docs/specs/f02_shop/ARCHITECTURE.md': _arch('app/lib/shop/'),
+            'docs/specs/f02_shop/IMPLEMENTATION.md': _record([
+              'email_login:implemented',
+            ]),
           },
         ),
       );
@@ -347,6 +356,9 @@ void main() {
                 checkProjectFiles()['docs/$loginFeature']!,
             'docs/prds/features/f01_login/f01_remember/us01_remember_me/USER_STORY.md':
                 checkProjectFiles()['docs/$loginStory']!,
+            'docs/specs/f01_login/f01_remember/IMPLEMENTATION.md': _record([
+              'remember_me:implemented',
+            ]),
           },
         ),
       );
