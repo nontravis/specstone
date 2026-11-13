@@ -19,6 +19,7 @@ import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/record_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
+import 'package:specstone_core/src/consistency_check/shape_count_rules.dart';
 import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
@@ -81,6 +82,7 @@ CheckReport runCheck(
       ..addAll(staleApproval(context, doc))
       ..addAll(checkNesting(context, doc))
       ..addAll(checkSections(context, doc))
+      ..addAll(checkShapeCounts(context, doc))
       ..addAll(checkFormatDrift(context, doc))
       ..addAll(checkBannedWords(context, doc))
       ..addAll(checkPatterns(context, doc))

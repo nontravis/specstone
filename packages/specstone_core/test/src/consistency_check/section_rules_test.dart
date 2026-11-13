@@ -641,4 +641,53 @@ void main() {
       );
     });
   });
+
+  group('title_no_number', () {
+    const layer = '.specstone/templates/fr.yaml';
+    int lineOf(Directory project, String docPath, String text) =>
+        File('${project.path}/docs/$docPath')
+            .readAsLinesSync()
+            .indexWhere((line) => line == text) +
+        1;
+    final numbered = fr('# Check the password', '# Check 2 passwords');
+
+    test(
+      'a title holding a digit is title_numbered at the title line',
+      () async {
+        final project = await writeCheckProject(
+          extra: {layer: 'lint:\n  title_no_number: true\n', ...numbered},
+        );
+        final found = checkOf(project).findings
+            .where((f) => f.kind == FindingKind.titleNumbered)
+            .toList();
+        expect(found, hasLength(1));
+        expect(
+          found.single.line,
+          lineOf(project, loginFr, '# Check 2 passwords'),
+        );
+        expect(found.single.waitsFor, WaitsFor.agent);
+      },
+    );
+
+    test(
+      'the same title in a doc type without the key has no finding',
+      () async {
+        final project = await writeCheckProject(extra: numbered);
+        expect(
+          checkOf(project).findings.map((f) => f.kind),
+          isNot(contains(FindingKind.titleNumbered)),
+        );
+      },
+    );
+
+    test('a title with no digit has no finding under the key', () async {
+      final project = await writeCheckProject(
+        extra: {layer: 'lint:\n  title_no_number: true\n'},
+      );
+      expect(
+        checkOf(project).findings.map((f) => f.kind),
+        isNot(contains(FindingKind.titleNumbered)),
+      );
+    });
+  });
 }
