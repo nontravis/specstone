@@ -6,6 +6,8 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 void main() {
   late DocIndex index;
@@ -168,6 +170,64 @@ void main() {
     expect(
       ((answer.json['hits']! as List).single as Map)['snippet'],
       'alpha beta\ngamma delta\n',
+    );
+  });
+
+  test('s03/inv26, api:index_query operations: --under with --target stays in that target, an unknown name is argument_invalid', () async {
+    const feature = 'prds/features/f01_toast/FEATURE.md';
+    const flutterArch = 'specs/flutter/f01_toast/ARCHITECTURE.md';
+    const jasprArch = 'specs/jaspr/f01_toast/ARCHITECTURE.md';
+    final session = openSession(
+      await writeTree({
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/$feature': '# Toast\n\n## Problem\nWarm toast.\n',
+        'docs/$flutterArch': '# Toast architecture\n\n## Purpose\n.\n',
+        'docs/$jasprArch': '# Toast architecture\n\n## Purpose\n.\n',
+      }),
+    );
+    addTearDown(session.close);
+    final scoped = answerSearch(
+      session.index,
+      'Toast',
+      const SearchOptions(under: 'toast', codeTarget: 'jaspr'),
+    );
+    expect(
+      [for (final hit in scoped.json['hits']! as List) (hit as Map)['name']],
+      everyElement(isNot('toast (architecture)')),
+      reason: "jaspr's name keeps only its own architecture doc",
+    );
+    expect(
+      () => answerSearch(
+        session.index,
+        'Toast',
+        const SearchOptions(codeTarget: 'web'),
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+            .having(
+              (f) => f.message,
+              'message',
+              '--target web: the code targets are flutter, jaspr',
+            ),
+      ),
     );
   });
 }

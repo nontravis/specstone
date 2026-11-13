@@ -236,9 +236,12 @@ final class DocIndex {
   }
 
   /// Returns the subtrees of every doc [name] addresses, each doc once.
-  List<IndexedDoc> under(String name) {
+  ///
+  /// [codeTarget], when given, keeps [name] to that target's docs and the
+  /// shared docs, as [resolve] does.
+  List<IndexedDoc> under(String name, {String? codeTarget}) {
     final paths = {
-      for (final doc in resolve(name))
+      for (final doc in resolve(name, codeTarget: codeTarget))
         for (final member in subtreeOf(doc)) member.docPath,
     };
     return [
@@ -286,6 +289,21 @@ final class DocIndex {
       }
     }
     return RecordStatus.planned;
+  }
+
+  /// Returns the record entry of the story or FR [item] in [codeTarget], or
+  /// in its one target when null (as [statusOf] reads it); null with no
+  /// entry, and with no record doc type.
+  RecordEntry? recordEntryOf(IndexedDoc item, {String? codeTarget}) {
+    final record = set.recordDocType;
+    if (record == null) return null;
+    for (final doc in _recordsOf(item, _namedOrGiven(codeTarget))) {
+      final relative = _relativeItemOf(item, doc);
+      for (final entry in doc.entries) {
+        if (entry.item == relative) return entry;
+      }
+    }
+    return null;
   }
 
   /// Returns the feature [doc]'s status in [codeTarget] from the stories of

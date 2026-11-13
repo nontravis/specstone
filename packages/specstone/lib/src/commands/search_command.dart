@@ -15,6 +15,7 @@ class SearchCommand extends SpecstoneCommand {
         help: 'Print at most this many hits (default $defaultSearchLimit).',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -26,7 +27,7 @@ class SearchCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone search <query> [--type <id>] [--under <name>] [--limit N] '
-      '[--json]';
+      '[--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -54,6 +55,7 @@ class SearchCommand extends SpecstoneCommand {
         docTypeId: args.option('type'),
         under: args.option('under'),
         limit: limit,
+        codeTarget: targetOf(args),
       );
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);

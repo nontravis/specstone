@@ -13,7 +13,12 @@ final _whitespaceRun = RegExp(r'\s+');
 
 /// The filters and cap `specstone search` applies to its hits.
 final class SearchOptions {
-  const new({this.docTypeId, this.under, this.limit = defaultSearchLimit});
+  const new({
+    this.docTypeId,
+    this.under,
+    this.limit = defaultSearchLimit,
+    this.codeTarget,
+  });
 
   /// Keeps hits in docs of this doc type; untyped docs never match.
   final String? docTypeId;
@@ -23,6 +28,9 @@ final class SearchOptions {
 
   /// The most hits the answer holds.
   final int limit;
+
+  /// The code target [under] stays in; null reads the whole index.
+  final String? codeTarget;
 }
 
 /// Throws an [IndexFault] unless [query] holds at least 3 code points.
@@ -42,6 +50,7 @@ void checkQuery(String query) {
 /// [TemplateFault] for a doc type id the set lacks.
 ReadAnswer answerSearch(DocIndex index, String query, SearchOptions options) {
   checkQuery(query);
+  index.checkCodeTarget(options.codeTarget);
   final typeId = options.docTypeId;
   if (typeId != null && index.set.lookup(typeId) == null) {
     throw TemplateFault(
@@ -52,7 +61,10 @@ ReadAnswer answerSearch(DocIndex index, String query, SearchOptions options) {
   final under = options.under;
   final scope = under == null
       ? null
-      : {for (final doc in index.under(under)) doc.docPath};
+      : {
+          for (final doc in index.under(under, codeTarget: options.codeTarget))
+            doc.docPath,
+        };
   final hits = <({IndexedDoc doc, SearchRow row})>[];
   final seen = <String>{};
   for (final row in index.search('"${query.replaceAll('"', '""')}"')) {

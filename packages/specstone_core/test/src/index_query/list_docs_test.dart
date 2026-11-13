@@ -279,8 +279,37 @@ void main() {
           ),
         ),
         ['login/hide'],
-        reason: "a feature's skip covers each story under it",
+        reason: "jaspr's story entry skips it",
       );
+    });
+
+    test('f01/us03/fr02/e11: a feature-level skip covers each story under it, and the story list line shows the target status', () async {
+      final index = await twoTargets(
+        flutterImplements:
+            '  - show:lib/flutter_show.dart\n  - hide:lib/flutter_hide.dart\n',
+        jasprStatuses: '  - :skipped:no hide on the web\n',
+      );
+      expect(
+        names(
+          answerList(
+            index,
+            'user_story',
+            const ListFilters(status: 'skipped', codeTarget: 'jaspr'),
+          ),
+        ),
+        ['login/show', 'login/hide'],
+        reason: "the feature's own entry skips every story under it",
+      );
+      final answer = answerList(
+        index,
+        'user_story',
+        const ListFilters(status: 'skipped', codeTarget: 'jaspr'),
+      );
+      expect(answer.text, contains(' · skipped · '));
+      final json = (answer.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['name'] == 'login/hide');
+      expect(json['status'], 'skipped');
     });
 
     test('f01/us03/fr02/e12: one target judges its status and code with no --target', () async {
@@ -296,6 +325,57 @@ void main() {
           'login/email_login/lock_after_failures',
           'login/reset_password/send_reset_link',
         ],
+      );
+    });
+
+    test('f01/us03/fr02/e12: one named target judges --no-implements with no --target', () async {
+      String record(String implements) => implements.isEmpty
+          ? '# Record\n'
+          : '---\nimplements:\n$implements---\n\n# Record\n';
+      final session = openSession(
+        await writeTree({
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n'
+              '  - id: implements\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: item_exact\n',
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n',
+          'flutter_lib/.keep': '',
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n\n## Problem\n.',
+          'docs/prds/features/f01_login/us01_show/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent sees it\n\n## Use Case\n.\n',
+          'docs/prds/features/f01_login/us01_show/fr01_open.md':
+              '---\nstatus: implemented\n---\n\n# Open it\n',
+          'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
+          'docs/prds/features/f01_login/us02_hide/fr01_close.md':
+              '---\nstatus: implemented\n---\n\n# Close it\n',
+          'docs/specs/f01_login/IMPLEMENTATION.md': record(
+            '  - show/open:lib/open.dart\n  - show:lib/show.dart\n'
+            '  - hide/close:lib/close.dart\n  - hide:lib/hide.dart\n',
+          ),
+        }),
+      );
+      addTearDown(session.close);
+      expect(
+        names(
+          answerList(
+            session.index,
+            'fr',
+            const ListFilters(noImplements: true),
+          ),
+        ),
+        isEmpty,
+        reason: 'the one named target names code for every FR',
       );
     });
 

@@ -251,9 +251,12 @@ void main() {
         ]),
         0,
       );
-      expect(out.toString().split('\n').where((l) => l.isNotEmpty), [
-        startsWith('login/hide/close (fr)'),
-      ]);
+      expect(
+        out.toString().split('\n').where((l) => l.isNotEmpty),
+        hasLength(1),
+      );
+      expect(out.toString(), startsWith('login/hide/close (fr) — Close it'));
+      expect(out.toString(), contains(' · planned · '));
     });
 
     test('f01/us03/fr02/e10: --status or --no-implements with two targets and no --target is argument_missing, exit 64', () async {
@@ -311,7 +314,7 @@ void main() {
         0,
       );
       expect(out.toString().split('\n').where((l) => l.isNotEmpty), [
-        startsWith('login/hide (user_story)'),
+        startsWith('login/hide (user_story) — Agent hides it · skipped · '),
       ]);
     });
 

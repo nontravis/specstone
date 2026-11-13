@@ -78,68 +78,23 @@ ReadAnswer answerStructure(
         for (final MapEntry(key: folder, value: docs) in folders.entries)
           {
             'folder': folder,
-            'docs': [for (final doc in docs) _docJson(index, doc, codeTarget)],
+            'docs': [
+              for (final doc in docs)
+                docJsonWithStatuses(index, doc, codeTarget),
+            ],
           },
       ],
     },
   );
 }
 
-/// Whether [doc] holds a status per code target: a feature, story, or FR.
-bool _isStatusTracked(IndexedDoc doc) => switch (doc.docTypeId) {
-  featureType || storyType || frType => true,
-  _ => false,
-};
-
 /// Whether [doc] shows under [codeTarget]: shared, or that target's alone.
 bool _shownIn(IndexedDoc doc, String? codeTarget) =>
     codeTarget == null || doc.target == null || doc.target == codeTarget;
 
-/// Returns the status part of [doc]'s line: each code target's status,
-/// `<target>: <status>` joined by `, ` in [DocIndex.targetNames] order, or the
-/// one status alone with one target or a picked one.
-String? _statusPart(DocIndex index, IndexedDoc doc, String? codeTarget) {
-  if (index.targetNames.length < 2 || codeTarget != null) {
-    return index.statusOf(doc, codeTarget: codeTarget);
-  }
-  if (!_isStatusTracked(doc)) return doc.writtenStatus;
-  return [
-    for (final name in index.targetNames)
-      '$name: ${index.statusOf(doc, codeTarget: name)}',
-  ].join(', ');
-}
-
 /// Returns [doc]'s line with each code target's status [index] computes.
 String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) =>
-    docLineWithStatus(doc, _statusPart(index, doc, codeTarget));
-
-/// Returns [doc]'s JSON object, its status per code target under `statuses`
-/// where [index] names two or more and no target is picked.
-Map<String, Object> _docJson(
-  DocIndex index,
-  IndexedDoc doc,
-  String? codeTarget,
-) {
-  final typeId = doc.docTypeId;
-  final title = doc.title;
-  return {
-    'name': doc.name,
-    'docType': ?typeId,
-    'path': doc.docPath,
-    'title': ?title,
-    if (index.targetNames.length >= 2 &&
-        codeTarget == null &&
-        _isStatusTracked(doc))
-      'statuses': {
-        for (final name in index.targetNames)
-          name: ?index.statusOf(doc, codeTarget: name),
-      }
-    else
-      'status': ?index.statusOf(doc, codeTarget: codeTarget),
-    'draft': doc.isDraft,
-    'tokens': doc.tokens,
-  };
-}
+    docLineWithStatus(doc, statusPartOf(index, doc, codeTarget));
 
 List<IndexedDoc> _withoutNested(DocIndex index, List<IndexedDoc> resolved) {
   final nested = {
@@ -202,7 +157,7 @@ Map<String, Object> _treeJson(
   String? codeTarget,
   List<_SectionSize>? sizes,
 ) => {
-  ..._docJson(index, doc, codeTarget),
+  ...docJsonWithStatuses(index, doc, codeTarget),
   if (sizes != null)
     'sections': [
       for (final section in sizes)
