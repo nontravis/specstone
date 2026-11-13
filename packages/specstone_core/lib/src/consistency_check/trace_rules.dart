@@ -404,25 +404,20 @@ bool _recordsNameCode(
       if (work.targetOf(record) != target) continue;
       for (final entry in recordEntriesOf(record, recordType)) {
         if (entry.codePaths.isEmpty) continue;
-        if (!_isLeftOut(index, items[entry.item], entry, record)) return true;
+        if (!_isLeftOut(index, items[entry.item], record)) return true;
       }
     }
   }
   return false;
 }
 
-/// Whether [entry] of [record] counts no code: its story or FR is skipped in
-/// the record's target, the feature entry is skipped, or it names no item.
-bool _isLeftOut(
-  DocIndex index,
-  IndexedDoc? item,
-  RecordEntry entry,
-  IndexedDoc record,
-) => switch (item) {
-  final item? =>
-    index.itemStatus(item, codeTarget: record.target) == RecordStatus.skipped,
-  null => entry.item.isNotEmpty || entry.status == RecordStatus.skipped,
-};
+/// Whether an entry of [record] for [item] counts no code: its story or FR is
+/// skipped in the record's target, or it names no item of the feature.
+///
+/// The feature's own entry holds no code path, so it never gets here.
+bool _isLeftOut(DocIndex index, IndexedDoc? item, IndexedDoc record) =>
+    item == null ||
+    index.itemStatus(item, codeTarget: record.target) == RecordStatus.skipped;
 
 /// Returns the name of a target a finding names, or null when the project
 /// holds one code target, so its output stays as it was.
