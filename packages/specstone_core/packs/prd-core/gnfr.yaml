@@ -59,6 +59,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: security
     header: Security
     prefix_id: NFR-Sec
@@ -107,6 +116,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: reliability
     header: Reliability
     prefix_id: NFR-R
@@ -155,6 +173,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: maintainability
     header: Maintainability
     prefix_id: NFR-M
@@ -203,6 +230,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: interface
     header: Interface
     prefix_id: NFR-I
@@ -251,6 +287,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: environment
     header: Environment
     prefix_id: NFR-E
@@ -299,6 +344,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: safety
     header: Safety
     prefix_id: NFR-Sa
@@ -347,6 +401,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: operability
     header: Operability
     prefix_id: NFR-O
@@ -395,6 +458,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
   - id: design_standards
     header: Design standards
     prefix_id: NFR-DS
@@ -443,6 +515,15 @@ sections:
         - and/or
         - but not limited to
       line_prefix: "- **Statement:**"
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
 lint:
   banned_patterns:
     - id: doc_citation

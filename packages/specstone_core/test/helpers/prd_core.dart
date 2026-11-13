@@ -255,10 +255,13 @@ void expectGuideShape(
 
 /// Expects the NASA words on [sections] only, with [linePrefix], and the
 /// handbook reference on [docType].
+///
+/// [otherWords] names a section outside [sections] that carries its own list.
 void expectNasaLint(
   MergedDocType docType, {
   required List<String> sections,
   String? linePrefix,
+  Map<String, List<String>> otherWords = const {},
 }) {
   expect(docType.lint.bannedWords, isNull, reason: docType.id);
   expect(docType.lint.allowedWords, isNull, reason: docType.id);
@@ -267,7 +270,7 @@ void expectNasaLint(
     final listed = sections.contains(section.id);
     expect(
       section.bannedWords,
-      listed ? nasaBannedWords : isNull,
+      listed ? nasaBannedWords : otherWords[section.id] ?? isNull,
       reason: where,
     );
     expect(section.allowedWords, isNull, reason: where);

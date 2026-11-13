@@ -161,9 +161,20 @@ String? upsertBlock(String fileText, String block) {
   return _replace(lines, beginLine, endLine, block, eol: eol);
 }
 
+/// Appends [block] after exactly one blank line; an empty file takes none,
+/// and a file without a final line feed gets one first.
 String _append(String fileText, String block, LineEnding eol) {
-  if (fileText.isEmpty || fileText.endsWith('\n')) return '$fileText$block';
-  return '$fileText${eol.apply('\n')}$block';
+  if (fileText.isEmpty) return block;
+  final lf = toLf(fileText);
+  final String separator;
+  if (lf.endsWith('\n\n') || lf == '\n') {
+    separator = '';
+  } else if (lf.endsWith('\n')) {
+    separator = eol.apply('\n');
+  } else {
+    separator = eol.apply('\n\n');
+  }
+  return '$fileText$separator$block';
 }
 
 String _replace(

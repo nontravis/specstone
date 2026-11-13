@@ -601,4 +601,78 @@ sections:
       isFalse,
     );
   });
+
+  group('guide-rule lint values', () {
+    const section = MergedSection(
+      id: 'invariants',
+      header: 'Invariants',
+      catalog: CatalogLint(column: 'Code'),
+      namesCodes: true,
+      itemFields: [
+        ItemFieldLint(field: 'Enforcer', values: ['a']),
+      ],
+      requiredWhen: RequiredWhenLint(section: 's', field: 'f', value: 'v'),
+      diagram: DiagramLint(title: true),
+      maxSentences: [SentenceLimit(count: 1, linePrefix: '-', column: 'C')],
+      itemCount: ItemCountLint(min: 1, perSubsection: true),
+      minLines: 2,
+    );
+
+    test('a section holds each guide-rule key as the layer wrote it', () {
+      expect(section.catalog?.column, 'Code');
+      expect(section.namesCodes, isTrue);
+      expect(section.itemFields?.single.values, ['a']);
+      expect(section.requiredWhen?.value, 'v');
+      expect(section.diagram?.title, isTrue);
+      expect(section.maxSentences?.single.column, 'C');
+      expect(section.itemCount?.perSubsection, isTrue);
+      expect(section.minLines, 2);
+    });
+
+    test('a section with no guide-rule key reads each as null', () {
+      const bare = MergedSection(id: 'a', header: 'A');
+      expect(bare.catalog, isNull);
+      expect(bare.namesCodes, isNull);
+      expect(bare.itemFields, isNull);
+      expect(bare.requiredWhen, isNull);
+      expect(bare.diagram, isNull);
+      expect(bare.maxSentences, isNull);
+      expect(bare.itemCount, isNull);
+      expect(bare.minLines, isNull);
+    });
+
+    test('copyWith keeps a guide-rule key it is not given and replaces one '
+        'it is given', () {
+      final copy = section.copyWith(
+        minLines: 4,
+        diagram: const DiagramLint(edgeLabels: true),
+      );
+      expect(copy.minLines, 4);
+      expect(copy.diagram?.title, isFalse);
+      expect(copy.diagram?.edgeLabels, isTrue);
+      expect(copy.catalog?.column, 'Code');
+      expect(copy.itemCount?.min, 1);
+    });
+
+    test('a diagram, item count, and sentence limit default to no bound', () {
+      const diagram = DiagramLint();
+      expect(diagram.title, isFalse);
+      expect(diagram.edgeLabels, isFalse);
+      expect(diagram.bannedLabels, isEmpty);
+      const count = ItemCountLint();
+      expect(count.min, isNull);
+      expect(count.max, isNull);
+      expect(count.perSubsection, isFalse);
+      expect(count.prefixes, isEmpty);
+      const limit = SentenceLimit(count: 2);
+      expect((limit.linePrefix, limit.column), (null, null));
+    });
+
+    test('the doc-level lint holds title_no_number and copyWith keeps it', () {
+      const lint = MergedLint(titleNoNumber: true);
+      expect(lint.titleNoNumber, isTrue);
+      expect(lint.copyWith(maxChars: 3).titleNoNumber, isTrue);
+      expect(const MergedLint().titleNoNumber, isNull);
+    });
+  });
 }

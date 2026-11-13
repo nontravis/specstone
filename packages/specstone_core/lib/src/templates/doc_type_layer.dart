@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -43,7 +44,8 @@ enum FieldType {
 enum PointerKind {
   exact('exact'),
   prefix('prefix'),
-  itemExact('item_exact');
+  itemExact('item_exact'),
+  itemTest('item_test');
 
   new(this.wire);
 
@@ -97,7 +99,7 @@ enum RecordStatus {
 TemplateFault _unknownPointer({required String file, required String prefix}) =>
     TemplateFault(
       FaultCode.unknownValue,
-      'the key pointer must be exact, prefix, or item_exact',
+      'the key pointer must be exact, prefix, item_exact, or item_test',
       file: file,
       key: '${prefix}pointer',
     );
@@ -182,6 +184,14 @@ final class SectionLint {
     this.linePrefix,
     this.bannedPatterns,
     this.requiredPatterns,
+    this.minLines,
+    this.catalog,
+    this.namesCodes,
+    this.itemFields,
+    this.requiredWhen,
+    this.diagram,
+    this.maxSentences,
+    this.itemCount,
   });
 
   /// The section's character limit, when written.
@@ -206,6 +216,30 @@ final class SectionLint {
 
   /// The section's own required patterns, merged for this section by `id`.
   final ListWrite<PatternEntry>? requiredPatterns;
+
+  /// The section's floor of non-blank lines, when written.
+  final int? minLines;
+
+  /// The section's code catalog, when written.
+  final CatalogLint? catalog;
+
+  /// Whether a code span in the section can name a catalog code, when written.
+  final bool? namesCodes;
+
+  /// The section's nested item fields, plain or as changes, merged by `field`.
+  final ListWrite<ItemFieldLint>? itemFields;
+
+  /// The rule that makes the section required, when written.
+  final RequiredWhenLint? requiredWhen;
+
+  /// The checks on the section's flowcharts, when written.
+  final DiagramLint? diagram;
+
+  /// The section's sentence limits, when written.
+  final List<SentenceLimit>? maxSentences;
+
+  /// The bounds on the section's item count, when written.
+  final ItemCountLint? itemCount;
 }
 
 /// One guide section of a doc type, as one layer writes it.
@@ -271,6 +305,7 @@ final class LintLayer {
     this.allowedWords,
     this.bannedPatterns,
     this.requiredFieldGroups,
+    this.titleNoNumber,
   });
 
   /// The doc-level character limit, when written.
@@ -294,6 +329,9 @@ final class LintLayer {
   /// The field groups of which a doc must carry at least one field each, when
   /// written; an upper layer's value replaces the lower one.
   final List<List<String>>? requiredFieldGroups;
+
+  /// Whether a digit in the title line is a finding, when written.
+  final bool? titleNoNumber;
 }
 
 /// One layer's view of a doc type, parsed from one doc-type YAML file.
@@ -613,6 +651,7 @@ const _docLintKeys = {
   'allowed_words',
   'banned_patterns',
   'required_field_groups',
+  'title_no_number',
 };
 
 const _sectionLintKeys = {
@@ -623,6 +662,14 @@ const _sectionLintKeys = {
   'line_prefix',
   'banned_patterns',
   'required_patterns',
+  'min_lines',
+  'catalog',
+  'names_codes',
+  'item_fields',
+  'required_when',
+  'diagram',
+  'max_sentences',
+  'item_count',
 };
 
 List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
@@ -821,6 +868,12 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
       forRequired: false,
     ),
     requiredFieldGroups: _fieldGroups(map, file: file),
+    titleNoNumber: optionalValue<bool>(
+      map,
+      'title_no_number',
+      file: file,
+      prefix: 'lint.',
+    ),
   );
 }
 
@@ -877,6 +930,30 @@ SectionLint _parseSectionLint(
       prefix: keyPrefix,
       forRequired: true,
     ),
+    minLines: optionalValue<int>(
+      map,
+      'min_lines',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    catalog: _parseCatalog(map, file: file, prefix: keyPrefix),
+    namesCodes: optionalValue<bool>(
+      map,
+      'names_codes',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    itemFields: _entryWrite<ItemFieldLint>(
+      map,
+      'item_fields',
+      file: file,
+      prefix: keyPrefix,
+      parseEntry: (entry, key) => _parseItemField(entry, file: file, key: key),
+    ),
+    requiredWhen: _parseRequiredWhen(map, file: file, prefix: keyPrefix),
+    diagram: _parseDiagram(map, file: file, prefix: keyPrefix),
+    maxSentences: _parseMaxSentences(map, file: file, prefix: keyPrefix),
+    itemCount: _parseItemCount(map, file: file, prefix: keyPrefix),
   );
 }
 
@@ -910,17 +987,36 @@ ListWrite<PatternEntry>? _patternWrite(
   required String file,
   required String prefix,
   required bool forRequired,
-}) {
-  PatternEntry entryAt(Object? entry, String keyPath) => PatternEntry.parse(
-    _entryMap(entry, keyPath, file: file),
+}) => _entryWrite<PatternEntry>(
+  map,
+  key,
+  file: file,
+  prefix: prefix,
+  parseEntry: (entry, keyPath) => PatternEntry.parse(
+    entry,
     file: file,
     key: keyPath,
     forRequired: forRequired,
-  );
+  ),
+);
+
+/// Reads the value at [key] as a [PlainList] or a [ListChange] of entries.
+///
+/// [parseEntry] reads one mapping at its fault key path; a `remove` list names
+/// the merge keys of the entries to drop.
+ListWrite<T>? _entryWrite<T>(
+  YamlMap map,
+  String key, {
+  required String file,
+  required String prefix,
+  required T Function(YamlMap entry, String keyPath) parseEntry,
+}) {
+  T entryAt(Object? entry, String keyPath) =>
+      parseEntry(_entryMap(entry, keyPath, file: file), keyPath);
   final value = map[key];
   return switch (value) {
     null => null,
-    final YamlList list => PlainList<PatternEntry>([
+    final YamlList list => PlainList<T>([
       for (var i = 0; i < list.length; i++) entryAt(list[i], '$prefix$key[$i]'),
     ]),
     final YamlMap changeMap => () {
@@ -938,7 +1034,7 @@ ListWrite<PatternEntry>? _patternWrite(
         file: file,
         prefix: changePrefix,
       );
-      return ListChange<PatternEntry>([
+      return ListChange<T>([
         if (add != null)
           for (var i = 0; i < add.length; i++)
             entryAt(add[i], '${changePrefix}add[$i]'),
@@ -951,6 +1047,267 @@ ListWrite<PatternEntry>? _patternWrite(
       key: '$prefix$key',
     ),
   };
+}
+
+CatalogLint? _parseCatalog(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final catalog = optionalValue<YamlMap>(
+    map,
+    'catalog',
+    file: file,
+    prefix: prefix,
+  );
+  if (catalog == null) return null;
+  final keyPrefix = '${prefix}catalog.';
+  checkKeys(
+    catalog,
+    const {'column'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return CatalogLint(
+    column: requireValue<String>(
+      catalog,
+      'column',
+      file: file,
+      prefix: keyPrefix,
+    ),
+  );
+}
+
+ItemFieldLint _parseItemField(
+  YamlMap entry, {
+  required String file,
+  required String key,
+}) {
+  final keyPrefix = '$key.';
+  checkKeys(
+    entry,
+    const {'field', 'values'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  final values = optionalValue<YamlList>(
+    entry,
+    'values',
+    file: file,
+    prefix: keyPrefix,
+  );
+  return ItemFieldLint(
+    field: requireValue<String>(entry, 'field', file: file, prefix: keyPrefix),
+    values: values == null
+        ? null
+        : List.unmodifiable(
+            stringsOf(values, 'values', file: file, prefix: keyPrefix),
+          ),
+  );
+}
+
+RequiredWhenLint? _parseRequiredWhen(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final rule = optionalValue<YamlMap>(
+    map,
+    'required_when',
+    file: file,
+    prefix: prefix,
+  );
+  if (rule == null) return null;
+  final keyPrefix = '${prefix}required_when.';
+  checkKeys(
+    rule,
+    const {'section', 'field', 'value'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  String read(String name) =>
+      requireValue<String>(rule, name, file: file, prefix: keyPrefix);
+  return RequiredWhenLint(
+    section: read('section'),
+    field: read('field'),
+    value: read('value'),
+  );
+}
+
+DiagramLint? _parseDiagram(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final diagram = optionalValue<YamlMap>(
+    map,
+    'diagram',
+    file: file,
+    prefix: prefix,
+  );
+  if (diagram == null) return null;
+  final keyPrefix = '${prefix}diagram.';
+  checkKeys(
+    diagram,
+    const {'title', 'edge_labels', 'banned_labels'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return DiagramLint(
+    title:
+        optionalValue<bool>(diagram, 'title', file: file, prefix: keyPrefix) ??
+        false,
+    edgeLabels:
+        optionalValue<bool>(
+          diagram,
+          'edge_labels',
+          file: file,
+          prefix: keyPrefix,
+        ) ??
+        false,
+    bannedLabels: List.unmodifiable(
+      stringList(diagram, 'banned_labels', file: file, prefix: keyPrefix),
+    ),
+  );
+}
+
+List<SentenceLimit>? _parseMaxSentences(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final entries = optionalValue<YamlList>(
+    map,
+    'max_sentences',
+    file: file,
+    prefix: prefix,
+  );
+  if (entries == null) return null;
+  return List.unmodifiable([
+    for (var i = 0; i < entries.length; i++)
+      _parseSentenceLimit(
+        _entryMap(entries[i], '${prefix}max_sentences[$i]', file: file),
+        file: file,
+        key: '${prefix}max_sentences[$i]',
+      ),
+  ]);
+}
+
+SentenceLimit _parseSentenceLimit(
+  YamlMap entry, {
+  required String file,
+  required String key,
+}) {
+  final keyPrefix = '$key.';
+  checkKeys(
+    entry,
+    const {'count', 'line_prefix', 'column'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return SentenceLimit(
+    count: requireValue<int>(entry, 'count', file: file, prefix: keyPrefix),
+    linePrefix: optionalValue<String>(
+      entry,
+      'line_prefix',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    column: optionalValue<String>(
+      entry,
+      'column',
+      file: file,
+      prefix: keyPrefix,
+    ),
+  );
+}
+
+ItemCountLint? _parseItemCount(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final count = optionalValue<YamlMap>(
+    map,
+    'item_count',
+    file: file,
+    prefix: prefix,
+  );
+  if (count == null) return null;
+  final keyPrefix = '${prefix}item_count.';
+  checkKeys(
+    count,
+    const {'min', 'max', 'per_subsection', 'prefixes'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  final min = optionalValue<int>(count, 'min', file: file, prefix: keyPrefix);
+  final max = optionalValue<int>(count, 'max', file: file, prefix: keyPrefix);
+  if (min != null && max != null && min > max) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key min must not exceed max',
+      file: file,
+      key: '${keyPrefix}min',
+    );
+  }
+  final prefixes = optionalValue<YamlList>(
+    count,
+    'prefixes',
+    file: file,
+    prefix: keyPrefix,
+  );
+  return ItemCountLint(
+    min: min,
+    max: max,
+    perSubsection:
+        optionalValue<bool>(
+          count,
+          'per_subsection',
+          file: file,
+          prefix: keyPrefix,
+        ) ??
+        false,
+    prefixes: List.unmodifiable([
+      if (prefixes != null)
+        for (var i = 0; i < prefixes.length; i++)
+          _parsePrefixCount(
+            _entryMap(prefixes[i], '${keyPrefix}prefixes[$i]', file: file),
+            file: file,
+            key: '${keyPrefix}prefixes[$i]',
+          ),
+    ]),
+  );
+}
+
+({String linePrefix, int count}) _parsePrefixCount(
+  YamlMap entry, {
+  required String file,
+  required String key,
+}) {
+  final keyPrefix = '$key.';
+  checkKeys(
+    entry,
+    const {'line_prefix', 'count'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return (
+    linePrefix: requireValue<String>(
+      entry,
+      'line_prefix',
+      file: file,
+      prefix: keyPrefix,
+    ),
+    count: requireValue<int>(entry, 'count', file: file, prefix: keyPrefix),
+  );
 }
 
 /// Reads the value at [key] as a [PlainList] or a [ListChange].

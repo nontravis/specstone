@@ -71,8 +71,10 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
 /// (`unknown_value`), every `lint.required_field_groups` entry names a
-/// field of its doc type (`unknown_value`), at most one doc type holds a
-/// `record_status` field and its merged `per_target` is `true` (INV-31), and
+/// field of its doc type (`unknown_value`), every section `required_when`
+/// names a section of its doc type (`unknown_value`), at most one doc type
+/// holds a `record_status` field and its merged `per_target` is `true`
+/// (INV-31), and
 /// a `targets:` config without the record doc type is refused (INV-29).
 void checkMergedSet(
   List<MergedDocType> docTypes,
@@ -87,6 +89,7 @@ void checkMergedSet(
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
+  _checkRequiredWhen(sorted, layerLists);
   _checkRecords(sorted, layerLists, loadIndex, targetNames);
 }
 
@@ -323,6 +326,34 @@ void _checkFieldGroups(
 
 bool _wroteFieldGroups(DocTypeLayer layer) =>
     layer.lint?.requiredFieldGroups != null;
+
+/// Throws `unknown_value` for a section `required_when` naming no section of
+/// its merged doc type.
+void _checkRequiredWhen(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    final ids = {for (final section in docType.sections) section.id};
+    for (final section in docType.sections) {
+      final rule = section.requiredWhen;
+      if (rule == null || ids.contains(rule.section)) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a required_when names no section of the doc type: ${rule.section}',
+        file: _writerOf(
+          docType.id,
+          (layer) => layer.sections.any(
+            (entry) =>
+                entry.id == section.id && entry.lint?.requiredWhen != null,
+          ),
+          layerLists,
+        ),
+        key: 'sections.${section.id}.lint.required_when.section',
+      );
+    }
+  }
+}
 
 /// Throws `unknown_value` for the record doc type rules (INV-29, INV-31):
 /// a second `record_status` holder, a record doc type whose merged

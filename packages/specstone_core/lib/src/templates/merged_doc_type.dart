@@ -86,6 +86,93 @@ final class MergedField {
   };
 }
 
+/// A section table that is a code catalog.
+final class CatalogLint {
+  const new({required this.column});
+
+  /// The header of the column whose code spans are the catalog's codes.
+  final String column;
+}
+
+/// A nested `- **<field>:** <text>` item every top-level item must hold.
+final class ItemFieldLint {
+  const new({required this.field, this.values});
+
+  /// The nested item's label; the merge key.
+  final String field;
+
+  /// The texts the nested item may hold; any text when null.
+  final List<String>? values;
+}
+
+/// A section that is required while an item of another section holds a value.
+final class RequiredWhenLint {
+  const new({required this.section, required this.field, required this.value});
+
+  /// The id of the section whose items are read.
+  final String section;
+
+  /// The nested item label read in that section.
+  final String field;
+
+  /// The field value that makes this section required.
+  final String value;
+}
+
+/// The checks on each `mermaid` flowchart in a section.
+final class DiagramLint {
+  const new({
+    this.title = false,
+    this.edgeLabels = false,
+    this.bannedLabels = const [],
+  });
+
+  /// Whether a diagram must carry a title.
+  final bool title;
+
+  /// Whether every edge must carry a label.
+  final bool edgeLabels;
+
+  /// The labels a diagram may not hold.
+  final List<String> bannedLabels;
+}
+
+/// The most sentences a line, or a table cell, may hold.
+final class SentenceLimit {
+  const new({required this.count, this.linePrefix, this.column});
+
+  /// The most sentences allowed.
+  final int count;
+
+  /// Limits the check to lines that start with it.
+  final String? linePrefix;
+
+  /// Limits the check to cells under this table header.
+  final String? column;
+}
+
+/// The bounds on the number of items in a section.
+final class ItemCountLint {
+  const new({
+    this.min,
+    this.max,
+    this.perSubsection = false,
+    this.prefixes = const [],
+  });
+
+  /// The fewest items, when bounded.
+  final int? min;
+
+  /// The most items, when bounded.
+  final int? max;
+
+  /// Whether each subsection is counted alone.
+  final bool perSubsection;
+
+  /// The item counts required per line prefix.
+  final List<({String linePrefix, int count})> prefixes;
+}
+
 /// One enabled guide section of a merged doc type.
 final class MergedSection {
   const new({
@@ -104,6 +191,14 @@ final class MergedSection {
     this.summary,
     this.bannedPatterns,
     this.requiredPatterns,
+    this.minLines,
+    this.catalog,
+    this.namesCodes,
+    this.itemFields,
+    this.requiredWhen,
+    this.diagram,
+    this.maxSentences,
+    this.itemCount,
   });
 
   /// The section id.
@@ -162,6 +257,32 @@ final class MergedSection {
   /// sets them.
   final List<PatternEntry>? requiredPatterns;
 
+  /// The fewest non-blank lines the section holds; null when no layer sets it.
+  final int? minLines;
+
+  /// The code catalog the section's table is; null when no layer sets it.
+  final CatalogLint? catalog;
+
+  /// Whether a code span in the section can name a catalog code; null when no
+  /// layer sets it.
+  final bool? namesCodes;
+
+  /// The nested items each top-level item holds, merged by `field`; null when
+  /// no layer sets them.
+  final List<ItemFieldLint>? itemFields;
+
+  /// The rule that makes the section required; null when no layer sets it.
+  final RequiredWhenLint? requiredWhen;
+
+  /// The checks on the section's flowcharts; null when no layer sets them.
+  final DiagramLint? diagram;
+
+  /// The sentence limits; null when no layer sets them.
+  final List<SentenceLimit>? maxSentences;
+
+  /// The bounds on the section's item count; null when no layer sets them.
+  final ItemCountLint? itemCount;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedSection copyWith({
     String? header,
@@ -178,6 +299,14 @@ final class MergedSection {
     bool? summary,
     List<PatternEntry>? bannedPatterns,
     List<PatternEntry>? requiredPatterns,
+    int? minLines,
+    CatalogLint? catalog,
+    bool? namesCodes,
+    List<ItemFieldLint>? itemFields,
+    RequiredWhenLint? requiredWhen,
+    DiagramLint? diagram,
+    List<SentenceLimit>? maxSentences,
+    ItemCountLint? itemCount,
   }) => MergedSection(
     id: id,
     header: header ?? this.header,
@@ -194,6 +323,14 @@ final class MergedSection {
     summary: summary ?? this.summary,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
     requiredPatterns: requiredPatterns ?? this.requiredPatterns,
+    minLines: minLines ?? this.minLines,
+    catalog: catalog ?? this.catalog,
+    namesCodes: namesCodes ?? this.namesCodes,
+    itemFields: itemFields ?? this.itemFields,
+    requiredWhen: requiredWhen ?? this.requiredWhen,
+    diagram: diagram ?? this.diagram,
+    maxSentences: maxSentences ?? this.maxSentences,
+    itemCount: itemCount ?? this.itemCount,
   );
 
   /// Returns the JSON object of this section with only the keys set.
@@ -241,6 +378,7 @@ final class MergedLint {
     this.allowedWords,
     this.bannedPatterns,
     this.requiredFieldGroups,
+    this.titleNoNumber,
   });
 
   /// The doc-level character limit.
@@ -267,6 +405,10 @@ final class MergedLint {
   /// The groups of fields a doc must carry at least one of each.
   final List<List<String>>? requiredFieldGroups;
 
+  /// Whether a digit in the `# ` title line is a finding; null when no layer
+  /// sets it.
+  final bool? titleNoNumber;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedLint copyWith({
     int? maxChars,
@@ -276,6 +418,7 @@ final class MergedLint {
     List<String>? allowedWords,
     List<PatternEntry>? bannedPatterns,
     List<List<String>>? requiredFieldGroups,
+    bool? titleNoNumber,
   }) => MergedLint(
     maxChars: maxChars ?? this.maxChars,
     maxLines: maxLines ?? this.maxLines,
@@ -284,6 +427,7 @@ final class MergedLint {
     allowedWords: allowedWords ?? this.allowedWords,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
     requiredFieldGroups: requiredFieldGroups ?? this.requiredFieldGroups,
+    titleNoNumber: titleNoNumber ?? this.titleNoNumber,
   );
 
   /// Returns the JSON object of this lint with only the keys set.

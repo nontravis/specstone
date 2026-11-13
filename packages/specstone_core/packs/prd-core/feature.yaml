@@ -106,6 +106,8 @@ sections:
       flowchart LR
         <Step1> --> <Step2> --> <Step3>
       ```
+    lint:
+      diagram: {}
   - id: out_of_scope
     header: Out-of-scope
     required: true
@@ -116,6 +118,12 @@ sections:
     template: |-
       - <thing> — <owning feature | not planned>
     query: true
+    lint:
+      banned_patterns:
+        - id: out_of_scope_owner
+          pattern: '^[-*] (?!.* — )'
+          message: 'bullet names no owner; guide line: Write each line as `<thing> — <owning feature | not planned>`'
+          in: all
   - id: appetite
     header: Appetite
     description: |-
@@ -143,6 +151,7 @@ sections:
     template: |-
       - **<Question>** <Answer>
 lint:
+  title_no_number: true
   required_field_groups:
     - [vision, goals]
   banned_patterns:

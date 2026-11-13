@@ -135,6 +135,7 @@ void main() {
           'matrix.\n\n'
           'Template:\n```markdown\n'
           '- **Pass criteria:** <what shows the requirement holds>\n'
+          '  - <one condition, when the criteria are long>\n'
           '- **Level:** <level>\n```\n',
         ),
       );
@@ -156,6 +157,60 @@ void main() {
         ),
       );
       expect(err.toString(), isEmpty);
+    });
+
+    test('guide fr shows a long Verification as one Pass criteria line with '
+        'a nested bullet per condition, and names no test file', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'Write a long Verification as one `- **Pass criteria:**` line '
+            'with one nested bullet per condition.\n',
+          ),
+          contains(
+            "Name no test file here; each target's record names the tests "
+            'that prove the FR.\n',
+          ),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide fr and guide user_story ask for no ID order', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr']), 0);
+      final fr = out.toString();
+      expect(fr, contains('Write each as `E01 — <trigger> → <response>`.\n'));
+      expect(fr, isNot(contains('numbered in order')));
+      out.clear();
+      expect(await runner.run(['guide', 'user_story']), 0);
+      final story = out.toString();
+      expect(story, contains('Write each rule as `**BR-NN** — <rule>`.\n'));
+      expect(story, isNot(contains('number the rules in order')));
+    });
+
+    test('guide project --json prints a guide-rule entry whose message names '
+        'its guide line', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'project', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final vision = (json['sections']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((s) => s['id'] == 'vision');
+      final patterns = ((vision['lint']! as Map)['bannedPatterns']! as List)
+          .cast<Map<String, Object?>>();
+      expect(patterns.map((p) => p['id']), ['quote_words', 'quote_language']);
+      expect(
+        patterns.first['message'],
+        contains('keep each sentence to 15 words or fewer'),
+      );
+      expect(
+        vision['description'],
+        contains('keep each sentence to 15 words or fewer'),
+      );
     });
 
     test('f03/us06/s3, f03/us06/fr01: guide fr --json gives the prds path, '

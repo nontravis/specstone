@@ -19,6 +19,8 @@ sections:
         <Actor> --> <System>
         <System> --> <External>
       ```
+    lint:
+      diagram: {}
   - id: systems
     header: Systems
     required: true

@@ -52,7 +52,7 @@ sections:
     prefix_id: BR-
     description: |-
       Write it when the story has two or more rules; skip it for a rule that everyone already understands.
-      Write each rule as `**BR-NN** — <rule>` and number the rules in order.
+      Write each rule as `**BR-NN** — <rule>`.
       Cite a rule's id at the end of the title of each scenario that illustrates it.
     template: |-
       - **BR-01** — <rule>
@@ -76,6 +76,19 @@ sections:
       - **When** <one trigger>
       - **Then** <what the person sees or what the system refuses>
     lint:
+      names_codes: true
+      item_count:
+        min: 3
+        max: 5
+        per_subsection: true
+        prefixes:
+          - line_prefix: "- **When**"
+            count: 1
+      banned_patterns:
+        - id: scenario_title
+          pattern: '^### Scenario(?! \d+ — \[(?:happy|edge|error)\] \S)'
+          message: 'scenario title has the wrong form; guide line: ### Scenario N — [happy|edge|error] <what differs>'
+          in: all
       required_patterns:
         - id: error_case
           pattern: '^### .*\[error\]|Error cases: N/A'
