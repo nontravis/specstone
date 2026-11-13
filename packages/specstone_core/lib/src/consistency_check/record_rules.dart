@@ -2,7 +2,6 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
-import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -12,7 +11,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _featureItem = '';
 
 /// Returns the findings of a record doc's `statuses`, `implements`, and
-/// `tests` lines (`consistency_check/find_prd_spec_disagreements/check_record_entries`).
+/// `tests` lines.
 ///
 /// Every line gives at most one finding, the first its behavior order reaches,
 /// so no other rule reports a line this one does. A doc that is no record,

@@ -82,6 +82,7 @@ final class RecordEntry {
 List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
   final statusField = recordStatusFieldOf(recordType);
   final codeField = recordCodeFieldOf(recordType);
+  final testField = recordTestFieldOf(recordType);
   final byItem = <String, RecordEntry>{};
   RecordEntry baseOf(String item) => byItem[item] ?? RecordEntry(item: item);
   if (statusField != null) {
@@ -110,15 +111,17 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
       );
     }
   }
-  for (final (:item, :path) in recordTestLinesOf(record)) {
-    final current = baseOf(item);
-    byItem[item] = RecordEntry(
-      item: item,
-      status: current.status,
-      reason: current.reason,
-      codePaths: current.codePaths,
-      testPaths: [...current.testPaths, path],
-    );
+  if (testField != null) {
+    for (final (:item, :path) in recordTestLinesOf(record, testField)) {
+      final current = baseOf(item);
+      byItem[item] = RecordEntry(
+        item: item,
+        status: current.status,
+        reason: current.reason,
+        codePaths: current.codePaths,
+        testPaths: [...current.testPaths, path],
+      );
+    }
   }
   return [for (final entry in byItem.values) entry];
 }
@@ -184,9 +187,13 @@ MergedField? recordCodeFieldOf(MergedDocType recordType) => recordType.fields
     )
     .firstOrNull;
 
-/// The frontmatter key of a record's `tests` lines, read whether or not the
-/// doc type declares a field for it.
-const recordTestsKey = 'tests';
+/// Returns the `item_test` `output_ref` field of [recordType], found by
+/// pointer kind.
+MergedField? recordTestFieldOf(MergedDocType recordType) => recordType.fields
+    .where(
+      (f) => f.type == FieldType.outputRef && f.pointer == PointerKind.itemTest,
+    )
+    .firstOrNull;
 
 /// Returns the item and path of an `item:<test path>[:<test name>]` line of a
 /// `tests` field; null when the line holds no `:`.
@@ -202,11 +209,14 @@ const recordTestsKey = 'tests';
   );
 }
 
-/// Returns the `item:<test path>` lines of [record]'s `tests` key as item and
+/// Returns the `item:<test path>` lines of [record]'s [testField] as item and
 /// path, in line order; a line with no item names none.
-List<({String item, String path})> recordTestLinesOf(IndexedDoc record) {
+List<({String item, String path})> recordTestLinesOf(
+  IndexedDoc record,
+  MergedField testField,
+) {
   final lines = <({String item, String path})>[];
-  for (final line in record.valuesOf(recordTestsKey)) {
+  for (final line in record.valuesOf(testField.id)) {
     final parsed = recordTestLineOf(line);
     if (parsed == null || parsed.item.isEmpty) continue;
     lines.add(parsed);

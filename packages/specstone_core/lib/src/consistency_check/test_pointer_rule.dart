@@ -9,22 +9,13 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-/// Returns the `item_test` `output_ref` field of [recordType], found by
-/// pointer kind.
-MergedField? recordTestFieldOf(MergedDocType recordType) => recordType.fields
-    .where(
-      (f) => f.type == FieldType.outputRef && f.pointer == PointerKind.itemTest,
-    )
-    .firstOrNull;
 
 /// Returns the test pointer findings of a record [doc]; any other doc has
 /// none.
 ///
 /// A line `path[:name]` is resolved from the code root of the record's own
 /// target when its item is neither `planned` nor `skipped`. A line naming no
-/// item is `check_record_entries`'s, never reported here. A test file is read
+/// item is reported by the record entry rule, never here. A test file is read
 /// only to find a name, and at most once per run.
 Iterable<Finding> checkTestPointers(
   CheckContext context,

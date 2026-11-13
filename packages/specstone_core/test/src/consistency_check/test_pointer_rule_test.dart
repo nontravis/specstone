@@ -91,6 +91,33 @@ Finding _only(CheckReport report) =>
     report.findings.singleWhere((f) => f.kind == FindingKind.testsUnresolved);
 
 void main() {
+  test('a test field not named tests resolves its lines', () async {
+    final report = _run(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/implementation.yaml':
+              '$_recordLayer'
+              '  - id: tests\n'
+              '    disabled: true\n'
+              '  - id: proofs\n'
+              '    type: output_ref\n'
+              '    list: true\n'
+              '    pointer: item_test\n',
+          'docs/$_recordPath':
+              "---\nstatuses:\n  - '$_implemented'\nproofs:\n"
+              "  - '$_fr:$_testFile:shows a toast'\n"
+              "  - '$_fr:app/test/gone_test.dart'\n---\n\n# Record\n",
+          _testFile: _testBody,
+        },
+        unstamped: {'docs/$_recordPath'},
+      ),
+    );
+
+    expect(_spots(report), [
+      '$_recordPath:${_testLine(1, 1)}: tests_unresolved',
+    ]);
+  });
+
   test('a line naming a present file and no test gives no finding', () async {
     final report = _run(await _project(_record(tests: ['$_fr:$_testFile'])));
 

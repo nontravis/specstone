@@ -34,6 +34,16 @@ const _recordLayer =
     '    list: true\n'
     '    pointer: item_test\n';
 
+/// The record layer whose `item_test` field is named `proofs`, not `tests`.
+const _proofsLayer =
+    '$_recordLayer'
+    '  - id: tests\n'
+    '    disabled: true\n'
+    '  - id: proofs\n'
+    '    type: output_ref\n'
+    '    list: true\n'
+    '    pointer: item_test\n';
+
 const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
 const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
 const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
@@ -985,6 +995,38 @@ void main() {
       ),
     );
     expect(spots(named, FindingKind.testsMissing), isEmpty);
+  });
+
+  test('a test field not named tests still ends tests_missing', () async {
+    String record(String tail) =>
+        "---\nstatuses:\n  - '$_fr:implemented'\nimplements:\n"
+        "  - '$_loginCode'\n$tail---\n\n# Record\n";
+    Future<CheckReport> check(String tail) => _checkLogin(
+      record(tail),
+      extra: {'.specstone/templates/implementation.yaml': _proofsLayer},
+    );
+
+    final named = await check("proofs:\n  - '$_loginTest'\n");
+    final none = await check('');
+
+    expect(spots(named, FindingKind.testsMissing), isEmpty);
+    expect(spots(none, FindingKind.testsMissing), [
+      '$_loginRecord:3: tests_missing',
+    ]);
+  });
+
+  test('a record type with no test field has no tests_missing', () async {
+    final report = await _checkLogin(
+      _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+      extra: {
+        '.specstone/templates/implementation.yaml':
+            '$_recordLayer'
+            '  - id: tests\n'
+            '    disabled: true\n',
+      },
+    );
+
+    expect(spots(report, FindingKind.testsMissing), isEmpty);
   });
 
   test('an FR entry with a code path and no test, and one with a test and '
