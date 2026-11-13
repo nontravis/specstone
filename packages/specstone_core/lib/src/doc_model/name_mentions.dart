@@ -93,30 +93,30 @@ List<NameMention> nameMentionsInFile(String lf, String extension) {
   return _readFile(lf, extension, _namesAndPathsOnLine);
 }
 
-/// The bare one-slug code spans of [lf], a file of [extension], each at its
-/// line of the file, read where [nameMentionsInFile] reads.
+/// Every doc mention of [lf], a file of [extension], in one read: the code
+/// spans that read as a Name, bare one-slug ones included, and the doc paths,
+/// each at its line of the file.
 ///
-/// Such a span is a mention only when a doc carries its Name, which the
-/// caller looks up.
-List<NameMention> bareNameMentionsInFile(String lf, String extension) {
-  if (!lf.contains('`')) return const [];
-  return _readFile(lf, extension, _bareSlugsOnLine);
+/// A span of the bare one-slug class is a mention only when a doc carries its
+/// Name, which the caller looks up; a path mention's address is no Name.
+List<NameMention> docMentionsInFile(String lf, String extension) {
+  if (!lf.contains('`') && !lf.contains(markdownExtension)) return const [];
+  return _readFile(lf, extension, _docMentionsOnLine);
 }
 
-Iterable<NameMention> _bareSlugsOnLine(String line, int number) => _spansOnLine(
-  line,
-  number,
-  (address) =>
-      address.typeId == null &&
-      address.isName &&
-      !address.isReferenceWithoutLookup,
+List<NameMention> _namesAndPathsOnLine(String line, int number) =>
+    _ordered(_mentionsOnLine(line, number), _pathsOnLine(line, number));
+
+List<NameMention> _docMentionsOnLine(String line, int number) => _ordered(
+  _spansOnLine(line, number, (address) => address.isName),
+  _pathsOnLine(line, number),
 );
 
-List<NameMention> _namesAndPathsOnLine(String line, int number) {
-  final found = [
-    ..._mentionsOnLine(line, number),
-    ..._pathsOnLine(line, number),
-  ];
+List<NameMention> _ordered(
+  Iterable<NameMention> spans,
+  Iterable<NameMention> paths,
+) {
+  final found = [...spans, ...paths];
   if (found.length > 1) found.sort((a, b) => a.column.compareTo(b.column));
   return found;
 }

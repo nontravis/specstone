@@ -21,15 +21,17 @@ const _agentFolders = {'.claude', '.agents', '.codex', '.cursor'};
 /// agent file: an instruction file the CLI writes a block into, or any file
 /// under an agent folder.
 ///
-/// A path matches at any depth, since each repository top holds its own.
+/// A file named for an agent, `CLAUDE.md`, `AGENTS.md`, or `GEMINI.md`,
+/// matches at any depth; the Copilot file, which has a folder in its path,
+/// matches at the project root only.
 bool isAgentFile(String projectPath) {
   final segments = projectPath.split(_separator);
-  if (agentInstructionNames.any(
-    (name) => projectPath == name || projectPath.endsWith('$_separator$name'),
-  )) {
-    return true;
-  }
-  return segments.take(segments.length - 1).any(_agentFolders.contains);
+  final isInstruction = agentInstructionNames.any(
+    (name) =>
+        name.contains(_separator) ? projectPath == name : segments.last == name,
+  );
+  return isInstruction ||
+      segments.take(segments.length - 1).any(_agentFolders.contains);
 }
 
 /// Returns the agent files a path-moving command reads for mentions, by their

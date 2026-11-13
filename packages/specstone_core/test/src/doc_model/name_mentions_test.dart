@@ -215,21 +215,28 @@ void main() {
     });
   });
 
-  group('bareNameMentionsInFile', () {
-    test('a bare one-slug span of a comment line is a mention', () {
-      final mentions = bareNameMentionsInFile(
-        '// `login`, `user_id#key`, `login/email_login`, `feature:login`\n'
+  group('docMentionsInFile', () {
+    test('one read holds each Name class and the paths, in column order', () {
+      final mentions = docMentionsInFile(
+        '// `login`, `user_id#key`, `login/email_login`, `feature:login`'
+            ' prds/PROJECT.md\n'
             'x(`login`);\n',
         '.dart',
       );
       expect(
         [for (final m in mentions) (m.line, m.text)],
-        [(1, 'login'), (1, 'user_id#key')],
+        [
+          (1, 'login'),
+          (1, 'user_id#key'),
+          (1, 'login/email_login'),
+          (1, 'feature:login'),
+          (1, 'prds/PROJECT.md'),
+        ],
       );
     });
 
     test('markdown holds them outside fenced code', () {
-      final mentions = bareNameMentionsInFile(
+      final mentions = docMentionsInFile(
         'Use `login`.\n\n```\n`login`\n```\n',
         '.md',
       );

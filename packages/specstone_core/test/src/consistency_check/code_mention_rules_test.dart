@@ -146,6 +146,28 @@ void main() {
     });
 
     test(
+      'a copilot file below the project root is read, the root one is not',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: {
+              ...doc(
+                techStack,
+                '  - app/lib/\n',
+                '  - app/lib/\n  - app/lib/pkg/.github/\n  - .github/\n',
+              ),
+              'app/lib/pkg/.github/copilot-instructions.md': 'Use `$_fr`.\n',
+              '.github/copilot-instructions.md': 'Use `$_fr`.\n',
+            },
+          ),
+        );
+        expect(_cited(report), [
+          'app/lib/pkg/.github/copilot-instructions.md:1 $_fr',
+        ]);
+      },
+    );
+
+    test(
       'a test file is read under a code root and unread outside it',
       () async {
         final report = checkOf(
@@ -271,11 +293,14 @@ void main() {
     test('the copilot instructions file and any file under an agent folder '
         'are agent files', () {
       expect(isAgentFile('.github/copilot-instructions.md'), isTrue);
-      expect(isAgentFile('sub/.github/copilot-instructions.md'), isTrue);
       for (final folder in ['.claude', '.agents', '.codex', '.cursor']) {
         expect(isAgentFile('$folder/rules/a.md'), isTrue, reason: folder);
         expect(isAgentFile('sub/$folder/x.json'), isTrue, reason: folder);
       }
+    });
+
+    test('the copilot file is an agent file at the project root only', () {
+      expect(isAgentFile('sub/.github/copilot-instructions.md'), isFalse);
     });
 
     test('other files are not', () {
