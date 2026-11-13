@@ -243,6 +243,29 @@ void main() {
     );
   });
 
+  test(
+    'a design bundle keeps a line whose code span holds an HTML comment',
+    () async {
+      const line =
+          'A block opens with `<!-- BEGIN specstone v1 -->` and closes '
+          'with `<!-- END specstone -->`.';
+      final project = await writeReadProject(
+        extra: {
+          'docs/prds/features/f01_login/FEATURE.md':
+              '---\nvision:\n  - PV-01\nslug:\n  - sign-in\n---\n\n# Login\n\n'
+              '## Problem\n$line\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run(['context', 'login/email_login', '--for', 'design']),
+        0,
+      );
+      expect(out.toString(), contains('## Problem\n$line'));
+      expect(err.toString(), isEmpty);
+    },
+  );
+
   group('f01/us05/fr01, per code target', () {
     /// Writes the two-target fixture of pick_bundle_docs E23: the feature
     /// `feedback/toast`, its story `show`, and its architecture doc in both
