@@ -16,6 +16,8 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
+import 'package:specstone_core/src/setup_migration/tree_move.dart'
+    show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -175,6 +177,10 @@ CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
 /// Returns the `code:` entries of each doc whose type holds the `code` field,
 /// in doc path order, with the target the doc's path names; null for a shared
 /// doc.
+///
+/// A per-target doc still at its one-target path is read where the tree move
+/// puts it ([treeMovesOf]), so the run that moves it already counts its
+/// entries for the first target.
 Iterable<({String? target, String entry})> _codeEntriesOf(
   Directory projectRoot,
   MergedSet set, {
@@ -189,8 +195,13 @@ Iterable<({String? target, String entry})> _codeEntriesOf(
       if (entity is File && entity.path.endsWith('.md'))
         Uri.decodeComponent(entity.uri.path.substring(prefixLength)): entity,
   };
-  for (final docPath in docs.keys.toList()..sort(compareCodePoints)) {
-    final match = matcher.match(docPath);
+  final docPaths = docs.keys.toList()..sort(compareCodePoints);
+  final landing = {
+    for (final move in treeMovesOf(docPaths, set, targetNames: targetNames))
+      move.from: move.to,
+  };
+  for (final docPath in docPaths) {
+    final match = matcher.match(landing[docPath] ?? docPath);
     if (match is! MatchedDocType) continue;
     if (!match.docType.fields.any((field) => field.id == _codeField)) continue;
     final text = _decode(readPlanInput(docs[docPath]!));

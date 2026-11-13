@@ -2850,6 +2850,29 @@ void _treeMoveTests() {
       expect(plan.creates, isEmpty);
     });
 
+    test('$_tree E01, setup_migration/set_up_new_project/write_agent_files '
+        'E35: the run that moves the tech stack surveys its code: roots for '
+        'the agent files', () async {
+      final plan = _planAt(
+        await _treeProject(
+          {
+            'specs/TECH_STACK.md':
+                '---\ndraft: true\ncode:\n  - packages/sub/\n---\n'
+                '# Tech stack\n',
+          },
+          extra: {'flutter_ws/packages/sub/.git/HEAD': 'ref\n'},
+        ),
+      );
+
+      expect(plan.moves, [
+        (from: 'specs/TECH_STACK.md', to: 'specs/flutter/TECH_STACK.md'),
+      ]);
+      expect(plan.agentFiles!.topWrites.map((write) => write.path), [
+        'flutter_ws/packages/sub/AGENTS.md',
+      ]);
+      expect(plan.agentFiles!.addedRoots, ['flutter_ws/packages/sub']);
+    });
+
     test('$_tree E02: a project-layer path keeps every placeholder value '
         'under the target folder', () async {
       final plan = _planAt(

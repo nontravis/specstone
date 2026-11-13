@@ -351,10 +351,44 @@ void main() {
       expect(plan.addedRoots, ['mono']);
     });
 
+    test(
+      '$_write E35: a tech stack still at its one-target path gives its '
+      'code roots to the first target, where the tree move puts it',
+      () async {
+        final base = await _base({
+          'proj/.specstone/config.yaml': twinConfig(),
+          'proj/docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - packages/sub/\n---\n# Tech stack\n',
+          'proj/flutter_ws/packages/sub/.git/HEAD': 'ref\n',
+        });
+        final set = TemplateResolver().resolve(
+          workingDirectory: _at(base, 'proj/'),
+          homeDirectory: null,
+        );
+
+        final folders = codeFoldersOf(
+          _at(base, 'proj/'),
+          set,
+          targets: const [
+            CodeTarget('flutter', codeRoot: 'flutter_ws'),
+            CodeTarget('jaspr', codeRoot: 'jaspr_ws'),
+          ],
+        );
+
+        expect(paths(folders), [
+          _at(base, 'proj/flutter_ws/').path,
+          _at(base, 'proj/flutter_ws/packages/sub/').path,
+          _at(base, 'proj/jaspr_ws/').path,
+        ]);
+      },
+    );
+
     test('$_write E35: a shared doc entry counts for no target when the '
         'project lists two', () async {
       final base = await _base({
         'proj/.specstone/config.yaml': shippedPinsConfig(),
+        'proj/.specstone/templates/tech_stack.yaml':
+            'id: tech_stack\nper_target: false\n',
         'proj/docs/specs/TECH_STACK.md':
             '---\ncode:\n  - vendor/\n---\n# Tech stack\n',
         'proj/flutter_ws/vendor/.git/HEAD': 'ref\n',
