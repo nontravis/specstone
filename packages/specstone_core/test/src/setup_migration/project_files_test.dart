@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -151,6 +152,62 @@ void main() {
       }
     });
 
+    group('configText targets', () {
+      final pins = {
+        'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
+      };
+      const source = 'setup_migration/migrate_legacy_docs/write_project_files';
+      const targets = [
+        CodeTarget('flutter', codeRoot: 'flutter_ws'),
+        CodeTarget('jaspr', codeRoot: '../jaspr ws'),
+      ];
+
+      test('$source E15: the map follows packs, one target a block, before '
+          'the agent file roots', () {
+        expect(
+          configText(
+            pins,
+            targets: targets,
+            agentFileRoots: const ['../jaspr'],
+          ),
+          'packs:\n  prd-core: 1.2.3\n'
+          'targets:\n  flutter:\n    code_root: flutter_ws\n'
+          '  jaspr:\n    code_root: ../jaspr ws\n'
+          'agent_file_roots:\n  - ../jaspr\n',
+        );
+      });
+
+      test('$source E15: the config reader reads the map back', () async {
+        final root = await writeTree({
+          '.specstone/config.yaml': configText(pins, targets: targets),
+        });
+
+        expect(ProjectConfig.read(root).targets, targets);
+      });
+
+      for (final (label, call) in <(String, void Function())>[
+        (
+          'a code_root line',
+          () => configText(pins, targets: targets, codeRoot: 'x'),
+        ),
+        (
+          'a kept code_root key',
+          () => configText(pins, targets: targets, keepCodeRootKey: true),
+        ),
+        (
+          'an unnamed target',
+          () => configText(
+            pins,
+            targets: const [CodeTarget(null, codeRoot: 'x')],
+          ),
+        ),
+      ]) {
+        test('$source E15: targets beside $label is an ArgumentError', () {
+          expect(call, throwsArgumentError);
+        });
+      }
+    });
+
     test('f06/us01/fr05/e01: an ARCHITECTURE renamed one to one covers each '
         'Code path of its old folder, in row order', () {
       final rows = [
@@ -187,7 +244,7 @@ void main() {
       expect(covers?.label, 'covers (1 path)');
     });
 
-    test('f06/us01/fr05/e03: a grouped tree gets the ten path overrides, '
+    test('f06/us01/fr05/e03: a grouped tree gets the eleven path overrides, '
         'and they load', () {
       final overrides = groupedPathOverrides();
 
@@ -203,6 +260,7 @@ void main() {
           'error',
           'integration',
           'auth',
+          'implementation',
         ])
           '.specstone/templates/$id.yaml',
       ]);
@@ -223,6 +281,10 @@ void main() {
         'fr',
       );
       expect(_matchedId(matcher, 'specs/utilities/f01_slot/API.md'), 'api');
+      expect(
+        _matchedId(matcher, 'specs/utilities/f01_slot/IMPLEMENTATION.md'),
+        'implementation',
+      );
     });
 
     test('f06/us01/fr05/e04: a legacy NFR category with no GNFR section '

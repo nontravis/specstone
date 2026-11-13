@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -25,6 +26,7 @@ const _groupedPaths = {
   'error': '$_specFolder/ERROR.md',
   'integration': '$_specFolder/INTEGRATION.md',
   'auth': '$_specFolder/AUTH.md',
+  'implementation': '$_specFolder/IMPLEMENTATION.md',
 };
 
 /// Singular doc types print and write first in this order (PD16).
@@ -38,10 +40,11 @@ const _yamlWords = {'true', 'false', 'null'};
 ///
 /// Writes `packs:`, one pin per line in code point order of the name, then a
 /// `code_root:` line only when [codeRoot] is not `.` or [keepCodeRootKey] is
-/// set, then an `agent_file_roots:` list only when [agentFileRoots] is not
-/// empty; each scalar is quoted when plain YAML would read it as another
-/// value. Throws [ArgumentError] for an agent file root the reader would
-/// refuse.
+/// set, then a `targets:` map only when [targets] is not empty, then an
+/// `agent_file_roots:` list only when [agentFileRoots] is not empty; each
+/// scalar is quoted when plain YAML would read it as another value. Throws
+/// [ArgumentError] for an agent file root the reader would refuse, an unnamed
+/// target, or [targets] beside a `code_root:` line.
 ///
 /// [keepCodeRootKey] keeps the line of a config that already holds the key,
 /// so an explicit `code_root: .` is not dropped.
@@ -49,8 +52,16 @@ String configText(
   Map<String, PackVersion> pins, {
   String codeRoot = '.',
   bool keepCodeRootKey = false,
+  List<CodeTarget> targets = const [],
   List<String> agentFileRoots = const [],
 }) {
+  if (targets.isNotEmpty && (codeRoot != '.' || keepCodeRootKey)) {
+    throw ArgumentError.value(
+      targets,
+      'targets',
+      'each target holds its own code_root, so the config has no code_root key',
+    );
+  }
   for (final root in agentFileRoots) {
     if (!isPortableCodeEntry(root)) {
       throw ArgumentError.value(
@@ -66,13 +77,28 @@ String configText(
   final codeRootLine = codeRoot == '.' && !keepCodeRootKey
       ? ''
       : 'code_root: ${_stringScalar(codeRoot)}\n';
+  final targetLines = [for (final target in targets) _targetLines(target)];
+  final targetsLine = targetLines.isEmpty
+      ? ''
+      : 'targets:\n${targetLines.join()}';
   final rootLines = [
     for (final root in agentFileRoots) '  - ${_stringScalar(root)}\n',
   ];
   final agentFileRootsLine = rootLines.isEmpty
       ? ''
       : 'agent_file_roots:\n${rootLines.join()}';
-  return 'packs:\n${lines.join()}$codeRootLine$agentFileRootsLine';
+  return 'packs:\n${lines.join()}$codeRootLine$targetsLine'
+      '$agentFileRootsLine';
+}
+
+/// Returns the lines of [target] under `targets:`.
+String _targetLines(CodeTarget target) {
+  final name = target.name;
+  if (name == null) {
+    throw ArgumentError.value(target, 'targets', 'every target is named');
+  }
+  return '  ${_stringScalar(name)}:\n'
+      '    code_root: ${_stringScalar(target.codeRoot)}\n';
 }
 
 /// Returns the `covers:` block of the spec folder [legacyFolder], or null.

@@ -181,7 +181,7 @@ void main() {
             .trim()
             .split('\n')
             .where((path) => !path.endsWith('gnfr.yaml'));
-    expect(onDisk, hasLength(10));
+    expect(onDisk, hasLength(11));
     expect(tracked, hasLength(onDisk.length));
   }, skip: skip);
 

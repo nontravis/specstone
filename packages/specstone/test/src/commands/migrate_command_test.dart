@@ -326,6 +326,70 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  group('f06/us01/fr05/e14: the legacy run writes records', () {
+    const storyFile =
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+    String story(String status) =>
+        '---\nname: Email login\nstatus: $status\nimplements:\n'
+        '  - lib/a.dart:A\n---\n\n# US-01 — Email login\n';
+
+    test('the dry run lists the record, and the apply writes it in commit 2 '
+        'with no status or implements left on the story', () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        storyFile: story('implemented'),
+      });
+      final (runner: dry, out: dryOut, err: _) = writeRunner(root);
+      expect(await dry.run(['migrate', '--dry-run']), 0);
+      expect(
+        dryOut.toString(),
+        contains('  specs/f01_login/IMPLEMENTATION.md (draft)\n'),
+      );
+      final hash = await _dryRunPlanHash(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
+
+      expect(err.toString(), isEmpty);
+      final record = File('${root.path}/docs/specs/f01_login/IMPLEMENTATION.md')
+          .readAsStringSync();
+      expect(record, contains('draft: true\n'));
+      expect(record, contains("  - 'email_login:implemented'\n"));
+      expect(record, contains("  - 'email_login:lib/a.dart:A'\n"));
+      final moved = File(
+        '${root.path}/docs/prds/features/f01_login/us01_email_login/'
+        'USER_STORY.md',
+      ).readAsStringSync();
+      expect(moved, isNot(contains('status:')));
+      expect(moved, isNot(contains('implements:')));
+      final committed = git(root, [
+        'show',
+        '--name-only',
+        '--format=',
+        'HEAD',
+      ]).stdout;
+      expect(committed, contains('docs/specs/f01_login/IMPLEMENTATION.md'));
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+    });
+
+    test('a status no record entry takes refuses with value_unplaced, exit '
+        '65, and writes nothing', () async {
+      final root = await gitFixture({...acmeLegacy, storyFile: story('wip')});
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--dry-run']), 65);
+
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        startsWith('prds/features/f01_login/us01_email_login/USER_STORY.md: '),
+      );
+      expect(err.toString(), contains('status wip is no status'));
+      expect(_bytesUnder(root), before);
+    });
+  }, skip: hasGit ? null : 'git is not available');
+
   test('f06/us01/s17: a commit that touches no input between the dry run and '
       'migrate --yes --plan leaves the hash, and the plan applies', () async {
     final root = await gitFixture(acmeLegacy);

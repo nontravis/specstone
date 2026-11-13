@@ -16,6 +16,8 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show frType, storyType;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
@@ -28,8 +30,10 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
@@ -37,6 +41,8 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedDocType;
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/pack_migration.dart'
+    show MoveToRecord;
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -48,6 +54,10 @@ final _gitignoreText = '${specstoneGitignoreLines.join('\n')}\n';
 const _gnfrId = 'gnfr';
 const _appliesToField = 'applies_to';
 const _coversField = 'covers';
+const _statusField = 'status';
+const _toRecord = 'to record';
+const _recordEdit = 'add record entries';
+const _draftNote = ' (draft)';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -136,17 +146,23 @@ RunPlan _legacyRunOf(
     homeDirectory: homeDirectory,
     projectLayers: parseOverrides(overrides),
   );
+  final config = File.fromUri(root.uri.resolve(projectConfigPath));
+  final existing = config.existsSync() ? ProjectConfig.read(root) : null;
+  // A config that holds its roots, `code_root:` or `targets:`, keeps them
+  // (`write_project_files` E10, E15).
+  final keepsCodeRoots =
+      existing != null &&
+      (existing.hasCodeRoot || existing.targetNames.isNotEmpty);
   final rewrites = _rewritesOf(
     titled.works,
     projectSet: projectSet,
     legacy: legacy,
     features: features,
+    targetNames: existing?.targetNames ?? const [],
     exists: (path) => _existsIn(docsRoot, path),
   );
 
-  final config = File.fromUri(root.uri.resolve(projectConfigPath));
-  final existing = config.existsSync() ? ProjectConfig.read(root) : null;
-  final inferred = existing?.hasCodeRoot ?? false
+  final inferred = keepsCodeRoots
       ? null
       : inferCodeRoot(
           root,
@@ -204,6 +220,7 @@ RunPlan _legacyRunOf(
       for (final path in overrides.keys.toList()..sort(compareCodePoints))
         PlannedCreate(path: path, text: overrides[path]!),
       ..._draftsOf(projectSet, docPaths, legacy.moves),
+      ...rewrites.records,
     ],
     left: legacy.left,
     commit1Message: _commit1Message,
@@ -269,10 +286,12 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 /// is their layout.
 ///
 /// `labelsLine` and `stampsLine` are the upgrade's `number labels:` and
-/// `stamps:` plan lines, null when the run has nothing to say.
+/// `stamps:` plan lines, null when the run has nothing to say; `records` are
+/// the draft records the run creates, in path order.
 typedef _Rewrites = ({
   List<PlannedRewrite> planned,
   List<String> layoutOnly,
+  List<PlannedCreate> records,
   String? labelsLine,
   String? stampsLine,
 });
@@ -396,24 +415,27 @@ _Titled _titledWorksOf(
   return (works: works, gnfrSections: gnfrSections);
 }
 
-/// Plans the link rewrites, first fingerprints, and layout of [works].
+/// Plans the record writes, link rewrites, first fingerprints, and layout of
+/// [works].
 ///
 /// A doc left in place gets the link rewrite and the layout. The first
 /// fingerprints hash each FR as the run writes it, laid out, so the FR docs
-/// are rewritten first.
+/// are rewritten first. [targetNames] are the config's named targets.
 _Rewrites _rewritesOf(
   List<_Work> works, {
   required MergedSet projectSet,
   required LegacyMoves legacy,
   required LegacyFeatures features,
+  required List<String> targetNames,
   required bool Function(String path) exists,
 }) {
-  final matcher = DocTypeMatcher(projectSet, targetNames: const []);
+  final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
   var fingerprintEntries = 0;
-  MergedDocType? typeOf(_Work work) => switch (matcher.match(work.newPath)) {
-    MatchedDocType(:final docType) => docType,
+  MatchedDocType? matchOf(_Work work) => switch (matcher.match(work.newPath)) {
+    final MatchedDocType matched => matched,
     _ => null,
   };
+  MergedDocType? typeOf(_Work work) => matchOf(work)?.docType;
   // The stamp is the last write of a doc, so the hash covers its final text
   // (`show_plan_and_apply_on_yes` E07).
   void layOut(_Work work) {
@@ -426,6 +448,12 @@ _Rewrites _rewritesOf(
   }
 
   final tree = _convertLabels(works, typeOf, features);
+  final records = _moveToRecords(
+    works,
+    matchOf,
+    set: projectSet,
+    firstTarget: targetNames.length > 1 ? targetNames.first : null,
+  );
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
@@ -469,6 +497,7 @@ _Rewrites _rewritesOf(
             work.laidOut != work.original.lf)
           work.newPath,
     ],
+    records: records,
     labelsLine: numberLabelsPlanLine(
       converted: [
         for (final work in byPath)
@@ -495,6 +524,107 @@ String _approvedBlockOf(String lf) => [
   for (final block in Doc.parse(lf).frontmatter ?? const <KeyBlock>[])
     if (block.name == 'approved') block.text,
 ].join();
+
+/// Moves the status and code paths of each story and FR of [works] into the
+/// draft record of its feature (`write_project_files` E14), and returns the
+/// records the run creates, in path order.
+///
+/// It is the upgrade's `move_to_record` step, placed by the same builder, so
+/// both paths write the same record. A record the tree already holds gains
+/// the entries in its own work. [firstTarget] is the target a record lands
+/// in, null for a project with fewer than two targets. Throws `MigrateFault`
+/// `value_unplaced` when a value has no place.
+List<PlannedCreate> _moveToRecords(
+  List<_Work> works,
+  MatchedDocType? Function(_Work work) matchOf, {
+  required MergedSet set,
+  required String? firstTarget,
+}) {
+  final recordType = set.recordDocType;
+  if (recordType == null) return const [];
+  final step = MoveToRecord(
+    docTypes: const [storyType, frType],
+    fields: const [_statusField, implementsField],
+    to: recordType.id,
+  );
+  final matches = [for (final work in works) matchOf(work)];
+  final moves = RecordMoves();
+  for (final (index, work) in works.indexed) {
+    final type = matches[index]?.docType;
+    if (type == null || !step.touches(type.id)) continue;
+    final taken = moves.take(
+      docPath: work.legacyPath,
+      plannedPath: work.newPath,
+      type: type,
+      step: step,
+      lf: work.lf,
+    );
+    if (taken == work.lf) continue;
+    work.changes.add('${_keysLost(work.lf, taken)} $_toRecord');
+    work.lf = taken;
+  }
+  final placement = moves.place(
+    set: set,
+    recordType: recordType,
+    firstTarget: firstTarget,
+    docs: [
+      for (final (index, work) in works.indexed)
+        (
+          plannedPath: work.newPath,
+          type: matches[index]?.docType,
+          target: matches[index]?.target,
+          lf: work.lf,
+        ),
+    ],
+  );
+  _refuseUnplaced(placement.unplaced);
+  for (final work in works) {
+    final edited = placement.edits[work.newPath];
+    if (edited == null) continue;
+    work.lf = edited;
+    work.changes.add(_recordEdit);
+  }
+  return [
+    for (final record in placement.creates)
+      PlannedCreate(
+        path: '$_docsFolder${record.docPath}',
+        text: record.text,
+        note: _draftNote,
+      ),
+  ]..sort((a, b) => compareCodePoints(a.path, b.path));
+}
+
+/// Returns the frontmatter keys of [before] that [after] no longer holds,
+/// joined in file order.
+String _keysLost(String before, String after) {
+  Set<String> keysOf(String lf) => {
+    for (final block in Doc.parse(lf).frontmatter ?? const <KeyBlock>[])
+      block.name,
+  };
+  final kept = keysOf(after);
+  return [
+    for (final key in keysOf(before))
+      if (!kept.contains(key)) key,
+  ].join(', ');
+}
+
+/// Throws the first of [faults] for each doc, the rest as its `more`.
+void _refuseUnplaced(List<MigrateFault> faults) {
+  final seen = <String?>{};
+  final perDoc = [
+    for (final fault in faults)
+      if (seen.add(fault.file)) fault,
+  ];
+  if (perDoc.isEmpty) return;
+  final first = perDoc.first;
+  throw MigrateFault(
+    first.code,
+    first.message,
+    file: first.file,
+    key: first.key,
+    more: perDoc.sublist(1),
+  );
+}
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
 /// doc to its name (`rewrite_titles_keys_and_links` E18, E19), and moves the
@@ -586,13 +716,13 @@ bool _existsIn(Directory docsRoot, String path) =>
     FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and the [codeRoot]
-/// and keeps every other pin of the [existing] config, or null when the text
-/// stays.
+/// and keeps every other pin and the `targets:` map of the [existing] config,
+/// or null when the text stays.
 ///
 /// [codeRoot] is the config's own value, or the one inferred for a config with
-/// no key; a config that holds the key keeps its line, `.` included. [note]
-/// ends the plan line. [agentFileRoots] is the full list the run
-/// leaves in the config.
+/// no key; a config that holds the key keeps its line, `.` included, and one
+/// that holds `targets:` has no such line. [note] ends the plan line.
+/// [agentFileRoots] is the full list the run leaves in the config.
 PlannedRewrite? _configRewriteOf(
   File config,
   ProjectConfig existing,
@@ -601,10 +731,15 @@ PlannedRewrite? _configRewriteOf(
   required String note,
   required List<String> agentFileRoots,
 }) {
+  final targets = [
+    for (final target in existing.targets)
+      if (target.name != null) target,
+  ];
   final text = configText(
     {...existing.pins, ...pins},
-    codeRoot: codeRoot,
+    codeRoot: targets.isEmpty ? codeRoot : '.',
     keepCodeRootKey: existing.hasCodeRoot,
+    targets: targets,
     agentFileRoots: agentFileRoots,
   );
   final current = utf8.decode(readPlanInput(config));
