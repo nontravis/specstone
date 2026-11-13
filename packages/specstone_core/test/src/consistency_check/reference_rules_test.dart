@@ -55,7 +55,7 @@ void main() {
     );
     expect(spots(report), [
       '$rules:6: listed_file_missing',
-      '$loginArchitecture:20: concerns_target_unresolved',
+      '$loginArchitecture:23: concerns_target_unresolved',
     ]);
     expect(report.findings.last.toJson()['target'], 'AUTH.md');
   });
@@ -82,7 +82,7 @@ void main() {
     );
     expect(spots(report), [
       '$rules:6: listed_file_missing',
-      '$loginArchitecture:20: concerns_target_unresolved',
+      '$loginArchitecture:23: concerns_target_unresolved',
     ]);
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
@@ -349,7 +349,7 @@ void main() {
     final headerLink = await reportOf('- C: see [x](Components)\n');
     expect(targetsIn(headerLink), ['[x](Components)']);
     expect(spots(headerLink, FindingKind.linkTargetMissing), [
-      '$loginArchitecture:19: link_target_missing',
+      '$loginArchitecture:22: link_target_missing',
     ]);
 
     expect(

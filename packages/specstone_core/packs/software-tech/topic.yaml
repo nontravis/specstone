@@ -41,6 +41,9 @@ sections:
     description: |-
       Give each rule a `RULE-<N>` ID and write it as one sentence a reviewer can check against a diff.
       Write numbers and checkable conditions, such as `timeout 10 s`, not adjectives.
+    lint:
+      max_sentences:
+        - count: 1
   - id: interface
     header: Interface
     description: |-

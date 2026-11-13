@@ -17,6 +17,12 @@ sections:
       Write one table with the columns Entity, Kind, Identity, Owns, Refers to (by id), and Notes; write one row per entity.
       Write Kind as Aggregate root, Entity, Service, or Repository.
       Refers to (by id) is optional; use it to name another aggregate by its id.
+    lint:
+      banned_patterns:
+        - id: entity_kind
+          pattern: '^\|[^|]*\|(?! *(?:Kind|Aggregate root|Entity|Service|Repository|:?-+:?) *\|)[^|]*\|'
+          message: 'Kind is not an allowed value; guide line: Write Kind as Aggregate root, Entity, Service, or Repository'
+          in: all
   - id: value_objects
     header: Value objects
     description: |-
@@ -33,6 +39,18 @@ sections:
       Write numbers and checkable conditions; keep a bound, such as `timeout 10 s`, in the invariant it bounds.
       Leave mechanics to the feature's ARCHITECTURE and a case the system does not handle to `known_limits`.
       Write no trace tag; the DOMAIN's `reference` field holds its trace.
+    lint:
+      max_sentences:
+        - count: 1
+      item_fields:
+        - field: Enforcer
+        - field: Consistency
+          values: [immediate, eventual]
+      banned_patterns:
+        - id: numbered_invariant
+          pattern: '^\d+[.)] '
+          message: 'invariant is a numbered item; guide line: never a numbered item'
+          in: all
   - id: known_limits
     header: Known limits
     description: |-
@@ -56,6 +74,11 @@ sections:
     header: Corrective policies
     description: |-
       Write this section only when an invariant is eventual.
+    lint:
+      required_when:
+        section: invariants
+        field: Consistency
+        value: eventual
   - id: terms
     header: Terms
     description: |-

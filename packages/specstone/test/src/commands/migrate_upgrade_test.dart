@@ -1487,7 +1487,7 @@ void main() {
       });
     });
 
-    group('f06/us02: the shipped software-tech 1.5.0 record', () {
+    group('f06/us02: the shipped software-tech 1.6.0 record', () {
       const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
       const storyPath =
           'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
@@ -1518,7 +1518,7 @@ void main() {
         final dry = await _run(root, h, ['migrate', '--dry-run']);
 
         expect(dry.status, 0, reason: dry.err);
-        expect(dry.out, contains('software-tech 1.4.0 -> 1.5.0'));
+        expect(dry.out, contains('software-tech 1.4.0 -> 1.6.0'));
         expect(
           dry.out,
           contains(

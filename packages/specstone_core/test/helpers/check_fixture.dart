@@ -126,8 +126,11 @@ Map<String, String> checkProjectFiles() => {
       '|---|---|\n| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',
   'docs/$loginArchitecture':
       '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
-      '## Component diagram\n\nOne box.\n\n## Components\n\n- Sign-in page\n\n'
-      '## Concerns\n\n- Errors: see Components\n- Rollout: N/A — one release\n',
+      '## Component diagram\n\nOne box.\n\n## Components\n\n'
+      '| Component | Responsibility |\n|---|---|\n| Sign-in page | Takes the form |\n\n'
+      '## Concerns\n\n- Integration: N/A — no outside call\n- Errors: see Components\n'
+      '- Auth: N/A — one local user\n- Lifecycle: N/A — no states\n- Events: N/A — no events\n'
+      '- Rollout: N/A — one release\n- Observability: N/A — no telemetry\n',
   'docs/$loginApi':
       '---\nconfirmed:\n  - email_login/check_password ${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n'
       '# Login API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'

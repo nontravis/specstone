@@ -27,6 +27,12 @@ sections:
       Keep scopes flat, with no nesting.
       Name a real operation of the API doc in Required for, so every scope traces forward.
       State the default scope when one exists.
+    lint:
+      banned_patterns:
+        - id: scope_form
+          pattern: '^\|(?! *(?:Scope|:?-+:?) *\|)(?! *`?[^\s:|`]+:[^\s:|`]+`? *\|)[^|]*\|'
+          message: 'scope is not <resource>:<action>; guide line: write each scope as `<resource>:<action>`'
+          in: all
   - id: resource_matrix
     header: Resource matrix
     required: true
@@ -35,6 +41,12 @@ sections:
       Write the line "Default: deny"; a blank cell is deny.
       Write each cell as `yes`, `no`, `own` (the resource belongs to the caller), or `any` (any instance).
       Use `own` only when the FR for that endpoint enforces that the subject is the caller.
+    lint:
+      banned_patterns:
+        - id: matrix_cell
+          pattern: '^\|(?:[^|]*\|)*? *`?(?:yes|no|own|any)`? *\|(?: *(?:`?(?:yes|no|own|any)`?)? *\|)*?(?! *(?:`?(?:yes|no|own|any)`?)? *\|)[^|]*[^|\s][^|]*\|'
+          message: 'matrix cell is not yes, no, own, or any; guide line: `yes`, `no`, `own` (the resource belongs to the caller), or `any`'
+          in: all
   - id: conditions
     header: Conditions
     description: |-

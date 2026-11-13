@@ -16,7 +16,7 @@ import '../../helpers/temp_tree.dart';
 void main() {
   group('software-tech manifest', () {
     test(
-      'f03/us07/fr01: software-tech ships at 1.5.0 and extends prd-core',
+      'f03/us07/fr01: software-tech ships at 1.6.0 and extends prd-core',
       () {
         final bytes = shippedPackFiles['software-tech/pack.yaml'];
         expect(bytes, isNotNull);
@@ -25,7 +25,7 @@ void main() {
           file: 'packs/software-tech/pack.yaml',
         );
         expect(manifest.name, 'software-tech');
-        expect(manifest.version.toString(), '1.5.0');
+        expect(manifest.version.toString(), '1.6.0');
         expect(manifest.extendsPack, 'prd-core');
       },
     );
@@ -199,6 +199,7 @@ void main() {
       expect(codePathFields.map((e) => '${e.$1}.${e.$2.id}'), [
         'architecture.covers',
         'implementation.implements',
+        'implementation.tests',
         'tech_stack.code',
         'topic.covers',
       ]);

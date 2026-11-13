@@ -15,6 +15,13 @@ const _says = <String, List<String>>{
     'Code path',
     'one row per component',
     'diagram box',
+    'Responsibility one sentence',
+    'no line but a table line',
+  ],
+  'component_details': [
+    'more than its row',
+    '### <Component>',
+    'Component cell',
   ],
   'interaction': ['one request and one reply', 'error scenario'],
   'deployment': ['tech stack', 'Why'],
@@ -50,7 +57,7 @@ void main() {
 
   test('f03/us07/fr01, f03/us07/fr01/e05, f03/us07/fr01/e06: architecture sits '
       'under specs/f{nn}_{slug}/ with parent feature, a required prefix covers '
-      'list, and nine sections', () {
+      'list, and ten sections', () {
     expect(architecture.path, 'specs/f{nn}_{slug}/ARCHITECTURE.md');
     expect(architecture.parent, 'feature');
     expectOwnFields(architecture, const [
@@ -69,6 +76,7 @@ void main() {
     expectSections(architecture, const [
       SectionSpec('component_diagram', 'Component diagram', required: true),
       SectionSpec('components', 'Components', required: true),
+      SectionSpec('component_details', 'Component details'),
       SectionSpec('interaction', 'Interaction'),
       SectionSpec('deployment', 'Deployment'),
       SectionSpec('rollout', 'Rollout'),

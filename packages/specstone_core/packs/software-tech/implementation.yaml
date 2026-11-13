@@ -2,10 +2,14 @@ id: implementation
 description: |-
   The record of one feature in one code target: the status and the code paths of each story and FR of the feature.
   Title it `# <Feature name> implementation`, such as `# Rendering implementation`, with no number.
-  Aim for one line per entry in `statuses` and one per code path in `implements`, under the 400-line cap.
+  Aim for one line per entry in `statuses`, one per code path in `implements`, and one per test file in `tests`.
+  The 400-line cap does not count these frontmatter lines, so the 60,000-character cap bounds them.
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   The record is the one home of each story's and FR's status and code paths in its target; an item with no `statuses` line, outside every skip, is `planned`, code paths or not.
   A `skipped` entry carries a one-line reason and no code path; a skip on the feature or on a story covers everything below it.
+  `tests` names one `<item>:<test file path>` line per item and test file that proves it.
+  Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
+  Code and tests never name this doc.
   Write one rule per ID: one entry per story and FR, each rule one sentence.
 path: specs/f{nn}_{slug}/IMPLEMENTATION.md
 parent: feature
@@ -25,7 +29,16 @@ fields:
     description: |-
       Lists one line per code path: `<item>:path[:Symbol]`, the item named as in `statuses`, such as `show_toast:lib/toast.dart:showToast`.
       Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
+  - id: tests
+    type: output_ref
+    list: true
+    pointer: item_test
+    description: |-
+      Lists one line per item and test file that proves it: `<item>:<test file path>[:<test or group name>]`, the item named as in `statuses`, such as `show_toast:test/toast_test.dart`.
+      Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
+      Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
 lint:
+  max_chars: 60000
   max_lines: 400
 reference:
   - title: OpenFastTrace, Terminology
