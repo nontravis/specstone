@@ -2542,6 +2542,118 @@ void _moveToRecordTests() {
       });
     });
 
+    test('$_fr E35: with no doc type holding record_status every value '
+        'refuses', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          packFiles: {
+            '.specstone/packs/acme/implementation.yaml':
+                'fields:\n  - {id: statuses, disabled: true}\n'
+                '  - {id: implements, disabled: true}\n',
+          },
+        ),
+      );
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.file, _loginStoryPath);
+      expect(fault.message, contains('record_status'));
+      expect(fault.more, hasLength(1));
+    });
+
+    test('$_fr E35: a record whose frontmatter is not valid YAML refuses '
+        'instead of losing its lines', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          docs: {..._loginDocs, _recordPath: '---\nstatuses: [a\n---\n# R\n'},
+        ),
+      );
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.message, contains('not valid YAML'));
+    });
+
+    test(
+      '$_fr E35: a record type with no code field refuses a code path',
+      () async {
+        final fault = _refusedPlan(
+          await _recordFixture(
+            packFiles: {
+              '.specstone/packs/acme/implementation.yaml':
+                  'fields:\n  - {id: implements, disabled: true}\n',
+            },
+          ),
+        );
+
+        expect(fault.file, _loginStoryPath);
+        expect(fault.key, 'implements');
+      },
+    );
+
+    test('$_fr E35: the refusal lists docs in doc order, whichever pass '
+        'found them', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          docs: {
+            ..._loginDocs,
+            _recordPath: recordText(statuses: ['email_login:planned']),
+            'prds/features/f02_pay/us01_card/USER_STORY.md':
+                '---\nstatus: implemented\n---\n# Card\n',
+          },
+        ),
+      );
+
+      expect(fault.file, _loginStoryPath);
+      expect(
+        fault.more.single.file,
+        'prds/features/f02_pay/us01_card/USER_STORY.md',
+      );
+    });
+
+    test('$_fr E30: an approved record that gains entries is re-stamped, not '
+        'drafted', () async {
+      final probe = await _recordFixture();
+      final record = withApprovalHash(
+        recordText(
+          statuses: ['email_login:implemented'],
+          code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
+        ),
+        _finalType(probe, 'implementation'),
+      );
+      final fixture = await _recordFixture(
+        docs: {..._loginDocs, _recordPath: record},
+      );
+
+      final plan = _plan(fixture);
+
+      final text = _stampedDocText(plan, _recordPath);
+      expect(
+        _valuesOf(text)['approved'],
+        approvalHashOf(text, _finalType(fixture, 'implementation')),
+      );
+      expect(_valuesOf(text), isNot(contains('draft')));
+      expect(_valuesOf(text)['statuses'], hasLength(2));
+    });
+
+    test(
+      '$_fr E36: a record layer without path refuses on that cause',
+      () async {
+        final fault = _refusedPlan(
+          await _recordFixture(
+            docs: {_featurePath: '# L\n'},
+            extra: {
+              '.specstone/templates/architecture.yaml':
+                  'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+              _overrideFile: 'description: Mine\n',
+            },
+          ),
+        );
+
+        expect(fault.code, MigrateFaultCode.overrideDangling);
+        expect(fault.file, _overrideFile);
+        expect(fault.message, contains('sets no path'));
+      },
+    );
+
     test('$_fr E39: a pack that is no one-time trigger runs no one-time '
         'pass beside the step', () async {
       final text = _plan(await _recordFixture()).toText();

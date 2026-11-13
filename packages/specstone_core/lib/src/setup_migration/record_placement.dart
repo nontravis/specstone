@@ -1,16 +1,15 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
-import 'package:specstone_core/src/document_writing/new_doc.dart'
-    show skeletonOf;
+import 'package:specstone_core/src/document_writing/rewrite_records.dart'
+    as rewrite_records;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart'
     show parseFrontmatterYaml;
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart';
-import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show FieldType, PointerKind, RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -176,6 +175,7 @@ final class RecordMoves {
           break;
       }
     }
+    unplaced.sort((a, b) => compareCodePoints(a.file!, b.file!));
     return (unplaced: unplaced, edits: edits, creates: creates);
   }
 }
@@ -273,8 +273,8 @@ _Landed _land(
       ),
     );
   }
-  final docPath = tree.newRecordPathOf(feature);
-  if (docPath == null) {
+  final created = tree.newRecordOf(feature, lines);
+  if (created == null) {
     return (
       unplaced: [
         ...unplaced,
@@ -283,11 +283,9 @@ _Landed _land(
       record: null,
     );
   }
-  final skeleton = skeletonOf(recordType, feature.name.split('/').last);
-  final text = addRecordLines(skeleton, recordType, lines) ?? skeleton;
   return (
     unplaced: unplaced,
-    record: (docPath: docPath, text: layOutDoc(text, recordType), isNew: true),
+    record: (docPath: created.docPath, text: created.text, isNew: true),
   );
 }
 
@@ -482,18 +480,21 @@ final class _Tree {
         tokens: 0,
       );
 
-  /// Returns the DocPath of the record of [feature]; null when the record doc
-  /// type has no path in the feature's spec folder.
-  String? newRecordPathOf(IndexedDoc feature) {
+  /// Returns the new record of [feature] holding [lines]; null when the
+  /// record doc type has no path in the feature's spec folder.
+  ({String docPath, String text})? newRecordOf(
+    IndexedDoc feature,
+    RecordLines lines,
+  ) {
     final featureType = _set.lookup(feature.docTypeId!);
-    final featureShape = featureType == null
-        ? null
-        : DocPathShape.ofDoc(featureType, _set, feature.docPath);
-    final values = featureShape?.valuesOf(feature.docPath);
-    final shape = featureShape == null
-        ? null
-        : DocPathShape.of(_recordType, _set, depth: featureShape.depth);
-    if (values == null || shape == null || !isSpecDocShape(shape)) return null;
-    return shape.build(values);
+    if (featureType == null) return null;
+    return rewrite_records.newRecordOf(
+      _set,
+      _recordType,
+      featureType: featureType,
+      featureDocPath: feature.docPath,
+      featureName: feature.name,
+      lines: lines,
+    );
   }
 }

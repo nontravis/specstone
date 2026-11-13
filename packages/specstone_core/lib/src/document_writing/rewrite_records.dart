@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 
 /// What a rename or a move does to the record entries of every code target:
 /// the edit of each record that renames or loses entries or gains some, by
@@ -196,32 +197,56 @@ CreateStep _createdRecord(
 ) {
   final set = session.index.set;
   final featureType = session.index.typeOf(arrival.feature);
-  final featureShape = featureType == null
-      ? null
-      : DocPathShape.ofDoc(featureType, set, arrival.feature.docPath);
-  final values = featureShape?.valuesOf(arrival.feature.docPath);
   final twins = session.index.targetNames.length > 1;
-  final shape = featureShape == null
+  final record = featureType == null
       ? null
-      : DocPathShape.of(
-          recordType,
+      : newRecordOf(
           set,
-          depth: featureShape.depth,
+          recordType,
+          featureType: featureType,
+          featureDocPath: arrival.feature.docPath,
+          featureName: arrival.feature.name,
+          lines: lines,
           target: twins ? arrival.target : null,
         );
-  if (values == null || shape == null || !isSpecDocShape(shape)) {
+  if (record == null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       '${recordType.id} has no path to create a record at for '
       '${arrival.feature.name}',
     );
   }
-  final docPath = shape.build(values);
-  session.requireWritable(docPath);
-  final skeleton = skeletonOf(recordType, arrival.feature.name.split('/').last);
+  session.requireWritable(record.docPath);
+  return CreateStep(session.projectPathOf(record.docPath), record.text);
+}
+
+/// Returns the DocPath and laid-out text of the draft record of the feature at
+/// [featureDocPath] holding [lines]; null when [recordType] has no path of its
+/// own for the feature.
+///
+/// The one builder of a new record, for a move or rename and for a migration.
+/// [target] reads the path in that code target's folder.
+({String docPath, String text})? newRecordOf(
+  MergedSet set,
+  MergedDocType recordType, {
+  required MergedDocType featureType,
+  required String featureDocPath,
+  required String featureName,
+  required RecordLines lines,
+  String? target,
+}) {
+  final featureShape = DocPathShape.ofDoc(featureType, set, featureDocPath);
+  final values = featureShape?.valuesOf(featureDocPath);
+  final shape = featureShape == null
+      ? null
+      : DocPathShape.of(
+          recordType,
+          set,
+          depth: featureShape.depth,
+          target: target,
+        );
+  if (values == null || shape == null || !isSpecDocShape(shape)) return null;
+  final skeleton = skeletonOf(recordType, featureName.split('/').last);
   final text = addRecordLines(skeleton, recordType, lines) ?? skeleton;
-  return CreateStep(
-    session.projectPathOf(docPath),
-    layOutDoc(text, recordType),
-  );
+  return (docPath: shape.build(values), text: layOutDoc(text, recordType));
 }
