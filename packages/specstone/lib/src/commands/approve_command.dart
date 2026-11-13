@@ -48,7 +48,7 @@ class ApproveCommand extends WriteCommand {
   @override
   String get invocation =>
       'specstone approve [<name> …] [--target <name>] [--dry-run] '
-      '[--context <n> | --json] | <name>@<hash> … --yes';
+      '[--context <n> | --json] | <name>@<hash> … --yes [--target <name>]';
 
   @override
   Future<int> run() async {

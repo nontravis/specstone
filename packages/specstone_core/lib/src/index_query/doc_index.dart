@@ -209,7 +209,7 @@ final class DocIndex {
     }
     return [
       for (final doc in docs)
-        if (doc.target == null || doc.target == codeTarget) doc,
+        if (doc.inTarget(codeTarget)) doc,
     ];
   }
 
@@ -248,10 +248,7 @@ final class DocIndex {
     final paths = {
       for (final doc in resolve(name, codeTarget: codeTarget))
         for (final member in subtreeOf(doc))
-          if (codeTarget == null ||
-              member.target == null ||
-              member.target == codeTarget)
-            member.docPath,
+          if (member.inTarget(codeTarget)) member.docPath,
     };
     return [
       for (final doc in docs)

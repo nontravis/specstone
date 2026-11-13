@@ -339,10 +339,7 @@ String _cleaned(String text) => _removeComments(text).trim();
 String _mapBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
     for (final member in index.subtreeOf(top))
-      if (codeTarget == null ||
-          member.target == null ||
-          member.target == codeTarget)
-        _mapLine(index, top, member),
+      if (member.inTarget(codeTarget)) _mapLine(index, top, member),
   ];
   return '==> map: ${nameWithType(top)} <==\n${lines.join('\n')}';
 }
@@ -357,10 +354,7 @@ String _mapLine(DocIndex index, IndexedDoc top, IndexedDoc member) =>
 String _namesBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
     for (final child in index.childrenOf(top))
-      if (index.isChainDoc(child) &&
-          (codeTarget == null ||
-              child.target == null ||
-              child.target == codeTarget))
+      if (index.isChainDoc(child) && (child.inTarget(codeTarget)))
         '- ${nameWithType(child)} · ${child.tokens} tokens',
   ];
   return '==> names: ${nameWithType(top)} <==\n${lines.join('\n')}';
@@ -412,10 +406,7 @@ Map<String, Object> _docJson(
   'tokens': doc.tokens,
   'children': [
     for (final child in index.childrenOf(doc))
-      if (codeTarget == null ||
-          child.target == null ||
-          child.target == codeTarget)
-        _docJson(index, child, codeTarget),
+      if (child.inTarget(codeTarget)) _docJson(index, child, codeTarget),
   ],
 };
 
@@ -428,10 +419,7 @@ Map<String, Object> _namesJson(
     'names': [
       for (final top in _byTreeOrder(index, tops))
         for (final child in index.childrenOf(index.at(top)!))
-          if (index.isChainDoc(child) &&
-              (codeTarget == null ||
-                  child.target == null ||
-                  child.target == codeTarget))
+          if (index.isChainDoc(child) && (child.inTarget(codeTarget)))
             {
               'name': child.name,
               'docType': ?child.docTypeId,

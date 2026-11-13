@@ -71,7 +71,7 @@ List<IndexedDoc> _reachable(
   if (own == null || !_hasTargets(context)) return named;
   return [
     for (final doc in named)
-      if (doc.target == null || doc.target == own) doc,
+      if (doc.inTarget(own)) doc,
   ];
 }
 

@@ -74,8 +74,7 @@ final class Bundle {
   ///
   /// Public so the code-path bundle's spec-folder walk keeps to the picked
   /// target's docs.
-  bool keepsTarget(IndexedDoc doc) =>
-      codeTarget == null || doc.target == null || doc.target == codeTarget;
+  bool keepsTarget(IndexedDoc doc) => doc.inTarget(codeTarget);
 
   /// Adds [target] and its chain docs by [mode]'s rule (INV-11, INV-12).
   void addTarget(DocIndex index, IndexedDoc target) {

@@ -66,6 +66,7 @@ void approveDrafts(
       count: drafts.length,
       context: context,
       color: color,
+      codeTarget: codeTarget,
     );
     if (!_approveOne(session, doc, viewOf, readLine, out)) return;
   }
@@ -102,7 +103,7 @@ ReadAnswer approveDryRun(
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
     for (final (:doc, :bytes) in drafts)
-      _draftViewOf(session, doc, bytes, reads),
+      _draftViewOf(session, doc, bytes, reads, codeTarget),
   ];
   return ReadAnswer(
     text: [
@@ -231,9 +232,7 @@ List<IndexedDoc> _draftsUnder(
     for (final doc in index.docs)
       if (_waitsForApproval(session, doc) &&
           (selected?.contains(doc.docPath) ?? true) &&
-          (codeTarget == null ||
-              doc.target == null ||
-              doc.target == codeTarget))
+          doc.inTarget(codeTarget))
         doc,
   ];
 }
@@ -421,6 +420,7 @@ DraftView _draftViewOf(
   IndexedDoc doc,
   List<int> bytes,
   _RunReads reads,
+  String? codeTarget,
 ) {
   final type = session.index.typeOf(doc);
   final text = utf8.decode(bytes);
@@ -430,7 +430,7 @@ DraftView _draftViewOf(
     docType: doc.docTypeId!,
     mergedType: type,
     title: doc.title,
-    status: session.index.statusOf(doc),
+    status: session.index.statusOf(doc, codeTarget: codeTarget),
     docPath: doc.docPath,
     projectPath: session.projectPathOf(doc.docPath),
     text: text,
@@ -449,8 +449,9 @@ String _viewOf(
   required int count,
   required int? context,
   required bool color,
+  required String? codeTarget,
 }) => renderApprovalView(
-  _draftViewOf(session, doc, bytes, reads),
+  _draftViewOf(session, doc, bytes, reads, codeTarget),
   position: position,
   count: count,
   context: context,

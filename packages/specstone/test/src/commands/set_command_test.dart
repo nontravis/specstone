@@ -297,9 +297,9 @@ void main() {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['set', '--help']), 0);
     expect(
-      out.toString(),
+      out.toString().replaceAll(RegExp(r'\s+'), ' '),
       contains(
-        'Takes no doc address, --base, --field, or --title; reads no stdin.',
+        'Takes no doc address, --base, --field, --title, or --target; reads no stdin.',
       ),
     );
   });
@@ -525,6 +525,21 @@ void main() {
         contains('## Components\n\n- Jaspr sign-in page\n'),
       );
       expect(readDoc(root, flutterArchitecture), flutterBefore);
+    });
+    test('f02/us01/fr07: --batch with --target exits 64 as argument_conflict and writes nothing', () async {
+      final root = await writeTwinProject();
+      final before = readDoc(root, jasprArchitecture);
+      final file = File('${root.path}/batch.md')..writeAsStringSync('x\n');
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['set', '--batch', file.path, '--target', 'jaspr']),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--batch takes no doc address, --base, --field, --title, or --target\n',
+      );
+      expect(readDoc(root, jasprArchitecture), before);
     });
   });
 }

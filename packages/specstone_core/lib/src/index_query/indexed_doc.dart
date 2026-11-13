@@ -131,6 +131,11 @@ final class IndexedDoc {
   /// an untyped doc (INV-26).
   final String? target;
 
+  /// Whether the doc shows under [codeTarget]: always with none, else only
+  /// when the doc is shared or belongs to that target (INV-26).
+  bool inTarget(String? codeTarget) =>
+      codeTarget == null || target == null || target == codeTarget;
+
   /// The docPath of the doc this one nests under; null for a root doc.
   final String? parentPath;
 

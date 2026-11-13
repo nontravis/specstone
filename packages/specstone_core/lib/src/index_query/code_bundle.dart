@@ -135,9 +135,8 @@ void _addImplement(
 }
 
 /// Returns [code]'s target's docs and the shared docs of [index].
-Iterable<IndexedDoc> _docsOf(DocIndex index, CodePath code) => index.docs.where(
-  (doc) => doc.target == null || doc.target == code.target.name,
-);
+Iterable<IndexedDoc> _docsOf(DocIndex index, CodePath code) =>
+    index.docs.where((doc) => doc.inTarget(code.target.name));
 
 List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
   var longest = 0;

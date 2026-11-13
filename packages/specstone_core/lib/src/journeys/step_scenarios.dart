@@ -16,12 +16,7 @@ const _storyType = 'user_story';
 IndexedDoc? storyNamed(DocIndex index, String identity, {String? codeTarget}) {
   final docs = index
       .ofTypeNamed(_storyType, identity)
-      .where(
-        (doc) =>
-            codeTarget == null ||
-            doc.target == null ||
-            doc.target == codeTarget,
-      );
+      .where((doc) => doc.inTarget(codeTarget));
   return docs.firstOrNull;
 }
 

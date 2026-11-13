@@ -46,7 +46,7 @@ ReadAnswer answerStructure(
     for (final doc in shown)
       if (doc.isTyped &&
           (target != null ||
-              (index.parentOf(doc) == null && _shownIn(doc, codeTarget))))
+              (index.parentOf(doc) == null && doc.inTarget(codeTarget))))
         doc,
   ];
   final folders = _untypedByFolder([
@@ -88,10 +88,6 @@ ReadAnswer answerStructure(
   );
 }
 
-/// Whether [doc] shows under [codeTarget]: shared, or that target's alone.
-bool _shownIn(IndexedDoc doc, String? codeTarget) =>
-    codeTarget == null || doc.target == null || doc.target == codeTarget;
-
 /// Returns [doc]'s line with each code target's status [index] computes.
 String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) =>
     docLineWithStatus(doc, statusPartOf(index, doc, codeTarget));
@@ -125,7 +121,7 @@ List<IndexedDoc> _childrenShown(
   String? codeTarget,
 ) => [
   for (final child in index.childrenOf(doc))
-    if (_shownIn(child, codeTarget)) child,
+    if (child.inTarget(codeTarget)) child,
 ];
 
 void _writeTree(

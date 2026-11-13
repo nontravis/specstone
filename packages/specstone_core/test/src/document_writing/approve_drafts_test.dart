@@ -20,6 +20,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' as check show edit, loginStory;
 import '../../helpers/git_repo.dart';
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
@@ -2007,5 +2008,35 @@ void main() {
         );
       },
     );
+
+    test('f02/us03/fr01: the status row of a story draft reads its record in the --target given', () async {
+      String record(String status) =>
+          '---\nstatuses:\n  - email_login:$status\n---\n\n# Record\n';
+      final root = await writeTwinProject(
+        extra: {
+          ...check.edit(check.loginStory, [
+            ('status: implemented\n', 'draft: true\n'),
+          ]),
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
+            'implemented',
+          ),
+          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': record('planned'),
+        },
+      );
+      Object? statusUnder(String target) {
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(
+            s,
+            names: ['user_story:login/email_login'],
+            codeTarget: target,
+          ),
+        );
+        return ((answer.json['drafts']! as List).single as Map)['status'];
+      }
+
+      expect(statusUnder('flutter'), 'implemented');
+      expect(statusUnder('jaspr'), 'planned');
+    });
   });
 }

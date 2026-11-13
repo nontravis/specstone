@@ -212,7 +212,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone approve [<name> …] [--target <name>] [--dry-run] [--context <n> | --json] | <name>@<hash> … --yes',
+        'Usage: specstone approve [<name> …] [--target <name>] [--dry-run] [--context <n> | --json] | <name>@<hash> … --yes [--target <name>]',
       ),
     );
     expect(
