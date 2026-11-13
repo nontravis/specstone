@@ -12,7 +12,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('f03/us06/fr01: prd-core ships at 1.7.0 with no extends', () {
+    test('f03/us06/fr01: prd-core ships at 1.8.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -20,20 +20,20 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.7.0');
+      expect(manifest.version.toString(), '1.8.0');
       expect(manifest.extendsPack, isNull);
     });
 
     test(
       'template_packs/write_prd_docs_from_prd_core/ship_prd_core_pack: prd-core '
-      'writes no migrations entry, so a 1.6.0 pin re-pins with no pack step',
+      'writes no migrations entry, so a 1.7.0 pin re-pins with no pack step',
       () {
         final manifest = PackManifest.parse(
           utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
           file: 'packs/prd-core/pack.yaml',
         );
         expect(manifest.migrations, isEmpty);
-        for (final pin in ['1.6.0', '1.0.0']) {
+        for (final pin in ['1.7.0', '1.0.0']) {
           final upgrades = selectUpgrades(
             {
               'prd-core': PackVersion.parse(
@@ -44,7 +44,7 @@ void main() {
             },
             {'prd-core': manifest},
           );
-          expect(upgrades.single.target.toString(), '1.7.0', reason: pin);
+          expect(upgrades.single.target.toString(), '1.8.0', reason: pin);
           expect(upgrades.single.steps, isEmpty, reason: pin);
         }
       },

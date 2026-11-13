@@ -25,7 +25,10 @@ const _templates = <String, String>{
   'edge_cases': '1. E01 — <trigger> → <response>',
   'rationale':
       '<reason, assumptions, related requirements, design constraints>',
-  'verification': verificationTemplate,
+  'verification':
+      '- **Pass criteria:** <what shows the requirement holds>\n'
+      '  - <one condition, when the criteria are long>\n'
+      '- **Level:** <level>',
   'tbr': tbrTemplate,
 };
 
@@ -73,7 +76,13 @@ void main() {
 
   test('f03/us06/s4, f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on '
       'the Statement section only, and the NASA handbook', () {
-    expectNasaLint(fr, sections: ['statement']);
+    expectNasaLint(
+      fr,
+      sections: ['statement'],
+      otherWords: {
+        'tbr': ['TBD'],
+      },
+    );
   });
 
   test('f03/us06/fr02: the templates hold the requirement forms, free of the '

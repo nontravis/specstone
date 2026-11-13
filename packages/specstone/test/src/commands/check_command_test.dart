@@ -333,7 +333,7 @@ void main() {
         await writeCheckProject(
           extra: fr(
             '1. E01 — An empty password → refused.',
-            '1. E01 — ${'An empty password'.padRight(700, '.')}',
+            '1. E01 — ${'An empty password →'.padRight(700, '.')}',
           ),
         ),
       );
