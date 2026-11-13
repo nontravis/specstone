@@ -235,45 +235,47 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
-  test('document_writing/approve_drafts/show_changes_since_approval E03, E32: '
-      'a never-approved doc with approved: on disk shows the no-copy cell and '
-      'the hint, one without it the cell alone', () async {
-    String draft(String mark) =>
-        '---\n$mark---\n\n# Signup\n\n## Problem\nUsers sign up.\n';
-    final root = await writeWriteProject(
-      extra: {'docs/$signupFeature': draft('approved: "0123456789ab"\n')},
-    );
-    expect(git(root, ['init', '-q']).exitCode, 0);
-    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
-    commitAll(root, 'approved on disk, never committed as approved');
-    var (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['approve', '--dry-run']), 0);
-    expect(
-      out.toString(),
-      contains('| old     | none: no commit holds an approved copy |\n'),
-    );
-    expect(
-      out.toString(),
-      contains(
-        'commit an approval before you edit the doc again; '
-        'the view compares against committed copies only\n',
-      ),
-    );
+  test(
+    'dry run shows the no-copy cell for a never-approved doc, with the '
+    'hint when it carries approved: on disk and without it otherwise',
+    () async {
+      String draft(String mark) =>
+          '---\n$mark---\n\n# Signup\n\n## Problem\nUsers sign up.\n';
+      final root = await writeWriteProject(
+        extra: {'docs/$signupFeature': draft('approved: "0123456789ab"\n')},
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved on disk, never committed as approved');
+      var (:runner, :out, :err) = writeRunner(root);
+      expect(await runner.run(['approve', '--dry-run']), 0);
+      expect(
+        out.toString(),
+        contains('| old     | none: no commit holds an approved copy |\n'),
+      );
+      expect(
+        out.toString(),
+        contains(
+          'commit an approval before you edit the doc again; '
+          'the view compares against committed copies only\n',
+        ),
+      );
 
-    final bare = await writeWriteProject(
-      extra: {'docs/$signupFeature': draft('draft: true\n')},
-    );
-    expect(git(bare, ['init', '-q']).exitCode, 0);
-    expect(git(bare, ['config', 'core.autocrlf', 'false']).exitCode, 0);
-    commitAll(bare, 'only ever a draft');
-    (:runner, :out, :err) = writeRunner(bare);
-    expect(await runner.run(['approve', '--dry-run']), 0);
-    expect(
-      out.toString(),
-      contains('| old     | none: no commit holds an approved copy |\n'),
-    );
-    expect(out.toString(), isNot(contains('commit an approval')));
-  });
+      final bare = await writeWriteProject(
+        extra: {'docs/$signupFeature': draft('draft: true\n')},
+      );
+      expect(git(bare, ['init', '-q']).exitCode, 0);
+      expect(git(bare, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(bare, 'only ever a draft');
+      (:runner, :out, :err) = writeRunner(bare);
+      expect(await runner.run(['approve', '--dry-run']), 0);
+      expect(
+        out.toString(),
+        contains('| old     | none: no commit holds an approved copy |\n'),
+      );
+      expect(out.toString(), isNot(contains('commit an approval')));
+    },
+  );
   test('f02/us03/fr05/e02: dry run with --yes is a usage error', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(root);
