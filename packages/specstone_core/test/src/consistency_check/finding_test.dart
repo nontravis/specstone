@@ -55,6 +55,7 @@ void main() {
       'markdown_unparsed',
       'doc_name_unresolved',
       'per_target_reference',
+      'shared_doc_code_path',
       'number_label',
       'reference_doc_unresolved',
       'listed_file_missing',

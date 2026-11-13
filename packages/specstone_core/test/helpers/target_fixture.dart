@@ -19,8 +19,9 @@ const brokenLink = ' See [x](../../../nowhere.md).';
 /// Writes the two-target project and returns its folder.
 ///
 /// The targets are `flutter` (`flutter_ws`) and `jaspr` (`jaspr_ws`), each with
-/// a `login.dart`. `architecture` is per-target with one twin each; the API doc
-/// stays shared. The feature, the API doc, and each twin hold one broken link,
+/// a `login.dart`. `architecture` and `tech_stack` are per-target with one twin
+/// each, since a shared doc with code paths is a finding; the API doc stays
+/// shared. The feature, the API doc, and each twin hold one broken link,
 /// so each finding names its doc. A key in [extra] replaces or adds a file; a
 /// path in [without] drops one.
 Future<Directory> writeTwinProject({
@@ -37,11 +38,20 @@ Future<Directory> writeTwinProject({
     ),
     fixtureDocTypeOf(loginArchitecture),
   );
+  final techTwin = withApprovalHash(
+    toLf(checkProjectFiles()['docs/$techStack']!),
+    fixtureDocTypeOf(techStack),
+  );
   String code(String name) =>
       'class SignInPage {}\nclass ${name}SignIn {}\n'
       'bool checkPassword(String p) => p.isNotEmpty;\n';
   return writeCheckProject(
-    without: {'docs/$loginArchitecture', 'app/lib/login.dart', ...without},
+    without: {
+      'docs/$loginArchitecture',
+      'docs/$techStack',
+      'app/lib/login.dart',
+      ...without,
+    },
     extra: {
       '.specstone/config.yaml':
           '${shippedPinsConfig()}targets:\n'
@@ -59,6 +69,10 @@ Future<Directory> writeTwinProject({
           '  - id: statuses\n'
           '    type: record_status\n'
           '    list: true\n',
+      '.specstone/templates/tech_stack.yaml':
+          'id: tech_stack\nper_target: true\n',
+      'docs/specs/flutter/TECH_STACK.md': techTwin,
+      'docs/specs/jaspr/TECH_STACK.md': techTwin,
       'docs/$flutterArchitecture': twin,
       'docs/$jasprArchitecture': twin,
       // The record holds each item's status, so the shared docs write none.

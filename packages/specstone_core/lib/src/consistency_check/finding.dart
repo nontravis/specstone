@@ -72,6 +72,7 @@ enum FindingKind {
   markdownUnparsed('markdown_unparsed'),
   docNameUnresolved('doc_name_unresolved'),
   perTargetReference('per_target_reference'),
+  sharedDocCodePath('shared_doc_code_path'),
   numberLabel('number_label'),
   referenceDocUnresolved('reference_doc_unresolved'),
   listedFileMissing('listed_file_missing'),

@@ -21,6 +21,10 @@ const _jasprTech = 'specs/jaspr/TECH_STACK.md';
 const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
 const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
 const _implemented = 'email_login/check_password:implemented';
+const _sharedTopic = 'specs/topics/doc_model.md';
+const _sharedTopic1 =
+    '---\ncovers:\n  - lib/src/\n---\n\n# Doc model\n\n## Purpose\n\n'
+    'One rule set.\n\n## Scope\n\nThe src folder.\n';
 
 /// Returns a record holding the one-line [statuses].
 String _record(List<String> statuses) =>
@@ -403,6 +407,16 @@ void main() {
     });
   });
 
+  test('cc-INV-47: a shared doc with covers in a one-target project is no shared_doc_code_path', () async {
+    final report = checkOf(
+      await writeCheckProject(extra: {'docs/$_sharedTopic': _sharedTopic1}),
+    );
+    expect(
+      report.findings.where((f) => f.kind == FindingKind.sharedDocCodePath),
+      isEmpty,
+    );
+  });
+
   group('two targets', () {
     test('f04/us02/fr02/e06: each target resolves its covers and code roots against its own code root', () async {
       final project = await _twin(
@@ -487,6 +501,36 @@ void main() {
       expect(_of(report, FindingKind.codeRootMissing), isEmpty);
       expect(_of(report, FindingKind.coversPathMissing), isEmpty);
     });
+
+    test('cc-INV-47: a shared doc with covers in a project of two targets is shared_doc_code_path, once, at the key line', () async {
+      final project = await _twin(extra: {'docs/$_sharedTopic': _sharedTopic1});
+      final report = _run(project);
+      final line =
+          File('${project.path}/docs/$_sharedTopic')
+              .readAsLinesSync()
+              .indexWhere((l) => l.startsWith('covers:')) +
+          1;
+      final found = report.findings.where(
+        (f) => f.kind == FindingKind.sharedDocCodePath,
+      );
+      expect(found.map((f) => (f.path, f.line)), [(_sharedTopic, line)]);
+      expect(
+        found.single.message,
+        'the doc carries code paths but belongs to no target; move them '
+        'into a doc of the target they belong to',
+      );
+    });
+
+    test(
+      'cc-INV-47: a per-target doc with covers is no shared_doc_code_path',
+      () async {
+        final report = _run(await _twin());
+        expect(
+          report.findings.where((f) => f.kind == FindingKind.sharedDocCodePath),
+          isEmpty,
+        );
+      },
+    );
 
     test(
       'f04/us02/fr03/e06: a --target run lists the files of that target only',

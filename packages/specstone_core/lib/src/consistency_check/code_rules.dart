@@ -10,6 +10,7 @@ import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show RecordStatus;
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _coversField = 'covers';
 const _codeField = 'code';
@@ -99,8 +100,13 @@ Iterable<Finding> checkCoversAndCodeRoots(
   IndexedDoc doc,
 ) sync* {
   final type = context.typeOf(doc);
+  if (type == null) return;
+  if (doc.target == null && context.targets.length > 1) {
+    yield* _sharedDocPaths(context, doc, type);
+    return;
+  }
   final target = work.targetOf(doc);
-  if (type == null || target == null || !work.endsWaitOf(doc, target)) return;
+  if (target == null || !work.endsWaitOf(doc, target)) return;
   final codeRoot = context.codeRootOf(target);
   for (final (field, kind) in [
     (_coversField, FindingKind.coversPathMissing),
@@ -119,6 +125,32 @@ Iterable<Finding> checkCoversAndCodeRoots(
       );
     }
   }
+}
+
+/// Yields the `shared_doc_code_path` finding of a doc that belongs to no
+/// target but carries `covers` or `code` in a project of several targets.
+///
+/// One finding per doc, at the line of the first such key; its paths count for
+/// no target.
+Iterable<Finding> _sharedDocPaths(
+  CheckContext context,
+  IndexedDoc doc,
+  MergedDocType type,
+) sync* {
+  final lines = context.linesOf(doc);
+  final line = [
+    for (final field in [_coversField, _codeField])
+      if (context.typeHoldsField(type, field)) lines.keyLine(field),
+  ].nonNulls.firstOrNull;
+  if (line == null) return;
+  yield context.finding(
+    doc,
+    FindingKind.sharedDocCodePath,
+    line: line,
+    message:
+        'the doc carries code paths but belongs to no target; move them into '
+        'a doc of the target they belong to',
+  );
 }
 
 /// Returns a `code_uncovered` finding for each code file no `covers` entry
