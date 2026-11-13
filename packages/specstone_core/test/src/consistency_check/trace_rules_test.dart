@@ -689,14 +689,6 @@ void main() {
     expect(spots(noCode, FindingKind.architectureMissing), isEmpty);
   });
 
-  test("f04/us03/fr03/e04: an implements list in a story's or FR's own frontmatter names no code, since only a record does", () async {
-    final report = await _checkLogin(
-      _record(statuses: ['$_fr:planned']),
-      without: {'docs/$loginArchitecture'},
-    );
-    expect(spots(report, FindingKind.architectureMissing), isEmpty);
-  });
-
   test("f04/us03/fr03/e09, sf-c12: cart with a record entry that names code and only shop's ARCHITECTURE gives no architecture_missing", () async {
     final report = checkOf(
       await writeNestedProject(
@@ -910,6 +902,48 @@ void main() {
     expect(spots(report, FindingKind.implementsMissing), [
       '$_loginRecord:3: implements_missing',
     ]);
+  });
+
+  test('f04/us03/fr04: a second statuses line for an item draws record_entry_duplicate alone, never implements_missing', () async {
+    final report = await _checkLogin(
+      _record(statuses: ['$_fr:planned', '$_fr:implemented']),
+    );
+    expect(spots(report, FindingKind.implementsMissing), isEmpty);
+    expect(spots(report, FindingKind.recordEntryDuplicate), [
+      '$_loginRecord:4: record_entry_duplicate',
+    ]);
+  });
+
+  test('f04/us03/fr03/fr04: a project naming one target keeps the one-target messages and no target key', () async {
+    final report = await _checkLogin(
+      _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+      extra: {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: app\n',
+      },
+      without: {'docs/$loginArchitecture'},
+    );
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.architectureMissing,
+    );
+    expect(finding.keys, isEmpty);
+    expect(
+      finding.message,
+      'code is pointed at but no architecture doc covers the feature',
+    );
+    final none = await _checkLogin(
+      _record(statuses: ['$_fr:implemented']),
+      extra: {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: app\n',
+      },
+    );
+    expect(
+      none.findings
+          .singleWhere((f) => f.kind == FindingKind.implementsMissing)
+          .message,
+      '$_fr is implemented and names no code path',
+    );
   });
 
   test('f04/us03/fr04/e07: a skipped entry holds no code path and gives no implements_missing', () async {

@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -19,13 +20,15 @@ Iterable<Finding> checkRecordEntries(
   CheckContext context,
   IndexedDoc record,
 ) sync* {
-  final type = context.set.recordDocType;
-  if (type == null || record.docTypeId != type.id) return;
-  final feature = context.index.parentOf(record);
-  if (feature == null || feature.docTypeId != featureType) return;
-  final lines = context.linesOf(record);
-  if (lines.frontmatterErrorLine != null) return;
-  yield* _RecordWalk(context, record, feature, type, lines).findings();
+  final read = recordDocOf(context, record);
+  if (read == null) return;
+  yield* _RecordWalk(
+    context,
+    record,
+    read.feature,
+    read.type,
+    read.lines,
+  ).findings();
 }
 
 /// One record read line by line against its feature tree.

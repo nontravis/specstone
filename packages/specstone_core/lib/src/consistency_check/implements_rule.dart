@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
+import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -16,12 +17,9 @@ const _edge = r'[\p{L}\p{N}_]';
 /// item is `check_record_entries`'s, never reported here. A code file is read
 /// only to resolve a Symbol (INV-11).
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
-  final type = context.set.recordDocType;
-  if (type == null || doc.docTypeId != type.id) return;
-  final feature = context.index.parentOf(doc);
-  if (feature == null || feature.docTypeId != featureType) return;
-  final lines = context.linesOf(doc);
-  if (lines.frontmatterErrorLine != null) return;
+  final read = recordDocOf(context, doc);
+  if (read == null) return;
+  final (:type, :feature, :lines) = read;
   final fieldId = recordCodeFieldOf(type)?.id;
   final target = context.targets
       .where((target) => target.name == doc.target)

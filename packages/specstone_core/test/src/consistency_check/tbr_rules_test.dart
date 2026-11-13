@@ -344,6 +344,18 @@ void main() {
     expect(found, isEmpty);
   });
 
+  test(
+    '$_name E09: a path an older doc keeps in TBR prose still gives tbr_open',
+    () async {
+      final (:found, project: _) = await _run(
+        _frWith('$_marker app/lib/later.dart'),
+      );
+
+      expect(found, hasLength(1));
+      expect(found.single.keys, {'form': 'marker'});
+    },
+  );
+
   test('$_name E10: an untyped doc gives no tbr_open', () async {
     const untyped = 'prds/features/f01_login/notes.md';
     final project = await writeCheckProject(

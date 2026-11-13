@@ -1,7 +1,9 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
+import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -409,8 +411,8 @@ bool _recordsNameCode(
   return false;
 }
 
-// Whether [entry] of [record] counts no code: its story or FR is skipped in
-// the record's target, the feature entry is skipped, or it names no item.
+/// Whether [entry] of [record] counts no code: its story or FR is skipped in
+/// the record's target, the feature entry is skipped, or it names no item.
 bool _isLeftOut(
   DocIndex index,
   IndexedDoc? item,
@@ -427,6 +429,21 @@ bool _isLeftOut(
 String? _shownTargetName(CheckContext context, String? name) =>
     context.index.targetNames.length > 1 ? name : null;
 
+/// Returns the file line of each item's `statuses` line; an item with a second
+/// line has none, as `check_record_entries` reports that line alone.
+Map<String, int> _singleStatusLines(DocLines lines, String statusFieldId) {
+  final found = <String, int>{};
+  final repeated = <String>{};
+  for (final (:value, :line, text: _) in lines.entriesOf(statusFieldId)) {
+    if (value is! String) continue;
+    final item = recordStatusLineOf(value)?.item;
+    if (item == null) continue;
+    if (found.containsKey(item)) repeated.add(item);
+    found[item] = line;
+  }
+  return found..removeWhere((item, _) => repeated.contains(item));
+}
+
 /// Returns `implements_missing` for each entry of a record [doc] whose status
 /// is `implemented` and that names no code path (`consistency_check/find_prd_spec_disagreements/check_implemented_status`).
 ///
@@ -436,24 +453,14 @@ Iterable<Finding> checkImplementedStatus(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  final type = context.set.recordDocType;
-  if (type == null || doc.docTypeId != type.id) return;
-  final index = context.index;
-  final feature = index.parentOf(doc);
+  final read = recordDocOf(context, doc);
+  if (read == null) return;
+  final (:type, :feature, :lines) = read;
   final statusField = recordStatusFieldOf(type);
-  final lines = context.linesOf(doc);
-  if (feature == null ||
-      feature.docTypeId != featureType ||
-      statusField == null ||
-      lines.frontmatterErrorLine != null) {
-    return;
-  }
+  if (statusField == null) return;
+  final index = context.index;
   final items = recordItemsOf(feature, index.childrenOf);
-  final statusLines = {
-    for (final (:value, :line, text: _) in lines.entriesOf(statusField.id))
-      if (value is String)
-        if (recordStatusLineOf(value) case final parsed?) parsed.item: line,
-  };
+  final statusLines = _singleStatusLines(lines, statusField.id);
   final inTarget = switch (_shownTargetName(context, doc.target)) {
     final name? => ' in target $name',
     null => '',
