@@ -28,7 +28,21 @@ const _recordLayer =
     '  - id: implements\n'
     '    type: output_ref\n'
     '    list: true\n'
-    '    pointer: item_exact\n';
+    '    pointer: item_exact\n'
+    '  - id: tests\n'
+    '    type: output_ref\n'
+    '    list: true\n'
+    '    pointer: item_test\n';
+
+/// The record layer whose `item_test` field is named `proofs`, not `tests`.
+const _proofsLayer =
+    '$_recordLayer'
+    '  - id: tests\n'
+    '    disabled: true\n'
+    '  - id: proofs\n'
+    '    type: output_ref\n'
+    '    list: true\n'
+    '    pointer: item_test\n';
 
 const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
 const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
@@ -40,6 +54,7 @@ const _payRecord = 'specs/f02_shop/f02_pay/IMPLEMENTATION.md';
 const _fr = 'email_login/check_password';
 const _story = 'email_login';
 const _loginCode = '$_fr:app/lib/login.dart:checkPassword';
+const _loginTest = '$_fr:app/test/login_test.dart';
 
 /// Returns a record: `statuses` first, then `implements`, one quoted line each.
 ///
@@ -47,13 +62,14 @@ const _loginCode = '$_fr:app/lib/login.dart:checkPassword';
 String _record({
   List<String> statuses = const [],
   List<String> code = const [],
+  List<String> tests = const [],
   bool emptyCode = false,
 }) {
   String list(String key, List<String> lines) => lines.isEmpty
       ? ''
       : "$key:\n${[for (final l in lines) "  - '$l'\n"].join()}";
   return '---\n${list('statuses', statuses)}${list('implements', code)}'
-      '${emptyCode ? 'implements: []\n' : ''}---\n\n# Record\n';
+      '${list('tests', tests)}${emptyCode ? 'implements: []\n' : ''}---\n\n# Record\n';
 }
 
 /// The fixture files that add the record layer and one record at [path].
@@ -950,6 +966,150 @@ void main() {
       _record(statuses: ['$_fr:skipped:not in this client']),
     );
     expect(spots(report, FindingKind.implementsMissing), isEmpty);
+  });
+
+  test('an implemented FR entry verified by test and naming no test is '
+      'tests_missing at its statuses line', () async {
+    final report = await _checkLogin(
+      _record(
+        statuses: ['$_story:planned', '$_fr:implemented'],
+        code: [_loginCode],
+      ),
+    );
+
+    expect(spots(report, FindingKind.testsMissing), [
+      '$_loginRecord:4: tests_missing',
+    ]);
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.testsMissing,
+    );
+    expect(finding.name, 'login');
+    expect(finding.waitsFor.wire, 'agent');
+    expect(finding.keys, isEmpty);
+    expect(finding.message, '$_fr is implemented and names no test');
+    final named = await _checkLogin(
+      _record(
+        statuses: ['$_fr:implemented'],
+        code: [_loginCode],
+        tests: [_loginTest],
+      ),
+    );
+    expect(spots(named, FindingKind.testsMissing), isEmpty);
+  });
+
+  test('a test field not named tests still ends tests_missing', () async {
+    String record(String tail) =>
+        "---\nstatuses:\n  - '$_fr:implemented'\nimplements:\n"
+        "  - '$_loginCode'\n$tail---\n\n# Record\n";
+    Future<CheckReport> check(String tail) => _checkLogin(
+      record(tail),
+      extra: {'.specstone/templates/implementation.yaml': _proofsLayer},
+    );
+
+    final named = await check("proofs:\n  - '$_loginTest'\n");
+    final none = await check('');
+
+    expect(spots(named, FindingKind.testsMissing), isEmpty);
+    expect(spots(none, FindingKind.testsMissing), [
+      '$_loginRecord:3: tests_missing',
+    ]);
+  });
+
+  test('a record type with no test field has no tests_missing', () async {
+    final report = await _checkLogin(
+      _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+      extra: {
+        '.specstone/templates/implementation.yaml':
+            '$_recordLayer'
+            '  - id: tests\n'
+            '    disabled: true\n',
+      },
+    );
+
+    expect(spots(report, FindingKind.testsMissing), isEmpty);
+  });
+
+  test('an FR entry with a code path and no test, and one with a test and '
+      'no code path, each give their own finding', () async {
+    final noCode = await _checkLogin(
+      _record(statuses: ['$_fr:implemented'], tests: [_loginTest]),
+    );
+    expect(spots(noCode, FindingKind.testsMissing), isEmpty);
+    expect(spots(noCode, FindingKind.implementsMissing), [
+      '$_loginRecord:3: implements_missing',
+    ]);
+    final neither = await _checkLogin(_record(statuses: ['$_fr:implemented']));
+    expect(spots(neither, FindingKind.testsMissing), [
+      '$_loginRecord:3: tests_missing',
+    ]);
+    expect(spots(neither, FindingKind.implementsMissing), [
+      '$_loginRecord:3: implements_missing',
+    ]);
+  });
+
+  test('an implemented FR verified by analysis, inspection, or demonstration '
+      'gives no tests_missing', () async {
+    for (final method in ['analysis', 'inspection', 'demonstration']) {
+      final report = await _checkLogin(
+        _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+        extra: edit(
+          'prds/features/f01_login/us01_email_login/fr01_check_password.md',
+          [('verify_method: test', 'verify_method: $method')],
+        ),
+      );
+
+      expect(spots(report, FindingKind.testsMissing), isEmpty, reason: method);
+    }
+  });
+
+  test('an implemented story entry with no tests line gives no tests_missing '
+      'and may hold one', () async {
+    final bare = await _checkLogin(
+      _record(
+        statuses: ['$_story:implemented'],
+        code: ['$_story:app/lib/login.dart'],
+      ),
+    );
+    expect(spots(bare, FindingKind.testsMissing), isEmpty);
+    final held = await _checkLogin(
+      _record(
+        statuses: ['$_story:implemented'],
+        code: ['$_story:app/lib/login.dart'],
+        tests: ['$_story:app/test/login_test.dart'],
+      ),
+    );
+    expect(spots(held, FindingKind.testsMissing), isEmpty);
+  });
+
+  test('a planned or skipped FR entry with no tests line gives no '
+      'tests_missing', () async {
+    for (final status in ['planned', 'skipped:not in this client']) {
+      final report = await _checkLogin(_record(statuses: ['$_fr:$status']));
+
+      expect(spots(report, FindingKind.testsMissing), isEmpty, reason: status);
+    }
+  });
+
+  test('flutter holding a test and jaspr implemented with none: one '
+      'tests_missing on the jaspr record, naming jaspr', () async {
+    final report = await _checkTwin(
+      flutter: _record(
+        statuses: ['$_fr:implemented'],
+        code: [_loginCode],
+        tests: [_loginTest],
+      ),
+      jaspr: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+    );
+
+    expect(spots(report, FindingKind.testsMissing), [
+      '$_jasprRecord:3: tests_missing',
+    ]);
+    expect(
+      report.findings
+          .singleWhere((f) => f.kind == FindingKind.testsMissing)
+          .message,
+      '$_fr is implemented in target jaspr and names no test',
+    );
   });
 
   test('f04/us03/fr04/e05: a merged set with no record doc type runs no implemented-status rule', () async {

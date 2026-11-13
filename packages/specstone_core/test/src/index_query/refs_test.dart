@@ -716,7 +716,7 @@ void main() {
               '  - id: tests\n'
               '    type: output_ref\n'
               '    list: true\n'
-              '    pointer: item_exact\n',
+              '    pointer: item_test\n',
           '.specstone/config.yaml':
               '${shippedPinsConfig()}targets:\n'
               '  flutter:\n    code_root: flutter_lib\n'

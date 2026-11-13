@@ -22,8 +22,11 @@ sections:
       Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Implemented by, Client guidance.
       Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`.
       Write one row per code; keep codes stable and never reused for a different error.
-      Write Triggered by as the FR edge ID or US scenario that raises the code, so no code is orphaned.
-      Write Client guidance as one line: the action the client takes, not user copy.
+      Write Triggered by as the general condition that raises the code in that feature, such as a flag out of range.
+      List no raising site there. Write Client guidance as one line: the action the client takes, not user copy.
+    lint:
+      catalog:
+        column: Code
   - id: retry_policy
     header: Retry policy
     required: true

@@ -1270,7 +1270,7 @@ void _agentFilesTests() {
         '.specstone/AGENT.md',
         'CLAUDE.md',
       ]);
-      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.5.0'));
+      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.6.0'));
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
@@ -2525,7 +2525,7 @@ void _moveToRecordTests() {
       ]);
     });
 
-    group('$_fr, the shipped software-tech 1.5.0 pack', () {
+    group('$_fr, the shipped software-tech 1.6.0 pack', () {
       Future<Directory> shippedProject({
         Map<String, String> extra = const {},
       }) => writeTree({
@@ -2538,7 +2538,7 @@ void _moveToRecordTests() {
       });
 
       test(
-        'E39: the move from 1.4.0 to 1.5.0 runs no one-time pass, the '
+        'E39: the move from 1.4.0 to 1.6.0 runs no one-time pass, the '
         'move_to_record step alone beside the passes every upgrade runs',
         () async {
           final project = await shippedProject(
@@ -2548,7 +2548,7 @@ void _moveToRecordTests() {
           final plan = _planAt(project);
 
           final text = plan.toText();
-          expect(text, contains('software-tech 1.4.0 -> 1.5.0'));
+          expect(text, contains('software-tech 1.4.0 -> 1.6.0'));
           expect(
             text,
             contains(

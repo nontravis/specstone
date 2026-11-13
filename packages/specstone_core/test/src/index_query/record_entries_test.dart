@@ -23,7 +23,12 @@ const _recordType = MergedDocType(
       list: true,
       pointer: PointerKind.itemExact,
     ),
-    MergedField(id: 'tests', type: FieldType.outputRef, list: true),
+    MergedField(
+      id: 'tests',
+      type: FieldType.outputRef,
+      list: true,
+      pointer: PointerKind.itemTest,
+    ),
   ],
   sections: [],
   lint: MergedLint(),

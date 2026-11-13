@@ -1,12 +1,14 @@
 import 'package:specstone_core/src/consistency_check/agent_block_rules.dart';
 import 'package:specstone_core/src/consistency_check/approval_rules.dart';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
+import 'package:specstone_core/src/consistency_check/catalog_rules.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/cross_doc_rules.dart';
+import 'package:specstone_core/src/consistency_check/diagram_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
@@ -23,6 +25,7 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/shape_count_rules.dart';
 import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
+import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
@@ -92,20 +95,29 @@ CheckReport runCheck(
       ..addAll(checkPatterns(context, doc))
       ..addAll(checkItemIds(context, doc))
       ..addAll(checkImplements(context, doc))
+      ..addAll(checkTestPointers(context, doc))
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
       ..addAll(checkOpenTbrs(context, doc))
-      ..addAll(checkReferenceEntries(context, doc));
+      ..addAll(checkReferenceEntries(context, doc))
+      ..addAll(checkDiagrams(context, doc));
   }
   if (scope.isProject) {
     findings
       ..addAll(uncoveredCode(context, work))
       ..addAll(docNamesInCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
-      ..addAll(staleAgentBlocks(context));
+      ..addAll(staleAgentBlocks(context))
+      ..addAll(checkErrorCatalogs(context, _namesOf(scope)));
   }
   findings.addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
+
+/// Returns the names of [scope]'s code targets, the unnamed target as the
+/// empty string.
+Set<String> _namesOf(CheckScope scope) => {
+  for (final target in scope.targets) target.name ?? '',
+};

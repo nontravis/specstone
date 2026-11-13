@@ -29,14 +29,34 @@ sections:
       Give it a title, and type every box with its technology.
       Label every arrow with its intent and protocol; write no bare `Uses`.
       Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as `#quot;`.
+    lint:
+      diagram:
+        title: true
+        edge_labels: true
+        banned_labels: [Uses]
   - id: components
     header: Components
     required: true
     description: |-
       Write one table with the columns Component, Responsibility, Tech, Owns, and an optional Code path.
-      Write one row per component: every diagram box is a row, and every row a box; write no prose outside the table.
+      Write one row per component, its Responsibility one sentence: every diagram box is a row, and every row a box.
+      Write no line but a table line; put the detail of a component in Component details.
       Name the technology in Tech, so the Agent picks a library without opening the tech stack doc.
       Fill Code path with the folder or file of the component, so the Agent finds which component owns a file.
+    lint:
+      max_sentences:
+        - count: 1
+          column: Responsibility
+      banned_patterns:
+        - id: table_only
+          pattern: '^(?!\||## )\s*\S'
+          message: 'line is not a table line; guide line: Write no line but a table line'
+          in: all
+  - id: component_details
+    header: Component details
+    description: |-
+      Write this section only when a component needs more than its row's one sentence.
+      Write one `### <Component>` subsection per such component, headed with the row's Component cell.
   - id: interaction
     header: Interaction
     description: |-
@@ -69,10 +89,39 @@ sections:
       Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability.
       End each line with `see <section or sibling doc>` or `N/A — <reason>`.
       Skip no concern, so a reviewer sees that the decision was made.
+    lint:
+      banned_patterns:
+        - id: concern_ending
+          pattern: '^(?!## |.*(?:\bsee\b[^—]*|N/A — .+)$)\s*\S'
+          message: 'concern line has no ending; guide line: End each line with `see <section or sibling doc>` or `N/A — <reason>`'
+          in: all
+      required_patterns:
+        - id: concern_integration
+          pattern: '^(?:[-*] )?\*{0,2}Integration\b'
+          message: 'no Integration concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+        - id: concern_errors
+          pattern: '^(?:[-*] )?\*{0,2}Errors\b'
+          message: 'no Errors concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+        - id: concern_auth
+          pattern: '^(?:[-*] )?\*{0,2}Auth\b'
+          message: 'no Auth concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+        - id: concern_lifecycle
+          pattern: '^(?:[-*] )?\*{0,2}Lifecycle\b'
+          message: 'no Lifecycle concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+        - id: concern_events
+          pattern: '^(?:[-*] )?\*{0,2}Events\b'
+          message: 'no Events concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+        - id: concern_rollout
+          pattern: '^(?:[-*] )?\*{0,2}Rollout\b'
+          message: 'no Rollout concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
+        - id: concern_observability
+          pattern: '^(?:[-*] )?\*{0,2}Observability\b'
+          message: 'no Observability concern line; guide line: Write one line each for Integration, Errors, Auth, Lifecycle, Events, Rollout, and Observability'
   - id: design_references
     header: Design references
     description: |-
-      List at most three links to an ADR or design doc, one line each.
+      List one line per design or ADR whose decisions this doc still states, with no count cap.
+      Drop a link once no section relies on it.
       This section is the only home for rationale.
   - id: open_questions
     header: Open questions

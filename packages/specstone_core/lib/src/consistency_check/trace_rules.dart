@@ -440,10 +440,12 @@ Map<String, int> _singleStatusLines(DocLines lines, String statusFieldId) {
 }
 
 /// Returns `implements_missing` for each entry of a record [doc] whose status
-/// is `implemented` and that names no code path (`consistency_check/find_prd_spec_disagreements/check_implemented_status`).
+/// is `implemented` and that names no code path, and `tests_missing` for each
+/// such FR entry that names no test while the FR's `verify_method` is `test`.
 ///
 /// An entry's status is its status in the record's own target (INV-29); an
 /// entry no story or FR of the feature carries is `check_record_entries`'s.
+/// A record type with no `item_test` field has no `tests_missing`.
 Iterable<Finding> checkImplementedStatus(
   CheckContext context,
   IndexedDoc doc,
@@ -456,6 +458,7 @@ Iterable<Finding> checkImplementedStatus(
   final index = context.index;
   final items = recordItemsOf(feature, index.childrenOf);
   final statusLines = _singleStatusLines(lines, statusField.id);
+  final holdsTests = recordTestFieldOf(type) != null;
   final inTarget = switch (_shownTargetName(context, doc.target)) {
     final name? => ' in target $name',
     null => '',
@@ -466,16 +469,33 @@ Iterable<Finding> checkImplementedStatus(
     if (item == null ||
         line == null ||
         entry.status != RecordStatus.implemented ||
-        entry.codePaths.isNotEmpty ||
         index.itemStatus(item, codeTarget: doc.target) !=
             RecordStatus.implemented) {
       continue;
     }
-    yield context.finding(
-      doc,
-      FindingKind.implementsMissing,
-      line: line,
-      message: '${entry.item} is implemented$inTarget and names no code path',
-    );
+    if (entry.codePaths.isEmpty) {
+      yield context.finding(
+        doc,
+        FindingKind.implementsMissing,
+        line: line,
+        message: '${entry.item} is implemented$inTarget and names no code path',
+      );
+    }
+    if (holdsTests && entry.testPaths.isEmpty && _isVerifiedByTest(item)) {
+      yield context.finding(
+        doc,
+        FindingKind.testsMissing,
+        line: line,
+        message: '${entry.item} is implemented$inTarget and names no test',
+      );
+    }
   }
 }
+
+/// Whether [item] is an FR whose `verify_method` is `test`.
+bool _isVerifiedByTest(IndexedDoc item) =>
+    item.docTypeId == frType &&
+    item.valuesOf(_verifyMethodKey).contains(_testMethod);
+
+const _verifyMethodKey = 'verify_method';
+const _testMethod = 'test';

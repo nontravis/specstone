@@ -510,8 +510,8 @@ void main() {
       final file = File('${root.path}/batch.md')
         ..writeAsStringSync(
           read.out.toString().replaceFirst(
-            '- Sign-in page',
-            '- Jaspr sign-in page',
+            '| Sign-in page |',
+            '| Jaspr sign-in page |',
           ),
         );
       final (:runner, :out, :err) = writeRunner(root);
@@ -522,7 +522,7 @@ void main() {
       );
       expect(
         readDoc(root, jasprArchitecture),
-        contains('## Components\n\n- Jaspr sign-in page\n'),
+        contains('| Jaspr sign-in page | Takes the form |\n'),
       );
       expect(readDoc(root, flutterArchitecture), flutterBefore);
     });

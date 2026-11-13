@@ -21,6 +21,11 @@ final _allowed = <_Allowed>[
     'Table delimiter cell, no reference.',
   ),
   _core(
+    'consistency_check/catalog_rules.dart',
+    r"""RegExp(r'^:?-{3,}:?$'""",
+    'Table delimiter cell, no reference.',
+  ),
+  _core(
     'consistency_check/section_rules.dart',
     """RegExp('^#{1,6} '""",
     'ATX heading marker, no reference.',

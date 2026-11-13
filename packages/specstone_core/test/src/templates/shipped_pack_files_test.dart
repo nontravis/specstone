@@ -42,9 +42,17 @@ void main() {
     },
   );
 
-  test('template_packs/write_spec_docs_from_software_tech/ship_software_tech_pack: '
-      'the shipped software-tech pack is 1.5.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.5.0');
+  test('the shipped software-tech pack is 1.6.0 and adds no migrations '
+      'entry', () {
+    expect(shippedPackVersions()['software-tech'], '1.6.0');
+    final manifest = PackManifest.parse(
+      utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
+      file: 'packs/software-tech/pack.yaml',
+    );
+    expect(
+      [for (final entry in manifest.migrations) '${entry.from}'],
+      ['1.4.0'],
+    );
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -166,12 +174,28 @@ void main() {
           list: true,
           pointer: PointerKind.itemExact,
         ),
+        FieldSpec(
+          'tests',
+          FieldType.outputRef,
+          list: true,
+          pointer: PointerKind.itemTest,
+        ),
       ]);
+      for (final id in ['implements', 'tests']) {
+        expect(
+          fieldOf(record, id).description,
+          contains(
+            "relative to the code root of the doc's target "
+            '(`.specstone/config.yaml`, else the project root)',
+          ),
+          reason: id,
+        );
+      }
       expect(
-        fieldOf(record, 'implements').description,
-        contains(
-          "relative to the code root of the doc's target "
-          '(`.specstone/config.yaml`, else the project root)',
+        fieldOf(record, 'tests').description,
+        allOf(
+          contains('`<item>:<test file path>[:<test or group name>]`'),
+          contains('quoted YAML string'),
         ),
       );
     });
@@ -213,6 +237,168 @@ void main() {
       expect(step.docTypes, ['user_story', 'fr']);
       expect(step.fields, ['status', 'implements']);
       expect(step.to, 'implementation');
+    });
+  });
+
+  group('the software-tech guide-rule lint', () {
+    late MergedSet set;
+    setUpAll(() async {
+      set = await resolveSoftwareTech();
+    });
+
+    Iterable<(MergedDocType, MergedSection)> specSections() sync* {
+      for (final docType in set.docTypes) {
+        if (docType.pack != 'software-tech') continue;
+        for (final s in docType.sections) {
+          yield (docType, s);
+        }
+      }
+    }
+
+    MergedSection section(String docType, String id) =>
+        sectionOf(prdCoreDocType(set, docType), id);
+
+    test('the section banned and required patterns are exactly the guide-rule '
+        'list, each on its section', () {
+      expect(
+        {
+          for (final (docType, s) in specSections())
+            if (s.bannedPatterns != null)
+              '${docType.id}.${s.id}': [
+                for (final p in s.bannedPatterns!) p.id,
+              ],
+        },
+        {
+          'architecture.components': ['table_only'],
+          'architecture.concerns': ['concern_ending'],
+          'api.operations': ['operation_heading'],
+          'auth.scopes': ['scope_form'],
+          'auth.resource_matrix': ['matrix_cell'],
+          'domain.entities': ['entity_kind'],
+          'domain.invariants': ['numbered_invariant'],
+        },
+      );
+      expect(
+        {
+          for (final (docType, s) in specSections())
+            if (s.requiredPatterns != null)
+              '${docType.id}.${s.id}': [
+                for (final p in s.requiredPatterns!) p.id,
+              ],
+        },
+        {
+          'architecture.concerns': [
+            'concern_integration',
+            'concern_errors',
+            'concern_auth',
+            'concern_lifecycle',
+            'concern_events',
+            'concern_rollout',
+            'concern_observability',
+          ],
+        },
+      );
+    });
+
+    for (final rule in _specGuideRules) {
+      test('${rule.docType}.${rule.section} ${rule.id}: fires on a broken '
+          'line, passes a sound one, and cites its guide line', () {
+        final docType = prdCoreDocType(set, rule.docType);
+        final sectionOfRule = section(rule.docType, rule.section!);
+        final patterns = rule.required
+            ? sectionOfRule.requiredPatterns!
+            : sectionOfRule.bannedPatterns!;
+        final pattern = patterns.singleWhere((p) => p.id == rule.id);
+        for (final line in rule.hits) {
+          expect(pattern.regExp.hasMatch(line), isTrue, reason: line);
+        }
+        for (final line in rule.misses) {
+          expect(pattern.regExp.hasMatch(line), isFalse, reason: line);
+        }
+        if (!rule.required) expect(pattern.scope, rule.scope);
+        expect(pattern.message, contains(rule.phrase), reason: rule.id);
+        expect(
+          [docType.description, sectionOfRule.description].join('\n'),
+          contains(rule.phrase),
+          reason: rule.id,
+        );
+      });
+    }
+
+    test('component_details is an optional section right after components', () {
+      final architecture = prdCoreDocType(set, 'architecture');
+      final ids = [for (final s in architecture.sections) s.id];
+      expect(ids.indexOf('component_details'), ids.indexOf('components') + 1);
+      final details = section('architecture', 'component_details');
+      expect(details.header, 'Component details');
+      expect(details.required, isFalse);
+    });
+
+    test(
+      'the component diagram reads title, edge labels, and the Uses ban',
+      () {
+        final diagram = section('architecture', 'component_diagram').diagram!;
+        expect((diagram.title, diagram.edgeLabels), (true, true));
+        expect(diagram.bannedLabels, ['Uses']);
+      },
+    );
+
+    test('the count, item field, required-when, and catalog keys sit on their '
+        'sections', () {
+      List<(int, String?)> sentences(String docType, String id) => [
+        for (final s in section(docType, id).maxSentences!) (s.count, s.column),
+      ];
+      expect(sentences('architecture', 'components'), [(1, 'Responsibility')]);
+      expect(sentences('domain', 'invariants'), [(1, null)]);
+      expect(sentences('topic', 'rules'), [(1, null)]);
+      final fields = section('domain', 'invariants').itemFields!;
+      expect([for (final f in fields) f.field], ['Enforcer', 'Consistency']);
+      expect(fields.first.values, isNull);
+      expect(fields.last.values, ['immediate', 'eventual']);
+      final rule = section('domain', 'corrective_policies').requiredWhen!;
+      expect(
+        (rule.section, rule.field, rule.value),
+        ('invariants', 'Consistency', 'eventual'),
+      );
+      expect(section('error', 'error_catalog').catalog!.column, 'Code');
+    });
+
+    test('no other spec section sets a guide-rule key', () {
+      final found = <String>{
+        for (final (docType, s) in specSections())
+          if (s.maxSentences != null ||
+              s.itemFields != null ||
+              s.requiredWhen != null ||
+              s.catalog != null ||
+              s.diagram != null ||
+              s.maxLines != null ||
+              s.minLines != null ||
+              s.itemCount != null ||
+              s.namesCodes != null)
+            '${docType.id}.${s.id}',
+      };
+      expect(found, {
+        'architecture.component_diagram',
+        'architecture.components',
+        'domain.invariants',
+        'domain.corrective_policies',
+        'topic.rules',
+        'error.error_catalog',
+      });
+    });
+
+    test('the record caps its characters at 60000 beside domain and '
+        'architecture, and no other spec type sets a cap', () {
+      for (final docType in set.docTypes) {
+        if (docType.pack != 'software-tech') continue;
+        expect(
+          docType.lint.maxChars,
+          {'domain', 'architecture', 'implementation'}.contains(docType.id)
+              ? 60000
+              : isNull,
+          reason: docType.id,
+        );
+      }
     });
   });
 
@@ -428,6 +614,7 @@ final class _GuideRule {
     required this.hits,
     required this.misses,
     this.scope = PatternScope.all,
+    this.required = false,
   });
 
   final String docType;
@@ -441,6 +628,9 @@ final class _GuideRule {
   final List<String> hits;
   final List<String> misses;
   final PatternScope scope;
+
+  /// Whether the entry is a `required_patterns` entry.
+  final bool required;
 }
 
 const _fifteenWords = 'w0 w1 w2 w3 w4 w5 w6 w7 w8 w9 w10 w11 w12 w13 w14';
@@ -553,4 +743,152 @@ const _guideRules = <_GuideRule>[
     hits: ['1. E01 — A case with no arrow', '- E02 — A case with none'],
     misses: ['1. E01 — A case → what happens', '   a wrapped line'],
   ),
+];
+
+final _specGuideRules = <_GuideRule>[
+  const _GuideRule(
+    'architecture',
+    'components',
+    'table_only',
+    phrase: 'Write no line but a table line',
+    hits: [
+      '- a bullet under the table',
+      'Some prose',
+      '  | indented row',
+      '### Sub',
+    ],
+    misses: [
+      '| Component | Responsibility |',
+      '|---|---|',
+      '',
+      '## Components',
+    ],
+  ),
+  const _GuideRule(
+    'architecture',
+    'concerns',
+    'concern_ending',
+    phrase:
+        'End each line with `see <section or sibling doc>` or `N/A — <reason>`',
+    hits: [
+      '- Integration — handled elsewhere',
+      'Errors: fine',
+      '- Auth — N/A —',
+    ],
+    misses: [
+      '- Integration — see `API.md`',
+      '- Errors — N/A — no new code',
+      '- Auth — see AUTH.md#roles',
+      '',
+      '## Concerns',
+    ],
+  ),
+  const _GuideRule(
+    'api',
+    'operations',
+    'operation_heading',
+    phrase: 'alone with no FR label',
+    hits: ['### `create` — FR-01', '### `create` FR-01', '### `create` (v2)'],
+    misses: ['### `create`', '### `POST /items`', '#### `x` y', '- `x` y'],
+  ),
+  const _GuideRule(
+    'auth',
+    'scopes',
+    'scope_form',
+    phrase: 'write each scope as `<resource>:<action>`',
+    hits: [
+      '| read | read items | list |',
+      '| `items` | read | list |',
+      '| items.read | read | list |',
+      '| | read | list |',
+    ],
+    misses: [
+      '| `items:read` | read | list |',
+      '| items:read | read | list |',
+      '| Scope | Action | Required for |',
+      '|---|---|---|',
+      '| --- | --- | --- |',
+      '| :---: | --- | --- |',
+      'Default scope: items:read',
+    ],
+  ),
+  const _GuideRule(
+    'auth',
+    'resource_matrix',
+    'matrix_cell',
+    phrase: '`yes`, `no`, `own` (the resource belongs to the caller), or `any`',
+    hits: [
+      '| /items | yes | maybe |',
+      '| /items | GET | maybe | yes |',
+      '| /items | GET | yes | Y |',
+      '| /items | own | read |',
+      '| /items | no | ✓ |',
+      '| /items | GET | own | |',
+    ],
+    // A bad cell before the first good one is caught; a good row passes.
+    misses: [
+      '| Resource | admin | user |',
+      '|---|---|---|',
+      '| /items | yes | no |',
+      '| /items | | any |',
+      '| /items | no | any |',
+      '| /items | `yes` | `no` |',
+      '| :---: | --- | --- |',
+      'Default: deny',
+    ],
+  ),
+  const _GuideRule(
+    'domain',
+    'entities',
+    'entity_kind',
+    phrase: 'Write Kind as Aggregate root, Entity, Service, or Repository',
+    hits: [
+      '| Order | Thing | id | lines | | note |',
+      '| Order | | id |',
+      '| Order | aggregate root | id |',
+    ],
+    misses: [
+      '| Entity | Kind | Identity |',
+      '|---|---|---|',
+      '| :---: | :---: | --- |',
+      '| Order | Aggregate root | id |',
+      '| Line | Entity | id |',
+      '| Clock | Service | none |',
+      '| Orders | Repository | id |',
+    ],
+  ),
+  const _GuideRule(
+    'domain',
+    'invariants',
+    'numbered_invariant',
+    phrase: 'never a numbered item',
+    hits: ['1. **INV-1** one rule', '12) The rule'],
+    misses: ['- **INV-1** one rule', '  - **Enforcer:** order'],
+  ),
+  for (final (concern, id) in [
+    ('Integration', 'concern_integration'),
+    ('Errors', 'concern_errors'),
+    ('Auth', 'concern_auth'),
+    ('Lifecycle', 'concern_lifecycle'),
+    ('Events', 'concern_events'),
+    ('Rollout', 'concern_rollout'),
+    ('Observability', 'concern_observability'),
+  ])
+    _GuideRule(
+      'architecture',
+      'concerns',
+      id,
+      phrase: concern,
+      required: true,
+      hits: [
+        '- $concern — see `API.md`',
+        '- **$concern:** N/A — none',
+        '$concern — see x',
+      ],
+      misses: [
+        '- ${concern}s — see x',
+        '- The $concern — see x',
+        '- ${concern}ation — see x',
+      ],
+    ),
 ];
