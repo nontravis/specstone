@@ -170,6 +170,22 @@ void main() {
     });
   });
 
+  group('$_name E22', () {
+    test('a sentence holding a code span with marks counts once as dropped '
+        'and once as new', () {
+      const approved = '## Statement\nKept. Old `v. w` tail. Gone.\n';
+      final changes = _changes(
+        approved: approved,
+        draft: '## Statement\nKept. New `x? y!` tail.\n',
+        tree: [_doc('## Statement\nNothing here.\n')],
+        runCopies: [approved],
+      );
+
+      expect(changes.dropped, ['Old `v. w` tail.', 'Gone.']);
+      expect(changes.added, ['New `x? y!` tail.']);
+    });
+  });
+
   group('$_name E26', () {
     test('a draft with no sentence dropped and none new lists none', () {
       final changes = _changes(
