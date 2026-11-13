@@ -1,6 +1,6 @@
 ---
 name: brainstorming-sdd
-description: Use when a change to a Specstone project adds a feature, a user story, or an FR, or reaches more than one PRD or spec doc, such as brainstorming a new feature or reshaping an existing one, or when another `specstone:` skill names `specstone:brainstorming-sdd`.
+description: Use when a change to a Specstone project adds a feature, a user story, or an FR, or reaches more than one PRD or spec doc, such as brainstorming a new feature, reshaping an existing one, or taking in a spec or design another tool wrote, or when another `specstone:` skill names `specstone:brainstorming-sdd`.
 ---
 
 # Brainstorm a change into an approved design
@@ -28,6 +28,10 @@ specstone context <target> --for design --budget 20000
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
+
+For a change from a source, a spec or design another tool wrote, that first call is
+`specstone context project --for design`, never with `--budget`; then follow `## Take in the source` in
+`${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md`.
 
 That call is the gate. Never look for `.specstone/` first: the CLI searches upward.
 
@@ -57,7 +61,7 @@ document holds no open question; approval of an approach is not approval of the 
 Each `specstone:sdd-engineer` dispatch in steps 3 and 4 passes `report:`, a `mktemp` file outside the repository;
 show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
-Write the Owner's approved answers (the decisions, the rulings in the Owner's own words, the approach picked, the open
+Write the Owner's approved answers (the decisions, the rulings in the Owner's words, the approach picked, the open
 questions) to a `mktemp` file outside the repository, once every answer is in. Dispatch `mode: design` once, with that
 brief's path and the document's: the brainstorm skill's own path for design documents, else
 `docs/designs/<YYYY-MM-DD>-<topic>-design.md`.
@@ -89,8 +93,8 @@ fresh reader's, since you saw the drafts made: tell the Owner so.
 
 ## Red flags
 
-| Thought                                         | Do instead                                               |
-|-------------------------------------------------|----------------------------------------------------------|
-| "The design is clear; draft the docs now."      | No `mode: author` before the document's approval.        |
-| "The coverage table is clean; skip the audit."  | A fresh reader finds what the author's own table cannot. |
+| Thought | Do instead |
+|---|---|
+| "The design is clear; draft the docs now." | No `mode: author` before the document's approval. |
+| "The coverage table is clean; skip the audit." | A fresh reader finds what the author's own table cannot. |
 | "The brainstorm hands off to a plan skill now." | Invoke nothing; step 4 first, then `specstone:plan-sdd`. |

@@ -1971,6 +1971,22 @@ void _agentTests() {
     expect(nonLatinLetterLines(pluginRoot()).where(ofSource), isEmpty);
   });
 
+  test('agent_plugin/start_from_another_tools_spec/take_in_a_source E04, '
+      'verification; run_brainstorm_to_design E26: step 1 makes the gate '
+      'call, with no budget, before it points to source.md', () {
+    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final step = _oneLine(_sectionOf(skill, '1. Ground: the first call'));
+    const gate = 'specstone context project --for design';
+    const pointer =
+        r'${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md';
+    expect(step, contains(gate));
+    expect(step, contains(pointer));
+    expect(step.indexOf(gate), lessThan(step.indexOf(pointer)));
+    expect(step, contains('before any other command or file read'));
+    expect(_oneLine(skill), isNot(contains('$gate --budget')));
+    expect(_frontmatter.firstMatch(skill)![0], contains('another tool'));
+  });
+
   test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
