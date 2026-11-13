@@ -125,6 +125,16 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
   );
 }
 
+/// Returns the item and code path of an `item:path[:Symbol]` line of an
+/// `item_exact` field; null when the line holds no `:`.
+///
+/// The item is empty for a leading `:`, which names the feature itself.
+({String item, String code})? recordCodeLineOf(String line) {
+  final split = line.indexOf(':');
+  if (split < 0) return null;
+  return (item: line.substring(0, split), code: line.substring(split + 1));
+}
+
 /// Returns the `item:path[:Symbol]` lines of [record]'s [codeField] as item
 /// and code path, in line order; a line with no item names none.
 List<({String item, String code})> recordCodeLinesOf(
@@ -133,12 +143,9 @@ List<({String item, String code})> recordCodeLinesOf(
 ) {
   final lines = <({String item, String code})>[];
   for (final line in record.valuesOf(codeField.id)) {
-    final split = line.indexOf(':');
-    if (split < 1) continue;
-    lines.add((
-      item: line.substring(0, split),
-      code: line.substring(split + 1),
-    ));
+    final parsed = recordCodeLineOf(line);
+    if (parsed == null || parsed.item.isEmpty) continue;
+    lines.add(parsed);
   }
   return lines;
 }
