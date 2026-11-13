@@ -54,9 +54,12 @@ final class ImplementedWork {
     final feature = doc.docTypeId == architectureTypeId
         ? _context.index.parentOf(doc)
         : null;
-    return feature?.docTypeId == featureType
-        ? work.features.contains(feature!.name)
-        : work.any;
+    return switch (feature) {
+      IndexedDoc(docTypeId: featureType) => work.features.contains(
+        feature.name,
+      ),
+      _ => work.any,
+    };
   }
 }
 

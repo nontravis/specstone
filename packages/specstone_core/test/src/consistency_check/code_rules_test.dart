@@ -506,7 +506,7 @@ void main() {
       },
     );
 
-    test('review focus 2: with nested code roots a file counts for the target of the longest root only', () async {
+    test('f04/us02/fr03/e09: with nested code roots a file counts for the target of the longest root only', () async {
       final project = await _twin(
         extra: {
           '.specstone/config.yaml':
