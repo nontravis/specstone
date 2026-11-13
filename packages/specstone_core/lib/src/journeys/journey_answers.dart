@@ -40,13 +40,12 @@ ReadAnswer answerJourneyPaths(
   String? codeTarget,
 }) => _answerJourneys(index, name, _pathsOption, _pathsOf, codeTarget);
 
-/// Returns, per step of every journey [name] addresses, the code paths of the
-/// record entries of its story and of the FRs traced from its scenario.
+/// Returns, per step of every journey [name] addresses, the record code paths
+/// of its story and of the FRs traced from its scenario.
 ///
 /// With two or more code targets each path reads under its target's name;
-/// [codeTarget], when given, keeps [name] and the paths to that code target.
-/// Throws an [IndexFault] when [name] resolves to a doc that is
-/// not a journey.
+/// [codeTarget], when given, keeps [name] and the paths to that target.
+/// Throws an [IndexFault] when [name] is not a journey.
 ReadAnswer answerJourneyCode(
   DocIndex index,
   String name, {
@@ -240,15 +239,26 @@ List<_TargetCode> _targetCodeOf(
   final hasRecords = index.set.recordDocType != null;
   return [
     for (final target in targets)
-      (
-        target: target,
-        paths:
-            index.recordEntryOf(doc, codeTarget: target)?.codePaths ?? const [],
-        skipped:
-            hasRecords &&
-            index.itemStatus(doc, codeTarget: target) == RecordStatus.skipped,
-      ),
+      _targetCodeFor(index, doc, target, hasRecords: hasRecords),
   ];
+}
+
+/// A skipped item holds no paths, so text and JSON agree on it.
+_TargetCode _targetCodeFor(
+  DocIndex index,
+  IndexedDoc doc,
+  String? target, {
+  required bool hasRecords,
+}) {
+  final skipped =
+      hasRecords &&
+      index.itemStatus(doc, codeTarget: target) == RecordStatus.skipped;
+  final entry = index.recordEntryOf(doc, codeTarget: target);
+  return (
+    target: target,
+    paths: skipped ? const [] : entry?.codePaths ?? const [],
+    skipped: skipped,
+  );
 }
 
 bool _isGrouped(DocIndex index, String? codeTarget) =>

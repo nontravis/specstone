@@ -508,6 +508,77 @@ void main() {
       },
     );
 
+    group('skips and a single named target', () {
+      test('f10/us03/fr01/e11: a skipped item holding paths prints skipped '
+          'and gives [] in JSON', () async {
+        final answer = await _code(
+          [_step('1', 1)],
+          extra: _twoTargets(
+            flutter: [storyCode],
+            flutterStatuses: ['email_login:skipped:no flutter'],
+          ),
+        );
+
+        expect(
+          answer.text,
+          endsWith('  $_story (user_story)\n  - flutter: skipped\n'),
+        );
+        final step =
+            (((answer.json['journeys']! as List).single as Map)['steps']!
+                        as List)
+                    .single
+                as Map;
+        expect((step['story']! as Map)['implementsByTarget'], {
+          'flutter': <String>[],
+          'jaspr': <String>[],
+        });
+      });
+
+      test('f10/us03/fr01/e11: a skip of the whole feature skips its story '
+          'and FRs in that target', () async {
+        final answer = await _code(
+          [_step('2', 2)],
+          extra: _twoTargets(
+            jaspr: [storyCode],
+            jasprStatuses: [':skipped:no web'],
+          ),
+        );
+
+        expect(
+          answer.text,
+          endsWith(
+            '  $_story (user_story)\n  - jaspr: skipped\n'
+            '  $frName (fr)\n  - jaspr: skipped\n',
+          ),
+        );
+      });
+
+      test('f10/us03/fr01/e11: one named target prints with no target '
+          'name, a skip as - skipped', () async {
+        Map<String, String> one(List<String> statuses) => {
+          '.specstone/templates/implementation.yaml': _recordLayer,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: app\n',
+          'docs/specs/f01_login/IMPLEMENTATION.md': _record(
+            statuses: statuses,
+            code: [storyCode],
+          ),
+        };
+
+        final plain = await _code([_step('1', 1)], extra: one([]));
+        final skipped = await _code([
+          _step('1', 1),
+        ], extra: one(['email_login:skipped:no app']));
+
+        expect(
+          plain.text,
+          endsWith('  - implements: app/lib/login.dart:SignInPage\n'),
+        );
+        expect(skipped.text, endsWith('  $_story (user_story)\n  - skipped\n'));
+      });
+    });
+
     group('two code targets', () {
       final twin = _twoTargets(
         flutter: [storyCode, frCode],
