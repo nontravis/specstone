@@ -2608,6 +2608,126 @@ void _planTests() {
     expect(scope, contains('the one plan file'));
   });
 
+  test('$_runPlanSkill E17, S4, domain:agent_plugin INV-25: plan-sdd runs the '
+      'planned-story list after the gate, given targets or not and with no '
+      '--target, and learns it must ask from its argument_missing refusal', () {
+    final skill = _oneLine(_pluginText(_planSkill));
+    expect(
+      skill,
+      contains(
+        'Run this next, given targets or not, with no `--target`: ``` '
+        'specstone list user_story --status planned --json ```',
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        '**Code target** (`domain:agent_plugin` INV-25): when the list '
+        'refuses `argument_missing` naming two or more code targets, ask the '
+        'Owner which code target the plan is for, given target names and a '
+        'drafts list alike',
+      ),
+    );
+    expect(skill, contains('never from `.specstone/config.yaml`'));
+  });
+
+  test('$_runPlanSkill E17: a one-target project asks nothing and passes no '
+      'code target', () {
+    expect(
+      _oneLine(_pluginText(_planSkill)),
+      contains(
+        "A one-target project's list refuses nothing: ask nothing, pass none.",
+      ),
+    );
+  });
+
+  test('$_runPlanSkill E02, S6: after the ask the list runs again with the '
+      "Owner's --target, and the answer is the dispatch's code target", () {
+    final skill = _oneLine(_pluginText(_planSkill));
+    expect(
+      skill,
+      contains(
+        'the answer is `--target <name>` on a rerun of this list and `code '
+        'target:` in step 3',
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        'Offer the Owner each story of the list, rerun with `--target '
+        '<name>` after the ask, whose `draft` is `false`',
+      ),
+    );
+  });
+
+  test('$_runPlanSkill E07, dispatch row: the dispatch carries `code target:` '
+      'when one was asked, and an answers round writes it out again', () {
+    final skill = _oneLine(_pluginText(_planSkill));
+    expect(
+      skill,
+      contains(
+        "`code target:` the Owner's answer; leave the line out when none was "
+        'asked',
+      ),
+    );
+    expect(
+      skill,
+      contains(
+        "with step 3's inputs written out again, `targets:` whole and `code "
+        'target:`, never "unchanged"',
+      ),
+    );
+  });
+
+  test('$_writePlan E29, domain:agent_plugin INV-25: plan-engineer takes the '
+      'code target as an input and carries it as --target on every Ground '
+      "call and each task's read line, none when no target is given", () {
+    final agent = _pluginText(_planAgent);
+    expect(
+      _oneLine(_sectionOf(agent, 'Input Contract')),
+      contains(
+        "**`code target`** (optional): `specstone:plan-sdd`'s answer, given "
+        'when the project has two or more code targets',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Ground')).trimRight(),
+      endsWith(
+        '**Code target** (`domain:agent_plugin` INV-25): with one given, '
+        "every Ground `context` call and each task's read line adds "
+        "`--target <code target>`, and the plan holds that target's tasks "
+        'alone. With none given, add no `--target`.',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Workflow')),
+      contains(
+        '`specstone context <target> --for implement`, with `--target <code '
+        "target>` when one is given, the FR's story as `<target>` for an FR",
+      ),
+    );
+  });
+
+  test('$_writePlan E30: plan-engineer gives a doc the code target skips no '
+      'task and a NOT PLANNED row naming the skip, read from the bundle', () {
+    final agent = _pluginText(_planAgent);
+    expect(
+      _oneLine(_sectionOf(agent, 'Workflow')),
+      contains(
+        '**A doc the code target skips**, by its own record entry or one '
+        'above it, read from its bundle: no task, and a `NOT PLANNED` row '
+        'naming the skip and its reason.',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Output Format')),
+      contains(
+        'NOT PLANNED: <draft, approval_stale, skip, spec gap, conflict, or '
+        'CLI error>',
+      ),
+    );
+  });
+
   test('$_runPlanSkill, $_writePlan: neither plan-sdd nor plan-engineer names '
       "another plugin's skill", () {
     for (final file in [_planSkill, _planAgent]) {

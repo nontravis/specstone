@@ -27,6 +27,8 @@ touches, the trade-off behind each choice, and its test.
 
 - **`targets`** (required): names, each a story, FR, NFR, or spec doc, or, from a brainstorm, the approved drafts
   list whole. Workflow step 1 sorts them.
+- **`code target`** (optional): `specstone:plan-sdd`'s answer, given when the project has two or more code targets;
+  absent in a one-target project. Ground and Workflow step 7 carry it.
 - **`design document`** (optional): a path, read in Workflow step 4; no ground source.
 - **`plan path`** (optional): the plan an earlier run reported, or a failed one left, for the same targets, amended in
   place with the Owner's answers; or the Owner's new path, for a refused one or for a plan already written elsewhere
@@ -61,6 +63,9 @@ Every task names the doc it builds (a story, FR, NFR, or spec doc), by doc name,
 Verification field, or the TECH_STACK CI commands when it has none. A task that would build behavior no doc states
 is a spec gap: list it, never plan it.
 
+**Code target** (`domain:agent_plugin` INV-25): with one given, every Ground `context` call and each task's read line
+adds `--target <code target>`, and the plan holds that target's tasks alone. With none given, add no `--target`.
+
 ## Workflow
 
 1. **Sort the names**: take as a target each story, FR, NFR, or spec doc among `targets`, its type the name's
@@ -89,6 +94,8 @@ is a spec gap: list it, never plan it.
    - **A doc the plan builds**, a target or an FR a story target holds: a draft or `approval_stale` one gets no task
      and a `NOT PLANNED` row naming it and the reason, for the Owner to approve first. The approved FRs beside such
      an FR still get their tasks. A draft or stale story target is one such row, and no task builds its FRs.
+   - **A doc the code target skips**, by its own record entry or one above it, read from its bundle: no task, and a
+     `NOT PLANNED` row naming the skip and its reason.
    - **Any other doc**, such as the `project` or `feature` doc, an FR target's story, a sibling FR, or a spec doc: a
      draft or `approval_stale` one goes under open questions, to be approved before the plan runs; the plan goes on.
      A doc among `targets` that no task builds keeps its row with no task instead.
@@ -109,8 +116,8 @@ is a spec gap: list it, never plan it.
    steps in the task itself: never "as Task N", a pointer to another task's line, or one line set for a whole phase.
    - **No doc text**: it holds none of its doc's text (no statement, scenario, edge case, or table), and tells its
      implementer to read the doc fresh before writing code by its own read line:
-     `specstone context <target> --for implement`, the FR's story as `<target>` for an FR, then the doc to read in
-     that bundle.
+     `specstone context <target> --for implement`, with `--target <code target>` when one is given, the FR's story as
+     `<target>` for an FR, then the doc to read in that bundle.
    - **Critical files**: it names each file it touches, each existing file and symbol one you opened.
    - **Trade-off**: it states its own trade-off behind each implementation choice, such as a doc that can be built
      more than one way.
@@ -152,7 +159,7 @@ Plan: <path>, written or amended; none when no plan was written
 | Doc | Task |
 |-----|------|
 | <type>:<name> | <task number> |
-| <type>:<name> | NOT PLANNED: <draft, approval_stale, spec gap, conflict, or CLI error> |
+| <type>:<name> | NOT PLANNED: <draft, approval_stale, skip, spec gap, conflict, or CLI error> |
 | <type>:<name> | no task: <why no task builds its type> |
 Open questions:
 - <item>
