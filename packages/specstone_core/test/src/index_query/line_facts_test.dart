@@ -40,12 +40,12 @@ void main() {
         'body labels are found once at index time, at their file lines, and '
         'stored', () {
       const labelled =
-          '---\nnote: FR-01\n---\n# T\n\nSee F-01 US-02 and `FR-03`.\n'
-          '```dart\n// FR-04\n```\n';
+          '---\nnote: FR-01\n---\n# T\n\nSee F-01 US-02 and `FR-03` FR-04.\n'
+          '```dart\n// FR-05\n```\n';
       final facts = _factsOf(labelled);
       expect(facts.numberLabels, [
         (line: 6, written: 'F-01 US-02'),
-        (line: 6, written: 'FR-03'),
+        (line: 6, written: 'FR-04'),
       ]);
       expect(
         LineFacts.fromJson(

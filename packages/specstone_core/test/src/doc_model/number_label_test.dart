@@ -275,10 +275,38 @@ void main() {
       expect(numberLabelsInMarkdown('```dart\n${f(1)}\n'), isEmpty);
     });
 
-    test('a label in an inline code span is read (E02)', () {
+    test('a label in an inline code span is skipped (E02, E12)', () {
       final path = '${usPath(1)}/${frPath(2, '_slug')}';
-      final labels = numberLabelsInMarkdown('| `$path` |\n');
-      expect(labels.map((l) => l.written), [path]);
+      expect(numberLabelsInMarkdown('| `$path` |\n'), isEmpty);
+    });
+
+    test('a dash run in an inline code span is skipped (E12)', () {
+      final text = 'Cite `${f(1)} ${us(2)}` and `${f(3)}` here.\n';
+      expect(numberLabelsInMarkdown(text), isEmpty);
+    });
+
+    test('a label after a closed code span is read (E12)', () {
+      final text = 'See `x` then ${f(1)}.\n';
+      final labels = numberLabelsInMarkdown(text);
+      expect(labels.map((l) => l.written), [f(1)]);
+      expect(labels.single.start, 'See `x` then '.length);
+    });
+
+    test(
+      'a label in a code span inside a mermaid fence is skipped (E05, E12)',
+      () {
+        final text = '```mermaid\nA[`${f(1)}`] B[${us(2)}]\n```\n';
+        expect(numberLabelsInMarkdown(text).map((l) => l.written), [us(2)]);
+      },
+    );
+
+    test('a backtick escaped by a backslash opens no span, its label read', () {
+      final text =
+          r'See \`'
+          '${f(1)}'
+          r' there. Or \`x\` '
+          '${us(2)}.\n';
+      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1), us(2)]);
     });
 
     test('a label in a link destination is skipped', () {

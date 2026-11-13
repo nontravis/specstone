@@ -683,7 +683,7 @@ name: login
     }) => convertLegacyLabels(tree, legacyPath: citedFrom, lf: lf);
 
     test('$rewrite E18: a legacy ID the move list maps to one FR becomes its '
-        'name in a code span, plain or in a code span', () {
+        'name, one inside a code span stays as written', () {
       final result = convert(
         'Built by ai01/us02/fr09 and `ai01/us01/fr02`.\n'
         'See ai01/us01/fr02.\n',
@@ -691,7 +691,7 @@ name: login
 
       expect(
         result.lf,
-        'Built by ai01/us02/fr09 and `login/email_login/lock_account`.\n'
+        'Built by ai01/us02/fr09 and `ai01/us01/fr02`.\n'
         'See `login/email_login/lock_account`.\n',
       );
       expect(result.kept, [(line: 1, label: 'ai01/us02/fr09')]);

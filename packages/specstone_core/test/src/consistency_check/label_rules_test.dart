@@ -67,10 +67,10 @@ void main() {
   });
 
   test('$_name E02: a table cell holding a folder path whose story folder '
-      'has no slug gives one finding', () async {
+      'has no slug, outside a code span, gives one finding', () async {
     final cell = path('us03', 'fr04_check_password');
     final findings = await labelsInFeature(
-      '| Cite | Path |\n|---|---|\n| row | `$cell` |',
+      '| Cite | Path |\n|---|---|\n| row | $cell |',
     );
     expect(findings, hasLength(1));
     expect(findings.single.line, _lineNumber + 2);
@@ -149,6 +149,17 @@ void main() {
     expect(none, isEmpty);
     final some = await labelsInFeature('Cite (${f(1)}), ${us(2)} here.');
     expect(some.map((f) => f.keys['label']), [f(1), us(2)]);
+  });
+
+  test('$_name E09: a label inside a code span gives none, one outside gives '
+      'one', () async {
+    final cell = path(path('f03', 'us02'), 'fr04');
+    final findings = await labelsInFeature(
+      'Cite `$cell` and `x ${f(1)} y` then $cell here.',
+    );
+    expect(findings, hasLength(1));
+    expect(findings.single.line, _lineNumber);
+    expect(findings.single.keys, {'label': cell});
   });
 
   test('$_name: a placeholder label gives none', () async {

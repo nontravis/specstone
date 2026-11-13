@@ -1,4 +1,6 @@
-import 'package:specstone_core/src/doc_model/doc.dart' show fenceScan;
+import 'package:specstone_core/src/doc_model/code_spans.dart';
+import 'package:specstone_core/src/doc_model/doc.dart'
+    show blockScan, fenceScan;
 
 /// How a number label names its doc.
 enum LabelShape {
@@ -106,28 +108,80 @@ List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
 }
 
 const _lineFeed = 0x0A;
+const _spaceUnit = 0x20;
 
 /// The number labels of [lfText], LF text without frontmatter, with offsets
 /// into the whole text.
 ///
-/// Prose, code spans, and `mermaid` blocks are read; other fenced code and
-/// link destinations are skipped (R82). [legacyIds] reads as [numberLabelsIn]
-/// reads it.
+/// Prose and `mermaid` blocks are read; fenced code other than `mermaid`,
+/// code spans, and link destinations are skipped (R82). [legacyIds] reads as
+/// [numberLabelsIn] reads it.
 List<NumberLabel> numberLabelsInMarkdown(
   String lfText, {
   bool legacyIds = false,
 }) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
+  final continues = blockScan(lines).continuesParagraph;
+  final spansOfGroup = <int, List<CodeSpan>>{};
   final labels = <NumberLabel>[];
   var lineStart = 0;
   for (var i = 0; i < lines.length; i++) {
     if (readable[i]) {
-      labels.addAll(_labelsOutsideLinks(lines[i], lineStart, legacyIds));
+      labels.addAll(
+        _labelsOutsideLinks(
+          _outsideCodeSpans(lines, continues, spansOfGroup, i),
+          lineStart,
+          legacyIds,
+        ),
+      );
     }
     lineStart += lines[i].length + 1;
   }
   return labels;
+}
+
+/// Returns line [index] of [lines] with every code span of the paragraph it
+/// sits in blanked to spaces, so no label begins inside one.
+///
+/// The spans are read once per paragraph over its lines joined by line
+/// feeds, so a span the paragraph wraps over two lines blanks its part on
+/// each. A backtick leaves a label's start open, and so does a space, so the
+/// blanks move no boundary.
+String _outsideCodeSpans(
+  List<String> lines,
+  List<bool> continues,
+  Map<int, List<CodeSpan>> spansOfGroup,
+  int index,
+) {
+  var first = index;
+  while (first > 0 && continues[first]) {
+    first--;
+  }
+  var last = index;
+  while (last + 1 < lines.length && continues[last + 1]) {
+    last++;
+  }
+  final spans = spansOfGroup.putIfAbsent(
+    first,
+    () => codeSpansOf(lines.sublist(first, last + 1).join('\n')),
+  );
+  var lineStart = 0;
+  for (var i = first; i < index; i++) {
+    lineStart += lines[i].length + 1;
+  }
+  final line = lines[index];
+  if (spans.isEmpty) return line;
+  final lineEnd = lineStart + line.length;
+  final units = line.codeUnits.toList();
+  for (final span in spans) {
+    final from = span.start > lineStart ? span.start : lineStart;
+    final to = span.end < lineEnd ? span.end : lineEnd;
+    for (var at = from; at < to; at++) {
+      units[at - lineStart] = _spaceUnit;
+    }
+  }
+  return String.fromCharCodes(units);
 }
 
 // MARK: - Label reader

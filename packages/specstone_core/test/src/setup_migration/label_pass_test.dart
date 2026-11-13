@@ -277,11 +277,15 @@ void main() {
       expect(tree.resolve(label, citingDocPath: _topic), _domain);
     });
 
-    test('the name alone goes inside a code span that holds the label', () {
+    test('a label inside a code span stays as written and is not counted '
+        '(E62)', () {
+      final pass = _passOf(_topic, 'Cite `F-01 US-01` and `see F-01 here`.\n');
+
       expect(
-        _convert(_topic, 'Cite `F-01 US-01` and `see F-01 here`.\n'),
-        'Cite `alpha/beta` and `see feature:alpha here`.\n',
+        pass.apply(_topic, 'Cite `F-01 US-01` and `see F-01 here`.\n'),
+        'Cite `F-01 US-01` and `see F-01 here`.\n',
       );
+      expect(pass.planLine, isNull);
     });
 
     test('the name alone goes inside a mermaid block, other fences stay', () {
@@ -309,15 +313,13 @@ void main() {
       );
     });
 
-    test(
-      'a label in a code span that runs over two lines gets no nested span',
-      () {
-        expect(
-          _convert(_topic, 'Cite `see\nF-01 here` now.\n'),
-          'Cite `see\nfeature:alpha here` now.\n',
-        );
-      },
-    );
+    test('a label in a code span that runs over two lines stays, one beside it '
+        'converts', () {
+      expect(
+        _convert(_topic, 'Cite `see\nF-01 here` and F-01 now.\n'),
+        'Cite `see\nF-01 here` and `feature:alpha` now.\n',
+      );
+    });
 
     test('frontmatter and every other byte stay', () {
       const text = '---\nnote: F-01\n---\n# T\n\nF-01 x  \n\n- F-01\n';

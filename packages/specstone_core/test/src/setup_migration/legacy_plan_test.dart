@@ -1394,26 +1394,29 @@ name: NFR
         );
       });
 
-      test('E18: a legacy ID the move list maps to one FR becomes its name, '
-          'another is kept and listed in the plan', () async {
-        final plan = await _plan(_citingLegacy);
+      test(
+        'E18: a legacy ID the move list maps to one FR becomes its name, '
+        'one in a code span stays uncounted, another is kept and listed',
+        () async {
+          final plan = await _plan(_citingLegacy);
 
-        final text = _rewrite(plan, featurePath).text;
+          final text = _rewrite(plan, featurePath).text;
 
-        expect(
-          text,
-          contains(
-            'Built by `login/email_login/lock_account` and '
-            '`login/email_login/validate_credentials`; ai09/us01/fr01 names',
-          ),
-        );
-        expect(
-          plan.toText(),
-          contains(
-            '; left: prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01, ',
-          ),
-        );
-      });
+          expect(
+            text,
+            contains(
+              'Built by `login/email_login/lock_account` and '
+              '`ai01/us01/fr01`; ai09/us01/fr01 names',
+            ),
+          );
+          expect(
+            plan.toText(),
+            contains(
+              '; left: prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01, ',
+            ),
+          );
+        },
+      );
 
       test('E19: a full label and a feature label name their doc; a partial '
           "label reads against the citing doc's story", () async {
