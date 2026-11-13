@@ -9,6 +9,7 @@ class RefsCommand extends SpecstoneCommand {
       negatable: false,
       help: 'Print JSON instead of text.',
     );
+    addTargetOption();
   }
 
   @override
@@ -18,7 +19,8 @@ class RefsCommand extends SpecstoneCommand {
   String get description => 'Print the references of a doc.';
 
   @override
-  String get invocation => 'specstone refs <name | path> [--json]';
+  String get invocation =>
+      'specstone refs <name | path> [--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -35,7 +37,8 @@ class RefsCommand extends SpecstoneCommand {
       usageException('Expected one name, got ${rest.length}.');
     }
     return runRead(
-      (session) => answerRefs(session.index, rest.first),
+      (session) =>
+          answerRefs(session.index, rest.first, codeTarget: targetOf(args)),
       asJson: asJson,
     );
   }

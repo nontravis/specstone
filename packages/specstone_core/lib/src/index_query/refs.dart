@@ -4,6 +4,7 @@ import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -50,20 +51,23 @@ final class _Ref {
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
 /// links to, each story a journey step or an `fr`'s `traced_from` entry names,
-/// and the `implements` and `covers` pointers as written. Inbound holds the
-/// docs whose `doc_ref` value reaches the doc, then those linking to it, then
-/// the journeys with a step naming it, then the `fr` docs tracing it, each
-/// group in tree order of the referring docs. Mentions holds each line of
-/// another typed doc that names the doc's file in text or holds a doc-name
-/// mention of it (see [mentionsOf]);
-/// Untyped mentions holds those of untyped docs, which no write takes as a
-/// target. Throws an [IndexFault] when no doc carries the name.
-ReadAnswer answerRefs(DocIndex index, String address) {
+/// and its `output_ref` pointers as written: a record's code paths, `covers`.
+/// Inbound holds the docs whose `doc_ref` value reaches the doc, then those
+/// linking to it, then the journeys with a step naming it, then the `fr` docs
+/// tracing it, each group in tree order of the referring docs. Mentions holds
+/// each line of another typed doc that names the doc's file in text or holds a
+/// doc-name mention of it (see [mentionsOf]); Untyped mentions holds those of
+/// untyped docs, which no write takes as a target.
+///
+/// [codeTarget] keeps a name to that code target's docs and the shared docs.
+/// Throws an [IndexFault] when no doc carries the name or [codeTarget] names
+/// no target the project holds.
+ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
   final inboundByPath = _inboundByPath(index);
   final journeysByStory = _journeysByStory(index);
   final tracedByStory = _tracedByStory(index);
   final answers = [
-    for (final doc in index.resolve(address))
+    for (final doc in index.resolve(address, codeTarget: codeTarget))
       _answerFor(index, doc, inboundByPath, journeysByStory, tracedByStory),
   ];
   return ReadAnswer(
@@ -124,8 +128,8 @@ ReadAnswer answerRefs(DocIndex index, String address) {
 
 /// Returns the outbound references of [doc]: its `doc_ref` fields in field
 /// order, the docs it links to, the stories its steps and `traced_from` entries
-/// name, then the `implements` and `covers` pointers. A value naming [doc]
-/// itself is left out.
+/// name, then its `output_ref` pointers. A value naming [doc] itself is left
+/// out.
 List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
   final refs = <_Ref>[];
   for (final field in _docRefFields(index, doc)) {
@@ -142,12 +146,28 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
     for (final story in _tracedStories(index, doc))
       _Ref.toDoc('traced_from', story),
   ]);
-  for (final id in const ['implements', 'covers']) {
-    refs.addAll([
-      for (final value in doc.valuesOf(id)) _Ref.toPointer(id, value),
-    ]);
-  }
-  return refs;
+  return refs..addAll(_pointers(index, doc));
+}
+
+/// Returns the `output_ref` pointers of [doc], one field after another in
+/// field order, each as written.
+///
+/// An `item_exact` field belongs to a record: it gives each entry's code
+/// paths with the item left off, as [recordEntriesOf] reads them.
+List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
+  final type = index.typeOf(doc);
+  if (type == null) return const [];
+  final entries = recordEntriesOf(doc, type);
+  return [
+    for (final field in type.fields)
+      if (field.type == FieldType.outputRef)
+        if (field.pointer == PointerKind.itemExact)
+          for (final entry in entries)
+            for (final path in entry.codePaths) _Ref.toPointer(field.id, path)
+        else
+          for (final value in doc.valuesOf(field.id))
+            _Ref.toPointer(field.id, value),
+  ];
 }
 
 /// Returns each doc's inbound `doc_ref` references, in tree order of the

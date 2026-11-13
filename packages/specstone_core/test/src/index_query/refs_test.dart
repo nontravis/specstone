@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 
 const _journeyDoc = 'docs/prds/journeys/sign_in/JOURNEY.md';
 
@@ -537,6 +538,148 @@ void main() {
     final text = answerRefs(nested, 'user_story:shop/cart/add_item').text;
     expect(text, contains('Inbound\n- link: shop (api)'));
     expect(text, contains(cartAdd));
+  });
+
+  group('record code paths, two targets', () {
+    const recordType =
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n'
+        '  - id: implements\n'
+        '    type: output_ref\n'
+        '    list: true\n'
+        '    pointer: item_exact\n';
+
+    Future<DocIndex> twoTargets() => indexWith({
+      '.specstone/templates/implementation.yaml': recordType,
+      '.specstone/config.yaml':
+          '${shippedPinsConfig()}targets:\n'
+          '  flutter:\n    code_root: flutter_lib\n'
+          '  jaspr:\n    code_root: jaspr_lib\n',
+      'flutter_lib/.keep': '',
+      'jaspr_lib/.keep': '',
+      'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+          '---\nstatuses:\n  - email_login:implemented\n'
+          'implements:\n'
+          '  - email_login:lib/sign_in_page.dart:SignInPage\n'
+          '  - email_login/validate_credentials:lib/validator.dart\n---\n\n'
+          '# Record\n',
+      'docs/specs/jaspr/f01_login/IMPLEMENTATION.md':
+          '---\nstatuses:\n  - email_login:planned\n'
+          'implements:\n  - email_login:lib/web_page.dart\n---\n\n# Record\n',
+    });
+
+    test('index_query/follow_references/list_doc_references E03, f01/us07/s2: a record lists each entry code path outbound as written, kind implements, no item beside it', () async {
+      final twin = await twoTargets();
+
+      final answer = answerRefs(
+        twin,
+        'specs/flutter/f01_login/IMPLEMENTATION.md',
+      );
+
+      expect(
+        answer.text,
+        contains(
+          'Outbound\n'
+          '- implements: lib/sign_in_page.dart:SignInPage\n'
+          '- implements: lib/validator.dart\n'
+          'Inbound\n',
+        ),
+      );
+      final doc = (answer.json['docs']! as List).single as Map;
+      expect(doc['outbound'], [
+        {'kind': 'implements', 'pointer': 'lib/sign_in_page.dart:SignInPage'},
+        {'kind': 'implements', 'pointer': 'lib/validator.dart'},
+      ]);
+    });
+
+    test('index_query/follow_references/list_doc_references E03: a record with no code path prints - none outbound', () async {
+      final bare = await indexWith({
+        '.specstone/templates/implementation.yaml': recordType,
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n',
+        'flutter_lib/.keep': '',
+        'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n  - email_login:planned\n---\n\n# Record\n',
+      });
+
+      expect(
+        answerRefs(bare, 'specs/flutter/f01_login/IMPLEMENTATION.md').text,
+        contains('Outbound\n- none\nInbound\n'),
+      );
+    });
+
+    test('index_query/follow_references/list_doc_references E03: a record has no inbound pointer from the code it names', () async {
+      final twin = await twoTargets();
+
+      expect(
+        answerRefs(twin, 'specs/jaspr/f01_login/IMPLEMENTATION.md').text,
+        contains(
+          'Outbound\n- implements: lib/web_page.dart\nInbound\n- none\n',
+        ),
+      );
+    });
+
+    test('f01/us07/s2, f01/us07/fr01/e07: a name two records share groups each, and a code target keeps one', () async {
+      final twin = await twoTargets();
+
+      final both = answerRefs(twin, 'implementation:login').text;
+      final jaspr = answerRefs(
+        twin,
+        'implementation:login',
+        codeTarget: 'jaspr',
+      ).text;
+
+      expect('==> '.allMatches(both), hasLength(2));
+      expect(
+        both,
+        contains('- implements: lib/sign_in_page.dart:SignInPage\n'),
+      );
+      expect('==> '.allMatches(jaspr), hasLength(1));
+      expect(jaspr, contains('- implements: lib/web_page.dart\n'));
+      expect(jaspr, isNot(contains('sign_in_page')));
+    });
+
+    test('index_query/read_doc_section/resolve_doc_name E22: a code target the config does not hold is argument_invalid', () async {
+      final twin = await twoTargets();
+
+      expect(
+        () => answerRefs(twin, 'implementation:login', codeTarget: 'web'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+    });
+
+    test('f01/us07/fr02: journey-step references print as before beside a record doc type', () async {
+      final twin = await indexWith({
+        '.specstone/templates/implementation.yaml': recordType,
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n',
+        'flutter_lib/.keep': '',
+        _journeyDoc: _journey([
+          '### 1. Enter details',
+          'step: login/email_login S1',
+        ]),
+      });
+
+      expect(
+        answerRefs(twin, 'journey:sign_in').text,
+        contains('Outbound\n- step: login/email_login (user_story)\nInbound\n'),
+      );
+    });
   });
 
   test('index_query/follow_references/list_doc_references E03: an implements entry stays outbound as written, and a mention in a code file is no inbound pointer', () async {
