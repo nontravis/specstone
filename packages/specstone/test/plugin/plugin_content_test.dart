@@ -1727,9 +1727,8 @@ void _agentTests() {
         );
       });
 
-      test('fill_check_findings E14, document_writing/edit_one_section_or_'
-          'field/refuse_stale_base: $skill retries a write a parallel batch '
-          'made stale', () {
+      test('fill_check_findings E14, refuse_stale_base: $skill retries a '
+          'write a parallel batch made stale', () {
         expect(
           _oneLine(
             _sectionOf(
