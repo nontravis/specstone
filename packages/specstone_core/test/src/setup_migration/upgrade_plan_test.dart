@@ -853,7 +853,9 @@ sections:
         overrides: const {},
         docs: const {
           'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
-          'prds/notes.md': '# Notes\n\n[run](runbooks/deploy/RUNBOOK.md)\n',
+          'prds/notes.md':
+              '# Notes\n\n[run](runbooks/deploy/RUNBOOK.md) and '
+              '`runbooks/deploy/RUNBOOK.md`\n',
         },
       ),
     );
@@ -867,7 +869,8 @@ sections:
     expect(plan.prunes, ['docs/prds/runbooks/deploy']);
     expect(
       _rewriteAt(plan, 'docs/prds/notes.md').text,
-      '# Notes\n\n[run](../ops/runbooks/deploy/RUNBOOK.md)\n',
+      '# Notes\n\n[run](../ops/runbooks/deploy/RUNBOOK.md) and '
+      '`../ops/runbooks/deploy/RUNBOOK.md`\n',
     );
     expect(
       plan.toText(),
@@ -877,7 +880,7 @@ sections:
       'commit 2, rewrites:\n'
       '  from 1.0.0: move_file runbook prds/runbooks/{slug}/RUNBOOK.md -> '
       'ops/runbooks/{slug}/RUNBOOK.md: ops/runbooks/deploy/RUNBOOK.md\n'
-      '  prds/notes.md: 1 link\n'
+      '  prds/notes.md: 1 link, 1 mention\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
   });
@@ -2958,6 +2961,56 @@ void _treeMoveTests() {
       expect(
         plan.toText(),
         contains('stamps: 2 approval hashes, 0 fingerprints'),
+      );
+    });
+
+    test('$_tree R-T26-1: a pack move_file step over a per-target type '
+        "resolves under the first target's folder, and the doc's rename "
+        'step and layout apply there', () async {
+      const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - rename_section: {doc_type: runbook, from: {id: steps, header: Steps}, to: {id: procedure, header: Procedure}}
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "ops/runbooks/{slug}/RUNBOOK.md"}
+''';
+      const type = '''
+id: runbook
+description: A runbook.
+path: ops/runbooks/{slug}/RUNBOOK.md
+per_target: true
+sections:
+  - {id: procedure, header: Procedure, required: true}
+''';
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml': packYaml,
+        '.specstone/packs/acme/runbook.yaml': type,
+      });
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${_config('1.0.0')}targets:\n  flutter:\n    code_root: f_ws\n'
+            '  jaspr:\n    code_root: j_ws\n',
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+      });
+
+      final plan = planUpgradeRun(
+        _canonical(project),
+        templates: TemplateResolver(),
+        homeDirectory: home,
+      );
+
+      expect(plan.moves, [
+        (
+          from: 'prds/runbooks/deploy/RUNBOOK.md',
+          to: 'ops/flutter/runbooks/deploy/RUNBOOK.md',
+        ),
+      ]);
+      expect(
+        _rewriteAt(plan, 'docs/ops/flutter/runbooks/deploy/RUNBOOK.md').text,
+        contains('## Procedure\n'),
       );
     });
 

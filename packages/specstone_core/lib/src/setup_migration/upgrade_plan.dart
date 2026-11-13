@@ -161,16 +161,24 @@ RunPlan _upgradeRunOf(
     docPaths,
     finalSet,
     targetNames: config.targetNames,
+    olderPatterns: [
+      for (final (:step, from: _) in steps)
+        if (step is MoveFile && _isPerTargetStep(step, finalSet, firstTarget))
+          step.from,
+    ],
   );
-  final (:planned, :movedAt, :movedBy) = _plannedPaths(
+  final (:planned, :movedAt, :movedBy, :treeMoved) = _plannedPaths(
     docPaths,
     steps,
     treeMoves: treeMoves,
+    set: finalSet,
+    targetNames: config.targetNames,
   );
   final moveCollisions = _moveCollisions(
     docPaths,
     planned: planned,
     movedBy: movedBy,
+    treeMoved: treeMoved,
     steps: steps,
     firstTarget: firstTarget,
   );
@@ -899,50 +907,75 @@ String _withAgentFileRoots(String text, List<String> roots) {
   );
 }
 
-/// The `movedBy` value of a doc the tree move moved and no step moved after.
-const _treeMoveStep = -1;
+/// Whether [step] moves docs of a per-target doc type of [set] while the
+/// project holds two or more targets, [firstTarget] set.
+bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
+    firstTarget != null && (set.lookup(step.docType)?.isPerTarget ?? false);
 
 /// Returns the final path of each doc of [docPaths], the final paths each
-/// move step's docs end at, and the last move that touched each doc.
+/// move step's docs end at, the last move step that touched each doc, and the
+/// docs the tree move moved.
 ///
 /// The [treeMoves] come first. Each `move_file` step, in step order, then
 /// matches every doc at its CURRENT path, the result of the earlier moves, so
 /// moves chain: a doc at `A` under `A` → `B` then `B` → `C` ends at `C`
-/// (F6-D22, INV-10).
+/// (F6-D22, INV-10). With two or more [targetNames], a step of a per-target
+/// doc type moves the docs of each target's folder by that target's patterns.
 ({
   Map<String, String> planned,
   Map<int, List<String>> movedAt,
   Map<String, int> movedBy,
+  Set<String> treeMoved,
 })
 _plannedPaths(
   List<String> docPaths,
   List<_Step> steps, {
   required List<PathMove> treeMoves,
+  required MergedSet set,
+  required List<String> targetNames,
 }) {
   final planned = {for (final path in docPaths) path: path};
   final movedAt = <int, List<String>>{};
   final movedBy = <String, int>{};
+  final treeMoved = <String>{};
   for (final (:from, :to) in treeMoves) {
     planned[from] = to;
-    movedBy[from] = _treeMoveStep;
+    treeMoved.add(from);
   }
+  final firstTarget = targetNames.length > 1 ? targetNames.first : null;
   for (final (index, (:step, from: _)) in steps.indexed) {
     if (step is! MoveFile) continue;
-    final from = PathPattern(step.from);
-    final to = PathPattern(step.to);
-    for (final entry in planned.entries.toList()) {
-      final values = from.valuesOf(entry.value);
-      if (values == null) continue;
-      final moved = to.fill(values);
-      if (moved == entry.value) continue;
-      final touched = movedAt[index] ??= [];
-      if (!touched.contains(moved)) touched.add(moved);
-      planned[entry.key] = moved;
-      movedBy[entry.key] = index;
+    final patterns = [
+      for (final target
+          in _isPerTargetStep(step, set, firstTarget)
+              ? targetNames
+              : const <String?>[null])
+        (from: _patternIn(step.from, target), to: _patternIn(step.to, target)),
+    ];
+    for (final (:from, :to) in patterns) {
+      for (final entry in planned.entries.toList()) {
+        final values = from.valuesOf(entry.value);
+        if (values == null) continue;
+        final moved = to.fill(values);
+        if (moved == entry.value) continue;
+        final touched = movedAt[index] ??= [];
+        if (!touched.contains(moved)) touched.add(moved);
+        planned[entry.key] = moved;
+        movedBy[entry.key] = index;
+      }
     }
   }
-  return (planned: planned, movedAt: movedAt, movedBy: movedBy);
+  return (
+    planned: planned,
+    movedAt: movedAt,
+    movedBy: movedBy,
+    treeMoved: treeMoved,
+  );
 }
+
+PathPattern _patternIn(String pattern, String? target) => target == null
+    ? PathPattern(pattern)
+    : PathPattern(pattern).forTarget(target);
 
 const _resolveCollision =
     'move, rename, or merge each listed doc or entry so the step no longer '
@@ -981,33 +1014,32 @@ List<MigrateFault> _moveCollisions(
   List<String> docPaths, {
   required Map<String, String> planned,
   required Map<String, int> movedBy,
+  required Set<String> treeMoved,
   required List<_Step> steps,
   required String? firstTarget,
 }) {
+  bool isMoved(String path) =>
+      movedBy.containsKey(path) || treeMoved.contains(path);
   final faults = <MigrateFault>[];
   for (final source in docPaths) {
     final destination = planned[source]!;
     if (destination == source) continue;
-    final movedByIndex = movedBy[source]!;
     final String what;
-    if (movedByIndex == _treeMoveStep) {
-      what = 'the spec tree move to $firstTarget moves $source to $destination';
-    } else if (steps[movedByIndex].step case final MoveFile step) {
+    if (movedBy[source] case final index?) {
+      final step = steps[index].step;
+      if (step is! MoveFile) continue;
       what = 'move_file of ${step.docType} moves ${step.from} to ${step.to}';
     } else {
-      continue;
+      what = 'the spec tree move to $firstTarget moves $source to $destination';
     }
     // A stayer holds its ground: the mover's destination is its own path.
     final stayer = docPaths.any(
-      (path) => path == destination && movedBy[path] == null,
+      (path) => path == destination && !isMoved(path),
     );
     // Another mover with the same final path: each fault names the other. A
     // stayer never counts; it is the stayer fault below.
     final rivals = docPaths.where(
-      (path) =>
-          path != source &&
-          movedBy[path] != null &&
-          planned[path] == destination,
+      (path) => path != source && isMoved(path) && planned[path] == destination,
     );
     if (stayer) {
       faults.add(_collisionFault(what, source, 'the doc already there holds'));

@@ -79,6 +79,7 @@ bool _hasTreeMove(
   TemplateResolver templates,
   Directory? homeDirectory,
 ) {
+  if (ProjectConfig.read(root).targetNames.length < 2) return false;
   final project = DocsProject.open(
     templates: templates,
     workingDirectory: root,
