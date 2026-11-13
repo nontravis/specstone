@@ -5,8 +5,6 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId;
 import 'package:specstone_core/src/index_query/code_root_files.dart';
-import 'package:specstone_core/src/index_query/doc_index.dart'
-    show featureType, frType, storyType;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_target.dart';

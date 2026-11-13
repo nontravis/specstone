@@ -1,7 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -42,7 +41,10 @@ final class _RecordWalk {
       _entries = {
         for (final entry in recordEntriesOf(_record, type)) entry.item: entry,
       },
-      _docs = {_featureItem: null, ...recordItemsOf(_context.index, _feature)};
+      _docs = {
+        _featureItem: null,
+        ...recordItemsOf(_feature, _context.index.childrenOf),
+      };
 
   final CheckContext _context;
   final IndexedDoc _record;

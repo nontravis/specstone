@@ -17,6 +17,15 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
 
+/// The id of the `feature` doc type.
+const featureType = 'feature';
+
+/// The id of the `user_story` doc type.
+const storyType = 'user_story';
+
+/// The id of the `fr` doc type.
+const frType = 'fr';
+
 /// Returns the SHA-256 of [bytes] as lowercase hex.
 String contentHashOf(List<int> bytes) => sha256.convert(bytes).toString();
 

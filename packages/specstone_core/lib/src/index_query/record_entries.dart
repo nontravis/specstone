@@ -1,4 +1,3 @@
-import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -159,17 +158,20 @@ MergedField? recordCodeFieldOf(MergedDocType recordType) => recordType.fields
 
 /// Returns the stories under [feature] and the FRs of those stories, each by
 /// its name relative to [feature]: the items a record of it may name besides
-/// the feature itself.
-Map<String, IndexedDoc> recordItemsOf(DocIndex index, IndexedDoc feature) {
+/// the feature itself. [childrenOf] gives the docs under a doc.
+Map<String, IndexedDoc> recordItemsOf(
+  IndexedDoc feature,
+  Iterable<IndexedDoc> Function(IndexedDoc) childrenOf,
+) {
   final prefix = '${feature.name}/';
   String relative(IndexedDoc doc) => doc.name.startsWith(prefix)
       ? doc.name.substring(prefix.length)
       : doc.name;
   return {
-    for (final story in index.childrenOf(feature))
+    for (final story in childrenOf(feature))
       if (story.docTypeId == storyType) ...{
         relative(story): story,
-        for (final fr in index.childrenOf(story))
+        for (final fr in childrenOf(story))
           if (fr.docTypeId == frType) relative(fr): fr,
       },
   };

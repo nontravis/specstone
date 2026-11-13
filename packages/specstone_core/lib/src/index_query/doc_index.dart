@@ -8,14 +8,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-/// The id of the `feature` doc type.
-const featureType = 'feature';
-
-/// The id of the `user_story` doc type.
-const storyType = 'user_story';
-
-/// The id of the `fr` doc type.
-const frType = 'fr';
+export 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show featureType, frType, storyType;
 
 /// A `@<hash>` suffix: 12 lowercase hex characters.
 final _hashSuffix = RegExp(r'@[0-9a-f]{12}$');
