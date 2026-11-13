@@ -9,6 +9,7 @@ import '../../specstone_core/test/helpers/shipped_pins.dart';
 import 'helpers/built_cli.dart';
 import 'helpers/temp_tree.dart';
 
+const _record = 'specs/f01_login/IMPLEMENTATION.md';
 const _featureDoc = 'prds/features/f01_login/FEATURE.md';
 
 void main() {
@@ -58,7 +59,26 @@ void main() {
     final project = await writeCheckProject(
       extra: {
         '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
-        ...fr('app/lib/login.dart:checkPassword', 'lib/a.dart'),
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n'
+            '  - id: implements\n'
+            '    type: output_ref\n'
+            '    list: true\n'
+            '    pointer: item_exact\n',
+        ...edit(loginStory, [('status: implemented\n', '')]),
+        ...fr('status: implemented\n', ''),
+        'docs/$_record':
+            "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+            "implements:\n  - 'email_login/check_password:lib/a.dart'\n"
+            '---\n\n# Record\n',
         // Resolved from the project root, the pointer would hold.
         'lib/a.dart': 'class A {}\n',
       },
@@ -77,7 +97,7 @@ void main() {
     expect(
       check.stdout,
       contains(
-        '$loginFr:10: implements_path_unresolved: lib/a.dart is no file\n',
+        '$_record:6: implements_path_unresolved: lib/a.dart is no file\n',
       ),
     );
   });

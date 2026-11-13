@@ -20,6 +20,32 @@ import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
 
+const _brokenRecord = 'specs/f01_login/IMPLEMENTATION.md';
+
+/// Returns the files that plant a code path to nothing in the login record.
+Map<String, String> _brokenRecordFiles() => {
+  '.specstone/templates/implementation.yaml':
+      'id: implementation\n'
+      'description: One feature record per target.\n'
+      'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+      'parent: feature\n'
+      'per_target: true\n'
+      'fields:\n'
+      '  - id: statuses\n'
+      '    type: record_status\n'
+      '    list: true\n'
+      '  - id: implements\n'
+      '    type: output_ref\n'
+      '    list: true\n'
+      '    pointer: item_exact\n',
+  ...edit(loginStory, [('status: implemented\n', '')]),
+  ...fr('status: implemented\n', ''),
+  'docs/$_brokenRecord':
+      "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
+      "implements:\n  - 'email_login/check_password:app/lib/gone.dart:X'\n"
+      '---\n\n# Record\n',
+};
+
 void main() {
   test(
     'f04/us01/s1, f04/us01/fr01/e01: the fixture project has zero findings',
@@ -294,12 +320,14 @@ void main() {
   test("f08/us06/fr02, f08/us06/s3, f08/us06/fr02/e06: a doc check gives that doc's findings only", () async {
     final project = await writeCheckProject(
       extra: {
-        ...doc(
-          loginStory,
-          'I reach my work',
-          'I reach my work, see [gone](gone/USER_STORY.md)',
-        ),
-        ...fr('app/lib/login.dart:checkPassword', 'app/lib/gone.dart:X'),
+        ..._brokenRecordFiles(),
+        ...edit(loginStory, [
+          ('status: implemented\n', ''),
+          (
+            'I reach my work',
+            'I reach my work, see [gone](gone/USER_STORY.md)',
+          ),
+        ]),
       },
     );
     final story = checkOf(project, docPath: loginStory);
@@ -309,7 +337,7 @@ void main() {
       story.findings.map((f) => f.kind),
       contains(FindingKind.linkUnresolved),
     );
-    final requirement = checkOf(project, docPath: loginFr);
+    final requirement = checkOf(project, docPath: _brokenRecord);
     expect(requirement.findings, isNotEmpty);
     expect(requirement.findings.where((f) => f.path == loginStory), isEmpty);
   });
@@ -334,16 +362,14 @@ void main() {
   test(
     'f08/us06/fr02: a feature doc check leaves out the docs under it',
     () async {
-      final project = await writeCheckProject(
-        extra: fr('app/lib/login.dart:checkPassword', 'app/lib/gone.dart:X'),
-      );
+      final project = await writeCheckProject(extra: _brokenRecordFiles());
       expect(
         checkOf(project, target: 'feature:login').findings.map((f) => f.path),
-        contains(loginFr),
+        contains(_brokenRecord),
       );
       expect(
         checkOf(project, docPath: loginFeature).findings.map((f) => f.path),
-        isNot(contains(loginFr)),
+        isNot(contains(_brokenRecord)),
       );
     },
   );
