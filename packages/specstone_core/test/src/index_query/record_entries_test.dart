@@ -307,5 +307,22 @@ void main() {
 
       expect(text, "---\nstatuses:\n  - 'a:skipped:it''s out'\n---\n\n# R\n");
     });
+
+    test('an implements line with an empty item stays, as the parser skips '
+        'it', () {
+      final seen = <String>[];
+      final text = rewriteRecordItems(
+        '---\nimplements:\n  - ":lib/a.dart"\n  - b:lib/b.dart\n'
+        '---\n\n# R\n',
+        _recordType,
+        (item) {
+          seen.add(item);
+          return null;
+        },
+      );
+
+      expect(seen, ['b']);
+      expect(text, "---\nimplements:\n  - ':lib/a.dart'\n---\n\n# R\n");
+    });
   });
 }

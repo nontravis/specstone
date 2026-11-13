@@ -228,10 +228,13 @@ String _rewriteField(
     YamlList() => [...value],
     _ => [value],
   };
+  final itemOf = field.type == FieldType.recordStatus
+      ? _statusItemOf
+      : _codeItemOf;
   final kept = <Object?>[];
   var changed = false;
   for (final line in lines) {
-    final next = line is String ? _rewrittenLine(line, rewrite) : line;
+    final next = line is String ? _rewrittenLine(line, itemOf, rewrite) : line;
     if (next != line) changed = true;
     if (next != null) kept.add(next);
   }
@@ -244,12 +247,26 @@ String _rewriteField(
   );
 }
 
-/// Returns [line] with its item set by [rewrite], or null to drop it.
-String? _rewrittenLine(String line, String? Function(String item) rewrite) {
-  final split = line.indexOf(':');
-  if (split < 0) return line;
-  final item = rewrite(line.substring(0, split));
-  return item == null ? null : '$item${line.substring(split)}';
+/// Returns [line] with the item [itemOf] reads from it set by [rewrite], or
+/// null to drop it; [line] itself when it names no item.
+String? _rewrittenLine(
+  String line,
+  String? Function(String line) itemOf,
+  String? Function(String item) rewrite,
+) {
+  final item = itemOf(line);
+  if (item == null) return line;
+  final next = rewrite(item);
+  return next == null ? null : '$next${line.substring(item.length)}';
+}
+
+String? _statusItemOf(String line) => recordStatusLineOf(line)?.item;
+
+/// Returns the item of a code line, null for no item, as
+/// [recordCodeLinesOf] skips a line whose item is empty.
+String? _codeItemOf(String line) {
+  final item = recordCodeLineOf(line)?.item;
+  return item == null || item.isEmpty ? null : item;
 }
 
 /// Returns [value] as one YAML flow or single-quoted scalar, which reads back

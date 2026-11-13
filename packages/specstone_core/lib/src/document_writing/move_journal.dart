@@ -10,6 +10,8 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/rendering/doc_reader.dart'
+    show byteOrderMark;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
@@ -94,12 +96,9 @@ void warnOnStderr(String line) => stderr.writeln(line);
 /// Returns the hash of [text], read as a file's text without a byte-order
 /// mark; a [WriteStep] records it for the text it replaces.
 String textHashOf(String text) {
-  final bare = text.startsWith(_bom) ? text.substring(1) : text;
+  final bare = text.startsWith(byteOrderMark) ? text.substring(1) : text;
   return sha256.convert(utf8.encode(bare)).toString();
 }
-
-/// The byte-order mark as the one character a step's text may begin with.
-const _bom = '\uFEFF';
 
 /// One idempotent step of a [MoveJournal].
 ///
@@ -361,7 +360,7 @@ final class WriteStep extends JournalStep {
   static String _textOf(File file) => _withoutBom(file.readAsStringSync());
 
   static String _withoutBom(String text) =>
-      text.startsWith(_bom) ? text.substring(1) : text;
+      text.startsWith(byteOrderMark) ? text.substring(1) : text;
 }
 
 /// Writes [text] to a path that does not exist yet, creating its parent

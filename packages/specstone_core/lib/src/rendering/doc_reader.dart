@@ -11,6 +11,12 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 /// The UTF-8 byte order mark, which `utf8.decode` drops from a decoded text.
 const utf8Bom = [0xEF, 0xBB, 0xBF];
 
+/// The byte order mark as the one character a decoded text may begin with.
+const byteOrderMark = '\uFEFF';
+
+/// Returns [byteOrderMark] when [bytes] begin with the UTF-8 one, else `''`.
+String bomOf(List<int> bytes) => startsWithUtf8Bom(bytes) ? byteOrderMark : '';
+
 /// Whether [bytes] begin with the UTF-8 byte order mark.
 bool startsWithUtf8Bom(List<int> bytes) =>
     bytes.length >= utf8Bom.length &&

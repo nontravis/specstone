@@ -8,37 +8,21 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
-import 'package:specstone_core/src/document_writing/set_doc.dart';
+import 'package:specstone_core/src/document_writing/record_edit.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
-import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
-import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom;
-import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-const _bom = '\uFEFF';
 
 /// The bytes of each file of a delete unit, by DocPath, sorted by code point.
 typedef _UnitFiles = Map<String, List<int>>;
 
-/// A record outside the unit that loses entries: its DocPath, its bytes as
-/// read, the items whose entries it loses, and its text without them.
-typedef _RecordEdit = ({
-  String docPath,
-  List<int> bytes,
-  List<String> entries,
-  String lfText,
-});
-
 /// What one delete removes and rewrites: the files of the unit, and each
 /// record outside it that loses entries, sorted by DocPath.
-typedef _DeletePlan = ({_UnitFiles files, List<_RecordEdit> records});
+typedef _DeletePlan = ({_UnitFiles files, List<RecordEdit> records});
 
 /// Moves the docs [targets] name, with everything each owns, to the trash.
 ///
@@ -436,66 +420,7 @@ Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
 /// Reads the files of the unit and the records that lose entries with it.
 _DeletePlan _planOf(WriteSession session, List<String> roots) {
   final files = _readUnit(session, roots);
-  return (files: files, records: _recordEditsOf(session, files.keys.toSet()));
-}
-
-/// Returns an edit for each record outside [inUnit], the DocPaths of the
-/// unit's files, that holds an entry of a story or FR of the unit, sorted by
-/// DocPath.
-///
-/// A record's entries name the stories and FRs of its feature relative to it,
-/// as [recordItemsOf] gives them; the records of a feature in the unit are in
-/// the unit and leave with it.
-List<_RecordEdit> _recordEditsOf(WriteSession session, Set<String> inUnit) {
-  final index = session.index;
-  final recordType = index.set.recordDocType;
-  if (recordType == null) return const [];
-  final edits = <_RecordEdit>[];
-  for (final record in index.docs) {
-    if (record.docTypeId != recordType.id || inUnit.contains(record.docPath)) {
-      continue;
-    }
-    final feature = index.parentOf(record);
-    if (feature == null) continue;
-    final lost = {
-      for (final MapEntry(:key, :value) in recordItemsOf(
-        feature,
-        index.childrenOf,
-      ).entries)
-        if (inUnit.contains(value.docPath)) key,
-    };
-    if (lost.isEmpty) continue;
-    final edit = _editOf(session, record.docPath, recordType, lost);
-    if (edit != null) edits.add(edit);
-  }
-  return edits..sort((a, b) => a.docPath.compareTo(b.docPath));
-}
-
-/// Returns the edit of the record at [docPath] that drops the items [lost],
-/// or null when the file is gone or holds none of them.
-_RecordEdit? _editOf(
-  WriteSession session,
-  String docPath,
-  MergedDocType recordType,
-  Set<String> lost,
-) {
-  final bytes = session.readDocBytes(docPath);
-  if (bytes == null) return null;
-  final dropped = <String>{};
-  final lfText = rewriteRecordItems(toLf(utf8.decode(bytes)), recordType, (
-    item,
-  ) {
-    if (!lost.contains(item)) return item;
-    dropped.add(item);
-    return null;
-  });
-  if (lfText == null) return null;
-  return (
-    docPath: docPath,
-    bytes: bytes,
-    entries: dropped.toList(),
-    lfText: lfText,
-  );
+  return (files: files, records: recordEditsOf(session, files.keys.toSet()));
 }
 
 /// Reads every file of the unit; the keys are sorted by code point.
@@ -581,27 +506,8 @@ List<JournalStep> _stepsFor(
     for (final path in projectPaths)
       MoveStep(path, '${MoveJournal.trashPath}/files/$path'),
     for (final folder in folders) PruneStep(folder),
-    for (final record in plan.records) _recordStep(session, record),
+    for (final record in plan.records) recordStepOf(session, record),
   ];
-}
-
-/// Returns the write of [record] as a draft, laid out for its doc type, in the
-/// line ends and byte-order mark it had.
-///
-/// Throws a `RenderFault` `output_not_writable` for a record that is read-only.
-WriteStep _recordStep(WriteSession session, _RecordEdit record) {
-  session.requireWritable(record.docPath);
-  final docType =
-      session.docTypeAt(record.docPath) ??
-      (throw StateError('${record.docPath} is typed but its type is gone'));
-  final raw = utf8.decode(record.bytes);
-  final text = layOutDoc(markDraft(record.lfText, docType), docType);
-  final bom = startsWithUtf8Bom(record.bytes) ? _bom : '';
-  return WriteStep(
-    session.projectPathOf(record.docPath),
-    '$bom${LineEnding.of(raw).apply(text)}',
-    before: textHashOf(raw),
-  );
 }
 
 ReadAnswer _answerFor(

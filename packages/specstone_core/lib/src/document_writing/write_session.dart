@@ -12,7 +12,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom, utf8Bom;
+    show bomOf, startsWithUtf8Bom, utf8Bom;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -249,6 +249,20 @@ final class WriteSession {
     }
     startsWithUtf8Bom(bytes) ? _bomDocs.add(docPath) : _bomDocs.remove(docPath);
     return bytes;
+  }
+
+  /// Returns the step that writes [lfText] to [docPath] over the file read as
+  /// [bytes], in the line ends and byte-order mark that file had.
+  ///
+  /// [lfText] is laid out already; the step writes only while the file still
+  /// holds the text [bytes] hold.
+  WriteStep docWriteStep(String docPath, String lfText, List<int> bytes) {
+    final raw = utf8.decode(bytes);
+    return WriteStep(
+      projectPathOf(docPath),
+      '${bomOf(bytes)}${LineEnding.of(raw).apply(lfText)}',
+      before: textHashOf(raw),
+    );
   }
 
   /// Refuses a write to [docPath] when the file leads outside the project or

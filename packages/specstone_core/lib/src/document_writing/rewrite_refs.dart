@@ -23,8 +23,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
-import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom;
+import 'package:specstone_core/src/rendering/doc_reader.dart' show bomOf;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
@@ -36,9 +35,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/document_writing/moved_paths.dart'
     show PathMove, movedPath, relativeHref;
-
-/// The byte-order mark as the one character a journal step's text carries.
-const _bom = '\uFEFF';
 
 const _backslash = 0x5C;
 const _openParen = 0x28;
@@ -330,8 +326,11 @@ WriteStep? _codeFileStep(
       'cannot write $projectPath: read-only',
     );
   }
-  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
-  return WriteStep(projectPath, '$bom$text', before: textHashOf(raw));
+  return WriteStep(
+    projectPath,
+    '${bomOf(bytes)}$text',
+    before: textHashOf(raw),
+  );
 }
 
 /// Whether the ProjectPath [path] leaves the project root.
@@ -428,18 +427,13 @@ WriteStep? _stepFor(
       named;
   if (text == null) return null;
   session.requireWritable(doc.docPath);
-  final bom = startsWithUtf8Bom(bytes) ? _bom : '';
   final writtenPath = movedPath(doc.docPath, moves);
   final writtenType = session.docTypeAt(writtenPath);
   final laidOut = layOutDoc(text, writtenType);
   final stamped = _wasApproved(lfText, session.docTypeAt(doc.docPath))
       ? withApprovalHash(laidOut, writtenType)
       : laidOut;
-  return WriteStep(
-    session.projectPathOf(writtenPath),
-    '$bom${LineEnding.of(raw).apply(stamped)}',
-    before: textHashOf(raw),
-  );
+  return session.docWriteStep(writtenPath, stamped, bytes);
 }
 
 /// Whether [lfText], the doc as the step reads it under the lock, is no draft

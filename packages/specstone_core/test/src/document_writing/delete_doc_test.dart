@@ -1763,6 +1763,32 @@ void main() {
       );
     });
 
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a read-only record refuses output_not_writable in the dry run as in the run, and nothing is removed', () async {
+      final root = await writeWriteProject(extra: _withRecords());
+      final record = docFile(root, _loginRecord);
+      expect(Process.runSync('chmod', ['444', record.path]).exitCode, 0);
+      addTearDown(() => Process.runSync('chmod', ['644', record.path]));
+      Matcher refusesRecord() => throwsA(
+        isA<RenderFault>().having(
+          (f) => f.message,
+          'message',
+          contains(_loginRecord),
+        ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        ),
+        refusesRecord(),
+      );
+      expect(
+        () => del(root, ['user_story:login/reset_password']),
+        refusesRecord(),
+      );
+      expect(hasDoc(root, story3), isTrue);
+    }, skip: unreadablePathSkipReason() ?? false);
+
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record with CRLF line ends and a byte-order mark keeps both', () async {
       final record = _record(
         statuses: ['email_login:implemented', 'reset_password:implemented'],
