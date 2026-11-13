@@ -27,6 +27,8 @@ void main() {
       'item_count_out_of_range',
       'prefix_count_mismatch',
       'lines_under_limit',
+      'item_field_missing',
+      'section_unneeded',
       'banned_word',
       'untyped_doc',
       'doc_type_ambiguous',

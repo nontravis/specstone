@@ -44,6 +44,8 @@ enum FindingKind {
   itemCountOutOfRange('item_count_out_of_range'),
   prefixCountMismatch('prefix_count_mismatch'),
   linesUnderLimit('lines_under_limit'),
+  itemFieldMissing('item_field_missing'),
+  sectionUnneeded('section_unneeded'),
   bannedWord('banned_word'),
   untypedDoc('untyped_doc'),
   docTypeAmbiguous('doc_type_ambiguous'),

@@ -31,6 +31,11 @@ final _allowed = <_Allowed>[
     'Blockquote label such as `> Note:`, no reference.',
   ),
   _core(
+    'consistency_check/item_field_rules.dart',
+    r"""RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$'""",
+    'Matches a `- **<field>:** <text>` label, no reference.',
+  ),
+  _core(
     'consistency_check/trace_rules.dart',
     r"""RegExp(r'^\*\*Serves:\*\*(.*)$'""",
     'Matches the `**Serves:**` label; its IDs are read apart.',
@@ -459,7 +464,15 @@ final _rules = <_Rule>[
       _lib('doc_model/doc_items.dart'),
       _lib('index_query/item_facts.dart'),
     },
-    allowed: [],
+    allowed: [
+      // Nested `- **<field>:** <text>` items under a top-level item; the
+      // rule needs each item's own nesting, which ItemFact holds no key for.
+      (
+        file: _lib('consistency_check/item_field_rules.dart'),
+        snippet: 'itemsOf(',
+        reason: 'Reads nested field items under a top-level item, no IDs.',
+      ),
+    ],
     appliesTo: _everySource,
   ),
   (

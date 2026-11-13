@@ -10,6 +10,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
+import 'package:specstone_core/src/consistency_check/item_field_rules.dart';
 import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/journey_rules.dart';
 import 'package:specstone_core/src/consistency_check/label_rules.dart';
@@ -83,6 +84,7 @@ CheckReport runCheck(
       ..addAll(checkNesting(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkShapeCounts(context, doc))
+      ..addAll(checkItemFields(context, doc))
       ..addAll(checkFormatDrift(context, doc))
       ..addAll(checkBannedWords(context, doc))
       ..addAll(checkPatterns(context, doc))
