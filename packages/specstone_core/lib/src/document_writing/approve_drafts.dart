@@ -424,13 +424,22 @@ DraftView _draftViewOf(
 ) {
   final type = session.index.typeOf(doc);
   final text = utf8.decode(bytes);
+  final index = session.index;
+  final perTarget =
+      index.hasTwins && codeTarget == null && isStatusTracked(doc);
   return DraftView(
     name: doc.name,
     // `_waitsForApproval` kept only typed drafts, so the type id is set.
     docType: doc.docTypeId!,
     mergedType: type,
     title: doc.title,
-    status: session.index.statusOf(doc, codeTarget: codeTarget),
+    status: perTarget ? null : index.statusOf(doc, codeTarget: codeTarget),
+    statusByTarget: perTarget
+        ? {
+            for (final name in index.targetNames)
+              name: index.statusOf(doc, codeTarget: name),
+          }
+        : const {},
     docPath: doc.docPath,
     projectPath: session.projectPathOf(doc.docPath),
     text: text,
