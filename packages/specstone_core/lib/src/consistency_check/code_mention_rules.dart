@@ -51,24 +51,25 @@ List<String> _codeFilesOf(
   final codeRoot = context.codeRootOf(target);
   final entries = _codeEntriesOf(context, work, target);
   final nested = nestedRootsOf(context.projectRoot, target, context.targets);
+  void warnUnlistable(String folder) => context.warn(
+    '$folder: cannot list the folder; files under it are not checked for '
+    'doc names',
+  );
   if (entries.isEmpty) {
     return filesUnderCodeRoot(
       codeRoot,
       _wholeCodeRoot,
       skipFolders: [...nested, ..._docsRootIn(context, codeRoot)],
       skipRepositories: true,
-      onUnlistable: (folder) => context.warn(
-        '$folder: cannot list the folder; files under it are not checked for '
-        'doc names',
-      ),
+      onUnlistable: warnUnlistable,
     );
   }
-  // The coverage rule lists these roots and warns about a folder it cannot
-  // list, so this walk adds no second warning.
-  return {
-    for (final entry in entries)
-      ...filesUnderCodeRoot(codeRoot, entry, skipFolders: nested),
-  }.toList();
+  return codeRootFiles(
+    codeRoot,
+    entries,
+    skipFolders: nested,
+    onUnlistable: warnUnlistable,
+  );
 }
 
 /// Returns the `code:` entries of the docs of [target].
@@ -113,11 +114,8 @@ final class _DocMentionReader {
     final text = _readText(target, codePath, projectPath);
     if (text == null) return;
     final lf = toLf(text);
-    for (final mention in nameMentionsInFile(lf, extension)) {
-      if (_isCited(mention, bare: false)) yield _finding(projectPath, mention);
-    }
-    for (final mention in bareNameMentionsInFile(lf, extension)) {
-      if (_isCited(mention, bare: true)) yield _finding(projectPath, mention);
+    for (final mention in docMentionsInFile(lf, extension)) {
+      if (_isCited(mention)) yield _finding(projectPath, mention);
     }
   }
 
@@ -153,10 +151,11 @@ final class _DocMentionReader {
 
   /// Whether [mention] names a doc: a path read from the docs root or the
   /// project root, or a Name some doc carries.
-  bool _isCited(NameMention mention, {required bool bare}) {
+  bool _isCited(NameMention mention) {
     final address = mention.address;
-    if (bare || address.isReferenceWithoutLookup) return _namesDoc(address);
-    return _docAtPath(mention.text) != null;
+    return address.isName
+        ? _namesDoc(address)
+        : _docAtPath(mention.text) != null;
   }
 
   bool _namesDoc(DocAddress address) => switch (address.typeId) {
