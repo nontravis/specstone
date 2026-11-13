@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/agent_block_rules.dart';
 import 'package:specstone_core/src/consistency_check/approval_rules.dart';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
+import 'package:specstone_core/src/consistency_check/catalog_rules.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
@@ -100,8 +101,15 @@ CheckReport runCheck(
       ..addAll(uncoveredCode(context, work))
       ..addAll(docNamesInCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
-      ..addAll(staleAgentBlocks(context));
+      ..addAll(staleAgentBlocks(context))
+      ..addAll(checkErrorCatalogs(context, _namesOf(scope)));
   }
   findings.addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
+
+/// Returns the names of [scope]'s code targets, the unnamed target as the
+/// empty string.
+Set<String> _namesOf(CheckScope scope) => {
+  for (final target in scope.targets) target.name ?? '',
+};
