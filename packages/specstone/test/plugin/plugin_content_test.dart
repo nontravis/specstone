@@ -1932,6 +1932,45 @@ void _agentTests() {
     );
   });
 
+  test('agent_plugin/start_from_another_tools_spec/take_in_a_source '
+      'verification, E01, E05 to E07, E11; map_source_items verification, '
+      'E01, E02; domain:agent_plugin INV-23: source.md holds the take-in and '
+      'Source map rules and is no Procedure', () {
+    final text = _oneLine(_pluginText(_source));
+    for (final token in [
+      '## Take in the source',
+      '## Map the source',
+      'specstone context project --for design',
+      '--no-project',
+      'untyped_target',
+      '`specstone:bootstrap-prd`',
+      '`specstone:bootstrap-spec`',
+      '`specstone:sdd-reader`',
+      'mktemp',
+      'NFR-Pr01',
+      'Source map',
+      'not taken',
+      'open question',
+      '`FR-###`',
+      '`SC-###`',
+      'specstone guide user_story',
+      'specstone guide fr',
+      'specstone guide feature',
+    ]) {
+      expect(text, contains(token), reason: token);
+    }
+    expect(text, isNot(contains('specstone get')));
+    expect(text, isNot(contains('context project --for design --budget')));
+    expect(_procedures.map((p) => p.file), isNot(contains(_source)));
+    bool ofSource(String problem) => problem.startsWith('$_source:');
+    expect(oversizedSkillFiles(pluginRoot()).where(ofSource), isEmpty);
+    expect(
+      unknownCliNames(pluginRoot(), SpecstoneCommandRunner()).where(ofSource),
+      isEmpty,
+    );
+    expect(nonLatinLetterLines(pluginRoot()).where(ofSource), isEmpty);
+  });
+
   test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
@@ -2083,6 +2122,10 @@ const _rounds = 'skills/brainstorming-sdd/references/rounds.md';
 
 /// [_rounds] by the path the skill's runner reads it from.
 const _roundsPath = '\${CLAUDE_PLUGIN_ROOT}/$_rounds';
+
+/// The take-in and Source map reference file of `brainstorming-sdd`, which
+/// its runner and design mode both read, under the plugin folder.
+const _source = 'skills/brainstorming-sdd/references/source.md';
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
 /// re-audit clauses, E05, E06, E07, E10, E12, and E13, as rounds.md words
