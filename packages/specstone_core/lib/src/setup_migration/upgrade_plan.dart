@@ -78,7 +78,8 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// pin equal the plan holds the layout pass, the agent files step, and the
 /// tree move alone. Writes nothing. Throws `MigrateFault` `override_dangling`,
 /// `MigrateFault` `upgrade_collision` listing every move and rename collision
-/// at once, `value_unplaced` listing every value no record takes at once,
+/// at once, `value_unplaced` listing every value no record takes at once, or
+/// else every create onto a taken path ([RunPlan.refuseTakenCreates]),
 /// `agent_block_malformed`, and a `TemplateFault` before it returns, so a
 /// refused run prints nothing. When [runsOneTimePasses] holds, the renumber
 /// and label passes run and the agent files step is the full upsert;
@@ -101,7 +102,7 @@ RunPlan planUpgradeRun(
       runGit: runGit,
       inputs: inputs,
     ),
-  );
+  )..refuseTakenCreates(root);
 }
 
 /// Plans the upgrade of [root] while [inputs] records each file read.
@@ -276,11 +277,12 @@ RunPlan _upgradeRunOf(
     works.add(_DocWork(plannedPath, original, docType, target, lf, changes));
   }
   throwFaultsPerDoc([...moveCollisions, ...renameCollisions]);
+  final taken = takenAfterMoves(root, moves);
   final placement = recordMoves.place(
     set: finalSet,
     recordType: finalSet.recordDocType,
     firstTarget: firstTarget,
-    isTaken: takenAfter(moves, (docPath) => _existsIn(docsRoot, docPath)),
+    isTaken: (docPath) => taken('$_docsFolder$docPath'),
     docs: [
       for (final work in works)
         (

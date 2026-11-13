@@ -2395,6 +2395,23 @@ void _moveToRecordTests() {
       expect(owned.creates, isEmpty);
     });
 
+    test('$_fr E36, R-FW-1: a folder at the record override path refuses '
+        'value_unplaced before any write', () async {
+      final fixture = await _recordFixture(
+        docs: {_featurePath: '# Login\n'},
+        extra: {
+          '.specstone/templates/architecture.yaml':
+              'path: specs/{slug}/f{nn}_{slug}/ARCHITECTURE.md\n',
+          '$_overrideFile/notes.md': '',
+        },
+      );
+
+      final fault = _refusedPlan(fixture);
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.file, _overrideFile);
+    });
+
     test('$_fr E36: an architecture file named by the slug refuses '
         'override_dangling before any write', () async {
       final fixture = await _recordFixture(

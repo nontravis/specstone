@@ -75,9 +75,11 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// Plans the legacy migration of the project at [root].
 ///
 /// Reads the files under `docs/prds` and `docs/specs`, the carried packs, and
-/// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`
-/// or `legacy_collision` and a `TemplateFault` before it returns, so a refused
-/// run prints nothing. The plan's `inputs` hold every file it read.
+/// nothing else; writes nothing. Throws `MigrateFault` `group_slug_duplicate`,
+/// `legacy_collision`, or `value_unplaced` (every value no record takes, or
+/// else every create onto a taken path, [RunPlan.refuseTakenCreates]) and a
+/// `TemplateFault` before it returns, so a refused run prints nothing. The
+/// plan's `inputs` hold every file it read.
 /// A created config, or a rewritten one with no `code_root:` key, names the
 /// folder from which the most cited code paths exist as its `code_root`
 /// (`write_project_files` E11).
@@ -100,7 +102,7 @@ RunPlan planLegacyRun(
       linkFolder: linkFolder,
       inputs: inputs,
     ),
-  );
+  )..refuseTakenCreates(root);
 }
 
 /// Plans the legacy run of [root] while [inputs] records each file read.
@@ -167,6 +169,7 @@ RunPlan _legacyRunOf(
   for (final work in titled.works) {
     work.newPath = landing[work.newPath] ?? work.newPath;
   }
+  final taken = takenAfterMoves(root, moves);
   final rewrites = _rewritesOf(
     titled.works,
     projectSet: projectSet,
@@ -177,6 +180,7 @@ RunPlan _legacyRunOf(
       templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
     ),
     exists: (path) => _existsIn(docsRoot, path),
+    isTaken: (docPath) => taken('$_docsFolder$docPath'),
   );
 
   final inferred = keepsCodeRoots
@@ -450,7 +454,8 @@ _Titled _titledWorksOf(
 /// A doc left in place gets the link rewrite and the layout. The first
 /// fingerprints hash each FR as the run writes it, laid out, so the FR docs
 /// are rewritten first. [targetNames] are the config's named targets;
-/// [recordSteps] are the carried packs' `move_to_record` steps.
+/// [recordSteps] are the carried packs' `move_to_record` steps; [isTaken]
+/// tells whether a record's DocPath holds an entry once [moves] ran.
 _Rewrites _rewritesOf(
   List<_Work> works, {
   required MergedSet projectSet,
@@ -459,6 +464,7 @@ _Rewrites _rewritesOf(
   required List<String> targetNames,
   required List<MoveToRecord> recordSteps,
   required bool Function(String path) exists,
+  required bool Function(String docPath) isTaken,
 }) {
   final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
   var fingerprintEntries = 0;
@@ -485,7 +491,7 @@ _Rewrites _rewritesOf(
     set: projectSet,
     steps: recordSteps,
     firstTarget: twinNamesOf(targetNames).firstOrNull,
-    isTaken: takenAfter(moves, exists),
+    isTaken: isTaken,
   );
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {

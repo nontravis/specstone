@@ -1,7 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
-import 'package:specstone_core/src/document_writing/moved_paths.dart'
-    show PathMove;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -126,9 +124,9 @@ final class RecordMoves {
   /// `value_unplaced`, listed for every such doc at once
   /// (apply_steps_and_pins E33 to E35).
   ///
-  /// [isTaken] tells whether a DocPath holds a file or folder once the run's
-  /// moves ran; a new record whose path it holds is `value_unplaced`, since
-  /// that file is none of [docs]' records and the create would never write.
+  /// [isTaken] is the run's `takenAfterMoves` read for a DocPath; a new
+  /// record whose path it holds is `value_unplaced` for each doc whose value
+  /// it carries, since that entry is none of [docs]' records.
   RecordPlacement place({
     required MergedSet set,
     required MergedDocType? recordType,
@@ -221,19 +219,6 @@ void throwFaultsPerDoc(List<MigrateFault> faults) {
     key: first.key,
     more: perDoc.sublist(1),
   );
-}
-
-/// Returns whether a DocPath holds a file or folder once [moves] ran: a move
-/// lands on it, or [exists] finds one there before the moves and no move
-/// takes it away; the `isTaken` of [RecordMoves.place].
-bool Function(String docPath) takenAfter(
-  List<PathMove> moves,
-  bool Function(String docPath) exists,
-) {
-  final landed = {for (final move in moves) move.to};
-  final vacated = {for (final move in moves) move.from};
-  return (docPath) =>
-      landed.contains(docPath) || !vacated.contains(docPath) && exists(docPath);
 }
 
 /// Returns the records [placement] creates as plan creates, each a draft, in

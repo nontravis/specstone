@@ -5,9 +5,34 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _docsPrefix = 'docs/';
+
+/// Returns whether a ProjectPath under [root] holds an entry once [moves], as
+/// DocPaths, ran: a move lands on it, or a file, folder, or link is there and
+/// no move takes it away.
+///
+/// The file system matches the name, so where the volume ignores case a name
+/// that differs only in case is taken too.
+bool Function(String projectPath) takenAfterMoves(
+  Directory root,
+  List<PathMove> moves,
+) {
+  final landed = {for (final move in moves) '$_docsPrefix${move.to}'};
+  final vacated = {for (final move in moves) '$_docsPrefix${move.from}'};
+  final base = '${root.path}${Platform.pathSeparator}';
+  bool holdsEntry(String projectPath) =>
+      FileSystemEntity.typeSync(
+        '$base${projectPath.split('/').join(Platform.pathSeparator)}',
+        followLinks: false,
+      ) !=
+      FileSystemEntityType.notFound;
+  return (projectPath) =>
+      landed.contains(projectPath) ||
+      !vacated.contains(projectPath) && holdsEntry(projectPath);
+}
 
 /// The ProjectPath of the index's ignore file; `MoveJournal.run` creates it
 /// before any step.
@@ -149,6 +174,34 @@ final class RunPlan {
     ]);
     block('left in place for specstone check:', left);
     return buffer.toString();
+  }
+
+  /// Throws [MigrateFault] `value_unplaced` for each create whose path under
+  /// [root] is [takenAfterMoves], the first as the fault and the rest in
+  /// `more`, so the plan refuses before it prints and nothing is written.
+  ///
+  /// Its create step would find that entry and stop the run after commit 1.
+  void refuseTakenCreates(Directory root) {
+    final isTaken = takenAfterMoves(root, moves);
+    final faults = [
+      for (final create in creates)
+        if (isTaken(create.path))
+          MigrateFault(
+            MigrateFaultCode.valueUnplaced,
+            'the run creates ${_shown(create.path)}, but a file or folder '
+            'already holds that path, or a name the volume reads as the same; '
+            'move or rename it, then run specstone migrate again',
+            file: create.path,
+          ),
+    ];
+    if (faults.isEmpty) return;
+    final first = faults.first;
+    throw MigrateFault(
+      first.code,
+      first.message,
+      file: first.file,
+      more: faults.sublist(1),
+    );
   }
 
   /// Returns the journal steps that apply the plan on top of HEAD [base].
