@@ -896,6 +896,46 @@ name: NFR
     );
   });
 
+  group('mentions line', () {
+    test('a path mention in a code file of a moved doc prints one count line '
+        'after the stamps line, and the file stays as it is', () async {
+      const code = 'void f() {}\n// See prds/d01_context.md\n';
+      final root = await writeTree({
+        ...acmeLegacy,
+        'docs/specs/TECH_STACK.md': '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+        'lib/a.dart': code,
+      });
+
+      final plan = planLegacyRun(
+        Directory(root.resolveSymbolicLinksSync()),
+        templates: TemplateResolver(),
+        homeDirectory: null,
+      );
+
+      expect(
+        plan.toText(),
+        matches(
+          RegExp(r'  stamps: [^\n]*\n  mentions: 1\ncommit 2, creates:\n'),
+        ),
+      );
+      expect(plan.lists.mentions, [
+        (path: 'lib/a.dart', line: 2, mention: 'prds/d01_context.md'),
+      ]);
+      expect(File('${root.path}/lib/a.dart').readAsStringSync(), code);
+    });
+
+    test('a code file that names no moved doc adds no line', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        'docs/specs/TECH_STACK.md': '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+        'lib/a.dart': 'void f() {}\n// See prds/other.md\n',
+      });
+
+      expect(plan.toText(), isNot(contains('mentions:')));
+      expect(plan.lists.mentions, isEmpty);
+    });
+  });
+
   group('agent files', () {
     test('setup_migration/migrate_legacy_docs/write_project_files E13: a '
         'CLAUDE.md with no block gets the import block', () async {

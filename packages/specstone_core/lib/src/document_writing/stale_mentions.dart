@@ -47,6 +47,7 @@ final class MentionScope {
     required this.docsRoot,
     required this.set,
     required this.targets,
+    required this.agentFileRoots,
     required this.docs,
     this.hasTwins = false,
     this.runGit = runRealGit,
@@ -58,6 +59,8 @@ final class MentionScope {
     docsRoot: session.project.docsRoot,
     set: session.project.set,
     targets: session.project.targets,
+    agentFileRoots: ProjectConfig.read(session.project.projectRoot)
+        .agentFileRoots,
     docs: session.index.docs,
     hasTwins: session.index.hasTwins,
   );
@@ -73,6 +76,10 @@ final class MentionScope {
 
   /// The config's code targets, in config order.
   final List<CodeTarget> targets;
+
+  /// The repository tops, from the project root, whose agent files the scan
+  /// reads beside the project root's.
+  final List<String> agentFileRoots;
 
   /// Every doc, as the mentions read them.
   final List<IndexedDoc> docs;
@@ -259,8 +266,11 @@ Map<String, File> _filesToRead(MentionScope scope) {
     if (projectPath == null) continue;
     files[projectPath] = _fileIn(codeRoot, codePath);
   }
-  final config = ProjectConfig.read(scope.projectRoot);
-  for (final path in agentFilesOf(scope.projectRoot, config, scope.runGit)) {
+  for (final path in agentFilesOf(
+    scope.projectRoot,
+    scope.agentFileRoots,
+    scope.runGit,
+  )) {
     if (!readsNameMentions(_extensionOf(path))) continue;
     if (scope.listedPathOf(path) != path) continue;
     files.putIfAbsent(path, () => _fileIn(scope.projectRoot, path));

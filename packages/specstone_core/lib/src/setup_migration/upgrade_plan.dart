@@ -481,6 +481,7 @@ List<StaleMention> _staleMentionsOf(
       docsRoot: Directory.fromUri(projectRoot.uri.resolve(_docsFolder)),
       set: set,
       targets: config.targets,
+      agentFileRoots: config.agentFileRoots,
       docs: [
         for (final docPath in docPaths)
           IndexedDoc(

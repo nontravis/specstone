@@ -49,7 +49,7 @@ Future<Directory> _project(
 }
 
 List<String> _walk(Directory root, [RunGit runGit = _realGit]) =>
-    agentFilesOf(root, ProjectConfig.read(root), runGit);
+    agentFilesOf(root, ProjectConfig.read(root).agentFileRoots, runGit);
 
 void main() {
   group('with a commit', () {

@@ -5,7 +5,6 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentFilePaths, agentInstructionNames;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/project_config.dart';
 
 const _separator = '/';
 
@@ -39,18 +38,18 @@ bool isAgentFile(String projectPath) {
 /// `/`-separated path from [projectRoot], in code point order.
 ///
 /// A work tree with a first commit gives the files its repository tracks, plus
-/// the instruction files at each top [config] lists, tracked or not. Without
-/// one, or when git cannot start or refuses its git dir, only the instruction
-/// files at the project root and at each listed top.
+/// the instruction files at each top [agentFileRoots] lists, tracked or not.
+/// Without one, or when git cannot start or refuses its git dir, only the
+/// instruction files at the project root and at each listed top.
 ///
 /// Throws `MigrateFault` `git_failed` when `git ls-files` fails in a work tree.
 List<String> agentFilesOf(
   Directory projectRoot,
-  ProjectConfig config,
+  List<String> agentFileRoots,
   RunGit runGit,
 ) {
   final files = <String>{};
-  for (final top in [_projectTop, ...config.agentFileRoots]) {
+  for (final top in [_projectTop, ...agentFileRoots]) {
     final folder = top == _projectTop
         ? projectRoot
         : Directory('${projectRoot.path}$_separator$top');

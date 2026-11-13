@@ -15,8 +15,12 @@ import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/document_writing/stale_mentions.dart'
+    show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show IndexedDoc;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
@@ -200,6 +204,14 @@ RunPlan _legacyRunOf(
         : [CodeTarget(null, codeRoot: codeRoot)],
     agentFileRoots: existing?.agentFileRoots ?? const [],
   );
+  final mentions = _staleMentionsOf(
+    root,
+    set: projectSet,
+    targets: existing?.targets ?? [CodeTarget(null, codeRoot: codeRoot)],
+    agentFileRoots: existing?.agentFileRoots ?? const [],
+    docPaths: docPaths,
+    moves: moves,
+  );
   final configRewrite = existing == null
       ? null
       : _configRewriteOf(
@@ -222,6 +234,7 @@ RunPlan _legacyRunOf(
       ?rewrites.labelsLine,
       ?formatLayoutLine(rewrites.layoutOnly),
       ?rewrites.stampsLine,
+      ?mentionsLine(mentions),
       if (configRewrite != null) _rewriteLineOf(configRewrite),
     ],
     lists: PlanLists(
@@ -229,6 +242,7 @@ RunPlan _legacyRunOf(
       numberLabelsRewritten: rewrites.labelsRewritten,
       numberLabelsLeft: rewrites.labelsLeft,
       agentFiles: agentFiles.paths,
+      mentions: mentions,
     ),
     creates: [
       if (existing == null)
@@ -253,6 +267,43 @@ RunPlan _legacyRunOf(
     commit2Message: legacyCommit2Message,
     inputs: inputs,
     agentFiles: agentFiles,
+  );
+}
+
+/// Returns the mentions in code and agent files that the run's [moves] stop
+/// resolving.
+///
+/// The scan opens no index, so the plan writes nothing; the docs are the ones
+/// the plan read, before the moves.
+List<StaleMention> _staleMentionsOf(
+  Directory root, {
+  required MergedSet set,
+  required List<CodeTarget> targets,
+  required List<String> agentFileRoots,
+  required List<String> docPaths,
+  required List<PathMove> moves,
+}) {
+  if (moves.isEmpty) return const [];
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return staleMentionsIn(
+    MentionScope(
+      projectRoot: projectRoot,
+      docsRoot: Directory.fromUri(projectRoot.uri.resolve(_docsFolder)),
+      set: set,
+      targets: targets,
+      agentFileRoots: agentFileRoots,
+      docs: [
+        for (final docPath in docPaths)
+          IndexedDoc(
+            docPath: docPath,
+            name: docPath,
+            frontmatter: const {},
+            tokens: 0,
+          ),
+      ],
+    ),
+    moves,
+    namesChange: false,
   );
 }
 
