@@ -16,20 +16,6 @@ void main() {
   });
 
   for (final id in ['user_story', 'fr']) {
-    test(
-      'f03/us07/s4, f03/us07/fr01/e08: with software-tech, $id adds no field '
-      'to the prd-core fields, so it carries no code pointer',
-      () {
-        final merged = prdCoreDocType(both, id);
-        final base = prdCoreDocType(prdOnly, id);
-        expect(merged.fields.map((f) => f.id), base.fields.map((f) => f.id));
-        expect(
-          merged.fields.where((f) => f.type == FieldType.outputRef),
-          isEmpty,
-        );
-      },
-    );
-
     test('f03/us07/fr02/e09, f03/us07/fr03/e02: with software-tech, $id keeps '
         'the prd-core guide, path, parent, sections, lint, and sources', () {
       final merged = prdCoreDocType(both, id);

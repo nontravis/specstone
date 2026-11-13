@@ -29,14 +29,14 @@ lint:
   max_lines: 400
 reference:
   - title: OpenFastTrace, Terminology
-    url: https://github.com/itsallcode/openfasttrace/blob/main/doc/user_guide.md
-    locator: Terminology
+    url: https://github.com/itsallcode/openfasttrace/blob/main/doc/terminology.md
+    locator: Specification Item
   - title: Sphinx-CodeLinks, Source tracing directive
-    url: https://github.com/useblocks/sphinx-codelinks
-    locator: Source tracing directive
+    url: https://codelinks.useblocks.com/en/stable/components/directive.html
+    locator: Directive
   - title: Doorstop, Item reference
-    url: https://doorstop.readthedocs.io/en/latest/
-    locator: Item reference field
+    url: https://doorstop.readthedocs.io/en/latest/reference/item.html
+    locator: references (new array behavior)
   - title: MDN browser-compat-data, Compat data schema
     url: https://github.com/mdn/browser-compat-data/blob/main/schemas/compat-data-schema.md
-    locator: The status object
+    locator: Status information

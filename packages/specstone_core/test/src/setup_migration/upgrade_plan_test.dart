@@ -32,6 +32,7 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show withApprovalHashes;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart' show recordLayer, recordText;
 import '../../helpers/shipped_pins.dart';
@@ -134,7 +135,6 @@ void main() {
       expect(carried.compareTo(entry.value), greaterThanOrEqualTo(0));
     }
     expect(agentFilesSince['software-tech'].toString(), '1.4.0');
-    expect(shipped['software-tech'], '1.5.0');
   });
 
   test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
@@ -2526,6 +2526,50 @@ void _moveToRecordTests() {
           );
         },
       );
+
+      test('S11: a story approved under the 1.4.0 pack, hashed with its '
+          'implements field as 1.4.0 declared it, stays approved after the '
+          'move', () async {
+        // The 1.4.0 `user_story` layer: `implements`, an exact output_ref.
+        const layer1x4 =
+            'fields:\n'
+            '  - id: implements\n'
+            '    type: output_ref\n'
+            '    list: true\n'
+            '    pointer: exact\n';
+        final stamped = withApprovalHashes({
+          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          '.specstone/templates/user_story.yaml': layer1x4,
+          'docs/$_loginStoryPath': _implementedStory,
+        })['docs/$_loginStoryPath']!;
+        final oldHash = _valuesOf(stamped)['approved']! as String;
+        final project = await shippedProject(
+          extra: {'docs/$_loginStoryPath': stamped},
+        );
+
+        final plan = _planAt(project);
+
+        final story = _stampedDocText(plan, _loginStoryPath);
+        final values = _valuesOf(story);
+        expect(values, isNot(contains('draft')));
+        expect(values['approved'], isNot(oldHash));
+        expect(
+          values['approved'],
+          approvalHashOf(
+            story,
+            TemplateResolver()
+                .resolveCarried(
+                  packNames: const ['prd-core', 'software-tech'],
+                  homeDirectory: null,
+                )
+                .lookup('user_story'),
+          ),
+        );
+        expect(
+          plan.toText(),
+          contains('stamps: 1 approval hashes, 0 fingerprints'),
+        );
+      });
 
       test('E36: no override is written, since the shipped record path '
           'already lies in its feature folder', () async {

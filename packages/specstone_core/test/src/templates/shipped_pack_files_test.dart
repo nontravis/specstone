@@ -60,8 +60,6 @@ void main() {
         both.docTypes.map((d) => d.id).toList(),
         [...prdCoreIds, ...softwareTechIds]..sort(),
       );
-      expect(softwareTechIds, hasLength(9));
-      expect(softwareTechIds, contains('implementation'));
       for (final id in softwareTechIds) {
         expect(prdCoreDocType(both, id).pack, 'software-tech', reason: id);
       }

@@ -187,15 +187,16 @@ const softwareTechSources = <String, List<({String title, String url})>>{
       title: 'OpenFastTrace, Terminology',
       url:
           'https://github.com/itsallcode/openfasttrace/blob/main/doc/'
-          'user_guide.md',
+          'terminology.md',
     ),
     (
       title: 'Sphinx-CodeLinks, Source tracing directive',
-      url: 'https://github.com/useblocks/sphinx-codelinks',
+      url:
+          'https://codelinks.useblocks.com/en/stable/components/directive.html',
     ),
     (
       title: 'Doorstop, Item reference',
-      url: 'https://doorstop.readthedocs.io/en/latest/',
+      url: 'https://doorstop.readthedocs.io/en/latest/reference/item.html',
     ),
     (
       title: 'MDN browser-compat-data, Compat data schema',
