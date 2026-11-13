@@ -652,11 +652,13 @@ final class CommitStep extends JournalStep {
         ..._pathspecFile(target, caseOnlyFrom),
       ], environment: _literalPathspecs);
     }
-    if (stageable.isNotEmpty) {
+    // An empty pathspec file makes `git add` take the whole work tree.
+    final added = stageable.difference(caseOnlyFrom);
+    if (added.isNotEmpty) {
       _runWrite(target, 'add', [
         'add',
         '-A',
-        ..._pathspecFile(target, stageable.difference(caseOnlyFrom)),
+        ..._pathspecFile(target, added),
       ], environment: _literalPathspecs);
     }
     if (forced.isNotEmpty) {
@@ -713,8 +715,8 @@ final class CommitStep extends JournalStep {
 
   /// Whether an ignore rule matches [path], by git's own check.
   ///
-  /// `check-ignore` takes no `literal` pathspec magic, so the path runs as
-  /// itself only because no journal path holds glob characters here.
+  /// `check-ignore` reads [path] as a file name, never a glob, and refuses
+  /// `GIT_LITERAL_PATHSPECS`, so it runs with the plain environment.
   bool _isIgnored(JournalTarget target, String path) =>
       target.runGit([
         'check-ignore',

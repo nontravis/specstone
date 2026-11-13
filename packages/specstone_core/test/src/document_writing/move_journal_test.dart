@@ -2360,5 +2360,65 @@ void main() {
       );
       expect(_log(root).first, 'move');
     }, skip: hasGit ? null : 'git is not available');
+
+    test('a forced-only case-only move leaves an unrelated untracked file out '
+        'of the commit', () async {
+      final root = await _gitTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      File('${root.path}/.gitignore')
+          .writeAsStringSync('docs/prds/runbooks/deploy/Runbook.md\n');
+      commitAll(root, 'ignore');
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      File('${root.path}/notes.txt').writeAsStringSync('mine\n');
+      final base = _head(root);
+      const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+      const to = 'docs/prds/runbooks/deploy/Runbook.md';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout,
+        '$to\n',
+      );
+      expect(git(root, ['ls-files', '--', 'notes.txt']).stdout, '');
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a bracketed path is read as a name by the ignore check, so a '
+        'sibling rule does not match it', () async {
+      final root = await _gitTree({
+        'app/[slug]/PAGE.ts': '// a\n',
+        'app/s/other.ts': '// b\n',
+      });
+      File('${root.path}/.gitignore').writeAsStringSync('app/s/Page.ts\n');
+      commitAll(root, 'ignore');
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      final base = _head(root);
+      const from = 'app/[slug]/PAGE.ts';
+      const to = 'app/[slug]/Page.ts';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['ls-files', '--', ':(literal)app/[slug]']).stdout,
+        '$to\n',
+      );
+    }, skip: hasGit ? null : 'git is not available');
   });
 }
