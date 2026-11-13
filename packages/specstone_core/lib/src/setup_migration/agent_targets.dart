@@ -95,13 +95,11 @@ List<Directory> codeRootFolders(
   return folders.values.toList();
 }
 
-/// Returns the folders of the code roots for the project at [projectRoot]:
-/// each of [targets]' code roots, then every `code:` entry the docs of that
-/// target hold under the merged [set], each folder once.
+/// Returns the folders of the code roots: each of [targets]' code roots, then
+/// each `code:` entry of that target's docs under [set], each folder once.
 ///
-/// The one source of code roots for `check`, `chooseRun`, `init`, and the
-/// upgrade plan, so they agree on which repository tops exist. An entry of a
-/// doc no target owns reads from the first target's code root.
+/// A shared doc's entries count for no target when [targets] holds two or more.
+/// The one source of code roots for `check`, `chooseRun`, `init`, and upgrade.
 List<Directory> codeFoldersOf(
   Directory projectRoot,
   MergedSet set, {
@@ -113,11 +111,8 @@ List<Directory> codeFoldersOf(
     set,
     targetNames: targetNamesOf(targets),
   )) {
-    final owner = targets.firstWhere(
-      (candidate) => target != null && candidate.name == target,
-      orElse: () => targets.first,
-    );
-    entriesOf.putIfAbsent(owner, () => {}).add(entry);
+    final owner = _ownerOf(targets, target);
+    if (owner != null) entriesOf.putIfAbsent(owner, () => {}).add(entry);
   }
   final folders = <String, Directory>{};
   for (final target in targets) {
@@ -130,6 +125,13 @@ List<Directory> codeFoldersOf(
     }
   }
   return folders.values.toList();
+}
+
+/// Returns the target the doc named [name] belongs to; a shared doc (null
+/// [name]) belongs to the one target of a single-target project, else to none.
+CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
+  if (name == null) return targets.length == 1 ? targets.first : null;
+  return targets.where((target) => target.name == name).firstOrNull;
 }
 
 /// Returns the `code:` entries of every doc under `docs/` whose type holds the

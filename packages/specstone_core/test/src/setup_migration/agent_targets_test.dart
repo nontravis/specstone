@@ -416,6 +416,34 @@ void main() {
       expect(plan.addedRoots, ['mono']);
     });
 
+    test('$_write E35: a shared doc entry counts for no target when the '
+        'project lists two', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml': shippedPinsConfig(),
+        'proj/docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - vendor/\n---\n# Tech stack\n',
+        'proj/flutter_ws/vendor/.git/HEAD': 'ref\n',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+
+      final folders = codeFoldersOf(
+        _at(base, 'proj/'),
+        set,
+        targets: const [
+          CodeTarget('flutter', codeRoot: 'flutter_ws'),
+          CodeTarget('jaspr', codeRoot: 'jaspr_ws'),
+        ],
+      );
+
+      expect(paths(folders), [
+        _at(base, 'proj/flutter_ws/').path,
+        _at(base, 'proj/jaspr_ws/').path,
+      ]);
+    });
+
     test('$_write E35: with no targets the one code root and the shared tech '
         'stack entries find the tops they found before', () async {
       final base = await _base({

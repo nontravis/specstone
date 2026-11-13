@@ -65,6 +65,35 @@ Future<List<Finding>> _staleBeside({
 
 void main() {
   test(
+    '$_stale E35: a stale block at the second target top is a finding',
+    () async {
+      final base = await writeTree({
+        for (final MapEntry(:key, :value) in checkProjectFiles().entries)
+          'project/$key': value,
+        'project/.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n  flutter:\n'
+            '    code_root: flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n'
+            'agent_file_roots:\n  - flutter_ws\n  - jaspr_ws\n',
+        'project/flutter_ws/.git/HEAD': 'ref\n',
+        'project/jaspr_ws/.git/HEAD': 'ref\n',
+        'project/flutter_ws/AGENTS.md': _inline(),
+        'project/jaspr_ws/AGENTS.md': _inline().replaceFirst(
+          '## Rules',
+          '## Old',
+        ),
+      });
+      final findings = [
+        for (final f in checkOf(Directory('${base.path}/project')).findings)
+          if (f.kind == FindingKind.agentBlockStale &&
+              f.path.endsWith('AGENTS.md'))
+            f,
+      ];
+
+      expect(findings.map((f) => f.path), ['jaspr_ws/AGENTS.md']);
+    },
+  );
+
+  test(
     '$_stale E01: every agent file as the CLI writes it has no finding',
     () async {
       expect(

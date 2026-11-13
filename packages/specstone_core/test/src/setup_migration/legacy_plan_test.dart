@@ -981,6 +981,26 @@ name: NFR
       );
     });
 
+    test('setup_migration/set_up_new_project/write_agent_files E35: a kept '
+        'targets: config takes the files at each target repository top, and '
+        'lists both', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\ntargets:\n  flutter:\n'
+            '    code_root: flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n',
+        'flutter_ws/.git/HEAD': 'ref: refs/heads/main\n',
+        'jaspr_ws/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final agents = plan.agentFiles!;
+      expect(agents.topWrites.map((w) => w.path), [
+        'flutter_ws/AGENTS.md',
+        'jaspr_ws/AGENTS.md',
+      ]);
+      expect(agents.agentFileRoots, ['flutter_ws', 'jaspr_ws']);
+    });
+
     test('an existing config keeps its keys and lists the new top', () async {
       final plan = await _linkedPlan({
         '.specstone/config.yaml':
