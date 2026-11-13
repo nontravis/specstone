@@ -1,20 +1,12 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
-import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show textHashOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
-import 'package:specstone_core/src/git_process.dart';
-import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show projectPathOfCodeFile;
 import 'package:specstone_core/src/plan_hash.dart';
-import 'package:specstone_core/src/rendering/doc_reader.dart'
-    show startsWithUtf8Bom;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
@@ -63,9 +55,6 @@ const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 
-/// The byte-order mark as the one character a written text starts with.
-const _bom = '\uFEFF';
-
 typedef _Step = ({PackVersion from, MigrationStep step});
 
 /// Plans the pack upgrade of the project at [root].
@@ -86,14 +75,11 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// refused run prints nothing. When [runsOneTimePasses] holds, the renumber
 /// and label passes run and the agent files step is the full upsert;
 /// otherwise the step refreshes what exists. [homeDirectory] is the personal
-/// pack home, or null. [runGit] lists the files the project's git tracks,
-/// which the label pass reads under the `code:` roots. The plan's `inputs`
-/// hold every file it read and that listing.
+/// pack home, or null. The plan's `inputs` hold every file it read.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
-  RunGit runGit = runRealGit,
 }) {
   final inputs = PlanInputs(root);
   return inputs.collect(
@@ -101,7 +87,6 @@ RunPlan planUpgradeRun(
       root,
       templates: templates,
       homeDirectory: homeDirectory,
-      runGit: runGit,
       inputs: inputs,
     ),
   )..refuseTakenCreates(root);
@@ -112,7 +97,6 @@ RunPlan _upgradeRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
-  required RunGit runGit,
   required PlanInputs inputs,
 }) {
   final config = ProjectConfig.read(root);
@@ -313,18 +297,14 @@ RunPlan _upgradeRunOf(
     if (lf != work.lf) work.changes.add(_renumberChange);
     renumbered.add(lf);
   }
-  final plannedAgentFiles = _agentFilesOf(root, upgrades, set: finalSet);
+  final agentFiles = _agentFilesOf(root, upgrades, set: finalSet);
   final labels = isOneTime
-      ? _planLabelPass(
-          root,
-          config: config,
-          set: finalSet,
-          agentWrites: plannedAgentFiles,
-          docs: [
+      ? LabelPass.plan(
+          [
             for (final (index, work) in works.indexed)
               (docPath: work.plannedPath, lf: renumbered[index]),
           ],
-          runGit: runGit,
+          set: finalSet,
           docTypes: {for (final work in works) work.plannedPath: ?work.docType},
         )
       : null;
@@ -332,7 +312,7 @@ RunPlan _upgradeRunOf(
   final laidOut = <String>[];
   for (final (index, work) in works.indexed) {
     var lf = renumbered[index];
-    final converted = labels?.pass.apply(work.plannedPath, lf) ?? lf;
+    final converted = labels?.apply(work.plannedPath, lf) ?? lf;
     if (converted != lf) work.changes.add(_labelChange);
     lf = layOutDoc(converted, work.docType);
     if (lf != converted) laidOutPaths.add(work.plannedPath);
@@ -386,7 +366,6 @@ RunPlan _upgradeRunOf(
           ],
         ),
   ];
-  final agentFiles = labels?.agentFiles ?? plannedAgentFiles;
   final configRewrite = _configRewriteOf(
     root,
     upgrades,
@@ -435,12 +414,7 @@ RunPlan _upgradeRunOf(
     header: header,
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [
-      ...docRewrites,
-      ...?labels?.codeRewrites,
-      ...overrideRewrites,
-      ?configRewrite,
-    ],
+    rewrites: [...docRewrites, ...overrideRewrites, ?configRewrite],
     creates: [...overrideCreates, ...recordCreates],
     left: const [],
     commit1Message: _commit1Message,
@@ -450,7 +424,7 @@ RunPlan _upgradeRunOf(
       ...stepLines,
       ...linkLines,
       ?renumber?.planLine,
-      ?labels?.pass.planLineOn(writtenLf),
+      ?labels?.planLineOn(writtenLf),
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
@@ -625,184 +599,6 @@ RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([
   for (final work in works)
     (docPath: work.plannedPath, lf: work.lf, type: work.docType),
 ]);
-
-/// The label pass of a run and the rewrites of the code files it changes.
-/// The label pass, the code files it rewrites, and the agent file writes
-/// with the label conversion composed into each agent file it also converts.
-typedef _LabelPlan = ({
-  LabelPass pass,
-  List<PlannedRewrite> codeRewrites,
-  AgentWritePlan agentFiles,
-});
-
-/// Plans the label pass over [docs], the run's docs after the renumber pass,
-/// and the files under the `code:` roots that hold a label.
-///
-/// A code file converts only when the project's git tracks it and its path
-/// lies inside the project root, since commit 2 holds nothing else; a label in
-/// any other file stays and is listed (E27). Git is asked only when a code
-/// file holds a label. A file that is no UTF-8 text is skipped.
-///
-/// A code file that [agentWrites] also writes is read as the agent write
-/// leaves it, and its conversion becomes that agent write, so each path gets
-/// one write: two from one `before` text would make the guard skip one.
-_LabelPlan _planLabelPass(
-  Directory root, {
-  required ProjectConfig config,
-  required MergedSet set,
-  required AgentWritePlan agentWrites,
-  required List<({String docPath, String lf})> docs,
-  required RunGit runGit,
-  required Map<String, MergedDocType> docTypes,
-}) {
-  final projectRoot = Directory(root.resolveSymbolicLinksSync());
-  final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
-  final agentByFile = {
-    for (final write in [...agentWrites.rootWrites, ...agentWrites.topWrites])
-      if (!write.isNew)
-        File('${projectRoot.path}${Platform.pathSeparator}${write.path}')
-                .resolveSymbolicLinksSync():
-            write,
-  };
-  final agentAt = <String, AgentWrite>{};
-  final labelled = <String, _CodeFile>{};
-  for (final (root: codeRoot, path: codePath) in codeFilesOf(
-    projectRoot,
-    set,
-    targets: config.targets,
-  )) {
-    final projectPath = projectPathOfCodeFile(
-      codePath,
-      projectRoot: projectRoot,
-      docsRoot: docsRoot,
-      codeRoot: codeRoot,
-    );
-    if (projectPath == null) continue;
-    final onDisk = _readCodeFile(codeRoot, codePath);
-    if (onDisk == null) continue;
-    final agentWrite = agentByFile[_realPathOf(codeRoot, codePath)];
-    final original = agentWrite == null
-        ? onDisk
-        : (
-            text: agentWrite.text.startsWith(_bom)
-                ? agentWrite.text.substring(_bom.length)
-                : agentWrite.text,
-            bom: onDisk.bom,
-            hash: onDisk.hash,
-          );
-    if (holdsNumberLabel(projectPath, original.text)) {
-      labelled[projectPath] = original;
-      if (agentWrite != null) agentAt[projectPath] = agentWrite;
-    }
-  }
-  final tracked = labelled.isEmpty
-      ? const <String>{}
-      : _trackedPaths(projectRoot, runGit);
-  for (final path in labelled.keys) {
-    recordTrackedAnswer(path, isTracked: tracked.contains(path));
-  }
-  final convertible = {
-    for (final path in labelled.keys)
-      if (tracked.contains(path) && _isInsideProject(path)) path,
-  };
-  final pass = LabelPass.plan(
-    docs,
-    [for (final path in convertible) (path: path, text: labelled[path]!.text)],
-    untrackedCodeFiles: [
-      for (final MapEntry(:key, :value) in labelled.entries)
-        if (!convertible.contains(key)) (path: key, text: value.text),
-    ],
-    docTypes: docTypes,
-  );
-  String textOf(String path, String converted) =>
-      '${labelled[path]!.bom ? _bom : ''}$converted';
-  final composed = <AgentWrite, String>{
-    for (final MapEntry(:key, :value) in pass.codeFiles.entries)
-      ?agentAt[key]: textOf(key, value),
-  };
-  AgentWrite withComposed(AgentWrite write) => switch (composed[write]) {
-    final text? => AgentWrite(
-      path: write.path,
-      text: text,
-      isNew: write.isNew,
-      before: write.before,
-      isAtTop: write.isAtTop,
-    ),
-    null => write,
-  };
-  return (
-    pass: pass,
-    codeRewrites: [
-      for (final MapEntry(:key, :value) in pass.codeFiles.entries)
-        if (!agentAt.containsKey(key))
-          PlannedRewrite(
-            path: key,
-            text: textOf(key, value),
-            before: labelled[key]!.hash,
-            changes: const [_labelChange],
-          ),
-    ],
-    agentFiles: AgentWritePlan(
-      rootWrites: [for (final w in agentWrites.rootWrites) withComposed(w)],
-      topWrites: [for (final w in agentWrites.topWrites) withComposed(w)],
-      agentFileRoots: agentWrites.agentFileRoots,
-      addedRoots: agentWrites.addedRoots,
-      writeSet: agentWrites.writeSet,
-      skipped: agentWrites.skipped,
-    ),
-  );
-}
-
-/// Returns the canonical path of the code file [codePath] under [codeRoot].
-String _realPathOf(Directory codeRoot, String codePath) =>
-    File([codeRoot.path, ...codePath.split('/')].join(Platform.pathSeparator))
-        .resolveSymbolicLinksSync();
-
-/// A code file as decoded: its text with every line end as written, whether
-/// it began with a byte order mark, and the [textHashOf] of its text.
-typedef _CodeFile = ({String text, bool bom, String hash});
-
-/// Reads the code file at [codePath] under [codeRoot], or null when it cannot
-/// be read or is no UTF-8 text.
-_CodeFile? _readCodeFile(Directory codeRoot, String codePath) {
-  final file = File(
-    '${codeRoot.path}${Platform.pathSeparator}'
-    '${codePath.split('/').join(Platform.pathSeparator)}',
-  );
-  try {
-    final bytes = readPlanInput(file);
-    final text = utf8.decode(bytes);
-    return (text: text, bom: startsWithUtf8Bom(bytes), hash: textHashOf(text));
-  } on FileSystemException {
-    return null;
-  } on FormatException {
-    return null;
-  }
-}
-
-/// Whether [projectPath], a normalized path from the project root, lies
-/// inside it.
-bool _isInsideProject(String projectPath) =>
-    projectPath != '..' && !projectPath.startsWith('../');
-
-/// Returns the paths under [projectRoot] that the project's git tracks, from
-/// one listing intersected locally, so no `code:` entry reaches git; none
-/// when git cannot start or [projectRoot] is no work tree.
-Set<String> _trackedPaths(Directory projectRoot, RunGit runGit) {
-  try {
-    final result = runGit([
-      'ls-files',
-      '-z',
-    ], workingDirectory: projectRoot.path);
-    if (result.exitCode != 0) return const {};
-    return {
-      for (final path in (result.stdout as String).split('\x00'))
-        if (path.isNotEmpty) path,
-    };
-  } on ProcessException {
-    return const {};
-  }
-}
 
 /// One doc of the run, with its text after the steps and link rewrites.
 final class _DocWork {

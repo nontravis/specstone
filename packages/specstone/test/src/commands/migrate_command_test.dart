@@ -412,8 +412,8 @@ void main() {
   }, skip: hasGit ? null : 'git is not available');
 
   test('f06/us02/s17: a tracked file added between the dry run and migrate '
-      '--yes --plan leaves the hash of an upgrade that converts a labelled '
-      'code file, and the plan applies', () async {
+      '--yes --plan leaves the hash of an upgrade with a labelled code file, '
+      'and the plan applies without reading it', () async {
     final root = await gitFixture({
       '.specstone/config.yaml':
           'packs:\n  prd-core: 1.0.0\n'
@@ -437,7 +437,7 @@ void main() {
 
     expect(
       File('${root.path}/lib/a.dart').readAsStringSync(),
-      isNot(contains('F-01')),
+      '// See F-01 US-01\n',
     );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');

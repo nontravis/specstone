@@ -1133,30 +1133,22 @@ void main() {
     group('setup_migration/upgrade_pack_pins label pass', () {
       const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
-      test('$fr E26, E27: the run converts a label in a doc and in a file git '
-          'tracks under the code roots, keeps the rest listed, and leaves a '
-          'file in a git-ignored folder as written', () async {
+      test('$fr E26, E27: the run converts a label in a doc, keeps the rest '
+          'listed, and reads no file under the code roots', () async {
         final home = await writeTree({});
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
           _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
-          '.gitignore': 'vendor/\n',
           'docs/specs/TECH_STACK.md':
-              '---\ncode:\n  - lib/\n  - vendor/\n---\n# Tech stack\n',
+              '---\ncode:\n  - lib/\n---\n# Tech stack\n',
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
           'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
           'docs/prds/features/f01_a/us01_b/fr01_c.md': '# C\n',
           'docs/specs/topics/labelled.md':
               '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
           'lib/a.dart': '// See F-01 US-01 and FR-01\nint a = 0;\n',
-          'vendor/b.dart': '// F-01 US-01\n',
         });
-
-        // The ignored folder is a nested repository of its own.
-        final vendor = Directory('${root.path}/vendor');
-        expect(git(vendor, ['init', '-q']).exitCode, 0);
-        commitAll(vendor, 'vendored');
 
         final result = await _run(root, home, ['migrate'], console: _owner());
 
@@ -1164,9 +1156,8 @@ void main() {
         expect(
           result.out,
           contains(
-            '  number labels: specs/topics/labelled.md, lib/a.dart; left: '
-            'specs/topics/labelled.md:9 FR-09, lib/a.dart:1 FR-01, '
-            'vendor/b.dart:1 F-01 US-01\n',
+            '  number labels: specs/topics/labelled.md; left: '
+            'specs/topics/labelled.md:9 FR-09\n',
           ),
         );
         expect(
@@ -1179,16 +1170,15 @@ void main() {
         );
         expect(
           _read(root, 'lib/a.dart'),
-          '// See `a/b` and FR-01\nint a = 0;\n',
+          '// See F-01 US-01 and FR-01\nint a = 0;\n',
         );
-        expect(_read(root, 'vendor/b.dart'), '// F-01 US-01\n');
         final committed = _gitOut(root, [
           'show',
           '--name-only',
           '--format=',
           'HEAD',
         ]);
-        expect(committed, contains('lib/a.dart'));
+        expect(committed, isNot(contains('lib/a.dart')));
         expect(committed, contains('docs/specs/topics/labelled.md'));
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
       });
