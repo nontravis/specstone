@@ -102,7 +102,7 @@ void main() {
         contains(
           'Expected one target, got 2.\n\n'
           'Usage: specstone rename <doc address> --to <slug> '
-          '[--target <name>] [--json]\n',
+          '[--dry-run] [--target <name>] [--json]\n',
         ),
       );
     },
@@ -302,6 +302,84 @@ void main() {
         err.toString(),
         '--target dart: the code targets are flutter, jaspr\n',
       );
+    });
+  });
+
+  group('--dry-run', () {
+    const f = 'prds/features/f01_login';
+
+    test('prints the moves and rewrites, then says nothing moved, and moves '
+        'nothing', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith(
+          'moves $f/us03_reset_password/ to $f/us03_recover_account/\n',
+        ),
+      );
+      expect(out.toString(), endsWith('dry run: nothing moved\n'));
+      expect(out.toString(), isNot(contains('rewrote')));
+      expect(out.toString(), isNot(contains('plan ')));
+      expect(docFile(root, story3).existsSync(), isTrue);
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    });
+
+    test('--json prints moved, rewritten, mentions, and dryRun true', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+          '--dry-run',
+          '--json',
+        ]),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer.keys, containsAll(['moved', 'rewritten', 'mentions']));
+      expect(answer['dryRun'], isTrue);
+    });
+
+    test('refuses a slug a sibling carries with the status and message the '
+        'rename gives', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      final apply = await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'sign_out',
+      ]);
+      final applyErr = err.toString();
+      final (runner: dryRunner, out: dryOut, err: dryErr) = writeRunner(
+        await writeWriteProject(),
+      );
+      expect(
+        await dryRunner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'sign_out',
+          '--dry-run',
+        ]),
+        apply,
+      );
+      expect(apply, 64);
+      expect(dryOut.toString(), isEmpty);
+      expect(dryErr.toString(), applyErr);
     });
   });
 }

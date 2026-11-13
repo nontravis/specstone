@@ -6,7 +6,8 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
-    show docFile, readDoc;
+    show docFile, readDoc, testHome;
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
@@ -253,7 +254,10 @@ void main() {
     expect(await runner.run(['move', '--help']), 0);
     expect(
       out.toString(),
-      contains('specstone move <doc address> … --under <doc address> [--json]'),
+      contains(
+        'specstone move <doc address> … --under <doc address> '
+        '[--dry-run] [--json]',
+      ),
     );
   });
 
@@ -376,6 +380,127 @@ void main() {
         err.toString(),
         contains('Could not find an option named "--target"'),
       );
+    });
+  });
+
+  group('--dry-run', () {
+    const code =
+        '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
+
+    test('prints the moves, rewrites, and mentions, then says nothing moved, '
+        'and moves nothing', () async {
+      final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['move', addItem, '--under', 'shop/pay', '--dry-run']),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith('moves $addItemFolder/ to $movedFolder/\n'),
+      );
+      expect(out.toString(), contains('rewrites $shopApi\n'));
+      expect(
+        out.toString(),
+        endsWith(
+          'mentions app/lib/cart.dart:1 '
+          'user_story:shop/cart/add_item#acceptance_criteria\n'
+          'dry run: nothing moved\n',
+        ),
+      );
+      expect(out.toString(), isNot(contains('moved $addItemFolder')));
+      expect(out.toString(), isNot(contains('plan ')));
+      expect(
+        Directory('${root.path}/docs/$addItemFolder').existsSync(),
+        isTrue,
+      );
+      expect(Directory('${root.path}/docs/$movedFolder').existsSync(), isFalse);
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    });
+
+    test('--json prints moved, rewritten, mentions, and dryRun true', () async {
+      final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'move',
+          addItem,
+          '--under',
+          'shop/pay',
+          '--dry-run',
+          '--json',
+        ]),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer.keys, containsAll(['moved', 'rewritten', 'mentions']));
+      expect(answer['dryRun'], isTrue);
+      expect(answer['moved'], [
+        {'from': '$addItemFolder/', 'to': '$movedFolder/'},
+      ]);
+      expect(answer['mentions'], [
+        {
+          'path': 'app/lib/cart.dart',
+          'line': 1,
+          'mention': 'user_story:shop/cart/add_item#acceptance_criteria',
+        },
+      ]);
+    });
+
+    test('refuses a feature that holds features with the status and message '
+        'the move gives', () async {
+      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+      expect(
+        await runner.run(['move', addItem, '--under', 'shop', '--dry-run']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'shop (feature) holds sub-features, so it takes no story\n',
+      );
+    });
+
+    group('through the built CLI', () {
+      late String binary;
+      setUpAll(() async {
+        binary = await buildSpecstone();
+      });
+
+      test('exits 0 when git cannot start', () async {
+        final root = await writeNestedProject(
+          extra: {'app/lib/cart.dart': code},
+        );
+        final emptyPath = Directory.systemTemp.createTempSync(
+          'specstone_path_',
+        );
+        addTearDown(() => emptyPath.deleteSync(recursive: true));
+        final home = testHome().path;
+        final result = await Process.run(
+          binary,
+          ['move', addItem, '--under', 'shop/pay', '--dry-run'],
+          workingDirectory: root.path,
+          environment: {
+            'PATH': emptyPath.path,
+            'HOME': home,
+            'USERPROFILE': home,
+          },
+        );
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(
+          result.stdout,
+          startsWith('moves $addItemFolder/ to $movedFolder/\n'),
+        );
+        expect(
+          result.stdout,
+          endsWith(
+            'mentions app/lib/cart.dart:1 '
+            'user_story:shop/cart/add_item#acceptance_criteria\n'
+            'dry run: nothing moved\n',
+          ),
+        );
+      });
     });
   });
 }

@@ -7,6 +7,13 @@ class ReorderCommand extends WriteCommand {
     addTargetOption();
     argParser
       ..addOption('to', help: 'The place among the siblings, from 1.')
+      ..addFlag(
+        'dry-run',
+        negatable: false,
+        help:
+            'Run every check and print what the reorder would do; write '
+            'nothing.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
   }
 
@@ -18,7 +25,8 @@ class ReorderCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone reorder <doc address> --to <n> [--target <name>] [--json]';
+      'specstone reorder <doc address> --to <n> '
+      '[--dry-run] [--target <name>] [--json]';
 
   @override
   Future<int> run() {
@@ -30,6 +38,7 @@ class ReorderCommand extends WriteCommand {
         target,
         place: args.option('to'),
         codeTarget: targetOf(args),
+        dryRun: args.flag('dry-run'),
       ),
     );
   }

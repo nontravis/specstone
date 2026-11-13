@@ -2463,6 +2463,20 @@ void main() {
       );
     });
 
+    test('a dry run lists the records it would rewrite and create, and writes none', () async {
+      final root = await shopTwins();
+      final answer = writeIn(
+        root,
+        (s) => answerMove(s, [addItem], under: 'shop/pay', dryRun: true),
+      );
+      expect(answer.text, contains('rewrites $cartFlutter\n'));
+      expect(answer.text, contains('rewrites $payFlutter\n'));
+      expect(answer.text, isNot(contains('rewrote')));
+      expect(answer.json['rewritten'], containsAll([cartFlutter, payFlutter]));
+      expect(docFile(root, payFlutter).existsSync(), isFalse);
+      expect(readDoc(root, cartFlutter), flutterCart);
+    });
+
     test('document_writing/move_story/rewrite_moved_story_references E10: the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
       final root = await shopTwins();
       moveAddItem(root);
@@ -2679,6 +2693,266 @@ void main() {
         readDoc(root, 'specs/f02_shop/f01_cart/IMPLEMENTATION.md'),
         isNot(contains('add_item')),
       );
+    });
+  });
+
+  group('dry run', () {
+    const shopStory = 'prds/features/f02_shop/f01_cart/us01_add_item';
+    const payStory = 'prds/features/f02_shop/f02_pay/us03_add_item';
+
+    /// Every file under [root] but the index, by path, with its bytes.
+    Map<String, List<int>> treeOf(Directory root) => {
+      for (final entity in root.listSync(recursive: true, followLinks: false))
+        if (entity is File &&
+            !entity.path.contains(
+              '${Platform.pathSeparator}.specstone'
+              '${Platform.pathSeparator}index.sqlite',
+            ))
+          entity.path: entity.readAsBytesSync(),
+    };
+
+    /// Runs [dryRun] and returns its answer, checking it wrote no file.
+    ReadAnswer untouched(
+      Directory root,
+      ReadAnswer Function(WriteSession session) dryRun,
+    ) {
+      writeIn(root, (s) => s.target('feature:login'));
+      final before = treeOf(root);
+      final answer = writeIn(root, dryRun);
+      expect(treeOf(root).keys, before.keys);
+      for (final MapEntry(:key, :value) in before.entries) {
+        expect(treeOf(root)[key], value, reason: key);
+      }
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+      return answer;
+    }
+
+    test('a reorder lists its moves and rewrites, then says nothing moved, and writes no file', () async {
+      final root = await writeWriteProject();
+      final answer = untouched(
+        root,
+        (s) => answerReorder(
+          s,
+          'user_story:login/reset_password',
+          place: '1',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        'moves $f/us03_reset_password/ to $f/us01_reset_password/\n'
+        'moves $f/us01_email_login/ to $f/us02_email_login/\n'
+        'moves $f/us02_sign_out/ to $f/us03_sign_out/\n'
+        'rewrites $f/us01_reset_password/USER_STORY.md\n'
+        'rewrites $f/us02_email_login/fr02_lock_after_failures.md\n'
+        'dry run: nothing moved\n',
+      );
+      expect(answer.json, {
+        'moved': [
+          {'from': '$f/us03_reset_password/', 'to': '$f/us01_reset_password/'},
+          {'from': '$f/us01_email_login/', 'to': '$f/us02_email_login/'},
+          {'from': '$f/us02_sign_out/', 'to': '$f/us03_sign_out/'},
+        ],
+        'rewritten': [
+          '$f/us01_reset_password/USER_STORY.md',
+          '$f/us02_email_login/fr02_lock_after_failures.md',
+        ],
+        'mentions': <Object>[],
+        'dryRun': true,
+      });
+    });
+
+    test(
+      'a reorder to the place a doc holds prints the closing line alone',
+      () async {
+        final root = await writeWriteProject();
+        final answer = untouched(
+          root,
+          (s) => answerReorder(
+            s,
+            'user_story:login/email_login',
+            place: '1',
+            dryRun: true,
+          ),
+        );
+        expect(answer.text, 'dry run: nothing moved\n');
+        expect(answer.json, {
+          'moved': <Object>[],
+          'rewritten': <Object>[],
+          'mentions': <Object>[],
+          'dryRun': true,
+        });
+      },
+    );
+
+    test(
+      'a reorder dry run refuses a place out of range as the apply does',
+      () async {
+        final root = await writeWriteProject();
+        Object? caught(bool dryRun) {
+          try {
+            writeIn(
+              root,
+              (s) => answerReorder(
+                s,
+                'user_story:login/reset_password',
+                place: '9',
+                dryRun: dryRun,
+              ),
+            );
+          } on WriteFault catch (fault) {
+            return (fault.code, fault.message);
+          }
+          return null;
+        }
+
+        final apply = caught(false);
+        expect(apply, isNotNull);
+        expect(caught(true), apply);
+      },
+    );
+
+    test('a rename lists its moves and rewrites, then says nothing moved, and writes no file', () async {
+      final root = await writeWriteProject();
+      final answer = untouched(
+        root,
+        (s) => answerRename(
+          s,
+          'user_story:login/reset_password',
+          slug: 'recover',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        startsWith('moves $f/us03_reset_password/ to $f/us03_recover/\n'),
+      );
+      expect(answer.text, endsWith('dry run: nothing moved\n'));
+      expect(answer.text, isNot(contains('rewrote')));
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {'from': '$f/us03_reset_password/', 'to': '$f/us03_recover/'},
+      ]);
+    });
+
+    test(
+      'a rename to the slug a doc carries prints the closing line alone',
+      () async {
+        final root = await writeWriteProject();
+        final answer = untouched(
+          root,
+          (s) => answerRename(
+            s,
+            'user_story:login/reset_password',
+            slug: 'reset_password',
+            dryRun: true,
+          ),
+        );
+        expect(answer.text, 'dry run: nothing moved\n');
+      },
+    );
+
+    test(
+      'a rename dry run refuses a slug a sibling carries as the apply does',
+      () async {
+        final root = await writeWriteProject();
+        Object? caught(bool dryRun) {
+          try {
+            writeIn(
+              root,
+              (s) => answerRename(
+                s,
+                'user_story:login/reset_password',
+                slug: 'sign_out',
+                dryRun: dryRun,
+              ),
+            );
+          } on WriteFault catch (fault) {
+            return (fault.code, fault.message, fault.file);
+          }
+          return null;
+        }
+
+        final apply = caught(false);
+        expect(apply, isNotNull);
+        expect(caught(true), apply);
+      },
+    );
+
+    test('a move lists its moves, rewrites, and mentions, then says nothing moved, and writes no file', () async {
+      const code =
+          '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
+      final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
+      final answer = untouched(
+        root,
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/add_item'],
+          under: 'shop/pay',
+          dryRun: true,
+        ),
+      );
+      expect(answer.text, startsWith('moves $shopStory/ to $payStory/\n'));
+      expect(answer.text, contains('rewrites $shopApi\n'));
+      expect(
+        answer.text,
+        endsWith(
+          'mentions app/lib/cart.dart:1 '
+          'user_story:shop/cart/add_item#acceptance_criteria\n'
+          'dry run: nothing moved\n',
+        ),
+      );
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {'from': '$shopStory/', 'to': '$payStory/'},
+      ]);
+      expect(answer.json['rewritten'], contains(shopApi));
+      expect(answer.json['mentions'], [
+        {
+          'path': 'app/lib/cart.dart',
+          'line': 1,
+          'mention': 'user_story:shop/cart/add_item#acceptance_criteria',
+        },
+      ]);
+      expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
+    });
+
+    test('a move of a story already under the feature prints the closing line alone', () async {
+      final root = await writeNestedProject();
+      final answer = untouched(
+        root,
+        (s) => answerMove(
+          s,
+          ['user_story:shop/cart/drop_item'],
+          under: 'shop/cart',
+          dryRun: true,
+        ),
+      );
+      expect(answer.text, 'dry run: nothing moved\n');
+    });
+
+    test('a move dry run refuses a feature that holds sub-features as the apply does', () async {
+      final root = await writeNestedProject();
+      Object? caught(bool dryRun) {
+        try {
+          writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              ['user_story:shop/cart/add_item'],
+              under: 'shop',
+              dryRun: dryRun,
+            ),
+          );
+        } on IndexFault catch (fault) {
+          return (fault.code, fault.message);
+        }
+        return null;
+      }
+
+      final apply = caught(false);
+      expect(apply, isNotNull);
+      expect(caught(true), apply);
     });
   });
 }

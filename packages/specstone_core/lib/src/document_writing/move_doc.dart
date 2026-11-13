@@ -60,6 +60,7 @@ ReadAnswer answerReorder(
   String address, {
   required String? place,
   String? codeTarget,
+  bool dryRun = false,
 }) {
   final wanted = parsePlace(place);
   final target = session.target(address, codeTarget: codeTarget);
@@ -87,13 +88,23 @@ ReadAnswer answerReorder(
       shape,
       wanted: wanted,
     );
-    if (moves.isEmpty) return _answerFor(session, moves, const []);
+    if (moves.isEmpty) {
+      return _answerFor(session, moves, const [], dryRun: dryRun);
+    }
     session.journalTarget.requireTrusted();
     final rewrites = planRewrites(session, moves);
     final mentions = staleMentions(session, moves, namesChange: false);
-    MoveJournal([..._stageSteps(session, moves), ...rewrites])
-        .run(session.journalTarget);
-    return _answerFor(session, moves, rewrites, mentions: mentions);
+    if (!dryRun) {
+      MoveJournal([..._stageSteps(session, moves), ...rewrites])
+          .run(session.journalTarget);
+    }
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      mentions: mentions,
+      dryRun: dryRun,
+    );
   });
 }
 
@@ -122,6 +133,7 @@ ReadAnswer answerRename(
   String address, {
   required String? slug,
   String? codeTarget,
+  bool dryRun = false,
 }) {
   if (slug == null) {
     throw missingArgument(
@@ -146,7 +158,9 @@ ReadAnswer answerRename(
   }
   return session.locked(() {
     final moves = _renameMoves(session, target, docType, shape, slug);
-    if (moves.isEmpty) return _answerFor(session, moves, const []);
+    if (moves.isEmpty) {
+      return _answerFor(session, moves, const [], dryRun: dryRun);
+    }
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
@@ -157,12 +171,20 @@ ReadAnswer answerRename(
       recordEdits: records.edits,
     );
     final mentions = staleMentions(session, moves, namesChange: true);
-    MoveJournal([
-      for (final move in moves)
-        MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-      ...rewrites,
-    ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites, mentions: mentions);
+    if (!dryRun) {
+      MoveJournal([
+        for (final move in moves)
+          MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+        ...rewrites,
+      ]).run(session.journalTarget);
+    }
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      mentions: mentions,
+      dryRun: dryRun,
+    );
   });
 }
 
@@ -191,6 +213,7 @@ ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
   required String? under,
+  bool dryRun = false,
 }) {
   if (addresses.isEmpty) {
     throw missingArgument(
@@ -225,7 +248,9 @@ ReadAnswer answerMove(
     for (final target in targets)
       if (session.index.parentOf(target)?.docPath != newParent.docPath) target,
   ];
-  if (stories.isEmpty) return _answerFor(session, const [], const []);
+  if (stories.isEmpty) {
+    return _answerFor(session, const [], const [], dryRun: dryRun);
+  }
   _checkTakesStory(session, newParent, parentTypeId);
   // Refuse before the lock; the numbers are taken again inside it, since a
   // concurrent `new` can claim one in between.
@@ -242,18 +267,21 @@ ReadAnswer answerMove(
       recordEdits: records.edits,
     );
     final mentions = staleMentions(session, moves, namesChange: true);
-    MoveJournal([
-      for (final move in moves)
-        MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
-      ...rewrites,
-      ...records.creates,
-    ]).run(session.journalTarget);
+    if (!dryRun) {
+      MoveJournal([
+        for (final move in moves)
+          MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+        ...rewrites,
+        ...records.creates,
+      ]).run(session.journalTarget);
+    }
     return _answerFor(
       session,
       moves,
       rewrites,
       created: records.creates,
       mentions: mentions,
+      dryRun: dryRun,
     );
   });
 }
@@ -608,6 +636,7 @@ ReadAnswer _answerFor(
   List<WriteStep> rewrites, {
   List<CreateStep> created = const [],
   List<StaleMention> mentions = const [],
+  bool dryRun = false,
 }) {
   // A record the move creates is a file it writes, listed with the rewrites.
   final written = [
@@ -617,9 +646,12 @@ ReadAnswer _answerFor(
   final rewritten = [for (final path in written) session.listedPathOf(path)];
   return ReadAnswer(
     text: [
-      for (final move in moves) 'moved ${move.from} to ${move.to}\n',
-      for (final path in rewritten) 'rewrote $path\n',
+      for (final move in moves)
+        '${dryRun ? 'moves' : 'moved'} ${move.from} to ${move.to}\n',
+      for (final path in rewritten)
+        '${dryRun ? 'rewrites' : 'rewrote'} $path\n',
       for (final mention in mentions) mentionLineOf(mention),
+      if (dryRun) _dryRunClosing,
     ].join(),
     json: {
       'moved': [
@@ -627,6 +659,9 @@ ReadAnswer _answerFor(
       ],
       'rewritten': rewritten,
       'mentions': mentionsJsonOf(mentions),
+      if (dryRun) 'dryRun': true,
     },
   );
 }
+
+const _dryRunClosing = 'dry run: nothing moved\n';
