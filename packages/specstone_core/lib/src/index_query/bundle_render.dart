@@ -45,7 +45,7 @@ ReadAnswer answerContext(
   ];
   final namesBlocks = [
     for (final top in _byTreeOrder(index, bundle.nameListTops))
-      _namesBlock(index, index.at(top)!),
+      _namesBlock(index, index.at(top)!, bundle.codeTarget),
   ];
   final shown = [...docBlocks, ...mapBlocks, ...namesBlocks].join('\n\n');
   final tokens = tokenSizeOf(shown);
@@ -85,7 +85,7 @@ ReadAnswer answerContext(
         },
     ],
     ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
-    ..._namesJson(index, bundle.nameListTops),
+    ..._namesJson(index, bundle.nameListTops, bundle.codeTarget),
   };
   return ReadAnswer(text: text, json: json, warnings: [...bundle.warnings]);
 }
@@ -352,11 +352,15 @@ String _mapLine(DocIndex index, IndexedDoc top, IndexedDoc member) =>
     '- ${nameWithType(member)} · ${member.tokens} tokens';
 
 /// Returns the names block of [top]: one `- <name> (<doc type>) · <n> tokens`
-/// line per ChainType child of [top] (Plan decision 13).
-String _namesBlock(DocIndex index, IndexedDoc top) {
+/// line per ChainType child of [top] (Plan decision 13); [codeTarget] keeps
+/// that target's per-target children alone.
+String _namesBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
     for (final child in index.childrenOf(top))
-      if (index.isChainDoc(child))
+      if (index.isChainDoc(child) &&
+          (codeTarget == null ||
+              child.target == null ||
+              child.target == codeTarget))
         '- ${nameWithType(child)} · ${child.tokens} tokens',
   ];
   return '==> names: ${nameWithType(top)} <==\n${lines.join('\n')}';
@@ -415,12 +419,19 @@ Map<String, Object> _docJson(
   ],
 };
 
-Map<String, Object> _namesJson(DocIndex index, Set<String> tops) => {
+Map<String, Object> _namesJson(
+  DocIndex index,
+  Set<String> tops,
+  String? codeTarget,
+) => {
   if (tops.isNotEmpty)
     'names': [
       for (final top in _byTreeOrder(index, tops))
         for (final child in index.childrenOf(index.at(top)!))
-          if (index.isChainDoc(child))
+          if (index.isChainDoc(child) &&
+              (codeTarget == null ||
+                  child.target == null ||
+                  child.target == codeTarget))
             {
               'name': child.name,
               'docType': ?child.docTypeId,

@@ -752,6 +752,49 @@ void main() {
       },
     );
 
+    test(
+      'f01/us05/fr01/e24: the names list holds no other-target chain doc',
+      () async {
+        final session = openSession(
+          await writeTree(
+            {
+              ...projectFiles,
+              '.specstone/templates/user_story.yaml':
+                  'id: user_story\nper_target: true\n',
+              'docs/prds/flutter/features/f02_feedback/us01_show/USER_STORY.md':
+                  '# Agent sees a toast\n',
+              'docs/prds/jaspr/features/f02_feedback/us01_show/USER_STORY.md':
+                  '# Agent sees a toast\n',
+            }..remove('docs/$showStory'),
+          ),
+        );
+        addTearDown(session.close);
+        final index = session.index;
+        final b = pickBundle(
+          index,
+          'feedback',
+          BundleMode.implement,
+          noProject: false,
+          codeTarget: 'jaspr',
+        );
+        expect(b.nameListTops, {'prds/features/f02_feedback/FEATURE.md'});
+        final answer = answerContext(
+          index,
+          b,
+          label: 'feedback',
+          byCode: false,
+        );
+        expect(
+          answer.text
+              .split('\n')
+              .where((l) => l.contains('feedback/show (user_story)'))
+              .length,
+          1,
+          reason: 'the names list names the target story alone',
+        );
+      },
+    );
+
     test('f01/us05/fr01/e26: one named target takes its spec docs with no --target in every mode', () async {
       final session = openSession(
         await writeTree({
