@@ -42,8 +42,10 @@ const _notWritableMessage =
 /// older build's reset recreates the meta row without it, so its index is
 /// rebuilt too. Layout 14 added the `target` column and the stamp's
 /// `target_names`: an index of layout 13 holds neither, so it is rebuilt
-/// instead of read as one with none.
-const _layoutVersion = 14;
+/// instead of read as one with none. Layout 15 counts the doc's non-blank body
+/// lines and a section's non-blank lines, so an index of layout 14, whose
+/// counts cover blank lines and frontmatter, is rebuilt.
+const _layoutVersion = 15;
 
 const _schema = '''
 CREATE TABLE meta (

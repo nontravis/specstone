@@ -3,6 +3,7 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
@@ -93,7 +94,7 @@ void main() {
       await writeCheckProject(
         extra: {
           'docs/$loginFr':
-              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 386}',
+              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 396}',
         },
       ),
     );
@@ -102,7 +103,86 @@ void main() {
     );
     expect(finding.textLine, startsWith('$loginFr:1: lines_over_limit'));
     expect(finding.toJson(), containsPair('limit', 400));
-    expect(finding.toJson(), containsPair('actual', 412));
+    expect(finding.toJson(), containsPair('actual', 405));
+  });
+
+  test('f04/us01/fr04: 60 blank lines or 30 frontmatter lines more leave the '
+      'doc line count alone', () async {
+    const base =
+        '---\ntraced_from:\n  - S2\nverify_method: test\n'
+        'confirmed:\n  - S2 h\n---\n\n# Check the password\n\n'
+        '## Statement\n\nA wrong password must not sign in.\n\n';
+    final fill = 'x\n' * 402;
+    Future<CheckReport> reportOf(String text) async =>
+        checkOf(await writeCheckProject(extra: {'docs/$loginFr': text}));
+    Object? actualOf(CheckReport report) => report.findings
+        .firstWhere((f) => f.kind == FindingKind.linesOverLimit)
+        .toJson()['actual'];
+    final withFrontmatter = base.replaceFirst('---\n', '---\n${'x: y\n' * 30}');
+    // The approval stamp keeps the frontmatter lines at 30 + the rest.
+    final stamped = withApprovalHashes({
+      'docs/$loginFr': '$withFrontmatter$fill',
+    })['docs/$loginFr']!;
+    expect(actualOf(await reportOf('$base$fill')), 405);
+    expect(actualOf(await reportOf('$base${'\n' * 60}$fill')), 405);
+    expect(actualOf(await reportOf(stamped)), 405);
+  });
+
+  test('f04/us01/fr04: invalid frontmatter counts its body from the closing '
+      'delimiter; an unclosed one counts its whole text', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: edit(loginFr, [
+          ('verify_method: test\n', 'verify_method: "test\n'),
+          ('## Verification\n\nTest: a wrong password is refused.\n', ''),
+        ]),
+      ),
+    );
+    expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+    final unclosed = checkOf(
+      await writeCheckProject(
+        extra: {
+          'docs/$loginFr':
+              '${checkProjectFiles()['docs/$loginFr']!.replaceFirst('---\ntraced_from:', '----\ntraced_from:')}${'x\n' * 386}',
+        },
+      ),
+    );
+    expect(spots(unclosed, FindingKind.linesOverLimit), [
+      '$loginFr:1: lines_over_limit',
+    ]);
+  });
+
+  test('f04/us01/fr04: the blank lines format adds under ### headings never '
+      'count toward a section limit', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'sections:\n  - id: statement\n    lint:\n      max_lines: 39\n',
+          ...fr(
+            '$checkPasswordStatement\n',
+            '$checkPasswordStatement\n\n${'### Head\ntext\n' * 3}${'filler\n' * 32}',
+          ),
+        },
+      ),
+    );
+    final finding = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.linesOverLimit,
+    );
+    expect(finding.toJson(), containsPair('limit', 39));
+    expect(finding.toJson(), containsPair('actual', 40));
+  });
+
+  test('f04/us01/fr04: a record whose 300 frontmatter lines and 40 body lines '
+      'stay under both limits', () async {
+    final record =
+        "---\nstatuses:\n  - 'email_login:implemented'\n"
+        '${'  # comment filler\n' * 299}---\n\n# Login implementation\n'
+        '${'x\n' * 40}';
+    final report = checkOf(
+      await writeCheckProject(extra: {'docs/$loginRecord': record}),
+    );
+    expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });
 
   test('f04/us01/fr04/e05: a section over its own limit is reported at its header, the doc limit aside', () async {
@@ -127,7 +207,7 @@ void main() {
       allOf(
         containsPair('section', 'statement'),
         containsPair('limit', 5),
-        containsPair('actual', 7),
+        containsPair('actual', 6),
       ),
     );
   });
@@ -290,7 +370,7 @@ void main() {
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
-              'sections:\n  - id: statement\n    lint:\n      max_lines: 42\n',
+              'sections:\n  - id: statement\n    lint:\n      max_lines: 38\n',
           ...fr('$checkPasswordStatement\n', body),
         },
       ),
@@ -298,8 +378,8 @@ void main() {
     final finding = report.findings.singleWhere(
       (f) => f.kind == FindingKind.linesOverLimit,
     );
-    expect(finding.toJson(), containsPair('limit', 42));
-    expect(finding.toJson(), containsPair('actual', 43));
+    expect(finding.toJson(), containsPair('limit', 38));
+    expect(finding.toJson(), containsPair('actual', 39));
   });
 
   test('consistency_check/find_template_breaks/check_sections_and_limits E09: a doc format refuses counts its text on disk', () async {

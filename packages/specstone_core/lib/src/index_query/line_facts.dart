@@ -11,6 +11,8 @@ import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
 import 'package:yaml/yaml.dart';
 
+const _tab = 0x09;
+const _cr = 0x0D;
 const _space = 0x20;
 const _backtick = 0x60;
 const _tilde = 0x7E;
@@ -36,9 +38,15 @@ String? linkWarningOf(String docPath, LinkPlaces? links) {
 
 /// Returns how many lines of [lfText], the text [doc] parses, come before the
 /// text after its frontmatter: the frontmatter lines, delimiters included.
-int linesBeforeBodyOf(Doc doc, String lfText) => _lineCount(
-  lfText.substring(0, lfText.length - doc.afterFrontmatter.length),
-);
+int linesBeforeBodyOf(Doc doc, String lfText) =>
+    _allLines(lfText.substring(0, lfText.length - doc.afterFrontmatter.length));
+
+/// Returns every line of [text], blank or not, a final empty line excluded.
+int _allLines(String text) {
+  if (text.isEmpty) return 0;
+  final breaks = scanText(text).breaks;
+  return text.endsWith('\n') ? breaks : breaks + 1;
+}
 
 /// The 1-based file lines `first` through `last`, both included.
 typedef LineRange = ({int first, int last});
@@ -160,7 +168,7 @@ final class LineFacts {
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
-      lineCount: _lineCount(countedText, breaks: whole.breaks),
+      lineCount: _lineCount(countedText, fromLine: bodyStart + 1),
       charCount: countedText.length - whole.pairs,
       frontmatterErrorLine: frontmatterErrorLine,
     );
@@ -187,7 +195,7 @@ final class LineFacts {
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: const [],
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
-      lineCount: _lineCount(lfText, breaks: whole.breaks),
+      lineCount: _lineCount(lfText, fromLine: bodyStart + 1),
       charCount: lfText.length - whole.pairs,
       frontmatterErrorLine: null,
     );
@@ -388,11 +396,32 @@ List<List<Object?>> _placesToJson(List<LinkPlace> places) => [
     [place.target, place.line, place.shown, place.anchor],
 ];
 
-/// Returns the lines of [text], using [breaks] as its `\n` count when known.
-int _lineCount(String text, {int? breaks}) {
-  if (text.isEmpty) return 0;
-  final count = breaks ?? scanText(text).breaks;
-  return text.endsWith('\n') ? count : count + 1;
+/// Returns the non-blank lines of [text] from 1-based line [fromLine] on: the
+/// body alone when [fromLine] opens it, the whole text from line 1.
+int _lineCount(String text, {required int fromLine}) {
+  if (text.isEmpty || fromLine < 1) return 0;
+  var count = 0;
+  var line = 1;
+  var start = 0;
+  while (start < text.length) {
+    final end = text.indexOf('\n', start);
+    final stop = end < 0 ? text.length : end;
+    if (line >= fromLine && _holdsText(text, start, stop)) count++;
+    if (end < 0) break;
+    line++;
+    start = end + 1;
+  }
+  return count;
+}
+
+/// Whether the line of [text] from [start] to [stop] holds any non-space
+/// character.
+bool _holdsText(String text, int start, int stop) {
+  for (var i = start; i < stop; i++) {
+    final unit = text.codeUnitAt(i);
+    if (unit != _space && unit != _tab && unit != _cr) return true;
+  }
+  return false;
 }
 
 /// Returns the runs of fenced lines of [body], the lines from file line
