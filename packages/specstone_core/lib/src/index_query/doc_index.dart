@@ -291,14 +291,7 @@ final class DocIndex {
     if (_coveringSkip(item, target, includingOwn: true) != null) {
       return RecordStatus.skipped;
     }
-    final records = _recordsOf(item, target);
-    for (final record in records) {
-      final relative = _relativeItemOf(item, record);
-      for (final entry in record.entries) {
-        if (entry.item == relative) return entry.status ?? RecordStatus.planned;
-      }
-    }
-    return RecordStatus.planned;
+    return _entryOf(item, target)?.status ?? RecordStatus.planned;
   }
 
   /// Returns the name of the skip that covers the story or FR [item] in
@@ -332,14 +325,27 @@ final class DocIndex {
   /// Returns the record entry of the story or FR [item] in [codeTarget], or
   /// in its one target when null (as [statusOf] reads it); null with no
   /// entry, and with no record doc type.
-  RecordEntry? recordEntryOf(IndexedDoc item, {String? codeTarget}) {
-    final record = set.recordDocType;
-    if (record == null) return null;
-    for (final doc in _recordsOf(item, _namedOrGiven(codeTarget))) {
-      final relative = _relativeItemOf(item, doc);
-      for (final entry in doc.entries) {
+  RecordEntry? recordEntryOf(IndexedDoc item, {String? codeTarget}) =>
+      _entryOf(item, _namedOrGiven(codeTarget));
+
+  /// Returns the entry of [item] in its own feature's record in [codeTarget],
+  /// the one record `check` resolves it in; a record above names none of it.
+  RecordEntry? _entryOf(IndexedDoc item, String? codeTarget) {
+    final feature = _featureOf(item)?.name;
+    for (final record in _recordsOf(item, codeTarget)) {
+      if (record.feature != feature) continue;
+      final relative = _relativeItemOf(item, record);
+      for (final entry in record.entries) {
         if (entry.item == relative) return entry;
       }
+    }
+    return null;
+  }
+
+  /// Returns the nearest feature at or above [doc], or null for none.
+  IndexedDoc? _featureOf(IndexedDoc doc) {
+    for (IndexedDoc? member = doc; member != null; member = parentOf(member)) {
+      if (member.docTypeId == featureType) return member;
     }
     return null;
   }

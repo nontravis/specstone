@@ -262,17 +262,17 @@ void main() {
             '---\ncovers:\n  - lib/\n---\n\n# Toast architecture\n',
         'docs/specs/flutter/TECH_STACK.md': '# Toast stack\n',
         'docs/specs/jaspr/TECH_STACK.md': '# Toast stack\n',
-        'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md':
+        'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
             '---\nstatuses:\n'
-            '  - toast/show:implemented\n'
+            '  - show:implemented\n'
             'implements:\n'
-            '  - toast/show:lib/toast.dart:showToast\n'
+            '  - show:lib/toast.dart:showToast\n'
             '---\n\n# Record\n',
-        'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md':
+        'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
             '---\nstatuses:\n'
-            '  - toast/show:implemented\n'
+            '  - show:implemented\n'
             'implements:\n'
-            '  - toast/show:lib/toast.dart:showToast\n'
+            '  - show:lib/toast.dart:showToast\n'
             '---\n\n# Record\n',
         ...extra,
       });
@@ -306,7 +306,7 @@ void main() {
           'prds/features/f02_feedback/f03_toast/FEATURE.md',
           'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md',
           'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
-          'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+          'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
         });
         expect(bundle.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
       },

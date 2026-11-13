@@ -652,10 +652,10 @@ void main() {
               swipeText,
           'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
           'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
-          'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': record(
+          'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
             flutterStatuses,
           ),
-          'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': record(
+          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
             jasprStatuses,
           ),
         }),
@@ -665,11 +665,11 @@ void main() {
     }
 
     test('E15: each line holds each target status in targets order, a skipped story skipped', () async {
+      const flutter = '  - show:implemented\n  - swipe:implemented\n';
+      const jaspr = '  - show:planned\n  - swipe:skipped:no jaspr\n';
       final index = await toastIndex(
-        flutterStatuses:
-            '  - toast/show:implemented\n  - toast/swipe:implemented\n',
-        jasprStatuses:
-            '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+        flutterStatuses: flutter,
+        jasprStatuses: jaspr,
       );
 
       expect(
@@ -683,8 +683,12 @@ void main() {
         '${tokenSizeOf(swipeText)} tokens\n'
         '  feedback/toast (architecture) — Toast architecture · '
         '${tokenSizeOf(archText)} tokens\n'
+        '  feedback/toast (implementation) — Record · '
+        '${tokenSizeOf(record(flutter))} tokens\n'
         '  feedback/toast (architecture) — Toast architecture · '
-        '${tokenSizeOf(archText)} tokens\n',
+        '${tokenSizeOf(archText)} tokens\n'
+        '  feedback/toast (implementation) — Record · '
+        '${tokenSizeOf(record(jaspr))} tokens\n',
       );
     });
 
@@ -692,10 +696,8 @@ void main() {
       'E15: --json holds statuses, target name to status, in targets order',
       () async {
         final index = await toastIndex(
-          flutterStatuses:
-              '  - toast/show:implemented\n  - toast/swipe:implemented\n',
-          jasprStatuses:
-              '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+          flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
+          jasprStatuses: '  - show:planned\n  - swipe:skipped:no jaspr\n',
         );
 
         final doc =
@@ -728,10 +730,8 @@ void main() {
       'E16: --target jaspr prints jaspr statuses alone and no flutter spec doc',
       () async {
         final index = await toastIndex(
-          flutterStatuses:
-              '  - toast/show:implemented\n  - toast/swipe:implemented\n',
-          jasprStatuses:
-              '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+          flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
+          jasprStatuses: '  - show:planned\n  - swipe:skipped:no jaspr\n',
         );
 
         final lines = answerStructure(
@@ -756,8 +756,7 @@ void main() {
       'E17: one target, named or not, shows its one status with no name',
       () async {
         final single = await toastIndex(
-          flutterStatuses:
-              '  - toast/show:implemented\n  - toast/swipe:implemented\n',
+          flutterStatuses: '  - show:implemented\n  - swipe:implemented\n',
         );
         final plain = await indexWith();
 
@@ -798,8 +797,8 @@ void main() {
           'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
           'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
               showText,
-          'docs/specs/f02_feedback/IMPLEMENTATION.md': record(
-            '  - toast/show:implemented\n',
+          'docs/specs/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+            '  - show:implemented\n',
           ),
         }),
       );
@@ -814,11 +813,13 @@ void main() {
           '  feedback/toast/show (user_story) — Agent sees a toast · '
           'implemented · ${tokenSizeOf(showText)} tokens';
       expect(
-        answerStructure(index, target: 'feedback/toast').text,
+        answerStructure(index, target: 'feature:feedback/toast').text,
         '$featureLine\n'
         '  problem · 24 chars\n'
         '    line 9 · 12 chars\n'
-        '$storyLine\n',
+        '$storyLine\n'
+        '  feedback/toast (implementation) — Record · '
+        '${tokenSizeOf(record('  - show:implemented\n'))} tokens\n',
       );
     });
 

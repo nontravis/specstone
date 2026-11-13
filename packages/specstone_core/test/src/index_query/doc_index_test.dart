@@ -603,8 +603,10 @@ void main() {
         final oneSkipped = await targeted(
           records: {
             'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
-              '  - greet:skipped\n  - cart/add:implemented\n'
-              '  - cart/add/check:implemented\n',
+              '  - greet:skipped\n',
+            ),
+            'docs/specs/flutter/f01_shop/f01_cart/IMPLEMENTATION.md': record(
+              '  - add:implemented\n  - add/check:implemented\n',
             ),
           },
         );
@@ -650,6 +652,18 @@ void main() {
         nested.statusOf(nested.at(shopPath)!, codeTarget: 'flutter'),
         'implemented',
       );
+    });
+    test('domain:index_query INV-29, consistency_check/find_prd_spec_disagreements/check_record_entries: an entry an ancestor record writes for a nested feature\'s story gives it no status and no entry, as check resolves it nowhere', () async {
+      final misplaced = await targeted(
+        records: {
+          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '  - cart/add:implemented\n',
+          ),
+        },
+      );
+      final add = misplaced.at(storyPath)!;
+      expect(misplaced.statusOf(add, codeTarget: 'flutter'), 'planned');
+      expect(misplaced.recordEntryOf(add, codeTarget: 'flutter'), isNull);
     });
     test('f01/us02/fr02/e01: a feature with no story is planned outside every skip and skipped under one, with no story or no record of its own too', () async {
       final empty = await targeted(

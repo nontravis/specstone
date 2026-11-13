@@ -92,11 +92,11 @@ Future<Directory> writeTargetedTree() {
           '# Toast architecture\n',
       'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md':
           '# Toast architecture\n',
-      'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': record(
-        '  - toast/show:implemented\n  - toast/swipe:implemented\n',
+      'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+        '  - show:implemented\n  - swipe:implemented\n',
       ),
-      'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': record(
-        '  - toast/show:planned\n  - toast/swipe:skipped:no jaspr\n',
+      'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+        '  - show:planned\n  - swipe:skipped:no jaspr\n',
       ),
     },
   );
