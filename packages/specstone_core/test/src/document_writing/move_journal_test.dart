@@ -1,8 +1,5 @@
-// dart:mirrors lets the failing-delete wrapper forward every member it does
-// not override; it exists in the VM that runs tests.
 import 'dart:convert';
 import 'dart:io';
-import 'dart:mirrors';
 
 import 'package:specstone_core/src/document_writing/delete_doc.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
@@ -16,6 +13,7 @@ import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/forwarding_entities.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/hold_open.dart';
 import '../../helpers/nested_fixture.dart';
@@ -158,18 +156,12 @@ final class _FailingDeleteHook extends IOOverrides {
       : super.createFile(path);
 }
 
-final class _FailingDeleteFile implements File {
-  const new(this._inner);
-
-  final File _inner;
+final class _FailingDeleteFile extends ForwardingFile {
+  const new(super.inner);
 
   @override
   void deleteSync({bool recursive = false}) =>
-      throw FileSystemException('Permission denied', _inner.path);
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      reflect(_inner).delegate(invocation);
+      throw FileSystemException('Permission denied', path);
 }
 
 /// Records the path of every `File` the code under test opens.
