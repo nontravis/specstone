@@ -435,4 +435,34 @@ void main() {
       },
     );
   });
+
+  test(
+    'e17: a feature system naming no Systems row is no field finding',
+    () async {
+      final feature = checkProjectFiles()['docs/$loginFeature']!;
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            'docs/$loginFeature': feature.replaceFirst(
+              '---\nvision:',
+              '---\nsystem: Watch app\nvision:',
+            ),
+          },
+        ),
+      );
+      expect(
+        report.findings.where(
+          (f) =>
+              f.kind != FindingKind.formatDrift &&
+              f.kind != FindingKind.approvalStale,
+        ),
+        everyElement(
+          predicate<Finding>(
+            (f) => f.kind == FindingKind.systemUnresolved,
+            'a system_unresolved',
+          ),
+        ),
+      );
+    },
+  );
 }

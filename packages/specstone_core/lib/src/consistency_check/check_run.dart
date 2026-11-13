@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
+import 'package:specstone_core/src/consistency_check/cross_doc_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
@@ -76,7 +77,8 @@ CheckReport runCheck(
         ..addAll(checkImplementedStatus(context, doc))
         ..addAll(checkRecordEntries(context, doc))
         ..addAll(checkTrackedLinks(context, doc))
-        ..addAll(checkConfirmedEntries(context, doc));
+        ..addAll(checkConfirmedEntries(context, doc))
+        ..addAll(checkCrossDocGuideRules(context, doc));
     }
     findings
       ..addAll(checkFrontmatter(context, doc))
