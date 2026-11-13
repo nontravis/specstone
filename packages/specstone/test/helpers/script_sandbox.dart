@@ -136,8 +136,9 @@ final class ScriptSandbox {
   /// Writes the release archive for [target] and a `SHA256SUMS` beside it.
   ///
   /// The archive holds `bin/`, `lib/libfake.so`, `LICENSE`, and
-  /// `THIRD_PARTY_NOTICES`; `bin/specstone` prints [version] unless [bundle],
-  /// a `dart build cli` output folder, supplies `bin/` and `lib/`.
+  /// `THIRD_PARTY_NOTICES`; `bin/specstone` prints [version] and `bin/stn` is
+  /// the repo's POSIX shim unless [bundle], a `dart build cli` output folder,
+  /// supplies `bin/` and `lib/`.
   /// [damaged] records the hash of other bytes; [withSumsLine] false records
   /// only another asset's line.
   Future<File> writeArchive(
@@ -332,6 +333,10 @@ final class ScriptSandbox {
           ..createSync(recursive: true)
           ..writeAsStringSync('#!/bin/sh\necho $version\n');
         _chmodExecutable(binary);
+        final shim = File('${repoRoot().path}/packages/specstone/bin/stn');
+        final staged = File('$bin${_separator}stn');
+        shim.copySync(staged.path);
+        _chmodExecutable(staged);
       }
       File('${stage.path}${_separator}lib${_separator}libfake.so')
         ..createSync(recursive: true)
