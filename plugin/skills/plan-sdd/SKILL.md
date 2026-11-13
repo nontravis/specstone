@@ -33,7 +33,7 @@ specstone list user_story --status planned --json
 
 **Code target** (`domain:agent_plugin` INV-25): when the list refuses `argument_missing` naming two or more code
 targets, ask the Owner which code target the plan is for, given target names and a drafts list alike; the answer is
-`--target <name>` on a rerun of this list and `code target:` in step 3. A one-target project's list refuses nothing: ask
+`code target:` in step 3, and `--target <name>` on a rerun of this list when no target is given. A one-target project's list refuses nothing: ask
 nothing, pass none. Learn it from the refusal, never from `.specstone/config.yaml`.
 
 - **From `specstone:brainstorming-sdd`:** its last step invokes this skill with the approved drafts list and the
@@ -91,9 +91,3 @@ any file of this plugin holds.
 - **None qualifies, or the Owner picks none:** say the plan is ready to run, and name its path.
 
 Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names.
-
-## Red flags
-
-| Thought                                            | Do instead                                   |
-|----------------------------------------------------|----------------------------------------------|
-| "No task builds the `project` doc; drop it."       | Pass the drafts list whole.                  |

@@ -94,8 +94,9 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **A doc the plan builds**, a target or an FR a story target holds: a draft or `approval_stale` one gets no task
      and a `NOT PLANNED` row naming it and the reason, for the Owner to approve first. The approved FRs beside such
      an FR still get their tasks. A draft or stale story target is one such row, and no task builds its FRs.
-   - **A doc the code target skips**, by its own record entry or one above it, read from its bundle: no task, and a
-     `NOT PLANNED` row naming the skip and its reason.
+   - **A doc the plan would build that the code target skips**, by its own record entry or one above it, read from its
+     bundle: no task, and a `NOT PLANNED` row naming the skip and its reason; a skipped doc the plan only reads gets
+     no row.
    - **Any other doc**, such as the `project` or `feature` doc, an FR target's story, a sibling FR, or a spec doc: a
      draft or `approval_stale` one goes under open questions, to be approved before the plan runs; the plan goes on.
      A doc among `targets` that no task builds keeps its row with no task instead.

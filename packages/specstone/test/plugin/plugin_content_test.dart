@@ -2679,8 +2679,8 @@ void _planTests() {
     expect(
       skill,
       contains(
-        'the answer is `--target <name>` on a rerun of this list and `code '
-        'target:` in step 3',
+        'the answer is `code target:` in step 3, and `--target <name>` on a '
+        'rerun of this list when no target is given',
       ),
     );
     expect(
@@ -2746,9 +2746,10 @@ void _planTests() {
     expect(
       _oneLine(_sectionOf(agent, 'Workflow')),
       contains(
-        '**A doc the code target skips**, by its own record entry or one '
-        'above it, read from its bundle: no task, and a `NOT PLANNED` row '
-        'naming the skip and its reason.',
+        '**A doc the plan would build that the code target skips**, by its own '
+        'record entry or one above it, read from its bundle: no task, and a '
+        '`NOT PLANNED` row naming the skip and its reason; a skipped doc the '
+        'plan only reads gets no row.',
       ),
     );
     expect(
