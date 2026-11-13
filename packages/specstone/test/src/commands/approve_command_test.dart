@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
@@ -817,5 +818,28 @@ void main() {
         );
       },
     );
+
+    test('f02/us03/fr01: --dry-run without --target shows each target status in the status row', () async {
+      final root = await writeTwinProject(
+        extra: {
+          ...edit(loginStory, [('goals:\n', 'draft: true\ngoals:\n')]),
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'approve',
+          '--dry-run',
+          'user_story:login/email_login',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        out.toString(),
+        contains('| status  | `flutter implemented · jaspr planned` |'),
+      );
+    });
   });
 }

@@ -16,6 +16,7 @@ final class DraftView {
     this.mergedType,
     this.title,
     this.status,
+    this.statusByTarget = const {},
     required this.docPath,
     required this.projectPath,
     required this.text,
@@ -38,6 +39,16 @@ final class DraftView {
 
   /// The status the index gives, or null when it gives none.
   final String? status;
+
+  /// Each code target's status, in config order; empty unless [status] is
+  /// null and the project names two or more targets. A null status shows as
+  /// no entry for that target ([heldStatusByTarget]).
+  final Map<String, String?> statusByTarget;
+
+  /// [statusByTarget] less every target whose status is null.
+  Map<String, String> get heldStatusByTarget => {
+    for (final MapEntry(:key, :value) in statusByTarget.entries) key: ?value,
+  };
 
   /// The DocPath of the doc, relative to the docs root.
   final String docPath;
@@ -140,7 +151,9 @@ String renderApprovalView(
     ..writeln(_row('field', 'value'))
     ..writeln('|---------|-------|')
     ..writeln(_row('doc', '${_codeSpan(draft.name)} (${draft.docType})'));
-  if (draft.status case final status?) {
+  if (draft.heldStatusByTarget case final byTarget when byTarget.isNotEmpty) {
+    out.writeln(_row('status', _codeSpan(_statusSpan(byTarget))));
+  } else if (draft.status case final status?) {
     out.writeln(_row('status', _codeSpan(status)));
   }
   out
@@ -166,8 +179,10 @@ String renderApprovalView(
 
 /// Returns the draft as one JSON object: the cells of its view, as plain text.
 ///
-/// The keys are `name` (`<doc type>:<name>`), `docPath`, `title` and `status`
-/// when [draft] has them, `hash`, `lookup` (`found`, `none`, or `unknown`),
+/// The keys are `name` (`<doc type>:<name>`), `docPath`, `title`, and `status`
+/// or `statusByTarget` (each target's status, in config order; a target whose
+/// status is null shows none) when [draft] has them, `hash`, `lookup`
+/// (`found`, `none`, or `unknown`),
 /// `renamedFrom` when the approved copy sits under another path (relative to
 /// the docs root, as `docPath` is), `changes`
 /// (the view's `changes` cells in order, joined by `, `, a section by its key),
@@ -183,7 +198,10 @@ Map<String, Object> draftViewJson(DraftView draft) {
     'name': '${draft.docType}:${draft.name}',
     'docPath': draft.docPath,
     'title': ?draft.title,
-    'status': ?draft.status,
+    if (draft.heldStatusByTarget case final byTarget when byTarget.isNotEmpty)
+      'statusByTarget': byTarget
+    else
+      'status': ?draft.status,
     'hash': baseHashOf(toLf(draft.text)),
     'lookup': switch (lookup) {
       ApprovedCopy() => 'found',
@@ -251,6 +269,12 @@ String _row(String field, String value) =>
     '| ${_escapePipes(field.padRight(7))} | ${_escapePipes(value)} |';
 
 String _escapePipes(String cell) => cell.replaceAll('|', r'\|');
+
+/// Returns the `status` cell for [byTarget]: each `'<target> <status>'` pair
+/// in map order joined by ` · `.
+String _statusSpan(Map<String, String> byTarget) =>
+    [for (final entry in byTarget.entries) '${entry.key} ${entry.value}']
+        .join(' · ');
 
 String _oldCell(ApprovalLookup lookup) => switch (lookup) {
   ApprovedCopy(:final commit) =>

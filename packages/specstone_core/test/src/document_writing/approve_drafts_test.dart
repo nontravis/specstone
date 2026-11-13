@@ -20,7 +20,9 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' as check show edit, loginStory;
+import '../../helpers/check_fixture.dart'
+    as check
+    show edit, loginStory, writeCheckProject;
 import '../../helpers/git_repo.dart';
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
@@ -1913,6 +1915,20 @@ void main() {
       expect(jaspr, isNot(contains(flutterArchitecture)));
     });
 
+    test('f02/us03/fr01: a twin doc that tracks no status keeps no status row and no statusByTarget', () async {
+      final root = await twinDrafts();
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['architecture:login']),
+      );
+      expect(answer.text, isNot(contains('| status')));
+      for (final draft in answer.json['drafts']! as List) {
+        final json = draft as Map;
+        expect(json.containsKey('status'), isFalse);
+        expect(json.containsKey('statusByTarget'), isFalse);
+      }
+    });
+
     test('f02/us03/fr01: a walk of a named doc under --target keeps that target twin only', () async {
       final root = await twinDrafts();
       final answer = writeIn(
@@ -2038,5 +2054,84 @@ void main() {
       expect(statusUnder('flutter'), 'implemented');
       expect(statusUnder('jaspr'), 'planned');
     });
+
+    test(
+      'f02/us03/fr01: the status row shows each target status with no --target',
+      () async {
+        final root = await writeTwinProject(
+          extra: {
+            ...check.edit(check.loginStory, [
+              ('goals:\n', 'draft: true\ngoals:\n'),
+            ]),
+            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _unstampedRecord(
+              'email_login:implemented',
+            ),
+          },
+        );
+
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(s, names: ['user_story:login/email_login']),
+        );
+
+        expect(
+          answer.text,
+          contains('| status  | `flutter implemented · jaspr planned` |'),
+        );
+        final draft = (answer.json['drafts']! as List).single as Map;
+        expect(draft.containsKey('status'), isFalse);
+        final byTarget = draft['statusByTarget']! as Map;
+        expect(byTarget.keys.toList(), ['flutter', 'jaspr']);
+        expect(byTarget['flutter'], 'implemented');
+        expect(byTarget['jaspr'], 'planned');
+      },
+    );
+
+    test('f02/us03/fr01: one target and a given --target keep one status row and key', () async {
+      final oneTarget = await check.writeCheckProject(
+        extra: {
+          ...check.edit(check.loginStory, [
+            ('goals:\n', 'draft: true\ngoals:\n'),
+          ]),
+        },
+      );
+      final answer = writeIn(
+        oneTarget,
+        (s) => approveDryRun(s, names: ['user_story:login/email_login']),
+      );
+      expect(answer.text, contains('| status  | `implemented` |'));
+      expect(
+        ((answer.json['drafts']! as List).single as Map)['status'],
+        'implemented',
+      );
+
+      final twinRoot = await writeTwinProject(
+        extra: {
+          ...check.edit(check.loginStory, [
+            ('goals:\n', 'draft: true\ngoals:\n'),
+          ]),
+          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _unstampedRecord(
+            'email_login:implemented',
+          ),
+        },
+      );
+      final twinAnswer = writeIn(
+        twinRoot,
+        (s) => approveDryRun(
+          s,
+          names: ['user_story:login/email_login'],
+          codeTarget: 'flutter',
+        ),
+      );
+      expect(twinAnswer.text, contains('| status  | `implemented` |'));
+      final twin = (twinAnswer.json['drafts']! as List).single as Map;
+      expect(twin['status'], 'implemented');
+      expect(twin.containsKey('statusByTarget'), isFalse);
+    });
   });
 }
+
+/// Returns a per-target record file for the twin project, written without an
+/// approval stamp: the fixture's stamp helper skips a per-target path.
+String _unstampedRecord(String entry) =>
+    "---\nstatuses:\n  - '$entry'\n---\n\n# Login implementation\n";
