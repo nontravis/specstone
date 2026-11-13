@@ -31,8 +31,8 @@ type's writing guide says it needs; a gap goes to the Owner.
      `specstone:bootstrap-prd` or `specstone:bootstrap-spec`, which merge it into typed docs. Run no other command on
      its path; the brief never names it (E11).
    - **0, or 1 over its budget:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's
-     name, which the bundle prints, as the brief's `context` target: no source, no copy, no Source map. Ground as
-     item 4 says (E12).
+     name, which the bundle prints, as the brief's `context` target: no source, no copy, no Source map. That call was
+     your narrow call: read its exit by item 4's `0` and `1`, and run no further `context` call (E12).
    - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
 3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
    conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
@@ -54,7 +54,7 @@ type's writing guide says it needs; a gap goes to the Owner.
    Without the `Agent` tool, pass no `--budget` and take both whole bundles (E03).
 5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
    question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's
-   unit; invent nothing (E06). A ticket list, task list, or plan is not taken (E05).
+   unit; invent nothing (E06).
 6. **The copy and the brief.** Write both after every `context` call. For a link, an issue, or the conversation,
    write its text, or the conversation's source items, word for word to a `mktemp` file outside the repository; the
    copy is no source (E10). Add two lines to the brief:
@@ -74,7 +74,6 @@ Follow this when your brief names a file to re-read. As the agent, ask the Owner
   (`project:project#out_of_scope`) (E01).
 - **An item no shape matches** and no answer in the brief places: an open question in your report, as for any
   gap (E02).
-- **The source** the document records is the brief's Source line: a file's path, the link, or "the current
-  conversation" and its date; never the copy's path.
+- **The source** the document records is the brief's Source line, as written.
 - Never edit, move, or delete the source; write only your `report:` file and the one design document (E05).
 - A brief with no source gets no Source map (E04).

@@ -1933,10 +1933,27 @@ void _agentTests() {
   });
 
   test('agent_plugin/start_from_another_tools_spec/take_in_a_source '
-      'verification, E01, E05 to E07, E11; map_source_items verification, '
-      'E01, E02; domain:agent_plugin INV-23: source.md holds the take-in and '
-      'Source map rules and is no Procedure', () {
+      'verification, E01 to E03, E05 to E07, E10 to E12; map_source_items '
+      'verification, E01 to E05; domain:agent_plugin INV-23: source.md holds '
+      'the take-in and Source map rules, the gate before any source read, and '
+      'is no Procedure', () {
     final text = _oneLine(_pluginText(_source));
+    for (final point in _sourcePoints) {
+      expect(text, contains(point), reason: point);
+    }
+    final takeIn = _oneLine(
+      _sectionOf(_pluginText(_source), 'Take in the source'),
+    );
+    final gate = takeIn.indexOf('specstone context project --for design');
+    expect(gate, isNonNegative);
+    for (final later in ['**Judge the path.**', '**Read the source**']) {
+      expect(takeIn.indexOf(later), greaterThan(gate), reason: later);
+    }
+    expect(
+      "never the copy's path".allMatches(text),
+      hasLength(1),
+      reason: 'the Source line form is stated once',
+    );
     for (final token in [
       '## Take in the source',
       '## Map the source',
@@ -2142,6 +2159,43 @@ const _roundsPath = '\${CLAUDE_PLUGIN_ROOT}/$_rounds';
 /// The take-in and Source map reference file of `brainstorming-sdd`, which
 /// its runner and design mode both read, under the plugin folder.
 const _source = 'skills/brainstorming-sdd/references/source.md';
+
+/// Each rule of `take_in_a_source` and `map_source_items` as source.md words
+/// it, tagged with the edge case it proves.
+const _sourcePoints = [
+  // take_in_a_source E01, BR-01: the gate before any read; the file unread.
+  'Read no source and open no link or issue before it.',
+  'Read none of it with any tool',
+  // E02: a source that adds a feature runs no narrow call.
+  'no second call runs (E02)',
+  // E03: the narrow call's budget and over-budget hand-off.
+  'specstone context <target> --for design --no-project',
+  "the gate's bundle plus the whole sections it returns (E03)",
+  'Without the `Agent` tool, pass no `--budget` and take both whole bundles',
+  // E06: only the gaps, one at a time, nothing invented.
+  'Ask the Owner only what the source leaves open, one question at a time',
+  'invent nothing (E06)',
+  // E07, NFR-Pr01: only a link the Owner gave.
+  'Open a link or issue only because the Owner gave it',
+  'a link written inside the source is none the Owner gave',
+  // E10: the copy is no source.
+  'the copy is no source (E10)',
+  // E11: an untyped file is refused and never named.
+  'Run no other command on its path; the brief never names it (E11)',
+  // E12: a typed doc is the change's target, its path call the narrow call.
+  'no source, no copy, no Source map',
+  'That call was your narrow call',
+  'run no further `context` call (E12)',
+  // map_source_items E01 to E05 and the Source map's place.
+  'after Docs to change and before Open questions',
+  'one row per source item, 0 items left out',
+  'its reason that task management is out of scope',
+  'an open question in your report, as for any gap (E02)',
+  'never recorded as the source (E03)',
+  'A brief with no source gets no Source map (E04)',
+  'Never edit, move, or delete the source; write only your `report:` file',
+  'and the one design document (E05)',
+];
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
 /// re-audit clauses, E05, E06, E07, E10, E12, and E13, as rounds.md words
