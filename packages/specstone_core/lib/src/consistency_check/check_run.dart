@@ -49,6 +49,7 @@ CheckReport runCheck(
     (_, final path?) => CheckScope.doc(context, path, codeTarget: codeTarget),
     _ => CheckScope.project(context, codeTarget: codeTarget),
   };
+  final work = ImplementedWork(context, scope.targets);
   final findings = <Finding>[];
   for (final doc in index.docs) {
     if (!scope.contains(doc.docPath)) continue;
@@ -84,7 +85,7 @@ CheckReport runCheck(
       ..addAll(checkPatterns(context, doc))
       ..addAll(checkItemIds(context, doc))
       ..addAll(checkImplements(context, doc))
-      ..addAll(checkCoversAndCodeRoots(context, doc))
+      ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
@@ -93,7 +94,7 @@ CheckReport runCheck(
   }
   if (scope.isProject) {
     findings
-      ..addAll(uncoveredCode(context))
+      ..addAll(uncoveredCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
       ..addAll(staleAgentBlocks(context));
   }

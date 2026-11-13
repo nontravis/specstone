@@ -106,6 +106,31 @@ void main() {
     expect(filesUnderCodeRoot(root, 'lib/./a.dart'), ['lib/a.dart']);
   });
 
+  test(
+    'consistency_check/find_broken_pointers/report_uncovered_code: a nested '
+    'code root of another target is left out, a folder of it and all below',
+    () {
+      [
+        'lib/a.dart',
+        'web/lib/b.dart',
+        'web/c.dart',
+        'webx/d.dart',
+      ].forEach(touch);
+      expect(filesUnderCodeRoot(root, '.', skipFolders: ['web']), [
+        'lib/a.dart',
+        'webx/d.dart',
+      ]);
+      expect(filesUnderCodeRoot(root, 'web/', skipFolders: ['web']), isEmpty);
+      expect(
+        filesUnderCodeRoot(root, 'web/c.dart', skipFolders: ['web']),
+        isEmpty,
+      );
+      expect(filesUnderCodeRoot(root, 'web/', skipFolders: ['web/lib']), [
+        'web/c.dart',
+      ]);
+    },
+  );
+
   group('$_lister bounds', () {
     late Directory codeRoot;
 

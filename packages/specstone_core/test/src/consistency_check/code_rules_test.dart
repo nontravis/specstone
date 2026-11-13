@@ -3,14 +3,77 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
+
+const _flutterTech = 'specs/flutter/TECH_STACK.md';
+const _jasprTech = 'specs/jaspr/TECH_STACK.md';
+const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _implemented = 'email_login/check_password:implemented';
+
+/// Returns a record holding the one-line [statuses].
+String _record(List<String> statuses) =>
+    '---\nstatuses:\n${[for (final s in statuses) "  - '$s'\n"].join()}---\n\n'
+    '# Record\n';
+
+/// Returns an `architecture` doc covering [covers].
+String _arch(String covers) =>
+    doc(loginArchitecture, 'app/lib/', covers).values.single;
+
+/// Returns a `tech_stack` doc whose code roots are [roots].
+String _tech(List<String> roots) => doc(
+  techStack,
+  '  - app/lib/\n',
+  [for (final r in roots) '  - $r\n'].join(),
+).values.single;
+
+/// Returns the login story and FR as written by a project that has not
+/// implemented either.
+Map<String, String> _planned() => {
+  ...edit(loginStory, [('status: implemented\n', 'status: planned\n')]),
+  ...edit(loginFr, [('status: implemented\n', 'status: planned\n')]),
+};
+
+/// Writes the two-target project with one `tech_stack` doc per target.
+Future<Directory> _twin({
+  Map<String, String> extra = const {},
+  Set<String> without = const {},
+}) => writeTwinProject(
+  without: {'docs/$techStack', ...without},
+  extra: {
+    '.specstone/templates/tech_stack.yaml':
+        'id: tech_stack\nper_target: true\n',
+    'docs/$_flutterTech': _tech(['app/lib/']),
+    'docs/$_jasprTech': _tech(['app/lib/']),
+    ...extra,
+  },
+);
+
+CheckReport _run(Directory project, {String? codeTarget}) {
+  final session = openSession(project);
+  try {
+    return runCheck(session, codeTarget: codeTarget);
+  } finally {
+    session.close();
+  }
+}
+
+/// Returns `<path>: <entry or path>` per finding of [kind].
+List<String> _of(CheckReport report, FindingKind kind) => [
+  for (final f in report.findings)
+    if (f.kind == kind) '${f.path}: ${f.keys['entry'] ?? f.keys['path']}',
+];
 
 void main() {
   /// Sets the fixture architecture's one `covers` entry.
@@ -228,6 +291,245 @@ void main() {
       [for (final f in uncovered.findings) f.toJson()['path']],
       ['app/lib/other.dart'],
     );
+  });
+
+  group('the wait for the first implemented entry of a target', () {
+    test('f04/us02/fr02/e08: an architecture doc waits for an entry of its own feature, then reports', () async {
+      final waiting = checkOf(
+        await writeCheckProject(
+          extra: {..._planned(), ...narrow('app/lib/login/')},
+        ),
+      );
+      expect(spots(waiting, FindingKind.coversPathMissing), isEmpty);
+      final done = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...edit(loginFr, [('status: implemented\n', 'status: planned\n')]),
+            ...narrow('app/lib/login/'),
+          },
+        ),
+      );
+      expect(_of(done, FindingKind.coversPathMissing), [
+        '$loginArchitecture: app/lib/login/',
+      ]);
+    });
+
+    test('f04/us02/fr02/e08: an entry of another feature does not end the wait of an architecture doc', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ..._planned(),
+            ...narrow('app/lib/login/'),
+            'docs/prds/features/f02_shop/FEATURE.md':
+                checkProjectFiles()['docs/$loginFeature']!,
+            'docs/prds/features/f02_shop/us01_email_login/USER_STORY.md':
+                checkProjectFiles()['docs/$loginStory']!,
+            'docs/specs/f02_shop/ARCHITECTURE.md': _arch('app/lib/shop/'),
+          },
+        ),
+      );
+      expect(_of(report, FindingKind.coversPathMissing), [
+        'specs/f02_shop/ARCHITECTURE.md: app/lib/shop/',
+      ]);
+    });
+
+    test('f04/us02/fr02/e08: an entry of a nested feature ends the wait of the architecture doc above', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ..._planned(),
+            ...narrow('app/lib/login/'),
+            'docs/prds/features/f01_login/f01_remember/FEATURE.md':
+                checkProjectFiles()['docs/$loginFeature']!,
+            'docs/prds/features/f01_login/f01_remember/us01_remember_me/USER_STORY.md':
+                checkProjectFiles()['docs/$loginStory']!,
+          },
+        ),
+      );
+      expect(_of(report, FindingKind.coversPathMissing), [
+        '$loginArchitecture: app/lib/login/',
+      ]);
+    });
+
+    test('f04/us02/fr02/e09, f04/us02/fr03/e10: a code root waits for any entry of the target; once one is implemented it is missing', () async {
+      final roots = doc(
+        techStack,
+        '  - app/lib/\n',
+        '  - app/lib/\n  - api/lib/\n',
+      );
+      final waiting = checkOf(
+        await writeCheckProject(extra: {..._planned(), ...roots}),
+      );
+      expect(spots(waiting, FindingKind.codeRootMissing), isEmpty);
+      final done = checkOf(await writeCheckProject(extra: roots));
+      expect(_of(done, FindingKind.codeRootMissing), ['$techStack: api/lib/']);
+    });
+
+    test('f04/us02/fr02/e09: a topic covers entry waits for any entry of the target', () async {
+      const topic =
+          '---\ncovers:\n  - lib/gone/\n---\n\n# Doc model\n\n## Purpose\n\n'
+          'One rule set.\n\n## Scope\n\nThe gone folder.\n';
+      final waiting = checkOf(
+        await writeCheckProject(
+          extra: {..._planned(), 'docs/specs/topics/doc_model.md': topic},
+        ),
+      );
+      expect(spots(waiting, FindingKind.coversPathMissing), isEmpty);
+      final done = checkOf(
+        await writeCheckProject(
+          extra: {'docs/specs/topics/doc_model.md': topic},
+        ),
+      );
+      expect(_of(done, FindingKind.coversPathMissing), [
+        'specs/topics/doc_model.md: lib/gone/',
+      ]);
+    });
+
+    test('f04/us02/fr02/e07: a code root folder that is missing makes each covers entry and code root of an implemented target missing', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}code_root: nowhere\n',
+          },
+        ),
+      );
+      expect(_of(report, FindingKind.coversPathMissing), [
+        '$loginArchitecture: app/lib/',
+      ]);
+      expect(_of(report, FindingKind.codeRootMissing), [
+        '$techStack: app/lib/',
+      ]);
+    });
+  });
+
+  group('two targets', () {
+    test('f04/us02/fr02/e06: each target resolves its covers and code roots against its own code root', () async {
+      final project = await _twin(
+        extra: {
+          'docs/$_flutterRecord': _record([_implemented]),
+          'docs/$_jasprRecord': _record([_implemented]),
+          'flutter_ws/app/lib/extra/x.dart': '',
+          'docs/$flutterArchitecture': _arch('app/lib/extra/'),
+          'docs/$jasprArchitecture': _arch('app/lib/extra/'),
+          'docs/$_flutterTech': _tech(['app/lib/', 'app/extra/']),
+          'docs/$_jasprTech': _tech(['app/lib/', 'app/extra/']),
+          'jaspr_ws/app/extra/y.dart': '',
+        },
+      );
+      final report = _run(project);
+      expect(_of(report, FindingKind.coversPathMissing), [
+        '$jasprArchitecture: app/lib/extra/',
+      ]);
+      expect(_of(report, FindingKind.codeRootMissing), [
+        '$_flutterTech: app/extra/',
+      ]);
+    });
+
+    test('f04/us02/fr02/e10: a target with an implemented entry resolves its paths and a target with none raises nothing', () async {
+      final project = await _twin(
+        extra: {
+          'docs/$_flutterRecord': _record([_implemented]),
+          'docs/$_jasprRecord': _record(['email_login/check_password:planned']),
+          'docs/$flutterArchitecture': _arch('app/lib/gone/'),
+          'docs/$jasprArchitecture': _arch('app/lib/gone/'),
+          'docs/$_flutterTech': _tech(['app/lib/', 'api/']),
+          'docs/$_jasprTech': _tech(['app/lib/', 'api/']),
+        },
+      );
+      final report = _run(project);
+      expect(_of(report, FindingKind.coversPathMissing), [
+        '$flutterArchitecture: app/lib/gone/',
+      ]);
+      expect(_of(report, FindingKind.codeRootMissing), ['$_flutterTech: api/']);
+    });
+
+    test('f04/us02/fr03/e09: each target lists its files under its own code root and matches its own covers only', () async {
+      final project = await _twin(
+        extra: {
+          'flutter_ws/app/lib/main.dart': '',
+          'jaspr_ws/app/lib/web.dart': '',
+          'docs/$flutterArchitecture': _arch('app/lib/'),
+          'docs/$jasprArchitecture': _arch('app/lib/login.dart'),
+        },
+      );
+      final report = _run(project);
+      expect(_of(report, FindingKind.codeUncovered), [
+        '$_jasprTech: app/lib/web.dart',
+      ]);
+    });
+
+    test('f04/us02/fr03/e09: a covers entry of one target never reaches the file of another', () async {
+      final project = await _twin(
+        extra: {
+          'flutter_ws/app/lib/main.dart': '',
+          'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
+          'docs/$jasprArchitecture': _arch('app/lib/'),
+        },
+      );
+      expect(_of(_run(project), FindingKind.codeUncovered), [
+        '$_flutterTech: app/lib/main.dart',
+      ]);
+    });
+
+    test('f04/us02/fr03/e10: a target with no code yet lists nothing and raises no missing root', () async {
+      final project = await _twin(
+        extra: {
+          'docs/$_flutterRecord': _record([_implemented]),
+          'docs/$_jasprTech': _tech(['web/']),
+          'docs/$flutterArchitecture': _arch('app/lib/'),
+          'docs/$jasprArchitecture': _arch('web/'),
+        },
+        without: {'jaspr_ws/app/lib/login.dart'},
+      );
+      final report = _run(project);
+      expect(_of(report, FindingKind.codeUncovered), isEmpty);
+      expect(_of(report, FindingKind.codeRootMissing), isEmpty);
+      expect(_of(report, FindingKind.coversPathMissing), isEmpty);
+    });
+
+    test(
+      'f04/us02/fr03/e06: a --target run lists the files of that target only',
+      () async {
+        final project = await _twin(
+          extra: {
+            'flutter_ws/app/lib/main.dart': '',
+            'jaspr_ws/app/lib/web.dart': '',
+            'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
+            'docs/$jasprArchitecture': _arch('app/lib/login.dart'),
+          },
+        );
+        expect(
+          _of(_run(project, codeTarget: 'jaspr'), FindingKind.codeUncovered),
+          ['$_jasprTech: app/lib/web.dart'],
+        );
+      },
+    );
+
+    test('review focus 2: with nested code roots a file counts for the target of the longest root only', () async {
+      final project = await _twin(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: ws\n'
+              '  jaspr:\n    code_root: ws/web\n',
+          'ws/lib/a.dart': '',
+          'ws/web/lib/b.dart': '',
+          'docs/$_flutterTech': _tech(['lib/', 'web/']),
+          'docs/$_jasprTech': _tech(['lib/']),
+          'docs/$flutterArchitecture': _arch('lib/login.dart'),
+          'docs/$jasprArchitecture': _arch('lib/login.dart'),
+        },
+        without: {
+          'flutter_ws/app/lib/login.dart',
+          'jaspr_ws/app/lib/login.dart',
+        },
+      );
+      expect(_of(_run(project), FindingKind.codeUncovered), [
+        '$_flutterTech: lib/a.dart',
+        '$_jasprTech: lib/b.dart',
+      ]);
+    });
   });
 
   test(
