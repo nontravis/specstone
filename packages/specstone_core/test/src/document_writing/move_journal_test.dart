@@ -2212,6 +2212,14 @@ void main() {
         prompts: StringBuffer(),
       ),
     );
+    refuses(
+      'reorder',
+      (s) => answerReorder(s, 'user_story:login/reset_password', place: '1'),
+    );
+    refuses(
+      'rename',
+      (s) => answerRename(s, 'user_story:login/reset_password', slug: 'other'),
+    );
   });
 
   group('a move whose paths differ only in letter case', () {
@@ -2293,6 +2301,7 @@ void main() {
       final root = await _gitTree({
         'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
       });
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
       final base = _head(root);
       const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
       const to = 'docs/prds/runbooks/deploy/Runbook.md';
@@ -2317,6 +2326,39 @@ void main() {
         '$to\n',
       );
       expect(git(root, ['status', '--porcelain', '--', 'docs']).stdout, '');
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a tracked old spelling moved onto an ignored new one leaves only '
+        'the new spelling in the index', () async {
+      final root = await _gitTree({
+        'docs/prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n',
+      });
+      // The rule lands after the initial commit, so it ignores only the new
+      // spelling; a pattern both spellings match would leave the doc
+      // untracked, since git matches ignore rules case-blind here.
+      File('${root.path}/.gitignore')
+          .writeAsStringSync('docs/prds/runbooks/deploy/Runbook.md\n');
+      commitAll(root, 'ignore');
+      expect(git(root, ['config', 'core.ignorecase', 'true']).exitCode, 0);
+      final base = _head(root);
+      const from = 'docs/prds/runbooks/deploy/RUNBOOK.md';
+      const to = 'docs/prds/runbooks/deploy/Runbook.md';
+
+      MoveJournal([
+        const MoveStep(from, to),
+        CommitStep(
+          message: 'move',
+          paths: const [from, to],
+          base: base,
+          moves: const [(from: from, to: to)],
+        ),
+      ]).run(_target(root));
+
+      expect(
+        git(root, ['ls-files', '--', 'docs/prds/runbooks/deploy']).stdout,
+        '$to\n',
+      );
+      expect(_log(root).first, 'move');
     }, skip: hasGit ? null : 'git is not available');
   });
 }
