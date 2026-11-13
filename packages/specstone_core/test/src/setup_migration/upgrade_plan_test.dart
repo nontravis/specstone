@@ -1713,6 +1713,37 @@ void _labelTests() {
       );
     });
 
+    test('$_fr E26: with two targets each code root is walked for labels, '
+        'and a file under a nested target root converts once', () async {
+      const techStack = '---\ncode:\n  - ./\n---\n# Tech stack\n';
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${_belowSince}targets:\n'
+            '  outer:\n    code_root: ws\n'
+            '  inner:\n    code_root: ws/inner\n'
+            '  apart:\n    code_root: other\n',
+        'docs/$_labelFeature': '# A\n',
+        'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
+        'docs/$_labelFr': '# C\n',
+        'docs/specs/outer/TECH_STACK.md': techStack,
+        'docs/specs/inner/TECH_STACK.md': techStack,
+        'docs/specs/apart/TECH_STACK.md': techStack,
+        'ws/a.dart': '// F-01 US-01\n',
+        'ws/inner/b.dart': '// F-01 US-01\n',
+        'other/c.dart': '// F-01 US-01\n',
+      });
+
+      final plan = _planWith(
+        project,
+        _tracking({'ws/a.dart', 'ws/inner/b.dart', 'other/c.dart'}),
+      );
+
+      expect(
+        plan.rewrites.where((r) => r.path.endsWith('.dart')).map((r) => r.path),
+        ['other/c.dart', 'ws/a.dart', 'ws/inner/b.dart'],
+      );
+    });
+
     test('$_fr E27: a code entry that leaves the code root lists no file, so '
         'none reaches git or the plan, and an in-repo file converts', () async {
       final project = await _labelTree({}, code: {'lib/a.dart': '// F-01\n'});

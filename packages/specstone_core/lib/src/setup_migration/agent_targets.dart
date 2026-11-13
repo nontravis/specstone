@@ -7,6 +7,8 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show codeRootFiles;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -26,6 +28,7 @@ const _cursorFolder = '.cursor';
 const _gitEntry = '.git';
 const _codeField = 'code';
 const _docsFolder = 'docs/';
+const _pathSeparator = '/';
 const _defaultInstructionName = 'AGENTS.md';
 const _agentsLinePrefix = 'agent files: ';
 const _malformedMessage =
@@ -105,15 +108,7 @@ List<Directory> codeFoldersOf(
   MergedSet set, {
   required List<CodeTarget> targets,
 }) {
-  final entriesOf = <CodeTarget, Set<String>>{};
-  for (final (:target, :entry) in _codeEntriesOf(
-    projectRoot,
-    set,
-    targetNames: targetNamesOf(targets),
-  )) {
-    final owner = _ownerOf(targets, target);
-    if (owner != null) entriesOf.putIfAbsent(owner, () => {}).add(entry);
-  }
+  final entriesOf = _entriesByTarget(projectRoot, set, targets);
   final folders = <String, Directory>{};
   for (final target in targets) {
     for (final folder in codeRootFolders(
@@ -125,6 +120,74 @@ List<Directory> codeFoldersOf(
     }
   }
   return folders.values.toList();
+}
+
+/// Returns the code files of [targets], each as its path from the code root
+/// of the target that lists it.
+///
+/// A target lists the files under the `code:` entries of its own docs, read
+/// from its own root; a file under the root of another target nested in its
+/// own belongs to that target. A shared doc's entries count for no target when
+/// [targets] holds two or more. Roots and entries are read as
+/// `filesUnderCodeRoot` reads them.
+List<({Directory root, String path})> codeFilesOf(
+  Directory projectRoot,
+  MergedSet set, {
+  required List<CodeTarget> targets,
+}) {
+  final entriesOf = _entriesByTarget(projectRoot, set, targets);
+  final roots = [
+    for (final target in targets)
+      codeRootFolders(
+        projectRoot,
+        codeRoot: target.codeRoot,
+        codeEntries: const [],
+      ).first,
+  ];
+  return [
+    for (var index = 0; index < targets.length; index++)
+      for (final path in codeRootFiles(
+        roots[index],
+        entriesOf[targets[index]] ?? const {},
+        skipFolders: _nestedRootsOf(roots[index], roots),
+      ))
+        (root: roots[index], path: path),
+  ];
+}
+
+/// Returns the `code:` entries of each target's docs; a shared doc's entries
+/// go to the one target of a single-target project.
+Map<CodeTarget, Set<String>> _entriesByTarget(
+  Directory projectRoot,
+  MergedSet set,
+  List<CodeTarget> targets,
+) {
+  final entriesOf = <CodeTarget, Set<String>>{};
+  for (final (:target, :entry) in _codeEntriesOf(
+    projectRoot,
+    set,
+    targetNames: targetNamesOf(targets),
+  )) {
+    final owner = _ownerOf(targets, target);
+    if (owner != null) entriesOf.putIfAbsent(owner, () => {}).add(entry);
+  }
+  return entriesOf;
+}
+
+/// Returns the folders of the roots in [roots] that lie inside [own], as paths
+/// from [own] in `/` form.
+List<String> _nestedRootsOf(Directory own, List<Directory> roots) {
+  final prefix = own.path.endsWith(Platform.pathSeparator)
+      ? own.path
+      : '${own.path}${Platform.pathSeparator}';
+  return [
+    for (final other in roots)
+      if (other.path.length > prefix.length && other.path.startsWith(prefix))
+        other.path
+            .substring(prefix.length)
+            .split(Platform.pathSeparator)
+            .join(_pathSeparator),
+  ];
 }
 
 /// Returns the target the doc named [name] belongs to; a shared doc (null

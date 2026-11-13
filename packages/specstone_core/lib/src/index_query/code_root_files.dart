@@ -69,10 +69,15 @@ List<String> filesUnderCodeRoot(
 }
 
 /// Returns the files under every one of [entries], each once, sorted by code
-/// point (see [filesUnderCodeRoot]).
-List<String> codeRootFiles(Directory codeRoot, Iterable<String> entries) {
+/// point (see [filesUnderCodeRoot], which takes [skipFolders]).
+List<String> codeRootFiles(
+  Directory codeRoot,
+  Iterable<String> entries, {
+  List<String> skipFolders = const [],
+}) {
   final files = <String>{
-    for (final entry in entries) ...filesUnderCodeRoot(codeRoot, entry),
+    for (final entry in entries)
+      ...filesUnderCodeRoot(codeRoot, entry, skipFolders: skipFolders),
   };
   return files.toList()..sort(compareCodePoints);
 }

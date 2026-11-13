@@ -471,6 +471,92 @@ void main() {
     });
   });
 
+  group('codeFilesOf', () {
+    List<String> listed(List<({Directory root, String path})> files) => [
+      for (final file in files) '${file.root.path}|${file.path}',
+    ];
+
+    Future<List<({Directory root, String path})>> filesOf(
+      Directory base,
+      List<CodeTarget> targets,
+    ) {
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+      return Future.value(
+        codeFilesOf(_at(base, 'proj/'), set, targets: targets),
+      );
+    }
+
+    test('$_write E35: each target lists the files of its own tech stack '
+        'entries from its own root', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml': twinConfig(),
+        'proj/docs/specs/flutter/TECH_STACK.md':
+            '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+        'proj/docs/specs/jaspr/TECH_STACK.md':
+            '---\ncode:\n  - web/\n---\n# Tech stack\n',
+        'proj/flutter_ws/lib/a.dart': '',
+        'proj/flutter_ws/web/skipped.dart': '',
+        'proj/jaspr_ws/web/b.dart': '',
+        'proj/jaspr_ws/lib/skipped.dart': '',
+      });
+
+      final files = await filesOf(base, const [
+        CodeTarget('flutter', codeRoot: 'flutter_ws'),
+        CodeTarget('jaspr', codeRoot: 'jaspr_ws'),
+      ]);
+
+      expect(listed(files), [
+        '${_at(base, 'proj/flutter_ws/').path}|lib/a.dart',
+        '${_at(base, 'proj/jaspr_ws/').path}|web/b.dart',
+      ]);
+    });
+
+    test('$_write E35: a file under the code root of a target nested in '
+        'another belongs to the nested target only', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  outer:\n    code_root: ws\n'
+            '  inner:\n    code_root: ws/inner\n',
+        'proj/docs/specs/outer/TECH_STACK.md':
+            '---\ncode:\n  - ./\n---\n# Tech stack\n',
+        'proj/docs/specs/inner/TECH_STACK.md':
+            '---\ncode:\n  - ./\n---\n# Tech stack\n',
+        'proj/ws/a.dart': '',
+        'proj/ws/inner/b.dart': '',
+      });
+
+      final files = await filesOf(base, const [
+        CodeTarget('outer', codeRoot: 'ws'),
+        CodeTarget('inner', codeRoot: 'ws/inner'),
+      ]);
+
+      expect(listed(files), [
+        '${_at(base, 'proj/ws/').path}|a.dart',
+        '${_at(base, 'proj/ws/inner/').path}|b.dart',
+      ]);
+    });
+
+    test('$_write E35: with one unnamed target a shared tech stack entry is '
+        'read from that root', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml': shippedPinsConfig(),
+        'proj/docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - lib/\n---\n# Tech stack\n',
+        'proj/app/lib/a.dart': '',
+      });
+
+      final files = await filesOf(base, const [
+        CodeTarget(null, codeRoot: 'app'),
+      ]);
+
+      expect(listed(files), ['${_at(base, 'proj/app/').path}|lib/a.dart']);
+    });
+  });
+
   group('planAgentWrites', () {
     test('$_write E01: an empty root gets AGENT.md and AGENTS.md', () async {
       final base = await _base({'proj/.keep': ''});

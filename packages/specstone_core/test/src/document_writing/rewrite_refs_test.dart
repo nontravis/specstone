@@ -18,6 +18,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart' show fingerprintFor;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/record_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -1067,6 +1068,38 @@ void main() {
         renamed: rename,
       ).singleWhere((s) => s.path == entry);
       expect(step.text, '// `signin/email_login`\n');
+    });
+
+    test('document_writing/rename_doc/rewrite_name_references E04: with two targets each code root is walked, and a file under a nested target root gets one step', () async {
+      const mention = '// `login/email_login`\n';
+      const techStack =
+          '---\ncode:\n  - ./\n---\n\n# Tech stack\n\n## Stack\n\n'
+          '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+          '## Naming\n\n- snake_case file names\n';
+      root = await writeWriteProject(
+        without: {'docs/$loginArch', 'docs/$signupArch'},
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  outer:\n    code_root: ws\n'
+              '  inner:\n    code_root: ws/inner\n'
+              '  apart:\n    code_root: other\n',
+          'docs/specs/outer/TECH_STACK.md': techStack,
+          'docs/specs/inner/TECH_STACK.md': techStack,
+          'docs/specs/apart/TECH_STACK.md': techStack,
+          'ws/a.dart': mention,
+          'ws/inner/b.dart': mention,
+          'other/c.dart': mention,
+        },
+      );
+
+      final paths = plan(noMoves, renamed: rename).map((s) => s.path).toList();
+
+      expect(paths.where((p) => p.endsWith('.dart')), [
+        'other/c.dart',
+        'ws/a.dart',
+        'ws/inner/b.dart',
+      ]);
     });
 
     test('document_writing/rename_doc/rewrite_name_references E04: a code file with no mention of a renamed doc gets no step, and no rename reads no code file', () async {

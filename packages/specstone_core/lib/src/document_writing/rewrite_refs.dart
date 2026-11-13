@@ -29,7 +29,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
     show RenderFault, RenderFaultCode;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    show codeEntriesOnDisk;
+    show codeFilesOf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -282,38 +282,35 @@ List<WriteStep> _codeFileSteps(
   void Function(String line)? onSkipped,
 ) {
   if (renamed.isEmpty) return const [];
-  final project = session.project;
-  final paths = codeRootFiles(
-    project.codeRoot,
-    codeEntriesOnDisk(
-      project.projectRoot,
-      project.set,
-      targetNames: project.targetNames,
-    ),
-  );
   return [
-    for (final path in paths) ?_codeFileStep(session, path, renamed, onSkipped),
+    for (final file in codeFilesOf(
+      session.project.projectRoot,
+      session.project.set,
+      targets: session.project.targets,
+    ))
+      ?_codeFileStep(session, file, renamed, onSkipped),
   ];
 }
 
 WriteStep? _codeFileStep(
   WriteSession session,
-  String codePath,
+  ({Directory root, String path}) codeFile,
   Map<(String, String), String> renamed,
   void Function(String line)? onSkipped,
 ) {
+  final codePath = codeFile.path;
   final extension = _extensionOf(codePath);
   if (!readsNameMentions(extension)) return null;
   final project = session.project;
   final file = File(
-    '${project.codeRoot.path}${Platform.pathSeparator}'
+    '${codeFile.root.path}${Platform.pathSeparator}'
     '${codePath.split('/').join(Platform.pathSeparator)}',
   );
   final projectPath = projectPathOfCodeFile(
     codePath,
     projectRoot: project.projectRoot,
     docsRoot: project.docsRoot,
-    codeRoot: project.codeRoot,
+    codeRoot: codeFile.root,
   );
   if (projectPath == null) return null;
   final String raw;

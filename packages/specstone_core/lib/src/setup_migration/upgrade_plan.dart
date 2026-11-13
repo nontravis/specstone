@@ -11,7 +11,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show codeRootFiles, projectPathOfCodeFile;
+    show projectPathOfCodeFile;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/doc_reader.dart'
     show startsWithUtf8Bom;
@@ -652,11 +652,6 @@ _LabelPlan _planLabelPass(
   required Map<String, MergedDocType> docTypes,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
-  final codeRoot = codeRootFolders(
-    projectRoot,
-    codeRoot: config.codeRoot,
-    codeEntries: const [],
-  ).first;
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   final agentByFile = {
     for (final write in [...agentWrites.rootWrites, ...agentWrites.topWrites])
@@ -667,9 +662,10 @@ _LabelPlan _planLabelPass(
   };
   final agentAt = <String, AgentWrite>{};
   final labelled = <String, _CodeFile>{};
-  for (final codePath in codeRootFiles(
-    codeRoot,
-    codeEntriesOnDisk(projectRoot, set, targetNames: config.targetNames),
+  for (final (root: codeRoot, path: codePath) in codeFilesOf(
+    projectRoot,
+    set,
+    targets: config.targets,
   )) {
     final projectPath = projectPathOfCodeFile(
       codePath,

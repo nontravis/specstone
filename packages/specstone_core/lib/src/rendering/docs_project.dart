@@ -89,10 +89,6 @@ final class DocsProject {
   /// The canonical `<project root>/docs/`, which may not exist.
   Directory get docsRoot => trust.docsRoot;
 
-  /// The folder code paths are written from: the first [targets] entry's
-  /// root, resolved as [codeRootOf] resolves it.
-  Directory get codeRoot => codeRootOf(targets.first);
-
   /// The config's code targets, in config order.
   final List<CodeTarget> targets;
 

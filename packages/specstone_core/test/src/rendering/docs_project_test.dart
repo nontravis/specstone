@@ -83,7 +83,7 @@ void main() {
       );
     });
 
-    test('codeRoot joins code_root to the project root', () async {
+    test('codeRootOf joins code_root to the project root', () async {
       final workspace = await writeTree({
         'project/.specstone/config.yaml':
             'packs:\n  prd-core: 1.1.0\ncode_root: ../code/example\n',
@@ -95,16 +95,21 @@ void main() {
       final project = _open(root);
 
       expect(
-        project.codeRoot.path,
+        project.codeRootOf(project.targets.single).path,
         _dir(workspace, 'code/example').resolveSymbolicLinksSync(),
       );
       expect(project.projectRoot.path, root.resolveSymbolicLinksSync());
     });
 
-    test('codeRoot is the project root when code_root is absent', () async {
+    test('codeRootOf is the project root when code_root is absent', () async {
       final root = await fixtureProject({});
 
-      expect(_open(root).codeRoot.path, root.resolveSymbolicLinksSync());
+      final project = _open(root);
+
+      expect(
+        project.codeRootOf(project.targets.single).path,
+        root.resolveSymbolicLinksSync(),
+      );
     });
 
     test('a missing code folder still opens', () async {
@@ -116,7 +121,7 @@ void main() {
       final project = _open(root);
 
       expect(
-        project.codeRoot.path,
+        project.codeRootOf(project.targets.single).path,
         '${root.resolveSymbolicLinksSync()}${Platform.pathSeparator}gone',
       );
     });
@@ -131,7 +136,7 @@ void main() {
       final project = _open(root);
 
       expect(
-        project.codeRoot.path,
+        project.codeRootOf(project.targets.single).path,
         '${root.parent.resolveSymbolicLinksSync()}${Platform.pathSeparator}x',
       );
     });

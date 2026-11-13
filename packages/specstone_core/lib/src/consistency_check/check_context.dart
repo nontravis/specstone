@@ -48,9 +48,6 @@ final class CheckContext {
   Directory codeRootOf(CodeTarget target) =>
       _session.project.codeRootOf(target);
 
-  /// The first target's code root, for a rule that reads one root only.
-  Directory get codeRoot => codeRootOf(targets.first);
-
   /// Whether the config pins a pack at or above the approval stamps.
   bool get stampsHaveRun => _session.project.stampsHaveRun;
 
