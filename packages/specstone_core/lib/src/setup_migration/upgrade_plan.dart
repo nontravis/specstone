@@ -124,6 +124,7 @@ RunPlan _upgradeRunOf(
   );
 
   final steps = [for (final upgrade in upgrades) ...upgrade.steps];
+  _refuseUnbuiltSteps(steps);
   final overrideFiles = _renamedOverrides(root, overrides, steps);
   final finalSet = templates.resolveCarried(
     packNames: pins.keys,
@@ -161,7 +162,7 @@ RunPlan _upgradeRunOf(
     var lf = original.lf;
     final changes = <String>[];
     for (final (index, (:step, from: _)) in steps.indexed) {
-      if (step.docType != docTypeId) continue;
+      if (docTypeId == null || !step.touches(docTypeId)) continue;
       final renamed = switch (step) {
         RenameSection() => withHeaderRenamed(
           lf,
@@ -170,6 +171,7 @@ RunPlan _upgradeRunOf(
         ),
         RenameField() => _withKeyRenamed(lf, step.from, step.to),
         MoveFile() => lf,
+        MoveToRecord() => lf,
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -182,6 +184,7 @@ RunPlan _upgradeRunOf(
             Doc.parse(lf).frontmatter?.any((block) => block.name == step.to) ??
                 false,
           MoveFile() => false,
+          MoveToRecord() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -194,6 +197,7 @@ RunPlan _upgradeRunOf(
                   '${step.to}, which the doc already holds; '
                   '$_resolveCollision',
             MoveFile() => '',
+            MoveToRecord() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -432,7 +436,7 @@ List<_OverrideFile> _renamedOverrides(
       readDocText(readPlanInput(File.fromUri(root.uri.resolve(layer.file)))),
     );
     for (final (index, (:step, from: _)) in steps.indexed) {
-      if (step.docType != layer.docTypeId) continue;
+      if (!step.touches(layer.docTypeId)) continue;
       final renamed = switch (step) {
         RenameSection() => _withScalarsRenamed(
           file.lf,
@@ -449,6 +453,7 @@ List<_OverrideFile> _renamedOverrides(
           to: step.to,
         ),
         MoveFile() => file.lf,
+        MoveToRecord() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -952,6 +957,13 @@ String _withKeyRenamed(String lf, String from, String to) {
   return withKeyBlock(lf, from, renamed);
 }
 
+/// Refuses a run that selects a `move_to_record` step until its apply exists.
+void _refuseUnbuiltSteps(List<_Step> steps) {
+  if (steps.any((entry) => entry.step is MoveToRecord)) {
+    throw UnimplementedError('the move_to_record step has no apply yet');
+  }
+}
+
 /// Returns `<kind> <doc_type> <old> -> <new>`, the ids for a section, the
 /// keys for a field, the patterns for a move.
 String _describe(MigrationStep step) => switch (step) {
@@ -959,6 +971,9 @@ String _describe(MigrationStep step) => switch (step) {
     '${step.kind} ${step.docType} ${step.fromId} -> ${step.toId}',
   RenameField() => '${step.kind} ${step.docType} ${step.from} -> ${step.to}',
   MoveFile() => '${step.kind} ${step.docType} ${step.from} -> ${step.to}',
+  MoveToRecord() =>
+    '${step.kind} ${step.docTypes.join(', ')} ${step.fields.join(', ')} '
+        '-> ${step.to}',
 };
 
 /// Returns the doc paths in code point order, then the override paths in the
