@@ -4,6 +4,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -11,6 +13,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
 import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
@@ -652,5 +655,123 @@ void main() {
       run,
       'us01/fr02_x',
     ]);
+  });
+
+  group('consistency_check/find_template_breaks/check_target, --target', () {
+    const flutterArch = 'specs/flutter/f01_login/ARCHITECTURE.md';
+    const jasprArch = 'specs/jaspr/f01_login/ARCHITECTURE.md';
+    const brokenLink = ' See [x](../../../nowhere.md).';
+
+    // Two targets, a per-target architecture doc with one twin each, and a
+    // broken link in the feature and in each twin.
+    Future<Directory> twinProject() {
+      final files = checkProjectFiles();
+      // The twins read as approved: the helper's stamp skips a per-target path.
+      final twin = withApprovalHash(
+        toLf(
+          files['docs/$loginArchitecture']!.replaceFirst(
+            'One box.',
+            'One box.$brokenLink',
+          ),
+        ),
+        fixtureDocTypeOf(loginArchitecture),
+      );
+      return writeCheckProject(
+        without: {
+          'docs/$loginArchitecture',
+          'docs/$loginApi',
+          'app/lib/login.dart',
+        },
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: true\n',
+          '.specstone/templates/implementation.yaml':
+              'id: implementation\n'
+              'description: One feature record per target.\n'
+              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'parent: feature\n'
+              'per_target: true\n'
+              'fields:\n'
+              '  - id: statuses\n'
+              '    type: record_status\n'
+              '    list: true\n',
+          'docs/$flutterArch': twin,
+          'docs/$jasprArch': twin,
+          ...edit(loginFeature, [
+            ('Users forget passwords.', 'Users forget passwords.$brokenLink'),
+          ]),
+          'flutter_ws/app/lib/login.dart': 'class SignInPage {}\nclass FlutterSignIn {}\nbool checkPassword(String p) => p.isNotEmpty;\n',
+          'jaspr_ws/app/lib/login.dart': 'class SignInPage {}\nclass JasprSignIn {}\nbool checkPassword(String p) => p.isNotEmpty;\n',
+        },
+      );
+    }
+
+    test('E20: check feature:login lists the feature and each target spec folder; --target jaspr drops the flutter folder', () async {
+      final project = await twinProject();
+      final both = readRunner(project);
+      expect(await both.runner.run(['check', 'feature:login']), 1);
+      expect(
+        both.out.toString(),
+        allOf(
+          contains(loginFeature),
+          contains(flutterArch),
+          contains(jasprArch),
+        ),
+      );
+      final one = readRunner(project);
+      expect(
+        await one.runner.run(['check', 'feature:login', '--target', 'jaspr']),
+        1,
+      );
+      expect(
+        one.out.toString(),
+        allOf(
+          contains(loginFeature),
+          contains(jasprArch),
+          isNot(contains(flutterArch)),
+        ),
+      );
+      expect(one.out.toString(), endsWith('2 findings\n'));
+    });
+
+    test(
+      'E21: check --target jaspr keeps the shared docs and jaspr, --json too',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(['check', '--target', 'jaspr', '--json']), 1);
+        final findings =
+            (jsonDecode(out.toString()) as Map<String, Object?>)['findings']!
+                as List;
+        expect(
+          {for (final f in findings) (f as Map<String, Object?>)['docPath']},
+          {loginFeature, jasprArch},
+        );
+        expect(err.toString(), isEmpty);
+      },
+    );
+
+    test('E22: a --target name targets: lacks is argument_invalid, exit 64, no finding', () async {
+      final (:runner, :out, :err) = readRunner(await twinProject());
+      expect(await runner.run(['check', '--target', 'web']), 64);
+      expect(
+        err.toString(),
+        '--target web: the code targets are flutter, jaspr\n',
+      );
+      expect(out.toString(), isEmpty);
+    });
+
+    test(
+      'E22: --target with no value exits 64 and prints no finding',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(['check', '--target']), 64);
+        expect(out.toString(), isNot(contains('finding')));
+        expect(err.toString(), contains('target'));
+      },
+    );
   });
 }

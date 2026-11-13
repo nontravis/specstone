@@ -14,12 +14,13 @@ const _edge = r'[\p{L}\p{N}_]';
 /// whole word. A code file is read only to resolve a Symbol (INV-11).
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
   if (!context.typeHoldsField(context.typeOf(doc), implementsField)) return;
+  final target = context.targets.first;
   for (final (:value, :line, text: _)
       in context.linesOf(doc).entriesOf(implementsField)) {
     if (value is! String) continue;
     final entry = ImplementsEntry(value);
     final path = entry.path;
-    if (!entry.namesFileFrom(context.codeRoot)) {
+    if (!entry.namesFileFrom(context.codeRootOf(target))) {
       yield context.finding(
         doc,
         FindingKind.implementsPathUnresolved,
@@ -31,7 +32,7 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
     }
     final symbol = entry.symbol;
     if (symbol.isEmpty) continue;
-    final text = context.codeTextOf(path);
+    final text = context.codeTextOf(target, path);
     if (text == null) continue;
     for (final segment in symbol.split(_segmentMark)) {
       if (_wordPattern(segment).hasMatch(text)) continue;

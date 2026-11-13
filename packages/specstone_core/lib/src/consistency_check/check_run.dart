@@ -27,19 +27,26 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 /// the whole project.
 ///
 /// A [docPath] scope holds that doc's own findings and no project-level one.
-/// Throws an [ArgumentError] when both [target] and [docPath] are given, an
-/// `IndexFault` for a name no doc carries and a `TemplateFault` for an unknown
-/// doc type; the last two come from the index lookup.
-CheckReport runCheck(ReadSession session, {String? target, String? docPath}) {
+/// [codeTarget] names the one code target the run keeps; null keeps every
+/// target. Throws an [ArgumentError] when both [target] and [docPath] are
+/// given, an `IndexFault` for a name no doc carries or a [codeTarget] the
+/// project does not name, and a `TemplateFault` for an unknown doc type; the
+/// last three come from the index lookup.
+CheckReport runCheck(
+  ReadSession session, {
+  String? target,
+  String? docPath,
+  String? codeTarget,
+}) {
   if (target != null && docPath != null) {
     throw ArgumentError('give either a target or a docPath, not both');
   }
   final context = CheckContext(session);
   final index = context.index;
   final scope = switch ((target, docPath)) {
-    (final name?, _) => CheckScope.of(context, name),
-    (_, final path?) => CheckScope.doc(path),
-    _ => CheckScope.project(),
+    (final name?, _) => CheckScope.of(context, name, codeTarget: codeTarget),
+    (_, final path?) => CheckScope.doc(context, path, codeTarget: codeTarget),
+    _ => CheckScope.project(context, codeTarget: codeTarget),
   };
   final findings = <Finding>[];
   for (final doc in index.docs) {
