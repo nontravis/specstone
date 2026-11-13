@@ -2536,6 +2536,98 @@ void main() {
       expect(hasDoc(root, story3), isTrue);
     });
 
+    test('document_writing/move_story/move_story_folder E19: a pay record written after the session opened takes the entries beside its own', () async {
+      final root = await shopTwins();
+      writeIn(root, (s) {
+        docFile(root, payFlutter)
+          ..parent.createSync(recursive: true)
+          ..writeAsStringSync(recordText(statuses: ['card:planned']));
+        return answerMove(s, [addItem], under: 'shop/pay');
+      });
+
+      final pay = readDoc(root, payFlutter);
+      expect(pay, contains("'card:planned'"));
+      expect(pay, contains("'add_item:implemented'"));
+      expect(pay, contains("'add_item/check_stock:implemented'"));
+      expect(pay, contains("'add_item:app/lib/shop.dart:Shop'"));
+      expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a file at the pay record path that is no UTF-8 text refuses before any change', () async {
+      final root = await shopTwins();
+      expect(
+        () => writeIn(root, (s) {
+          docFile(root, payFlutter)
+            ..parent.createSync(recursive: true)
+            ..writeAsBytesSync([0xff, 0xfe, 0x00]);
+          return answerMove(s, [addItem], under: 'shop/pay');
+        }),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $payFlutter: not UTF-8 text',
+              ),
+        ),
+      );
+      expect(readDoc(root, cartFlutter), flutterCart);
+      expect(docFile(root, payFlutter).readAsBytesSync(), [0xff, 0xfe, 0x00]);
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a pay record whose implements block is not valid YAML refuses before any change, its lines kept', () async {
+      const broken =
+          "---\nstatuses:\n  - 'card:implemented'\n"
+          "implements:\n  - 'card:web/lib/card.dart\n  - card:web/lib/pay.dart\n"
+          '---\n\n# Record\n';
+      final root = await shopTwins(
+        extra: {
+          'docs/$cartJaspr': recordText(
+            statuses: ['add_item:implemented', 'drop_item:planned'],
+            code: ['add_item:web/lib/shop.dart'],
+          ),
+          'docs/$payJaspr': broken,
+        },
+      );
+      expect(
+        () => moveAddItem(root),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot write $payJaspr: its implements block is not valid '
+                    'YAML',
+              ),
+        ),
+      );
+      expect(readDoc(root, payJaspr), broken);
+      expect(readDoc(root, cartJaspr), contains("'add_item:implemented'"));
+      expect(hasDoc(root, cartAdd), isTrue);
+    });
+
+    test('document_writing/move_story/move_story_folder E19: a cart record whose implements block is not valid YAML refuses, the moved entries kept there', () async {
+      const broken =
+          "---\nstatuses:\n  - 'add_item:implemented'\n"
+          "implements:\n  - 'add_item:web/lib/shop.dart\n"
+          '---\n\n# Record\n';
+      final root = await shopTwins(extra: {'docs/$cartJaspr': broken});
+      expect(
+        () => moveAddItem(root),
+        throwsA(
+          isA<RenderFault>().having(
+            (f) => f.message,
+            'message',
+            'cannot write $cartJaspr: its implements block is not valid YAML',
+          ),
+        ),
+      );
+      expect(readDoc(root, cartJaspr), broken);
+    });
+
     test('document_writing/move_story/move_story_folder E19, E20: one unnamed code target carries its entries too', () async {
       final root = await writeNestedProject(
         extra: {

@@ -365,6 +365,9 @@ final class WriteStep extends JournalStep {
 
 /// Writes [text] to a path that does not exist yet, creating its parent
 /// folders; never overwrites.
+///
+/// A file there that holds [text] byte for byte is what a replay finds after
+/// the step ran, so the step is done; anything else there stops the run.
 final class CreateStep extends JournalStep {
   const new(this.path, this.text);
 
@@ -386,21 +389,37 @@ final class CreateStep extends JournalStep {
   List<String> get _paths => [path];
 
   @override
-  bool isDone(JournalTarget target) =>
-      FileSystemEntity.typeSync(_absolute(target, path), followLinks: false) !=
-      FileSystemEntityType.notFound;
+  bool isDone(JournalTarget target) {
+    final absolute = _absolute(target, path);
+    return FileSystemEntity.typeSync(absolute, followLinks: false) ==
+            FileSystemEntityType.file &&
+        _sameBytes(File(absolute).readAsBytesSync(), utf8.encode(text));
+  }
 
+  /// Throws [RenderFault] `output_not_writable`, the journal kept, when
+  /// anything but this step's own file is at [path].
   @override
   void apply(JournalTarget target) {
-    if (isDone(target)) return;
     final file = File(_absolute(target, path));
     try {
+      if (isDone(target)) return;
+      if (FileSystemEntity.typeSync(file.path, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw RenderFault(
+          RenderFaultCode.outputNotWritable,
+          'cannot create ${_shown(path)}: a file it did not write is there',
+        );
+      }
       file.parent.createSync(recursive: true);
       writeFileAtomic(file, utf8.encode(text));
     } on FileSystemException catch (error) {
       throw _notWritable('create', path, error);
     }
   }
+
+  static bool _sameBytes(List<int> a, List<int> b) =>
+      a.length == b.length &&
+      a.indexed.every((entry) => entry.$2 == b[entry.$1]);
 }
 
 /// Commits [paths] with [message], once.
@@ -1203,9 +1222,13 @@ RenderFault _notWritable(String verb, String path, Exception error) {
     FormatException(:final message) => message,
     _ => '$error',
   };
-  final shown = path.startsWith('docs/') ? path.substring(5) : path;
   return RenderFault(
     RenderFaultCode.outputNotWritable,
-    'cannot $verb $shown: $reason',
+    'cannot $verb ${_shown(path)}: $reason',
   );
 }
+
+/// Returns the step [path] as a fault names it: relative to the docs root
+/// when it lies under it.
+String _shown(String path) =>
+    path.startsWith('docs/') ? path.substring(5) : path;

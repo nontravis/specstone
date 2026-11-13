@@ -281,6 +281,7 @@ RunPlan _upgradeRunOf(
     set: finalSet,
     recordType: finalSet.recordDocType,
     firstTarget: firstTarget,
+    isTaken: takenAfter(moves, (docPath) => _existsIn(docsRoot, docPath)),
     docs: [
       for (final work in works)
         (

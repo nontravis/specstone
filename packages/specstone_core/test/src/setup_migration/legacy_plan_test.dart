@@ -1666,6 +1666,28 @@ name: Login API
       },
     );
 
+    test('E14: a file at the record path the run cannot read as a record '
+        'refuses with value_unplaced instead of losing the values', () async {
+      final root = await writeTree(recorded());
+      File('${root.path}/docs/$recordPath')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([0xff, 0xfe, 0x00]);
+
+      expect(
+        () => planLegacyRun(
+          Directory(root.resolveSymbolicLinksSync()),
+          templates: TemplateResolver(),
+          homeDirectory: null,
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
+              .having((f) => f.file, 'file', storyPath)
+              .having((f) => f.message, 'message', contains(recordPath)),
+        ),
+      );
+    });
+
     test('E14: a record the tree already holds gains the entry as an edit, '
         'never a second create', () async {
       final plan = await _plan({

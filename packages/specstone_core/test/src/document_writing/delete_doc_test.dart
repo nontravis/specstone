@@ -1763,6 +1763,37 @@ void main() {
       expect(hasDoc(root, story3), isTrue);
     }, skip: unreadablePathSkipReason() ?? false);
 
+    test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record whose implements block is not valid YAML refuses in the dry run as in the run, and nothing is removed', () async {
+      const broken =
+          "---\nstatuses:\n  - 'reset_password:implemented'\n"
+          "implements:\n  - 'reset_password:app/lib/reset.dart\n"
+          '---\n\n# Record\n';
+      final root = await writeWriteProject(extra: _withRecords(login: broken));
+      final refusesRecord = throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having(
+              (f) => f.message,
+              'message',
+              'cannot write $_loginRecord: its implements block is not valid '
+                  'YAML',
+            ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['user_story:login/reset_password']),
+        ),
+        refusesRecord,
+      );
+      expect(
+        () => del(root, ['user_story:login/reset_password']),
+        refusesRecord,
+      );
+      expect(hasDoc(root, story3), isTrue);
+      expect(readDoc(root, _loginRecord), broken);
+    });
+
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record with CRLF line ends and a byte-order mark keeps both', () async {
       final record = recordText(
         statuses: ['email_login:implemented', 'reset_password:implemented'],

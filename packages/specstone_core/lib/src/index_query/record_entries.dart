@@ -186,6 +186,18 @@ Map<String, IndexedDoc> recordItemsOf(
 /// written in its field.
 typedef RecordLines = ({List<String> statuses, List<String> code});
 
+/// Thrown when a record field block a write reads is not valid YAML, so the
+/// write cannot tell which lines it holds and refuses rather than drop any.
+final class RecordFieldUnreadable implements Exception {
+  const new(this.field);
+
+  /// The field's key as the block spells it.
+  final String field;
+
+  @override
+  String toString() => 'the $field block is not valid YAML';
+}
+
 /// Returns [lfText], the text of a record of [recordType], with the item of
 /// each line of its `record_status` and `item_exact` fields set to what
 /// [rewrite] returns; null when no line changes.
@@ -195,7 +207,8 @@ typedef RecordLines = ({List<String> statuses, List<String> code});
 /// drop the line. A line that names no item stays. A field that changes is
 /// written back as a block list, one quoted line each, or removed when no line
 /// is left; every other key, and a field that does not change, stays as
-/// written. It marks no draft.
+/// written. It marks no draft. Throws [RecordFieldUnreadable] when either
+/// field's block is not valid YAML.
 String? rewriteRecordItems(
   String lfText,
   MergedDocType recordType,
@@ -213,7 +226,8 @@ String? rewriteRecordItems(
 /// and the rest of the line as written.
 ///
 /// [carry] takes a line's item and returns the name to carry it under, or null
-/// to leave the line out. A line that names no item is left out.
+/// to leave the line out. A line that names no item is left out. Throws
+/// [RecordFieldUnreadable] when either field's block is not valid YAML.
 RecordLines recordLinesCarried(
   String lfText,
   MergedDocType recordType,
@@ -243,7 +257,9 @@ RecordLines recordLinesCarried(
 /// when [lines] holds none.
 ///
 /// A field that gains lines is written back as a block list, one quoted line
-/// each, as [rewriteRecordItems] writes it. It marks no draft.
+/// each, as [rewriteRecordItems] writes it. It marks no draft. Throws
+/// [RecordFieldUnreadable] when the block of a field that gains lines is not
+/// valid YAML, since writing it back would drop the lines it holds.
 String? addRecordLines(
   String lfText,
   MergedDocType recordType,
@@ -272,7 +288,7 @@ List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
 /// Returns the key as spelled in the block of [field] in [lfText] and the
 /// lines it lists, one value alone as one line; null when the key is absent.
 ///
-/// A block that is no valid YAML lists no line.
+/// Throws [RecordFieldUnreadable] for a block that is no valid YAML.
 ({String key, List<Object?> lines})? _fieldLinesOf(
   String lfText,
   MergedField field,
@@ -285,7 +301,7 @@ List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
   try {
     parsed = loadYaml(block.text);
   } on YamlException {
-    return (key: block.key, lines: const []);
+    throw RecordFieldUnreadable(block.key);
   }
   final value = parsed is YamlMap ? parsed[field.id] : null;
   return (

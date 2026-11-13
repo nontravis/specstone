@@ -485,6 +485,7 @@ _Rewrites _rewritesOf(
     set: projectSet,
     steps: recordSteps,
     firstTarget: targetNames.length > 1 ? targetNames.first : null,
+    isTaken: takenAfter(moves, exists),
   );
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
@@ -564,14 +565,16 @@ String _approvedBlockOf(String lf) => [
 /// It is the upgrade's `move_to_record` step, placed by the same builder, so
 /// both paths write the same record. A record the tree already holds gains
 /// the entries in its own work. [firstTarget] is the target a record lands
-/// in, null for a project with fewer than two targets. Throws `MigrateFault`
-/// `value_unplaced` when a value has no place.
+/// in, null for a project with fewer than two targets; [isTaken] is as
+/// [RecordMoves.place] reads it. Throws `MigrateFault` `value_unplaced` when a
+/// value has no place.
 List<PlannedCreate> _moveToRecords(
   List<_Work> works,
   MatchedDocType? Function(_Work work) matchOf, {
   required MergedSet set,
   required List<MoveToRecord> steps,
   required String? firstTarget,
+  required bool Function(String docPath) isTaken,
 }) {
   final recordType = set.recordDocType;
   if (recordType == null) return const [];
@@ -597,6 +600,7 @@ List<PlannedCreate> _moveToRecords(
     set: set,
     recordType: recordType,
     firstTarget: firstTarget,
+    isTaken: isTaken,
     docs: [
       for (final (index, work) in works.indexed)
         (

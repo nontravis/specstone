@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/rewrite_records.dart'
+    show readRecord;
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
@@ -59,8 +61,9 @@ List<RecordEdit> recordEditsOf(WriteSession session, Set<String> inUnit) {
 /// changes.
 ///
 /// `entries` lists each item [rewrite] drops or renames. Throws a
-/// `RenderFault` `output_not_writable` for a record that is read-only, so a
-/// dry run refuses it as the run does.
+/// `RenderFault` `output_not_writable` for a record that is read-only or
+/// whose field block is not valid YAML, so a dry run refuses it as the run
+/// does.
 RecordEdit? recordEditOf(
   WriteSession session,
   String docPath,
@@ -70,13 +73,14 @@ RecordEdit? recordEditOf(
   final bytes = session.readDocBytes(docPath);
   if (bytes == null) return null;
   final changed = <String>{};
-  final lfText = rewriteRecordItems(toLf(utf8.decode(bytes)), recordType, (
-    item,
-  ) {
-    final next = rewrite(item);
-    if (next != item) changed.add(item);
-    return next;
-  });
+  final lfText = readRecord(
+    docPath,
+    () => rewriteRecordItems(toLf(utf8.decode(bytes)), recordType, (item) {
+      final next = rewrite(item);
+      if (next != item) changed.add(item);
+      return next;
+    }),
+  );
   if (lfText == null) return null;
   session.requireWritable(docPath);
   return (

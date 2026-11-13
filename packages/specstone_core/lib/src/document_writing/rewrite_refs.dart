@@ -232,7 +232,8 @@ String? rewriteDocRefs(
 /// [onSkipped] as the warning line, and no step is planned for it.
 ///
 /// [recordEdits] maps the DocPath of a record to the edit of its entries; the
-/// record is a candidate, and the edit joins the other rewrites of its step.
+/// record is a candidate, indexed or not, and the edit joins the other
+/// rewrites of its step.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
@@ -257,10 +258,15 @@ List<WriteStep> planRewrites(
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
         _mentionsRenamedDoc(index, doc, renamed) ||
-        _namesRenamedLabel(session, doc, renamed) ||
-        recordEdits.containsKey(doc.docPath)) {
+        _namesRenamedLabel(session, doc, renamed)) {
       candidates[doc.docPath] = doc;
     }
+  }
+  for (final docPath in recordEdits.keys) {
+    candidates.putIfAbsent(
+      docPath,
+      () => index.at(docPath) ?? _unindexedDoc(session, docPath),
+    );
   }
   final steps = [
     for (final doc in candidates.values)
@@ -399,6 +405,16 @@ bool _existsBeforeMoves(WriteSession session, String path) =>
     session.index.at(path) != null ||
     FileSystemEntity.typeSync(session.fileOf(path).path) !=
         FileSystemEntityType.notFound;
+
+/// Returns the doc at [docPath], on disk but not in the session's snapshot, as
+/// a step reads it: typed by the matcher, with no parent indexed.
+IndexedDoc _unindexedDoc(WriteSession session, String docPath) => IndexedDoc(
+  docPath: docPath,
+  docTypeId: session.docTypeAt(docPath)?.id,
+  name: docPath,
+  frontmatter: const {},
+  tokens: 0,
+);
 
 WriteStep? _stepFor(
   WriteSession session,

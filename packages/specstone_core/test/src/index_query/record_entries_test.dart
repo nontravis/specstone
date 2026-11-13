@@ -408,4 +408,52 @@ void main() {
       );
     });
   });
+
+  group('a record field block that is not valid YAML', () {
+    const broken =
+        '---\nstatuses:\n  - c:planned\n'
+        "implements:\n  - 'c:lib/c.dart\n  - c:lib/form.dart\n"
+        '---\n\n# R\n';
+    final unreadable = throwsA(
+      isA<RecordFieldUnreadable>().having(
+        (e) => e.field,
+        'field',
+        'implements',
+      ),
+    );
+
+    test('document_writing/move_story/move_story_folder E19: addRecordLines refuses rather than drop the lines held there', () {
+      expect(
+        () => addRecordLines(broken, _recordType, (
+          statuses: const [],
+          code: const ['k/a:lib/a.dart'],
+        )),
+        unreadable,
+      );
+    });
+
+    test('document_writing/move_story/move_story_folder E19: addRecordLines adds to a readable field beside it', () {
+      expect(
+        addRecordLines(broken, _recordType, (
+          statuses: const ['k/a:planned'],
+          code: const [],
+        )),
+        contains("  - 'k/a:planned'\n"),
+      );
+    });
+
+    test('document_writing/move_story/move_story_folder E19: rewriteRecordItems refuses, as the block may hold a line it must change', () {
+      expect(
+        () => rewriteRecordItems(broken, _recordType, (_) => null),
+        unreadable,
+      );
+    });
+
+    test('document_writing/move_story/move_story_folder E19: recordLinesCarried refuses, as the block may hold a line it must carry', () {
+      expect(
+        () => recordLinesCarried(broken, _recordType, (_) => 'k'),
+        unreadable,
+      );
+    });
+  });
 }

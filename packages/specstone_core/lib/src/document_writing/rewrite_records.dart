@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
@@ -52,6 +53,10 @@ final class _Arrival {
 /// record holds no line of it changes nothing, and a landing feature with no
 /// record in that target gets one, as a draft, holding the lines. The feature
 /// itself keeps its own entry.
+///
+/// Throws [RenderFault] `output_not_writable` before the journal for a record
+/// whose field block is not valid YAML, and for a file at a record path the
+/// index lacks that is no UTF-8 record, so no line is dropped.
 RecordPlan planRecordRewrites(
   WriteSession session,
   Map<(String, String), String> renamed,
@@ -93,10 +98,13 @@ final class _Planner {
   void _planSource(IndexedDoc record, IndexedDoc feature) {
     final (:inPlace, :leaving) = _itemMovesOf(_index, feature, renamed);
     if (inPlace.isEmpty && leaving.isEmpty) return;
-    _edits[record.docPath] = (text) => rewriteRecordItems(
-      text,
-      recordType,
-      (item) => leaving.containsKey(item) ? null : inPlace[item] ?? item,
+    _edits[record.docPath] = (text) => readRecord(
+      record.docPath,
+      () => rewriteRecordItems(
+        text,
+        recordType,
+        (item) => leaving.containsKey(item) ? null : inPlace[item] ?? item,
+      ),
     );
     final bytes = leaving.isEmpty ? null : session.readDocBytes(record.docPath);
     if (bytes == null) return;
@@ -105,10 +113,15 @@ final class _Planner {
       for (final move in leaving.values) move.feature.docPath: move.feature,
     };
     for (final MapEntry(key: path, value: landing) in landings.entries) {
-      final lines = recordLinesCarried(lfText, recordType, (item) {
-        final move = leaving[item];
-        return move != null && move.feature.docPath == path ? move.name : null;
-      });
+      final lines = readRecord(
+        record.docPath,
+        () => recordLinesCarried(lfText, recordType, (item) {
+          final move = leaving[item];
+          return move != null && move.feature.docPath == path
+              ? move.name
+              : null;
+        }),
+      );
       if (lines.statuses.isEmpty && lines.code.isEmpty) continue;
       final key = (path, record.target);
       _arrivals
@@ -119,17 +132,58 @@ final class _Planner {
 
   /// Adds the lines of [arrival] to the record that holds them, or returns the
   /// step that creates it.
+  ///
+  /// The session's index is a snapshot, so a record path it lacks is read on
+  /// disk: a record there takes the lines as an indexed one does.
   CreateStep? _land(_Arrival arrival) {
     final lines = (statuses: arrival.statuses, code: arrival.code);
     final held = _index
         .ofTypeNamed(recordType.id, arrival.feature.name)
         .where((record) => record.target == arrival.target)
         .firstOrNull;
-    if (held == null) {
-      return _createdRecord(session, recordType, arrival, lines);
+    if (held != null) {
+      _addTo(held.docPath, lines);
+      return null;
     }
-    _edits[held.docPath] = (text) => addRecordLines(text, recordType, lines);
+    final record = _newRecordFor(session, recordType, arrival, lines);
+    if (session.readDocBytes(record.docPath) == null) {
+      session.requireWritable(record.docPath);
+      return CreateStep(session.projectPathOf(record.docPath), record.text);
+    }
+    _requireRecordAt(record.docPath);
+    _addTo(record.docPath, lines);
     return null;
+  }
+
+  void _addTo(String docPath, RecordLines lines) {
+    _edits[docPath] = (text) =>
+        readRecord(docPath, () => addRecordLines(text, recordType, lines));
+  }
+
+  /// Throws [RenderFault] `output_not_writable` unless the matcher reads the
+  /// file at [docPath], which the snapshot did not index, as a record.
+  void _requireRecordAt(String docPath) {
+    if (session.docTypeAt(docPath)?.id == recordType.id) return;
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $docPath: it is no ${recordType.id} doc',
+    );
+  }
+}
+
+/// Returns what [read] returns from the record at [docPath].
+///
+/// Throws [RenderFault] `output_not_writable` naming the record when a field
+/// block [read] needs is not valid YAML, so the write refuses before the
+/// journal rather than drop a line it cannot place.
+T readRecord<T>(String docPath, T Function() read) {
+  try {
+    return read();
+  } on RecordFieldUnreadable catch (error) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      'cannot write $docPath: its ${error.field} block is not valid YAML',
+    );
   }
 }
 
@@ -182,14 +236,14 @@ _Landing? _landingOf(
   return (feature: feature, name: name.substring(featureName.length + 1));
 }
 
-/// Returns the step that creates the record [arrival] needs, as a draft with
+/// Returns the DocPath and text of the record [arrival] needs, as a draft with
 /// [lines] in it.
 ///
 /// A path the project reads in a target's folder only with two or more
 /// targets, as the doc type matcher reads it. Throws [IndexFault]
 /// `argument_invalid` when the record doc type has no path of its own for the
 /// feature, as `new` does, so the lines never leave the old record unplaced.
-CreateStep _createdRecord(
+({String docPath, String text}) _newRecordFor(
   WriteSession session,
   MergedDocType recordType,
   _Arrival arrival,
@@ -216,8 +270,7 @@ CreateStep _createdRecord(
       '${arrival.feature.name}',
     );
   }
-  session.requireWritable(record.docPath);
-  return CreateStep(session.projectPathOf(record.docPath), record.text);
+  return record;
 }
 
 /// Returns the DocPath and laid-out text of the draft record of the feature at

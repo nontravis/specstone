@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
+import 'package:specstone_core/src/document_writing/moved_paths.dart'
+    show PathMove;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -123,11 +125,16 @@ final class RecordMoves {
   /// as it is; a different one, or any value no record entry takes, is
   /// `value_unplaced`, listed for every such doc at once
   /// (apply_steps_and_pins E33 to E35).
+  ///
+  /// [isTaken] tells whether a DocPath holds a file or folder once the run's
+  /// moves ran; a new record whose path it holds is `value_unplaced`, since
+  /// that file is none of [docs]' records and the create would never write.
   RecordPlacement place({
     required MergedSet set,
     required MergedDocType? recordType,
     required String? firstTarget,
     required List<PlacementDoc> docs,
+    required bool Function(String docPath) isTaken,
   }) {
     if (_taken.isEmpty) {
       return (unplaced: const [], edits: const {}, creates: const []);
@@ -176,7 +183,7 @@ final class RecordMoves {
     final edits = <String, String>{};
     final creates = <NewRecord>[];
     for (final (:feature, :movers) in byFeature.values) {
-      final landed = _land(tree, recordType, feature, movers);
+      final landed = _land(tree, recordType, feature, movers, isTaken);
       unplaced.addAll(landed.unplaced);
       switch (landed.record) {
         case (:final docPath, :final text, isNew: true):
@@ -216,6 +223,19 @@ void throwFaultsPerDoc(List<MigrateFault> faults) {
   );
 }
 
+/// Returns whether a DocPath holds a file or folder once [moves] ran: a move
+/// lands on it, or [exists] finds one there before the moves and no move
+/// takes it away; the `isTaken` of [RecordMoves.place].
+bool Function(String docPath) takenAfter(
+  List<PathMove> moves,
+  bool Function(String docPath) exists,
+) {
+  final landed = {for (final move in moves) move.to};
+  final vacated = {for (final move in moves) move.from};
+  return (docPath) =>
+      landed.contains(docPath) || !vacated.contains(docPath) && exists(docPath);
+}
+
 /// Returns the records [placement] creates as plan creates, each a draft, in
 /// code point order of their paths.
 List<PlannedCreate> recordCreatesOf(RecordPlacement placement) => [
@@ -241,6 +261,7 @@ _Landed _land(
   MergedDocType recordType,
   IndexedDoc feature,
   List<_Mover> movers,
+  bool Function(String docPath) isTaken,
 ) {
   List<MigrateFault> refuseAll(String why, {bool codeOnly = false}) => [
     for (final mover in movers)
@@ -297,37 +318,44 @@ _Landed _land(
   if (statuses.isEmpty && code.isEmpty) {
     return (unplaced: unplaced, record: null);
   }
+  _Landed refused(String why, {bool codeOnly = false}) => (
+    unplaced: [
+      ...unplaced,
+      ...refuseAll(why, codeOnly: codeOnly),
+    ],
+    record: null,
+  );
   if (code.isNotEmpty && recordCodeFieldOf(recordType) == null) {
-    return (
-      unplaced: [
-        ...unplaced,
-        ...refuseAll(
-          '${recordType.id} has no field for code paths',
-          codeOnly: true,
-        ),
-      ],
-      record: null,
+    return refused(
+      '${recordType.id} has no field for code paths',
+      codeOnly: true,
     );
   }
   final lines = (statuses: statuses, code: code);
   if (held != null) {
+    final String? added;
+    try {
+      added = addRecordLines(held.lf, recordType, lines);
+    } on RecordFieldUnreadable catch (error) {
+      return refused(
+        'the ${error.field} block of the record of ${feature.name} is not '
+        'valid YAML',
+        codeOnly: error.field == recordCodeFieldOf(recordType)?.id,
+      );
+    }
     return (
       unplaced: unplaced,
-      record: (
-        docPath: held.plannedPath,
-        text: addRecordLines(held.lf, recordType, lines) ?? held.lf,
-        isNew: false,
-      ),
+      record: (docPath: held.plannedPath, text: added ?? held.lf, isNew: false),
     );
   }
   final created = tree.newRecordOf(feature, lines);
   if (created == null) {
-    return (
-      unplaced: [
-        ...unplaced,
-        ...refuseAll('no path places the record of ${feature.name}'),
-      ],
-      record: null,
+    return refused('no path places the record of ${feature.name}');
+  }
+  if (isTaken(created.docPath)) {
+    return refused(
+      'the record of ${feature.name} goes to ${created.docPath}, which holds '
+      'a file the run cannot read as a record',
     );
   }
   return (

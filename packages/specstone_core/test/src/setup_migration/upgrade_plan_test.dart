@@ -2652,6 +2652,41 @@ void _moveToRecordTests() {
       expect(fault.message, contains('not valid YAML'));
     });
 
+    test('$_fr E35: a file at the record path the run cannot read as a '
+        'record refuses instead of losing the values', () async {
+      final fixture = await _recordFixture();
+      File('${fixture.project.path}/docs/$_recordPath')
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([0xff, 0xfe, 0x00]);
+
+      final fault = _refusedPlan(fixture);
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.file, _loginStoryPath);
+      expect(fault.message, contains(_recordPath));
+      expect(fault.more, hasLength(1));
+    });
+
+    test('$_fr E35: a record whose code block reads only beside another block '
+        'refuses instead of losing its lines', () async {
+      final fault = _refusedPlan(
+        await _recordFixture(
+          docs: {
+            ..._loginDocs,
+            _recordPath: "---\nanchor: &a ['x']\nimplements: *a\n---\n# R\n",
+          },
+        ),
+      );
+
+      expect(fault.code, MigrateFaultCode.valueUnplaced);
+      expect(fault.file, _loginStoryPath);
+      expect(fault.key, 'implements');
+      expect(
+        fault.message,
+        contains('the implements block of the record of login is not valid'),
+      );
+    });
+
     test(
       '$_fr E35: a record type with no code field refuses a code path',
       () async {

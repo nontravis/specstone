@@ -1191,20 +1191,86 @@ void main() {
       );
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
-    test('f06/us01/fr07: a create step writes an absent file and never overwrites one', () async {
+    test('f06/us01/fr07: a create step writes an absent file', () async {
       final root = await writeTree({'docs/prds/PROJECT.md': 'old\n'});
-      final target = _target(root);
-      const CreateStep('docs/specs/TECH_STACK.md', 'draft\n').apply(target);
-      const CreateStep('docs/prds/PROJECT.md', 'new\n').apply(target);
+      const CreateStep(
+        'docs/specs/TECH_STACK.md',
+        'draft\n',
+      ).apply(_target(root));
       expect(
         File('${root.path}/docs/specs/TECH_STACK.md').readAsStringSync(),
         'draft\n',
+      );
+    });
+
+    test('$_finish: a create step whose file holds its text byte for byte is '
+        'a replay, done', () async {
+      final root = await writeTree({'docs/prds/PROJECT.md': 'new\n'});
+      const step = CreateStep('docs/prds/PROJECT.md', 'new\n');
+
+      expect(step.isDone(_target(root)), isTrue);
+      step.apply(_target(root));
+
+      expect(
+        File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
+        'new\n',
+      );
+    });
+
+    test('$_finish: a create step never overwrites another file, and stops the '
+        'run before the later steps', () async {
+      final root = await writeTree({
+        'docs/prds/PROJECT.md': 'old\n',
+        'docs/prds/NOTE.md': 'note\n',
+      });
+      const step = CreateStep('docs/prds/PROJECT.md', 'new\n');
+
+      expect(step.isDone(_target(root)), isFalse);
+      expect(
+        () => const MoveJournal([
+          step,
+          WriteStep.unguarded('docs/prds/NOTE.md', 'later\n'),
+        ]).run(_target(root)),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'cannot create prds/PROJECT.md: a file it did not write is '
+                    'there',
+              ),
+        ),
       );
       expect(
         File('${root.path}/docs/prds/PROJECT.md').readAsStringSync(),
         'old\n',
       );
+      expect(
+        File('${root.path}/docs/prds/NOTE.md').readAsStringSync(),
+        'note\n',
+      );
+      expect(MoveJournal.pending(root), isTrue);
     });
+
+    test(
+      '$_finish: a folder where a create step writes stops the run too',
+      () async {
+        final root = await writeTree({'docs/prds/PROJECT.md/keep.txt': ''});
+
+        expect(
+          () => const CreateStep(
+            'docs/prds/PROJECT.md',
+            'new\n',
+          ).apply(_target(root)),
+          throwsA(isA<RenderFault>()),
+        );
+        expect(
+          Directory('${root.path}/docs/prds/PROJECT.md').existsSync(),
+          isTrue,
+        );
+      },
+    );
 
     test('f06/us01/fr07: a journal of moves, commit 1, writes, commit 2 makes two commits, the first pure renames', () async {
       final root = await _gitTree({
