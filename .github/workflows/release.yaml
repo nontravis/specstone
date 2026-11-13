@@ -66,6 +66,11 @@ jobs:
           cp -R "$RUNNER_TEMP/build/bundle/bin" "$RUNNER_TEMP/stage/bin"
           cp -R "$RUNNER_TEMP/build/bundle/lib" "$RUNNER_TEMP/stage/lib"
           cp LICENSE "$RUNNER_TEMP/stage/LICENSE"
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp -p packages/specstone/bin/stn.cmd "$RUNNER_TEMP/stage/bin/stn.cmd"
+          else
+            cp -p packages/specstone/bin/stn "$RUNNER_TEMP/stage/bin/stn"
+          fi
       - name: Pack the archive
         if: runner.os != 'Windows'
         run: tar -czf "$RUNNER_TEMP/dist/$ASSET" -C "$RUNNER_TEMP/stage" .
@@ -73,6 +78,29 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: Compress-Archive -Path "$env:RUNNER_TEMP\stage\*" -DestinationPath "$env:RUNNER_TEMP\dist\$env:ASSET"
+      - name: Check the shim in the archive
+        run: |
+          if [ "$RUNNER_OS" != Windows ]; then
+            listing=$(tar -tvzf "$RUNNER_TEMP/dist/$ASSET")
+            echo "$listing" | grep 'bin/stn$' | grep -Eq '^-..x' || {
+              echo "bin/stn missing or not executable in $ASSET" >&2
+              exit 1
+            }
+            if echo "$listing" | grep -q 'stn.cmd$'; then
+              echo "stn.cmd packed into $ASSET" >&2
+              exit 1
+            fi
+          else
+            listing=$(unzip -l "$RUNNER_TEMP/dist/$ASSET")
+            echo "$listing" | grep -q 'bin/stn.cmd$' || {
+              echo "bin/stn.cmd missing in $ASSET" >&2
+              exit 1
+            }
+            if echo "$listing" | grep -q 'bin/stn$'; then
+              echo "bin/stn packed into $ASSET" >&2
+              exit 1
+            fi
+          fi
       - name: Write SHA256SUMS
         working-directory: ${{ runner.temp }}/dist
         run: |

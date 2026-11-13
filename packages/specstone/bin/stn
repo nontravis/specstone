@@ -1,0 +1,42 @@
+#!/bin/sh
+# Runs the Specstone CLI by its short name: the first other `stn` found on an
+# absolute PATH entry takes the run (with a loop guard added), else the
+# specstone beside this shim does. Arguments, streams, environment, and exit
+# status pass through unchanged; the PATH is read, never rewritten.
+set -u
+
+case "$0" in
+  */*) shim_dir=${0%/*} ;;
+  *) shim_dir=. ;;
+esac
+
+# A hand-off that came back here: run the CLI beside it at once
+# (run_cli_or_yield E01 backs the own-folder compare below).
+if [ -n "${SPECSTONE_STN_GUARD:-}" ]; then
+  exec "$shim_dir/specstone" "$@"
+fi
+
+# The shim's own folder, resolved: symlinks followed, trailing `/` dropped.
+own_dir=$(cd "$shim_dir" 2>/dev/null && pwd -P) || own_dir=''
+
+# Walk the PATH entries in order, reading absolute entries only, and hand the
+# run to the first other `stn`: a regular file with an execute bit, a link
+# counting by the file it leads to (run_cli_or_yield E02, E08, E09).
+rest=${PATH:-}:
+while [ -n "$rest" ]; do
+  entry=${rest%%:*}
+  rest=${rest#*:}
+  case "$entry" in
+    /*)
+      resolved=$(cd "$entry" 2>/dev/null && pwd -P) || continue
+      if [ "$resolved" != "$own_dir" ] &&
+        [ -f "$entry/stn" ] && [ -x "$entry/stn" ]; then
+        SPECSTONE_STN_GUARD=1
+        export SPECSTONE_STN_GUARD
+        exec "$entry/stn" "$@"
+      fi
+      ;;
+  esac
+done
+
+exec "$shim_dir/specstone" "$@"

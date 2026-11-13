@@ -2338,5 +2338,244 @@ esac''');
         },
       );
     });
+
+    group('name_other_stn_at_install', () {
+      const fr =
+          'install_update/machine_install/run_by_short_name/'
+          'name_other_stn_at_install';
+
+      String notice(String path) =>
+          'specstone: another stn is at $path; '
+          'type specstone to run the CLI\n';
+
+      // Writes another tool's recording `stn` in [folder] and returns the
+      // entry's path.
+      String otherStn(String folder, {int exit = 0}) {
+        final file = File('$folder/stn')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(
+            '#!/bin/sh\n'
+            r'printf "%s\n" "$*" >> "$STUB_LOG_DIR/other.log"'
+            '\n'
+            'exit $exit\n',
+          );
+        Process.runSync('chmod', ['755', file.path]);
+        return folder;
+      }
+
+      test('$fr S2, E04: another stn on a later absolute entry prints one '
+          'notice line; bin/stn is installed and executable; exit 0', () async {
+        final sb = await sandboxWith();
+        final tools = Directory('${sb.root.path}/space tools')..createSync();
+        otherStn(tools.path, exit: 7);
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              tools.path,
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains(notice('${tools.path}/stn')));
+        final occurrences = 'another stn'.allMatches(r.stdout as String).length;
+        expect(occurrences, 1);
+        final shim = File('${sb.home.path}/.specstone/bin/stn');
+        expect(shim.existsSync(), isTrue);
+        // The run keeps the runner's PATH out, so the shim beside the fake
+        // specstone is the program that runs, not a stn on this machine.
+        final run = Process.runSync(
+          shim.path,
+          ['--version'],
+          environment: const {'PATH': '/usr/bin:/bin'},
+          includeParentEnvironment: false,
+        );
+        expect(run.exitCode, 0, reason: '${run.stderr}');
+        expect(sb.logOf('other'), isEmpty);
+      });
+
+      test('$fr E02: two other stn name the earlier entry only', () async {
+        final sb = await sandboxWith();
+        final first = otherStn('${sb.root.path}/first');
+        final second = otherStn('${sb.root.path}/second');
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              first,
+              second,
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains(notice('$first/stn')));
+        expect(r.stdout, isNot(contains('$second/stn')));
+      });
+
+      test('$fr E01: no other stn prints no notice', () async {
+        final sb = await sandboxWith();
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('another stn')));
+      });
+
+      test(
+        '$fr E03: a stn on a relative entry only prints no notice',
+        () async {
+          final sb = await sandboxWith();
+          otherStn('${sb.root.path}/rel');
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {
+              ...archiveEnv(sb),
+              'PATH': ['rel:.::', sb.stubs.path, '/usr/bin:/bin'].join(':'),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, isNot(contains('another stn')));
+        },
+      );
+
+      test('$fr E07: the install folder with a trailing slash or through a '
+          'symlink prints no notice', () async {
+        final sb = await sandboxWith();
+        final linked = '${sb.root.path}/linked';
+        Process.runSync('ln', ['-s', '${sb.home.path}/.specstone/bin', linked]);
+
+        for (final entry in ['${sb.home.path}/.specstone/bin/', linked]) {
+          final r = await sb.run(
+            'install.sh',
+            extra: {
+              ...archiveEnv(sb),
+              'PATH': [entry, sb.stubs.path, '/usr/bin:/bin'].join(':'),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, isNot(contains('another stn')), reason: entry);
+        }
+      });
+
+      test('$fr E08: a folder named stn prints no notice', () async {
+        final sb = await sandboxWith();
+        Directory('${sb.root.path}/tools/stn').createSync(recursive: true);
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              '${sb.root.path}/tools',
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('another stn')));
+      });
+
+      test(
+        '$fr E08: a non-executable file named stn prints no notice',
+        () async {
+          final sb = await sandboxWith();
+          File('${sb.root.path}/tools/stn')
+            ..createSync(recursive: true)
+            ..writeAsStringSync('#!/bin/sh\nexit 5\n');
+
+          final r = await sb.run(
+            'install.sh',
+            extra: {
+              ...archiveEnv(sb),
+              'PATH': [
+                '${sb.home.path}/.specstone/bin',
+                '${sb.root.path}/tools',
+                sb.stubs.path,
+                '/usr/bin:/bin',
+              ].join(':'),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, isNot(contains('another stn')));
+        },
+      );
+
+      test('review focus 5: a missing absolute entry is skipped with nothing '
+          'on stderr', () async {
+        final sb = await sandboxWith();
+        final missing = '${sb.root.path}/no such folder';
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              missing,
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stderr, isEmpty, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('another stn')));
+      });
+
+      test('api install step 5: a run at the installed Version prints the '
+          'notice too', () async {
+        final sb = await sandboxWith();
+        sb.installFake(version: '0.2.0');
+        final tools = Directory('${sb.root.path}/tools')..createSync();
+        otherStn(tools.path);
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              tools.path,
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('is already the latest release'));
+        expect(r.stdout, contains(notice('${tools.path}/stn')));
+      });
+    });
   });
 }
