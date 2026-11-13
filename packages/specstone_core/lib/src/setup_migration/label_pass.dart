@@ -83,15 +83,12 @@ const _Base _noPlace = (feature: null, story: null);
 /// The docs and files a label resolves against: DocPaths with their order
 /// numbers, and the item IDs each doc holds.
 final class LabelTree {
-  /// Reads the numbered docs of [docs], DocPath and LF text, each once, as
-  /// the index reads them.
+  /// Reads the numbered docs of [docs], DocPath and LF text, as the index does.
   ///
   /// [docTypes] holds the merged type of each typed doc by DocPath. A doc's
-  /// feature and story come from its type and parent chain in [set]: the
-  /// nearest `feature` and `user_story` up the chain, at any nesting depth,
-  /// each numbered by the `{nn}` of its own path segment. A doc is numbered
-  /// when it is a feature, user story, or FR doc, or a spec doc that sits
-  /// under a feature; a spec doc is named from its type.
+  /// feature and story are the nearest `feature` and `user_story` up its
+  /// parent chain in [set], at any depth, numbered by their own path segment.
+  /// A feature, user story, FR, or spec doc under a feature is numbered.
   new of(
     Iterable<({String docPath, String lf})> docs, {
     required MergedSet set,
@@ -365,38 +362,16 @@ _Index _readIndex(
   ];
   final indexed = {
     for (final (:docPath, lf: _, :type) in typed)
-      docPath: IndexedDoc(
-        docPath: docPath,
-        docTypeId: type.id,
-        name: docNameOf(docPath, type),
-        frontmatter: const {},
-        tokens: 0,
-      ),
+      docPath: _indexedOf(docPath, type),
   };
   final parents = resolveParents(indexed.values, set).parents;
-  final owns = <String, _Own?>{};
-  _Own? ownOf(String docPath) =>
-      owns.putIfAbsent(docPath, () => _ownOf(set, docTypes[docPath]!, docPath));
-  _Place? placeIn(String docPath) {
-    int? story;
-    for (
-      var at = indexed[docPath];
-      at != null;
-      at = indexed[parents[at.docPath]]
-    ) {
-      final number = ownOf(at.docPath)?.number;
-      if (at.docTypeId == storyType) story ??= number;
-      if (at.docTypeId == featureType) {
-        return number == null
-            ? null
-            : (feature: number, featureName: at.name, story: story);
-      }
-    }
-    return null;
-  }
-
+  final owns = {
+    for (final (:docPath, lf: _, :type) in typed)
+      docPath: _ownOf(set, type, docPath),
+  };
   final places = {
-    for (final (:docPath, lf: _, type: _) in typed) docPath: placeIn(docPath),
+    for (final doc in indexed.values)
+      doc.docPath: _placeIn(doc, indexed, parents, owns),
   };
   return (
     docs: [
@@ -407,11 +382,41 @@ _Index _readIndex(
           type,
           indexed[docPath]!.name,
           places[docPath],
-          ownOf(docPath),
+          owns[docPath],
         ),
     ],
     placeOf: (docPath) => places[docPath],
   );
+}
+
+IndexedDoc _indexedOf(String docPath, MergedDocType type) => IndexedDoc(
+  docPath: docPath,
+  docTypeId: type.id,
+  name: docNameOf(docPath, type),
+  frontmatter: const {},
+  tokens: 0,
+);
+
+/// The place of [doc]: the nearest `feature` up its parent chain, [doc]
+/// included, and the nearest `user_story`; null when no numbered feature is
+/// above it.
+_Place? _placeIn(
+  IndexedDoc doc,
+  Map<String, IndexedDoc> indexed,
+  Map<String, String> parents,
+  Map<String, _Own?> owns,
+) {
+  int? story;
+  for (IndexedDoc? at = doc; at != null; at = indexed[parents[at.docPath]]) {
+    final number = owns[at.docPath]?.number;
+    if (at.docTypeId == storyType) story ??= number;
+    if (at.docTypeId == featureType) {
+      return number == null
+          ? null
+          : (feature: number, featureName: at.name, story: story);
+    }
+  }
+  return null;
 }
 
 /// The own-segment values of the doc at [docPath], or null when no path of

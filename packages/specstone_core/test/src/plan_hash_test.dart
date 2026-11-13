@@ -74,7 +74,6 @@ void main() {
     final inputs = PlanInputs(root);
 
     readPlanInput(_in(root, 'a.md'));
-    recordTrackedAnswer('a.md', isTracked: true);
 
     expect(inputs.lines, isEmpty);
   });
@@ -202,43 +201,11 @@ void main() {
     expect(inputs.firstUnreadable, isNull);
   });
 
-  test('f06 INV-4: a tracked answer joins as one line per path, after the '
-      'file lines, in code point order', () async {
-    final root = await writeTree({'a.md': 'one\n'});
-    final inputs = PlanInputs(root)
-      ..collect(() {
-        readPlanInput(_in(root, 'a.md'));
-        recordTrackedAnswer('lib/z.dart', isTracked: false);
-        recordTrackedAnswer('lib/b.dart', isTracked: true);
-        recordTrackedAnswer('lib/b.dart', isTracked: false);
-      });
-
-    expect(
-      inputs.lines,
-      'a.md ${_hex('one\n')}\nlib/b.dart tracked\nlib/z.dart untracked\n',
-    );
-  });
-
-  test('f06 INV-4: a tracked answer outside collect records nothing', () {
-    final inputs = PlanInputs(Directory.systemTemp);
-
-    recordTrackedAnswer('lib/a.dart', isTracked: true);
-
-    expect(inputs.lines, isEmpty);
-  });
-
   group('firstDifferenceFrom', () {
-    Future<PlanInputs> plan(
-      Directory root,
-      List<String> files, {
-      Map<String, bool> tracked = const {},
-    }) async {
+    Future<PlanInputs> plan(Directory root, List<String> files) async {
       return PlanInputs(root)..collect(() {
         for (final path in files) {
           readPlanInput(_in(root, path));
-        }
-        for (final MapEntry(:key, :value) in tracked.entries) {
-          recordTrackedAnswer(key, isTracked: value);
         }
       });
     }
@@ -292,14 +259,6 @@ void main() {
         before.firstDifferenceFrom(await plan(root, ['c.md', 'b.md', 'a.md'])),
         'b.md',
       );
-    });
-
-    test('f06 INV-4: a changed tracked answer names its path', () async {
-      final root = await writeTree({'a.md': 'one\n'});
-      final before = await plan(root, ['a.md'], tracked: {'lib/a.dart': true});
-      final after = await plan(root, ['a.md'], tracked: {'lib/a.dart': false});
-
-      expect(before.firstDifferenceFrom(after), 'lib/a.dart');
     });
 
     test('f06 INV-4: a commit that adds an unasked file differs nowhere, as '
