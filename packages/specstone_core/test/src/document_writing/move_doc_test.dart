@@ -2424,7 +2424,7 @@ void main() {
 
       expect(
         answer.json['rewritten'],
-        containsAll([cartFlutter, cartJaspr, payJaspr]),
+        containsAll([cartFlutter, cartJaspr, payFlutter, payJaspr]),
       );
     });
 
@@ -2473,7 +2473,7 @@ void main() {
       expect(after, isNot(contains('add_item')));
     });
 
-    test('document_writing/move_story/move_story_folder E19: two stories moved in one call carry both entries in the order given', () async {
+    test('document_writing/move_story/move_story_folder E19: two stories moved in one call keep the order of the record, whatever order the call names them', () async {
       final root = await shopTwins(
         extra: {
           'docs/$cartFlutter': recordText(
@@ -2484,8 +2484,8 @@ void main() {
       writeIn(
         root,
         (s) => answerMove(s, [
-          addItem,
           'user_story:shop/cart/drop_item',
+          addItem,
         ], under: 'shop/pay'),
       );
       final created = readDoc(root, payFlutter);
@@ -2494,6 +2494,46 @@ void main() {
         lessThan(created.indexOf("'drop_item:planned'")),
       );
       expect(readDoc(root, cartFlutter), isNot(contains('statuses')));
+    });
+
+    test('document_writing/move_story/move_story_folder E19, E20: a record doc type with no path of its own for the feature refuses argument_invalid, and the old record keeps its lines', () async {
+      const slugged =
+          'id: implementation\n'
+          'description: One feature record per target.\n'
+          'path: specs/f{nn}_{slug}/IMPL_{slug}.md\n'
+          'parent: feature\n'
+          'per_target: true\n'
+          'fields:\n'
+          '  - id: statuses\n'
+          '    type: record_status\n'
+          '    list: true\n';
+      final record = recordText(statuses: ['reset_password:implemented']);
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': slugged,
+          'docs/specs/f01_login/IMPL_login.md': record,
+        },
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerMove(s, [
+            'user_story:login/reset_password',
+          ], under: 'signup'),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('has no path to create a record at for signup'),
+              ),
+        ),
+      );
+      expect(readDoc(root, 'specs/f01_login/IMPL_login.md'), record);
+      expect(hasDoc(root, story3), isTrue);
     });
 
     test('document_writing/move_story/move_story_folder E19, E20: one unnamed code target carries its entries too', () async {

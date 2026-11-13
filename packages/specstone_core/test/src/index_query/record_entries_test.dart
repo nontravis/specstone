@@ -361,7 +361,7 @@ void main() {
       expect(lines.statuses, hasLength(3));
     });
 
-    test('a skip reason keeps its text', () {
+    test('document_writing/move_story/move_story_folder E19: a skip reason keeps its text', () {
       final lines = recordLinesCarried(
         record,
         _recordType,
@@ -398,7 +398,7 @@ void main() {
       );
     });
 
-    test('no line to add leaves the text and returns null', () {
+    test('document_writing/move_story/move_story_folder E20: no line to add leaves the text and returns null', () {
       expect(
         addRecordLines(record, _recordType, (
           statuses: const [],

@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show TextEdit;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -126,10 +127,7 @@ final class _Planner {
     if (held == null) {
       return _createdRecord(session, recordType, arrival, lines);
     }
-    _edits[held.docPath] = _then(
-      _edits[held.docPath],
-      (text) => addRecordLines(text, recordType, lines),
-    );
+    _edits[held.docPath] = (text) => addRecordLines(text, recordType, lines);
     return null;
   }
 }
@@ -183,22 +181,14 @@ _Landing? _landingOf(
   return (feature: feature, name: name.substring(featureName.length + 1));
 }
 
-/// Returns [first] then [second], each reading what the one before left; null
-/// when neither changes the text.
-TextEdit _then(TextEdit? first, TextEdit second) {
-  if (first == null) return second;
-  return (text) {
-    final firstText = first(text);
-    return second(firstText ?? text) ?? firstText;
-  };
-}
-
 /// Returns the step that creates the record [arrival] needs, as a draft with
-/// [lines] in it; null when its feature's record has no path in the target.
+/// [lines] in it.
 ///
 /// A path the project reads in a target's folder only with two or more
-/// targets, as the doc type matcher reads it.
-CreateStep? _createdRecord(
+/// targets, as the doc type matcher reads it. Throws [IndexFault]
+/// `argument_invalid` when the record doc type has no path of its own for the
+/// feature, as `new` does, so the lines never leave the old record unplaced.
+CreateStep _createdRecord(
   WriteSession session,
   MergedDocType recordType,
   _Arrival arrival,
@@ -219,7 +209,13 @@ CreateStep? _createdRecord(
           depth: featureShape.depth,
           target: twins ? arrival.target : null,
         );
-  if (values == null || shape == null || !isSpecDocShape(shape)) return null;
+  if (values == null || shape == null || !isSpecDocShape(shape)) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      '${recordType.id} has no path to create a record at for '
+      '${arrival.feature.name}',
+    );
+  }
   final docPath = shape.build(values);
   session.requireWritable(docPath);
   final skeleton = skeletonOf(recordType, arrival.feature.name.split('/').last);

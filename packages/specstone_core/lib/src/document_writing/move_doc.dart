@@ -243,7 +243,13 @@ ReadAnswer answerMove(
       ...rewrites,
       ...records.creates,
     ]).run(session.journalTarget);
-    return _answerFor(session, moves, rewrites, warnings: skipped);
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      created: records.creates,
+      warnings: skipped,
+    );
   });
 }
 
@@ -627,11 +633,15 @@ ReadAnswer _answerFor(
   WriteSession session,
   List<PathMove> moves,
   List<WriteStep> rewrites, {
+  List<CreateStep> created = const [],
   List<String> warnings = const [],
 }) {
-  final rewritten = [
-    for (final step in rewrites) session.listedPathOf(step.path),
-  ];
+  // A record the move creates is a file it writes, listed with the rewrites.
+  final written = [
+    for (final step in rewrites) step.path,
+    for (final step in created) step.path,
+  ]..sort();
+  final rewritten = [for (final path in written) session.listedPathOf(path)];
   return ReadAnswer(
     text: [
       for (final move in moves) 'moved ${move.from} to ${move.to}\n',

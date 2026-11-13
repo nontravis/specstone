@@ -23,6 +23,7 @@ import '../../helpers/failing_rename.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -49,42 +50,13 @@ const Map<String, String> approvedSignOut = {
       '---\napproved: true\n---\n\n# Clear cookies\n',
 };
 
-const _recordLayer =
-    'id: implementation\n'
-    'description: One feature record per target.\n'
-    'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-    'parent: feature\n'
-    'per_target: true\n'
-    'fields:\n'
-    '  - id: statuses\n'
-    '    type: record_status\n'
-    '    list: true\n'
-    '  - id: implements\n'
-    '    type: output_ref\n'
-    '    list: true\n'
-    '    pointer: item_exact\n';
-
 const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
 const _signupRecord = 'specs/f02_signup/IMPLEMENTATION.md';
 const _cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
 
-/// Returns a record: `front`, then `statuses`, then `implements`, one quoted
-/// line each; a key with no line is left out.
-String _record({
-  String front = '',
-  List<String> statuses = const [],
-  List<String> code = const [],
-}) {
-  String list(String key, List<String> lines) => lines.isEmpty
-      ? ''
-      : "$key:\n${[for (final l in lines) "  - '$l'\n"].join()}";
-  return '---\n$front${list('statuses', statuses)}${list('implements', code)}'
-      '---\n\n# Record\n';
-}
-
 /// The `login` record of the write project: the statuses and code paths of
 /// [story1] and of [story3] with its two FRs.
-final String _loginRecordText = _record(
+final String _loginRecordText = recordText(
   front: 'approved: true\n',
   statuses: [
     'email_login:implemented',
@@ -102,10 +74,10 @@ final String _loginRecordText = _record(
 /// on top of [freeStory3].
 Map<String, String> _withRecords({String? login}) => {
   ...withoutLink,
-  '.specstone/templates/implementation.yaml': _recordLayer,
+  '.specstone/templates/implementation.yaml': recordLayer,
   '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
   'docs/$_loginRecord': login ?? _loginRecordText,
-  'docs/$_signupRecord': _record(statuses: ['ghost:planned']),
+  'docs/$_signupRecord': recordText(statuses: ['ghost:planned']),
 };
 
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -1708,7 +1680,7 @@ void main() {
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record left with no entry stays', () async {
       final root = await writeWriteProject(
         extra: _withRecords(
-          login: _record(
+          login: recordText(
             statuses: ['reset_password:implemented'],
             code: ['reset_password:app/lib/reset.dart:ResetPage'],
           ),
@@ -1723,7 +1695,9 @@ void main() {
 
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record that holds no entry of the unit is not written', () async {
       final root = await writeWriteProject(
-        extra: _withRecords(login: _record(statuses: ['email_login:planned'])),
+        extra: _withRecords(
+          login: recordText(statuses: ['email_login:planned']),
+        ),
       );
       final before = readDoc(root, _loginRecord);
       del(root, ['user_story:login/reset_password']);
@@ -1733,15 +1707,15 @@ void main() {
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a nested feature record names its items relative to it, and a record of another feature is left', () async {
       final root = await writeNestedProject(
         extra: {
-          '.specstone/templates/implementation.yaml': _recordLayer,
-          'docs/$_cartRecord': _record(
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$_cartRecord': recordText(
             statuses: [
               'add_item:implemented',
               'add_item/check_stock:implemented',
               'drop_item:planned',
             ],
           ),
-          'docs/specs/f02_shop/IMPLEMENTATION.md': _record(
+          'docs/specs/f02_shop/IMPLEMENTATION.md': recordText(
             statuses: ['drop_item:planned'],
           ),
         },
@@ -1790,7 +1764,7 @@ void main() {
     }, skip: unreadablePathSkipReason() ?? false);
 
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: a record with CRLF line ends and a byte-order mark keeps both', () async {
-      final record = _record(
+      final record = recordText(
         statuses: ['email_login:implemented', 'reset_password:implemented'],
       ).replaceAll('\n', '\r\n');
       final root = await writeWriteProject(
@@ -1808,11 +1782,11 @@ void main() {
     test('document_writing/delete_doc_subtree/delete_doc_subtree E17: a feature delete removes no entry, its record leaving with the spec folder', () async {
       final root = await writeNestedProject(
         extra: {
-          '.specstone/templates/implementation.yaml': _recordLayer,
-          'docs/$_cartRecord': _record(statuses: ['add_item:implemented']),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$_cartRecord': recordText(statuses: ['add_item:implemented']),
           // no doc links into the sub-feature once the API doc is freed
           'docs/$shopApi': '# Shop API\n',
-          'docs/$cartDomain': _record(),
+          'docs/$cartDomain': recordText(),
         },
       );
       final answer = writeIn(
@@ -1931,7 +1905,9 @@ void main() {
       final root = await writeWriteProject(
         extra: {
           ...approvedSignOut,
-          ..._withRecords(login: _record(statuses: ['sign_out:implemented'])),
+          ..._withRecords(
+            login: recordText(statuses: ['sign_out:implemented']),
+          ),
         },
       );
       final prompts = StringBuffer();
@@ -1979,8 +1955,8 @@ void main() {
 
     Future<Directory> twins() => writeTwinProject(
       extra: {
-        'docs/$flutterRecord': _record(statuses: twinStatuses),
-        'docs/$jasprRecord': _record(statuses: twinStatuses),
+        'docs/$flutterRecord': recordText(statuses: twinStatuses),
+        'docs/$jasprRecord': recordText(statuses: twinStatuses),
         // the API doc names the story's FR in its trace; free it of the link
         'docs/${check.loginApi}': '# Login API\n',
       },

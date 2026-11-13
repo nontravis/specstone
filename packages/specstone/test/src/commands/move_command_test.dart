@@ -340,7 +340,7 @@ void main() {
       },
     );
 
-    test('document_writing/move_story/move_story_folder E19, E20: move carries the entries of each target, rewriting the old records and leaving a created one unlisted', () async {
+    test('document_writing/move_story/move_story_folder E19, E20: move carries the entries of each target, rewriting the old records and listing the record it creates', () async {
       final root = await shopTwins();
       final (:runner, :out, :err) = writeRunner(root);
       expect(
@@ -350,7 +350,7 @@ void main() {
       );
       final answer = jsonDecode(out.toString()) as Map;
       expect(answer['rewritten'], containsAll([cartFlutter, cartJaspr]));
-      expect(answer['rewritten'], isNot(contains(payFlutter)));
+      expect(answer['rewritten'], contains(payFlutter));
       expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
       expect(readDoc(root, payFlutter), contains("'add_item:implemented'"));
       expect(readDoc(root, payFlutter), contains('draft: true'));
