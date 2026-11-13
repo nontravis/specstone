@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:test/test.dart';
 
@@ -219,5 +220,97 @@ void main() {
         everyElement(['rev-parse', '--absolute-git-dir', '--show-toplevel']),
       );
     });
+  });
+
+  group('a git that runs', () {
+    /// A runner that reports a commit and lists [listed] for `ls-files`.
+    RunGit listing(ProcessResult Function() ls) =>
+        (arguments, {required workingDirectory, environment}) =>
+            arguments.first == 'ls-files'
+            ? ls()
+            : ProcessResult(0, 0, 'abc\n', '');
+
+    test('lists paths in code point order', () async {
+      final root = await _project({
+        'proj/.claude/skills/\u{FF46}/a.md': '',
+        'proj/.claude/skills/\u{1F600}/a.md': '',
+      });
+
+      final files = _walk(
+        root,
+        listing(
+          () => ProcessResult(
+            0,
+            0,
+            '.claude/skills/\u{1F600}/a.md\x00.claude/skills/\u{FF46}/a.md\x00',
+            '',
+          ),
+        ),
+      );
+
+      expect(files, [
+        '.claude/skills/\u{FF46}/a.md',
+        '.claude/skills/\u{1F600}/a.md',
+      ]);
+    });
+
+    test('refuses a listing that fails after a good HEAD', () async {
+      final root = await _project({'proj/CLAUDE.md': ''});
+
+      expect(
+        () => _walk(
+          root,
+          listing(() => ProcessResult(0, 128, '', 'fatal: bad index file\n')),
+        ),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.gitFailed)
+              .having((f) => f.message, 'message', contains('bad index file')),
+        ),
+      );
+    });
+
+    test('lets a fault other than the git dir refusal through', () async {
+      final root = await _project({'proj/CLAUDE.md': ''});
+
+      expect(
+        () => _walk(
+          root,
+          (arguments, {required workingDirectory, environment}) =>
+              throw MigrateFault(MigrateFaultCode.workingTreeDirty, 'dirty'),
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+    });
+
+    test('reads a top with no commit as instruction files while the root '
+        'reads its tracked files', () async {
+      final root = await _project(
+        {
+          'proj/CLAUDE.md': '',
+          'proj/docs/AGENTS.md': '',
+          'other/GEMINI.md': '',
+          'other/.claude/y.md': '',
+        },
+        tops: ['../other'],
+      );
+      commitRepo(root);
+      File('${root.path}/GEMINI.md').writeAsStringSync('');
+      final other = Directory('${root.parent.path}/other');
+      expect(git(other, ['init', '-q']).exitCode, 0);
+      expect(git(other, ['add', '-A']).exitCode, 0);
+
+      expect(_walk(root), [
+        '../other/GEMINI.md',
+        'CLAUDE.md',
+        'docs/AGENTS.md',
+      ]);
+    }, skip: _skip);
   });
 }

@@ -4,6 +4,7 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentFilePaths, agentInstructionNames;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
 const _separator = '/';
@@ -37,11 +38,12 @@ bool isAgentFile(String projectPath) {
 /// Returns the agent files a path-moving command reads for mentions, by their
 /// `/`-separated path from [projectRoot], in code point order.
 ///
-/// In a work tree with a first commit they are the files the repository
-/// tracks, plus, at each top [config] lists, the instruction files the CLI
-/// writes there, tracked or not, and the agent files that top's repository
-/// tracks. Elsewhere, and when git cannot start or refuses its git dir, they
-/// are the instruction files at the project root and at each listed top.
+/// A work tree with a first commit gives the files its repository tracks, plus
+/// the instruction files at each top [config] lists, tracked or not. Without
+/// one, or when git cannot start or refuses its git dir, only the instruction
+/// files at the project root and at each listed top.
+///
+/// Throws `MigrateFault` `git_failed` when `git ls-files` fails in a work tree.
 List<String> agentFilesOf(
   Directory projectRoot,
   ProjectConfig config,
@@ -60,7 +62,7 @@ List<String> agentFilesOf(
       files.add(top == _projectTop ? path : '$top$_separator$path');
     }
   }
-  return files.toList()..sort();
+  return files.toList()..sort(compareCodePoints);
 }
 
 /// Returns the instruction files [folder] holds, by their path from it.
@@ -82,7 +84,7 @@ List<String>? _trackedAgentFiles(Directory folder, RunGit runGit) {
     ], workingDirectory: folder.path);
     if (head.exitCode != 0) return null;
     final listing = runGit(['ls-files', '-z'], workingDirectory: folder.path);
-    if (listing.exitCode != 0) return null;
+    if (listing.exitCode != 0) throw _listFailed(listing);
     return [
       for (final path in (listing.stdout as String).split(_listSeparator))
         if (isAgentFile(path) && _isFileIn(folder, path)) path,
@@ -94,6 +96,12 @@ List<String>? _trackedAgentFiles(Directory folder, RunGit runGit) {
     return null;
   }
 }
+
+MigrateFault _listFailed(ProcessResult listing) => MigrateFault(
+  MigrateFaultCode.gitFailed,
+  'git ls-files failed: ${'${listing.stderr}'.trim()}; fix the cause, then '
+  'run the command again',
+);
 
 bool _isFileIn(Directory folder, String path) =>
     File('${folder.path}$_separator$path').existsSync();
