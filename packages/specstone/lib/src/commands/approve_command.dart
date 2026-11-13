@@ -34,6 +34,7 @@ class ApproveCommand extends WriteCommand {
             'With --dry-run, print the drafts as one JSON object in place of '
             'the views.',
       );
+    addTargetOption();
   }
 
   static final _seenDraft = RegExp(r'^(.+)@([0-9a-f]{12})$');
@@ -46,8 +47,8 @@ class ApproveCommand extends WriteCommand {
 
   @override
   String get invocation =>
-      'specstone approve [<name> …] [--dry-run] [--context <n> | --json] '
-      '| <name>@<hash> … --yes';
+      'specstone approve [<name> …] [--target <name>] [--dry-run] '
+      '[--context <n> | --json] | <name>@<hash> … --yes';
 
   @override
   Future<int> run() async {
@@ -87,6 +88,7 @@ class ApproveCommand extends WriteCommand {
           names: names,
           context: context,
           color: color,
+          codeTarget: targetOf(args),
         ),
         asJson: asJson,
       );
@@ -102,7 +104,10 @@ class ApproveCommand extends WriteCommand {
       return failWrite(fault, asJson: false);
     }
     if (!confirmation.prompts) {
-      return runWrite((session) => approveNamed(session, seen), asJson: false);
+      return runWrite(
+        (session) => approveNamed(session, seen, codeTarget: targetOf(args)),
+        asJson: false,
+      );
     }
     return runWrite((session) {
       approveDrafts(
@@ -112,6 +117,7 @@ class ApproveCommand extends WriteCommand {
         out: specstoneRunner.out,
         context: context,
         color: color,
+        codeTarget: targetOf(args),
       );
       return const ReadAnswer(text: '', json: {});
     }, asJson: false);

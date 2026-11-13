@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/relative_link.dart';
+import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
@@ -211,7 +212,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'Usage: specstone approve [<name> …] [--dry-run] [--context <n> | --json] | <name>@<hash> … --yes',
+        'Usage: specstone approve [<name> …] [--target <name>] [--dry-run] [--context <n> | --json] | <name>@<hash> … --yes',
       ),
     );
     expect(
@@ -699,5 +700,122 @@ void main() {
       expect(exported.exitCode, 0, reason: '${exported.stderr}');
       expect(exported.stdout, plain.stdout);
     }, skip: hasGit ? null : 'git is not available');
+  });
+
+  group('with two code targets', () {
+    const draft = '---\ndraft: true\n---\n\n# Login architecture\n';
+
+    Future<Directory> twinDrafts() => writeTwinProject(
+      extra: {
+        'docs/$flutterArchitecture': draft,
+        'docs/$jasprArchitecture': draft,
+      },
+    );
+
+    test('f02/us03/fr05: approve --dry-run --target jaspr --json lists the jaspr draft only', () async {
+      final (:runner, :out, :err) = writeRunner(await twinDrafts());
+      expect(
+        await runner.run([
+          'approve',
+          '--dry-run',
+          '--target',
+          'jaspr',
+          '--json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      final drafts = (jsonDecode(out.toString()) as Map)['drafts']! as List;
+      expect(
+        [for (final d in drafts) (d as Map)['docPath']],
+        [jasprArchitecture],
+      );
+    });
+
+    test('f02/us03/fr04: --yes --target flutter approves the flutter twin and leaves the jaspr twin a draft', () async {
+      final root = await twinDrafts();
+      final hash = (getDoc(root, flutterArchitecture)['bases']! as Map)['doc'];
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'approve',
+          'architecture:login@$hash',
+          '--yes',
+          '--target',
+          'flutter',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), 'approved architecture:login\n');
+      expect(
+        readDoc(root, flutterArchitecture),
+        isNot(contains('draft: true')),
+      );
+      expect(readDoc(root, jasprArchitecture), contains('draft: true'));
+    });
+
+    test('f02/us03/fr03/e09: at a terminal, y under --target jaspr approves that twin only', () async {
+      final root = await twinDrafts();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          stdinIsTerminal: true,
+          stdoutIsTerminal: true,
+          answers: ['y'],
+        ),
+      );
+      expect(
+        await runner.run([
+          'approve',
+          'architecture:login',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect('approve? [y/n/q] '.allMatches(out.toString()), hasLength(1));
+      expect(
+        readDoc(root, jasprArchitecture),
+        matches(RegExp('approved: "[0-9a-f]{12}"')),
+      );
+      expect(readDoc(root, flutterArchitecture), contains('draft: true'));
+    });
+
+    test('f02/us03/fr04/e06: --yes on a name two targets share, with no --target, exits 64 listing both docs', () async {
+      final root = await twinDrafts();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'approve',
+          'architecture:login@000000000000',
+          '--yes',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        'architecture:login names 2 docs: '
+        '$flutterArchitecture, $jasprArchitecture\n',
+      );
+      expect(readDoc(root, flutterArchitecture), contains('draft: true'));
+      expect(readDoc(root, jasprArchitecture), contains('draft: true'));
+    });
+
+    test(
+      'f02/us03/fr01: --target with no value exits 64 naming the targets',
+      () async {
+        final (:runner, :out, :err) = writeRunner(
+          await twinDrafts(),
+          console: FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true),
+        );
+        expect(await runner.run(['approve', '--dry-run', '--target']), 64);
+        expect(
+          err.toString(),
+          '--target needs a code target name: the code targets are flutter, jaspr\n',
+        );
+      },
+    );
   });
 }

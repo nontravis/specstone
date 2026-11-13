@@ -21,7 +21,8 @@ const _nothingWaits = 'no draft waits for approval\n';
 /// Shows each typed draft in tree order and approves it at the Owner's `y`.
 ///
 /// The drafts are all of them, or those under any of [names], each once, less
-/// any whose file is gone. Each shows its approval view (see
+/// any whose file is gone; [codeTarget] keeps them to that code target's docs
+/// and the shared docs. Each shows its approval view (see
 /// [renderApprovalView]) as `Draft n/m` over the drafts selected, with
 /// [context] lines of context per hunk and ANSI [color] when set. Each prompt
 /// waits outside the write lock; `y` re-reads the file under the lock and
@@ -46,8 +47,9 @@ void approveDrafts(
   int? context,
   bool color = false,
   ApprovalHistory? history,
+  String? codeTarget,
 }) {
-  final drafts = _shownDraftsUnder(session, names);
+  final drafts = _shownDraftsUnder(session, names, codeTarget);
   if (drafts.isEmpty) {
     out.write(_nothingWaits);
     return;
@@ -71,11 +73,11 @@ void approveDrafts(
 
 /// Returns the approval view of each typed draft, for the chat; writes nothing.
 ///
-/// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks for
-/// [names]. The text is their views joined by a blank line, else `no draft
-/// waits for approval`; the JSON is `drafts` (see [draftViewJson]) and their
-/// `count`, `{"drafts": [], "count": 0}` for none. It takes no lock, and with
-/// no draft waiting it reads no doc of the tree.
+/// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks
+/// for [names] and [codeTarget]. The text is their views joined by a blank
+/// line, else `no draft waits for approval`; the JSON is `drafts` (see
+/// [draftViewJson]) and their `count`, `{"drafts": [], "count": 0}` for none.
+/// It takes no lock, and with no draft waiting it reads no doc of the tree.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
 /// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
 /// cannot be read, or a draft that is not UTF-8, all before any view prints,
@@ -87,8 +89,9 @@ ReadAnswer approveDryRun(
   int? context,
   bool color = false,
   ApprovalHistory? history,
+  String? codeTarget,
 }) {
-  final drafts = _shownDraftsUnder(session, names);
+  final drafts = _shownDraftsUnder(session, names, codeTarget);
   if (drafts.isEmpty) {
     return const ReadAnswer(
       text: _nothingWaits,
@@ -131,15 +134,20 @@ typedef SeenDraft = ({String name, String hash});
 /// it. Every name resolves to a draft before the lock, and under the lock every
 /// hash is checked before the first write, so a refused name or a changed
 /// draft approves nothing. The answer prints `approved <doc type>:<name>` per
-/// draft, in tree order, and its JSON is `{"approved": [...]}`.
+/// draft, in tree order, and its JSON is `{"approved": [...]}`. [codeTarget]
+/// keeps each name to that code target's docs and the shared docs.
 /// Throws [IndexFault] for a name that is no write target, [WriteFault]
 /// `draft_not_found` for a doc that is no draft, `base_mismatch` naming each
 /// draft whose text changed, and `index_busy` when another call holds the
 /// lock.
-ReadAnswer approveNamed(WriteSession session, List<SeenDraft> seen) {
+ReadAnswer approveNamed(
+  WriteSession session,
+  List<SeenDraft> seen, {
+  String? codeTarget,
+}) {
   final hashesByPath = <String, Set<String>>{};
   for (final draft in seen) {
-    final doc = _draftAt(session, draft.name);
+    final doc = _draftAt(session, draft.name, codeTarget);
     (hashesByPath[doc.docPath] ??= {}).add(draft.hash);
   }
   final drafts = [
@@ -173,8 +181,8 @@ ReadAnswer approveNamed(WriteSession session, List<SeenDraft> seen) {
 ///
 /// Throws [IndexFault] for a name that is no write target, and [WriteFault]
 /// `draft_not_found` for a doc that is no draft.
-IndexedDoc _draftAt(WriteSession session, String name) {
-  final doc = session.target(name);
+IndexedDoc _draftAt(WriteSession session, String name, String? codeTarget) {
+  final doc = session.target(name, codeTarget: codeTarget);
   if (!_waitsForApproval(session, doc)) {
     throw WriteFault(
       WriteFaultCode.draftNotFound,
@@ -200,21 +208,32 @@ WriteFault _changedSinceSeen(List<IndexedDoc> changed) => WriteFault(
 String _addressOf(IndexedDoc doc) => '${doc.docTypeId}:${doc.name}';
 
 /// Returns the typed docs that await approval in tree order: all of them when
-/// [names] is empty, else those under any of [names], each once.
+/// [names] is empty, else those under any of [names], each once; with a
+/// [codeTarget], only the shared docs and that target's.
 ///
-/// Throws [IndexFault] `doc_not_found` for a name no doc carries.
-List<IndexedDoc> _draftsUnder(WriteSession session, List<String> names) {
-  final index = session.index;
+/// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
+/// `argument_invalid` or `argument_missing` for a [codeTarget] the project
+/// does not name.
+List<IndexedDoc> _draftsUnder(
+  WriteSession session,
+  List<String> names,
+  String? codeTarget,
+) {
+  final index = session.index..checkCodeTarget(codeTarget);
   final selected = names.isEmpty
       ? null
       : {
           for (final name in names)
-            for (final doc in index.under(name)) doc.docPath,
+            for (final doc in index.under(name, codeTarget: codeTarget))
+              doc.docPath,
         };
   return [
     for (final doc in index.docs)
       if (_waitsForApproval(session, doc) &&
-          (selected?.contains(doc.docPath) ?? true))
+          (selected?.contains(doc.docPath) ?? true) &&
+          (codeTarget == null ||
+              doc.target == null ||
+              doc.target == codeTarget))
         doc,
   ];
 }
@@ -237,9 +256,13 @@ typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
 
 /// Returns [_draftsUnder] with the bytes of each, less the drafts whose file
 /// is gone, so the numbers `Draft n/m` count only drafts the Owner can see.
-List<_ShownDraft> _shownDraftsUnder(WriteSession session, List<String> names) {
+List<_ShownDraft> _shownDraftsUnder(
+  WriteSession session,
+  List<String> names,
+  String? codeTarget,
+) {
   final shown = <_ShownDraft>[];
-  for (final doc in _draftsUnder(session, names)) {
+  for (final doc in _draftsUnder(session, names, codeTarget)) {
     final bytes = session.readDocBytes(doc.docPath);
     if (bytes != null) shown.add((doc: doc, bytes: bytes));
   }

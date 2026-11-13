@@ -54,14 +54,20 @@ final class TitleTarget extends SetTarget {
 
 /// The checked arguments of one `set` call.
 final class SetRequest {
-  const new({required this.address, required this.target, required this.base});
+  const new({
+    required this.address,
+    required this.target,
+    required this.base,
+    this.codeTarget,
+  });
 
   /// Reads the arguments of `set`.
   ///
   /// [target] is `<type>:<name>[#<key>]`; [field] and [title] are the other
   /// two targets, and exactly one of the three must be given.
   /// With an [index], a [target] that names a doc as a path has no section
-  /// key, even when it holds `#`.
+  /// key, even when it holds `#`. [codeTarget] keeps the doc's name to that
+  /// code target's docs and the shared docs.
   /// Throws [IndexFault] `argument_missing` for a missing target, section
   /// key, or [base], and `argument_conflict` for two targets at once.
   static SetRequest parse(
@@ -70,6 +76,7 @@ final class SetRequest {
     bool title = false,
     String? base,
     DocIndex? index,
+    String? codeTarget,
   }) {
     final (target: written, base: checkedBase) = requireShape(target, base);
     final (:docPart, sectionKey: key) = index == null
@@ -99,7 +106,12 @@ final class SetRequest {
         _targetExample,
       );
     }
-    return SetRequest(address: docPart, target: chosen, base: checkedBase);
+    return SetRequest(
+      address: docPart,
+      target: chosen,
+      base: checkedBase,
+      codeTarget: codeTarget,
+    );
   }
 
   /// Returns [target] and [base] when both are given; throws [IndexFault]
@@ -130,6 +142,9 @@ final class SetRequest {
 
   /// The base hash of [target] the caller last read.
   final String base;
+
+  /// The code target [address] is kept to; null keeps every target.
+  final String? codeTarget;
 }
 
 /// Returns [lfText] as a draft: unchanged when it is one, else with
@@ -161,7 +176,7 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
 /// `required_target`, or a refused field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
-  final doc = session.target(request.address);
+  final doc = session.target(request.address, codeTarget: request.codeTarget);
   final docType =
       session.index.typeOf(doc) ??
       (throw StateError('${doc.docPath} is typed but its type is gone'));

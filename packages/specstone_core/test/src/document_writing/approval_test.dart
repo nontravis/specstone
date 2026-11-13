@@ -1104,4 +1104,40 @@ void main() {
       );
     },
   );
+
+  group('mark_doc_approved: a code target record', () {
+    const record = MergedDocType(
+      id: 'implementation',
+      isPerTarget: true,
+      fields: [
+        MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
+        MergedField(
+          id: 'implements',
+          type: FieldType.outputRef,
+          list: true,
+          pointer: PointerKind.itemExact,
+        ),
+      ],
+      sections: [],
+      lint: MergedLint(),
+      files: [],
+    );
+    String text({String status = 'implemented', String path = 'a.dart'}) =>
+        '---\nstatuses:\n  - login/check:$status\nimplements:\n'
+        '  - login/check:$path\n---\n\n# Record\n';
+
+    test('E09: the code paths of a record stay outside its hash', () {
+      expect(
+        approvalHashOf(text(path: 'b.dart'), record),
+        approvalHashOf(text(), record),
+      );
+    });
+
+    test('E09: the statuses of a record stay inside its hash', () {
+      expect(
+        approvalHashOf(text(status: 'skipped'), record),
+        isNot(approvalHashOf(text(), record)),
+      );
+    });
+  });
 }

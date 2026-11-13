@@ -29,6 +29,7 @@ class SetCommand extends WriteCommand {
             '--title; reads no stdin.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -42,7 +43,8 @@ class SetCommand extends WriteCommand {
   @override
   String get invocation =>
       'specstone set <doc address>(#<section key> | '
-      '--field <field id> | --title) --base <hash> [--json]\n'
+      '--field <field id> | --title) --base <hash> [--target <name>] '
+      '[--json]\n'
       '       specstone set --batch <file> [--json]';
 
   @override
@@ -71,6 +73,7 @@ class SetCommand extends WriteCommand {
           title: args.flag('title'),
           base: args.option('base'),
           index: session.index,
+          codeTarget: targetOf(args),
         ),
         text,
       ),

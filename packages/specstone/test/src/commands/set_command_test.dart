@@ -2,6 +2,7 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/console.dart';
@@ -9,6 +10,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
@@ -342,7 +344,8 @@ void main() {
       contains(
         'Expected one target, got 2.\n\n'
         'Usage: specstone set <doc address>(#<section key> | '
-        '--field <field id> | --title) --base <hash> [--json]\n',
+        '--field <field id> | --title) --base <hash> [--target <name>] '
+        '[--json]\n',
       ),
     );
   });
@@ -374,6 +377,155 @@ void main() {
       contains('# Sign in with email\n\nNew lead.\n\n## Use Case\n'),
     );
     expect(readDoc(root, story1), contains('draft: true'));
+  });
+
+  group('with two code targets', () {
+    const story = 'user_story:login/email_login';
+    const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
+
+    String fieldBaseAt(Directory root, String address, String id) =>
+        ((getDoc(root, address)['bases']! as Map)['fields']! as Map)[id]!
+            as String;
+
+    test('f02/us01/s3: --target keeps a shared story reachable, and the field is written', () async {
+      final root = await writeTwinProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(input: '- PV-01\n'),
+      );
+      expect(
+        await runner.run([
+          'set',
+          story,
+          '--field',
+          'vision',
+          '--base',
+          fieldBaseAt(root, story, 'vision'),
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      expect(readDoc(root, storyPath), contains('vision:\n  - PV-01\n'));
+      expect(readDoc(root, storyPath), contains('draft: true'));
+    });
+
+    test('f02/us01/s4: set --field covers --target jaspr fixes the jaspr twin only, and it keeps its approval', () async {
+      final root = await writeTwinProject();
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(input: '- app/lib/login/\n'),
+      );
+      expect(
+        await runner.run([
+          'set',
+          'architecture:login',
+          '--target',
+          'jaspr',
+          '--field',
+          'covers',
+          '--base',
+          fieldBaseAt(root, jasprArchitecture, 'covers'),
+          '--json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['path'], jasprArchitecture);
+      expect(json['draft'], isFalse);
+      expect(
+        readDoc(root, jasprArchitecture),
+        contains('covers:\n  - app/lib/login/\n'),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
+    });
+
+    test('f02/us01/s4: a name that two targets share, with no --target, exits 64 listing both docs and writes nothing', () async {
+      final root = await writeTwinProject();
+      final before = readDoc(root, jasprArchitecture);
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(input: '- app/lib/login/\n'),
+      );
+      expect(
+        await runner.run([
+          'set',
+          'architecture:login',
+          '--field',
+          'covers',
+          '--base',
+          fieldBaseAt(root, jasprArchitecture, 'covers'),
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        'architecture:login names 2 docs: '
+        '$flutterArchitecture, $jasprArchitecture\n',
+      );
+      expect(readDoc(root, jasprArchitecture), before);
+    });
+
+    test('f02/us01/fr01: --target with no value, or a name the project lacks, exits 64 naming the targets', () async {
+      final root = await writeTwinProject();
+      for (final (target, message) in [
+        (
+          <String>['--target'],
+          '--target needs a code target name: the code targets are flutter, jaspr\n',
+        ),
+        (
+          <String>['--target', 'dart'],
+          '--target dart: the code targets are flutter, jaspr\n',
+        ),
+      ]) {
+        final (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(input: 'x\n'),
+        );
+        expect(
+          await runner.run([
+            'set',
+            'architecture:login#components',
+            '--base',
+            emptyBaseHash,
+            ...target,
+          ]),
+          64,
+        );
+        expect(err.toString(), message);
+      }
+    });
+
+    test('f02/us01/fr07: --batch writes a block that names the jaspr twin by its path, and the flutter twin stays', () async {
+      final root = await writeTwinProject();
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      final read = writeRunner(root);
+      expect(
+        await read.runner.run(['get', '$jasprArchitecture#components']),
+        0,
+      );
+      final file = File('${root.path}/batch.md')
+        ..writeAsStringSync(
+          read.out.toString().replaceFirst(
+            '- Sign-in page',
+            '- Jaspr sign-in page',
+          ),
+        );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['set', '--batch', file.path]),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        readDoc(root, jasprArchitecture),
+        contains('## Components\n\n- Jaspr sign-in page\n'),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
+    });
   });
 }
 

@@ -51,17 +51,23 @@ final class DocPathShape {
   ///
   /// The parent count at [depth] is the placeholders in the parent type's
   /// pattern for the same depth; the nesting type above depth 0 counts its
-  /// own pattern one depth up.
+  /// own pattern one depth up. [target], when given, reads the pattern with
+  /// that code target's folder in it (RULE-20), as a per-target doc type's
+  /// docs sit in it with two or more targets.
   static DocPathShape? of(
     MergedDocType docType,
     MergedSet set, {
     int depth = 0,
+    String? target,
   }) {
     final paths = docType.paths;
     if (depth < 0 || depth >= paths.length) return null;
     final parentCount = _parentCountAt(docType, set, depth);
     if (parentCount == null) return null;
-    final segments = paths[depth].split('/');
+    final path = target == null
+        ? paths[depth]
+        : PathPattern(paths[depth]).forTarget(target).source;
+    final segments = path.split('/');
     final patterns = [for (final s in segments) _Segment(s)];
     var running = 0;
     var ownIndex = segments.length - 1;

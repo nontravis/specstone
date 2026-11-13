@@ -49,25 +49,32 @@ typedef NewDocFill = String Function(
 ///
 /// [parent] names a doc of the doc type's `parent:`, or of the nesting type
 /// below `max_depth`; [slug] fills `{slug}`; a non-empty [text] is the doc,
-/// forced to `draft: true`. Under the session lock, [generators] and
-/// [firstConfirmations] fill it, then an exclusive create writes it.
+/// forced to `draft: true`. [codeTarget] narrows [parent] to that target's
+/// docs and the shared docs, and places a per-target doc type's doc in that
+/// target's spec folder when the project names two or more targets. Under the
+/// session lock, [generators] and [firstConfirmations] fill it, then an
+/// exclusive create writes it.
 /// Throws [TemplateFault] `doc_type_unknown` for [docTypeId] or a [parent]
 /// that names another doc type id, [IndexFault] `argument_missing`
 /// or `argument_invalid` for a [parent] or [slug] the doc type needs or does
-/// not take, a [parent] already at `max_depth`, or a [text] that holds a naming
-/// line at column 0 outside fenced code, [WriteFault] `doc_exists`
-/// when the doc is there and `field_not_writable` when [text] holds an
-/// `approved` key, and [RenderFault] `output_not_writable` when the disk
-/// refuses, after removing what this call created.
+/// not take, a per-target doc type with no [codeTarget] among two or more
+/// targets, a [codeTarget] the project does not name, a [parent] already at
+/// `max_depth`, or a [text] that holds a naming line at column 0 outside
+/// fenced code, [WriteFault] `doc_exists` when the doc is there and
+/// `field_not_writable` when [text] holds an `approved` key, and
+/// [RenderFault] `output_not_writable` when the disk refuses, after removing
+/// what this call created.
 ReadAnswer answerNew(
   WriteSession session, {
   required String docTypeId,
   String? parent,
   String? slug,
+  String? codeTarget,
   String text = '',
   GeneratorRegistry<DocIndex>? generators,
   NewDocFill? firstConfirmations,
 }) {
+  session.index.checkCodeTarget(codeTarget);
   final set = session.index.set;
   final docType =
       set.lookup(docTypeId) ??
@@ -83,16 +90,17 @@ ReadAnswer answerNew(
       ));
   final parentTypeId = _parentTypeIdOf(docType, set);
   _checkArguments(docType, shape, parentTypeId, parent: parent, slug: slug);
+  final placedIn = _placedInOf(docType, session.index, codeTarget);
 
   final parentDoc = parent == null
       ? null
-      : session.parentTarget(parent, parentTypeId!);
+      : session.parentTarget(parent, parentTypeId!, codeTarget: codeTarget);
   final (parentShape, parentValues) = parentDoc == null
       ? (null, const <String>[])
       : _shapeOfParent(set, parentTypeId!, parentDoc);
   final depth = _depthOf(docType, set, parentDoc, parentShape);
   final placed =
-      DocPathShape.of(docType, set, depth: depth) ??
+      DocPathShape.of(docType, set, depth: depth, target: placedIn) ??
       (throw IndexFault(
         IndexFaultCode.argumentInvalid,
         '$docTypeId has no path to create a doc at depth $depth',
@@ -110,7 +118,15 @@ ReadAnswer answerNew(
   return session.locked(() {
     final docsRoot = session.project.docsRoot;
     final siblings = siblingsOnDisk(docsRoot, placed, parentValues);
-    _checkNoClash(session, docType, placed, parentValues, siblings, slug);
+    _checkNoClash(
+      session,
+      docType,
+      placed,
+      parentValues,
+      siblings,
+      slug,
+      placedIn,
+    );
     final highest = siblings.fold(0, (top, s) => max(top, s.number ?? 0));
     final created = <Directory>[];
     File? claimed;
@@ -125,6 +141,7 @@ ReadAnswer answerNew(
         slug,
         highest + 1,
         created,
+        placedIn,
       );
       if (generators != null) {
         lfText = fillGeneratedBlocks(
@@ -146,7 +163,7 @@ ReadAnswer answerNew(
     final written = parseIndexedDoc(
       docPath: docPath,
       bytes: utf8.encode(lineEnding.apply(lfText)),
-      match: MatchedDocType(docType),
+      match: MatchedDocType(docType, target: placedIn),
     );
     return ReadAnswer(
       text: '${namingLine(written.doc)}\n',
@@ -208,6 +225,22 @@ void _checkArguments(
   if (slug != null) checkSlug(slug);
 }
 
+/// Returns the code target whose spec folder holds the new doc of [docType],
+/// or null when the plain `path:` places it.
+///
+/// A per-target doc type is placed in a target's folder only when the project
+/// names two or more targets, as the doc type matcher reads it.
+/// Throws [IndexFault] `argument_missing` when [codeTarget] is null then.
+String? _placedInOf(MergedDocType docType, DocIndex index, String? codeTarget) {
+  final names = index.targetNames;
+  if (!docType.isPerTarget || names.length < 2) return null;
+  if (codeTarget != null) return codeTarget;
+  throw IndexFault(
+    IndexFaultCode.argumentMissing,
+    '${docType.id} needs --target: the code targets are ${names.join(', ')}',
+  );
+}
+
 /// Returns the shape of [parentDoc], the doc of type [parentTypeId] that the
 /// new doc hangs under, with the placeholder values its path holds.
 (DocPathShape, List<String>) _shapeOfParent(
@@ -263,6 +296,7 @@ void _checkNoClash(
   List<String> parentValues,
   List<SiblingEntry> siblings,
   String? slug,
+  String? placedIn,
 ) {
   final candidates = shape.numbered
       ? [
@@ -277,7 +311,8 @@ void _checkNoClash(
     if (!session.fileOf(docPath).existsSync()) continue;
     throw WriteFault(
       WriteFaultCode.docExists,
-      'a ${docType.id} named ${docNameOf(docPath, docType)} exists',
+      'a ${docType.id} named ${docNameOf(docPath, docType, target: placedIn)} '
+      'exists',
       file: docPath,
     );
   }
@@ -306,6 +341,7 @@ String _docPathOfSibling(
   String? slug,
   int firstNumber,
   List<Directory> created,
+  String? placedIn,
 ) {
   for (var number = firstNumber; ; number++) {
     final own = shape.ownValues(
@@ -323,7 +359,8 @@ String _docPathOfSibling(
       if (!shape.numbered) {
         throw WriteFault(
           WriteFaultCode.docExists,
-          'a ${docType.id} named ${docNameOf(docPath, docType)} exists',
+          'a ${docType.id} named '
+          '${docNameOf(docPath, docType, target: placedIn)} exists',
           file: docPath,
         );
       }

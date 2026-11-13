@@ -11,6 +11,7 @@ class NewCommand extends WriteCommand {
       )
       ..addOption('slug', help: 'The slug of the new doc.')
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addTargetOption();
   }
 
   @override
@@ -22,7 +23,7 @@ class NewCommand extends WriteCommand {
   @override
   String get invocation =>
       'specstone new <doc type> [--parent <doc address>] [--slug <slug>] '
-      '[--json]';
+      '[--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -54,6 +55,7 @@ class NewCommand extends WriteCommand {
         docTypeId: rest.first,
         parent: args.option('parent'),
         slug: args.option('slug'),
+        codeTarget: targetOf(args),
         text: text,
         generators: specstoneRunner.generators,
         firstConfirmations: withFirstConfirmations,

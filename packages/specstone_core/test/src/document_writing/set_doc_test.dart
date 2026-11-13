@@ -8,6 +8,8 @@ import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -22,8 +24,11 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/check_fixture.dart' as check show edit, loginFeature;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
+import '../../helpers/target_fixture.dart'
+    show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/write_fixture.dart';
 
 SetRequest req(String target, String base) =>
@@ -3131,5 +3136,363 @@ void main() {
     );
     expect(readDoc(root, story1), endsWith('## Open questions\n'));
     expect('## Open questions'.allMatches(readDoc(root, story1)), hasLength(1));
+  });
+
+  group('document_writing/edit_one_section_or_field with two code targets', () {
+    const arch = 'architecture:login';
+    const recordLayer =
+        'id: implementation\n'
+        'description: One feature record per target.\n'
+        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'parent: feature\n'
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: statuses\n'
+        '    type: record_status\n'
+        '    list: true\n'
+        '  - id: implements\n'
+        '    type: output_ref\n'
+        '    list: true\n'
+        '    pointer: item_exact\n';
+    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const record =
+        '---\nstatuses:\n  - email_login/check_password:implemented\n'
+        'implements:\n  - email_login/check_password:app/lib/login.dart\n'
+        '---\n\n# Record\n';
+
+    // The helper stamps no per-target doc, so each record gets its hash here.
+    Future<Directory> twinWithRecords() async {
+      final root = await writeTwinProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$flutterRecord': record,
+          'docs/$jasprRecord': record,
+        },
+      );
+      final type = writeIn(root, (s) => s.index.set.recordDocType!);
+      for (final path in [flutterRecord, jasprRecord]) {
+        docFile(root, path).writeAsStringSync(withApprovalHash(record, type));
+      }
+      return root;
+    }
+
+    List<String> twinsOf(Directory root) => [
+      readDoc(root, flutterArchitecture),
+      readDoc(root, jasprArchitecture),
+    ];
+
+    SetRequest jaspr(String address, String base, {String? field}) =>
+        SetRequest.parse(
+          address,
+          field: field,
+          base: base,
+          codeTarget: 'jaspr',
+        );
+
+    test('f02/us01/s4, f02/us01/fr03/e02: --target jaspr writes the covers of the jaspr twin only and leaves it approved', () async {
+      final root = await writeTwinProject();
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr(
+            arch,
+            fieldBase(root, jasprArchitecture, 'covers'),
+            field: 'covers',
+          ),
+          '- app/lib/login/\n',
+        ),
+      );
+      expect(
+        readDoc(root, jasprArchitecture),
+        allOf(
+          contains('covers:\n  - app/lib/login/\n'),
+          isNot(contains('draft')),
+        ),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
+      expect(answer.json['path'], jasprArchitecture);
+      expect(answer.json['draft'], isFalse);
+    });
+
+    test('f02/us01/fr03/e02: a name that two targets share is argument_invalid listing both docs without --target, and --target must name a target', () async {
+      final root = await writeTwinProject();
+      final base = fieldBase(root, jasprArchitecture, 'covers');
+      final before = twinsOf(root);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            fieldReq(arch, 'covers', base),
+            '- app/lib/login/\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '$arch names 2 docs: $flutterArchitecture, $jasprArchitecture',
+              ),
+        ),
+      );
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse(
+              arch,
+              field: 'covers',
+              base: base,
+              codeTarget: 'dart',
+            ),
+            '- app/lib/login/\n',
+          ),
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                '--target dart: the code targets are flutter, jaspr',
+              ),
+        ),
+      );
+      expect(twinsOf(root), before);
+    });
+
+    test('f02/us01/fr03/e03, document_writing/approve_drafts/mark_doc_approved E09: an implements write on a target record leaves it approved, a statuses write drafts it', () async {
+      final root = await twinWithRecords();
+      const address = 'implementation:login';
+      final flutterBefore = readDoc(root, flutterRecord);
+      final approvedBefore = RegExp('approved: "[0-9a-f]{12}"')
+          .firstMatch(readDoc(root, jasprRecord))![0]!;
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr(
+            address,
+            fieldBase(root, jasprRecord, 'implements'),
+            field: 'implements',
+          ),
+          '- email_login/check_password:app/lib/login.dart:SignInPage\n',
+        ),
+      );
+      final written = readDoc(root, jasprRecord);
+      expect(
+        written,
+        allOf(
+          contains(
+            'implements:\n'
+            '  - email_login/check_password:app/lib/login.dart:SignInPage\n',
+          ),
+          contains(approvedBefore),
+          isNot(contains('draft')),
+        ),
+      );
+      expect(answer.json['draft'], isFalse);
+      expect(readDoc(root, flutterRecord), flutterBefore);
+      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+
+      final status = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr(
+            address,
+            fieldBase(root, jasprRecord, 'statuses'),
+            field: 'statuses',
+          ),
+          '- email_login/check_password:skipped\n',
+        ),
+      );
+      expect(status.json['draft'], isTrue);
+      expect(readDoc(root, jasprRecord), contains('draft: true'));
+    });
+
+    test('f02/us01/fr03/e05: --target keeps the shared feature writable: status is refused on it and written on a story', () async {
+      final root = await writeTwinProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            jaspr('feature:login', emptyBaseHash, field: 'status'),
+            'implemented\n',
+          ),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.fieldNotWritable)
+              .having(
+                (f) => f.message,
+                'message',
+                'the status of a feature is computed from its stories',
+              ),
+        ),
+      );
+      const story = 'user_story:login/email_login';
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr(story, fieldBase(root, story, 'status'), field: 'status'),
+          'implemented\n',
+        ),
+      );
+      expect(answer.json['draft'], isTrue);
+      expect(
+        readDoc(root, 'prds/features/f01_login/us01_email_login/USER_STORY.md'),
+        contains('status: implemented\n'),
+      );
+    });
+
+    test('f02/us01/fr03/e13: empty stdin removes a written feature status under --target and the check reports none', () async {
+      final root = await writeTwinProject(
+        extra: check.edit(check.loginFeature, [
+          ('---\nvision:', '---\nstatus: implemented\nvision:'),
+        ]),
+      );
+      const address = 'feature:login';
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr(address, fieldBase(root, address, 'status'), field: 'status'),
+          '\n',
+        ),
+      );
+      expect(answer.json['base'], emptyBaseHash);
+      expect(answer.json['draft'], isTrue);
+      expect(readDoc(root, check.loginFeature), isNot(contains('status:')));
+      expect(spots(checkOf(root), FindingKind.featureStatusWritten), isEmpty);
+    });
+
+    test('f02/us01/s1, f02/us01/fr01: a section of one twin is written and the other twin keeps its text', () async {
+      final root = await writeTwinProject();
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr(
+            '$arch#components',
+            sectionBase(root, '$jasprArchitecture#components'),
+          ),
+          '- Jaspr page\n',
+        ),
+      );
+      expect(
+        readDoc(root, jasprArchitecture),
+        contains('## Components\n\n- Jaspr page\n'),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
+      expect(answer.json['path'], jasprArchitecture);
+      expect(answer.json['draft'], isTrue);
+    });
+
+    test('f02/us01/s8, f02/us01/fr02: a stale base on a twin is refused with its current section, and the other twin stays', () async {
+      final root = await writeTwinProject();
+      const address = '$arch#components';
+      final base = sectionBase(root, '$jasprArchitecture#components');
+      writeIn(
+        root,
+        (s) => answerSet(s, jaspr(address, base), '- First writer\n'),
+      );
+      final before = twinsOf(root);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(s, jaspr(address, base), '- Second writer\n'),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+              .having((f) => (f.file, f.key), 'location', (
+                jasprArchitecture,
+                'components',
+              )),
+        ),
+      );
+      expect(twinsOf(root), before);
+    });
+
+    test(
+      'f02/us01/s5, f02/us01/fr04: --title writes the title of one twin only',
+      () async {
+        final root = await writeTwinProject();
+        final flutterBefore = readDoc(root, flutterArchitecture);
+        final base =
+            (getDoc(root, jasprArchitecture)['bases']! as Map)['title']!
+                as String;
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            SetRequest.parse(
+              arch,
+              title: true,
+              base: base,
+              codeTarget: 'jaspr',
+            ),
+            'Jaspr login architecture\n',
+          ),
+        );
+        expect(
+          readDoc(root, jasprArchitecture),
+          contains('# Jaspr login architecture\n'),
+        );
+        expect(readDoc(root, flutterArchitecture), flutterBefore);
+      },
+    );
+
+    test('f02/us01/fr06: #_lead writes the lead of one twin only', () async {
+      final root = await writeTwinProject();
+      final flutterBefore = readDoc(root, flutterArchitecture);
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          jaspr('$arch#_lead', sectionBase(root, '$jasprArchitecture#_lead')),
+          'Jaspr lead.\n',
+        ),
+      );
+      expect(
+        readDoc(root, jasprArchitecture),
+        contains('# Login architecture\n\nJaspr lead.\n\n## Component diagram'),
+      );
+      expect(readDoc(root, flutterArchitecture), flutterBefore);
+    });
+
+    test('f02/us01/s2, f02/us01/fr05: two Agents write two sections of one twin at once and both land', () async {
+      final root = await writeTwinProject();
+      final path = root.path;
+      final components = sectionBase(root, '$jasprArchitecture#components');
+      final concerns = sectionBase(root, '$jasprArchitecture#concerns');
+      String write(String key, String base, String body) => WriteSession.run(
+        (s) => answerSet(s, jaspr('$arch#$key', base), body).text,
+        templates: TemplateResolver(),
+        workingDirectory: Directory(path),
+        homeDirectory: null,
+      );
+      await Future.wait([
+        Isolate.run(() => write('components', components, '- Jaspr page\n')),
+        Isolate.run(() => write('concerns', concerns, '- Errors: none\n')),
+      ]);
+      expect(
+        readDoc(root, jasprArchitecture),
+        allOf(
+          contains('## Components\n\n- Jaspr page\n'),
+          contains('## Concerns\n\n- Errors: none\n'),
+        ),
+      );
+    });
   });
 }
