@@ -163,13 +163,16 @@ void main() {
       expect(counts[1], (lines: 2, chars: 17));
     });
 
-    test('f04/nfr-p03: a section count is the non-blank lines of its header line and body', () {
-      final counts = _contentOf(text).lineFacts.sectionCounts;
-      expect(counts[0].lines, 5);
-      expect(counts[1].lines, 2);
-      final blanks = _factsOf('---\na: 1\n---\n# T\n\n## S\n\n\nx\n\n\n');
-      expect(blanks.sectionCounts.single.lines, 2);
-    });
+    test(
+      'a section count is the non-blank lines of its header line and body',
+      () {
+        final counts = _contentOf(text).lineFacts.sectionCounts;
+        expect(counts[0].lines, 5);
+        expect(counts[1].lines, 2);
+        final blanks = _factsOf('---\na: 1\n---\n# T\n\n## S\n\n\nx\n\n\n');
+        expect(blanks.sectionCounts.single.lines, 2);
+      },
+    );
 
     test('f04/nfr-p03: a CRLF file has the facts of its LF twin', () {
       final lf = _factsOf(text);
@@ -194,20 +197,29 @@ void main() {
       expect(_factsOf('# T\n\n## S\nx\n\n').lineCount, 3);
     });
 
-    test('f04/nfr-p03: the doc count is the non-blank lines of the body after the frontmatter', () {
-      expect(_factsOf(text).lineCount, 8);
-      expect(
-        _factsOf('---\nstatus: planned\n\n---\n\n# T\n\n\n## S\nx\n\n\n')
-            .lineCount,
-        3,
-      );
-    });
+    test(
+      'the doc count is the non-blank lines of the body after the frontmatter',
+      () {
+        expect(_factsOf(text).lineCount, 8);
+        expect(
+          _factsOf('---\nstatus: planned\n\n---\n\n# T\n\n\n## S\nx\n\n\n')
+              .lineCount,
+          3,
+        );
+      },
+    );
 
-    test('f04/nfr-p03: invalid frontmatter still counts its body from the closing delimiter', () {
-      expect(_factsOf('---\ntitle: "open\n---\n\n# T\n\nx\n\n\n').lineCount, 2);
-    });
+    test(
+      'invalid frontmatter still counts its body from the closing delimiter',
+      () {
+        expect(
+          _factsOf('---\ntitle: "open\n---\n\n# T\n\nx\n\n\n').lineCount,
+          2,
+        );
+      },
+    );
 
-    test('f04/nfr-p03: a doc with no closed frontmatter counts its whole text as body', () {
+    test('a doc with no closed frontmatter counts its whole text as body', () {
       expect(_factsOf('---\nstatus: planned\n# T\n\nx\n\n').lineCount, 4);
     });
 
@@ -390,7 +402,7 @@ void main() {
   });
 
   group('LineFacts.of counted text', () {
-    test('f04/nfr-p03: lineCount and charCount measure countedText '
+    test('lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
       const disk = '# T\n\n## A\nx\n\n\n## B\ny\n';
       final facts = LineFacts.of(

@@ -760,7 +760,7 @@ void main() {
         ..execute('UPDATE meta SET layout = 13');
       expect(store.readStamp(), isNull);
     });
-    test('s03/inv2: an index of layout 14, its counts made of '
+    test('an index of layout 14, its counts made of '
         'every line, has no stamp, so it is rebuilt', () async {
       final r = await root();
       final store = IndexStore.open(r);

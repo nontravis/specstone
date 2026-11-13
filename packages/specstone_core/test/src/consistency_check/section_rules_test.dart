@@ -89,7 +89,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr04/e04: a 412-line doc over its 400-line limit', () async {
+  test('f04/us01/fr04/e04: a doc of 405 non-blank body lines is over its 400-line limit', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -106,7 +106,7 @@ void main() {
     expect(finding.toJson(), containsPair('actual', 405));
   });
 
-  test('f04/us01/fr04: 60 blank lines or 30 frontmatter lines more leave the '
+  test('60 blank lines or 30 frontmatter lines more leave the '
       'doc line count alone', () async {
     const base =
         '---\ntraced_from:\n  - S2\nverify_method: test\n'
@@ -128,7 +128,7 @@ void main() {
     expect(actualOf(await reportOf(stamped)), 405);
   });
 
-  test('f04/us01/fr04: invalid frontmatter counts its body from the closing '
+  test('invalid frontmatter counts its body from the closing '
       'delimiter; an unclosed one counts its whole text', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -152,7 +152,7 @@ void main() {
     ]);
   });
 
-  test('f04/us01/fr04: the blank lines format adds under ### headings never '
+  test('the blank lines format adds under ### headings never '
       'count toward a section limit', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -173,7 +173,7 @@ void main() {
     expect(finding.toJson(), containsPair('actual', 40));
   });
 
-  test('f04/us01/fr04: a record whose 300 frontmatter lines and 40 body lines '
+  test('a record whose 300 frontmatter lines and 40 body lines '
       'stay under both limits', () async {
     final record =
         "---\nstatuses:\n  - 'email_login:implemented'\n"
