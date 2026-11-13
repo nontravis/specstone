@@ -173,7 +173,7 @@ Iterable<Finding> uncoveredCode(
         if (work.targetOf(doc) == target) doc,
     ];
     final covers = _coversOf(context, docs);
-    final nested = _nestedRootsOf(context, target);
+    final nested = nestedRootsOf(context.projectRoot, target, context.targets);
     final reported = <String>{};
     for (final doc in docs) {
       if (!context.typeHoldsField(context.typeOf(doc), _codeField)) continue;
@@ -204,28 +204,6 @@ Iterable<Finding> uncoveredCode(
       }
     }
   }
-}
-
-/// Returns the code root of each other target that lies inside [target]'s, as
-/// a path from [target]'s code root.
-List<String> _nestedRootsOf(CheckContext context, CodeTarget target) {
-  final own = context.codeRootOf(target).path;
-  final prefix = own.endsWith(Platform.pathSeparator)
-      ? own
-      : '$own${Platform.pathSeparator}';
-  final nested = <String>[];
-  for (final other in context.targets) {
-    final path = context.codeRootOf(other).path;
-    if (other == target || path.length <= prefix.length) continue;
-    if (!path.startsWith(prefix)) continue;
-    nested.add(
-      path
-          .substring(prefix.length)
-          .split(Platform.pathSeparator)
-          .join(_separator),
-    );
-  }
-  return nested;
 }
 
 /// Returns every `covers` entry of the typed [docs] in [normalCodeEntry]'s

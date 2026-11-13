@@ -1,3 +1,7 @@
+import 'dart:io';
+
+import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
+
 /// One code base the shared PRD drives: its name and its code root.
 ///
 /// The name is null for the one unnamed target a `code_root:`-only config
@@ -25,6 +29,44 @@ final class CodeTarget {
 
   @override
   String toString() => 'CodeTarget($name, $codeRoot)';
+}
+
+/// Returns the folder [target]'s code paths are written from, [projectRoot]
+/// joined with its `code_root`, as [canonicalPath] reads it.
+Directory codeRootFolderOf(Directory projectRoot, CodeTarget target) =>
+    Directory(
+      canonicalPath(
+        '${projectRoot.path}/'
+        '${target.codeRoot.replaceAll(RegExp(r'[\\/]'), '/')}',
+      ),
+    );
+
+/// Returns each of [targets]' code root folders that lie inside [target]'s,
+/// as `/`-separated paths from it; [projectRoot] resolves the roots.
+///
+/// One nested-roots rule: a file under the root of another target nested in
+/// this one belongs to that target.
+List<String> nestedRootsOf(
+  Directory projectRoot,
+  CodeTarget target,
+  List<CodeTarget> targets,
+) {
+  final own = codeRootFolderOf(projectRoot, target).path;
+  final others = [
+    for (final other in targets)
+      if (other != target) codeRootFolderOf(projectRoot, other).path,
+  ];
+  return _nestedPathsOf(own, others);
+}
+
+/// Returns each of [roots] that lies inside [own], `/`-separated from it.
+List<String> _nestedPathsOf(String own, List<String> roots) {
+  final prefix = own.endsWith('/') ? own : '$own/';
+  return [
+    for (final path in roots)
+      if (path.length > prefix.length && path.startsWith(prefix))
+        path.substring(prefix.length).replaceAll(RegExp(r'[\\/]'), '/'),
+  ];
 }
 
 /// Returns the named targets of [targets], in order; empty with one unnamed

@@ -28,7 +28,6 @@ const _cursorFolder = '.cursor';
 const _gitEntry = '.git';
 const _codeField = 'code';
 const _docsFolder = 'docs/';
-const _pathSeparator = '/';
 const _defaultInstructionName = 'AGENTS.md';
 const _agentsLinePrefix = 'agent files: ';
 const _malformedMessage =
@@ -136,22 +135,14 @@ List<({Directory root, String path})> codeFilesOf(
   required List<CodeTarget> targets,
 }) {
   final entriesOf = _entriesByTarget(projectRoot, set, targets);
-  final roots = [
-    for (final target in targets)
-      codeRootFolders(
-        projectRoot,
-        codeRoot: target.codeRoot,
-        codeEntries: const [],
-      ).first,
-  ];
   return [
-    for (var index = 0; index < targets.length; index++)
+    for (final target in targets)
       for (final path in codeRootFiles(
-        roots[index],
-        entriesOf[targets[index]] ?? const {},
-        skipFolders: _nestedRootsOf(roots[index], roots),
+        codeRootFolderOf(projectRoot, target),
+        entriesOf[target] ?? const {},
+        skipFolders: nestedRootsOf(projectRoot, target, targets),
       ))
-        (root: roots[index], path: path),
+        (root: codeRootFolderOf(projectRoot, target), path: path),
   ];
 }
 
@@ -174,45 +165,12 @@ Map<CodeTarget, Set<String>> _entriesByTarget(
   return entriesOf;
 }
 
-/// Returns the folders of the roots in [roots] that lie inside [own], as paths
-/// from [own] in `/` form.
-List<String> _nestedRootsOf(Directory own, List<Directory> roots) {
-  final prefix = own.path.endsWith(Platform.pathSeparator)
-      ? own.path
-      : '${own.path}${Platform.pathSeparator}';
-  return [
-    for (final other in roots)
-      if (other.path.length > prefix.length && other.path.startsWith(prefix))
-        other.path
-            .substring(prefix.length)
-            .split(Platform.pathSeparator)
-            .join(_pathSeparator),
-  ];
-}
-
 /// Returns the target the doc named [name] belongs to; a shared doc (null
 /// [name]) belongs to the one target of a single-target project, else to none.
 CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
   if (name == null) return targets.length == 1 ? targets.first : null;
   return targets.where((target) => target.name == name).firstOrNull;
 }
-
-/// Returns the `code:` entries of every doc under `docs/` whose type holds the
-/// `code` field, each once, in doc path order.
-///
-/// [targetNames] are the config's, so a per-target doc is matched and read.
-List<String> codeEntriesOnDisk(
-  Directory projectRoot,
-  MergedSet set, {
-  required List<String> targetNames,
-}) => {
-  for (final (target: _, :entry) in _codeEntriesOf(
-    projectRoot,
-    set,
-    targetNames: targetNames,
-  ))
-    entry,
-}.toList();
 
 /// Returns the `code:` entries of each doc whose type holds the `code` field,
 /// in doc path order, with the target the doc's path names; null for a shared

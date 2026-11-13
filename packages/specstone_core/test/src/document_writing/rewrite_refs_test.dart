@@ -1093,13 +1093,18 @@ void main() {
         },
       );
 
-      final paths = plan(noMoves, renamed: rename).map((s) => s.path).toList();
+      final steps = plan(noMoves, renamed: rename);
 
-      expect(paths.where((p) => p.endsWith('.dart')), [
-        'other/c.dart',
-        'ws/a.dart',
-        'ws/inner/b.dart',
-      ]);
+      expect(
+        steps
+            .where((s) => s.path.endsWith('.dart'))
+            .map((s) => (s.path, s.text)),
+        [
+          ('other/c.dart', '// `signin/email_login`\n'),
+          ('ws/a.dart', '// `signin/email_login`\n'),
+          ('ws/inner/b.dart', '// `signin/email_login`\n'),
+        ],
+      );
     });
 
     test('document_writing/rename_doc/rewrite_name_references E04: a code file with no mention of a renamed doc gets no step, and no rename reads no code file', () async {
