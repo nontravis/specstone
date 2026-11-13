@@ -2146,6 +2146,142 @@ if ($env:HARNESS_MODE -eq 'iex') {
       }
     });
 
+    group('prerequisite warnings', () {
+      const gitCommand = 'winget install Git.Git';
+      const claudeCommand = 'irm https://claude.ai/install.ps1 | iex';
+      const floorLine =
+          'specstone: git 2.25 or later is missing; install it with '
+          '$gitCommand\n';
+      const gitForWindowsLine =
+          'specstone: Git for Windows is missing; install it with '
+          '$gitCommand\n';
+      const claudeLine =
+          'specstone: Claude Code is missing; install it with '
+          '$claudeCommand\n';
+
+      // Write-Host ends a line with CRLF.
+      String stdoutOf(ProcessResult r) =>
+          (r.stdout as String).replaceAll('\r\n', '\n');
+
+      // The stub answers `git --version` as the named build does; null
+      // leaves a git that fails, as a machine with no usable git does.
+      void stubGit(ScriptSandbox sb, String? version) => sb.stub(
+        'git',
+        version == null ? 'exit /b 127' : 'echo git version $version',
+      );
+
+      pathTest('git 2.45.1.windows.1 and claude warn about nothing', () async {
+        final sb = await sandboxWithClaude();
+        stubGit(sb, '2.45.1.windows.1');
+
+        final r = await runInstall(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(stdoutOf(r), isNot(contains('specstone: git')));
+        expect(stdoutOf(r), isNot(contains('Git for Windows')));
+        expect(stdoutOf(r), isNot(contains('Claude Code is missing')));
+      });
+
+      pathTest('a git build that names no windows warns for Git for Windows '
+          'only', () async {
+        final sb = await sandboxWithClaude();
+        stubGit(sb, '2.45.1');
+
+        final r = await runInstall(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(stdoutOf(r), contains(gitForWindowsLine));
+        expect(stdoutOf(r), isNot(contains('git 2.25 or later')));
+      });
+
+      pathTest('git 2.20.0.windows.1 warns naming the floor only', () async {
+        final sb = await sandboxWithClaude();
+        stubGit(sb, '2.20.0.windows.1');
+
+        final r = await runInstall(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(stdoutOf(r), contains(floorLine));
+        expect(stdoutOf(r), isNot(contains('Git for Windows')));
+      });
+
+      pathTest('no git warns twice, naming the floor and Git for Windows, '
+          'each with winget', () async {
+        final sb = await sandboxWithClaude();
+        stubGit(sb, null);
+
+        final r = await runInstall(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          stdoutOf(r),
+          stringContainsInOrder([floorLine, gitForWindowsLine]),
+        );
+      });
+
+      pathTest('no claude warns after the plugin step, which still prints '
+          'its commands', () async {
+        final sb = await sandboxWith();
+        stubGit(sb, '2.45.1.windows.1');
+
+        final r = await runInstall(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          stdoutOf(r),
+          stringContainsInOrder([
+            '  claude plugin install specstone@specstone\n',
+            claudeLine,
+          ]),
+        );
+        expect(sb.logOf('claude'), isEmpty);
+      });
+
+      pathTest('a claude on a relative PATH entry only is missing', () async {
+        final sb = await sandboxWith();
+        stubGit(sb, '2.45.1.windows.1');
+        final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
+        for (final folder in ['.', 'planted']) {
+          File('${sb.root.path}\\$folder\\claude.cmd')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '@echo off\r\n> "%STUB_LOG_DIR%\\planted-claude.ran" echo ran\r\n',
+            );
+        }
+
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH':
+                '.;planted;${sb.stubs.path};$system\\System32;'
+                '$system\\System32\\WindowsPowerShell\\v1.0',
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(stdoutOf(r), contains(claudeLine));
+        expect(
+          File('${sb.logs.path}\\planted-claude.ran').existsSync(),
+          isFalse,
+        );
+      });
+
+      pathTest('every prerequisite missing warns once each; the install '
+          'still ran and its exit status is kept', () async {
+        final sb = await sandboxWith();
+        stubGit(sb, null);
+
+        final r = await runInstall(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          stdoutOf(r),
+          stringContainsInOrder([floorLine, gitForWindowsLine, claudeLine]),
+        );
+        expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
+      });
+    });
+
     group('PATH search (G8-R10)', () {
       final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
       final systemEntries =

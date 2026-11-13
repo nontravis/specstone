@@ -536,6 +536,36 @@ absolute_path_only() {
   export PATH
 }
 
+# Succeeds when the git version text $1 is 2.25 or later; a text that names no
+# version, such as the empty output of a git that failed, does not.
+meets_git_floor() {
+  printf '%s\n' "$1" | awk '
+    /git version [0-9]+\.[0-9]+/ {
+      split($0, parts, /[ .]+/)
+      major = parts[3] + 0
+      minor = parts[4] + 0
+      ok = (major > 2 || (major == 2 && minor >= 25))
+    }
+    END { exit (ok ? 0 : 1) }'
+}
+
+# Prints one warning line per prerequisite this machine lacks. The check runs
+# after every install step and only prints: it installs nothing and never
+# changes the exit status.
+warn_missing_prerequisites() {
+  git_command='sudo apt install git'
+  if [ "$(uname -s)" = 'Darwin' ]; then
+    git_command='xcode-select --install'
+  fi
+  git_text=$(git --version 2>/dev/null) || git_text=''
+  if ! meets_git_floor "$git_text"; then
+    printf 'specstone: git 2.25 or later is missing; install it with %s\n' "$git_command"
+  fi
+  if ! command -v claude >/dev/null 2>&1; then
+    printf 'specstone: Claude Code is missing; install it with curl -fsSL https://claude.ai/install.sh | bash\n'
+  fi
+}
+
 main() {
   absolute_path_only
   target=$(pick_target)
@@ -583,6 +613,7 @@ main() {
 
   add_path_entry
   install_plugin
+  warn_missing_prerequisites
 }
 
 main "$@"

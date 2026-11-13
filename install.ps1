@@ -598,6 +598,45 @@ try {
         }
     }
 
+    # Returns $true when the `git --version` text $Text names git 2.25 or later;
+    # a text that names no version, such as the empty output of a git that
+    # failed, does not. The digit runs are bounded so no [int] cast overflows.
+    function Test-GitFloor([string]$Text) {
+        $found = [regex]::Match($Text, 'git version ([0-9]{1,6})\.([0-9]{1,6})')
+        if (-not $found.Success) {
+            return $false
+        }
+        $major = [int]$found.Groups[1].Value
+        $minor = [int]$found.Groups[2].Value
+        return ($major -gt 2) -or ($major -eq 2 -and $minor -ge 25)
+    }
+
+    # Prints one warning line per prerequisite this machine lacks: git 2.25 or
+    # later, Git for Windows (a `git --version` that names a windows build,
+    # since the hooks run in its Git Bash), and Claude Code's claude. It only
+    # prints: nothing is installed and the install's exit status stays.
+    function Write-MissingPrerequisites {
+        $gitCommand = 'winget install Git.Git'
+        $gitText = ''
+        $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -ne $git) {
+            $probe = Invoke-Native $git.Source @('--version') $false
+            if ($probe.Status -eq 0) {
+                $gitText = (@($probe.Output) -join "`n").Trim()
+            }
+        }
+        if (-not (Test-GitFloor $gitText)) {
+            Write-Host "specstone: git 2.25 or later is missing; install it with $gitCommand"
+        }
+        if (-not ($gitText -cmatch '\.windows[.0-9]')) {
+            Write-Host "specstone: Git for Windows is missing; install it with $gitCommand"
+        }
+        $claude = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($null -eq $claude) {
+            Write-Host 'specstone: Claude Code is missing; install it with irm https://claude.ai/install.ps1 | iex'
+        }
+    }
+
     # Tells running programs that the user environment changed, as the Windows
     # settings dialog does; without it only new sessions of Explorer see it.
     function Send-EnvironmentChange {
@@ -808,6 +847,11 @@ try {
 
         Add-UserPathEntry (Join-Path $installDir 'bin')
         Install-Plugin
+        try {
+            Write-MissingPrerequisites
+        } catch {
+            # a failed check never turns a finished install into a failure
+        }
     } finally {
         $env:Path = $savedPath
         [Environment]::SetEnvironmentVariable('NoDefaultCurrentDirectoryInExePath', $savedNoCurrentFolder)

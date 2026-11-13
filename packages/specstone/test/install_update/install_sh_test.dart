@@ -2235,6 +2235,205 @@ echo '[]'
       }, skip: runsAsRoot ? rootSkip : null);
     });
 
+    group('prerequisite warnings', () {
+      const claudeCommand = 'curl -fsSL https://claude.ai/install.sh | bash';
+      const macGitCommand = 'xcode-select --install';
+      const linuxGitCommand = 'sudo apt install git';
+      const linuxFloorLine =
+          'specstone: git 2.25 or later is missing; install it with '
+          '$linuxGitCommand\n';
+      const claudeLine =
+          'specstone: Claude Code is missing; install it with '
+          '$claudeCommand\n';
+
+      Future<ProcessResult> runWith(
+        ScriptSandbox sb, [
+        Map<String, String> extra = const {},
+      ]) => sb.run('install.sh', extra: {...archiveEnv(sb), ...extra});
+
+      // A claude stub answering empty lists, so the plugin step runs in full
+      // and its manual lines cannot print; the warnings are its own output.
+      Future<ScriptSandbox> sandboxWithClaude({
+        String target = 'linux-x64',
+      }) async {
+        final sb = await sandboxWith(target: target);
+        sb.stub('claude', r'''
+echo "$*" >> "$STUB_LOG_DIR/claude.log"
+case "$*" in
+  'plugin marketplace list --json' | 'plugin list --json') echo '[]' ;;
+esac''');
+        return sb;
+      }
+
+      test('a Mac with git 2.39 and claude warns about nothing', () async {
+        final sb = await sandboxWithClaude(target: 'macos-arm64');
+        sb.stub('git', r'''
+echo "$*" >> "$STUB_LOG_DIR/git.log"
+case "$*" in
+  --version) echo 'git version 2.39.0' ;;
+esac''');
+
+        final r = await runWith(sb, {
+          'STUB_UNAME_S': 'Darwin',
+          'STUB_UNAME_M': 'arm64',
+        });
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('specstone:')));
+        expect(sb.logOf('git'), ['--version']);
+      });
+
+      test('Linux with git 2.20 warns naming the floor and the '
+          'install command', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('git', 'echo "git version 2.20.0"\n');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains(
+            'specstone: git 2.25 or later is missing; install it with '
+            '$linuxGitCommand\n',
+          ),
+        );
+        expect(r.stdout, isNot(contains('Claude Code')));
+      });
+
+      test('no claude warns after the plugin step, which still '
+          'prints its commands', () async {
+        final sb = await sandboxWith();
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          stringContainsInOrder([
+            'claude plugin install specstone@specstone',
+            claudeLine,
+          ]),
+        );
+        expect(sb.logOf('claude'), isEmpty);
+      });
+
+      test('a claude on a relative PATH entry only is missing', () async {
+        final sb = await sandboxWith();
+        sb.stub('git', 'echo "git version 2.39.0"\n');
+        for (final folder in ['.', 'planted']) {
+          final planted = File('${sb.root.path}/$folder/claude')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(
+              '#!/bin/sh\necho ran >> "\$STUB_LOG_DIR/claude.log"\n',
+            );
+          Process.runSync('chmod', ['755', planted.path]);
+        }
+
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': '${sb.stubs.path}:/usr/bin:/bin:planted::.',
+          },
+        );
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains(
+            'specstone: Claude Code is missing; install it with '
+            '$claudeCommand\n',
+          ),
+        );
+        expect(sb.logOf('claude'), isEmpty);
+      });
+
+      test('every prerequisite missing warns once each; the '
+          'install still ran and its exit status is kept', () async {
+        final sb = await sandboxWith();
+        sb.stub('git', 'exit 127\n');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, stringContainsInOrder([linuxFloorLine, claudeLine]));
+        expect(installedVersion(sb), '0.2.0');
+        expect(
+          File('${sb.home.path}/.specstone/bin/specstone').existsSync(),
+          isTrue,
+        );
+      });
+
+      for (final (os, machine, command) in [
+        ('Darwin', 'arm64', macGitCommand),
+        ('Linux', 'x86_64', linuxGitCommand),
+      ]) {
+        test('no git on $os warns naming $command', () async {
+          final sb = await sandboxWithClaude(
+            target: os == 'Darwin' ? 'macos-arm64' : 'linux-x64',
+          );
+          // /usr/bin stays on the sandbox PATH and holds the machine's own
+          // git; the stub answers as a shell does for a command not found.
+          sb.stub('git', 'exit 127\n');
+
+          final r = await runWith(sb, {
+            'STUB_UNAME_S': os,
+            'STUB_UNAME_M': machine,
+          });
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            r.stdout,
+            contains(
+              'specstone: git 2.25 or later is missing; install it with '
+              '$command\n',
+            ),
+          );
+        });
+      }
+
+      for (final (version, warns) in [
+        ('git version 2.25.0', false),
+        ('git version 2.24.1', true),
+        ('git version 2.24.1.320', true),
+        ('git version 2.39.3 (Apple Git-146)', false),
+        ('git version 3.0.0', false),
+        ('git version 1.9.5', true),
+      ]) {
+        test('$version counts as ${warns ? "below" : "at or above"} '
+            'the floor', () async {
+          final sb = await sandboxWithClaude();
+          sb.stub('git', 'echo "$version"\n');
+
+          final r = await runWith(sb);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            (r.stdout as String).contains('git 2.25 or later is missing'),
+            warns,
+          );
+        });
+      }
+
+      test('a git that cannot report a version counts as missing and '
+          'keeps the exit status', () async {
+        final sb = await sandboxWithClaude();
+        sb.stub('git', 'exit 129\n');
+
+        final r = await runWith(sb);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stdout,
+          contains(
+            'specstone: git 2.25 or later is missing; install it with '
+            '$linuxGitCommand\n',
+          ),
+        );
+      });
+    });
+
     group('PATH search (G8-R10)', () {
       // Each name is planted in the run folder and in a relative `planted`
       // folder; a planted program only records that it ran.
