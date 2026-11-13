@@ -1098,6 +1098,243 @@ reference: [{title: A}]
     });
   });
 
+  group('DocTypeMerger.apply guide-rule lint', () {
+    const lower = '''
+path: docs/specs/{slug}/DOMAIN.md
+sections:
+  - id: scope
+    header: Scope
+  - id: invariants
+    header: Invariants
+    lint:
+      min_lines: 2
+      catalog: {column: Code}
+      names_codes: true
+      item_fields:
+        - {field: Enforcer, values: [a, b]}
+        - {field: Consistency}
+      required_when: {section: scope, field: Kind, value: api}
+      diagram: {title: true, edge_labels: true, banned_labels: [x, y]}
+      max_sentences: [{count: 1}, {count: 2, column: Notes}]
+      item_count:
+        min: 1
+        max: 9
+        per_subsection: true
+        prefixes: [{line_prefix: "- **Why:**", count: 1}]
+lint: {title_no_number: true}
+''';
+
+    MergedDocType base() =>
+        merger.apply(merger.builtInBase('feature'), layer(lower));
+
+    MergedSection invariants(MergedDocType type) =>
+        type.sections.singleWhere((s) => s.id == 'invariants');
+
+    MergedDocType over(String lint) =>
+        project(base(), 'sections: [{id: invariants, lint: $lint}]');
+
+    test('a layer carries every guide-rule key into the merged section', () {
+      final section = invariants(base());
+      expect(section.minLines, 2);
+      expect(section.catalog?.column, 'Code');
+      expect(section.namesCodes, isTrue);
+      expect(section.itemFields?.map((f) => f.field), [
+        'Enforcer',
+        'Consistency',
+      ]);
+      expect(section.itemFields?.first.values, ['a', 'b']);
+      expect(section.requiredWhen?.section, 'scope');
+      expect(section.diagram?.bannedLabels, ['x', 'y']);
+      expect(section.maxSentences?.map((l) => l.count), [1, 2]);
+      expect(section.itemCount?.prefixes.single.count, 1);
+      expect(base().lint.titleNoNumber, isTrue);
+    });
+
+    test('a layer that writes none of the keys keeps the lower values', () {
+      final section = invariants(
+        project(base(), 'sections: [{id: invariants, description: New}]'),
+      );
+      expect(section.minLines, 2);
+      expect(section.catalog?.column, 'Code');
+      expect(section.itemFields, hasLength(2));
+      expect(section.itemCount?.max, 9);
+      expect(project(base(), 'description: New').lint.titleNoNumber, isTrue);
+    });
+
+    test('item_fields add replaces the lower entry of the same field and '
+        'keeps the others', () {
+      final fields = invariants(
+        over('{item_fields: {add: [{field: Enforcer, values: [c]}]}}'),
+      ).itemFields!;
+      expect(
+        {for (final f in fields) f.field: f.values},
+        {
+          'Enforcer': ['c'],
+          'Consistency': null,
+        },
+      );
+    });
+
+    test('item_fields remove drops the lower entry of that field', () {
+      final fields = invariants(over('{item_fields: {remove: [Consistency]}}'))
+          .itemFields!;
+      expect(fields.map((f) => f.field), ['Enforcer']);
+    });
+
+    test('item_fields remove of a field no lower layer holds is '
+        'override_id_not_found', () {
+      expect(
+        () => over('{item_fields: {remove: [Missing]}}'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.invariants.lint.item_fields',
+          ),
+        ),
+      );
+    });
+
+    test('a plain item_fields list over a lower one is '
+        'list_override_needs_add_remove', () {
+      expect(
+        () => over('{item_fields: [{field: Enforcer}]}'),
+        throwsA(
+          fault(
+            FaultCode.listOverrideNeedsAddRemove,
+            'sections.invariants.lint.item_fields',
+          ),
+        ),
+      );
+    });
+
+    test('the first layer to define item_fields writes it plain, or as a '
+        'change over nothing', () {
+      final plain = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: [{field: Why}]}}]',
+      );
+      final change = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '{add: [{field: Why}]}}}]',
+      );
+      for (final merged in [plain, change]) {
+        expect(
+          merged.sections
+              .firstWhere((s) => s.id == 'goal')
+              .itemFields
+              ?.map((f) => f.field),
+          ['Why'],
+        );
+      }
+    });
+
+    test('a new section carries its guide-rule keys', () {
+      final merged = project(
+        base(),
+        'sections: [{id: notes, header: Notes, lint: {min_lines: 1, '
+        'item_fields: [{field: Why}], diagram: {title: true}}}]',
+      );
+      final notes = merged.sections.singleWhere((s) => s.id == 'notes');
+      expect(notes.minLines, 1);
+      expect(notes.itemFields?.single.field, 'Why');
+      expect(notes.diagram?.title, isTrue);
+    });
+
+    test('an upper diagram replaces the lower map whole, banned labels '
+        'with it', () {
+      final diagram = invariants(over('{diagram: {title: false}}')).diagram!;
+      expect(diagram.title, isFalse);
+      expect(diagram.edgeLabels, isFalse);
+      expect(diagram.bannedLabels, isEmpty);
+    });
+
+    test('an upper catalog, required_when, and item_count replace the lower '
+        'value whole', () {
+      final section = invariants(
+        over(
+          '{catalog: {column: Name}, '
+          'required_when: {section: scope, field: Other, value: z}, '
+          'item_count: {max: 3}}',
+        ),
+      );
+      expect(section.catalog?.column, 'Name');
+      expect(section.requiredWhen?.field, 'Other');
+      expect(section.itemCount?.min, isNull);
+      expect(section.itemCount?.max, 3);
+      expect(section.itemCount?.perSubsection, isFalse);
+      expect(section.itemCount?.prefixes, isEmpty);
+    });
+
+    test('an upper max_sentences list replaces the lower list whole', () {
+      final limits = invariants(over('{max_sentences: [{count: 5}]}'))
+          .maxSentences!;
+      expect(limits.map((l) => l.count), [5]);
+      expect(limits.single.column, isNull);
+    });
+
+    test('an upper scalar replaces the lower one, false and 0 included', () {
+      final section = invariants(over('{names_codes: false, min_lines: 0}'));
+      expect(section.namesCodes, isFalse);
+      expect(section.minLines, 0);
+      final doc = project(base(), 'lint: {title_no_number: false}');
+      expect(doc.lint.titleNoNumber, isFalse);
+    });
+
+    test('a doc-level lint key that is a section guide-rule key is '
+        'unknown_key', () {
+      for (final key in ['catalog', 'min_lines', 'item_fields']) {
+        expect(
+          () => layer('lint: {$key: {}}', kind: LayerKind.project),
+          throwsA(fault(FaultCode.unknownKey, 'lint.$key')),
+          reason: key,
+        );
+      }
+    });
+
+    test('a section lint key unknown to the format is unknown_key, and '
+        'title_no_number is one', () {
+      for (final key in ['max_item_chars', 'title_no_number', 'colour']) {
+        expect(
+          () => layer(
+            'sections: [{id: invariants, lint: {$key: 1}}]',
+            kind: LayerKind.project,
+          ),
+          throwsA(fault(FaultCode.unknownKey, 'sections.invariants.lint.$key')),
+          reason: key,
+        );
+      }
+    });
+
+    test('a required_when that names no section of the merged doc type is '
+        'unknown_value', () {
+      expect(
+        () => over(
+          '{required_when: {section: nowhere, field: Kind, value: api}}',
+        ),
+        throwsA(
+          fault(
+            FaultCode.unknownValue,
+            'sections.invariants.lint.required_when.section',
+          ),
+        ),
+      );
+    });
+
+    test('a layer that disables the section a required_when names is '
+        'unknown_value', () {
+      expect(
+        () => project(base(), 'sections: [{id: scope, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.unknownValue,
+            'sections.invariants.lint.required_when.section',
+          ),
+        ),
+      );
+    });
+  });
+
   group('DocTypeMerger.apply section lint', () {
     MergedDocType withSectionWords() => merger.apply(
       merger.builtInBase('feature'),

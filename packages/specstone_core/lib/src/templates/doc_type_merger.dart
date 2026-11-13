@@ -44,10 +44,11 @@ final class DocTypeMerger {
   /// `override_id_not_found` for a removed pattern id the base lacks,
   /// `reference_title_not_found` for a removed title the base lacks,
   /// `bundle_mode_not_found` for a removed mode the base lacks, and
-  /// `unknown_value` for a removed generator kind the base lacks.
+  /// `unknown_value` for a removed generator kind the base lacks or a
+  /// `required_when` that names no section of the result.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
-    return base.copyWith(
+    final merged = base.copyWith(
       description: layer.description,
       parent: parent,
       extendsId: layer.extendsId,
@@ -76,6 +77,23 @@ final class DocTypeMerger {
       reference: _mergeReference(base.reference, layer),
       files: List.unmodifiable([...base.files, layer.file]),
     );
+    _checkRequiredWhenSections(merged, layer);
+    return merged;
+  }
+
+  /// Throws `unknown_value` for a `required_when` that names no section.
+  void _checkRequiredWhenSections(MergedDocType merged, DocTypeLayer layer) {
+    final ids = {for (final section in merged.sections) section.id};
+    for (final section in merged.sections) {
+      final rule = section.requiredWhen;
+      if (rule == null || ids.contains(rule.section)) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key section names no section of the doc type: ${rule.section}',
+        file: layer.file,
+        key: 'sections.${section.id}.lint.required_when.section',
+      );
+    }
   }
 
   String? _mergeParent(MergedDocType base, DocTypeLayer layer) {
@@ -121,41 +139,58 @@ final class DocTypeMerger {
         key: 'lint.banned_patterns',
       ),
       requiredFieldGroups: lint.requiredFieldGroups,
+      titleNoNumber: lint.titleNoNumber,
     );
   }
 
   /// Returns [base] with the pattern [write] applied, entries matched by `id`.
-  ///
-  /// An `add` entry replaces the lower entry with its `id`; a `remove` id the
-  /// base lacks throws `override_id_not_found`.
   List<PatternEntry>? _mergePatterns(
     List<PatternEntry>? base,
     ListWrite<PatternEntry>? write,
     DocTypeLayer layer, {
     required String key,
+  }) => _mergeKeyed<PatternEntry>(
+    base,
+    write,
+    layer,
+    key: key,
+    keyOf: (entry) => entry.id,
+  );
+
+  /// Returns [base] with the entry [write] applied, entries matched by
+  /// [keyOf].
+  ///
+  /// An `add` entry replaces the lower entry with its key; a `remove` key the
+  /// base lacks throws `override_id_not_found`.
+  List<T>? _mergeKeyed<T>(
+    List<T>? base,
+    ListWrite<T>? write,
+    DocTypeLayer layer, {
+    required String key,
+    required String Function(T) keyOf,
   }) {
-    if (write is! ListChange<PatternEntry>) {
-      return _mergeList<PatternEntry>(
+    if (write is! ListChange<T>) {
+      return _mergeList<T>(
         base,
         write,
         layer,
         key: key,
-        nameOf: (entry) => entry.id,
+        nameOf: keyOf,
         notFound: FaultCode.overrideIdNotFound,
       );
     }
-    final kept = _mergeList<PatternEntry>(
+    final kept = _mergeList<T>(
       base,
-      ListChange<PatternEntry>(<PatternEntry>[], write.remove),
+      ListChange<T>(<T>[], write.remove),
       layer,
       key: key,
-      nameOf: (entry) => entry.id,
+      nameOf: keyOf,
       notFound: FaultCode.overrideIdNotFound,
     )!;
-    final replaced = {for (final entry in write.add) entry.id};
+    final replaced = {for (final entry in write.add) keyOf(entry)};
     return List.unmodifiable([
       for (final entry in kept)
-        if (!replaced.contains(entry.id)) entry,
+        if (!replaced.contains(keyOf(entry))) entry,
       ...write.add,
     ]);
   }
@@ -343,6 +378,19 @@ final class DocTypeMerger {
               entry.id,
               'required_patterns',
             ),
+            minLines: entry.lint?.minLines,
+            catalog: entry.lint?.catalog,
+            namesCodes: entry.lint?.namesCodes,
+            itemFields: _mergeItemFields(
+              null,
+              entry.lint?.itemFields,
+              layer,
+              entry.id,
+            ),
+            requiredWhen: entry.lint?.requiredWhen,
+            diagram: entry.lint?.diagram,
+            maxSentences: entry.lint?.maxSentences,
+            itemCount: entry.lint?.itemCount,
           ),
         );
         continue;
@@ -390,6 +438,19 @@ final class DocTypeMerger {
           entry.id,
           'required_patterns',
         ),
+        minLines: entry.lint?.minLines,
+        catalog: entry.lint?.catalog,
+        namesCodes: entry.lint?.namesCodes,
+        itemFields: _mergeItemFields(
+          sections[index].itemFields,
+          entry.lint?.itemFields,
+          layer,
+          entry.id,
+        ),
+        requiredWhen: entry.lint?.requiredWhen,
+        diagram: entry.lint?.diagram,
+        maxSentences: entry.lint?.maxSentences,
+        itemCount: entry.lint?.itemCount,
       );
       if (entry.after == null || entry.after == entry.id) {
         sections[index] = merged;
@@ -424,6 +485,19 @@ final class DocTypeMerger {
     String name,
   ) =>
       _mergePatterns(base, write, layer, key: 'sections.$sectionId.lint.$name');
+
+  List<ItemFieldLint>? _mergeItemFields(
+    List<ItemFieldLint>? base,
+    ListWrite<ItemFieldLint>? write,
+    DocTypeLayer layer,
+    String sectionId,
+  ) => _mergeKeyed<ItemFieldLint>(
+    base,
+    write,
+    layer,
+    key: 'sections.$sectionId.lint.item_fields',
+    keyOf: (entry) => entry.field,
+  );
 
   /// Returns the index right after the section [entry] names, else the end.
   ///
