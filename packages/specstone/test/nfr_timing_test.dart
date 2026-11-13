@@ -221,6 +221,31 @@ void main() {
     );
   });
 
+  test('NFR-P03: a broken code path in a record shows in the check, so the '
+      'timed runs read the records', () {
+    final record = File(
+      '${project.path}/docs/specs/f01_feature_1/IMPLEMENTATION.md',
+    );
+    final original = record.readAsStringSync();
+    addTearDown(() => record.writeAsStringSync(original));
+    record.writeAsStringSync(
+      original.replaceFirst(
+        'src/feature_1/story_1/req_1.dart:Req1',
+        'src/feature_1/story_1/gone.dart:Req1',
+      ),
+    );
+    final run = Process.runSync(exe, ['check'], workingDirectory: project.path);
+    expect(
+      run.stdout.toString(),
+      matches(
+        RegExp(
+          r'specs/f01_feature_1/IMPLEMENTATION\.md:\d+: '
+          'implements_path_unresolved',
+        ),
+      ),
+    );
+  });
+
   test('approve --dry-run builds the views of 20 drafts of 55 sentences over '
       '2,000 docs of 5 KB within 2 s in the fastest of five runs', () {
     final root = _writeApproveProject();

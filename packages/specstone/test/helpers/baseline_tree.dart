@@ -42,12 +42,12 @@ const _padWords = [
 /// The project pins the shipped `prd-core` and `software-tech` and holds
 /// [baselineBuckets]' 1,826 docs in a fixed order. Each feature's record, the
 /// 52 `implementation` docs, takes one size of the middle of the ascending size
-/// list, so it fits its entries; the other docs take the rest by position `j`
-/// at index `(j * 7) % 1774`. Each of the 1,040 FRs has an `implemented` entry
-/// in its feature's record that names one class in its own `src/` file, and
-/// each of the two topics holds one `src/` file, so 1,042 code files sit under
-/// the tech stack's `code:` root and every one is reached by a `covers:`
-/// prefix. The folder is deleted by `addTearDown`.
+/// list, so it fits its entries; each other doc takes the rest in generation
+/// order, stepping 7 sizes at a time through the 1,774 left. Each of the 1,040
+/// FRs has an `implemented` entry in its feature's record that names one class
+/// in its own `src/` file, and each of the two topics holds one `src/` file, so
+/// 1,042 code files sit under the tech stack's `code:` root and every one is
+/// reached by a `covers:` prefix. The folder is deleted by `addTearDown`.
 Future<Directory> writeBaselineTree() async {
   final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
@@ -225,19 +225,19 @@ String _render(MergedSet templates, _DocSpec spec, int size, String padding) {
     head.write('## $header\nBaseline text.\n\n');
   }
   head.write('## ${headers.last}\nBaseline text. ');
-  final padLength = size - head.length - 1;
-  if (padLength < 0) {
-    throw StateError('${spec.path} needs ${head.length + 1} bytes, not $size');
-  }
-  var pad = padding.substring(0, padLength);
-  if (pad.endsWith(' ')) pad = '${pad.substring(0, padLength - 1)}a';
-  return '$head$pad\n';
+  return _fill(spec, '$head', size, padding);
 }
 
 /// Returns a record of exactly [size] bytes: frontmatter, a title, and padding
 /// words.
 String _renderRecord(_DocSpec spec, int size, String padding) {
   final head = '---\n${spec.frontmatter}---\n\n# ${spec.title}\n\n';
+  return _fill(spec, head, size, padding);
+}
+
+/// Returns [head] closed with padding words so the doc is exactly [size]
+/// bytes.
+String _fill(_DocSpec spec, String head, int size, String padding) {
   final padLength = size - head.length - 1;
   if (padLength < 0) {
     throw StateError('${spec.path} needs ${head.length + 1} bytes, not $size');
