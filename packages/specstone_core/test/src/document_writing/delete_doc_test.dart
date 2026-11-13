@@ -137,6 +137,7 @@ void main() {
     List<String?> answers = const [],
     StringBuffer? prompts,
     String? planHash,
+    String? codeTarget,
   }) {
     final queue = [...answers];
     return writeIn(
@@ -146,6 +147,7 @@ void main() {
         targets,
         confirmation: confirmation,
         planHash: planHash,
+        codeTarget: codeTarget,
         readLine: () => queue.isEmpty ? null : queue.removeAt(0),
         prompts: prompts ?? StringBuffer(),
       ),
@@ -2005,6 +2007,36 @@ void main() {
         for (final f in report.findings)
           if (f.kind == FindingKind.recordEntryUnresolved) f.path,
       ], isEmpty);
+    });
+
+    test('document_writing/delete_doc_subtree/delete_doc_subtree: --target names one twin of a per-target doc, and the delete takes that file alone', () async {
+      final root = await twins();
+      expect(
+        () =>
+            writeIn(root, (s) => answerDeleteDryRun(s, ['architecture:login'])),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+      final dry = writeIn(
+        root,
+        (s) =>
+            answerDeleteDryRun(s, ['architecture:login'], codeTarget: 'jaspr'),
+      );
+      expect(dry.json['files'], [jasprArchitecture]);
+      final answer = del(
+        root,
+        ['architecture:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        codeTarget: 'jaspr',
+      );
+      expect(answer.json['removed'], [jasprArchitecture]);
+      expect(hasDoc(root, flutterArchitecture), isTrue);
     });
 
     test('document_writing/delete_doc_subtree/delete_doc_subtree: a code target keeps the names of one target, and a target the project lacks is argument_invalid', () async {

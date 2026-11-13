@@ -51,6 +51,7 @@ final class CheckScope {
               type,
               doc.docPath,
               targetNames: names,
+              target: doc.target,
             );
       for (final root in roots ?? [doc.docPath]) {
         (root.endsWith('/') ? folders : docPaths).add(root);

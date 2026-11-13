@@ -279,10 +279,12 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
     docType,
     target.docPath,
     targetNames: twins.length > 1 ? twins : const [],
+    target: target.target,
   );
   if (roots != null) return roots;
   throw StateError(
-    DocPathShape.ofDoc(docType, set, target.docPath) == null
+    DocPathShape.ofDoc(docType, set, target.docPath, target: target.target) ==
+            null
         ? '${docType.id} has no path'
         : '${target.docPath} does not match the path of ${docType.id}',
   );

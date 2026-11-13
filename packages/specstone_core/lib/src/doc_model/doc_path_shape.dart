@@ -83,14 +83,21 @@ final class DocPathShape {
 
   /// Returns the shape of the depth whose pattern [docPath] matches, or null
   /// when none does.
+  ///
+  /// [target] is the code target of a per-target doc: its pattern, with the
+  /// target folder in it, is tried first, then the plain one, as a doc sits
+  /// outside the folder when the project names one target.
   static DocPathShape? ofDoc(
     MergedDocType docType,
     MergedSet set,
-    String docPath,
-  ) {
+    String docPath, {
+    String? target,
+  }) {
     for (var depth = 0; depth < docType.paths.length; depth++) {
-      final shape = of(docType, set, depth: depth);
-      if (shape?.valuesOf(docPath) != null) return shape;
+      for (final folder in [?target, null]) {
+        final shape = of(docType, set, depth: depth, target: folder);
+        if (shape?.valuesOf(docPath) != null) return shape;
+      }
     }
     return null;
   }
@@ -266,14 +273,16 @@ List<String> specFoldersOf(
 /// docs; null when [docType] has no `path:` or [docPath] does not match it.
 ///
 /// [targetNames] are the code targets a per-target spec doc type's folder is
-/// read in, as [specFoldersOf] takes them.
+/// read in, as [specFoldersOf] takes them; [target] is the code target of the
+/// doc itself, as [DocPathShape.ofDoc] takes it.
 List<String>? unitRootsOf(
   MergedSet set,
   MergedDocType docType,
   String docPath, {
   List<String> targetNames = const [],
+  String? target,
 }) {
-  final shape = DocPathShape.ofDoc(docType, set, docPath);
+  final shape = DocPathShape.ofDoc(docType, set, docPath, target: target);
   final values = shape?.valuesOf(docPath);
   if (shape == null || values == null) return null;
   return [

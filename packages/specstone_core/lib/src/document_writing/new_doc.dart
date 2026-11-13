@@ -251,7 +251,12 @@ String? _placedInOf(MergedDocType docType, DocIndex index, String? codeTarget) {
   final parentType = set.lookup(parentTypeId);
   final shape = parentType == null
       ? null
-      : DocPathShape.ofDoc(parentType, set, parentDoc.docPath);
+      : DocPathShape.ofDoc(
+          parentType,
+          set,
+          parentDoc.docPath,
+          target: parentDoc.target,
+        );
   final values = shape?.valuesOf(parentDoc.docPath);
   if (shape == null || values == null) {
     throw StateError('${parentDoc.docPath} does not match its doc type');

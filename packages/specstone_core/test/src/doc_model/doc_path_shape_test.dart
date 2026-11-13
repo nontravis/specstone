@@ -3,6 +3,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/target_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
 void main() {
@@ -162,6 +163,37 @@ void main() {
         'prds/features/f02_shop/f01_cart/',
         'specs/f02_shop/f01_cart/',
       ]);
+    });
+  });
+
+  group('ofDoc with a code target', () {
+    test('a per-target doc takes the shape of its target folder', () async {
+      final twin = openProject(await writeTwinProject()).set;
+      final architecture = twin.lookup('architecture')!;
+
+      expect(
+        DocPathShape.ofDoc(architecture, twin, flutterArchitecture),
+        isNull,
+      );
+      final shape = DocPathShape.ofDoc(
+        architecture,
+        twin,
+        jasprArchitecture,
+        target: 'jaspr',
+      );
+      expect(shape?.valuesOf(jasprArchitecture), isNotNull);
+      expect(shape?.ownPathOf(jasprArchitecture), jasprArchitecture);
+
+      final feature = twin.lookup('feature')!;
+      expect(
+        DocPathShape.ofDoc(
+          feature,
+          twin,
+          'prds/features/f01_login/FEATURE.md',
+          target: 'jaspr',
+        ),
+        isNotNull,
+      );
     });
   });
 }
