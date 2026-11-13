@@ -191,23 +191,24 @@ void main() {
     expect(out.toString(), contains('rewrote $fr11\n'));
   });
 
-  test('document_writing/rename_doc/rewrite_name_references: rename rewrites a doc-name mention in a code comment and prints the code file among the rewrote lines', () async {
-    final root = await writeCheckProject(
-      extra: {
-        'app/lib/doc.dart': '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n',
-      },
-    );
+  test('rename keeps a code file as it is and prints its mention after the '
+      'rewrote lines', () async {
+    const code =
+        '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n';
+    final root = await writeCheckProject(extra: {'app/lib/doc.dart': code});
     final (:runner, :out, :err) = writeRunner(root);
     expect(await runner.run(['rename', 'feature:login', '--to', 'signin']), 0);
     expect(err.toString(), isEmpty);
-    expect(out.toString(), contains('rewrote app/lib/doc.dart\n'));
+    expect(out.toString(), isNot(contains('rewrote app/lib/doc.dart')));
     expect(
-      File('${root.path}/app/lib/doc.dart').readAsStringSync(),
-      '/// Lays out `signin/email_login`.\nfinal a = "login/email_login";\n',
+      out.toString(),
+      endsWith('mentions app/lib/doc.dart:1 login/email_login\n'),
     );
+    expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
   });
 
-  test('document_writing/rename_doc/rewrite_name_references: rename --json lists the code file among rewritten', () async {
+  test('rename --json lists the code file mention and not the file among '
+      'rewritten', () async {
     final root = await writeCheckProject(
       extra: {'app/lib/doc.dart': '// `login/email_login`\n'},
     );
@@ -216,10 +217,11 @@ void main() {
       await runner.run(['rename', 'feature:login', '--to', 'signin', '--json']),
       0,
     );
-    expect(
-      (jsonDecode(out.toString()) as Map)['rewritten'],
-      contains('app/lib/doc.dart'),
-    );
+    final json = jsonDecode(out.toString()) as Map;
+    expect(json['rewritten'], isNot(contains('app/lib/doc.dart')));
+    expect(json['mentions'], [
+      {'path': 'app/lib/doc.dart', 'line': 1, 'mention': 'login/email_login'},
+    ]);
   });
 
   group('with two code targets', () {

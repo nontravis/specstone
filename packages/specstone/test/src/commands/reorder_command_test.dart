@@ -52,6 +52,42 @@ void main() {
       ),
     );
   });
+  test('reorder prints a path mention in a code file as a mentions line '
+      'and keeps the file', () async {
+    const code =
+        '// docs/prds/features/f01_login/us03_reset_password/USER_STORY.md:4\n'
+        '// `login/reset_password`\n';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/specs/TECH_STACK.md':
+            '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
+            '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
+            '## Naming\n\n- snake_case file names\n',
+        'app/lib/doc.dart': code,
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'reorder',
+        'user_story:login/reset_password',
+        '--to',
+        '1',
+        '--json',
+      ]),
+      0,
+    );
+    expect((jsonDecode(out.toString()) as Map)['mentions'], [
+      {
+        'path': 'app/lib/doc.dart',
+        'line': 1,
+        'mention':
+            'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md',
+      },
+    ]);
+    expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
+  });
+
   test(
     'f02/us05/fr02/e10: reorder lists a doc changed by a path mention only',
     () async {

@@ -302,24 +302,26 @@ void main() {
     expect(out.toString(), contains('rewrote $cartAddFr\n'));
   });
 
-  test('document_writing/move_story/rewrite_moved_story_references: move rewrites a doc-name mention in a code comment and prints the code file', () async {
-    final root = await writeNestedProject(
-      extra: {
-        'app/lib/cart.dart':
-            '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n',
-      },
-    );
+  test('move keeps a code file as it is and prints its mention after the '
+      'rewrote lines', () async {
+    const code =
+        '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
+    final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
     final (:runner, :out, :err) = writeRunner(root);
     expect(
       await runner.run(['move', 'shop/cart/add_item', '--under', 'shop/pay']),
       0,
     );
     expect(err.toString(), isEmpty);
-    expect(out.toString(), contains('rewrote app/lib/cart.dart\n'));
+    expect(out.toString(), isNot(contains('rewrote app/lib/cart.dart')));
     expect(
-      File('${root.path}/app/lib/cart.dart').readAsStringSync(),
-      '// Adds `user_story:shop/pay/add_item#acceptance_criteria`.\n',
+      out.toString(),
+      endsWith(
+        'mentions app/lib/cart.dart:1 '
+        'user_story:shop/cart/add_item#acceptance_criteria\n',
+      ),
     );
+    expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
   });
 
   group('with two code targets', () {
