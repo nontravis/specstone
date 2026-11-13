@@ -599,6 +599,26 @@ void main() {
       );
     });
 
+    test('s04/inv26: --code naming a missing path with an unheld --target is argument_invalid first, as every other command checks the target first', () async {
+      final (:runner, :out, :err) = readRunner(await writeToastProject());
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/gone.dart',
+          '--for',
+          'implement',
+          '--target',
+          'ci',
+        ]),
+        64,
+      );
+      expect(
+        err.toString(),
+        '--target ci: the code targets are flutter, jaspr\n',
+      );
+    });
+
     test('f01/us05/fr04/e14, review focus 2: nested code roots pick the longest that holds the path', () async {
       final project = await writeReadProject(
         extra: {

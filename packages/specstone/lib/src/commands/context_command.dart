@@ -100,22 +100,20 @@ class ContextCommand extends SpecstoneCommand {
     final noProject = args.flag('no-project');
     if (code != null) {
       return runRead((session) {
+        final given = targetOf(args);
+        session.index.checkCodeTarget(given);
         final codePath = resolveCodePath(
           code,
           workingDirectory: specstoneRunner.workingDirectory,
           targets: session.project.targets,
           codeRootOf: session.project.codeRootOf,
         );
-        final given = targetOf(args);
-        if (given != null) {
-          session.index.checkCodeTarget(given);
-          if (given != codePath.target.name) {
-            throw IndexFault(
-              IndexFaultCode.argumentConflict,
-              'the code path $code lies in the code target '
-              '${codePath.target.name}, not $given',
-            );
-          }
+        if (given != null && given != codePath.target.name) {
+          throw IndexFault(
+            IndexFaultCode.argumentConflict,
+            'the code path $code lies in the code target '
+            '${codePath.target.name}, not $given',
+          );
         }
         return answerContext(
           session.index,
