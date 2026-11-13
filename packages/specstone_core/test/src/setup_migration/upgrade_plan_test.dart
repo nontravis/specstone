@@ -695,7 +695,6 @@ sections:
     expect(plan.moves, isEmpty);
     expect(plan.commit1Message, 'move docs to their new pack paths');
     expect(plan.commit2Message, 'upgrade pack pins');
-    expect(plan.closingLine, isNull);
     expect(plan.left, isEmpty);
   });
 

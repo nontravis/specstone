@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
+import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
@@ -29,8 +31,8 @@ const _commit1Message = 'move legacy docs to their new paths';
 const _commit2Message =
     'rewrite titles, keys, and links; add project configuration';
 
-/// The text of every file under [root] outside `.git` and the trash, keyed by
-/// its `/`-separated path relative to [root].
+/// The text of every file under [root] outside `.git`, the index, and the
+/// trash, keyed by its `/`-separated path relative to [root].
 Map<String, String> _bytesUnder(Directory root) {
   final prefix = '${root.path}${Platform.pathSeparator}';
   final texts = <String, String>{};
@@ -40,6 +42,7 @@ Map<String, String> _bytesUnder(Directory root) {
         .substring(prefix.length)
         .replaceAll(Platform.pathSeparator, '/');
     if (relative.startsWith('.git/') ||
+        relative.startsWith('.specstone/index.sqlite') ||
         relative.startsWith('.specstone/trash/')) {
       continue;
     }
@@ -136,6 +139,8 @@ int _run(
   OwnerConfirmation confirmation = OwnerConfirmation.prompt,
   List<String?> answers = const [],
   bool dryRun = false,
+  bool asJson = false,
+  Directory? home,
   String? planHash,
   List<String>? warnings,
   RunGit runGit = runMigrateGit,
@@ -144,9 +149,10 @@ int _run(
   return runMigrate(
     MigrateRequest(
       workingDirectory: root,
-      homeDirectory: testHome(),
+      homeDirectory: home ?? testHome(),
       templates: TemplateResolver(),
       dryRun: dryRun,
+      asJson: asJson,
       confirmation: confirmation,
       planHash: planHash,
       runGit: runGit,
@@ -220,7 +226,7 @@ void main() {
             r'commit 1 ([0-9a-f]{7,}): move legacy docs to their new paths\n'
             'commit 2 ([0-9a-f]{7,}): rewrite titles, keys, and links; '
             r'add project configuration\n'
-            r'run specstone check to list what is left to fill\n$',
+            r'check: \d+ findings left; run specstone check to see them\n$',
           ),
         ),
       );
@@ -228,6 +234,140 @@ void main() {
     },
     skip: hasGit ? null : 'git is not available',
   );
+
+  group('the closing count and the JSON plan', () {
+    final skipGit = hasGit ? null : 'git is not available';
+
+    int findingsOf(Directory root) => ReadSession.run(
+      (session) => runCheck(session).findings.length,
+      templates: TemplateResolver(),
+      workingDirectory: root,
+      homeDirectory: testHome(),
+    );
+
+    test('an applied legacy run ends with the findings a whole-project check '
+        'reports after its last commit', () async {
+      final root = await gitFixture(acmeLegacy);
+      final out = StringBuffer();
+
+      expect(_run(root, out, answers: ['y']), 0);
+
+      final last = out.toString().trim().split('\n').last;
+      expect(
+        last,
+        'check: ${findingsOf(root)} findings left; '
+        'run specstone check to see them',
+      );
+    }, skip: skipGit);
+
+    test('an applied upgrade ends with the same closing line', () async {
+      final fixture = await _upgradeFixture();
+      final out = StringBuffer();
+
+      expect(_run(fixture.project, out, home: fixture.home, answers: ['y']), 0);
+
+      expect(
+        out.toString().trim().split('\n').last,
+        matches(r'^check: \d+ findings left; run specstone check to see them$'),
+      );
+    }, skip: skipGit);
+
+    test('--dry-run --json prints the plan as one object whose keys hold the '
+        'path lists, and the plan hash is the one of the text plan', () async {
+      final root = await gitFixture(acmeLegacy);
+      final text = StringBuffer();
+      final json = StringBuffer();
+      expect(_run(root, text, dryRun: true), 0);
+
+      expect(_run(root, json, dryRun: true, asJson: true), 0);
+
+      final object = jsonDecode(json.toString()) as Map<String, Object?>;
+      expect(object.keys, [
+        'plan',
+        'planHash',
+        'formatLayout',
+        'numberLabels',
+        'renumberIds',
+        'agentFiles',
+        'stamps',
+        'steps',
+        'mentions',
+      ]);
+      expect(object['planHash'], _dryRunPlanHash(root));
+      expect(text.toString(), startsWith(object['plan']! as String));
+      expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
+      expect(object['agentFiles'], ['.specstone/AGENT.md', 'AGENTS.md']);
+      expect(object['numberLabels'], {
+        'rewritten': ['prds/features/f01_login/FEATURE.md'],
+        'left': isA<List<Object?>>(),
+      });
+      expect(object['stamps'], {'skipped': <Object?>[]});
+      expect(json.toString().trim().split('\n').first, '{');
+    }, skip: skipGit);
+
+    test('--yes --plan --json applies the run and prints the one object; '
+        'the commit lines and the closing line go to the warnings', () async {
+      final fixture = await _upgradeFixture();
+      final dry = StringBuffer();
+      expect(
+        _run(
+          fixture.project,
+          dry,
+          home: fixture.home,
+          dryRun: true,
+          asJson: true,
+        ),
+        0,
+      );
+      final hash =
+          (jsonDecode(dry.toString()) as Map<String, Object?>)['planHash']!
+              as String;
+      final out = StringBuffer();
+      final notes = <String>[];
+
+      final status = _run(
+        fixture.project,
+        out,
+        home: fixture.home,
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+        asJson: true,
+        warnings: notes,
+      );
+
+      expect(status, 0);
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object['planHash'], hash);
+      expect(object['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'rename_section runbook steps -> procedure',
+          'paths': ['prds/runbooks/deploy/RUNBOOK.md'],
+        },
+      ]);
+      expect(notes.last, matches(r'^check: \d+ findings left; '));
+      expect(MoveJournal.pending(fixture.project), isFalse);
+    }, skip: skipGit);
+
+    test('--json changes no byte of the plan the hash covers', () async {
+      final root = await gitFixture(acmeLegacy);
+      final withJson = StringBuffer();
+      final without = StringBuffer();
+      expect(_run(root, withJson, dryRun: true, asJson: true), 0);
+      expect(_run(root, without, dryRun: true), 0);
+
+      final object = jsonDecode(withJson.toString()) as Map<String, Object?>;
+
+      expect(
+        object['planHash'],
+        without
+            .toString()
+            .split('\n')
+            .firstWhere((line) => line.startsWith('plan '))
+            .substring('plan '.length),
+      );
+    }, skip: skipGit);
+  });
 
   group('a migrate run with no home folder to record its journal', () {
     final skipGit = hasGit ? null : 'git is not available';
@@ -1599,7 +1739,10 @@ sections:
       expect(lines[lines.length - 3], endsWith(_commit1Message));
       expect(lines[lines.length - 2], matches(r'^commit 2 [0-9a-f]{7,}: .*$'));
       expect(lines[lines.length - 2], endsWith(_commit2Message));
-      expect(lines.last, 'run specstone check to list what is left to fill');
+      expect(
+        lines.last,
+        matches(r'^check: \d+ findings left; run specstone check to see them$'),
+      );
       expect(
         out.toString(),
         startsWith('pending migration: ${root.resolveSymbolicLinksSync()} '),

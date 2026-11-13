@@ -4,7 +4,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
-    show StaleMention;
+    show StaleMention, mentionsJsonOf;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -111,6 +111,23 @@ final class PlanLists {
 
   /// Each mention in a code or agent file the run's moves stop resolving.
   final List<StaleMention> mentions;
+
+  /// The lists as the keys of the JSON plan.
+  Map<String, Object> toJson() => {
+    'formatLayout': formatLayout,
+    'numberLabels': {
+      'rewritten': numberLabelsRewritten,
+      'left': numberLabelsLeft,
+    },
+    'renumberIds': renumberIds,
+    'agentFiles': agentFiles,
+    'stamps': {'skipped': stampsSkipped},
+    'steps': [
+      for (final step in steps)
+        {'from': step.from, 'step': step.step, 'paths': step.paths},
+    ],
+    'mentions': mentionsJsonOf(mentions),
+  };
 }
 
 /// A doc commit 2 rewrites in place.
@@ -170,7 +187,6 @@ final class RunPlan {
     required this.commit2Message,
     required this.inputs,
     this.rewriteLines,
-    this.closingLine,
     this.agentFiles,
     this.lists = const PlanLists(),
   });
@@ -207,9 +223,6 @@ final class RunPlan {
 
   /// The lines printed under `commit 2, rewrites:` in place of [rewrites].
   final List<String>? rewriteLines;
-
-  /// What an applied run prints after its commit lines.
-  final String? closingLine;
 
   /// The agent file writes the run adds after every other write, or null.
   ///

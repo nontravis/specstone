@@ -67,9 +67,6 @@ const _commit1Message = 'move legacy docs to their new paths';
 const legacyCommit2Message =
     'rewrite titles, keys, and links; add project configuration';
 
-/// What an applied or resumed migration prints after its commit lines.
-const legacyClosingLine = 'run specstone check to list what is left to fill';
-
 final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 
 /// Plans the legacy migration of the project at [root].
@@ -255,7 +252,6 @@ RunPlan _legacyRunOf(
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
     inputs: inputs,
-    closingLine: legacyClosingLine,
     agentFiles: agentFiles,
   );
 }

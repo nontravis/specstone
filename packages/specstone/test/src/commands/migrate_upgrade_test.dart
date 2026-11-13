@@ -200,6 +200,14 @@ Map<String, String> _bytesUnder(Directory root) => {
       entity.path: entity.readAsStringSync(),
 };
 
+/// Matches output that ends with [commitLine], then the closing count line.
+Matcher _endingWith(String commitLine) => matches(
+  RegExp(
+    '${RegExp.escape(commitLine)}'
+    r'check: \d+ findings left; run specstone check to see them\n$',
+  ),
+);
+
 void main() {
   group('f06/us02: upgrade a pack pin', () {
     test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
@@ -218,7 +226,7 @@ void main() {
       );
       expect(
         result.out,
-        endsWith(
+        _endingWith(
           'commit 2 ${_head(root).substring(0, 7)}: upgrade pack pins\n',
         ),
       );
@@ -368,7 +376,7 @@ void main() {
       );
       expect(
         result.out,
-        endsWith(
+        _endingWith(
           'commit 2 ${_head(root).substring(0, 7)}: '
           'lay docs out as format writes them\n',
         ),
@@ -527,7 +535,7 @@ void main() {
     }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
 
     test('f06/us01/fr07, f06/us02/fr02: an upgrade stopped after commit 1 '
-        'resumes with its own output and no legacy closing line', () async {
+        'resumes with its own output and the closing count', () async {
       final home = await _home(
         migrations: _moveMigrations,
         type: _runbookType('ops/runbooks/{slug}/RUNBOOK.md', 'steps'),
@@ -545,7 +553,14 @@ void main() {
       expect(resumed.status, 0, reason: resumed.err);
       expect(_subjects(root).first, 'upgrade pack pins');
       expect(resumed.out, contains('commit 2 '));
-      expect(resumed.out, isNot(contains('specstone check')));
+      expect(
+        resumed.out,
+        matches(
+          RegExp(
+            r'check: \d+ findings left; run specstone check to see them\n$',
+          ),
+        ),
+      );
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
 
@@ -777,7 +792,10 @@ void main() {
         expect(
           result.out,
           matches(
-            RegExp(r'commit 2 [0-9a-f]+: refresh the Specstone agent files\n$'),
+            RegExp(
+              r'commit 2 [0-9a-f]+: refresh the Specstone agent files\n'
+              r'check: \d+ findings left; run specstone check to see them\n$',
+            ),
           ),
         );
         expect(_subjects(root), hasLength(before.length + 1));

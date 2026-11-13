@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -324,6 +325,57 @@ void main() {
       'move legacy docs to their new paths',
     ]);
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('migrate --dry-run --json prints the plan as one object holding its '
+      'hash and every path list, and nothing else', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    final before = _bytesUnder(root);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
+
+    final object = jsonDecode(out.toString()) as Map<String, Object?>;
+    expect(object['planHash'], hash);
+    expect(object['plan'], startsWith('legacy migration: '));
+    expect(object['plan'], contains('  format layout: 1 docs\n'));
+    expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
+    expect(object.keys, containsAll(['agentFiles', 'numberLabels', 'steps']));
+    expect(err.toString(), isEmpty);
+    expect(_bytesUnder(root), before);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('migrate --yes --plan --json applies the run, prints one object, and '
+      'ends its notes with the closing count', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--yes', '--plan', hash, '--json']), 0);
+
+    expect(
+      (jsonDecode(out.toString()) as Map<String, Object?>)['planHash'],
+      hash,
+    );
+    expect(
+      err.toString().trim().split('\n').last,
+      matches(r'^check: \d+ findings left; run specstone check to see them$'),
+    );
+    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('migrate --yes --plan ends with the count a check reports', () async {
+    final root = await gitFixture(acmeLegacy);
+    final hash = await _dryRunPlanHash(root);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
+
+    expect(
+      out.toString().trim().split('\n').last,
+      matches(r'^check: \d+ findings left; run specstone check to see them$'),
+    );
   }, skip: hasGit ? null : 'git is not available');
 
   group('f06/us01/fr05/e14: the legacy run writes records', () {

@@ -467,10 +467,6 @@ name: Login API
     expect(commits.last.paths.toSet(), hasLength(commits.last.paths.length));
     expect(commits.every((c) => c.base == 'abc'), isTrue);
     expect(steps.indexOf(commits.first), lessThan(steps.indexOf(commits.last)));
-    expect(
-      plan.closingLine,
-      'run specstone check to list what is left to fill',
-    );
   });
 
   test('f06/us01/fr03/e13: a binary file in a moved folder moves untouched '
