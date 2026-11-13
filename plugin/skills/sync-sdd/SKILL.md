@@ -38,8 +38,8 @@ When you followed the procedure yourself, its report stands in for item 1.
 3. Ask the Owner each open question; send the answers to the same agent while it is live, else dispatch a new one
    with them.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
-   list to `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (or
-   `specstone set <type>:<name> --field covers`), the `--target` the changed path's code target
-   (`domain:agent_plugin` INV-25), the hash from `bases.fields.implements` (or `bases.fields.covers`) of
-   `specstone get implementation:<feature> --target <name> --json` (or `get <type>:<name> --json`).
+   list to `specstone set implementation:<feature> --field implements --base <hash>` (or
+   `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the changed path's code
+   target, when the project has two or more (`domain:agent_plugin` INV-25), the hash from `bases.fields.implements`
+   (or `bases.fields.covers`) of `specstone get <doc> --json` for the same doc, with the same `--target`.
 5. Run `specstone:brainstorming-sdd` for each behavior the report hands over.

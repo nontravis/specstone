@@ -1464,7 +1464,7 @@ void _agentTests() {
       );
     });
 
-    test("find_specs_for_changed_code E02: the procedure takes the path's "
+    test("domain:agent_plugin INV-25: the sync procedure takes the path's "
         'target by the longest code root and asks the Owner nothing', () {
       expect(procedure(), contains(targetLine));
       expect(
@@ -1481,8 +1481,8 @@ void _agentTests() {
         text,
         contains(
           'moved file: point each record entry that names it at the new side '
-          'of its rename pair; the stories and FRs, which name no code, stay '
-          'as they are;',
+          "of its rename pair, relative to that target's code root; the "
+          'stories and FRs, which name no code, stay as they are;',
         ),
       );
     });
@@ -1510,21 +1510,32 @@ void _agentTests() {
     });
 
     test("update_covering_docs pointers row: the skill's waiting pointer "
-        'goes to the target record with its --target and base', () {
+        'goes to the target record, each form with its base and --target', () {
       final skill = _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
       expect(
         skill,
         contains(
           'pipe the corrected list to `specstone set implementation:<feature> '
-          '--field implements --target <name> --base <hash>` (or `specstone '
-          'set <type>:<name> --field covers`), the `--target` the changed '
-          "path's code target (`domain:agent_plugin` INV-25), the hash from "
+          '--field implements --base <hash>` (or `specstone set <type>:<name> '
+          '--field covers --base <hash>`), each with `--target <name>`, the '
+          "changed path's code target, when the project has two or more "
+          '(`domain:agent_plugin` INV-25), the hash from '
           '`bases.fields.implements` (or `bases.fields.covers`) of '
-          '`specstone get implementation:<feature> --target <name> --json` '
-          '(or `get <type>:<name> --json`).',
+          '`specstone get <doc> --json` for the same doc, with the same '
+          '`--target`.',
         ),
       );
-      expect(skill, isNot(contains('--field implements --base')));
+    });
+
+    test('update_covering_docs pointers row: the report lists each waiting '
+        'pointer with its doc and its code path', () {
+      expect(
+        procedure(),
+        contains(
+          'and each pointer that waits on an approval, with its doc and its '
+          'code path.',
+        ),
+      );
     });
 
     test('draft_spec_for_uncovered_code E03: a new or set draft carries the '

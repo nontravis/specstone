@@ -38,18 +38,18 @@ It takes its path's code target and carries no `--target`.
 
 1. Compare each section and field of each covering doc with the changed code. Leave a doc alone when it already
    matches the code.
-2. Rewrite each stale section or field; `<target>` is the doc's `<type>:<name>`. Take a section's base hash from the
-   naming line of `specstone get <target>#<section key>`, a field's from `bases.fields.<id>` in
-   `specstone get <target> --json`. Then pipe the new text to `specstone set <target>#<section key> --base <hash>` (a
+2. Rewrite each stale section or field; `<doc>` is the doc's `<type>:<name>`. Take a section's base hash from the
+   naming line of `specstone get <doc>#<section key>`, a field's from `bases.fields.<id>` in
+   `specstone get <doc> --json`. Then pipe the new text to `specstone set <doc>#<section key> --base <hash>` (a
    field: `--field <id>` in place of `#<section key>`). Each such write turns the doc into a draft; only the Owner's
    `specstone approve` clears it.
 3. Run `specstone check`. Take each finding on a record code path or `covers:` entry that a covering doc holds or
    that names a changed path, and fix it through `specstone set --field`: pipe the corrected list to
    `specstone set implementation:<feature> --field implements --target <name> --base <hash>` (or
-   `specstone set <target> --field covers --base <hash>`), the hash from `bases.fields.implements` (or
+   `specstone set <doc> --field covers --base <hash>`), the hash from `bases.fields.implements` (or
    `bases.fields.covers`) in the same doc's `get --json`:
-   - moved file: point each record entry that names it at the new side of its rename pair; the stories and FRs, which
-     name no code, stay as they are;
+   - moved file: point each record entry that names it at the new side of its rename pair, relative to that target's
+     code root; the stories and FRs, which name no code, stay as they are;
    - deleted file: drop the entry, or point it at the code that does the work now.
 
    A changed path's target alone: compare and fix its record and `covers:` entries, never another target's.
@@ -63,8 +63,8 @@ comes first; the pointer follows it.
 
 - **Needs a new story or FR:** leave it out of this sync and hand it to `specstone:brainstorming-sdd`.
 - **Else:** write a spec draft: `specstone new <type>` (`--parent <name>`, `--slug <slug>`, `--target <name>`, the
-  path's code target, as the type takes them) for a new doc, or `specstone set` for a section of one that exists. Then get it approved through
-  `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
+  path's code target, as the type takes them) for a new doc, or `specstone set` for a section of one that exists. Then
+  get it approved through `specstone:expert-sdd`'s Owner confirmation (terminal or chat).
 - Write no record code path or `covers:` entry that names this code until the Owner approves the draft. Then add the
   entry at once with the step 4.3 `specstone set --field` write, on the path's target's record: no `check` finding will
   ask for it.
@@ -75,7 +75,7 @@ After your last write, run one `specstone approve --dry-run --json`, the source 
 Your drafts are the docs your own list names, those whose text you wrote: list them with their count and each one's
 dropped and new sentence counts; name each other draft it lists, never counted; one of yours it shows as no draft is a
 finding. Then list each pointer fixed, each behavior handed to `specstone:brainstorming-sdd`, and each pointer that
-waits on an approval.
+waits on an approval, with its doc and its code path.
 
 ## Red flags
 
