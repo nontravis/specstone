@@ -162,17 +162,16 @@ List<IndexedDoc> _tracedDocs(DocIndex index, CodePath code) => [
 ];
 
 /// Whether [doc] is traced to [code] in its target: its record entry's code
-/// paths name [code] or a path under it; with no record doc type, its own
-/// `implements:` values stand in, as INV-29 reads a status then.
+/// paths or test paths name [code] or a path under it; with no record doc
+/// type, its own `implements:` values stand in, as INV-29 reads a status then.
 bool _tracesEntry(DocIndex index, IndexedDoc doc, CodePath code) {
   if (index.set.recordDocType == null) {
     return doc.valuesOf(_implementsField).any((path) => _traces(path, code));
   }
-  return index
-          .recordEntryOf(doc, codeTarget: code.target.name)
-          ?.codePaths
-          .any((path) => _traces(path, code)) ??
-      false;
+  final entry = index.recordEntryOf(doc, codeTarget: code.target.name);
+  if (entry == null) return false;
+  return entry.codePaths.any((path) => _traces(path, code)) ||
+      entry.testPaths.any((path) => _traces(path, code));
 }
 
 bool _traces(String entry, CodePath code) {
