@@ -162,7 +162,7 @@ RunPlan _legacyRunOf(
     projectSet,
     targetNames: targetNames,
   );
-  final legacy = _inFirstTarget(placed, treeMoves, docPaths: docPaths);
+  final (:moves, :left) = _inFirstTarget(placed, treeMoves, docPaths: docPaths);
   final landing = {for (final move in treeMoves) move.from: move.to};
   for (final work in titled.works) {
     work.newPath = landing[work.newPath] ?? work.newPath;
@@ -170,7 +170,7 @@ RunPlan _legacyRunOf(
   final rewrites = _rewritesOf(
     titled.works,
     projectSet: projectSet,
-    legacy: legacy,
+    moves: moves,
     features: features,
     targetNames: targetNames,
     recordSteps: _recordStepsOf(
@@ -212,8 +212,8 @@ RunPlan _legacyRunOf(
 
   return RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
-    moves: legacy.moves,
-    prunes: prunesOf(legacy.moves),
+    moves: moves,
+    prunes: prunesOf(moves),
     rewrites: [...rewrites.planned, ?configRewrite],
     rewriteLines: [
       for (final rewrite in rewrites.planned)
@@ -238,10 +238,10 @@ RunPlan _legacyRunOf(
         PlannedCreate(path: specstoneGitignorePath, text: _gitignoreText),
       for (final path in overrides.keys.toList()..sort(compareCodePoints))
         PlannedCreate(path: path, text: overrides[path]!),
-      ..._draftsOf(projectSet, docPaths, legacy.moves, targetNames),
+      ..._draftsOf(projectSet, docPaths, moves, targetNames),
       ...rewrites.records,
     ],
-    left: legacy.left,
+    left: left,
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
     inputs: inputs,
@@ -454,7 +454,7 @@ _Titled _titledWorksOf(
 _Rewrites _rewritesOf(
   List<_Work> works, {
   required MergedSet projectSet,
-  required LegacyMoves legacy,
+  required List<PathMove> moves,
   required LegacyFeatures features,
   required List<String> targetNames,
   required List<MoveToRecord> recordSteps,
@@ -489,7 +489,7 @@ _Rewrites _rewritesOf(
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
-    _rewriteRefs(work, legacy.moves, exists);
+    _rewriteRefs(work, moves, exists);
     layOut(work);
   }
   for (final work in works.where((work) => work.awaitsFingerprints)) {
@@ -501,7 +501,7 @@ _Rewrites _rewritesOf(
     fingerprintEntries += fingerprints.entries;
     final label = fingerprints.label;
     if (label != null) work.changes.add(label);
-    _rewriteRefs(work, legacy.moves, exists);
+    _rewriteRefs(work, moves, exists);
     layOut(work);
   }
 
@@ -802,38 +802,30 @@ Map<String, String> _featureFrsOf(
   };
 }
 
-/// Returns [placed] with each of [treeMoves] folded in: a doc the legacy moves
-/// place lands in the first target's folder, and a doc they keep or leave
-/// moves there from its own path.
+/// Returns the renames and the files left in place once [treeMoves] are
+/// folded into [placed]: a doc the legacy moves place lands in the first
+/// target's folder, and a doc they keep or leave moves there from its own
+/// path.
 ///
 /// Throws `legacy_collision` when a folded move lands on another doc;
 /// [docPaths] are every file the run reads.
-LegacyMoves _inFirstTarget(
+({List<PathMove> moves, List<String> left}) _inFirstTarget(
   LegacyMoves placed,
   List<PathMove> treeMoves, {
   required List<String> docPaths,
 }) {
-  if (treeMoves.isEmpty) return placed;
+  if (treeMoves.isEmpty) return (moves: placed.moves, left: placed.left);
   final landing = {for (final move in treeMoves) move.from: move.to};
-  String landed(String path) => landing[path] ?? path;
   final placedAt = {for (final move in placed.moves) move.to};
   final moves = [
-    for (final move in placed.moves) (from: move.from, to: landed(move.to)),
+    for (final move in placed.moves)
+      (from: move.from, to: landing[move.to] ?? move.to),
     for (final move in treeMoves)
       if (!placedAt.contains(move.from)) move,
   ];
   refuseCollisions(docPaths, moves);
-  return LegacyMoves(
+  return (
     moves: orderedMoves(moves, keyOf: caseBlindPath),
-    kindOf: {
-      for (final MapEntry(:key, :value) in placed.kindOf.entries)
-        landed(key): value,
-    },
-    fromOf: {
-      for (final MapEntry(:key, :value) in placed.fromOf.entries)
-        landed(key): value,
-      for (final path in placed.left) ?landing[path]: path,
-    },
     left: [
       for (final path in placed.left)
         if (!landing.containsKey(path)) path,
