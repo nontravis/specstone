@@ -8,6 +8,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _mermaidInfo = 'mermaid';
 const _frontMatterMark = '---';
 const _arrowChars = '-=.';
+const _openLinkRun = 3;
 const _openers = '([{';
 const _closers = ')]}';
 
@@ -59,9 +60,10 @@ Iterable<DiagramBlock> _flowchartBlocks(List<BodyLine> body) sync* {
       end++;
     }
     final lines = body.sublist(i + 1, end);
+    final drawn = lines.skip(_frontMatterLines(lines).length);
     if (info == _mermaidInfo &&
-        lines.isNotEmpty &&
-        _flowchartWord.hasMatch(lines.first.text.trim())) {
+        drawn.isNotEmpty &&
+        _flowchartWord.hasMatch(drawn.first.text.trim())) {
       yield (fenceLine: body[i].line, lines: lines);
     }
     i = end + 1;
@@ -113,11 +115,12 @@ Iterable<Finding> _lineFindings(
   if (frontMatter.contains(line)) return;
   final text = line.text.trim();
   if (text.isEmpty ||
+      text.startsWith('%%') ||
       _flowchartWord.hasMatch(text) ||
       _directives.hasMatch(text)) {
     return;
   }
-  final scan = scanDiagramLine(line.text);
+  final scan = _scanDiagramLine(line.text);
   if (diagram.edgeLabels) {
     for (final edge in scan.edges) {
       final label = edge.label.trim();
@@ -135,7 +138,8 @@ Iterable<Finding> _lineFindings(
     }
   }
   for (final node in scan.nodes) {
-    if (!_holdsUnquotedBracket(line.text.substring(node.start, node.end))) {
+    final label = _withoutShapePairs(line.text.substring(node.start, node.end));
+    if (!_holdsUnquotedBracket(label)) {
       continue;
     }
     yield context.finding(
@@ -149,7 +153,7 @@ Iterable<Finding> _lineFindings(
 }
 
 /// The nodes and edges of one diagram line, as written.
-final class DiagramLineScan {
+final class _DiagramLineScan {
   /// Each node with a shape: its id and the content range of the shape.
   final nodes = <({String id, int start, int end})>[];
 
@@ -164,8 +168,8 @@ final class DiagramLineScan {
 /// label in `|label|` after it, or as the text between a bare run and the
 /// tipped run that closes it (`A -- text --> B`). An arrow with no node on
 /// either side names no edge, and an unclosed shape runs to the line's end.
-DiagramLineScan scanDiagramLine(String line) {
-  final scan = DiagramLineScan();
+_DiagramLineScan _scanDiagramLine(String line) {
+  final scan = _DiagramLineScan();
   final tokens = _tokensOf(line);
   String? lastId;
   for (var i = 0; i < tokens.length; i++) {
@@ -180,12 +184,12 @@ DiagramLineScan scanDiagramLine(String line) {
         ));
       }
     } else if (token is _ArrowToken && lastId != null) {
-      final next = tokens[i + 1];
-      final piped = next is _PipeToken ? tokens[i + 2] : next;
-      if (piped is _NodeToken) {
+      final next = tokens.elementAtOrNull(i + 1);
+      final target = next is _PipeToken ? tokens.elementAtOrNull(i + 2) : next;
+      if (token.isEdge && target is _NodeToken) {
         scan.edges.add((
           from: lastId,
-          to: piped.id,
+          to: target.id,
           label: next is _PipeToken ? next.label : token.label,
         ));
       }
@@ -206,7 +210,11 @@ final class _NodeToken extends _Token {
 }
 
 final class _ArrowToken extends _Token {
-  new(this.label);
+  new(this.label, {required this.isEdge});
+
+  /// Whether the run reads as an edge: it ends with a tip, closes a bare
+  /// run's text label, or is an open link of three or more characters.
+  final bool isEdge;
 
   /// The text between a bare run and the run that closes it; empty without.
   final String label;
@@ -244,6 +252,7 @@ List<_Token> _tokensOf(String line) {
           closing == null
               ? ''
               : line.substring(arrow.end, closing.start).trim(),
+          isEdge: arrow.hasTip || closing != null || arrow.run >= _openLinkRun,
         ),
       );
       i = closing?.end ?? arrow.end;
@@ -264,7 +273,7 @@ List<_Token> _tokensOf(String line) {
 
 /// The arrow at [i]: its end offset and whether it ends with the tip `>`;
 /// null when fewer than two arrow characters start there.
-({int end, bool hasTip})? _arrowAt(String line, int i) {
+({int end, bool hasTip, int run})? _arrowAt(String line, int i) {
   var end = i;
   while (end < line.length &&
       _arrowChars.codeUnits.contains(line.codeUnitAt(end))) {
@@ -272,7 +281,7 @@ List<_Token> _tokensOf(String line) {
   }
   if (end - i < 2) return null;
   final hasTip = end < line.length && line.codeUnitAt(end) == 0x3E;
-  return (end: hasTip ? end + 1 : end, hasTip: hasTip);
+  return (end: hasTip ? end + 1 : end, hasTip: hasTip, run: end - i);
 }
 
 /// The tipped arrow run after [from], or null; a bare arrow's label is the
@@ -335,4 +344,16 @@ bool _holdsUnquotedBracket(String shapeContent) {
     }
   }
   return false;
+}
+
+/// Returns [content], a shape's inner text, without the paired delimiters
+/// that make the shape (`((x))`, `([x])`, `[(x)]`, `[[x]]`, `{{x}}`).
+String _withoutShapePairs(String content) {
+  var text = content;
+  while (text.length >= 2 &&
+      _openers.contains(text[0]) &&
+      text.endsWith(_closers[_openers.indexOf(text[0])])) {
+    text = text.substring(1, text.length - 1);
+  }
+  return text;
 }

@@ -181,7 +181,8 @@ void main() {
     ]);
   });
 
-  test('subgraph, classDef, style, and click lines give no finding', () async {
+  test('subgraph, classDef, style, and click lines give no finding while a '
+      'titled block still has its edge read', () async {
     final report = await _checkArchitecture(
       '```mermaid\n---\ntitle: Sign-in\n---\nflowchart TD\n'
       'subgraph inner[A group (open)]\n'
@@ -189,7 +190,54 @@ void main() {
       'style A fill:#f9f9f9,stroke:#333,stroke-width:1px\n'
       'click A "/docs" "tooltip (open)"\n'
       'end\n'
-      'A -->|reads| B[Index]\n```',
+      'A --> B\n```',
+    );
+
+    expect(_found(report), ['20 diagram_edge_unlabeled A --> B']);
+  });
+
+  test('a titled block is read: its unlabeled edge is a finding', () async {
+    final report = await _checkArchitecture(
+      '```mermaid\n---\ntitle: Sign-in\n---\nflowchart TD\nA --> B\n```',
+    );
+
+    expect(_found(report), ['15 diagram_edge_unlabeled A --> B']);
+  });
+
+  test('a block whose front matter holds no title misses its title', () async {
+    final report = await _checkArchitecture(
+      '```mermaid\n---\nconfig: x\n---\nflowchart TD\n'
+      'A -->|reads| B\n```',
+    );
+
+    expect(_found(report), ['10 diagram_title_missing']);
+  });
+
+  test('an arrow or label with no node after it gives no finding and no '
+      'crash', () async {
+    final report = await _checkArchitecture(
+      '```mermaid\n---\ntitle: T\n---\nflowchart TD\n'
+      'A -->\nA -->|reads|\nA ...\n```',
+    );
+
+    expect(_found(report), isEmpty);
+  });
+
+  test('pair-delimited shapes and comment lines give no finding', () async {
+    final report = await _checkArchitecture(
+      '```mermaid\n---\ntitle: T\n---\nflowchart TD\n'
+      'DB[(Database)] -->|reads| A((Start))\n'
+      'S([Stop]) -->|reads| B[[Sub]]\n'
+      'H{{Hex}} -->|reads| C(((Ring)))\n'
+      '%% X --> Y\n```',
+    );
+
+    expect(_found(report), isEmpty);
+  });
+
+  test('a bare two-dash run with no closing arrow is no edge', () async {
+    final report = await _checkArchitecture(
+      '```mermaid\n---\ntitle: T\n---\nflowchart TD\nA -- B\n```',
     );
 
     expect(_found(report), isEmpty);

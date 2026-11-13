@@ -3,52 +3,59 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show RecordStatus;
 
 /// Returns the error-catalog findings of the run's scope.
 ///
-/// [targets] names the code targets read; null reads every target. A doc-type
-/// layer that sets `catalog` makes a section's table a code catalog, and one
-/// that sets `names_codes` lets a whole code span in a section name a code.
-/// Per target: a code in two rows of one catalog, a row no unskipped FR edge
-/// case or story scenario of its feature names, and an unskipped case or
-/// scenario naming a cataloged code its feature's catalog in that target
-/// lacks each give one finding. No layer setting either key runs no rule.
+/// [targets] names the code targets read, the unnamed target as the empty
+/// string; null reads every target. A doc-type layer that sets `catalog`
+/// makes a section's table a code catalog, and one that sets `names_codes`
+/// lets a whole code span in a section name a code. A catalog belongs to the
+/// doc its own doc hangs under. Per target: a code in two rows of one
+/// catalog, a row no unskipped requirement under its owner names, and an
+/// unskipped requirement naming a cataloged code of the project while the
+/// nearest owner above it lacks it each give one finding. No layer setting
+/// either key runs no rule.
 Iterable<Finding> checkErrorCatalogs(
   CheckContext context,
   Set<String>? targets,
 ) sync* {
-  final names =
-      targets ?? {for (final target in context.targets) target.name ?? ''};
-  final catalogs = _catalogsOf(context, names);
-  if (catalogs.isEmpty) return;
+  final names = {
+    for (final name
+        in targets ?? {for (final target in context.targets) target.name ?? ''})
+      if (name.isEmpty) null else name,
+  };
+  final catalogs = _catalogsOf(context);
   final catalogedCodes = {
     for (final catalog in catalogs) ...catalog.rows.map((row) => row.code),
   };
   if (catalogedCodes.isEmpty) return;
   for (final catalog in catalogs) {
-    yield* _duplicateFindings(context, catalog);
+    if (catalog.doc.target == null || names.contains(catalog.doc.target)) {
+      yield* _duplicateFindings(context, catalog);
+    }
   }
   for (final name in names) {
     yield* _targetFindings(context, name, catalogs, catalogedCodes);
   }
 }
 
-/// One code catalog: its doc, its feature's name, and its body rows.
+/// One code catalog: its doc, the doc it hangs under, and its body rows.
 typedef CatalogDoc = ({
   IndexedDoc doc,
-  String feature,
+  IndexedDoc owner,
   List<({String code, int line})> rows,
 });
 
-/// Returns each catalog doc the targets [names] hold, a shared doc counting
-/// for every target; empty when no layer sets `catalog`.
-List<CatalogDoc> _catalogsOf(CheckContext context, Set<String?> names) {
+/// Returns each catalog doc of every target, a shared doc once; empty when no
+/// layer sets `catalog`.
+List<CatalogDoc> _catalogsOf(CheckContext context) {
   final catalogs = <CatalogDoc>[];
   for (final doc in context.index.docs) {
     if (doc.docTypeId == null || !context.isChecked(doc)) continue;
-    if (doc.target != null && !names.contains(doc.target)) continue;
-    final feature = _featureNameOf(context, doc);
-    if (feature == null) continue;
+    final owner = context.index.parentOf(doc);
+    if (owner == null) continue;
     final content = context.contentOf(doc);
     for (var i = 0; i < content.sections.length; i++) {
       final catalog = context.templateSectionAt(doc, i)?.catalog;
@@ -58,7 +65,7 @@ List<CatalogDoc> _catalogsOf(CheckContext context, Set<String?> names) {
         catalog.column,
       );
       if (rows.isNotEmpty) {
-        catalogs.add((doc: doc, feature: feature, rows: rows));
+        catalogs.add((doc: doc, owner: owner, rows: rows));
       }
     }
   }
@@ -105,22 +112,6 @@ int _columnOf(List<String> cells, String column) {
 String _spanText(String line, CodeSpan span) =>
     line.substring(span.start + span.ticks, span.end - span.ticks);
 
-/// Returns the name of the nearest feature at or above [doc], or null.
-String? _featureNameOf(CheckContext context, IndexedDoc doc) {
-  for (
-    IndexedDoc? member = doc;
-    member != null;
-    member = context.index.parentOf(member)
-  ) {
-    if (member.docTypeId == featureTypeId) return member.name;
-  }
-  return null;
-}
-
-const featureTypeId = 'feature';
-const frTypeId = 'fr';
-const storyTypeId = 'user_story';
-
 Iterable<Finding> _duplicateFindings(
   CheckContext context,
   CatalogDoc catalog,
@@ -139,58 +130,64 @@ Iterable<Finding> _duplicateFindings(
   }
 }
 
-/// One code an unskipped requirement of a feature names: where and in what.
+/// One code an unskipped requirement names: where.
 typedef RaisedCode = ({IndexedDoc doc, String code, int line});
 
 /// Returns the catalog findings of one target [name]: each catalog row no
-/// unskipped requirement of its feature names, and each code a requirement
-/// names while its feature's catalog here lacks it.
+/// unskipped requirement under its owner names, and each code a requirement
+/// names while its nearest owner's catalogs here lack it.
 Iterable<Finding> _targetFindings(
   CheckContext context,
   String? name,
   List<CatalogDoc> catalogs,
   Set<String> catalogedCodes,
 ) sync* {
-  final catalogByFeature = <String, CatalogDoc>{};
+  final byOwner = <String, List<CatalogDoc>>{};
   for (final catalog in catalogs) {
     if (catalog.doc.target == null || catalog.doc.target == name) {
-      catalogByFeature.putIfAbsent(catalog.feature, () => catalog);
+      (byOwner[catalog.owner.docPath] ??= []).add(catalog);
     }
   }
-  if (catalogByFeature.isEmpty) return;
+  if (byOwner.isEmpty) return;
   final raised = <String, List<RaisedCode>>{};
   for (final doc in context.index.docs) {
     if (doc.target != null && doc.target != name) continue;
-    final typeId = doc.docTypeId;
-    if (typeId != frTypeId && typeId != storyTypeId) continue;
-    final feature = _featureNameOf(context, doc);
-    if (feature == null || !catalogByFeature.containsKey(feature)) continue;
-    if (context.index.coveringSkipOf(doc, codeTarget: name) != null) continue;
-    (raised[feature] ??= []).addAll([
-      for (final named in _namedCodesOf(context, doc, catalogedCodes))
-        (doc: doc, code: named.code, line: named.line),
+    final named = _namedCodesOf(context, doc, catalogedCodes);
+    if (named.isEmpty) continue;
+    if (context.index.statusOf(doc, codeTarget: name) == _skipped) continue;
+    final owner = context.index
+        .chainOf(doc)
+        .where((member) => byOwner.containsKey(member.docPath))
+        .firstOrNull;
+    if (owner == null) continue;
+    (raised[owner.docPath] ??= []).addAll([
+      for (final (:code, :line) in named) (doc: doc, code: code, line: line),
     ]);
   }
-  for (final catalog in catalogByFeature.values) {
+  for (final MapEntry(key: ownerPath, value: owned) in byOwner.entries) {
     final named = {
-      for (final raisedCode in raised[catalog.feature] ?? const <RaisedCode>[])
+      for (final raisedCode in raised[ownerPath] ?? const <RaisedCode>[])
         raisedCode.code,
     };
-    for (final row in catalog.rows) {
-      if (named.contains(row.code)) continue;
-      yield context.finding(
-        catalog.doc,
-        FindingKind.errorCodeUnraised,
-        line: row.line,
-        message: 'no requirement of ${catalog.feature} names ${row.code}',
-        keys: {'code': row.code},
-      );
+    for (final catalog in owned) {
+      for (final row in catalog.rows) {
+        if (named.contains(row.code)) continue;
+        yield context.finding(
+          catalog.doc,
+          FindingKind.errorCodeUnraised,
+          line: row.line,
+          message: 'no requirement of ${catalog.owner.name} names ${row.code}',
+          keys: {'code': row.code},
+        );
+      }
     }
   }
-  for (final entry in raised.entries) {
-    final catalog = catalogByFeature[entry.key]!;
-    final held = {for (final row in catalog.rows) row.code};
-    for (final raisedCode in entry.value) {
+  for (final MapEntry(key: ownerPath, value: found) in raised.entries) {
+    final owned = byOwner[ownerPath]!;
+    final held = {
+      for (final catalog in owned) ...catalog.rows.map((row) => row.code),
+    };
+    for (final raisedCode in found) {
       if (held.contains(raisedCode.code)) continue;
       yield context.finding(
         raisedCode.doc,
@@ -198,12 +195,15 @@ Iterable<Finding> _targetFindings(
         line: raisedCode.line,
         message:
             '${raisedCode.code} names no row of the catalog of '
-            '${entry.key}${(name == null || name.isEmpty) ? '' : ' in $name'}',
+            '${owned.first.owner.name}${name == null ? '' : ' in $name'}',
         keys: {'code': raisedCode.code},
       );
     }
   }
 }
+
+/// The status wire a skipped item reads.
+final String _skipped = RecordStatus.skipped.wire;
 
 /// Returns each cataloged code a `names_codes` section of [doc] names as a
 /// code span, with its line, in source order; a span whose text no catalog

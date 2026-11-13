@@ -2,10 +2,13 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'package:specstone_core/src/consistency_check/check_report.dart';
+import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
 
@@ -168,10 +171,10 @@ void main() {
     });
 
     expect(_found(report).where((f) => f.contains('uncataloged')), isEmpty);
-    expect(
-      _found(report).singleWhere((f) => f.contains('unraised')),
+    expect(_found(report).where((f) => f.contains('unraised')), [
       '13 error_code_unraised no requirement of login names bad_password',
-    );
+      '14 error_code_unraised no requirement of login names account_locked',
+    ]);
   });
 
   test(
@@ -229,7 +232,7 @@ void main() {
 
     expect(
       _found(report).singleWhere((f) => f.contains('uncataloged')),
-      isNotEmpty,
+      startsWith('26 error_code_uncataloged account_locked names no row'),
     );
   });
 
@@ -255,5 +258,83 @@ void main() {
         .toList();
     expect(uncataloged, hasLength(1));
     expect(uncataloged.single, contains('jaspr'));
+  });
+
+  test('a requirement under a sub-feature counts toward the catalog of the '
+      'nearest feature above it that holds one', () async {
+    final report = checkOf(
+      await writeNestedProject(
+        extra: {
+          'docs/$_shopErrorDoc': _error('Shop errors', ['out_of_stock']),
+          'docs/$cartAddFr': nestedFiles()['docs/$cartAddFr']!.replaceFirst(
+            'A sold-out item → refused.',
+            'A sold-out item → `out_of_stock`.',
+          ),
+        },
+      ),
+    );
+
+    expect(_found(report), isEmpty);
+  });
+
+  test('a skipped FR counts toward nothing, in a project with named targets '
+      'too', () async {
+    final report = checkOf(
+      await writeTwinProject(
+        extra: {
+          'docs/$_flutterErrorDoc': _error('Login errors', ['bad_password']),
+          'docs/$_jasprErrorDoc': _error('Login errors', ['bad_password']),
+          ...edit(loginFr, [
+            (
+              'An empty password → refused.',
+              'An empty password → `bad_password` is refused.',
+            ),
+          ]),
+          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md':
+              "---\nstatuses:\n  - 'email_login:skipped:no web'\n---\n\n"
+              '# Jaspr implementation\n',
+        },
+      ),
+    );
+
+    expect(
+      [
+        for (final f in report.findings)
+          if (_catalogKinds.contains(f.kind)) '${f.path} ${f.kind.wire}',
+      ],
+      ['$_jasprErrorDoc error_code_unraised'],
+    );
+  });
+
+  test('a run kept to one target reads the codes of every target, so it '
+      'agrees with the full run', () async {
+    final project = await writeTwinProject(
+      extra: {
+        'docs/$_flutterErrorDoc': _error('Login errors', ['bad_password']),
+        'docs/$_jasprErrorDoc': _error('Login errors', ['account_locked']),
+        ...edit(loginFr, [
+          (
+            'An empty password → refused.',
+            'An empty password → `bad_password` is refused.',
+          ),
+        ]),
+      },
+    );
+    List<String> run(String? codeTarget) {
+      final session = openSession(project);
+      try {
+        return [
+          for (final f in runCheck(session, codeTarget: codeTarget).findings)
+            if (_catalogKinds.contains(f.kind)) '${f.path} ${f.kind.wire}',
+        ];
+      } finally {
+        session.close();
+      }
+    }
+
+    final jaspr = run('jaspr');
+    expect(jaspr, contains('$loginFr error_code_uncataloged'));
+    expect(jaspr, contains('$_jasprErrorDoc error_code_unraised'));
+    expect(jaspr.where((f) => f.contains('flutter')), isEmpty);
   });
 }
