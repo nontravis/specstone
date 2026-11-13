@@ -89,8 +89,10 @@ final class CheckContext {
       text = const Utf8Decoder(allowMalformed: true)
           .convert(File('${codeRootOf(target).path}/$path').readAsBytesSync());
     } on FileSystemException {
+      final inTarget = target.name == null ? '' : ' in target ${target.name}';
       _codeWarnings.add(
-        '$path: cannot read the file; implements Symbols in it are not checked',
+        '$path: cannot read the file$inTarget; '
+        'implements Symbols in it are not checked',
       );
     }
     return _codeTexts[key] = text;

@@ -32,6 +32,9 @@ abstract class SpecstoneCommand extends Command<int> {
   }
 
   /// Returns the code target `--target` names, or null when the flag is off.
+  ///
+  /// A `--target` given no value reads as `''`, which the index refuses as
+  /// `argument_missing` (the runner supplies the empty value).
   String? targetOf(ArgResults args) => args.option('target');
 
   /// Writes [fault] to `err` and returns its exit status.

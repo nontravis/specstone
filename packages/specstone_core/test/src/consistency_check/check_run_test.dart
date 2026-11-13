@@ -9,9 +9,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
-import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -20,7 +18,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
-import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
 
 void main() {
   test(
@@ -479,61 +477,8 @@ void main() {
   group('consistency_check/find_template_breaks/check_target, code targets', () {
     const flutter = CodeTarget('flutter', codeRoot: 'flutter_ws');
     const jaspr = CodeTarget('jaspr', codeRoot: 'jaspr_ws');
-    const flutterArch = 'specs/flutter/f01_login/ARCHITECTURE.md';
-    const jasprArch = 'specs/jaspr/f01_login/ARCHITECTURE.md';
-    const brokenLink = ' See [x](../../../nowhere.md).';
-
-    // The two-target project: `architecture` is per-target, one twin per
-    // target; the API doc stays shared. Every doc but the story holds one
-    // broken link, so each finding names the doc it came from.
-    Future<Directory> twinProject({Map<String, String> extra = const {}}) {
-      final files = checkProjectFiles();
-      // The twins read as approved: the helper's stamp skips a per-target path.
-      final twin = withApprovalHash(
-        toLf(
-          files['docs/$loginArchitecture']!.replaceFirst(
-            'One box.',
-            'One box.$brokenLink',
-          ),
-        ),
-        fixtureDocTypeOf(loginArchitecture),
-      );
-      return writeCheckProject(
-        without: {'docs/$loginArchitecture', 'app/lib/login.dart'},
-        extra: {
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}targets:\n'
-              '  flutter:\n    code_root: flutter_ws\n'
-              '  jaspr:\n    code_root: jaspr_ws\n',
-          '.specstone/templates/architecture.yaml':
-              'id: architecture\nper_target: true\n',
-          '.specstone/templates/implementation.yaml':
-              'id: implementation\n'
-              'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-              'parent: feature\n'
-              'per_target: true\n'
-              'fields:\n'
-              '  - id: statuses\n'
-              '    type: record_status\n'
-              '    list: true\n',
-          'docs/$flutterArch': twin,
-          'docs/$jasprArch': twin,
-          // The record holds each item's status, so the shared docs write none.
-          ...edit(loginStory, [('status: implemented\n', '')]),
-          ...fr('status: implemented\n', ''),
-          ...edit(loginApi, [
-            ('Signs the Agent in.', 'Signs the Agent in.$brokenLink'),
-          ]),
-          ...edit(loginFeature, [
-            ('Users forget passwords.', 'Users forget passwords.$brokenLink'),
-          ]),
-          'flutter_ws/app/lib/login.dart': 'class SignInPage {}\nclass FlutterSignIn {}\nbool checkPassword(String p) => p.isNotEmpty;\n',
-          'jaspr_ws/app/lib/login.dart': 'class SignInPage {}\nclass JasprSignIn {}\nbool checkPassword(String p) => p.isNotEmpty;\n',
-          ...extra,
-        },
-      );
-    }
+    const flutterArch = flutterArchitecture;
+    const jasprArch = jasprArchitecture;
 
     CheckReport runTwin(
       Directory project, {
@@ -550,7 +495,7 @@ void main() {
     };
 
     test('the two-target fixture reads each doc once: only the planted links are findings', () async {
-      final report = runTwin(await twinProject());
+      final report = runTwin(await writeTwinProject());
       expect(pathsOf(report), {loginFeature, loginApi, flutterArch, jasprArch});
       expect(spots(report).length, 4, reason: spots(report).join('\n'));
     });
@@ -561,7 +506,7 @@ void main() {
       test(
         'E20: check $name with two targets reports the feature folder and each target spec folder',
         () async {
-          final project = await twinProject();
+          final project = await writeTwinProject();
           expect(pathsOf(runTwin(project, target: name)), {
             loginFeature,
             loginApi,
@@ -574,7 +519,7 @@ void main() {
       test(
         'E20: check $name --target jaspr keeps the PRD files, the shared docs, and that target spec folder',
         () async {
-          final project = await twinProject();
+          final project = await writeTwinProject();
           expect(pathsOf(runTwin(project, target: name, codeTarget: 'jaspr')), {
             loginFeature,
             loginApi,
@@ -589,7 +534,7 @@ void main() {
     }
 
     test('E21: check with no target reports every target, each finding at the DocPath of its target', () async {
-      final project = await twinProject(
+      final project = await writeTwinProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
       final report = runTwin(project);
@@ -600,7 +545,7 @@ void main() {
     });
 
     test('E21: check --target jaspr keeps the shared docs and jaspr, the project-level findings too', () async {
-      final project = await twinProject(
+      final project = await writeTwinProject(
         extra: {'.specstone/AGENT.md': 'hand edit\n'},
       );
       final report = runTwin(project, codeTarget: 'jaspr');
@@ -612,7 +557,7 @@ void main() {
     });
 
     test('E22: a --target name targets: lacks is argument_invalid naming the targets, alone or beside a doc target', () async {
-      final project = await twinProject();
+      final project = await writeTwinProject();
       for (final target in [null, 'login']) {
         expect(
           () => runTwin(project, target: target, codeTarget: 'web'),
@@ -628,6 +573,38 @@ void main() {
           reason: 'target: $target',
         );
       }
+    });
+
+    test(
+      'E22: an empty --target is argument_missing naming the targets',
+      () async {
+        final project = await writeTwinProject();
+        expect(
+          () => runTwin(project, codeTarget: ''),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  '--target needs a code target name: the code targets are flutter, jaspr',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('E21: an untyped file under another target spec folder stays out of --target, and in without it', () async {
+      const notes = 'specs/flutter/f01_login/notes.md';
+      final project = await writeTwinProject(
+        extra: {'docs/$notes': '# Notes\n'},
+      );
+      expect(pathsOf(runTwin(project)), contains(notes));
+      expect(
+        pathsOf(runTwin(project, codeTarget: 'jaspr')),
+        isNot(contains(notes)),
+      );
+      expect(pathsOf(runTwin(project, codeTarget: 'flutter')), contains(notes));
     });
 
     test('E22: a --target name on a project with one unnamed target is argument_invalid', () async {
@@ -647,7 +624,7 @@ void main() {
     test(
       'INV-32: CheckScope.targets holds every target, or the one named',
       () async {
-        final session = openSession(await twinProject());
+        final session = openSession(await writeTwinProject());
         addTearDown(session.close);
         final context = CheckContext(session);
         expect(CheckScope.project(context).targets, [flutter, jaspr]);
@@ -670,7 +647,7 @@ void main() {
     test(
       'INV-32: the context reads each target code root and code text apart',
       () async {
-        final session = openSession(await twinProject());
+        final session = openSession(await writeTwinProject());
         addTearDown(session.close);
         final context = CheckContext(session);
         expect(context.codeRootOf(flutter).path, endsWith('flutter_ws'));
@@ -685,7 +662,10 @@ void main() {
         );
         expect(context.codeFilesRead, 2);
         expect(context.codeTextOf(jaspr, 'app/lib/gone.dart'), isNull);
-        expect(context.unstatedWarnings, hasLength(1));
+        const warning =
+            'app/lib/gone.dart: cannot read the file in target jaspr; '
+            'implements Symbols in it are not checked';
+        expect(context.unstatedWarnings, [warning]);
       },
     );
   });

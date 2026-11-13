@@ -138,16 +138,24 @@ final class DocIndex {
     );
   }
 
-  /// Throws `argument_invalid` for [codeTarget], unless [targetNames] holds
-  /// it or it is null.
+  /// Throws for [codeTarget], unless [targetNames] holds it or it is null.
+  ///
+  /// An empty [codeTarget], a `--target` given no value, is `argument_missing`;
+  /// any other name [targetNames] lacks is `argument_invalid`. Both messages
+  /// name the targets.
   void checkCodeTarget(String? codeTarget) {
     if (codeTarget == null || targetNames.contains(codeTarget)) return;
     final held = targetNames.join(', ');
+    final known = held.isEmpty
+        ? 'this project names no code target'
+        : 'the code targets are $held';
     throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      held.isEmpty
-          ? '--target $codeTarget: this project names no code target'
-          : '--target $codeTarget: the code targets are $held',
+      codeTarget.isEmpty
+          ? IndexFaultCode.argumentMissing
+          : IndexFaultCode.argumentInvalid,
+      codeTarget.isEmpty
+          ? '--target needs a code target name: $known'
+          : '--target $codeTarget: $known',
     );
   }
 

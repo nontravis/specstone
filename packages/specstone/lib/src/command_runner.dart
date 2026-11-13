@@ -185,7 +185,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   @override
   Future<int> run(Iterable<String> args) async {
     try {
-      return await super.run(args) ?? 0;
+      return await super.run(_withTargetValue(args)) ?? 0;
     } on UsageException catch (error) {
       _err
         ..writeln(error.message)
@@ -194,4 +194,25 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       return usageExitCode;
     }
   }
+}
+
+/// Returns [args] with an empty value on each `--target` that has none, so the
+/// command answers `argument_missing` naming the targets, as the shared
+/// `--target` option of `addTargetOption` reads it, instead of a usage error.
+///
+/// A `--target` at the end, or before an option or `--`, has no value; the
+/// arguments after `--` are left as given.
+Iterable<String> _withTargetValue(Iterable<String> args) {
+  final list = args.toList();
+  final end = list.indexOf('--');
+  final limit = end < 0 ? list.length : end;
+  return [
+    for (final (i, arg) in list.indexed)
+      if (arg == '--target' &&
+          i < limit &&
+          (i + 1 >= limit || list[i + 1].startsWith('-')))
+        '--target='
+      else
+        arg,
+  ];
 }

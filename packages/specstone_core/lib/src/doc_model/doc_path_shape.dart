@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 
@@ -231,33 +232,55 @@ Iterable<(MergedDocType, String)> specChildrenOf(
 /// These are the folders of the child doc types whose own segment is their
 /// last segment and holds no placeholder (a feature's spec docs), each once,
 /// sorted. [depth] is the nesting depth of the doc.
+///
+/// A per-target child's folder is read once per name of [targetNames], with
+/// the target folder where RULE-20 puts it; empty [targetNames] leaves it as
+/// the plain pattern gives it.
 List<String> specFoldersOf(
   MergedSet set,
   MergedDocType docType,
   List<String> values, {
   int depth = 0,
+  List<String> targetNames = const [],
 }) {
   final shape = DocPathShape.of(docType, set, depth: depth);
   if (shape == null) return const [];
   return {
-    for (final (_, folder) in specChildrenOf(set, docType, shape, values))
-      folder,
+    for (final (child, folder) in specChildrenOf(set, docType, shape, values))
+      if (child.isPerTarget && targetNames.isNotEmpty)
+        for (final name in targetNames) _targetFolderOf(folder, name)
+      else
+        folder,
   }.toList()..sort();
 }
+
+// A folder pattern ends in `/`; the target joins it as RULE-20 places it.
+String _targetFolderOf(String folder, String target) =>
+    '${PathPattern(folder.substring(0, folder.length - 1)).forTarget(target).source}/';
 
 /// Returns the paths of the delete unit of the doc at [docPath]: its own
 /// segment, a folder ending in `/` or the file, then the folders of its spec
 /// docs; null when [docType] has no `path:` or [docPath] does not match it.
+///
+/// [targetNames] are the code targets a per-target spec doc type's folder is
+/// read in, as [specFoldersOf] takes them.
 List<String>? unitRootsOf(
   MergedSet set,
   MergedDocType docType,
-  String docPath,
-) {
+  String docPath, {
+  List<String> targetNames = const [],
+}) {
   final shape = DocPathShape.ofDoc(docType, set, docPath);
   final values = shape?.valuesOf(docPath);
   if (shape == null || values == null) return null;
   return [
     shape.ownPathOf(docPath),
-    ...specFoldersOf(set, docType, values, depth: shape.depth),
+    ...specFoldersOf(
+      set,
+      docType,
+      values,
+      depth: shape.depth,
+      targetNames: targetNames,
+    ),
   ];
 }
