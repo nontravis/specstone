@@ -1111,7 +1111,7 @@ void _handOffTests() {
     expect(
       rules,
       contains(
-        'When you write an FR, an nf, or an API row, follow '
+        'To write an FR, an nf, an API row, or an `Overrides:` line, follow '
         '`references/confirm-links.md`',
       ),
     );
@@ -1124,6 +1124,18 @@ void _handOffTests() {
     expect(skill, isNot(contains('pins no hash')));
     for (final step in ['bases.fields.confirmed', '--field confirmed']) {
       expect(skill, isNot(contains(step)), reason: step);
+    }
+  });
+
+  test('expert-sdd tells the agent to record an override entry with each '
+      'override line', () {
+    final rules = _oneLine(
+      _sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules'),
+    );
+    expect(rules, contains('an `Overrides:` line, follow'));
+    final links = _oneLine(_pluginText(_confirmLinks));
+    for (final point in _overrideEntryPoints) {
+      expect(links, contains(point), reason: point);
     }
   });
 
@@ -1467,6 +1479,13 @@ const _citedLinkPoints = [
 
 /// The one home of expert-sdd's steps for confirming a traced link.
 const _confirmLinks = 'skills/expert-sdd/references/confirm-links.md';
+
+/// What [_confirmLinks] says about the entry an `Overrides:` line takes.
+const _overrideEntryPoints = [
+  '`overrides` entry',
+  '`<doc type>:<name>#<ID> <fingerprint>`',
+  '`specstone set <target> --field overrides --base <hash>`',
+];
 
 /// Rule 4 of expert-sdd as it read before its steps moved to [_confirmLinks].
 const _confirmLinkSteps =

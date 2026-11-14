@@ -31,7 +31,7 @@ alone can miss a root above it.
    `specstone guide <type> --json` for its fields, even for a type you wrote before. One call naming
    several types counts for each type it names, so a batch never repeats it per write. The CLI prints the project's
    current guide; this skill keeps none.
-4. **Confirm traced links.** When you write an FR, an nf, or an API row, follow `references/confirm-links.md`.
+4. **Confirm traced links.** To write an FR, an nf, an API row, or an `Overrides:` line, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
    its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `specstone check` prints it.
    Steps: `references/size-fix.md`.
