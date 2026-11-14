@@ -44,7 +44,7 @@ final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
 /// letter or digit precedes; the grammar reads the ID from there.
 final _servedPrefix = RegExp('(?<![A-Za-z0-9])[A-Z][A-Za-z]*-');
 
-/// Returns the requirement trace findings of a typed [doc] (`consistency_check/find_prd_spec_disagreements/check_requirement_traces`).
+/// Returns the requirement trace findings of a typed [doc].
 ///
 /// An `fr` traces to scenarios of its story; an `nf` overrides a GNFR item
 /// only as its `kind` says. A doc whose story is gone gets no finding.
@@ -133,11 +133,9 @@ Iterable<Finding> _overrideProblems(
 
 /// Returns the role and vision and goal findings of a typed [doc].
 ///
-/// Covers `consistency_check/find_prd_spec_disagreements/check_roles_and_goal_sets`.
-///
-/// A role names a `project` Role entry (INV-2); vision and goal IDs sit in
+/// A role names a project Role entry; vision and goal IDs sit in
 /// the parent feature, if any, and a project heading; a project goal names
-/// its `PV-` headings in `**Serves:**`. Runs only with `project` in the set.
+/// its `PV-` headings in `**Serves:**`. Runs only with project in the set.
 Iterable<Finding> checkRolesAndGoals(
   CheckContext context,
   IndexedDoc doc,
@@ -315,7 +313,7 @@ Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-/// Returns the findings of a spec doc read against its PRD (`consistency_check/find_prd_spec_disagreements/check_spec_against_prd`).
+/// Returns the findings of a spec doc read against its PRD.
 ///
 /// An `api` row must name an FR of its feature as `<feature name>/<cell>`. A
 /// `feature` whose record in a target names code needs, for that target, an

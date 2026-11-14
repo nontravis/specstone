@@ -13,9 +13,8 @@ only rewrites one section or field of an existing doc, and adds no story or FR, 
 
 Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
 change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
-with `--summary` to add a story, and `project` to add a feature. Without the `Agent` tool, pass no `--budget`; `Read`
-a saved output once, in parts if long. Pass no `--target`: a design read spans every code target
-(`domain:agent_plugin` INV-25).
+with `--summary` to add a story, and the project doc to add a feature. Without the `Agent` tool, pass no `--budget`; `Read`
+a saved output once, in parts if long. Pass no `--target`: a design read spans every code target.
 
 ```
 specstone context <target> --for design --budget 20000

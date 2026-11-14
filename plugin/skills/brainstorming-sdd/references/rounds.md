@@ -1,6 +1,5 @@
 The runner of `specstone:brainstorming-sdd` follows this from the first design-mode reply until the Owner approves
-the drafts. Its rules are those of `agent_plugin/write_prd_and_spec/run_brainstorm_to_design`, each cited by its edge
-case. Each dispatch passes `report:`, and each reply goes to the Owner, as the skill's step 3 says.
+the drafts. Each dispatch passes `report:`, and each reply goes to the Owner, as the skill's step 3 says.
 
 ## 1. Route each Owner decision
 
@@ -33,7 +32,7 @@ section 3 says.
   `mode: author` dispatch, never the resumed one (E05). It takes the document's path and the drafts list; a fix
   round adds the audit's `Findings:` lines that carry no `[behavior]` tag, those that only correct text against the
   design. The author re-reads those drafts before its first write
-  (`agent_plugin/write_prd_and_spec/write_drafts_with_coverage` E12) and fixes only those findings, in those drafts.
+  and fixes only those findings, in those drafts.
 - **A `[behavior]` line** never goes to a fix round: put it, with the decision that answers it, in the brief for an
   amend (section 1). The one fresh author pass after the amend takes the amended design and the drafts list. When the
   audit that raised it also holds untagged lines, that pass takes them too and counts as a fix round; a pass that
@@ -45,7 +44,7 @@ section 3 says.
 ## 3. Re-audit only what changed
 
 1. Run one `specstone get <drafts list> --json` and keep each draft's `bases.doc`. The drafts list's names need no
-   `--target` (`domain:agent_plugin` INV-25).
+   `--target`.
 2. When it refuses with `doc_not_found`, update the drafts list for each name it names: a doc moved between rounds
    takes the new name `move` printed (`moved <from> to <to>`), and a doc deleted, or listed and never created,
    drops out. Run the call again on that list.

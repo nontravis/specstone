@@ -4,7 +4,7 @@ As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goe
 `specstone check` tests only that code pointers resolve, never what a function now does. So start from the
 paths the task changed, not from findings. Follow `specstone:expert-sdd` for every doc you write.
 
-**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): a changed path's target is the `code target:`
+**Code target** (two or more `targets:`): a changed path's target is the `code target:`
 line, or the `codeTarget` key under `--json`, of its `context --code` call, covered or not, and a deleted path's is the
 finding DocPath's, so ask the Owner nothing; each `get`, `set`, and `new` of a per-target doc carries `--target <name>`,
 or addresses the doc by its DocPath.

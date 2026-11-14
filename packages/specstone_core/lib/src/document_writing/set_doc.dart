@@ -329,7 +329,7 @@ void checkFieldWrite({
       key: fieldId,
     );
   }
-  // Empty stdin on a feature's status removes the written key (`document_writing/edit_one_section_or_field/write_one_field` E05, E13).
+  // Empty stdin on a feature's status removes the written key.
   if (value != null &&
       fieldId == 'status' &&
       doc.docTypeId == _computedStatusType) {

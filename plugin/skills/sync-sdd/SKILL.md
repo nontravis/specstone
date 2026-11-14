@@ -40,7 +40,7 @@ When you followed the procedure yourself, its report stands in for item 1.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
    list to `specstone set implementation:<feature> --field implements --base <hash>` (or
    `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the target the report
-   gives for that pointer, when the project has two or more (`domain:agent_plugin` INV-25), the hash from
+   gives for that pointer, when the project has two or more, the hash from
    `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <doc> --json` for the same doc, with the
    same `--target`.
 5. Run `specstone:brainstorming-sdd` for each behavior the report hands over.

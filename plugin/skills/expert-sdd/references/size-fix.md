@@ -35,7 +35,7 @@ for the main session. A split the Owner turns down leaves nothing to delete.
 Say why in your report and leave the finding as it is: it waits for the Owner.
 
 - A feature of fewer than 4 stories, since a split needs at least 2 sub-features of at least 2 stories each, and a
-  feature holds stories or sub-features, never both; or a top doc, such as `gnfr`: the Owner picks text moved to its
+  feature holds stories or sub-features, never both; or a top doc, such as the gnfr doc: the Owner picks text moved to its
   home or the doc type's limit raised in the project's templates.
 
 ## An item over its limit

@@ -6,7 +6,7 @@ This skill takes `specstone check` findings under `prds/`; those under `specs/`,
 Follow `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once, naming every
 type you write; a type met later gets its own call before its first write.
 
-**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new`, `get`, and `set` of a per-target
+**Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
 
 ## 2. One finding at a time
@@ -80,8 +80,7 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
-`specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (`project:project`,
-`features:features`, `gnfr:gnfr`): read each with `specstone get` and fill it with the Owner.
+`specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (the project, features, and gnfr docs): read each with `specstone get` and fill it with the Owner.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
 your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.

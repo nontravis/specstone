@@ -24,13 +24,13 @@ String _listName(IndexedDoc doc, bool summary) =>
 String _codeTargetLine(String? name) =>
     name == null ? '' : '==> code target: $name <==\n';
 
-/// Renders [bundle]'s docs as one `context` answer (`index_query/get_task_bundle/trim_and_order_bundle`).
+/// Renders [bundle]'s docs as one `context` answer.
 ///
 /// [label] is the target as given, or the code path for `--code`; [byCode]
 /// prints it under the JSON key `code` instead of `target`, with the picked
 /// `codeTarget` when the project has two or more. A bundle larger than [budget]
 /// prints its sizes and the next step instead of doc text, with exit status 1
-/// (`index_query/get_task_bundle/refuse_bundle_over_budget`); an equal one prints whole.
+/// an equal one prints whole.
 ReadAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -101,7 +101,7 @@ ReadAnswer answerContext(
 }
 
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
-/// [budget]: each doc's size, no doc text, and the next step (`index_query/get_task_bundle/refuse_bundle_over_budget`).
+/// [budget]: each doc's size, no doc text, and the next step.
 ReadAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,

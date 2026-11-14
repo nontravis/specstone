@@ -850,7 +850,7 @@ final class MoveJournal {
   /// `specstone migrate`: it parses and holds a [CommitStep].
   ///
   /// An unreadable or unparsable journal is not a migrate journal, so
-  /// `document_writing`'s replay refuses it as before.
+  /// the document-writing replay refuses it as before.
   static bool pendingMigrate(Directory projectRoot) {
     try {
       final steps = _parsedSteps(projectRoot);

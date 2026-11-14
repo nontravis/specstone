@@ -40,12 +40,12 @@ alone misses a project root above it.
    ending `(waits for the Owner)`. The post-edit hook does not replace this run: it checks one doc, and a shell
    rewrite triggers no hook.
 7. **Cite, never restate.** A rule has one owner doc. Every other doc cites it by name, `<type>:<name>` or
-   `<type>:<name>#<section>` and the item ID inside it (`domain:document_writing#invariants` INV-9), and states
+   `<type>:<name>#<section>` and the item ID inside it, and states
    nothing of the rule. `specstone refs <owner>` lists each citing doc, but a citation pins no hash: it never turns
    `suspect` when the owner changes.
 8. **Code target.** With two or more code targets, `new`, `get`, `set` (a `confirmed` write included),
    `structure <doc>`, and `refs <owner>` take the `--target` of the surface that loads this skill, never an Owner
-   question; `approve` and `delete` take none (`domain:agent_plugin` INV-25).
+   question; `approve` and `delete` take none.
 
 ## Owner confirmation
 

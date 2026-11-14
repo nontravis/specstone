@@ -26,7 +26,7 @@ final _hex12 = RegExp(r'^[0-9a-f]{12}$');
 /// none.
 ///
 /// Each rule ties a value in one doc to a row or block in another: a feature
-/// `system:` value to a Systems table row of the `features` doc, an api
+/// `system:` value to a Systems table row of the features doc, an api
 /// `fr_trace` row's operation to an `operations` `###` heading and back, an
 /// auth scope's Required for cell to an operation of its feature's api doc,
 /// and a topic `scope` path to a `covers` prefix. A rule runs only when the

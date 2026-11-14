@@ -568,7 +568,7 @@ final class _TreeDoc {
   final int? story;
   final int? fr;
 
-  /// The doc's name as a doc-name mention writes it (`doc_model` RULE-11).
+  /// The doc's name as a doc-name mention writes it.
   final String name;
 
   /// The slug of the folder or file a folder path ends with.

@@ -62,13 +62,13 @@ final class RenumberIndex {
   /// The prefixes of the renumbered IDs.
   final prefixes = <String>{};
 
-  /// The `gnfr` doc holding each NFR ID.
+  /// The gnfr doc holding each NFR ID.
   late final Map<String, String> _nfrPaths = _idPathsOfType(
     gnfrTypeId,
     letteredOnly: false,
   );
 
-  /// The `project` doc holding each lettered project ID.
+  /// The project doc holding each lettered project ID.
   late final Map<String, String> _projectPaths = _idPathsOfType(
     _projectType,
     letteredOnly: true,
@@ -226,7 +226,7 @@ final class RenumberIndex {
   }
 
   /// The new `vision`, `goals`, or `traced_from` value of [value], a
-  /// renumbered `project` ID; null to keep it.
+  /// renumbered project ID; null to keep it.
   String? projectIdLabel(String value) {
     final projectPath = _projectPaths[value];
     return projectPath == null ? null : toOf(projectPath, value);

@@ -31,13 +31,13 @@ Run this next, given targets or not, with no `--target`:
 specstone list user_story --status planned --json
 ```
 
-**Code target** (`domain:agent_plugin` INV-25): when the list refuses `argument_missing` naming two or more code
+**Code target:** when the list refuses `argument_missing` naming two or more code
 targets, ask the Owner which code target the plan is for, given target names and a drafts list alike; the answer is
 `code target:` in step 3, and `--target <name>` on a rerun of this list when no target is given. A one-target project's list refuses nothing: ask
 nothing, pass none. Learn it from the refusal, never from `.specstone/config.yaml`.
 
 - **From `specstone:brainstorming-sdd`:** its last step invokes this skill with the approved drafts list and the
-  design document's path. Take the list whole and filter out no doc type, a `project` or `feature` doc included:
+  design document's path. Take the list whole and filter out no doc type, a project or feature doc included:
   which docs a task builds is `specstone:plan-engineer`'s call alone.
 - **Target names given:** each an approved story, FR, NFR, or spec doc. Take them as named.
 - **No target, outside a brainstorm:** Offer the Owner each story of the list, rerun with `--target <name>` after the

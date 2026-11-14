@@ -1,9 +1,7 @@
 A change from a source starts from a spec or design another tool wrote: in a file, behind a link or issue the Owner
 gave, or in the current conversation, such as an interview that wrote no file. The runner of
-`specstone:brainstorming-sdd` follows `## Take in the source`, whose rules are those of
-`agent_plugin/start_from_another_tools_spec/take_in_a_source`; `specstone:sdd-engineer` in `mode: design` follows
-`## Map the source`, whose rules are those of `agent_plugin/start_from_another_tools_spec/map_source_items`. Each
-rule cites its own FR's edge case.
+`specstone:brainstorming-sdd` follows `## Take in the source`; `specstone:sdd-engineer` in `mode: design` follows
+`## Map the source`.
 
 Both match a source item by its content shape alone, never by the tool that wrote it. Each section takes what its
 type's writing guide says it needs; a gap goes to the Owner.
@@ -36,9 +34,9 @@ type's writing guide says it needs; a gap goes to the Owner.
    - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
 3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
    conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
-   Owner gave, so it stays unopened. The CLI opens none (`gnfr:gnfr` NFR-Pr01, E07). Never edit, move, or delete the
+   Owner gave, so it stays unopened. The CLI opens none. Never edit, move, or delete the
    source.
-4. **The narrow call.** A source that adds a feature has the target `project`: the gate's bundle is the grounding,
+4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the grounding,
    and no second call runs (E02). Otherwise target the doc the source decides, by the skill's step 1 target rule.
    `--no-project` leaves out the project's docs, which the gate's bundle already holds:
 
@@ -70,8 +68,7 @@ Follow this when your brief names a file to re-read. As the agent, ask the Owner
 - **Source map**: a section of the design document, after Docs to change and before Open questions. Write one row
   per source item, 0 items left out: the item, and the doc and section it lands in by the shapes above, or "not
   taken" and the reason.
-- **A ticket list, a task list, or a plan**: one row, "not taken", its reason that task management is out of scope
-  (`project:project#out_of_scope`) (E01).
+- **A ticket list, a task list, or a plan**: one row, "not taken", its reason that task management is out of scope.
 - **An item no shape matches** and no answer in the brief places: an open question in your report, as for any
   gap (E02).
 - **The source** the document records is the brief's Source line, as written.
