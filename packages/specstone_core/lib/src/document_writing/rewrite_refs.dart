@@ -37,7 +37,6 @@ const _backslash = 0x5C;
 const _openParen = 0x28;
 const _closeParen = 0x29;
 const _openBracket = 0x5B;
-const _closeBracket = 0x5D;
 const _lessThan = 0x3C;
 const _encodedOpenParen = '%28';
 const _encodedCloseParen = '%29';
@@ -143,7 +142,7 @@ List<({int start, int end, String text})> _linkTextEdits(
   if (textEnd == null || body.codeUnitAt(source.offset) != _openBracket) {
     return null;
   }
-  if (!_closesWithDestinationOrLabel(body, textEnd)) return null;
+  if (!_isInlineOrFullReference(body, source, textEnd)) return null;
   final start = source.offset + 1;
   final address = readDocAddress(body.substring(start, textEnd));
   if (address.sectionKey != null) return null;
@@ -153,18 +152,12 @@ List<({int start, int end, String text})> _linkTextEdits(
   return (start: start, end: textEnd, text: '$prefix$name');
 }
 
-/// Whether the `]` of [body] at [closeAt] is followed by an inline
-/// destination or by a full reference's label, so its text is no label.
-bool _closesWithDestinationOrLabel(String body, int closeAt) {
-  if (closeAt + 1 >= body.length) return false;
-  return switch (body.codeUnitAt(closeAt + 1)) {
-    _openParen => true,
-    _openBracket =>
-      closeAt + 2 < body.length &&
-          body.codeUnitAt(closeAt + 2) != _closeBracket,
-    _ => false,
-  };
-}
+/// Whether [source], whose text ends at [textEnd], is an inline or full
+/// reference link, so its text is no label.
+///
+/// A shortcut link ends right after its `]`, and a collapsed one after `[]`.
+bool _isInlineOrFullReference(String body, LinkSource source, int textEnd) =>
+    source.end > textEnd + 1 && !body.startsWith('[]', textEnd + 1);
 
 /// Returns [written], a [kind] destination as written, with [path] in place
 /// of the path it is written with, its `?` or `#` part kept (see
@@ -359,15 +352,19 @@ bool _textsRenamedDoc(
   IndexedDoc doc,
   List<PathMove> moves,
   Map<(String, String), String> renamed,
-) =>
-    renamed.isNotEmpty &&
-    rewriteDocLinks(
-          toLf(index.contentOf(doc).text),
-          docPath: doc.docPath,
-          moves: moves,
-          renamed: renamed,
-        ) !=
-        null;
+) {
+  if (renamed.isEmpty) return false;
+  final text = toLf(index.contentOf(doc).text);
+  // A link text names an old Name, so a doc without one needs no parse.
+  if (!renamed.keys.any((key) => text.contains(key.$2))) return false;
+  return rewriteDocLinks(
+        text,
+        docPath: doc.docPath,
+        moves: moves,
+        renamed: renamed,
+      ) !=
+      null;
+}
 
 /// Whether [doc] holds a path mention that [moves] change.
 bool _mentionsMovedFile(

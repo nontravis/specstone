@@ -158,6 +158,17 @@ void main() {
       );
     });
 
+    test('f02/us06/fr02/e14: a shortcut link a parenthesis follows, which is no inline destination, keeps its text with its definition', () {
+      expect(
+        rewrite(
+          '[login/email_login](see below)\n\n'
+          '[login/email_login]: ../f01_login/FEATURE.md\n',
+        ),
+        '[login/email_login](see below)\n\n'
+        '[login/email_login]: ../f01_signin/FEATURE.md\n',
+      );
+    });
+
     test('f02/us06/fr02/e14: a text equal to an old Name takes the new Name even when its link target is no moved path', () {
       expect(
         rewrite('[login/email_login](https://x.dev/a.md)\n', moves: const []),
