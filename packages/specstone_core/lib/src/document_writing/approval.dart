@@ -273,19 +273,19 @@ final class UnknownHistory extends ApprovalLookup {
 
 /// Whether a committed copy counts as approved (R85, R86): no `draft: true`,
 /// and an `approved:` value that is the ApprovalHash of the copy's own
-/// content by the rule [statusesOutside] names, or `approved: true`.
-bool countsAsApprovedCopy(
-  String lfCopy,
-  MergedDocType? docType, {
-  required bool statusesOutside,
-}) {
+/// content, or `approved: true`.
+///
+/// The hash may follow either statuses rule: a copy approved before the
+/// upgrade to the statuses pin still counts after it.
+bool countsAsApprovedCopy(String lfCopy, MergedDocType? docType) {
   final fields = ApprovalFields.of(Doc.parse(lfCopy));
   if (fields.isDraft) return false;
   return switch (fields.approvedValue) {
     true => true,
-    final String value =>
-      value ==
-          approvalHashOf(lfCopy, docType, statusesOutside: statusesOutside),
+    final String value => [true, false].any(
+      (outside) =>
+          value == approvalHashOf(lfCopy, docType, statusesOutside: outside),
+    ),
     _ => false,
   };
 }
@@ -314,7 +314,6 @@ final class ApprovalHistory {
     Directory projectRoot,
     String projectPath, {
     required MergedDocType? docType,
-    required bool statusesOutside,
   }) {
     try {
       final prefix = _prefixOf(
@@ -329,11 +328,7 @@ final class ApprovalHistory {
       }
       for (final (sha, path) in commits) {
         final copy = _git(projectRoot, ['show', '$sha:$path']);
-        if (countsAsApprovedCopy(
-          toLf(copy),
-          docType,
-          statusesOutside: statusesOutside,
-        )) {
+        if (countsAsApprovedCopy(toLf(copy), docType)) {
           return ApprovedCopy(
             copy,
             commit: sha,

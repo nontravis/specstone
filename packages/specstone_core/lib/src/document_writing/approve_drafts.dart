@@ -339,7 +339,6 @@ final class _RunReads {
         session.project.projectRoot,
         session.projectPathOf(doc.docPath),
         docType: session.index.typeOf(doc),
-        statusesOutside: session.project.statusesOutsideApproval,
       );
       lookups[doc.docPath] = lookup;
       if (lookup case ApprovedCopy(:final text)) {

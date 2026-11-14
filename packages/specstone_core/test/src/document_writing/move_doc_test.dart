@@ -2382,6 +2382,26 @@ void main() {
         expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
         expect(readDoc(root, jasprLogin), isNot(contains('draft: true')));
       });
+
+      test('below the statuses pin, a rename stamps the hash the rewritten statuses give a record whose approval held', () async {
+        final root = await twinProject();
+        pinStatusesBelow(root);
+        final below = statusesBelowResolver;
+        stampApproved(root, flutterLogin, templates: below);
+        final before = approvedValue(root, flutterLogin);
+        writeIn(
+          root,
+          templates: below,
+          (s) => answerRename(
+            s,
+            'user_story:login/reset_password',
+            slug: 'recover',
+          ),
+        );
+        expect(holdsApproval(root, flutterLogin, templates: below), isTrue);
+        expect(approvedValue(root, flutterLogin), isNot(before));
+        expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
+      });
     });
   });
 

@@ -320,60 +320,35 @@ void main() {
 
     test('E19, E20: its own hash counts; a stale hash, a draft, '
         'or no mark does not', () {
+      expect(countsAsApprovedCopy(hashed, _docType), isTrue);
       expect(
-        countsAsApprovedCopy(hashed, _docType, statusesOutside: true),
-        isTrue,
-      );
-      expect(
-        countsAsApprovedCopy(
-          hashed.replaceFirst('Body', 'Edit'),
-          _docType,
-          statusesOutside: true,
-        ),
+        countsAsApprovedCopy(hashed.replaceFirst('Body', 'Edit'), _docType),
         isFalse,
       );
       expect(
-        countsAsApprovedCopy(
-          '---\ndraft: true\n---\n$base',
-          _docType,
-          statusesOutside: true,
-        ),
+        countsAsApprovedCopy('---\ndraft: true\n---\n$base', _docType),
         isFalse,
       );
-      expect(
-        countsAsApprovedCopy(base, _docType, statusesOutside: true),
-        isFalse,
-      );
+      expect(countsAsApprovedCopy(base, _docType), isFalse);
     });
 
     test('E11: a copy holding its own hash counts, and the '
         'approval view compares it without the mark', () {
       expect(hashed, contains('approved: "'));
-      expect(
-        countsAsApprovedCopy(hashed, _docType, statusesOutside: true),
-        isTrue,
-      );
+      expect(countsAsApprovedCopy(hashed, _docType), isTrue);
       expect(withoutApprovalMarks(hashed), isNot(contains('approved')));
     });
 
     test('E11: `approved: true` counts, even with no doc type', () {
       expect(
-        countsAsApprovedCopy(
-          '---\napproved: true\n---\n$base',
-          null,
-          statusesOutside: true,
-        ),
+        countsAsApprovedCopy('---\napproved: true\n---\n$base', null),
         isTrue,
       );
     });
 
     test('E21: an unquoted digits hash is no hash', () {
       expect(
-        countsAsApprovedCopy(
-          '---\napproved: 123456789012\n---\n$base',
-          null,
-          statusesOutside: true,
-        ),
+        countsAsApprovedCopy('---\napproved: 123456789012\n---\n$base', null),
         isFalse,
       );
     });
@@ -560,7 +535,6 @@ void main() {
         repo,
         'docs/$signupFeature',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
@@ -576,12 +550,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        path,
-        docType: _docType,
-        statusesOutside: true,
-      ),
+      ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>()
           .having((c) => c.commit, 'commit', approvingCommit)
           .having((c) => c.path, 'path', path),
@@ -602,12 +571,7 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        newPath,
-        docType: _docType,
-        statusesOutside: true,
-      ),
+      ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.path, 'path', oldPath),
     );
   }, skip: skipGit);
@@ -625,7 +589,6 @@ void main() {
         Directory('${repo.path}/sub'),
         path,
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<ApprovedCopy>()
           .having((c) => c.text, 'text', _approvedText)
@@ -649,7 +612,6 @@ void main() {
         Directory('${repo.path}/$sub'),
         path,
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<ApprovedCopy>().having((c) => c.path, 'path', path),
     );
@@ -674,7 +636,6 @@ void main() {
         Directory('${repo.path}/sub'),
         newPath,
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<ApprovedCopy>()
           .having((c) => c.text, 'text', _longApproved)
@@ -700,7 +661,6 @@ void main() {
         Directory('${repo.path}/sub'),
         newPath,
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<ApprovedCopy>()
           .having((c) => c.text, 'text', _longApproved)
@@ -721,7 +681,6 @@ void main() {
         Directory.systemTemp,
         'docs/$story1',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<UnknownHistory>(),
     );
@@ -741,12 +700,7 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        newPath,
-        docType: _docType,
-        statusesOutside: true,
-      ),
+      ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
     );
   }, skip: skipGit);
@@ -766,12 +720,7 @@ void main() {
     commitAll(repo, 'moved and drafted');
 
     expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        newPath,
-        docType: _docType,
-        statusesOutside: true,
-      ),
+      ApprovalHistory().lastApproved(repo, newPath, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _longApproved),
     );
   }, skip: skipSha256);
@@ -788,7 +737,6 @@ void main() {
           repo,
           'docs/$signupFeature',
           docType: _docType,
-          statusesOutside: true,
         ),
         isA<NoApprovedCopy>(),
       );
@@ -810,7 +758,6 @@ void main() {
           repo,
           'docs/$signupFeature',
           docType: _docType,
-          statusesOutside: true,
         ),
         isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
       );
@@ -831,7 +778,6 @@ void main() {
         repo,
         'docs/$signupFeature',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
@@ -852,7 +798,6 @@ void main() {
           repo,
           'docs/$signupFeature',
           docType: _docType,
-          statusesOutside: true,
         ),
         isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
       );
@@ -877,7 +822,6 @@ void main() {
           repo,
           'docs/$signupFeature',
           docType: _docType,
-          statusesOutside: true,
         ),
         isA<NoApprovedCopy>(),
       );
@@ -920,12 +864,7 @@ void main() {
           },
         );
 
-        final lookup = history.lastApproved(
-          repo,
-          newPath,
-          docType: _docType,
-          statusesOutside: true,
-        );
+        final lookup = history.lastApproved(repo, newPath, docType: _docType);
 
         expect(
           lookup,
@@ -947,7 +886,6 @@ void main() {
           repo,
           newPath,
           docType: _docType,
-          statusesOutside: true,
         );
 
         final view = renderApprovalView(
@@ -989,12 +927,7 @@ void main() {
         );
 
         for (final path in [newPath, 'docs/$story1', 'docs/$story2']) {
-          history.lastApproved(
-            repo,
-            path,
-            docType: _docType,
-            statusesOutside: true,
-          );
+          history.lastApproved(repo, path, docType: _docType);
         }
 
         // One listing, one `add`, and one `diff` for the whole run.
@@ -1022,7 +955,7 @@ void main() {
             environment: environment,
           );
         },
-      ).lastApproved(repo, newPath, docType: _docType, statusesOutside: true);
+      ).lastApproved(repo, newPath, docType: _docType);
 
       expect(staged, isNotEmpty);
       expect(staged, isNot(contains('docs/$story1')));
@@ -1052,12 +985,7 @@ void main() {
         addTearDown(() => Process.runSync('chmod', ['600', unreadable.path]));
 
         expect(
-          history.lastApproved(
-            repo,
-            newPath,
-            docType: _docType,
-            statusesOutside: true,
-          ),
+          history.lastApproved(repo, newPath, docType: _docType),
           isA<UnknownHistory>(),
         );
       },
@@ -1077,7 +1005,6 @@ void main() {
             repo,
             'docs/$story1',
             docType: _docType,
-            statusesOutside: true,
           ),
           isA<NoApprovedCopy>(),
         );
@@ -1098,7 +1025,6 @@ void main() {
         repo,
         'docs/$signupFeature',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<NoApprovedCopy>(),
     );
@@ -1111,12 +1037,7 @@ void main() {
       commitAll(repo, 'approved');
 
       expect(
-        ApprovalHistory().lastApproved(
-          repo,
-          'docs/$story1',
-          docType: _docType,
-          statusesOutside: true,
-        ),
+        ApprovalHistory().lastApproved(repo, 'docs/$story1', docType: _docType),
         isA<NoApprovedCopy>(),
       );
     },
@@ -1129,7 +1050,6 @@ void main() {
         await writeWriteProject(),
         'docs/$story1',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<UnknownHistory>(),
       skip: skipGit,
@@ -1143,7 +1063,6 @@ void main() {
         Directory.systemTemp,
         'docs/$story1',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<UnknownHistory>(),
     );
@@ -1159,7 +1078,6 @@ void main() {
         Directory.systemTemp,
         'docs/$story1',
         docType: _docType,
-        statusesOutside: true,
       ),
       isA<UnknownHistory>(),
     );
@@ -1177,12 +1095,7 @@ void main() {
     commitAll(repo, 'added again as draft');
 
     expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        path,
-        docType: _docType,
-        statusesOutside: true,
-      ),
+      ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);
@@ -1198,12 +1111,7 @@ void main() {
     commitAll(repo, 'edited as draft');
 
     expect(
-      ApprovalHistory().lastApproved(
-        repo,
-        path,
-        docType: _docType,
-        statusesOutside: true,
-      ),
+      ApprovalHistory().lastApproved(repo, path, docType: _docType),
       isA<ApprovedCopy>().having((c) => c.text, 'text', _approvedText),
     );
   }, skip: skipGit);
@@ -1225,7 +1133,6 @@ void main() {
           Directory.systemTemp,
           'docs/$story1',
           docType: _docType,
-          statusesOutside: true,
         ),
         isA<UnknownHistory>(),
       );
@@ -1283,25 +1190,46 @@ void main() {
       );
     });
 
-    test('the written and the compared hash follow the rule they are given, '
-        'and a copy counts as approved by that rule', () {
+    test('the written and the compared hash follow the rule they are '
+        'given', () {
       for (final outside in [true, false]) {
         final stamped = withApprovalHash(
           text(),
           record,
           statusesOutside: outside,
         );
-        final value = ApprovalFields.of(Doc.parse(stamped)).approvedValue;
         expect(
-          value,
+          ApprovalFields.of(Doc.parse(stamped)).approvedValue,
           comparedApprovalHash(stamped, record, statusesOutside: outside),
+          reason: '$outside',
         );
-        final restatused = stamped.replaceFirst(
-          'login/check:implemented',
-          'login/check:skipped',
-        );
+      }
+    });
+
+    test('a copy approved by either rule counts, before and after the '
+        'upgrade to the statuses pin', () {
+      for (final outside in [true, false]) {
         expect(
-          countsAsApprovedCopy(restatused, record, statusesOutside: outside),
+          countsAsApprovedCopy(
+            withApprovalHash(text(), record, statusesOutside: outside),
+            record,
+          ),
+          isTrue,
+          reason: '$outside',
+        );
+      }
+    });
+
+    test('a status changed after approval keeps a copy approved by the rule '
+        'that leaves statuses out, and no other', () {
+      for (final outside in [true, false]) {
+        final restatused = withApprovalHash(
+          text(),
+          record,
+          statusesOutside: outside,
+        ).replaceFirst('login/check:implemented', 'login/check:skipped');
+        expect(
+          countsAsApprovedCopy(restatused, record),
           outside,
           reason: '$outside',
         );

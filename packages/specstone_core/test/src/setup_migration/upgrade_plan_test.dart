@@ -2823,6 +2823,38 @@ void _moveToRecordTests() {
       expect(_valuesOf(text)['statuses'], hasLength(2));
     });
 
+    test('$_fr E30: below the statuses pin, an approved record that gains '
+        'entries is re-stamped with the hash its new statuses give', () async {
+      final probe = await _recordFixture();
+      final type = _finalType(probe, 'implementation');
+      final record = withApprovalHash(
+        recordText(
+          statuses: ['email_login:implemented'],
+          code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
+        ),
+        type,
+        statusesOutside: false,
+      );
+      final fixture = await _recordFixture(
+        docs: {..._loginDocs, _recordPath: record},
+      );
+      pinStatusesBelow(fixture.project);
+
+      final plan = planUpgradeRun(
+        fixture.project,
+        templates: statusesBelowResolver,
+        homeDirectory: fixture.home,
+      );
+
+      final text = _stampedDocText(plan, _recordPath);
+      expect(
+        _valuesOf(text)['approved'],
+        approvalHashOf(text, type, statusesOutside: false),
+      );
+      expect(_valuesOf(text)['approved'], isNot(_valuesOf(record)['approved']));
+      expect(_valuesOf(text), isNot(contains('draft')));
+    });
+
     test(
       '$_fr E36: a record layer without path refuses on that cause',
       () async {

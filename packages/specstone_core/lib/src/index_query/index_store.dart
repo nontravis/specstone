@@ -44,8 +44,10 @@ const _notWritableMessage =
 /// `target_names`: an index of layout 13 holds neither, so it is rebuilt
 /// instead of read as one with none. Layout 15 counts the doc's non-blank body
 /// lines and a section's non-blank lines, so an index of layout 14, whose
-/// counts cover blank lines and frontmatter, is rebuilt.
-const _layoutVersion = 15;
+/// counts cover blank lines and frontmatter, is rebuilt. Layout 16 hashes a
+/// record's statuses by the project's statuses rule, so an index of layout
+/// 15, whose approval hashes always count them, is rebuilt.
+const _layoutVersion = 16;
 
 const _schema = '''
 CREATE TABLE meta (
