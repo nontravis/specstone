@@ -291,7 +291,7 @@ void main() {
 
   test('a rerun after a stop before the config writes no skill or agent file '
       'and prints no count line', () async {
-    final root = await writeTree({'.cursor/keep': 'x'});
+    final root = await writeTree({'keep.txt': 'x\n'});
     _run(root);
     File('${root.path}/.specstone/config.yaml').deleteSync();
     final before = _bytesUnder(root)..remove('.specstone/config.yaml');
@@ -302,6 +302,52 @@ void main() {
     expect(lines, isNot(contains(matches(RegExp(r'^created .*: \d+ files$')))));
     expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
   });
+
+  test('a rerun after a stop writes no Cursor rules file when the root had no '
+      '.cursor folder before the first run', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    _run(root);
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+
+    _run(root);
+
+    expect(
+      File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+      isFalse,
+    );
+  });
+
+  test('a root that holds .cursor/keep gets the Cursor rules file on the first '
+      'run, and a rerun leaves it', () async {
+    final root = await writeTree({'.cursor/keep': 'x'});
+    _run(root);
+    expect(
+      File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+      isTrue,
+    );
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+    final before = _bytesUnder(root)..remove('.specstone/config.yaml');
+
+    _run(root);
+
+    expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
+  });
+
+  test(
+    'an agent of the Owner in .cursor/agents counts as a .cursor folder',
+    () async {
+      final root = await writeTree({'.cursor/agents/my-agent.md': 'mine\n'});
+
+      final (_, lines) = _run(root);
+
+      expect(
+        File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+        isTrue,
+      );
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(lines, contains('created .cursor/rules/specstone.mdc'));
+    },
+  );
 
   test('E05: a '
       'malformed file refuses before any write', () async {
@@ -327,10 +373,7 @@ void main() {
     'E09: a rerun '
     'after a stop before the config changes 0 bytes of the agent files',
     () async {
-      final root = await writeTree({
-        'CLAUDE.md': "Owner's rules\n",
-        '.cursor/keep': 'x',
-      });
+      final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
       _run(root);
       File.fromUri(root.uri.resolve('.specstone/config.yaml')).deleteSync();
       final before = _bytesUnder(root)..remove('.specstone/config.yaml');

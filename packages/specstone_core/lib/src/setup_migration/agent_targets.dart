@@ -32,6 +32,7 @@ import 'package:specstone_core/src/templates/project_config.dart'
 
 const _agentMdPath = '.specstone/AGENT.md';
 const _cursorFolder = '.cursor';
+const _specstoneEntryPrefix = 'specstone-';
 const _gitEntry = '.git';
 const _codeField = 'code';
 const _docsFolder = 'docs/';
@@ -800,6 +801,26 @@ bool _isOutside(String path) => path == '..' || path.startsWith('../');
 bool _isWritable(Directory root, String path) =>
     writeRefusalOf(path, projectRoot: root) == null;
 
+/// Whether the `.cursor` folder at [path] holds something besides what
+/// Specstone writes: its `specstone-*` entries in `agents/` and the folders
+/// they leave empty.
+bool _holdsOwnerCursorContent(String path) {
+  if (FileSystemEntity.typeSync(path) != FileSystemEntityType.directory) {
+    return false;
+  }
+  return Directory(path).listSync(followLinks: false).any((entity) {
+    final isAgents = entity is Directory && _nameOf(entity) == 'agents';
+    return !isAgents || _holdsOwnerEntry(entity);
+  });
+}
+
+bool _holdsOwnerEntry(Directory agents) => agents
+    .listSync(followLinks: false)
+    .any((entry) => !_nameOf(entry).startsWith(_specstoneEntryPrefix));
+
+String _nameOf(FileSystemEntity entity) =>
+    entity.uri.pathSegments.lastWhere((segment) => segment.isNotEmpty);
+
 /// Returns the agent files of [folder], an existing file once per real file,
 /// and the file a full upsert would create.
 List<_AgentFile> _filesIn(
@@ -844,9 +865,9 @@ List<_AgentFile> _filesIn(
     );
   }
   final hasInstruction = namesByFile.isNotEmpty;
-  final hasCursorFolder =
-      FileSystemEntity.typeSync(_fileIn(folder, _cursorFolder).path) ==
-      FileSystemEntityType.directory;
+  final hasCursorFolder = _holdsOwnerCursorContent(
+    _fileIn(folder, _cursorFolder).path,
+  );
   if (!hasInstruction && !hasCursorFolder) {
     files.add(
       _AgentFile(

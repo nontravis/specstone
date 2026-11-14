@@ -60,13 +60,9 @@ AgentWrite _writeAt(AgentWritePlan plan, String path) => [
   ...plan.topWrites,
 ].singleWhere((write) => write.path == path);
 
-/// The text of every skill and agent file under [prefix], keyed by path, with
-/// the Cursor rules file the `.cursor/` folder of those files asks for, as a
+/// The text of every skill and agent file under [prefix], keyed by path, as a
 /// fixture that leaves a full run no skill or agent file to write.
-Map<String, String> _skillFiles([String prefix = '']) => {
-  ...skillFileTexts(prefix),
-  '$prefix$_cursor': cursorRulesText(cliVersion: specstoneVersion),
-};
+Map<String, String> _skillFiles([String prefix = '']) => skillFileTexts(prefix);
 
 /// The canonical path of [path] under the project of [base].
 String _real(Directory base, String path) =>
@@ -818,6 +814,32 @@ void main() {
         expect(_writeAt(plan, _cursor).isNew, isTrue);
       },
     );
+
+    test('$_write E34: a .cursor folder holding only specstone- agents is no '
+        '.cursor folder', () async {
+      final base = await _base({
+        'proj/.cursor/agents/specstone-x.md': 'x\n',
+        'proj/.cursor/agents/specstone-y.md': 'y\n',
+      });
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      expect(_paths(plan), contains('AGENTS.md'));
+      expect(_paths(plan), isNot(contains(_cursor)));
+    });
+
+    test('$_write E34: an agent without the specstone- prefix makes a .cursor '
+        'folder', () async {
+      final base = await _base({
+        'proj/.cursor/agents/specstone-x.md': 'x\n',
+        'proj/.cursor/agents/my-agent.md': 'mine\n',
+      });
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      expect(_paths(plan), contains(_cursor));
+      expect(_paths(plan), isNot(contains('AGENTS.md')));
+    });
 
     test(
       '$_write: a .cursor file is no .cursor folder; AGENTS.md is made',
