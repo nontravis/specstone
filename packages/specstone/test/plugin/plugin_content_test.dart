@@ -1485,6 +1485,9 @@ const _overrideEntryPoints = [
   '`overrides` entry',
   '`<doc type>:<name>#<ID> <fingerprint>`',
   '`specstone set <target> --field overrides --base <hash>`',
+  '`bases.fields.overrides`',
+  'Until the entry matches, `check` reports the line `unconfirmed`; in a '
+      "draft the line stays `unconfirmed` even when the entry matches, and waits for the Owner's approval.",
 ];
 
 /// Rule 4 of expert-sdd as it read before its steps moved to [_confirmLinks].
@@ -2473,7 +2476,7 @@ void _agentTests() {
         contains(
           'A pending draft among the covering docs holds every write of a '
           "match and of a `planned` entry's fingerprint: list a match as a "
-          'waiting pointer, written whole once the Owner approves '
+          'waiting pointer, written whole once it is approved '
           '(fingerprint, and on a `planned` entry `implemented`).',
         ),
       );

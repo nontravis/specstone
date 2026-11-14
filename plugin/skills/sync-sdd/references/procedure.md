@@ -35,7 +35,7 @@ For each listed code path but a `tests_unresolved` line's (step 4.4), run
    commit, or on a `code_unconfirmed` folder, every file under the prefix.
 2. Write by outcome through step 4.3's `set --field`, which leaves the draft flag as it was. A pending draft among the
    covering docs holds every write of a match and of a `planned` entry's fingerprint: list a match as a waiting
-   pointer, written whole once the Owner approves (fingerprint, and on a `planned` entry `implemented`). Else a named
+   pointer, written whole once it is approved (fingerprint, and on a `planned` entry `implemented`). Else a named
    feature's `clean` link takes no fingerprint, only a `planned` entry's `implemented`:
    - **Match:** the finding's `fingerprint` ending the link's entry, any pointer fix, and for a `planned` entry
      `implemented` in its `statuses`; never `skipped` or `deprecated`.

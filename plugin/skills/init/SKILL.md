@@ -55,7 +55,7 @@ is and the folder is still missing; keep the entry either way.
 ## 3. Get the drafts approved
 
 Tell the Owner the four drafts are filled, then get each one approved through `specstone:expert-sdd`'s Owner
-confirmation (terminal or chat); which covers both the `ask` and the `auto` mode.
+confirmation (terminal or chat), which covers both the `ask` and the `auto` mode.
 
 ## 4. Features go to brainstorming
 
