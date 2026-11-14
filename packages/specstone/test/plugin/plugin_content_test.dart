@@ -1132,14 +1132,40 @@ void _handOffTests() {
 
   test('f08/us02/fr04/e08, f08/us02/fr04/e09, f08/us02/fr07/e10: no plugin '
       'file tells an agent to cite a rule by doc name', () {
-    for (final file in _skillAndAgentFiles()) {
-      final text = _oneLine(_pluginText(file));
-      for (final old in _nameCiteForms) {
-        expect(text, isNot(contains(old)), reason: '$file: $old');
+    final root = pluginRoot().uri.toFilePath(windows: false);
+    final hits = <String>[];
+    for (final file
+        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+      final path = file.uri.toFilePath(windows: false).substring(root.length);
+      final text = _oneLine(file.readAsStringSync());
+      for (final match in _nameCite.allMatches(text)) {
+        hits.add('$path: ${match[0]}');
       }
     }
+    expect(hits..sort(), unorderedEquals(_ownTextNameCites.keys));
   });
 }
+
+/// An instruction to cite by a name: a cite word, then `by` a name, within
+/// one clause, or a citation of a doc name.
+final _nameCite = RegExp(
+  r'\bcit(?:e|es|ed|ing|ations?)\b[^.;:]*?\bby (?:(?:its|the|their|a|doc|'
+  r'Specstone) )*name\b|\bcitation of the doc name\b',
+  caseSensitive: false,
+);
+
+/// Each name cite a plugin file keeps, by `<file>: <match>`, with its reason:
+/// a design document or plan is no Specstone doc, so the item-link rule of
+/// `follow_cross_doc_rules` E08 never binds its own text.
+const _ownTextNameCites = {
+  'skills/brainstorming-sdd/references/design.md: Cite each story, FR, and '
+          'section by its Specstone name':
+      "the design document's own cites (`write_design_document` Statement)",
+  'skills/brainstorming-sdd/references/design.md: cited by name':
+      "the design document's Constraints list",
+  'agents/plan-engineer.md: citation of the doc name':
+      "a plan step's own cite of the point it would restate",
+};
 
 /// Each point of `follow_cross_doc_rules`' one-owner clause and E08, and of
 /// the `check` findings that read its link, as the Rules section of
@@ -1160,12 +1186,6 @@ const _citedLinkPoints = [
   '`specstone context` follows the link,',
   'but a citation pins no hash: it never turns `suspect` when the owner',
   'changes, and takes no `confirmed` entry.',
-];
-
-/// The cite-by-name forms that the cite rule's item link replaced.
-const _nameCiteForms = [
-  'cites it by name',
-  '`<type>:<name>#<section>` and the item ID inside it',
 ];
 
 /// The one home of expert-sdd's steps for confirming a traced link.
@@ -3121,7 +3141,8 @@ const _dependentsSearchPoints = [
   'Run `specstone refs <owner>` for the docs that cite it, and',
   "`specstone search` on the decision's terms and on the wording it supersedes",
   'Each doc found that restates the rule instead of citing its owner gets a',
-  'Docs to change row: its change cites the owner by name, or rewrites the',
+  "Docs to change row: its change links the owner's item that holds the rule,",
+  'or rewrites the',
   "doc when that doc owns a rule that reads the decision's rule.",
   'When `refs` lists no typed citer, as in a tree that still cites by number',
   'labels, the search carries the decision, as it does for the limit of',
