@@ -7,6 +7,7 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart'
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show RecordStatus;
@@ -115,13 +116,17 @@ Iterable<Finding> checkCoversAndCodeRoots(
     if (!context.typeHoldsField(type, field)) continue;
     for (final (:value, :line, text: _)
         in context.linesOf(doc).entriesOf(field)) {
-      if (value is! String || namesFileOrFolderFrom(codeRoot, value)) continue;
+      if (value is! String) continue;
+      final entry = field == _coversField
+          ? CodeLinkEntry(value).pointer
+          : value;
+      if (namesFileOrFolderFrom(codeRoot, entry)) continue;
       yield context.finding(
         doc,
         kind,
         line: line,
-        message: '$value names nothing on disk',
-        keys: {'entry': value},
+        message: '$entry names nothing on disk',
+        keys: {'entry': entry},
       );
     }
   }
@@ -213,7 +218,7 @@ List<String> _coversOf(CheckContext context, List<IndexedDoc> docs) => [
     if (context.typeHoldsField(context.typeOf(doc), _coversField))
       for (final (:value, line: _, text: _)
           in context.linesOf(doc).entriesOf(_coversField))
-        if (value is String) normalCodeEntry(value),
+        if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
 ];
 
 /// Whether an entry equals [path], names a folder that holds it, or names
