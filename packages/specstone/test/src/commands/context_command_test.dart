@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/project_domain_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -26,12 +27,7 @@ void main() {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(
         extra: {
-          '.specstone/templates/project_domain.yaml':
-              'id: project_domain\n'
-              'description: The domain rules every feature of the project uses.\n'
-              'path: specs/DOMAIN.md\n'
-              'per_target: true\n'
-              'bundle: [implement, design]\n',
+          ...projectDomainTemplate,
           'docs/specs/DOMAIN.md': '# Project domain\n',
         },
       ),

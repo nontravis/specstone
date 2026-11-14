@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -904,14 +905,6 @@ void main() {
   });
 
   group('project spec docs at the spec folder root', () {
-    const rootDomainType = {
-      '.specstone/templates/project_domain.yaml':
-          'id: project_domain\n'
-          'description: The domain rules every feature of the project uses.\n'
-          'path: specs/DOMAIN.md\n'
-          'per_target: true\n'
-          'bundle: [implement, design]\n',
-    };
     const rootDomain = 'specs/DOMAIN.md';
     final chainOfStory = {
       '$f/FEATURE.md',
@@ -922,7 +915,7 @@ void main() {
       '$f/us01_email_login/nf01_login_latency.md',
     };
     Future<DocIndex> oneTargetIndex() => indexWith({
-      ...rootDomainType,
+      ...projectDomainTemplate,
       'docs/$rootDomain': '# Project domain\n',
     });
 
@@ -981,7 +974,7 @@ void main() {
       Future<DocIndex> twoTargetIndex() async {
         final session = openSession(
           await writeTree({
-            ...rootDomainType,
+            ...projectDomainTemplate,
             '.specstone/templates/tech_stack.yaml':
                 'id: tech_stack\nper_target: true\n',
             '.specstone/config.yaml':

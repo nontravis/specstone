@@ -14,6 +14,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -228,12 +229,7 @@ void main() {
   test('an uncovered path still gets the root spec docs', () async {
     final project = await writeLoginProject(
       extra: {
-        '.specstone/templates/project_domain.yaml':
-            'id: project_domain\n'
-            'description: The domain rules every feature of the project uses.\n'
-            'path: specs/DOMAIN.md\n'
-            'per_target: true\n'
-            'bundle: [implement, design]\n',
+        ...projectDomainTemplate,
         'docs/specs/DOMAIN.md': '# Project domain\n',
       },
     );
@@ -480,12 +476,7 @@ void main() {
       final (session, root) = await writeFeedbackProject(
         extra: {
           'jaspr_lib/lib/toast.dart': '',
-          '.specstone/templates/project_domain.yaml':
-              'id: project_domain\n'
-              'description: The domain rules every feature of the project uses.\n'
-              'path: specs/DOMAIN.md\n'
-              'per_target: true\n'
-              'bundle: [implement, design]\n',
+          ...projectDomainTemplate,
           'docs/specs/flutter/DOMAIN.md': '# Flutter domain\n',
           'docs/specs/jaspr/DOMAIN.md': '# Jaspr domain\n',
         },
