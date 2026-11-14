@@ -49,7 +49,7 @@ const _notWritableMessage =
 /// and the `item_words` table, so an index of layout 15 is rebuilt to hold
 /// them. Layout 17 stores each link text's destination as written, so an
 /// index of layout 16, whose link texts hold none, is rebuilt.
-const _layoutVersion = 17;
+const indexLayoutVersion = 17;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -302,7 +302,7 @@ final class IndexStore {
     final row = _db.select('SELECT * FROM meta').firstOrNull;
     if (row == null) return null;
     final hasTargetNames = row.keys.any((k) => k == 'target_names');
-    if (!hasTargetNames || _layoutVersion != row['layout']) return null;
+    if (!hasTargetNames || indexLayoutVersion != row['layout']) return null;
     if (row['target_names'] case final String text) {
       final names = _namesOf(text);
       if (names == null) return null;
@@ -416,7 +416,7 @@ final class IndexStore {
           stamp.binaryVersion,
           stamp.docTypes,
           jsonEncode(stamp.targetNames),
-          _layoutVersion,
+          indexLayoutVersion,
         ],
       );
   }

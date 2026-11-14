@@ -22,10 +22,6 @@ import '../../helpers/posix_modes.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
-/// The layout the current build writes; a test that rebuilds the meta row by
-/// hand uses it, so a layout bump moves with the code.
-const _layoutVersionForTest = 16;
-
 void main() {
   Future<Directory> root() => writeTree({'.specstone/config.yaml': ''});
   ParsedDoc parsed(String path, String text) => parseIndexedDoc(
@@ -380,7 +376,7 @@ void main() {
         ..execute('INSERT INTO meta VALUES (?, ?, ?)', [
           specstoneVersion,
           'x',
-          _layoutVersionForTest,
+          indexLayoutVersion,
         ]);
       expect(store.readStamp(), isNull);
     });
