@@ -160,7 +160,7 @@ void main() {
     expect(text, contains('draft: true\n'));
   });
 
-  test('f02/us06/fr02/e14: rename sets each link text equal to the old Name '
+  test('rename sets each link text equal to the old Name '
       'to the new Name and keeps every other link text', () async {
     final root = await writeWriteProject(
       extra: {

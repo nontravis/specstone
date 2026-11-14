@@ -328,7 +328,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us06/fr02/e11: every prd-core guide says to cite a rule another '
+    test('every prd-core guide says to cite a rule another '
         'doc owns by a link to its item, never restate it', () async {
       final runner = await runnerIn(await prdCoreProject());
       for (final id in _prdCoreIds) {

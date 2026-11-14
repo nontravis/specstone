@@ -1212,7 +1212,7 @@ void main() {
             .indexWhere((line) => line.contains(needle)) +
         1;
 
-    test('f04/us05/s1, f04/us05/fr01: --repeats prints the group, one line per item, then the count line, and exits 0', () async {
+    test('--repeats prints the group, one line per item, then the count line, and exits 0', () async {
       final project = await repeating();
       final result = await spawn(project, ['--repeats']);
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
@@ -1225,7 +1225,7 @@ void main() {
       );
     });
 
-    test('f04/us05/fr01: --json prints the repeats and the count', () async {
+    test('--json prints the repeats and the count', () async {
       final project = await repeating();
       final result = await spawn(project, ['--repeats', '--json']);
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
@@ -1253,55 +1253,51 @@ void main() {
       });
     });
 
-    test(
-      'f04/us05/fr01/e08: no repeat prints 0 repeat groups and exits 0',
-      () async {
-        final result = await spawn(await writeCheckProject(), ['--repeats']);
-        expect(
-          result.exitCode,
-          0,
-          reason: '${result.stdout}\n${result.stderr}',
-        );
-        expect(result.stdout, '0 repeat groups\n');
-      },
-    );
-
-    test('f04/us05/s4, f04/us05/fr01/e10: a plain check prints no repeat group and no finding for the repeat', () async {
-      final result = await spawn(await repeating(), []);
+    test('no repeat prints 0 repeat groups and exits 0', () async {
+      final result = await spawn(await writeCheckProject(), ['--repeats']);
       expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
-      expect(result.stdout, '0 findings\n');
+      expect(result.stdout, '0 repeat groups\n');
     });
 
     test(
-      'f04/us05/fr01/e10: --repeats prints no finding of the other rules',
+      'a plain check prints no repeat group and no finding for the repeat',
       () async {
-        final project = await writeCheckProject(
-          extra: frWith('verify_method: maybe'),
-        );
-        final result = await spawn(project, ['--repeats']);
+        final result = await spawn(await repeating(), []);
         expect(
           result.exitCode,
           0,
           reason: '${result.stdout}\n${result.stderr}',
         );
-        expect(result.stdout, '0 repeat groups\n');
+        expect(result.stdout, '0 findings\n');
       },
     );
 
-    test('f04/us05/s5, f04/us05/fr01/e07: a target keeps only the groups that hold an item of its docs', () async {
-      final project = await repeating();
-      final kept = await spawn(project, [
-        '--repeats',
-        'login/email_login/check_password',
-      ]);
-      expect(kept.exitCode, 0, reason: '${kept.stdout}\n${kept.stderr}');
-      expect(kept.stdout, startsWith('repeat: "$clause"\n'));
-      final none = await spawn(project, ['--repeats', 'tech_stack']);
-      expect(none.exitCode, 0, reason: '${none.stdout}\n${none.stderr}');
-      expect(none.stdout, '0 repeat groups\n');
+    test('--repeats prints no finding of the other rules', () async {
+      final project = await writeCheckProject(
+        extra: frWith('verify_method: maybe'),
+      );
+      final result = await spawn(project, ['--repeats']);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, '0 repeat groups\n');
     });
 
-    test('f04/us05/fr01/e11, topic:specstone RULE-8: a read-session warning goes to stderr, and to warnings under --json, as for a plain check', () async {
+    test(
+      'a target keeps only the groups that hold an item of its docs',
+      () async {
+        final project = await repeating();
+        final kept = await spawn(project, [
+          '--repeats',
+          'login/email_login/check_password',
+        ]);
+        expect(kept.exitCode, 0, reason: '${kept.stdout}\n${kept.stderr}');
+        expect(kept.stdout, startsWith('repeat: "$clause"\n'));
+        final none = await spawn(project, ['--repeats', 'tech_stack']);
+        expect(none.exitCode, 0, reason: '${none.stdout}\n${none.stderr}');
+        expect(none.stdout, '0 repeat groups\n');
+      },
+    );
+
+    test('a read-session warning goes to stderr, and to warnings under --json, as for a plain check', () async {
       Future<Directory> damaged() async {
         final project = await repeating();
         File('${project.path}/.specstone/index.sqlite')
@@ -1320,7 +1316,7 @@ void main() {
       expect(printed['count'], 1);
     });
 
-    test('f04/us05/s5, f04/us05/fr01/e07: --target jaspr keeps the shared docs and the jaspr twin, and drops the flutter twin', () async {
+    test('--target jaspr keeps the shared docs and the jaspr twin, and drops the flutter twin', () async {
       const invariant =
           '# Login domain\n\n## Entities\n\n- Account\n\n## Invariants\n\n';
       final project = await writeTwinProject(
@@ -1352,7 +1348,7 @@ void main() {
       );
     });
 
-    test('f04/us05/fr01/e11: a config pin fault and a template fault exit as the plain check does, with nothing on stdout', () async {
+    test('a config pin fault and a template fault exit as the plain check does, with nothing on stdout', () async {
       final faults = <Map<String, String>>[
         {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
         {'.specstone/templates/fr.yaml': 'sections: [unclosed\n'},
@@ -1373,11 +1369,14 @@ void main() {
       }
     });
 
-    test('f04/us05/s6, f04/us05/fr01/e11: outside a project it exits 78 and prints no project was found', () async {
-      final result = await spawn(await writeTree({}), ['--repeats']);
-      expect(result.exitCode, 78);
-      expect(result.stderr, startsWith('no Specstone project'));
-      expect(result.stdout, isEmpty);
-    });
+    test(
+      'outside a project it exits 78 and prints no project was found',
+      () async {
+        final result = await spawn(await writeTree({}), ['--repeats']);
+        expect(result.exitCode, 78);
+        expect(result.stderr, startsWith('no Specstone project'));
+        expect(result.stdout, isEmpty);
+      },
+    );
   });
 }

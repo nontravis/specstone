@@ -3686,7 +3686,7 @@ Future<Directory> _citeTree(
 
 void _citeTests() {
   group('cite pass', () {
-    test('f06/us02/fr01: the pass converts the label pass names after it, its '
+    test('the pass converts the label pass names after it, its '
         'line between the number labels line and the stamps line', () async {
       final project = await _labelTree({
         'specs/f01_a/DOMAIN.md': '# A\n\n## Invariants\n\n- **INV-1** One.\n',
@@ -3714,7 +3714,7 @@ void _citeTests() {
       expect(text.indexOf('  stamps: '), greaterThan(cites));
     });
 
-    test('f06/us02/fr01: the tests line comes before the cites line', () async {
+    test('the tests line comes before the cites line', () async {
       final project = await _testNameProject(
         docs: {
           ..._plainLoginDocs,
@@ -3730,7 +3730,7 @@ void _citeTests() {
       expect(text.indexOf('  cites: '), greaterThan(tests));
     });
 
-    test('f06/us02/fr02/e82: the cites line counts each form once, the docs it '
+    test('the cites line counts each form once, the docs it '
         'rewrites, and each form it keeps, listed under the cites JSON key '
         'right after numberLabels', () async {
       final project = await _citeTree({
@@ -3757,7 +3757,7 @@ void _citeTests() {
       expect(keys.indexOf('cites'), keys.indexOf('numberLabels') + 1);
     });
 
-    test('f06/us02/fr02/e82: a tree with no old cite form prints no cites line '
+    test('a tree with no old cite form prints no cites line '
         'and an empty cites object', () async {
       final project = await _citeTree({
         _citeTopicPath: '# Cites\n\n## Rules\n\nNo cites here.\n',
@@ -3772,7 +3772,7 @@ void _citeTests() {
       });
     });
 
-    test('f06/us02/fr02/e83: the stamp pass re-stamps a matched entry whose '
+    test('the stamp pass re-stamps a matched entry whose '
         'block the pass rewrote, keeps a suspect one, and stamps the approval '
         'of the doc it rewrote', () async {
       const scenario =
@@ -3819,7 +3819,7 @@ void _citeTests() {
       expect(plan.toText(), contains(', 1 fingerprints'));
     });
 
-    test('f06/us02/fr02/e86: an upgrade from the cite rule version or later '
+    test('an upgrade from the cite rule version or later '
         'runs no cite pass', () async {
       final fixture = await _fixture(
         docs: {

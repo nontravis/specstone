@@ -125,7 +125,7 @@ void main() {
       renamedDocs: renamedDocs,
     );
 
-    test('f02/us06/fr02/e14: a link text equal to a renamed doc old Name takes the new Name, its prefix and path following', () {
+    test('a link text equal to a renamed doc old Name takes the new Name, its prefix and path following', () {
       expect(
         rewrite(
           '[feature:login](../f01_login/FEATURE.md#problem) and '
@@ -136,7 +136,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: any other link text and an item link text keep their text, their path following', () {
+    test('any other link text and an item link text keep their text, their path following', () {
       expect(
         rewrite(
           '[the login rules](../f01_login/FEATURE.md) and '
@@ -147,7 +147,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a typed text of a user_story link, as the migrate cite pass writes it, takes the new Name', () {
+    test('a typed text of a user_story link, as the migrate cite pass writes it, takes the new Name', () {
       expect(
         rewrite(
           '[user_story:login/email_login](../f01_login/us01_email_login/USER_STORY.md#use_case)\n',
@@ -156,7 +156,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e21: a full reference link takes the new Name; a shortcut or collapsed link, whose text is its label, an image description, and a text with a section key keep theirs', () {
+    test('a full reference link takes the new Name; a shortcut or collapsed link, whose text is its label, an image description, and a text with a section key keep theirs', () {
       expect(
         rewrite(
           '[feature:login][r] [login][r] [feature:login] [feature:login][] '
@@ -171,7 +171,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a shortcut link a parenthesis follows, which is no inline destination, keeps its text with its definition', () {
+    test('a shortcut link a parenthesis follows, which is no inline destination, keeps its text with its definition', () {
       expect(
         rewrite(
           '[login/email_login](see below)\n\n'
@@ -182,7 +182,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e19: a typed text takes the new Name on any link', () {
+    test('a typed text takes the new Name on any link', () {
       expect(
         rewrite('[feature:login](notes.md)\n'),
         '[feature:signin](notes.md)\n',
@@ -193,19 +193,25 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e19: a bare text keeps its text on a link that reaches no renamed doc', () {
-      expect(rewrite('[login](https://example.com/login)\n'), isNull);
-      expect(rewrite('[login/email_login](notes.md)\n'), isNull);
-    });
+    test(
+      'a bare text keeps its text on a link that reaches no renamed doc',
+      () {
+        expect(rewrite('[login](https://example.com/login)\n'), isNull);
+        expect(rewrite('[login/email_login](notes.md)\n'), isNull);
+      },
+    );
 
-    test('f02/us06/fr02/e19: a bare text keeps its text on a link that reaches another renamed doc', () {
-      expect(
-        rewrite('[login/email_login](../f01_login/FEATURE.md#problem)\n'),
-        '[login/email_login](../f01_signin/FEATURE.md#problem)\n',
-      );
-    });
+    test(
+      'a bare text keeps its text on a link that reaches another renamed doc',
+      () {
+        expect(
+          rewrite('[login/email_login](../f01_login/FEATURE.md#problem)\n'),
+          '[login/email_login](../f01_signin/FEATURE.md#problem)\n',
+        );
+      },
+    );
 
-    test('f02/us06/fr02/e19: a bare text takes the new Name on a link that reaches the doc it names, a fragment or a reference definition between', () {
+    test('a bare text takes the new Name on a link that reaches the doc it names, a fragment or a reference definition between', () {
       expect(
         rewrite(
           '[login](../f01_login/FEATURE.md#problem) [login][r]\n\n'
@@ -216,7 +222,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a bare text that two renamed docs call alike takes the new Name of the doc its link reaches', () {
+    test('a bare text that two renamed docs call alike takes the new Name of the doc its link reaches', () {
       const twins = <(String, String), String>{
         ('feature', 'login'): 'signin',
         ('persona', 'login'): 'access',
@@ -244,7 +250,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e19: a self anchor link in the renamed doc reaches it, its bare text takes the new Name', () {
+    test('a self anchor link in the renamed doc reaches it, its bare text takes the new Name', () {
       expect(
         rewriteDocLinks(
           '[login](#problem) [login](#) [login](?q) [login](other.md#problem)\n',
@@ -257,34 +263,37 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e19: a bare text keeps its text when no href of the body is known, markdown failing on it', () {
+    test('a bare text keeps its text when no href of the body is known, markdown failing on it', () {
       // `markdown` fails on the unterminated definition, so no link has an
       // href and none can be said to reach a renamed doc.
       expect(rewrite('[login](../f01_login/FEATURE.md)\n\n[a]:<b\\'), isNull);
     });
 
-    test('f02/us07/fr02/e11: a moved story link text takes its new Name, an item link text stays', () {
-      expect(
-        rewriteDocLinks(
-          '[user_story:shop/cart/add_item](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria) '
-          '[AC-1](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria)\n',
-          docPath: 'prds/features/f02_shop/f02_pay/FEATURE.md',
-          moves: const [
-            (
-              from: 'prds/features/f02_shop/f01_cart/us01_add_item/',
-              to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
-            ),
-          ],
-          renamed: const {
-            ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
-          },
-        ),
-        '[user_story:shop/pay/add_item](us03_add_item/USER_STORY.md#acceptance_criteria) '
-        '[AC-1](us03_add_item/USER_STORY.md#acceptance_criteria)\n',
-      );
-    });
+    test(
+      'a moved story link text takes its new Name, an item link text stays',
+      () {
+        expect(
+          rewriteDocLinks(
+            '[user_story:shop/cart/add_item](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria) '
+            '[AC-1](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria)\n',
+            docPath: 'prds/features/f02_shop/f02_pay/FEATURE.md',
+            moves: const [
+              (
+                from: 'prds/features/f02_shop/f01_cart/us01_add_item/',
+                to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
+              ),
+            ],
+            renamed: const {
+              ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
+            },
+          ),
+          '[user_story:shop/pay/add_item](us03_add_item/USER_STORY.md#acceptance_criteria) '
+          '[AC-1](us03_add_item/USER_STORY.md#acceptance_criteria)\n',
+        );
+      },
+    );
 
-    test('f02/us07/fr02/e11: a moved story bare text takes its new Name on a link to the story, not on another link', () {
+    test('a moved story bare text takes its new Name on a link to the story, not on another link', () {
       expect(
         rewriteDocLinks(
           '[shop/cart/add_item](../f01_cart/us01_add_item/USER_STORY.md) '
@@ -311,7 +320,7 @@ void main() {
       );
     });
 
-    test('f02/us05/fr02/e13: a reorder, which renames no doc, keeps every link text', () {
+    test('a reorder, which renames no doc, keeps every link text', () {
       expect(
         rewriteDocLinks(
           '[sign_out](../us02_sign_out/USER_STORY.md) [login/sign_out](../us02_sign_out/USER_STORY.md)\n',
@@ -322,7 +331,7 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a link-shaped text in a fenced block or a code span keeps every byte', () {
+    test('a link-shaped text in a fenced block or a code span keeps every byte', () {
       expect(
         rewrite(
           '```\n[login/email_login](x.md)\n```\n`[login/email_login](x.md)`\n',
@@ -1360,19 +1369,19 @@ void main() {
     String rebased(String body) =>
         rebaseDocLinks(body, fromDocPath: story, toDocPath: journey);
 
-    test('f10/us01/fr04/e08: a folder link keeps its trailing slash', () {
+    test('a folder link keeps its trailing slash', () {
       expect(
         rebased('[sign out](../us02_sign_out/)'),
         '[sign out](../../features/f01_login/us02_sign_out/)',
       );
     });
 
-    test('f10/us01/fr04/e08: a link to the docs root reaches it from the '
+    test('a link to the docs root reaches it from the '
         'journey', () {
       expect(rebased('[docs](../../../../)'), '[docs](../../../)');
     });
 
-    test('f10/us01/fr04/e08: a segment with an encoded slash keeps its '
+    test('a segment with an encoded slash keeps its '
         'escape', () {
       expect(
         rebased('[odd](../a%2Fb.md)'),
@@ -1380,14 +1389,14 @@ void main() {
       );
     });
 
-    test('f10/us01/fr04/e08: a query and a fragment are kept', () {
+    test('a query and a fragment are kept', () {
       expect(
         rebased('[q](../FEATURE.md?v=1#problem)'),
         '[q](../../features/f01_login/FEATURE.md?v=1#problem)',
       );
     });
 
-    test('f10/us01/fr04/e08: a link that leaves the docs root still reaches '
+    test('a link that leaves the docs root still reaches '
         'its file', () {
       expect(
         rebased('[code](../../../../../lib/a.dart)'),
@@ -1395,7 +1404,7 @@ void main() {
       );
     });
 
-    test("f10/us01/fr04/e09: a fragment-only link takes the story's "
+    test("a fragment-only link takes the story's "
         'path', () {
       expect(
         rebased('[rules](#rules)'),
@@ -1403,7 +1412,7 @@ void main() {
       );
     });
 
-    test('f10/us01/fr04/e10, f10/us01/fr04/e11: web, scheme, rooted, and '
+    test('web, scheme, rooted, and '
         'code-span paths stay as written', () {
       const body =
           '[w](https://example.com/a.md) [m](mailto:a@example.com) '

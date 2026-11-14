@@ -102,20 +102,17 @@ void main() {
         '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
     });
-    test(
-      'f01/us01/fr04/e05: a file holding all five lines is left untouched',
-      () async {
-        const text =
-            'reports/\nbuild/\n# mine\ntrash/\nbundles/\nindex.sqlite*\n';
-        final r = await writeTree({
-          '.specstone/config.yaml': '',
-          '.specstone/.gitignore': text,
-        });
-        IndexStore.open(r).close();
-        expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
-      },
-    );
-    test('f01/us01/fr04/e05, f02/us04/fr03/e06: a file holding the two F-01 lines gains trash/, bundles/, and reports/ at its end', () async {
+    test('a file holding all five lines is left untouched', () async {
+      const text =
+          'reports/\nbuild/\n# mine\ntrash/\nbundles/\nindex.sqlite*\n';
+      final r = await writeTree({
+        '.specstone/config.yaml': '',
+        '.specstone/.gitignore': text,
+      });
+      IndexStore.open(r).close();
+      expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
+    });
+    test('a file holding the index and build lines gains trash/, bundles/, and reports/ at its end', () async {
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
@@ -127,14 +124,8 @@ void main() {
       );
     });
     for (final (tag, staleMeta) in [
-      (
-        'f01/us01/fr04/e13, s03/inv22: a layout-version rebuild',
-        'layout = ${indexLayoutVersion - 1}',
-      ),
-      (
-        'f01/us01/fr04/e13, f01/us01/s14: a binary-version rebuild',
-        "binary_version = 'older'",
-      ),
+      ('a layout-version rebuild', 'layout = ${indexLayoutVersion - 1}'),
+      ('a binary-version rebuild', "binary_version = 'older'"),
     ]) {
       test(
         '$tag appends bundles/ and reports/ and keeps the Owner lines in their order',
@@ -167,7 +158,7 @@ void main() {
         },
       );
     }
-    test('f01/us01/fr04/e13, s03/inv22: a rebuild for a changed stamp checks the five lines', () async {
+    test('a rebuild for a changed stamp checks the five lines', () async {
       final r = await root();
       final store = IndexStore.open(r);
       addTearDown(store.close);
@@ -183,7 +174,7 @@ void main() {
       );
     });
     test(
-      'f01/us01/fr04/e06, f01/us01/fr04/e13, s03/inv23: a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
+      'a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
       skip: unreadablePathSkipReason(),
       () async {
         final r = await writeTree({
@@ -915,7 +906,7 @@ void main() {
         {'specs/jaspr/f01_login/ARCHITECTURE.md': 'jaspr', 'README.md': null},
       );
     });
-    test('domain:index_query INV-2: an index of layout 15 has no stamp, so '
+    test('an index of layout 15 has no stamp, so '
         'it is rebuilt', () async {
       final r = await root();
       final store = IndexStore.open(r);
@@ -929,7 +920,7 @@ void main() {
     });
   });
 
-  test('domain:index_query INV-2: an index of layout 16 has no stamp, so '
+  test('an index of layout 16 has no stamp, so '
       'it is rebuilt', () async {
     final r = await root();
     final store = IndexStore.open(r);
@@ -987,7 +978,7 @@ void main() {
     ];
 
     test(
-      'list_repeat_groups E01, E06: a refresh stores the normalized words '
+      'a refresh stores the normalized words '
       'of the items of the rule-bearing sections, and none of a Given '
       'line, a table row, fenced code, a comment, or another section',
       () async {
@@ -1002,7 +993,7 @@ void main() {
       },
     );
 
-    test('list_repeat_groups E01: items worded alike but written with another '
+    test('items worded alike but written with another '
         'ID, bold, link, or punctuation read the same words', () async {
       final project = await writeLoginProject(
         extra: {
@@ -1023,8 +1014,8 @@ void main() {
       expect(other.single.$2, 'E05');
     });
 
-    test('list_repeat_groups E01: items that restate a rule while citing '
-        'INV-6 and INV-7 read the same words, every item ID dropped', () async {
+    test('items that restate a rule while citing '
+        'two item IDs read the same words, every item ID dropped', () async {
       const other =
           'prds/features/f01_login/us01_email_login/'
           'fr02_lock_after_failures.md';
@@ -1044,7 +1035,7 @@ void main() {
       );
     });
 
-    test('list_repeat_groups E06: only the comment is not read, whether it '
+    test('only the comment is not read, whether it '
         'spans lines or closes in the middle of a line', () async {
       final project = await writeLoginProject(
         extra: {
@@ -1067,7 +1058,7 @@ void main() {
       ]);
     });
 
-    test('list_repeat_groups E01: a link is read as its text as the link '
+    test('a link is read as its text as the link '
         'scan reads it, a `]` in a code span of the text included', () async {
       final project = await writeLoginProject(
         extra: {
@@ -1084,7 +1075,7 @@ void main() {
       );
     });
 
-    test('list_repeat_groups E06: a <!-- in a code span opens no comment, so '
+    test('a <!-- in a code span opens no comment, so '
         'the items after it keep their words', () async {
       final project = await writeLoginProject(
         extra: {
@@ -1102,7 +1093,7 @@ void main() {
       ]);
     });
 
-    test('list_repeat_groups E01: a reference link reads as its text against '
+    test('a reference link reads as its text against '
         'the definitions of its doc', () async {
       final project = await writeLoginProject(
         extra: {
@@ -1117,7 +1108,7 @@ void main() {
       expect(wordsOf(store, frPath).single.$3, 'see the rule and again');
     });
 
-    test('list_repeat_groups E01: only a token of an item ID prefix of the '
+    test('only a token of an item ID prefix of the '
         'merged set is dropped, so UTF-8 and HTTP2 stay words', () async {
       final project = await writeLoginProject(
         extra: {
@@ -1134,7 +1125,7 @@ void main() {
       );
     });
 
-    test('domain:index_query INV-86: a doc stored again keeps only its new '
+    test('a doc stored again keeps only its new '
         'words, and a deleted doc drops them all', () async {
       final project = await writeLoginProject(extra: {frKey: fr});
       expect(wordsOf(refreshed(project), frPath), hasLength(3));

@@ -29,7 +29,7 @@ void main() {
       Process.run(binary, ['folder', ...args], workingDirectory: cwd);
 
   group('folder', () {
-    test('f01/us08/fr01/e01: run at the project root prints the absolute '
+    test('run at the project root prints the absolute '
         '.specstone path and exits 0', () async {
       final root = await writeTree(_project());
 
@@ -40,7 +40,7 @@ void main() {
       expect(result.stderr, isEmpty);
     });
 
-    test('f01/us08/fr01/e02: run in a nested folder prints the same line '
+    test('run in a nested folder prints the same line '
         'the root gets', () async {
       final root = await writeTree(_project());
 
@@ -51,7 +51,7 @@ void main() {
       expect(nested.stdout, (await run(root.path)).stdout);
     });
 
-    test('f01/us08/fr01/e03: a folder whose docs link stands for another '
+    test('a folder whose docs link stands for another '
         "project prints that project's .specstone", () async {
       final tree = await writeTree({
         'ws/.specstone/config.yaml': shippedPinsConfig(),
@@ -73,7 +73,7 @@ void main() {
       );
     }, skip: _linksUnavailable);
 
-    test('f01/us08/fr01/e04: a missing reports/ is made before the path '
+    test('a missing reports/ is made before the path '
         'prints', () async {
       final root = await writeTree(_project());
       final reports = Directory('${root.path}/.specstone/reports');
@@ -88,7 +88,7 @@ void main() {
       expect(second.stdout, first.stdout);
     });
 
-    test('f01/us08/fr01/e05: a reports/ that cannot be made is '
+    test('a reports/ that cannot be made is '
         'output_not_writable, exit 73, with nothing on stdout', () async {
       final root = await writeTree({
         ..._project(),
@@ -102,7 +102,7 @@ void main() {
       expect(result.stderr, contains('cannot make'));
     });
 
-    test('f01/us08/fr01/e05: --json prints the error envelope on stderr, '
+    test('--json prints the error envelope on stderr, '
         'nothing on stdout', () async {
       final root = await writeTree({
         ..._project(),
@@ -118,7 +118,7 @@ void main() {
       expect(error['code'], 'output_not_writable');
     });
 
-    test('f01/us08/fr01/e06: no project above the working directory is '
+    test('no project above the working directory is '
         'project_not_found, exit 78', () async {
       final bare = await writeTree({'lib/main.dart': ''});
 
@@ -129,7 +129,7 @@ void main() {
       expect(result.stderr, contains('no Specstone project'));
     });
 
-    test('f01/us08/fr01/e06: --json names project_not_found', () async {
+    test('--json names project_not_found', () async {
       final bare = await writeTree({'lib/main.dart': ''});
 
       final result = await run(bare.path, ['--json']);
@@ -140,7 +140,7 @@ void main() {
       expect(error['code'], 'project_not_found');
     });
 
-    test('f01/us08/fr01/e07: a .specstone link is unknown_value, exit 78, '
+    test('a .specstone link is unknown_value, exit 78, '
         'and makes no reports/', () async {
       final tree = await writeTree({
         'real/config.yaml': shippedPinsConfig(),
@@ -159,7 +159,7 @@ void main() {
       expect(Directory('${tree.path}/real/reports').existsSync(), isFalse);
     }, skip: _linksUnavailable);
 
-    test('f01/us08/fr01/e08: a positional argument is argument_invalid, '
+    test('a positional argument is argument_invalid, '
         'exit 64', () async {
       final root = await writeTree(_project());
 
@@ -177,22 +177,17 @@ void main() {
       );
     });
 
-    test(
-      'f01/us08/fr01/e09: --json prints {"folder": ...} on stdout',
-      () async {
-        final root = await writeTree(_project());
+    test('--json prints {"folder": ...} on stdout', () async {
+      final root = await writeTree(_project());
 
-        final result = await run('${root.path}/app', ['--json']);
+      final result = await run('${root.path}/app', ['--json']);
 
-        expect(result.exitCode, 0, reason: '${result.stderr}');
-        expect(jsonDecode(result.stdout as String), {
-          'folder': _folderOf(root),
-        });
-        expect(result.stderr, isEmpty);
-      },
-    );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(jsonDecode(result.stdout as String), {'folder': _folderOf(root)});
+      expect(result.stderr, isEmpty);
+    });
 
-    test('f01/us08/fr01/e10: it reads no config and opens no index, so a '
+    test('it reads no config and opens no index, so a '
         'config no read accepts still prints and the folder gains only '
         'reports/', () async {
       final root = await writeTree({
@@ -210,7 +205,7 @@ void main() {
       expect(names, {'config.yaml', 'reports'});
     });
 
-    test('f01/us08/fr01/e12: a .specstone regular file with no project '
+    test('a .specstone regular file with no project '
         'above it is project_not_found, exit 78', () async {
       final tree = await writeTree({'.specstone': 'x', 'lib/main.dart': ''});
 

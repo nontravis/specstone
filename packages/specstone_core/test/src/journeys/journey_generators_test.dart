@@ -264,7 +264,7 @@ void main() {
       expect(_copy(f), isEmpty);
     });
 
-    test('f10/us01/fr04/e08: a relative link takes the path from the '
+    test('a relative link takes the path from the '
         "journey's folder, its text and fragment kept", () async {
       expect(
         await _copiedThen(
@@ -274,7 +274,7 @@ void main() {
       );
     });
 
-    test("f10/us01/fr04/e09: a fragment-only link takes the story's path "
+    test("a fragment-only link takes the story's path "
         'before the fragment', () async {
       expect(
         await _copiedThen('[rules](#rules)'),
@@ -282,7 +282,7 @@ void main() {
       );
     });
 
-    test('f10/us01/fr04/e08: a link that leaves the docs root still reaches '
+    test('a link that leaves the docs root still reaches '
         'its file, and a definition moves too', () async {
       final f = await _open(
         ['### 1. Start', 'step: $_story S1'],
@@ -298,7 +298,7 @@ void main() {
       expect(text, endsWith('[s]: <../../features/f01_login/FEATURE.md>'));
     });
 
-    test('f10/us01/fr04/e08: a folder link and a docs-root link reach from '
+    test('a folder link and a docs-root link reach from '
         "the journey's folder what they reach from the story", () async {
       expect(
         await _copiedThen('[out](../us02_sign_out/) [docs](../../../../)'),
@@ -307,7 +307,7 @@ void main() {
       );
     });
 
-    test('f10/us01/fr04/e10: a web address, another scheme, and a rooted '
+    test('a web address, another scheme, and a rooted '
         'path are copied as written', () async {
       const tail =
           '[web](https://example.com/a.md#x) [mail](mailto:a@example.com) '
@@ -319,7 +319,7 @@ void main() {
       );
     });
 
-    test('f10/us01/fr04/e11: a path in a code span is copied as '
+    test('a path in a code span is copied as '
         'written', () async {
       const tail =
           '`../us02_sign_out/USER_STORY.md` and `[x](../us02_sign_out/a.md)`';

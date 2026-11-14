@@ -75,45 +75,45 @@ PackUpgrade _upgrade(String pack, String pin, String target) => PackUpgrade(
 
 void main() {
   group('the cite pass', () {
-    test('f06/us02/fr02/e78: a name that names one doc becomes a link to it, the path relative to the citing doc', () {
+    test('a name that names one doc becomes a link to it, the path relative '
+        'to the citing doc', () {
       expect(
         _converted('See `domain:login`.\n'),
         'See [domain:login](../f01_login/DOMAIN.md).\n',
       );
     });
 
-    test('f06/us02/fr02/e79: an item cite becomes one item link per ID, its text the ID', () {
+    test('an item cite becomes one item link per ID, its text the ID', () {
       expect(
         _converted('`domain:login` INV-6 and INV-7\n'),
         '[INV-6](../f01_login/DOMAIN.md#invariants) and [INV-7](../f01_login/DOMAIN.md#invariants)\n',
       );
     });
 
-    test('f06/us02/fr02/e78: a token shaped like an ID but of no doc type prefix, such as SHA256 or UTF-8, leaves a doc cite', () {
+    test('a token shaped like an ID but of no doc type prefix, such as SHA256 '
+        'or UTF-8, leaves a doc cite', () {
       expect(
         _converted('See `domain:login` with SHA256 and UTF-8.\n'),
         'See [domain:login](../f01_login/DOMAIN.md) with SHA256 and UTF-8.\n',
       );
     });
 
-    test(
-      'f06/us02/fr02/e80: an item range becomes two item links joined by to',
-      () {
-        expect(
-          _converted('`topic:doc_model#rules` RULE-14 to RULE-19\n'),
-          '[RULE-14](../topics/doc_model.md#rules) to [RULE-19](../topics/doc_model.md#rules)\n',
-        );
-      },
-    );
+    test('an item range becomes two item links joined by to', () {
+      expect(
+        _converted('`topic:doc_model#rules` RULE-14 to RULE-19\n'),
+        '[RULE-14](../topics/doc_model.md#rules) to [RULE-19](../topics/doc_model.md#rules)\n',
+      );
+    });
 
-    test('f06/us02/fr02/e81: a section cite keeps its type prefix as link text and its key in the fragment', () {
+    test('a section cite keeps its type prefix as link text and its key in '
+        'the fragment', () {
       expect(
         _converted('See `feature:login#problem` first.\n'),
         'See [feature:login](../../prds/features/f01_login/FEATURE.md#problem) first.\n',
       );
     });
 
-    test('f06/us02/fr02/e81: a path mention takes the doc type and Name as its text', () {
+    test('a path mention takes the doc type and Name as its text', () {
       expect(
         _converted(
           'See `../f01_login/DOMAIN.md` and ../topics/doc_model.md.\n',
@@ -122,7 +122,8 @@ void main() {
       );
     });
 
-    test('f06/us02/fr02/e82: a shared name with no ID, and an ID its one doc lacks, stay and count as left', () {
+    test('a shared name with no ID, and an ID its one doc lacks, stay and '
+        'count as left', () {
       const body =
           'See `login` here.\n'
           'And `domain:login` INV-99.\n'
@@ -145,7 +146,7 @@ void main() {
       ]);
     });
 
-    test('f06/us02/fr02/e82: a left cite is cited at its line in the text the run writes', () {
+    test('a left cite is cited at its line in the text the run writes', () {
       const body = 'See `login` here.\n';
       const text = '# Sign-up architecture\n\n## Components\n\n$body';
       final pass = _passOf({..._baseDocs, _citing: text});
@@ -154,16 +155,20 @@ void main() {
       expect(pass.leftOn({_citing: written}), ['$_citing:9 login']);
     });
 
-    test('f06/us02/fr02/e82: a cite form written inside a longer code span stays and counts as left', () {
-      const body = 'Run `see ../f01_login/DOMAIN.md now`.\n';
-      const text = '# Sign-up architecture\n\n## Components\n\n$body';
-      final pass = _passOf({..._baseDocs, _citing: text});
+    test(
+      'a cite form written inside a longer code span stays and counts as left',
+      () {
+        const body = 'Run `see ../f01_login/DOMAIN.md now`.\n';
+        const text = '# Sign-up architecture\n\n## Components\n\n$body';
+        final pass = _passOf({..._baseDocs, _citing: text});
 
-      expect(pass.apply(_citing, text), text);
-      expect(pass.planLine, 'cites: 0 rewrites in 0 docs; left: 1');
-    });
+        expect(pass.apply(_citing, text), text);
+        expect(pass.planLine, 'cites: 0 rewrites in 0 docs; left: 1');
+      },
+    );
 
-    test('f06/us02/fr02/e85: a cite in frontmatter, in fenced code, in a Concerns see target, or in a link is never rewritten', () {
+    test('a cite in frontmatter, in fenced code, in a Concerns see target, or '
+        'in a link is never rewritten', () {
       const text =
           '---\nowner: "`domain:login`"\n---\n\n# Sign-up architecture\n\n'
           '## Components\n\n```\n`domain:login` INV-6\n```\n\n'
@@ -176,7 +181,8 @@ void main() {
       expect(pass.leftOn(const {}), isEmpty);
     });
 
-    test('f06/us02/fr02/e85: a Concerns header the merged type does not hold is no Concerns section, for the pass as for check', () async {
+    test('a Concerns header the merged type does not hold is no Concerns '
+        'section, for the pass as for check', () async {
       const override = 'sections:\n  - {id: concerns, disabled: true}\n';
       const architecture = 'specs/f03_pay/ARCHITECTURE.md';
       const text =
@@ -227,20 +233,15 @@ void main() {
       expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 0');
     });
 
-    test(
-      'f06/us02/fr02/e82: a tree with no old cite form has no cites line',
-      () {
-        final pass = _passOf({
-          ..._baseDocs,
-          _citing: '# A\n\nNo cites here.\n',
-        });
+    test('a tree with no old cite form has no cites line', () {
+      final pass = _passOf({..._baseDocs, _citing: '# A\n\nNo cites here.\n'});
 
-        expect(pass.planLine, isNull);
-        expect(pass.paths, isEmpty);
-      },
-    );
+      expect(pass.planLine, isNull);
+      expect(pass.paths, isEmpty);
+    });
 
-    test('f06/us02/fr02/e82: each form counts once however many links it becomes, and only typed docs are read', () {
+    test('each form counts once however many links it becomes, and only typed '
+        'docs are read', () {
       const notes = 'notes/plan.md';
       final pass = _passOf({
         ..._baseDocs,
@@ -255,38 +256,46 @@ void main() {
       );
     });
 
-    test('f04/us02/fr08/e04: a shared name an item ID settles gives the link check names', () async {
-      final docs = {
-        for (final MapEntry(:key, :value) in loginProject.entries)
-          if (key.startsWith('docs/') && key.endsWith('.md'))
-            key.substring('docs/'.length): value,
-        _domain: '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n',
-      };
-      const citing = 'specs/f02_signup/ARCHITECTURE.md';
-      final text = '${docs[citing]}\nSee `login` INV-6 and `login`.\n';
-      final index = await indexWith({
-        'docs/$_domain': docs[_domain]!,
-        'docs/$citing': text,
-      });
-      final candidates = citeCandidatesOf(text, idPrefixes: _idPrefixes);
-      final checked = [
-        for (final candidate in candidates)
-          resolveCite(IndexCiteTree(index), citing, candidate),
-      ];
+    test(
+      'a shared name an item ID settles gives the link check names',
+      () async {
+        final docs = {
+          for (final MapEntry(:key, :value) in loginProject.entries)
+            if (key.startsWith('docs/') && key.endsWith('.md'))
+              key.substring('docs/'.length): value,
+          _domain:
+              '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n',
+        };
+        const citing = 'specs/f02_signup/ARCHITECTURE.md';
+        final text = '${docs[citing]}\nSee `login` INV-6 and `login`.\n';
+        final index = await indexWith({
+          'docs/$_domain': docs[_domain]!,
+          'docs/$citing': text,
+        });
+        final candidates = citeCandidatesOf(text, idPrefixes: _idPrefixes);
+        final checked = [
+          for (final candidate in candidates)
+            resolveCite(IndexCiteTree(index), citing, candidate),
+        ];
 
-      final pass = _passOf({...docs, citing: text});
+        final pass = _passOf({...docs, citing: text});
 
-      expect(checked.first, isA<CiteLink>());
-      expect(checked.last, isA<CiteAmbiguous>());
-      final link = citeLinkMarkdown(citing, checked.first as CiteLink).single;
-      expect(link, '[INV-6](../f01_login/DOMAIN.md#invariants)');
-      expect(pass.apply(citing, text), endsWith('\nSee $link and `login`.\n'));
-      expect(pass.leftOn(const {}), hasLength(1));
-    });
+        expect(checked.first, isA<CiteLink>());
+        expect(checked.last, isA<CiteAmbiguous>());
+        final link = citeLinkMarkdown(citing, checked.first as CiteLink).single;
+        expect(link, '[INV-6](../f01_login/DOMAIN.md#invariants)');
+        expect(
+          pass.apply(citing, text),
+          endsWith('\nSee $link and `login`.\n'),
+        );
+        expect(pass.leftOn(const {}), hasLength(1));
+      },
+    );
   });
 
   group('runsCitePass', () {
-    test('f06/us02/fr02/e78: a prd-core or software-tech pin moved up from below the version that first ships the cite rule runs the pass', () {
+    test('a prd-core or software-tech pin moved up from below the version '
+        'that first ships the cite rule runs the pass', () {
       expect(runsCitePass([_upgrade('prd-core', '1.8.0', '1.9.0')]), isTrue);
       expect(
         runsCitePass([_upgrade('software-tech', '1.6.0', '1.7.0')]),
@@ -295,14 +304,20 @@ void main() {
       expect(runsCitePass([_upgrade('prd-core', '1.0.0', '1.9.0')]), isTrue);
     });
 
-    test('f06/us02/fr02/e86: an upgrade from that version or later, or of another pack, runs no pass', () {
-      expect(runsCitePass([_upgrade('prd-core', '1.9.0', '1.10.0')]), isFalse);
-      expect(
-        runsCitePass([_upgrade('software-tech', '1.7.0', '1.8.0')]),
-        isFalse,
-      );
-      expect(runsCitePass([_upgrade('acme', '1.0.0', '1.2.0')]), isFalse);
-      expect(runsCitePass(const []), isFalse);
-    });
+    test(
+      'an upgrade from that version or later, or of another pack, runs no pass',
+      () {
+        expect(
+          runsCitePass([_upgrade('prd-core', '1.9.0', '1.10.0')]),
+          isFalse,
+        );
+        expect(
+          runsCitePass([_upgrade('software-tech', '1.7.0', '1.8.0')]),
+          isFalse,
+        );
+        expect(runsCitePass([_upgrade('acme', '1.0.0', '1.2.0')]), isFalse);
+        expect(runsCitePass(const []), isFalse);
+      },
+    );
   });
 }

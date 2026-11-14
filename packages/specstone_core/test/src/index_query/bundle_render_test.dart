@@ -427,7 +427,7 @@ void main() {
       budget: budget,
     );
 
-    test('f01/us05/fr02/e15, f01/us05/s17: an item part prints after the picked docs, named, with its own lines, and closes the list', () async {
+    test('an item part prints after the picked docs, named, with its own lines, and closes the list', () async {
       final a = implement(await citing('Lock, by $inv14.'));
       expect(
         a.text,
@@ -453,7 +453,7 @@ void main() {
       expect(a.text, isNot(contains('INV-13')));
       expect(a.json['tokens'], tokenSizeOf(shown(a)));
     });
-    test('f01/us05/fr02/e16: a part reached only through another part prints after every part the picked docs reach', () async {
+    test('a part reached only through another part prints after every part the picked docs reach', () async {
       final a = implement(
         await citing(
           'Lock, by $inv14; see [terms]($specs/topics/terms.md#purpose).',
@@ -469,7 +469,7 @@ void main() {
         'specs/topics/rules.md#purpose',
       ]);
     });
-    test('f01/us05/fr02: a doc part prints marked summary and cited, and the list names it with the next step', () async {
+    test('a doc part prints marked summary and cited, and the list names it with the next step', () async {
       final a = implement(await citing('See [terms]($specs/topics/terms.md).'));
       expect(
         a.text,
@@ -485,7 +485,7 @@ void main() {
         ),
       );
     });
-    test('f01/us05/fr02/e17: a bundle with no part prints no cited naming line and no cited list line', () async {
+    test('a bundle with no part prints no cited naming line and no cited list line', () async {
       final a = implement(await citing('Check the password.'));
       expect(a.text, isNot(contains(' · cited')));
       expect(
@@ -495,7 +495,7 @@ void main() {
         isEmpty,
       );
     });
-    test('f01/us05/fr02: under --json each part is a docs object with cited, section, and item after text', () async {
+    test('under --json each part is a docs object with cited, section, and item after text', () async {
       final a = implement(await citing('Lock, by $inv14.'));
       final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
       final item = docs.firstWhere((d) => d['cited'] == true);
@@ -529,7 +529,7 @@ void main() {
               .last;
       expect(summary.keys.skip(5).toList(), ['summary', 'cited']);
     });
-    test('f01/us05/fr03/e11, f01/us05/fr05/e15: parts that take a bundle over the budget refuse it', () async {
+    test('parts that take a bundle over the budget refuse it', () async {
       final a = implement(await citing('Lock, by $inv14.'));
       final docsOnly = tokenSizeOf(
         a.text.substring(0, a.text.indexOf('\n\n==> signup (domain)')),
@@ -556,7 +556,7 @@ void main() {
         'item',
       ]);
     });
-    test('f01/us05/fr05/e14: a query bundle appends no part', () async {
+    test('a query bundle appends no part', () async {
       final a = ctxIn(
         await citing('Lock, by $inv14.'),
         'login',
@@ -564,7 +564,7 @@ void main() {
       );
       expect(a.text, isNot(contains(' · cited')));
     });
-    test('f01/us05/fr05/e10: a link to an untyped doc prints its path alone, listed, and under --json a path with no text', () async {
+    test('a link to an untyped doc prints its path alone, listed, and under --json a path with no text', () async {
       final a = implement(
         await citing('See [the old context](../../../d01_context.md).'),
       );
@@ -586,7 +586,7 @@ void main() {
         'cited': true,
       });
     });
-    test('f01/us05/fr05/e10: a link to a file that is no .md doc prints its path alone, listed, and under --json a path with no text', () async {
+    test('a link to a file that is no .md doc prints its path alone, listed, and under --json a path with no text', () async {
       final a = implement(
         await citing('See [the schema]($specs/schema.dbml).'),
       );
@@ -607,7 +607,7 @@ void main() {
         'cited': true,
       });
     });
-    test('f01/us05/fr05/e03: a ### block that starts no item names its anchor; --json gives its section and heading', () async {
+    test('a ### block that starts no item names its anchor; --json gives its section and heading', () async {
       final a = implement(
         await citing('See [a note]($specs/topics/terms.md#a-note).'),
       );
@@ -657,7 +657,7 @@ void main() {
     List<Map<String, Object?>> docsOf(ReadAnswer a) =>
         (a.json['docs']! as List).cast<Map<String, Object?>>();
 
-    test('f01/us05/fr06/e01: a picked item prints its cited-by line right after it, past a removed comment', () async {
+    test('a picked item prints its cited-by line right after it, past a removed comment', () async {
       final a = design(await citedIndex());
       expect(
         a.text,
@@ -668,40 +668,52 @@ void main() {
       );
       expect(a.json['tokens'], tokenSizeOf(shown(a)));
     });
-    test('f01/us05/fr06/e01: an appended item prints its cited-by line, with the citing item', () async {
-      final a = design(await citedIndex());
-      expect(
-        a.text,
-        contains(
-          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
-          '- **INV-14** Locks after five failures.\n'
-          '  · cited by $frName (fr) E01: $e01\n',
-        ),
-      );
-    });
-    test('f01/us05/fr06/e06: an implement or query bundle prints no cited-by line and no citedBy key', () async {
-      final i = await citedIndex();
-      for (final mode in [BundleMode.implement, BundleMode.query]) {
-        final a = ctxIn(i, 'login/email_login/validate_credentials', mode);
-        expect(a.text, isNot(contains('cited by')), reason: mode.wire);
+    test(
+      'an appended item prints its cited-by line, with the citing item',
+      () async {
+        final a = design(await citedIndex());
         expect(
-          docsOf(a).where((d) => d.containsKey('citedBy')),
-          isEmpty,
-          reason: mode.wire,
+          a.text,
+          contains(
+            '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
+            '- **INV-14** Locks after five failures.\n'
+            '  · cited by $frName (fr) E01: $e01\n',
+          ),
         );
-      }
-    });
-    test('f01/us05/fr06/e04: an item of a doc that joins through bundle: prints no cited-by line', () async {
-      final a = design(
-        await citedIndex('Cites [PV-01](../../../PROJECT.md#project-vision).', {
-          'docs/prds/PROJECT.md': '---\nowner: Owner\n---\n\n# Project context\n\n## Project vision\n### PV-01 — One system\nText.\n',
-        }),
-      );
-      expect(a.text, contains('### PV-01 — One system'));
-      expect(a.text, isNot(contains('PV-01 — One system\nText.\n  · cited')));
-      expect(a.text, isNot(contains('cited by $frName (fr) —: Cites')));
-    });
-    test('f01/us05/fr06: under --json a doc object gains citedBy, one object per line, after its other keys', () async {
+      },
+    );
+    test(
+      'an implement or query bundle prints no cited-by line and no citedBy key',
+      () async {
+        final i = await citedIndex();
+        for (final mode in [BundleMode.implement, BundleMode.query]) {
+          final a = ctxIn(i, 'login/email_login/validate_credentials', mode);
+          expect(a.text, isNot(contains('cited by')), reason: mode.wire);
+          expect(
+            docsOf(a).where((d) => d.containsKey('citedBy')),
+            isEmpty,
+            reason: mode.wire,
+          );
+        }
+      },
+    );
+    test(
+      'an item of a doc that joins through bundle: prints no cited-by line',
+      () async {
+        final a = design(
+          await citedIndex(
+            'Cites [PV-01](../../../PROJECT.md#project-vision).',
+            {
+              'docs/prds/PROJECT.md': '---\nowner: Owner\n---\n\n# Project context\n\n## Project vision\n### PV-01 — One system\nText.\n',
+            },
+          ),
+        );
+        expect(a.text, contains('### PV-01 — One system'));
+        expect(a.text, isNot(contains('PV-01 — One system\nText.\n  · cited')));
+        expect(a.text, isNot(contains('cited by $frName (fr) —: Cites')));
+      },
+    );
+    test('under --json a doc object gains citedBy, one object per line, after its other keys', () async {
       final a = design(await citedIndex());
       final docs = docsOf(a);
       final picked = docs.firstWhere((d) => d['name'] == frName);
@@ -743,7 +755,7 @@ void main() {
         reason: 'each doc object of a design bundle carries citedBy',
       );
     });
-    test('f01/us05/fr06: a nested item that ends on its cited parent last line keeps its line in the text', () async {
+    test('a nested item that ends on its cited parent last line keeps its line in the text', () async {
       final a = design(
         await citedIndex('Lock, by $inv14.', {
           'docs/specs/f02_signup/DOMAIN.md':
@@ -768,31 +780,34 @@ void main() {
       final part = docsOf(a).firstWhere((d) => d['item'] == 'INV-14');
       expect(part['citedBy']! as List, hasLength(4));
     });
-    test('f01/us05/fr06: a summary doc prints its whole-printed items with their cited-by lines', () async {
-      final a = design(
-        await citedIndex(
-          'Resets, by [BR-1](../us02_reset_password/USER_STORY.md#rules).',
-          {
-            'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md': '---\nslug:\n  - reset\n---\n\n# Agent resets a password\n\n## Use Case\nReset it.\n\n## Rules\n- **BR-1** Links expire.\n',
-          },
-        ),
-      );
-      expect(
-        a.text,
-        contains(
-          '## Rules\n- **BR-1** Links expire.\n'
-          '  · cited by $frName (fr) —: Resets, by [BR-1]',
-        ),
-      );
-      final summary = docsOf(a).firstWhere(
-        (d) => d['summary'] == true && d['name'] == 'login/reset_password',
-      );
-      expect(
-        (summary['citedBy']! as List).single,
-        containsPair('item', 'BR-1'),
-      );
-    });
-    test('f01/us05/fr06: an appended summary doc part prints its items with their cited-by lines', () async {
+    test(
+      'a summary doc prints its whole-printed items with their cited-by lines',
+      () async {
+        final a = design(
+          await citedIndex(
+            'Resets, by [BR-1](../us02_reset_password/USER_STORY.md#rules).',
+            {
+              'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md': '---\nslug:\n  - reset\n---\n\n# Agent resets a password\n\n## Use Case\nReset it.\n\n## Rules\n- **BR-1** Links expire.\n',
+            },
+          ),
+        );
+        expect(
+          a.text,
+          contains(
+            '## Rules\n- **BR-1** Links expire.\n'
+            '  · cited by $frName (fr) —: Resets, by [BR-1]',
+          ),
+        );
+        final summary = docsOf(a).firstWhere(
+          (d) => d['summary'] == true && d['name'] == 'login/reset_password',
+        );
+        expect(
+          (summary['citedBy']! as List).single,
+          containsPair('item', 'BR-1'),
+        );
+      },
+    );
+    test('an appended summary doc part prints its items with their cited-by lines', () async {
       final a = design(
         await citedIndex(
           'See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).',
@@ -810,7 +825,7 @@ void main() {
         ),
       );
     });
-    test('f01/us05/fr06/e07: the lines count toward the budget', () async {
+    test('the lines count toward the budget', () async {
       final i = await citedIndex();
       final tokens = design(i).json['tokens']! as int;
       expect(design(i, budget: tokens).exitStatus, 0);
@@ -903,7 +918,7 @@ void main() {
         isFalse,
       );
     });
-    test('f01/us05/fr03/e09, db-r6: over budget with --summary, the next step keeps --summary on the --out call', () {
+    test('over budget with --summary, the next step keeps --summary on the --out call', () {
       const next =
           'narrow the target, or run it again with --summary --out and no --budget';
       final answer = answerContext(
