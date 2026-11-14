@@ -1162,8 +1162,7 @@ void _handOffTests() {
     );
   });
 
-  test('E18-E20: '
-      'the audit compares each feature pattern item of a design bundle with '
+  test('the audit compares each feature pattern item of a design bundle with '
       'the docs and reports an item neither covered nor skipped', () {
     final compare = _oneLine(
       _sectionOf(
@@ -1176,10 +1175,10 @@ void _handOffTests() {
       contains(
         "- **Feature pattern:** for each item of a bundle's pattern part, "
         'search the doc listing the pattern, its subtree, and its '
-        "feature's spec folder for covering text or a skip line in its "
-        '`out_of_scope`; else report `<type>:<name>#out_of_scope: '
+        "feature's spec folder, if any, for covering text or a skip line in "
+        "that doc's `out_of_scope`; else report `<type>:<name>#out_of_scope: "
         '<pattern>/<item> neither covered nor skipped`, `<type>:<name>` '
-        'the listing doc.',
+        "the listing doc, typed as the part's bundle line.",
       ),
     );
   });
