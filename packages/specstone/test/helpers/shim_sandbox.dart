@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'built_stn.dart';
 import 'script_sandbox.dart';
 
 /// The loop guard variable the `stn` shim sets before a hand-off.
@@ -15,6 +16,10 @@ const fakeExitVariable = 'FAKE_EXIT';
 /// The environment variable that, set to `1`, makes a Windows recorder read
 /// its stdin; unset, it leaves stdin to the shell that typed `stn`.
 const readStdinVariable = 'STUB_READ_STDIN';
+
+/// The environment variable whose value a Windows recorder writes to its
+/// stdout, one line, when set.
+const writeStdoutVariable = 'STUB_STDOUT';
 
 /// The shell a Windows run types `stn` in.
 enum StnShell { cmd, powershell }
@@ -138,15 +143,16 @@ final class ShimSandbox {
   /// as `PATH` and a minimal environment plus [extra].
   ///
   /// cmd reads the lines as a cmd window would (`cmd /d /q /k`, fed through
-  /// stdin), and prints its prompt before each line, `/q` or not, so its
-  /// `PROMPT` is a bare line break, a blank line a case skips; PowerShell runs
-  /// them as one `-Command`. The exit status is the last line's. The run
-  /// fails after [timeout].
+  /// stdin, `/v:on` too when [delayedExpansion]), and prints its prompt before
+  /// each line, `/q` or not, so its `PROMPT` is a bare line break, a blank
+  /// line a case skips; PowerShell runs them as one `-Command`. The exit
+  /// status is the last line's. The run fails after [timeout].
   Future<ProcessResult> typeStn(
     List<String> lines, {
     required StnShell shell,
     required String path,
     Map<String, String> extra = const {},
+    bool delayedExpansion = false,
     Duration timeout = const Duration(seconds: 60),
   }) {
     if (!_windows) {
@@ -156,7 +162,7 @@ final class ShimSandbox {
     return switch (shell) {
       StnShell.cmd => _run(
         _cmd,
-        ['/d', '/q', '/k', 'rem'],
+        ['/d', '/q', if (delayedExpansion) '/v:on', '/k', 'rem'],
         environment: {...environment, 'PROMPT': r'$_'},
         stdinText: '${[...lines, 'exit %ERRORLEVEL%'].join('\r\n')}\r\n',
         timeout: timeout,
@@ -210,7 +216,7 @@ final class ShimSandbox {
     if (_windows) {
       await _tmp.create();
       _recorderCache ??= await _compileRecorder();
-      await _shimSource('stn.cmd').copy(_join(bin.path, 'stn.cmd'));
+      await File(_join(bin.path, 'stn.exe')).writeAsBytes(await buildStnExe());
       _writeRecorderExe(File(_join(bin.path, 'specstone.exe')));
     } else {
       final installed = await _shimSource('stn').copy('${bin.path}/stn');
@@ -336,7 +342,8 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 
 // The Windows recorder: logs argv, stdin (read only when STUB_READ_STDIN is
 // 1), PATH, and the guard to <STUB_LOG_DIR>\<name>.log, name `specstone` for
-// specstone.exe and `other` for any other file. Its exit status is the number
+// specstone.exe and `other` for any other file; it writes STUB_STDOUT, when
+// set, to its stdout as one line. Its exit status is the number
 // in `<its path>.exit`, else FAKE_EXIT for specstone, else 0. Each run also
 // writes its whole environment to <name>.env. Given `upgrade`, specstone.exe
 // replaces the stn.cmd beside it with a file twice its length whose every
@@ -371,6 +378,8 @@ Future<void> main(List<String> args) async {
   final variables = [for (final e in env.entries) '${e.key}=${e.value}'];
   File('${env['STUB_LOG_DIR']}\\$name.env')
       .writeAsStringSync('${variables.join('\n')}\n');
+  final echo = env['STUB_STDOUT'];
+  if (echo != null) stdout.writeln(echo);
   if (name == 'specstone' && args.isNotEmpty && args.first == 'upgrade') {
     final shim = File('$folder\\stn.cmd');
     final wanted = 2 * shim.lengthSync();
