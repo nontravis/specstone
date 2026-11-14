@@ -738,4 +738,75 @@ items:
       ]);
     });
   });
+
+  group('FeaturePattern.renderBody', () {
+    FeaturePattern signup() => mergeOne('signup', {
+      'auth': [layerOf('auth', authYaml())],
+      'signup': [
+        layerOf('signup', '''
+id: signup
+description: Sign-up checklist.
+extends: auth
+items:
+  - id: verify_email
+    text: Name the email check.
+reference:
+  - title: Handbook, chapter 2
+    url: https://example.test/handbook
+  - title: Standard
+'''),
+      ],
+    });
+
+    test('prints the description, every item, then the sources', () {
+      expect(
+        signup().renderBody(),
+        'Sign-up checklist.\n'
+        '- **lockout** Name the lockout rule.\n'
+        '- **reset** Name the reset path.\n'
+        '- **verify_email** Name the email check.\n'
+        'Pattern sources:\n'
+        '- Handbook, chapter 2: https://example.test/handbook\n'
+        '- Standard\n',
+      );
+    });
+
+    test('prints only the items it is given', () {
+      final pattern = signup();
+
+      expect(
+        pattern.renderBody([pattern.items.last]),
+        'Sign-up checklist.\n'
+        '- **verify_email** Name the email check.\n'
+        'Pattern sources:\n'
+        '- Handbook, chapter 2: https://example.test/handbook\n'
+        '- Standard\n',
+      );
+    });
+
+    test('prints no sources block when the pattern has no reference', () {
+      final pattern = mergeOne('auth', {
+        'auth': [layerOf('auth', authYaml())],
+      });
+
+      expect(
+        pattern.renderBody(),
+        'Sign-in checklist.\n'
+        '- **lockout** Name the lockout rule.\n'
+        '- **reset** Name the reset path.\n',
+      );
+    });
+
+    test('prints the description alone when no item is given', () {
+      final pattern = signup();
+
+      expect(
+        pattern.renderBody(const []),
+        'Sign-up checklist.\n'
+        'Pattern sources:\n'
+        '- Handbook, chapter 2: https://example.test/handbook\n'
+        '- Standard\n',
+      );
+    });
+  });
 }

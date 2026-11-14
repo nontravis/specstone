@@ -70,6 +70,22 @@ final class MergedSet {
   String listText() =>
       [for (final docType in docTypes) '${docType.id}\n'].join();
 
+  /// Returns one JSON object per feature pattern: `id`, `pack` when a pack
+  /// supplies it, and the first line of `description`.
+  List<Map<String, Object>> featurePatternListJson() => [
+    for (final pattern in featurePatterns)
+      {
+        'id': pattern.id,
+        'pack': ?pattern.pack,
+        'description': ?_firstLine(pattern.description),
+      },
+  ];
+
+  /// Returns the feature pattern ids, one per line, each ending with a
+  /// newline.
+  String featurePatternListText() =>
+      [for (final pattern in featurePatterns) '${pattern.id}\n'].join();
+
   /// Returns the first line of [text], `''` for an empty text, or null.
   static String? _firstLine(String? text) => text == null
       ? null

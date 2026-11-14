@@ -659,7 +659,7 @@ final class MergedDocType {
         ?_templateBlock(section.template),
       ],
       if (sources.isNotEmpty)
-        ['Guide sources:', ...sources.map(_sourceLine)].join('\n'),
+        ['Guide sources:', ...sources.map(referenceSourceLine)].join('\n'),
     ];
     return blocks.isEmpty ? '' : '${blocks.join('\n\n')}\n';
   }
@@ -700,16 +700,6 @@ final class MergedDocType {
         .fold(0, (longest, run) => max(longest, run.end - run.start));
     final fence = '`' * max(_minFence, longestRun + 1);
     return 'Template:\n${fence}markdown\n$body\n$fence';
-  }
-
-  /// Returns the guide line of [entry]: `- <title>[, <locator>][: <target>]`,
-  /// where the target is its url, file, or doc.
-  static String _sourceLine(ReferenceEntry entry) {
-    final locator = entry.locator;
-    final target = entry.url ?? entry.file ?? entry.doc;
-    return '- ${entry.title}'
-        '${locator == null ? '' : ', $locator'}'
-        '${target == null ? '' : ': $target'}';
   }
 
   /// Returns [text] without trailing whitespace, or null when nothing is left.

@@ -7,6 +7,7 @@ import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
@@ -38,6 +39,47 @@ sections:
   'prd-core/user_story.yaml': _bytes(
     'id: user_story\ndescription: One story\npath: us{nn}_{slug}/US.md\n',
   ),
+};
+
+const _patternConfig = 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n';
+
+/// The shipped fixture plus a `software-tech` pack that holds three feature
+/// patterns, `signup` extending `auth`.
+Map<String, Uint8List> _shippedWithPatterns() => {
+  ...shipped(),
+  'software-tech/pack.yaml': _bytes('name: software-tech\nversion: 1.0.0\n'),
+  'software-tech/patterns/auth.yaml': _bytes('''
+id: auth
+description: Sign-in.
+items:
+  - id: lockout
+    text: Name the lockout rule.
+  - id: reset
+    text: Name the reset path.
+'''),
+  'software-tech/patterns/signup.yaml': _bytes('''
+id: signup
+description: Sign-up.
+extends: auth
+items:
+  - id: verify_email
+    text: Name the email check.
+'''),
+  'software-tech/patterns/crud.yaml': _bytes('''
+id: crud
+description: |
+  Create, read, list, update, and delete one resource.
+
+  Second paragraph.
+items:
+  - id: soft_delete
+    text: A deleted record stays restorable for a stated time.
+  - id: page_list
+    text: A list returns its records in pages with a stable order.
+reference:
+  - title: Google AIP-164 Soft delete
+    url: https://google.aip.dev/164
+'''),
 };
 
 void main() {
@@ -616,6 +658,433 @@ void main() {
       expect(json['id'], 'fr');
       expect(out.toString(), startsWith('{\n  "id": "fr",\n'));
       expect(err.toString(), isEmpty);
+    });
+  });
+
+  group('specstone guide --pattern', () {
+    late StringBuffer out;
+    late StringBuffer err;
+
+    setUp(() {
+      out = StringBuffer();
+      err = StringBuffer();
+    });
+
+    Future<SpecstoneCommandRunner> runnerIn(Directory project) async =>
+        SpecstoneCommandRunner(
+          out: out,
+          err: err,
+          templates: TemplateResolver(shippedFiles: _shippedWithPatterns()),
+          workingDirectory: project,
+          homeDirectory: await writeTree({}),
+        );
+
+    Future<Directory> projectWith([Map<String, String> files = const {}]) =>
+        writeTree({_configPath: _patternConfig, ...files});
+
+    Future<Map<String, Object?>> errorOf(List<String> args) async {
+      final runner = await runnerIn(await projectWith());
+      expect(await runner.run(args), 64);
+      expect(out.toString(), isEmpty);
+      return (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+          as Map<String, Object?>;
+    }
+
+    test('lists every pattern id in code point order, one per line', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern']), 0);
+      expect(out.toString(), 'auth\ncrud\nsignup\n');
+      expect(err.toString(), isEmpty);
+    });
+
+    test('E01: a project pattern joins the shipped ids and carries no pack '
+        'under --json', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/patterns/onboarding.yaml': '''
+id: onboarding
+description: Onboarding checklist.
+items:
+  - id: welcome
+    text: Name the welcome step.
+''',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern']), 0);
+      expect(out.toString(), 'auth\ncrud\nonboarding\nsignup\n');
+
+      out.clear();
+      expect(await runner.run(['guide', '--pattern', '--json']), 0);
+      final list = jsonDecode(out.toString()) as List<Object?>;
+      expect(list[2], {
+        'id': 'onboarding',
+        'description': 'Onboarding checklist.',
+      });
+    });
+
+    test('--json lists id, pack, and the first description line, '
+        'pretty-printed', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', '--json']), 0);
+      expect(out.toString(), startsWith('[\n  {\n    "id": "auth",\n'));
+      expect(jsonDecode(out.toString()), [
+        {'id': 'auth', 'pack': 'software-tech', 'description': 'Sign-in.'},
+        {
+          'id': 'crud',
+          'pack': 'software-tech',
+          'description': 'Create, read, list, update, and delete one resource.',
+        },
+        {'id': 'signup', 'pack': 'software-tech', 'description': 'Sign-up.'},
+      ]);
+      expect(err.toString(), isEmpty);
+    });
+
+    test('E02: a project file over a shipped pattern lists it once and keeps '
+        'its pack', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/patterns/crud.yaml': '''
+id: crud
+description: Project CRUD.
+items:
+  - id: export
+    text: Export all records.
+''',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern']), 0);
+      expect(out.toString(), 'auth\ncrud\nsignup\n');
+
+      out.clear();
+      expect(await runner.run(['guide', '--pattern', '--json']), 0);
+      final crud = (jsonDecode(out.toString()) as List<Object?>)
+          .cast<Map<String, Object?>>()
+          .singleWhere((p) => p['id'] == 'crud');
+      expect(crud['pack'], 'software-tech');
+      expect(crud['description'], 'Project CRUD.');
+    });
+
+    test('E03: a broken pattern file exits 78 with stdout empty', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/patterns/crud.yaml': 'id: [\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern']), 78);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        matches(RegExp(r'^\.specstone/templates/patterns/crud\.yaml:\d+: ')),
+      );
+    });
+
+    test('a pattern prints its description, items, and sources', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', 'crud']), 0);
+      expect(
+        out.toString(),
+        'Create, read, list, update, and delete one resource.\n\n'
+        'Second paragraph.\n'
+        '- **soft_delete** A deleted record stays restorable for a stated '
+        'time.\n'
+        '- **page_list** A list returns its records in pages with a stable '
+        'order.\n'
+        'Pattern sources:\n'
+        '- Google AIP-164 Soft delete: https://google.aip.dev/164\n',
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('E01: an unknown id exits 64 with the message alone on stderr and '
+        'stdout empty', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', 'featur']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'Could not find a feature pattern named "featur".\n',
+      );
+    });
+
+    test('E01: several unknown ids among known ones are all named in the '
+        'plural form', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(
+        await runner.run(['guide', '--pattern', 'crd', 'crud', 'ath']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'Could not find feature patterns named "crd", "ath".\n',
+      );
+    });
+
+    test('E01: an unknown id with --json prints the error envelope on '
+        'stderr, pretty-printed, with no file or key', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', 'crd', '--json']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        '{\n'
+        '  "error": {\n'
+        '    "code": "feature_pattern_unknown",\n'
+        '    "message": "Could not find a feature pattern named \\"crd\\"."\n'
+        '  }\n'
+        '}\n',
+      );
+    });
+
+    test(
+      'E01: several unknown ids with --json name each in one message',
+      () async {
+        final error = await errorOf(['guide', '--pattern', 'a', 'b', '--json']);
+
+        expect(error['code'], 'feature_pattern_unknown');
+        expect(
+          error['message'],
+          'Could not find feature patterns named "a", "b".',
+        );
+      },
+    );
+
+    test('E02: --pattern reads the pattern and no flag reads the doc type '
+        'of the same id', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/auth.yaml':
+              'id: auth\ndescription: The auth doc type.\npath: auth.md\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern', 'auth']), 0);
+      expect(out.toString(), startsWith('Sign-in.\n- **lockout** '));
+
+      out.clear();
+      expect(await runner.run(['guide', 'auth']), 0);
+      expect(out.toString(), 'The auth doc type.\n');
+    });
+
+    test('E03: a doc type id is no pattern id under --pattern', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', 'feature']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'Could not find a feature pattern named "feature".\n',
+      );
+    });
+
+    test('E04: a repeated id prints its body once, with no ==> line', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', 'crud']), 0);
+      final once = out.toString();
+      out.clear();
+
+      expect(await runner.run(['guide', '--pattern', 'crud', 'crud']), 0);
+      expect(out.toString(), once);
+      expect(out.toString(), isNot(contains('==>')));
+    });
+
+    test(
+      'E05: a pattern that extends another prints the base items first',
+      () async {
+        final runner = await runnerIn(await projectWith());
+
+        expect(await runner.run(['guide', '--pattern', 'signup']), 0);
+        expect(
+          out.toString(),
+          'Sign-up.\n'
+          '- **lockout** Name the lockout rule.\n'
+          '- **reset** Name the reset path.\n'
+          '- **verify_email** Name the email check.\n',
+        );
+      },
+    );
+
+    test('E06: an item a project layer disables is not printed', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/patterns/auth.yaml': '''
+id: auth
+items:
+  - id: reset
+    disabled: true
+''',
+        }),
+      );
+
+      expect(await runner.run(['guide', '--pattern', 'auth']), 0);
+      expect(
+        out.toString(),
+        'Sign-in.\n- **lockout** Name the lockout rule.\n',
+      );
+    });
+
+    test('E07: a pattern with no reference prints no sources line', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(await runner.run(['guide', '--pattern', 'auth']), 0);
+      expect(out.toString(), isNot(contains('Pattern sources:')));
+    });
+
+    test('E08: two or more distinct ids print under ==> lines in argument '
+        'order, a repeat once', () async {
+      final runner = await runnerIn(await projectWith());
+
+      expect(
+        await runner.run(['guide', '--pattern', 'crud', 'auth', 'crud']),
+        0,
+      );
+      final text = out.toString();
+      expect(text, startsWith('==> crud <==\nCreate, read, list'));
+      expect(text, contains('==> auth <==\nSign-in.\n'));
+      expect('==> crud <=='.allMatches(text), hasLength(1));
+      expect(text.indexOf('==> crud <=='), lessThan(text.indexOf('==> auth')));
+      expect(err.toString(), isEmpty);
+    });
+
+    test(
+      '--json prints one object for one distinct id, even named twice',
+      () async {
+        final runner = await runnerIn(await projectWith());
+
+        expect(
+          await runner.run(['guide', '--pattern', 'crud', 'crud', '--json']),
+          0,
+        );
+        expect(out.toString(), startsWith('{\n  "id": "crud",\n'));
+        expect(jsonDecode(out.toString()), {
+          'id': 'crud',
+          'pack': 'software-tech',
+          'description':
+              'Create, read, list, update, and delete one resource.\n\n'
+              'Second paragraph.',
+          'items': [
+            {
+              'id': 'soft_delete',
+              'text': 'A deleted record stays restorable for a stated time.',
+            },
+            {
+              'id': 'page_list',
+              'text':
+                  'A list returns its records in pages with a stable order.',
+            },
+          ],
+          'reference': [
+            {
+              'title': 'Google AIP-164 Soft delete',
+              'url': 'https://google.aip.dev/164',
+            },
+          ],
+        });
+      },
+    );
+
+    test(
+      '--json prints an array in argument order for two or more ids',
+      () async {
+        final runner = await runnerIn(await projectWith());
+
+        expect(
+          await runner.run(['guide', '--pattern', 'signup', 'auth', '--json']),
+          0,
+        );
+        final json = (jsonDecode(out.toString()) as List<Object?>)
+            .cast<Map<String, Object?>>();
+        expect(json.map((p) => p['id']), ['signup', 'auth']);
+        expect(json.first['extends'], 'auth');
+        expect(json.last.containsKey('extends'), isFalse);
+        expect(err.toString(), isEmpty);
+      },
+    );
+  });
+
+  group('specstone guide --pattern in the built CLI', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    Future<ProcessResult> run(Directory project, List<String> args) =>
+        Process.run(binary, [
+          'guide',
+          '--pattern',
+          ...args,
+        ], workingDirectory: project.path);
+
+    Future<Directory> project() => writeTree({
+      _configPath: shippedPinsConfig(),
+      '.specstone/templates/patterns/export.yaml': '''
+id: export
+description: Export one resource.
+items:
+  - id: format
+    text: Name each export format.
+reference:
+  - title: Handbook
+''',
+      '.specstone/templates/patterns/import.yaml': '''
+id: import
+description: Import one resource.
+items:
+  - id: dedupe
+    text: Say how a duplicate row reads.
+''',
+    });
+
+    test('lists the project patterns and exits 0', () async {
+      final result = await run(await project(), []);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, 'export\nimport\n');
+      expect(result.stderr, isEmpty);
+    });
+
+    test('prints two patterns under ==> lines and exits 0', () async {
+      final result = await run(await project(), ['import', 'export']);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        '==> import <==\n'
+        'Import one resource.\n'
+        '- **dedupe** Say how a duplicate row reads.\n'
+        '==> export <==\n'
+        'Export one resource.\n'
+        '- **format** Name each export format.\n'
+        'Pattern sources:\n'
+        '- Handbook\n',
+      );
+      expect(result.stderr, isEmpty);
+    });
+
+    test('an unknown id with --json exits 64, stdout empty, the envelope on '
+        'stderr', () async {
+      final result = await run(await project(), ['expor', '--json']);
+
+      expect(result.exitCode, 64);
+      expect(result.stdout, isEmpty);
+      final error =
+          (jsonDecode(result.stderr as String)
+                  as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'feature_pattern_unknown');
+      expect(
+        error['message'],
+        'Could not find a feature pattern named "expor".',
+      );
     });
   });
 

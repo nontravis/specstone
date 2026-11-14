@@ -56,6 +56,22 @@ final class FeaturePattern {
     ],
     'reference': [for (final entry in reference) entry.toJson()],
   };
+
+  /// Returns the description, one line per item, then the sources block.
+  ///
+  /// Prints [items], every merged item when null; the sources block is absent
+  /// when [reference] is empty. Each line ends with a newline.
+  String renderBody([List<ChecklistItem>? items]) {
+    return [
+      description,
+      for (final item in items ?? this.items)
+        '- **${item.id}** ${item.text.trimRight()}',
+      if (reference.isNotEmpty) ...[
+        'Pattern sources:',
+        ...reference.map(referenceSourceLine),
+      ],
+    ].map((line) => '$line\n').join();
+  }
 }
 
 /// Merges every feature pattern of [layersById], layers lowest first.

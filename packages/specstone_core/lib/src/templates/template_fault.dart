@@ -36,6 +36,7 @@ enum FaultCode {
   packPinNewer('pack_pin_newer', 78),
   prdCoreMissing('prd_core_missing', 78),
   docTypeUnknown('doc_type_unknown', 64),
+  featurePatternUnknown('feature_pattern_unknown', 64),
   featurePatternIdMismatch('feature_pattern_id_mismatch', 78),
   featurePatternDuplicate('feature_pattern_duplicate', 78),
   checklistItemDuplicate('checklist_item_duplicate', 78);
@@ -45,7 +46,8 @@ enum FaultCode {
   /// The snake_case code printed in the JSON envelope.
   final String wire;
 
-  /// The process exit status: 78 for every fault except `doc_type_unknown`.
+  /// The process exit status: 78 for every fault except the unknown ids,
+  /// `doc_type_unknown` and `feature_pattern_unknown`.
   final int exitStatus;
 }
 
