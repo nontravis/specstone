@@ -37,7 +37,7 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
     });
@@ -51,7 +51,7 @@ void main() {
         ]);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\ntrash/\n',
+          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         );
       }
     });
@@ -98,13 +98,14 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\n',
+        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
     });
     test(
-      'f01/us01/fr04/e05: a file holding all three lines is left untouched',
+      'f01/us01/fr04/e05: a file holding all five lines is left untouched',
       () async {
-        const text = 'build/\n# mine\ntrash/\nindex.sqlite*\n';
+        const text =
+            'reports/\nbuild/\n# mine\ntrash/\nbundles/\nindex.sqlite*\n';
         final r = await writeTree({
           '.specstone/config.yaml': '',
           '.specstone/.gitignore': text,
@@ -113,7 +114,7 @@ void main() {
         expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
       },
     );
-    test('f01/us01/fr04/e05, f02/us04/fr03/e06: a file holding the two F-01 lines gains trash/ at its end', () async {
+    test('f01/us01/fr04/e05, f02/us04/fr03/e06: a file holding the two F-01 lines gains trash/, bundles/, and reports/ at its end', () async {
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
@@ -121,9 +122,85 @@ void main() {
       ensureSpecstoneGitignore(Directory('${r.path}/.specstone'));
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
     });
+    test('f01/us01/fr04/e13, s03/inv22: a layout-version rebuild appends bundles/ and reports/ and keeps the Owner lines in their order', () async {
+      const older = 'trash/\n# mine\n*.tmp\nindex.sqlite*\nbuild/\n';
+      final project = await writeLoginProject();
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      IndexStore.open(docs.projectRoot).close();
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute('UPDATE meta SET layout = ${indexLayoutVersion - 1}')
+        ..close();
+      file(project, '.specstone/.gitignore').writeAsStringSync(older);
+
+      final store = IndexStore.open(docs.projectRoot);
+      addTearDown(store.close);
+      final result = refreshIndex(store, docs);
+
+      expect(result.fullBuild, isTrue);
+      expect(
+        file(project, '.specstone/.gitignore').readAsStringSync(),
+        '${older}bundles/\nreports/\n',
+      );
+    });
+    test('f01/us01/fr04/e13, s03/inv22: a rebuild for a changed stamp checks the five lines', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      file(r, '.specstone/.gitignore').writeAsStringSync('index.sqlite*\n');
+      store.write(
+        () => store.reset(
+          const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+        ),
+      );
+      expect(
+        file(r, '.specstone/.gitignore').readAsStringSync(),
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+      );
+    });
+    test(
+      'f01/us01/fr04/e06, f01/us01/fr04/e13, s03/inv23: a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final r = await writeTree({
+          '.specstone/config.yaml': '',
+          '.specstone/.gitignore':
+              'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        });
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        store.write(
+          () => store.reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'old'),
+          ),
+        );
+        final ignore = file(r, '.specstone/.gitignore')
+          ..writeAsStringSync('*.tmp\n');
+        Process.runSync('chmod', ['444', ignore.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', ignore.path]));
+
+        expect(
+          () => store.write(
+            () => store.reset(
+              const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.indexNotWritable)
+                .having((f) => f.exitStatus, 'exit', 73),
+          ),
+        );
+        expect(ignore.readAsStringSync(), '*.tmp\n');
+        expect(store.readStamp()?.docTypes, 'old');
+      },
+    );
     test(
       'f01/us01/fr04/e06, s03/inv23: a read-only .specstone/ is index_not_writable, exit 73, and writes nothing',
       skip: unreadablePathSkipReason(),
@@ -199,7 +276,7 @@ void main() {
         expect(store.readStamp(), isNull);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\ntrash/\n',
+          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         );
       },
     );

@@ -24,7 +24,13 @@ const damagedIndexWarning =
     'the index was damaged and was rebuilt from the markdown files';
 
 /// The lines of `.specstone/.gitignore`, one per ignored path.
-const specstoneGitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
+const specstoneGitignoreLines = [
+  'index.sqlite*',
+  'build/',
+  'trash/',
+  'bundles/',
+  'reports/',
+];
 
 /// The message of the fault raised when another call holds the index.
 const indexBusyMessage =
@@ -205,7 +211,7 @@ final class SearchRow {
 
 /// The per-checkout SQLite index under `.specstone/`.
 final class IndexStore {
-  new _(this._db, this.warnings);
+  new _(this._db, this._specstoneFolder, this.warnings);
 
   /// Opens the index of [projectRoot], creating it when none exists.
   ///
@@ -255,7 +261,11 @@ final class IndexStore {
     try {
       if (!discard) {
         try {
-          return IndexStore._(_connect(file, busyTimeout), warnings);
+          return IndexStore._(
+            _connect(file, busyTimeout),
+            file.parent,
+            warnings,
+          );
         } on _NotAnIndex {
           // Falls through to the rebuild below.
         } on SqliteException catch (e) {
@@ -264,7 +274,7 @@ final class IndexStore {
       }
       _deleteFiles(file);
       warnings.add(damagedIndexWarning);
-      return IndexStore._(_connect(file, busyTimeout), warnings);
+      return IndexStore._(_connect(file, busyTimeout), file.parent, warnings);
     } on SqliteException catch (e) {
       throw _faultOf(e) ?? e;
     } on FileSystemException {
@@ -273,6 +283,8 @@ final class IndexStore {
   }
 
   final Database _db;
+
+  final Directory _specstoneFolder;
 
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
@@ -401,9 +413,17 @@ final class IndexStore {
     }
   }
 
-  /// Drops every table, recreates them empty in this layout, and stores
-  /// [stamp].
+  /// Checks the `.gitignore` lines, drops every table, recreates them empty in
+  /// this layout, and stores [stamp].
+  ///
+  /// Throws [IndexFault] when `.specstone/.gitignore` cannot be written; no
+  /// table is touched then.
   void reset(IndexStamp stamp) {
+    try {
+      ensureSpecstoneGitignore(_specstoneFolder);
+    } on FileSystemException {
+      throw IndexFault(IndexFaultCode.indexNotWritable, _notWritableMessage);
+    }
     for (final table in _tables) {
       _db.execute('DROP TABLE IF EXISTS $table');
     }
@@ -802,8 +822,8 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
   _ => null,
 };
 
-/// Adds each missing line of `index.sqlite*`, `build/`, and `trash/` to
-/// `.gitignore` in [specstoneFolder].
+/// Appends each missing line of [specstoneGitignoreLines] to `.gitignore` in
+/// [specstoneFolder], keeping every line it holds in place.
 ///
 /// Throws [FileSystemException] when a line is missing and the file is
 /// read-only: a rename would replace it whatever its mode, and `RenderFault`

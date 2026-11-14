@@ -443,6 +443,17 @@ name: Login API
     expect(plan.left, containsAll([toolContainer, stripe, slot]));
   });
 
+  test('f06/us01/fr05, f01/us01/fr04: the planned .specstone/.gitignore holds '
+      'the five lines', () async {
+    final plan = await _plan(acmeLegacy);
+
+    final ignore = plan.creates.singleWhere(
+      (c) => c.path == '.specstone/.gitignore',
+    );
+
+    expect(ignore.text, 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n');
+  });
+
   test('f06/us01/fr07: the journal commits the moves, then the rewrites and '
       'creates with .specstone/.gitignore', () async {
     final plan = await _plan(acmeLegacy);

@@ -140,7 +140,7 @@ Future<Directory> _project({
   },
 }) => gitFixture({
   '.specstone/config.yaml': _config(pin),
-  _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+  _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
   ...files,
 });
 
@@ -762,7 +762,7 @@ void main() {
         String config,
       ) => gitFixture({
         '.specstone/config.yaml': config,
-        _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+        _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         '.gitignore': 'code/\n',
         ...files,
       });
@@ -957,7 +957,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
           topicPath: topic,
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
           storyPath:
@@ -1095,7 +1095,7 @@ void main() {
         final before = await findings(
           await gitFixture({
             '.specstone/config.yaml': shippedPinsConfig(),
-            _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+            _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
             ...docs,
           }),
           home,
@@ -1103,7 +1103,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
           ...docs,
         });
 
@@ -1143,7 +1143,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
           'docs/specs/TECH_STACK.md':
               '---\ncode:\n  - lib/\n---\n# Tech stack\n',
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
@@ -1217,7 +1217,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
           domainPath: domain,
         });
@@ -1270,7 +1270,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
           ...docs,
         });
 
@@ -1491,7 +1491,7 @@ void main() {
         '.specstone/config.yaml':
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
             '  software-tech: 1.4.0\n',
-        _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+        _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         featurePath: '# Login\n',
         storyPath: storyText,
         frPath: '---\nstatus: planned\n---\n# Validate credentials\n',
@@ -1586,7 +1586,7 @@ void main() {
 
       Future<Directory> project() => gitFixture({
         '.specstone/config.yaml': twinConfig(),
-        _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+        _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         featurePath: approvedAs(
           'feature',
           '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
@@ -1692,7 +1692,7 @@ void main() {
                 'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
                 '  software-tech: 1.4.0\ncode_root: app\n'
                 'agent_file_roots:\n  - app/vendor\n',
-            _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+            _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
             '.gitignore': 'app/vendor/\n',
             featurePath: '# Login\n',
             storyPath: '# Email login\n',
