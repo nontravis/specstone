@@ -557,7 +557,7 @@ List<int>? _headingLinesOf(
   if (found.length != levels.length) return null;
   for (var i = 0; i < levels.length; i++) {
     if (found[i] != levels[i]) return null;
-    if (!_sameSlug(anchors.headingSlugs[i], texts[i])) return null;
+    if (!_sameSlug(anchors.headingSlugs[i], texts[i], levels[i])) return null;
   }
   return lines;
 }
@@ -566,12 +566,16 @@ List<int>? _headingLinesOf(
 /// differ from the slug of its written text.
 final _inlineMarkup = RegExp(r'[`*_\[<&\\!~]');
 
-/// Whether [parsed], a slug `markdown` gave a heading, can be the slug of the
-/// heading written as [text]: the slug of [text] with a `-1`, `-2` repeat
-/// suffix, or any slug when [text] holds inline markup.
-bool _sameSlug(String parsed, String text) {
-  if (_inlineMarkup.hasMatch(text)) return true;
-  final slug = headingSlugOf(text);
+/// Whether [parsed], a slug `markdown` gave a heading, is the slug of the
+/// heading of [level] written as [text], bar a `-1`, `-2` repeat suffix.
+///
+/// A text with inline markup is parsed as a heading alone, for the slug the
+/// parser gives it.
+bool _sameSlug(String parsed, String text, int level) {
+  final slug = _inlineMarkup.hasMatch(text)
+      ? anchorsOfBody('${'#' * level} $text')?.headingSlugs.firstOrNull
+      : headingSlugOf(text);
+  if (slug == null) return false;
   if (parsed == slug) return true;
   return parsed.startsWith('$slug-') &&
       int.tryParse(parsed.substring(slug.length + 1)) != null;

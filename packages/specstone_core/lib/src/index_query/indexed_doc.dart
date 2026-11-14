@@ -277,12 +277,15 @@ final class ParsedDoc {
 /// stores no name. Invalid UTF-8 decodes with replacement characters, and
 /// invalid frontmatter YAML leaves no values; each adds a warning instead of
 /// failing. A doc that is not UTF-8, which format skips, is not laid out and
-/// has no `formatted` value.
+/// has no `formatted` value. [idPrefixes] are the item ID prefixes of the
+/// merged doc type set (see `itemIdPrefixesOf`); a typed doc's rule item words
+/// drop the tokens of those prefixes alone.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
   String? codeTarget,
+  Set<String> idPrefixes = const {},
 }) {
   final warnings = <String>[];
   final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
@@ -353,6 +356,7 @@ ParsedDoc parseIndexedDoc({
             sections: sections,
             lineFacts: lineFacts,
             type: docType,
+            idPrefixes: idPrefixes,
           ),
   );
   final indexed = IndexedDoc(

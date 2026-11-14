@@ -521,6 +521,14 @@ void main() {
       },
     );
 
+    test('topic:doc_model#rules RULE-13: a heading with inline markup is '
+        'paired by the slug the parser gives it', () {
+      final facts = _factsOf('# T\n> ## Note\n\n<!--\n## `guide`\n-->\n');
+
+      expect(facts.anchors!.headingSlugs, ['t', 'note']);
+      expect(facts.headingLines, isNull);
+    });
+
     test('topic:doc_model#rules RULE-13: a repeated heading and one with '
         'inline markup still pair with their lines', () {
       final facts = _factsOf('# T\n\n## A\n\n## A\n\n## `code` _x_\n');

@@ -172,14 +172,48 @@ final _proseIdPrefix = RegExp(
 
 /// Returns each item ID written in [prose], in order, with its offset.
 ///
-/// The prefix is not known in prose, so a prefix shape is tried and the
-/// digits are read by [readItemIdAt]: a lettered or unreadable form (RULE-33)
+/// With [prefixes], an ID is a token of one of them, the longest first. With
+/// none, the prefix is not known, so a prefix shape is tried. The digits are
+/// read by [readItemIdAt] either way: a lettered or unreadable form (RULE-33)
 /// is no ID.
-List<({int at, ItemId id})> itemIdsInProse(String prose) => [
-  for (final match in _proseIdPrefix.allMatches(prose))
-    if (readItemIdAt(prose, match.start, match.group(0)!) case final ItemId id)
-      (at: match.start, id: id),
-];
+List<({int at, ItemId id})> itemIdsInProse(
+  String prose, {
+  Set<String>? prefixes,
+}) {
+  if (prefixes == null) {
+    return [
+      for (final match in _proseIdPrefix.allMatches(prose))
+        if (readItemIdAt(prose, match.start, match.group(0)!)
+            case final ItemId id)
+          (at: match.start, id: id),
+    ];
+  }
+  final found = <({int at, ItemId id})>[];
+  final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
+  for (final prefix in longestFirst) {
+    for (
+      var at = prose.indexOf(prefix);
+      at >= 0;
+      at = prose.indexOf(prefix, at + 1)
+    ) {
+      if (at > 0 && _endsWord(prose, at)) continue;
+      if (readItemIdAt(prose, at, prefix) case final ItemId id) {
+        final end = at + id.written.length;
+        final overlaps = found.any(
+          (f) => at < f.at + f.id.written.length && f.at < end,
+        );
+        if (!overlaps) found.add((at: at, id: id));
+      }
+    }
+  }
+  return found..sort((a, b) => a.at - b.at);
+}
+
+/// Whether the character before [at] in [text] is a letter or digit.
+bool _endsWord(String text, int at) {
+  final unit = text.codeUnitAt(at - 1);
+  return _isDigit(unit) || _letters.hasMatch(text[at - 1]);
+}
 
 /// Returns the key `check` holds an item by: `Scenario <n>` for the number
 /// value of a scenario heading (`Scenario 01` repeats `Scenario 1`), else the

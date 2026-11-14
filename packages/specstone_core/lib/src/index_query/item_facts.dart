@@ -121,8 +121,10 @@ List<RuleItemWords> ruleItemWordsOf({
   required List<IndexedSection> sections,
   required LineFacts lineFacts,
   required MergedDocType type,
+  required Set<String> idPrefixes,
 }) {
   final templates = heldTemplatesOf(sections, type);
+  final definitions = definitionLinesOf(doc.afterFrontmatter);
   final isGenerated = generatedLineTest(
     doc,
     lfText,
@@ -139,7 +141,12 @@ List<RuleItemWords> ruleItemWordsOf({
             ),
           ),
         ))
-          ?wordsOfItem(item, templates[i]?.prefixId),
+          ?wordsOfItem(
+            item,
+            templates[i]?.prefixId,
+            idPrefixes: idPrefixes,
+            definitions: definitions,
+          ),
   ];
 }
 

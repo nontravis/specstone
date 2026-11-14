@@ -964,6 +964,56 @@ void main() {
       );
     });
 
+    test('list_repeat_groups E06: a <!-- in a code span opens no comment, so '
+        'the items after it keep their words', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Edge cases\n'
+              '1. E02 — Write `<!--` to open.\n'
+              '2. E03 — The next rule.\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath), [
+        (8, 'E02', 'write to open'),
+        (9, 'E03', 'the next rule'),
+      ]);
+    });
+
+    test('list_repeat_groups E01: a reference link reads as its text against '
+        'the definitions of its doc', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+              'See [the rule][r] and [again].\n\n## Rationale\n'
+              'N/A\n\n[r]: x.md\n[again]: y.md\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath).single.$3, 'see the rule and again');
+    });
+
+    test('list_repeat_groups E01: only a token of an item ID prefix of the '
+        'merged set is dropped, so UTF-8 and HTTP2 stay words', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+              'It follows INV-6 and S2 over UTF-8 with HTTP2.\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(
+        wordsOf(store, frPath).single.$3,
+        'it follows and over utf8 with http2',
+      );
+    });
+
     test('domain:index_query INV-86: a doc stored again keeps only its new '
         'words, and a deleted doc drops them all', () async {
       final project = await writeLoginProject(extra: {frKey: fr});

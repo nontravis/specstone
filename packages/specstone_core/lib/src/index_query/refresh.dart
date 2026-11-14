@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/rendering/doc_tree.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -64,6 +66,7 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
   }
   var reindexed = 0;
   var fullBuild = false;
+  final idPrefixes = itemIdPrefixesOf(project.set.docTypes);
   store.write(() {
     // A peer may have rebuilt or reindexed while this call waited for the
     // lock, so the stamp, the stat keys, and the hashes are read again here.
@@ -87,6 +90,7 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
             bytes: content.bytes,
             match: project.matcher.match(docPath),
             codeTarget: singleTarget,
+            idPrefixes: idPrefixes,
           ),
         );
         reindexed++;
