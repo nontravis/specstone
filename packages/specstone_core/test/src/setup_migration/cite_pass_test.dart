@@ -1,13 +1,17 @@
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show parseOverrides;
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, writeCheckProject;
 import '../../helpers/index_fixture.dart';
 
 const _feature = 'prds/features/f01_login/FEATURE.md';
@@ -158,6 +162,57 @@ void main() {
       expect(pass.apply(_citing, text), text);
       expect(pass.planLine, isNull);
       expect(pass.leftOn(const {}), isEmpty);
+    });
+
+    test('f06/us02/fr02/e85: a Concerns header the merged type does not hold is no Concerns section, for the pass as for check', () async {
+      const override = 'sections:\n  - {id: concerns, disabled: true}\n';
+      const architecture = 'specs/f03_pay/ARCHITECTURE.md';
+      const text =
+          '# Pay architecture\n\n## Concerns\n\n'
+          '- **Data** — one email; see `domain:login`\n';
+      final set = TemplateResolver().resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+        projectLayers: parseOverrides({
+          '.specstone/templates/architecture.yaml': override,
+        }),
+      );
+      final pass = CitePass.plan([
+        for (final MapEntry(key: docPath, value: lf) in {
+          ..._baseDocs,
+          architecture: text,
+        }.entries)
+          (
+            docPath: docPath,
+            lf: lf,
+            type: switch (DocTypeMatcher(
+              set,
+              targetNames: const [],
+            ).match(docPath)) {
+              MatchedDocType(:final docType) => docType,
+              _ => null,
+            },
+            target: null,
+          ),
+      ]);
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/architecture.yaml': override,
+            'docs/$_domain': _baseDocs[_domain]!,
+            'docs/$architecture': text,
+          },
+        ),
+      );
+
+      expect(
+        [
+          for (final finding in report.findings)
+            if (finding.kind == FindingKind.citeUnlinked) finding.path,
+        ],
+        [architecture],
+      );
+      expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 0');
     });
 
     test(

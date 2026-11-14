@@ -1,13 +1,9 @@
 import 'package:specstone_core/src/consistency_check/cite_rules.dart'
-    show isSeeTargetCite;
-import 'package:specstone_core/src/consistency_check/reference_rules.dart'
-    show architectureTypeId, concernsSectionId, seeTargetIn;
+    show isSeeTargetCite, seeTargetsIn;
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show namesakesByFileName;
-import 'package:specstone_core/src/index_query/held_sections.dart'
-    show sectionBodyLines;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docNameOf, docStructureOf;
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
@@ -157,7 +153,7 @@ _DocResult _convertDoc(
   final forms = citeFormsOf(lf);
   if (forms.isEmpty) return (lf: lf, rewrites: 0, kept: const []);
   final lines = lf.split('\n');
-  final seeTargets = _seeTargetsOf(lf, type);
+  final seeTargets = seeTargetsIn(docStructureOf(lf, type), type);
   final edits = <_Edit>[];
   final kept = <_Kept>[];
   var rewrites = 0;
@@ -228,26 +224,6 @@ String _withEdits(List<String> lines, List<_Edit> edits) {
     edited[line - 1] = edited[line - 1].replaceRange(start, end, text);
   }
   return edited.join('\n');
-}
-
-/// Returns the `see` target of each Concerns line of an architecture doc, by
-/// file line, as `check` reads them; none for any other doc type.
-Map<int, String> _seeTargetsOf(String lf, MergedDocType type) {
-  if (type.id != architectureTypeId) return const {};
-  final content = docStructureOf(lf, type);
-  final index = content.sections.indexWhere(
-    (section) => section.key == concernsSectionId,
-  );
-  if (index < 0) return const {};
-  return {
-    for (final line in sectionBodyLines(
-      content.sections,
-      content.lineFacts,
-      index,
-    ))
-      if (!line.fenced)
-        if (seeTargetIn(line.text) case final see?) line.line: see.text,
-  };
 }
 
 // MARK: - Planned tree

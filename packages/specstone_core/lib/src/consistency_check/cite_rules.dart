@@ -2,9 +2,14 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId, concernsSectionId, seeTargetIn;
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show heldSectionIndex;
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
+import 'package:specstone_core/src/index_query/held_sections.dart'
+    show sectionBodyLines;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The link form a message names when the cite picks no one link.
 const _linkForm = '[text](<path>)';
@@ -25,7 +30,7 @@ Iterable<Finding> checkOldCites(CheckContext context, IndexedDoc doc) sync* {
     context.index,
     contentOf: context.contentOf,
   );
-  final seeTargets = _seeTargetsOf(context, doc);
+  final seeTargets = seeTargetsIn(context.contentOf(doc), context.typeOf(doc));
   for (final candidate in candidates) {
     if (isSeeTargetCite(seeTargets[candidate.line], candidate)) continue;
     final message = _messageOf(
@@ -78,14 +83,21 @@ String _partOf(CiteCandidate candidate) {
   return key == null ? items : '$items in section $key';
 }
 
-/// Returns the `see` target of each Concerns line of an architecture [doc],
-/// by file line; none for any other doc.
-Map<int, String> _seeTargetsOf(CheckContext context, IndexedDoc doc) {
-  if (doc.docTypeId != architectureTypeId) return const {};
-  final index = context.heldIndexOf(doc, concernsSectionId);
+/// Returns the `see` target of each Concerns line of [content], a doc of
+/// [type], by file line; none unless [type] is the architecture type.
+///
+/// The Concerns section is the held section [type] maps to it, so `check` and
+/// the migrate cite pass skip the same targets.
+Map<int, String> seeTargetsIn(DocContent content, MergedDocType? type) {
+  if (type?.id != architectureTypeId) return const {};
+  final index = heldSectionIndex(content, type, concernsSectionId);
   if (index == null) return const {};
   return {
-    for (final line in context.bodyLinesOf(doc, index))
+    for (final line in sectionBodyLines(
+      content.sections,
+      content.lineFacts,
+      index,
+    ))
       if (!line.fenced)
         if (seeTargetIn(line.text) case final see?) line.line: see.text,
   };
