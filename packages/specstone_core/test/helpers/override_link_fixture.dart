@@ -34,7 +34,7 @@ const overrideOfRoot =
     '7 days, because a cart holds stock';
 
 /// The fingerprint of [rootRule] as it stands.
-final String rootFingerprint =fingerprintFor(rootRule);
+final String rootFingerprint = fingerprintFor(rootRule);
 
 /// Returns a `domain` doc holding [items] and the `overrides` [entries].
 String domainDoc(
