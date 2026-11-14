@@ -1547,9 +1547,8 @@ void _agentTests() {
         procedure(),
         contains(
           'Write no record code path or `covers:` entry that names this code '
-          'until the Owner approves the draft. Then add the entry at once '
-          "with the step 4.3 `specstone set --field` write, on the path's "
-          "target's record.",
+          'until the Owner approves the draft. Then add it at once by step '
+          "4.3, on the path's target's record.",
         ),
       );
     });
@@ -1614,7 +1613,8 @@ void _agentTests() {
         procedure(),
         contains(
           "For each listed code path but a `tests_unresolved` line's (step "
-          '4.4), run `specstone context --code <path> --for implement`.',
+          '4.4), run `specstone context --code <code root>/<path> --for '
+          'implement`.',
         ),
       );
       expect(
@@ -1627,6 +1627,43 @@ void _agentTests() {
           '`git ls-files --others --exclude-standard -- <prefix>`; with no '
           'such commit, or on a `code_unconfirmed` folder, every file under '
           'the prefix',
+        ),
+      );
+    });
+
+    test('the sync procedure joins the code root to a finding path for --code '
+        'and every git pathspec, and stops on any other exit', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          "A finding's `path` is relative to its target's code root "
+          '(`code_root:` in `.specstone/config.yaml`, under `targets:` per '
+          'target; default `.`). From the project root, `--code` and each '
+          'git pathspec take `<code root>/<path>`.',
+        ),
+      );
+      final step = _oneLine(
+        _sectionOf(
+          _pluginText('skills/sync-sdd/references/procedure.md'),
+          '3. Find the covering docs',
+        ),
+      );
+      expect(
+        step,
+        contains("**Any other exit:** report the CLI's error and stop."),
+      );
+    });
+
+    test('the sync procedure names the base hash source of a field write, a '
+        'tests repoint included, and of a section draft', () {
+      final text = procedure();
+      expect(text, contains('(hash: `bases.fields.<field>` of `get --json`;'));
+      expect(
+        text,
+        contains(
+          '`specstone set <doc>#<section key> --base <hash>` (hash: the '
+          '`base` of `specstone get <doc>#<key>`)',
         ),
       );
     });
