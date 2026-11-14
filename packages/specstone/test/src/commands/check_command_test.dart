@@ -315,7 +315,7 @@ void main() {
       out.toString(),
       contains(
         '$loginDomain:3: suspect: $rootAddress changed after it was confirmed, recorded $rootFingerprint; '
-        'read INV-3 of $rootDomain below, then record $rootAddress with the fingerprint after it\n'
+        'read INV-3 of $rootDomain below, then record $rootAddress in `overrides` with the fingerprint after it\n'
         '    $edited\n'
         '    fingerprint ${fingerprintFor(edited)}\n',
       ),
