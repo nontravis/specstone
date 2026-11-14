@@ -1301,7 +1301,7 @@ void _agentFilesTests() {
         '.specstone/AGENT.md',
         'CLAUDE.md',
       ]);
-      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.6.0'));
+      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.7.0'));
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
@@ -2556,7 +2556,7 @@ void _moveToRecordTests() {
       ]);
     });
 
-    group('$_fr, the shipped software-tech 1.6.0 pack', () {
+    group('$_fr, the shipped software-tech 1.7.0 pack', () {
       Future<Directory> shippedProject({
         Map<String, String> extra = const {},
       }) => writeTree({
@@ -2568,32 +2568,34 @@ void _moveToRecordTests() {
         ...extra,
       });
 
-      test(
-        'E39: the move from 1.4.0 to 1.6.0 runs no one-time pass, the '
-        'move_to_record step alone beside the passes every upgrade runs',
-        () async {
-          final project = await shippedProject(
-            extra: {'CLAUDE.md': '# Owner rules\n'},
-          );
+      test('E39: the move from 1.4.0 to 1.7.0 runs no one-time pass, the '
+          'move_to_record and stamp_code_fingerprints steps beside the passes '
+          'every upgrade runs', () async {
+        final project = await shippedProject(
+          extra: {'CLAUDE.md': '# Owner rules\n'},
+        );
 
-          final plan = _planAt(project);
+        final plan = _planAt(project);
 
-          final text = plan.toText();
-          expect(text, contains('software-tech 1.4.0 -> 1.6.0'));
-          expect(
-            text,
-            contains(
-              '  from 1.4.0: move_to_record user_story, fr status, implements '
-              '-> implementation: 2 docs\n',
-            ),
-          );
-          expect(text, isNot(contains('renumber ids:')));
-          expect(text, isNot(contains('number labels:')));
-          expect(text, isNot(contains('agent files:')));
-          expect(plan.agentFiles!.rootWrites, isEmpty);
-          expect(plan.agentFiles!.topWrites, isEmpty);
-        },
-      );
+        final text = plan.toText();
+        expect(text, contains('software-tech 1.4.0 -> 1.7.0'));
+        expect(
+          text,
+          contains(
+            '  from 1.4.0: move_to_record user_story, fr status, implements '
+            '-> implementation: 2 docs\n',
+          ),
+        );
+        expect(
+          text,
+          contains('  from 1.6.0: stamp_code_fingerprints: 0 docs\n'),
+        );
+        expect(text, isNot(contains('renumber ids:')));
+        expect(text, isNot(contains('number labels:')));
+        expect(text, isNot(contains('agent files:')));
+        expect(plan.agentFiles!.rootWrites, isEmpty);
+        expect(plan.agentFiles!.topWrites, isEmpty);
+      });
 
       test(
         'E33, S11, S13: a story and an FR move their status and code '
