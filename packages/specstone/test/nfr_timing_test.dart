@@ -8,6 +8,7 @@ import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
 import '../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../specstone_core/test/helpers/write_fixture.dart' show testHome;
 import 'helpers/baseline_tree.dart';
 import 'helpers/best_of.dart';
 import 'helpers/built_cli.dart';
@@ -327,6 +328,51 @@ void main() {
           'implements_path_unresolved',
         ),
       ),
+    );
+  });
+
+  test('NFR-P03: a whole-project specstone check reads every skill and agent '
+      'file of an init project within 2 s in the fastest of five calls', () {
+    final root = Directory.systemTemp.createTempSync('specstone_skills_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final environment = {
+      'HOME': testHome().path,
+      'USERPROFILE': testHome().path,
+    };
+    final init = Process.runSync(
+      exe,
+      ['init'],
+      workingDirectory: root.path,
+      environment: environment,
+    );
+    expect(init.exitCode, 0, reason: '${init.stdout}\n${init.stderr}');
+    const edited = '.codex/agents/specstone-sdd-engineer.toml';
+    final file = File('${root.path}/$edited');
+    final original = file.readAsStringSync();
+    ProcessResult check() => Process.runSync(
+      exe,
+      ['check'],
+      workingDirectory: root.path,
+      environment: environment,
+    );
+
+    expect(check().stdout.toString(), isNot(contains('agent_block_stale')));
+    file.writeAsStringSync('hand edit\n');
+    expect(
+      check().stdout.toString(),
+      contains('$edited:1: agent_block_stale: '),
+      reason: 'the timed runs read the skill and agent files',
+    );
+    file.writeAsStringSync(original);
+    expect(
+      bestOf(timingRuns, () {
+        final watch = Stopwatch()..start();
+        final run = check();
+        watch.stop();
+        expect(run.exitCode, anyOf(0, 1), reason: '${run.stderr}');
+        return watch.elapsed;
+      }, label: 'check calls over skill and agent files'),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });
 
