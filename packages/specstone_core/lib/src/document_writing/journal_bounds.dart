@@ -194,11 +194,15 @@ String? writeRefusalOf(
   return inside.any((below) => below.any(isGitEntry)) ? _underGit : null;
 }
 
+/// Returns the warning line for [path], which a run leaves as it is because it
+/// lies under a `.git` entry.
+String underGitLineOf(String path) => '$path lies under .git; left as it is';
+
 /// Returns the warning line for [path], a file a run leaves as it is because
 /// [writeRefusalOf] gave [reason]; without one, because its real path lies
 /// outside the project root.
 String skippedLineOf(String path, [String? reason]) {
-  if (reason == _underGit) return '$path lies under .git; left as it is';
+  if (reason == _underGit) return underGitLineOf(path);
   if (reason != null && reason.startsWith(_unresolved)) {
     return '$path cannot be resolved; left as it is';
   }

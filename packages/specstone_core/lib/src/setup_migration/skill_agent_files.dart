@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show isGitEntry, skippedLineOf, writeRefusalOf;
+    show isGitEntry, skippedLineOf, underGitLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -76,6 +76,7 @@ SkillFilePlan planSkillAndAgentFiles(
   for (final base in bases) {
     planner.plan(base, full: full, includesListedTops: includesListedTops);
   }
+  planner.trashUnclaimed();
   return (
     writes: planner.writes,
     trash: planner.trash,
@@ -130,7 +131,10 @@ final class _Planner {
   final skipped = <String>[];
   final writeSet = <String>{};
   final _planned = <String>{};
+  final _entriesToTrash = <(AgentFileBase, String)>[];
 
+  /// Plans the writes of [base]; the entries to trash wait for
+  /// [trashUnclaimed], so every group has claimed its files by then.
   void plan(
     AgentFileBase base, {
     required bool full,
@@ -158,9 +162,10 @@ final class _Planner {
     AgentFolderGroup group, {
     required bool isUpsert,
   }) {
+    final notFolders = <String>[];
     final listed = {
       for (final folder in group.folders)
-        if (_isUsable(base, folder)) folder: _namesIn(base, folder),
+        if (_isUsable(base, folder, notFolders)) folder: _namesIn(base, folder),
     };
     final entries = {
       for (final MapEntry(key: folder, value: names) in listed.entries)
@@ -171,20 +176,35 @@ final class _Planner {
     };
     final isInUse = entries.values.any((names) => names.isNotEmpty);
     if (!isInUse && !isUpsert) return;
+    notFolders.forEach(_skip);
     for (final file in _rendered) {
       final names = listed[file.folder];
       if (names != null) _planFile(base, file, names);
     }
     for (final MapEntry(key: folder, value: names) in entries.entries) {
       for (final name in names) {
-        _planTrash(base, '${folder.path}/$name');
+        _entriesToTrash.add((base, '${folder.path}/$name'));
       }
     }
   }
 
+  /// Plans the trash of every entry the groups listed, once all of them have
+  /// claimed their files: a folder linked to another host's folder lists that
+  /// host's files as unshipped, and they are claimed, not trash.
+  void trashUnclaimed() {
+    for (final (base, entry) in _entriesToTrash) {
+      _planTrash(base, entry);
+    }
+  }
+
   /// Whether [folder] and its top are folders, or missing, where a run may
-  /// write; a refusal is named once.
-  bool _isUsable(AgentFileBase base, AgentFolder folder) {
+  /// write; a refusal is named once, and a top that is no folder is added to
+  /// [notFolders] for the caller to name when its group takes part.
+  bool _isUsable(
+    AgentFileBase base,
+    AgentFolder folder,
+    List<String> notFolders,
+  ) {
     for (final relative in [folder.path.split('/').first, folder.path]) {
       final path = _pathIn(base, relative);
       final refusal = writeRefusalOf(path, projectRoot: _root);
@@ -193,12 +213,19 @@ final class _Planner {
         return false;
       }
       if (_isNoFolder(path)) {
-        _skip('${_rootPath(base, relative)} is not a folder; left as it is');
+        notFolders.add(
+          '${_rootPath(base, relative)} is not a folder; '
+          'left as it is',
+        );
         return false;
       }
     }
     return true;
   }
+
+  bool _existsAt(String path) =>
+      FileSystemEntity.typeSync(path, followLinks: false) !=
+      FileSystemEntityType.notFound;
 
   bool _isNoFolder(String path) {
     final type = FileSystemEntity.typeSync(path);
@@ -217,7 +244,12 @@ final class _Planner {
   }
 
   void _planFile(AgentFileBase base, RenderedFile file, List<String> names) {
-    final twin = _caseTwinOf(file.entry, names);
+    final twin = caseTwinOf(
+      file.entry,
+      names,
+      existsOnDisk: () =>
+          _existsAt(_pathIn(base, '${file.folder.path}/${file.entry}')),
+    );
     if (twin != null) {
       return _skip(
         '${_rootPath(base, '${file.folder.path}/${file.entry}')} '
@@ -259,27 +291,24 @@ final class _Planner {
   /// Trashes [entry], or leaves it whole and names it when a `.git` entry lies
   /// anywhere inside, so no repository history goes with the trash.
   void _trashOrLeave(AgentFileBase base, String entry) {
-    final git = _gitEntryIn(base, entry);
-    if (git == null) return _trash(base, entry);
-    final refusal = writeRefusalOf(git, projectRoot: _root);
-    _skip(skippedLineOf(_rootPath(base, entry), refusal));
+    if (!_holdsGitEntry(base, entry)) return _trash(base, entry);
+    _skip(underGitLineOf(_rootPath(base, entry)));
   }
 
-  String? _gitEntryIn(AgentFileBase base, String entry) {
+  bool _holdsGitEntry(AgentFileBase base, String entry) {
     final path = _pathIn(base, entry);
     final type = FileSystemEntity.typeSync(path, followLinks: false);
-    if (type != FileSystemEntityType.directory) return null;
-    for (final entity in Directory(
-      path,
-    ).listSync(recursive: true, followLinks: false)) {
-      if (isGitEntry(_nameOf(entity))) return entity.path;
-    }
-    return null;
+    if (type != FileSystemEntityType.directory) return false;
+    return Directory(path)
+        .listSync(recursive: true, followLinks: false)
+        .any((entity) => isGitEntry(_nameOf(entity)));
   }
 
   void _trash(AgentFileBase base, String relative) {
     final path = _rootPath(base, relative);
-    final refusal = writeRefusalOf(_pathIn(base, relative), projectRoot: _root);
+    final real = _pathIn(base, relative);
+    if (_planned.contains(canonicalPath(real))) return;
+    final refusal = writeRefusalOf(real, projectRoot: _root);
     if (refusal == null) {
       trash.add(path);
       if (base.isTop) topTrash.add(path);
@@ -326,10 +355,18 @@ String _relativeOf(FileSystemEntity entity, int prefixLength) =>
     Uri.decodeComponent(entity.uri.path.substring(prefixLength));
 
 /// Returns the name in [names] that spells [entry] with other case, or null.
-String? _caseTwinOf(String entry, List<String> names) {
+///
+/// A twin counts only on a disk that folds case: [entry] is not listed, yet
+/// [existsOnDisk] finds it. On another disk the two names are two entries.
+String? caseTwinOf(
+  String entry,
+  List<String> names, {
+  required bool Function() existsOnDisk,
+}) {
+  if (names.contains(entry)) return null;
   final folded = entry.toLowerCase();
   for (final name in names) {
-    if (name != entry && name.toLowerCase() == folded) return name;
+    if (name.toLowerCase() == folded) return existsOnDisk() ? name : null;
   }
   return null;
 }

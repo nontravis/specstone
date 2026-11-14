@@ -441,6 +441,64 @@ void main() {
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
 
+  group('an agent folder linked to a folder of another host format', () {
+    // Each pair links `link` to `target`; the target holds its own format.
+    final pairs = [
+      (
+        link: AgentFolder.codexAgents,
+        target: AgentFolder.claudeAgents,
+        otherFiles: AgentFolder.codexAgents,
+      ),
+      (
+        link: AgentFolder.agentsAgents,
+        target: AgentFolder.codexAgents,
+        otherFiles: AgentFolder.agentsAgents,
+      ),
+    ];
+
+    for (final pair in pairs) {
+      test('${pair.link.path} to ${pair.target.path} keeps the target files '
+          'and settles after one run', () async {
+        final base = await _base(
+          _under(
+            'proj',
+            _renderedIn(
+              AgentFolder.values.where((folder) => folder != pair.link),
+            ),
+          ),
+        );
+        Link(_at(base, 'proj/${pair.link.path}').path).createSync(
+          _at(base, 'proj/${pair.target.path}').path,
+          recursive: true,
+        );
+        final targetFiles = _renderedIn([pair.target]).keys.toSet();
+
+        final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+        expect(plan.trash, isEmpty);
+        expect(
+          _writtenPaths(plan),
+          _renderedIn([pair.otherFiles]).keys.toSet(),
+        );
+        _expectDriftsMatchPlan(_inputs(base));
+        for (final write in plan.writes) {
+          File(_at(base, 'proj/${write.path}').path)
+              .writeAsStringSync(write.text);
+        }
+        final settled = planSkillAndAgentFiles(_inputs(base), full: false);
+        expect(settled.writes, isEmpty);
+        expect(settled.trash, isEmpty);
+        expect(skillAndAgentFileDrifts(_inputs(base)), isEmpty);
+        for (final path in targetFiles) {
+          expect(
+            File(_at(base, 'proj/$path').path).readAsStringSync(),
+            _allRendered[path],
+          );
+        }
+      }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+    }
+  });
+
   group('an entry holding a repository', () {
     const unshipped = '.claude/skills/specstone-new';
 
@@ -461,6 +519,25 @@ void main() {
           isEmpty,
         );
       });
+    }
+
+    for (final goesOutside in [true, false]) {
+      test('is left whole under the .git line when .git is a link '
+          '${goesOutside ? 'out of' : 'inside'} the project', () async {
+        final base = await _base({
+          'proj/$unshipped/SKILL.md': 'mine\n',
+          'outside/keep.txt': 'x\n',
+          'proj/inside/keep.txt': 'x\n',
+        });
+        Link(
+          _at(base, 'proj/$unshipped/.git').path,
+        ).createSync(_at(base, goesOutside ? 'outside' : 'proj/inside').path);
+
+        final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+        expect(plan.trash, isEmpty);
+        expect(plan.skipped, ['$unshipped lies under .git; left as it is']);
+      }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
     }
 
     test('inside a shipped skill folder adds no line per .git file', () async {
@@ -494,26 +571,81 @@ void main() {
     });
   });
 
+  group('a folder top that is not a folder and its group is not in use', () {
+    test('stays silent while another group is written', () async {
+      final base = await _base({
+        ..._under('proj', _renderedIn(AgentFolderGroup.claudeCode.folders)),
+        'proj/.cursor': 'mine\n',
+        'proj/${_firstPathIn(AgentFolder.claudeSkills)}': 'hand edit\n',
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.writes, hasLength(1));
+      expect(plan.skipped, isEmpty);
+    });
+
+    test('is named when another folder of its group is in use', () async {
+      final agent = _firstPathIn(AgentFolder.claudeAgents);
+      final base = await _base({
+        'proj/.claude/skills': 'mine\n',
+        'proj/$agent': 'hand edit\n',
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.skipped, ['.claude/skills is not a folder; left as it is']);
+      expect(plan.writes, isNotEmpty);
+    });
+  });
+
   group('an entry that differs from a shipped name in case only', () {
-    test('is never written through', () async {
+    test('is a twin only when the disk folds case', () {
+      expect(
+        caseTwinOf('specstone-x', ['Specstone-x'], existsOnDisk: () => true),
+        'Specstone-x',
+      );
+      expect(
+        caseTwinOf('specstone-x', ['Specstone-x'], existsOnDisk: () => false),
+        isNull,
+      );
+      expect(
+        caseTwinOf('specstone-x', [
+          'Specstone-x',
+          'specstone-x',
+        ], existsOnDisk: () => fail('the exact name is listed')),
+        isNull,
+      );
+      expect(
+        caseTwinOf('specstone-x', ['other'], existsOnDisk: () => true),
+        isNull,
+      );
+    });
+
+    test('is never written through on a disk that folds case, and is no '
+        'obstacle on one that does not', () async {
       final shipped = _firstPathIn(AgentFolder.claudeSkills);
       final entry = shipped.split('/')[2];
       final twin = 'S${entry.substring(1)}';
       final base = await _base({
         'proj/.claude/skills/$twin/SKILL.md': 'mine\n',
       });
+      final foldsCase = Directory(_at(base, 'proj/.claude/skills/$entry').path)
+          .existsSync();
 
       final plan = planSkillAndAgentFiles(_inputs(base), full: true);
-
-      expect(
-        plan.writes.where(
-          (write) => write.path.startsWith('.claude/skills/$entry/'),
-        ),
-        isEmpty,
+      final writesToEntry = plan.writes.where(
+        (write) => write.path.startsWith('.claude/skills/$entry/'),
       );
+
+      expect(writesToEntry.isEmpty, foldsCase);
       expect(plan.skipped, [
-        '.claude/skills/$entry differs only in case from $twin; left as it is',
+        if (foldsCase)
+          '.claude/skills/$entry differs only in case from $twin; left as it is',
       ]);
+      final drifted = skillAndAgentFileDrifts(_inputs(base))
+          .where((drift) => drift.path.startsWith('.claude/skills/$entry/'));
+      expect(drifted.isEmpty, foldsCase);
       expect(
         File(_at(base, 'proj/.claude/skills/$twin/SKILL.md').path)
             .readAsStringSync(),
