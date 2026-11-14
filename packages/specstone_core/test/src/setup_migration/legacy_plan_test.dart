@@ -924,6 +924,26 @@ name: NFR
       expect(File('${root.path}/lib/a.dart').readAsStringSync(), code);
     });
 
+    test(
+      'a legacy tree with no code entry reads the whole code root',
+      () async {
+        final root = await writeTree({
+          ...acmeLegacy,
+          'lib/a.dart': 'void f() {}\n// See prds/d01_context.md\n',
+        });
+
+        final plan = planLegacyRun(
+          Directory(root.resolveSymbolicLinksSync()),
+          templates: TemplateResolver(),
+          homeDirectory: null,
+        );
+
+        expect(plan.lists.mentions, [
+          (path: 'lib/a.dart', line: 2, mention: 'prds/d01_context.md'),
+        ]);
+      },
+    );
+
     test('a code file that names no moved doc adds no line', () async {
       final plan = await _plan({
         ...acmeLegacy,
@@ -1662,6 +1682,7 @@ name: Login API
             'email_login/validate_credentials:planned',
           ],
           code: ['email_login:lib/a.dart:A'],
+          tests: const [],
         ),
       )!;
       expect(record.text, expected.text);

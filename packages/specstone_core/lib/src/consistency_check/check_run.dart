@@ -109,10 +109,16 @@ CheckReport runCheck(
       ..addAll(uncoveredCode(context, work))
       ..addAll(docNamesInCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
-      ..addAll(staleAgentBlocks(context))
-      ..addAll(checkErrorCatalogs(context, _namesOf(scope)));
+      ..addAll(staleAgentBlocks(context));
   }
-  findings.addAll(unreadableFindings(context, scope));
+  findings
+    ..addAll(
+      checkErrorCatalogs(
+        context,
+        _namesOf(scope),
+      ).where((finding) => scope.contains(finding.path)),
+    )
+    ..addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
 

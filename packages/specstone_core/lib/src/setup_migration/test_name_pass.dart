@@ -723,7 +723,7 @@ final class _ItemTree {
       featureType: featureType,
       featureDocPath: feature.docPath,
       featureName: feature.name,
-      lines: (statuses: const [], code: const []),
+      lines: (statuses: const [], code: const [], tests: const []),
       target: target,
     );
   }

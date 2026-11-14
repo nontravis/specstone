@@ -1789,6 +1789,28 @@ void main() {
       expect(readDoc(root, _signupRecord), signupBefore);
     });
 
+    test(
+      'a story delete drops the tests lines of the story and of its FRs',
+      () async {
+        final root = await writeWriteProject(
+          extra: _withRecords(
+            login: recordText(
+              statuses: ['email_login:implemented'],
+              tests: [
+                'email_login:app/test/login_test.dart',
+                'reset_password:app/test/reset_test.dart',
+                'reset_password/send_reset_link:app/test/reset_test.dart:sends',
+              ],
+            ),
+          ),
+        );
+        del(root, ['user_story:login/reset_password']);
+        final record = readDoc(root, _loginRecord);
+        expect(record, contains("'email_login:app/test/login_test.dart'"));
+        expect(record, isNot(contains('reset_password')));
+      },
+    );
+
     test('document_writing/delete_doc_subtree/delete_doc_subtree E16: an FR delete drops the entry of that FR alone', () async {
       final root = await writeWriteProject(extra: _withRecords());
       del(root, ['fr:login/reset_password/expire_reset_link']);

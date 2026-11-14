@@ -50,6 +50,7 @@ final class MentionScope {
     required this.agentFileRoots,
     required this.docs,
     this.hasTwins = false,
+    this.docMoves = const [],
     this.runGit = runRealGit,
   });
 
@@ -86,6 +87,10 @@ final class MentionScope {
 
   /// Whether the project holds two or more named code targets.
   final bool hasTwins;
+
+  /// The moves of a plan that has not run yet, so a doc is read for its
+  /// `code:` entries where the plan puts it; none for a command that has.
+  final List<PathMove> docMoves;
 
   /// Starts the `git` that lists the agent files.
   final RunGit runGit;
@@ -255,6 +260,7 @@ Map<String, File> _filesToRead(MentionScope scope) {
     scope.projectRoot,
     scope.set,
     targets: scope.targets,
+    moves: scope.docMoves,
   )) {
     if (!readsNameMentions(_extensionOf(codePath))) continue;
     final projectPath = projectPathOfCodeFile(

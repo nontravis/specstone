@@ -92,6 +92,9 @@ final class CatalogLint {
 
   /// The header of the column whose code spans are the catalog's codes.
   final String column;
+
+  /// Returns the JSON object of this catalog.
+  Map<String, Object> toJson() => {'column': column};
 }
 
 /// A nested `- **<field>:** <text>` item every top-level item must hold.
@@ -103,6 +106,9 @@ final class ItemFieldLint {
 
   /// The texts the nested item may hold; any text when null.
   final List<String>? values;
+
+  /// Returns the JSON object of this item field, `values` only when set.
+  Map<String, Object> toJson() => {'field': field, 'values': ?values};
 }
 
 /// A section that is required while an item of another section holds a value.
@@ -117,6 +123,13 @@ final class RequiredWhenLint {
 
   /// The field value that makes this section required.
   final String value;
+
+  /// Returns the JSON object of this rule.
+  Map<String, Object> toJson() => {
+    'section': section,
+    'field': field,
+    'value': value,
+  };
 }
 
 /// The checks on each `mermaid` flowchart in a section.
@@ -135,6 +148,13 @@ final class DiagramLint {
 
   /// The labels a diagram may not hold.
   final List<String> bannedLabels;
+
+  /// Returns the JSON object of this diagram lint.
+  Map<String, Object> toJson() => {
+    'title': title,
+    'edgeLabels': edgeLabels,
+    'bannedLabels': bannedLabels,
+  };
 }
 
 /// The most sentences a line, or a table cell, may hold.
@@ -149,6 +169,13 @@ final class SentenceLimit {
 
   /// Limits the check to cells under this table header.
   final String? column;
+
+  /// Returns the JSON object of this limit, each optional key only when set.
+  Map<String, Object> toJson() => {
+    'count': count,
+    'linePrefix': ?linePrefix,
+    'column': ?column,
+  };
 }
 
 /// The bounds on the number of items in a section.
@@ -171,6 +198,17 @@ final class ItemCountLint {
 
   /// The item counts required per line prefix.
   final List<({String linePrefix, int count})> prefixes;
+
+  /// Returns the JSON object of these bounds, `min` and `max` only when set.
+  Map<String, Object> toJson() => {
+    'min': ?min,
+    'max': ?max,
+    'perSubsection': perSubsection,
+    'prefixes': [
+      for (final (:linePrefix, :count) in prefixes)
+        {'linePrefix': linePrefix, 'count': count},
+    ],
+  };
 }
 
 /// One enabled guide section of a merged doc type.
@@ -336,7 +374,7 @@ final class MergedSection {
   /// Returns the JSON object of this section with only the keys set.
   ///
   /// `required` prints only when true; `lint` is absent when no lint key is
-  /// set.
+  /// set, and holds each guide-rule key a layer sets.
   Map<String, Object> toJson() {
     final lint = {
       ...MergedLint(
@@ -348,6 +386,14 @@ final class MergedSection {
       ).toJson(),
       'linePrefix': ?linePrefix,
       'requiredPatterns': ?requiredPatterns?.map((p) => p.toJson()).toList(),
+      'minLines': ?minLines,
+      'catalog': ?catalog?.toJson(),
+      'namesCodes': ?namesCodes,
+      'itemFields': ?itemFields?.map((f) => f.toJson()).toList(),
+      'requiredWhen': ?requiredWhen?.toJson(),
+      'diagram': ?diagram?.toJson(),
+      'maxSentences': ?maxSentences?.map((l) => l.toJson()).toList(),
+      'itemCount': ?itemCount?.toJson(),
     };
     return {
       'id': id,

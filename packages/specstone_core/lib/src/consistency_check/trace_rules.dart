@@ -441,7 +441,7 @@ Map<String, int> _singleStatusLines(DocLines lines, String statusFieldId) {
 
 /// Returns `implements_missing` for each entry of a record [doc] whose status
 /// is `implemented` and that names no code path, and `tests_missing` for each
-/// such FR entry that names no test while the FR's `verify_method` is `test`.
+/// such entry that names no test while its item's `verify_method` is `test`.
 ///
 /// An entry's status is its status in the record's own target (INV-29); an
 /// entry no story or FR of the feature carries is `check_record_entries`'s.
@@ -492,9 +492,8 @@ Iterable<Finding> checkImplementedStatus(
   }
 }
 
-/// Whether [item] is an FR whose `verify_method` is `test`.
+/// Whether [item]'s `verify_method` is `test`.
 bool _isVerifiedByTest(IndexedDoc item) =>
-    item.docTypeId == frType &&
     item.valuesOf(_verifyMethodKey).contains(_testMethod);
 
 const _verifyMethodKey = 'verify_method';

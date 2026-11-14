@@ -21,7 +21,11 @@ const recordLayer =
     '  - id: implements\n'
     '    type: output_ref\n'
     '    list: true\n'
-    '    pointer: item_exact\n';
+    '    pointer: item_exact\n'
+    '  - id: tests\n'
+    '    type: output_ref\n'
+    '    list: true\n'
+    '    pointer: item_test\n';
 
 /// The config that names the targets `flutter` and `jaspr`.
 String twinConfig() =>
@@ -32,18 +36,23 @@ String twinConfig() =>
 /// The config of a project with one unnamed code target.
 String oneTargetConfig() => '${shippedPinsConfig()}code_root: app\n';
 
-/// Returns a record: [front], then `statuses`, then `implements`, one quoted
-/// line each; a key with no line is left out.
+/// Returns a record: [front], then `statuses`, `implements`, and `tests`, one
+/// quoted line each; a key with no line is left out.
 String recordText({
   String front = '',
   List<String> statuses = const [],
   List<String> code = const [],
+  List<String> tests = const [],
 }) {
   String list(String key, List<String> lines) => lines.isEmpty
       ? ''
       : "$key:\n${[for (final l in lines) "  - '$l'\n"].join()}";
-  return '---\n$front${list('statuses', statuses)}${list('implements', code)}'
-      '---\n\n# Record\n';
+  final fields = [
+    list('statuses', statuses),
+    list('implements', code),
+    list('tests', tests),
+  ].join();
+  return '---\n$front$fields---\n\n# Record\n';
 }
 
 /// Stamps the doc at [docPath] under [root] with the approval hash of its

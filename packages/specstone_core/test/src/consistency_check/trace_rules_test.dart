@@ -997,6 +997,33 @@ void main() {
     expect(spots(named, FindingKind.testsMissing), isEmpty);
   });
 
+  test('an implemented item with verify_method test and no test is '
+      'tests_missing whatever its doc type', () async {
+    final report = await _checkLogin(
+      _record(
+        statuses: ['$_story:implemented'],
+        code: ['$_story:app/lib/login.dart'],
+      ),
+      extra: {
+        '.specstone/templates/user_story.yaml':
+            'fields:\n'
+            '  - id: verify_method\n'
+            '    type: enum\n'
+            '    enum: [test, analysis]\n',
+        ...edit(loginStory, [
+          (
+            '---\ngoals:\n  - PG-01\n---',
+            '---\ngoals:\n  - PG-01\nverify_method: test\n---',
+          ),
+        ]),
+      },
+    );
+
+    expect(spots(report, FindingKind.testsMissing), [
+      '$_loginRecord:3: tests_missing',
+    ]);
+  });
+
   test('a test field not named tests still ends tests_missing', () async {
     String record(String tail) =>
         "---\nstatuses:\n  - '$_fr:implemented'\nimplements:\n"
