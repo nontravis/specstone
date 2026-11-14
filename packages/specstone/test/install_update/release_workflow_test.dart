@@ -250,11 +250,13 @@ void main() {
       '${corePlain['run']}',
       allOf(startsWith('dart test'), isNot(contains('coverage'))),
     );
-    for (final s in steps.where(
+    final cliCoverage = steps.singleWhere(
       (s) => '${s['run']}'.contains('--coverage-path'),
-    )) {
-      expect('${s['if']}', contains("matrix.os == 'ubuntu-latest'"));
-    }
+    );
+    expect(
+      cliCoverage['if'],
+      "matrix.suite == 'cli' && matrix.os == 'ubuntu-latest'",
+    );
     final upload = steps.singleWhere(
       (s) => '${s['uses']}'.startsWith('actions/upload-artifact@'),
     );
