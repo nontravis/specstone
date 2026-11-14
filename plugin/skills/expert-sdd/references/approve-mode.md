@@ -6,8 +6,9 @@ under `ask`, every draft takes Owner confirmation, and the rest is for `auto` on
 ## Dry run
 
 1. Run `specstone approve <type>:<name> … --dry-run --json`, naming each draft of the run's own list: your own list,
-   or the `Drafts for the Owner's specstone approve` line of the engineer's report. Never run a bare `approve`: it
-   would name a draft another session wrote.
+   or the drafts the engineer's report names as its own (an author report's `Drafts for the Owner's specstone approve`
+   line, a sync or bootstrap report's drafts lines), never its other drafts. Never run a bare `approve`: it would name
+   a draft another session wrote.
 2. Read `approveMode`, and each draft's `name`, `docPath`, and `hash`.
 3. `ask`: take every draft through Owner confirmation, and stop here.
 4. `auto`: run one bare `specstone check --json` after your last write, and judge each draft by the tests below.

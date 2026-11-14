@@ -1377,27 +1377,46 @@ void _handOffTests() {
       }
     });
 
-    final draftsStep = _sectionOf(
+    String draftsStep() => _sectionOf(
       _pluginText('skills/brainstorming-sdd/SKILL.md'),
       '4. Write the drafts, then audit them',
     );
 
     test("brainstorming-sdd hands the last audit's relay block and the author "
         'replies to Owner confirmation', () {
-      final step = _oneLine(draftsStep);
+      final step = _oneLine(draftsStep());
       expect(step, contains('relay block'));
       expect(step, contains('Owner confirmation'));
     });
 
     test("brainstorming-sdd's approval step names the auto mode", () {
-      expect(draftsStep, contains('`auto`'));
+      expect(draftsStep(), contains('`auto`'));
     });
 
-    test("the audit's Waits on the Owner bullet names no sole approver", () {
+    test("the audit's Waits on the Owner bullet names Owner confirmation as "
+        'its clearer and no sole approver', () {
       final audit = _oneLine(
         _pluginText('skills/brainstorming-sdd/references/audit.md'),
       );
+      expect(
+        audit,
+        contains("`specstone:expert-sdd`'s Owner confirmation clears it"),
+      );
       expect(audit, isNot(contains('only the Owner clears')));
+    });
+
+    test("the approve-mode reference takes its drafts only from the run's "
+        'own list or the report lines that name them', () {
+      final step = _oneLine(_sectionOf(_pluginText(_approveMode), 'Dry run'));
+      for (final token in [
+        "`Drafts for the Owner's specstone approve`",
+        'author report',
+        'sync or bootstrap report',
+        'drafts lines',
+        'other drafts',
+      ]) {
+        expect(step, contains(token), reason: token);
+      }
     });
   });
 }
@@ -2243,7 +2262,7 @@ void _agentTests() {
         procedure(),
         contains(
           'Write no record code path or `covers:` entry that names this code '
-          'until the Owner approves the draft. Then add it at once by step '
+          'until it is approved. Then add it at once by step '
           "4.3, on the path's target's record.",
         ),
       );
@@ -2607,7 +2626,7 @@ void _agentTests() {
 
     test('the sync procedure writes a spec draft only on the write-a-spec '
         'pick, in the path code target, and writes no pointer to the code '
-        'before the Owner approves the draft', () {
+        'before the draft is approved', () {
       final text = procedure();
       expect(
         text,
@@ -2618,9 +2637,8 @@ void _agentTests() {
       expect(
         text,
         contains(
-          'the Owner approves it with `specstone approve`. Write no record '
-          'code path or `covers:` entry that names this code until the Owner '
-          'approves the draft.',
+          'it waits for approval. Write no record code path or `covers:` '
+          'entry that names this code until it is approved.',
         ),
       );
     });
