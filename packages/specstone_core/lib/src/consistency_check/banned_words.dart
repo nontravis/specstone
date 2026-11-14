@@ -23,7 +23,7 @@ RegExp bannedWordPattern(String word) => RegExp(
 /// Returns the banned-word findings of a typed [doc]; an untyped doc has none.
 ///
 /// Every prose line of every section holds one finding per occurrence of each
-/// word banned there (INV-9): the doc-level list on every line, and a
+/// word banned there: the doc-level list on every line, and a
 /// section's own list on its `linePrefix` lines, both minus the doc-level and
 /// the section's allowed words. Inline code spans and fenced code are not
 /// prose, so a word inside one is never reported.

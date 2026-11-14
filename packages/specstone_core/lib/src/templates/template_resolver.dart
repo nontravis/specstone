@@ -31,7 +31,7 @@ final class TemplateResolver {
 
   final Map<String, Uint8List> _shippedFiles;
 
-  /// The generator kinds a layer's `generators` entry may name (PD6).
+  /// The generator kinds a layer's `generators` entry may name.
   final Set<String> _generatorKinds;
 
   /// The generator kinds a layer's `generators` entry may name.
@@ -42,7 +42,7 @@ final class TemplateResolver {
   /// [homeDirectory] is the personal pack home, `~`, or null when the
   /// environment names none; a listed personal pack is then `pack_not_found`.
   /// Outside a project every shipped pack loads with no config, no pin check,
-  /// no personal pack, and no project layer (INV-9). Throws the first
+  /// no personal pack, and no project layer. Throws the first
   /// [TemplateFault] in load order; nothing is cached between calls.
   MergedSet resolve({
     required Directory workingDirectory,
@@ -118,7 +118,7 @@ final class TemplateResolver {
   }
 
   /// Loads the packs [names] at their available versions, by name in code
-  /// point order (INV-22), with no pin check.
+  /// point order, with no pin check.
   List<LoadedPack> _availablePacks(Iterable<String> names, Directory? home) {
     final shipped = _shippedPackNames();
     final sorted = names.toList()..sort(compareCodePoints);
@@ -131,21 +131,20 @@ final class TemplateResolver {
     ];
   }
 
-  /// Loads every shipped pack's manifest, by name in code point order
-  /// (INV-22).
+  /// Loads every shipped pack's manifest, by name in code point order.
   List<LoadedPack> _everyShippedPack() => [
     for (final name in _shippedPackNames())
       loadShippedPackManifest(name, _shippedFiles),
   ];
 
-  /// Loads the listed packs' manifests, checking every pin (INV-8).
+  /// Loads the listed packs' manifests, checking every pin.
   ///
-  /// Packs load by name in code point order (INV-22), whatever the YAML
+  /// Packs load by name in code point order, whatever the YAML
   /// order of `packs:`. A listed pack ships when its name is a top-level
   /// folder of the shipped files; its pin must equal its carried version
   /// (`pack_pin_older`, `pack_pin_newer`). A pack that does not ship loads
   /// from the home folder (`pack_not_found`, `pack_name_mismatch`,
-  /// `personal_pack_version_differs`). Unlisted packs never load (INV-9).
+  /// `personal_pack_version_differs`). Unlisted packs never load.
   List<LoadedPack> _listedPacks(ProjectConfig config, Directory? home) {
     final names = config.pins.keys.toList()..sort(compareCodePoints);
     return [
@@ -241,12 +240,12 @@ final class TemplateResolver {
   /// load order, then the project layer); the lowest pack naming a doc type
   /// supplies its `pack`. A project template over a pack-defined id is an
   /// override, never a duplicate. The defining layer, the lowest, of a new
-  /// doc type needs `id` and `path`, plus `description` without `extends`
-  /// (INV-12); with `extends` the doc type starts from the merged target
-  /// with every key kept but `id` and `path` (F3-D49), and no layer above
-  /// the defining layer may write `extends` (INV-4). The merged set is
+  /// doc type needs `id` and `path`, plus `description` without `extends`;
+  /// with `extends` the doc type starts from the merged target
+  /// with every key kept but `id` and `path`, and no layer above
+  /// the defining layer may write `extends`. The merged set is
   /// checked as one set after every merge, with [targetNames] gating a
-  /// `targets:` config on the record doc type (INV-29). The one [LoadIndex]
+  /// `targets:` config on the record doc type. The one [LoadIndex]
   /// built here ranks every file a fault names.
   MergedSet _merge(
     List<ParsedPack> packs,
@@ -311,7 +310,7 @@ final class TemplateResolver {
   }
 
   /// Throws `extends_in_override` for the first layer of [loadOrder] that is
-  /// not its doc type's defining layer and writes `extends` (INV-4).
+  /// not its doc type's defining layer and writes `extends`.
   ///
   /// The defining layer of a doc type is the lowest in [layerLists].
   void _checkExtendsInOverride(
@@ -330,7 +329,7 @@ final class TemplateResolver {
     }
   }
 
-  /// Merges every doc type, extending ones after their targets (INV-4).
+  /// Merges every doc type, extending ones after their targets.
   Map<String, MergedDocType> _resolveInDependencyOrder(
     Map<String, DocTypeLayers> layerLists,
     DocTypeMerger merger,
@@ -348,7 +347,7 @@ final class TemplateResolver {
   /// `extends_cycle`.
   ///
   /// The defining layer of a doc type names its `extends`; ids without one
-  /// merge in code point order (INV-22).
+  /// merge in code point order.
   List<String> _dependencyOrder(
     Map<String, DocTypeLayers> layerLists,
     LoadIndex loadIndex,
@@ -445,9 +444,9 @@ final class TemplateResolver {
   /// Merges the layers of one doc type [id] onto its base.
   ///
   /// A doc type whose defining layer writes `extends` starts from the
-  /// merged target with every key kept but `id` and `path` (F3-D49); the
+  /// merged target with every key kept but `id` and `path`; the
   /// base is frozen as merged. The defining layer must carry `id` and
-  /// `path`, plus `description` without `extends` (INV-12).
+  /// `path`, plus `description` without `extends`.
   MergedDocType _mergeOne(
     String id,
     DocTypeLayers layers,
@@ -470,7 +469,7 @@ final class TemplateResolver {
   }
 
   /// Throws `missing_key` when the defining layer of a new doc type misses
-  /// `id`, `path`, or `description` without `extends` (INV-12).
+  /// `id`, `path`, or `description` without `extends`.
   void _checkNewDocTypeKeys(DocTypeLayer defining, String? target) {
     if (defining.id == null) {
       throw TemplateFault(
@@ -499,7 +498,7 @@ final class TemplateResolver {
   }
 
   /// The base of the doc type [id] extending [targetId]: every key of the
-  /// merged target kept but `id`, `path`, and `max_depth` (F3-D49).
+  /// merged target kept but `id`, `path`, and `max_depth`.
   ///
   /// `pack` and `files` restart with the defining layer; `extendsId` holds
   /// the target. Every list is unmodifiable, so the base is frozen as
@@ -532,7 +531,7 @@ final class TemplateResolver {
     );
   }
 
-  /// The ordered layers each doc type id folds, lowest first (INV-5).
+  /// The ordered layers each doc type id folds, lowest first.
   ///
   /// Pack layers come in `orderPacks` order, then the project layer, whose
   /// `pack` is null. Two packs defining one id where neither reaches the

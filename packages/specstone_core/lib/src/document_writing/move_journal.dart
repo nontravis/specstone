@@ -82,7 +82,7 @@ final class JournalTarget {
 
   /// The folders a step path must land in: the project and docs roots, each
   /// at its canonical path, none while the roots are untrusted. A code root
-  /// outside the project is read, never written (R99).
+  /// outside the project is read, never written.
   List<String> get _bounds => [
     if (trust?.refusal == null)
       for (final folder in [projectRoot, docsRoot])
@@ -573,7 +573,7 @@ final class CommitStep extends JournalStep {
   ///
   /// A path an ignore rule matches and HEAD lacks is force-staged only as the
   /// `to` of one of [moves] whose `from` HEAD tracks, so a tracked file moved
-  /// onto an ignored path stays a rename (INV-6); any other such path stays
+  /// onto an ignored path stays a rename; any other such path stays
   /// on disk out of both commits. A path in neither the work tree nor the
   /// index is skipped, as a moved-away path is once an earlier, refused
   /// attempt already staged its deletion. A path HEAD holds stays committable,
@@ -810,8 +810,7 @@ String _decisiveLine(ProcessResult result) {
 /// [run] saves the steps under [journalPath] once, before applying any, and
 /// the count of steps finished under [cursorPath] before the first and after
 /// each, so [replay]
-/// finishes a run a crash stopped on the next command from where it stopped
-/// (F6-D35).
+/// finishes a run a crash stopped on the next command from where it stopped.
 final class MoveJournal {
   const new(this.steps);
 

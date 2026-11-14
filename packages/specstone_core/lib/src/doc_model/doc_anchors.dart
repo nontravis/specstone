@@ -2,7 +2,7 @@ import 'package:markdown/markdown.dart';
 import 'package:specstone_core/src/doc_model/html_attributes.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart';
 
-/// The anchors of one doc body (doc_model RULE-13).
+/// The anchors of one doc body.
 final class DocAnchors {
   /// Makes [headingSlugs] and [htmlIds] the doc's anchor set.
   const new({
@@ -48,7 +48,7 @@ DocAnchors anchorsOf(List<Node> body) {
 }
 
 /// Returns the anchors of the body text [body], or null when the anchor parse
-/// fails (P11).
+/// fails.
 DocAnchors? anchorsOfBody(String body) {
   final nodes = parseBodyForAnchors(body);
   return nodes == null ? null : anchorsOf(nodes);
@@ -56,7 +56,7 @@ DocAnchors? anchorsOfBody(String body) {
 
 /// Returns the GitHub slug of a heading's rendered text, before any suffix.
 ///
-/// Follows github-slugger (RULE-13): lower-case the text, remove every
+/// Follows github-slugger: lower-case the text, remove every
 /// character outside `\p{Alphabetic}`, `\p{M}`, `\p{Nd}`, `\p{Pc}`, space, and
 /// `-`, then turn each space into `-`.
 ///

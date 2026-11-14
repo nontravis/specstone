@@ -97,7 +97,7 @@ String _anchorOf(int index) => 'doc-${index + 1}';
 
 /// The anchor set of each doc of a build: a rendered doc's from its own
 /// parse, and a doc a link reaches before it renders read on demand, once,
-/// by the function `check` reads (R60).
+/// by the function `check` reads.
 final class _DocAnchorSets {
   new(this._docs);
 

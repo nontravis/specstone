@@ -24,10 +24,9 @@ typedef StampDoc = ({String docPath, String lf, MergedDocType? type});
 // MARK: - StampPass
 
 /// The last step of a pack upgrade: it stamps the approval hash on each doc
-/// that counted as approved before the run (R81) and re-stamps each
+/// that counted as approved before the run and re-stamps each
 /// `confirmed` entry that matched before the run, every one in the one-time
-/// run, else each whose block the cite pass rewrote (apply_steps_and_pins
-/// E30, E31, E83).
+/// run, else each whose block the cite pass rewrote.
 ///
 /// One pass computes every after-hash, over the text each doc has after every
 /// other step, so no earlier step stamps a value a later one changes.
@@ -57,7 +56,7 @@ final class StampPass {
   /// [restampsFingerprints] holds for the one-time run alone, which
   /// re-stamps every matched entry. [citedFrom] holds, for each doc the cite
   /// pass rewrote, its text before that pass; an entry whose block that
-  /// rewrite changed is re-stamped too, and no other (E83). A typed doc whose
+  /// rewrite changed is re-stamped too, and no other. A typed doc whose
   /// frontmatter is not valid YAML, before or after, is skipped and named on
   /// the plan line.
   factory plan(
@@ -110,7 +109,7 @@ final class StampPass {
           : _restamped(doc, old, beforeWorld, world, restamps);
       var lf = entries.lf;
       // A doc that did not await approval before the run counts as approved;
-      // one `check` flagged then (a stale hash, a bad value) stays (G32).
+      // one `check` flagged then (a stale hash, a bad value) stays.
       if (!awaitsApproval(
         ApprovalFields.of(Doc.parse(old.lf)),
         beforeHash,
@@ -317,7 +316,7 @@ final class _World {
   final Map<String, Map<String, String>> _blocks = {};
 
   /// Whether the entry [label] [fingerprint] of the doc at [docPath] equals
-  /// the fingerprint of its block, by the current recipe or the 1.1.0 one (G9).
+  /// the fingerprint of its block, by the current recipe or the 1.1.0 one.
   bool matches(String docPath, String label, String fingerprint) {
     final block = _blockOf(docPath, label);
     if (block == null) return false;

@@ -44,7 +44,7 @@ const _notWritableMessage =
 ///
 /// Bump it on every change to what a row holds: [_schema], the line-facts,
 /// banned-match, and item-facts JSON, and how that JSON is computed. An index
-/// of another layout is then rebuilt instead of failing a read (INV-2). An
+/// of another layout is then rebuilt instead of failing a read. An
 /// older build's reset recreates the meta row without it, so its index is
 /// rebuilt too. Layout 14 added the `target` column and the stamp's
 /// `target_names`: an index of layout 13 holds neither, so it is rebuilt
@@ -155,7 +155,7 @@ final class IndexStamp {
   });
 
   /// Returns the stamp of this binary under the merged doc types of [set] and
-  /// the config's [targetNames], in config order (INV-2).
+  /// the config's [targetNames], in config order.
   static IndexStamp of(MergedSet set, {List<String> targetNames = const []}) =>
       IndexStamp(
         binaryVersion: specstoneVersion,
@@ -310,7 +310,7 @@ final class IndexStore {
 
   /// Returns the stamp the index was written under; null when none, when
   /// the index has another layout, or when the row is damaged, so a
-  /// damaged index rebuilds whole instead of failing the read (INV-77).
+  /// damaged index rebuilds whole instead of failing the read.
   IndexStamp? readStamp() {
     final row = _db.select('SELECT * FROM meta').firstOrNull;
     if (row == null) return null;

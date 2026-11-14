@@ -3,8 +3,8 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
-/// The docs and files one check run reports on (INV-12), and the code targets
-/// its code rules run on (INV-32).
+/// The docs and files one check run reports on, and the code targets
+/// its code rules run on.
 ///
 /// A target's scope is, for each doc it resolves to, the unit `delete` takes:
 /// the doc's own path segment with every file in it, a feature's spec folder

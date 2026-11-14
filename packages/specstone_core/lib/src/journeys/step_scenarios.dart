@@ -14,7 +14,7 @@ const _storyType = 'user_story';
 
 /// Returns the first `user_story` doc in tree order whose Name is [identity],
 /// or null; among [codeTarget]'s docs and the shared docs when [codeTarget]
-/// is given, among every target's docs without it (INV-26).
+/// is given, among every target's docs without it.
 IndexedDoc? storyNamed(DocIndex index, String identity, {String? codeTarget}) {
   final docs = index
       .ofTypeNamed(_storyType, identity)
@@ -60,7 +60,7 @@ String? scenarioBlockOf(
 /// [journeyPath], or null when [scenarioBlockOf] finds no block.
 ///
 /// Holds [scenarioCopyOf]'s lines, each relative link rewritten to reach from
-/// the journey's folder what it reaches from the story (INV-18).
+/// the journey's folder what it reaches from the story.
 String? scenarioCopyFor(
   DocIndex index,
   StepTarget target, {

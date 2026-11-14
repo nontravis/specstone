@@ -231,7 +231,7 @@ List<ItemFact> _itemFactsIn(List<BodyLine> body, MergedSection? template) => [
 
 /// Returns the key `check` holds [item] by, or null when it holds none.
 ///
-/// A letter right after the digits makes no ID (RULE-12), so a lettered or
+/// A letter right after the digits makes no ID, so a lettered or
 /// unreadable form holds none.
 String? _itemIdOf(DocItem item, MergedSection? template) => itemKeyOfHead(
   item.text,
@@ -245,7 +245,7 @@ String? _itemIdOf(DocItem item, MergedSection? template) => itemKeyOfHead(
 ///
 /// The one reader of an item's ID: a `### Scenario <N>` heading of an
 /// `acceptance_criteria` section keys by the number's value; any other item
-/// keys by the ID of [prefixId] at its start, as RULE-19 reads it.
+/// keys by the ID of [prefixId] at its start.
 String? itemKeyOfHead(
   String head, {
   required bool isHeading,

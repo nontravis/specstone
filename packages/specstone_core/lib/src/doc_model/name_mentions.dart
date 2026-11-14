@@ -3,7 +3,7 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 /// A doc-name mention: a code span whose whole text, less an optional
-/// `#<section key>`, reads as a DocAddress of the no-lookup class (RULE-11).
+/// `#<section key>`, reads as a DocAddress of the no-lookup class.
 ///
 /// `line` is 1-based and `column` the 0-based offset of the first character
 /// of `text` in its line, after the opening backticks.
@@ -41,8 +41,8 @@ Iterable<NameMention> _spansOnLine(
 /// The extension that marks a file as markdown, read as a doc is.
 const markdownExtension = '.md';
 
-/// The line-comment mark of each extension whose files hold comment lines
-/// (RULE-11); any other extension has none.
+/// The line-comment mark of each extension whose files hold comment lines;
+/// any other extension has none.
 const _commentMarks = {
   '.dart': '//',
   '.js': '//',

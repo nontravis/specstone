@@ -11,7 +11,7 @@ final _slugPlaceholder = RegExp(r'\{slug\}');
 /// Returns each resolved parent by child docPath. A doc with two or more
 /// candidate parents has no parent and gets a warning by its docPath instead.
 /// A parent type whose path has no `{slug}` never takes a child, because its
-/// name is its doc type id (INV-7).
+/// name is its doc type id.
 ({Map<String, String> parents, Map<String, String> warnings}) resolveParents(
   Iterable<IndexedDoc> docs,
   MergedSet set,

@@ -16,13 +16,13 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
 
-/// A cite candidate of a typed doc's body (doc_model RULE-48): the doc name or
+/// A cite candidate of a typed doc's body: the doc name or
 /// path as written, less its `#<section key>`, at its 1-based file `line`,
 /// with the section key it names, null when it names none, and the item IDs
 /// after it on its line.
 ///
 /// A candidate holds no resolution: `check` and the cite pass judge it when
-/// they run (index_query INV-86).
+/// they run.
 typedef CiteCandidate = ({
   int line,
   String written,
@@ -57,8 +57,8 @@ typedef CiteForm = ({
 /// path, the header of a code span that follows it, such as `` `## Error
 /// envelope` ``. The item IDs are the IDs the reference grammar reads in the
 /// line's prose after the candidate, up to the next citation, a link or
-/// another candidate, so the nearest citation before an ID owns it
-/// (setup_migration `apply_steps_and_pins` E47); an item ID is a token of one
+/// another candidate, so the nearest citation before an ID owns it;
+/// an item ID is a token of one
 /// of [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
 List<CiteCandidate> citeCandidatesOf(
   String lfText, {

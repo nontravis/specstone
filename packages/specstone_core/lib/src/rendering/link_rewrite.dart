@@ -119,7 +119,7 @@ String scopeIds(String bodyHtml, {required String anchor}) {
   return (out..write(bodyHtml.substring(copied))).toString();
 }
 
-// The attributes whose values are the doc's anchors (doc_model RULE-13).
+// The attributes whose values are the doc's anchors.
 bool _isAnchorSetAttribute(HtmlAttribute attribute) =>
     attribute.name == 'id' ||
     (attribute.tag == 'a' && attribute.name == 'name');

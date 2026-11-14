@@ -334,7 +334,7 @@ RunPlan _upgradeRunOf(
     }
   }
 
-  // The passes read every doc's text after the steps and link rewrites (P5).
+  // The passes read every doc's text after the steps and link rewrites.
   final isOneTime = runsOneTimePasses(upgrades);
   final renumber = isOneTime ? _renumberPassOf(works) : null;
   final renumbered = <String>[];
@@ -826,8 +826,7 @@ AgentWritePlan _agentFilesOf(
 
 /// Whether [upgrades] move a prd-core or software-tech pin up from below its
 /// fixed `agentFilesSince` version, not the version this binary carries: the
-/// one trigger of every one-time pass (apply_steps_and_pins E14, E18, E39);
-/// group 3's D18 pass reads it too (R54).
+/// one trigger of every one-time pass, the label pass among them.
 bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
   final since = agentFilesSince[upgrade.pack];
   return since != null && upgrade.pin.compareTo(since) < 0;
@@ -941,8 +940,8 @@ bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
 ///
 /// The [treeMoves] come first. Each `move_file` step, in step order, then
 /// matches every doc at its CURRENT path, the result of the earlier moves, so
-/// moves chain: a doc at `A` under `A` → `B` then `B` → `C` ends at `C`
-/// (F6-D22, INV-10). With two or more [targetNames], a step of a per-target
+/// moves chain: a doc at `A` under `A` → `B` then `B` → `C` ends at `C`.
+/// With two or more [targetNames], a step of a per-target
 /// doc type moves the docs of each target's folder by that target's patterns.
 ({
   Map<String, String> planned,

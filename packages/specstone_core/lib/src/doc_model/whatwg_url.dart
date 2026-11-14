@@ -5,7 +5,7 @@ import 'dart:convert';
 /// Whether the WHATWG URL Standard's basic URL parser returns failure on
 /// [input] with a `file:` URL as its base.
 ///
-/// UTS46 does not run (doc_model RULE-11): a non-ASCII or `xn--` domain
+/// UTS46 does not run: a non-ASCII or `xn--` domain
 /// reads; only steps outside the host fail it.
 bool whatwgParseFails(String input) {
   final url = _withoutStrayUnits(input);
@@ -156,7 +156,7 @@ bool _hostFails(String input, {required bool isOpaque}) {
   if (isOpaque) return input.codeUnits.any(_forbiddenHostUnits.contains);
   final bytes = _percentDecoded(input);
   // A domain that needs UTS46 reads whatever it holds: WHATWG maps it before
-  // the checks below, and no IDNA table ships (doc_model RULE-11).
+  // the checks below, and no IDNA table ships.
   if (_needsUts46(bytes)) return false;
   return _domainFails(String.fromCharCodes(bytes));
 }

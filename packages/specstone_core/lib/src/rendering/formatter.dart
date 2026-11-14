@@ -71,7 +71,7 @@ String headerKey(String headerText) =>
 ///
 /// Refuses a doc whose headers are unknown or repeated, whose text ends
 /// inside a code fence, that opens a generated block of a kind [docType]
-/// lists with no end marker (rendering INV-29), or whose laid-out text does
+/// lists with no end marker, or whose laid-out text does
 /// not parse back into the same frontmatter and sections, changing nothing.
 /// Adds no section. Key blocks are copied as written; the head and every
 /// section body get their layout whitespace normalized by [layOutText].

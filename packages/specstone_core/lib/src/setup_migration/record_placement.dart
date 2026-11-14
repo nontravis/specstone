@@ -54,7 +54,7 @@ typedef RecordPlacement = ({
 /// record: each field of a `move_to_record` step that [type] no longer
 /// declares and that is no `status` comes back as an `output_ref` list, which
 /// the approval hash leaves out, so a doc approved before the run still
-/// compares as approved (apply_steps_and_pins E38).
+/// compares as approved.
 MergedDocType typeBeforeMoves(MergedDocType type, List<MigrationStep> steps) {
   final held = {for (final field in type.fields) field.id};
   final dropped = {
@@ -121,8 +121,7 @@ final class RecordMoves {
   /// more code targets that record is the one of [firstTarget], the target the
   /// spec tree moves to. A value the record already holds for its item is kept
   /// as it is; a different one, or any value no record entry takes, is
-  /// `value_unplaced`, listed for every such doc at once
-  /// (apply_steps_and_pins E33 to E35).
+  /// `value_unplaced`, listed for every such doc at once.
   ///
   /// [isTaken] is the run's `takenAfterMoves` read for a DocPath; a new
   /// record whose path it holds is `value_unplaced` for each doc whose value
@@ -203,7 +202,7 @@ final class RecordMoves {
 /// rest chained through `more`; nothing when [faults] is empty.
 ///
 /// A doc can collide once per rival and once per step, or hold several values
-/// no record takes; it is listed once (INV-16).
+/// no record takes; it is listed once.
 void throwFaultsPerDoc(List<MigrateFault> faults) {
   final seen = <String?>{};
   final perDoc = [

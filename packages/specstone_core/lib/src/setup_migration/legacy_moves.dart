@@ -13,7 +13,7 @@ const _specsFolder = 'specs/';
 const _topicsFolder = 'specs/topics/';
 const _architectureFolder = 'specs/architecture/';
 
-/// The Spec map file, which stays in place whatever row names its folder (E13).
+/// The Spec map file, which stays in place whatever row names its folder.
 const _specIndexPath = 'specs/INDEX.md';
 
 /// The Spec map `feature_id` that marks a cross-cutting row.
@@ -105,10 +105,10 @@ final class LegacyMoves {
 /// Plans the renames of the legacy files [docPaths].
 ///
 /// [docPaths] are every file under `prds/` and `specs/`. A file is placed by
-/// its name, its folder, and the Spec map only (INV-2). Throws
+/// its name, its folder, and the Spec map only. Throws
 /// `MigrateFault` `legacy_collision` when two moves land on one path, a move
 /// lands on a staying file, or moves form a cycle, each compared ignoring
-/// letter case; no move is dropped (E14).
+/// letter case; no move is dropped.
 LegacyMoves planLegacyMoves(
   List<String> docPaths, {
   required List<SpecMapRow> specMap,
@@ -160,7 +160,7 @@ LegacyMoves planLegacyMoves(
   );
 }
 
-/// Returns [path] as every legacy path comparison of E11, E12, and E14 sees it.
+/// Returns [path] as every legacy path comparison sees it.
 ///
 /// Dart's locale-free simple Unicode lowercase, so `Ä` and `ä` fold too. It is
 /// not a file system's fold: NTFS and APFS fold some names it keeps apart
@@ -264,7 +264,7 @@ Map<String, Set<String>> _specFoldersOf(List<SpecMapRow> specMap) {
 ///
 /// Such a folder is `specs/` or a subfolder of it that holds one of [paths].
 /// One whose last segment no other shares (ignoring letter case) keeps it; the
-/// folders that share one take [trailingRunNames] among them (E12). `specs/`
+/// folders that share one take [trailingRunNames] among them. `specs/`
 /// keeps its own last segment, `specs`, and joins no sharing set, since it has
 /// no trailing run.
 Map<String, String> _topicFolderNames(
@@ -421,7 +421,7 @@ Map<String, _Placement> _resolveFeatureSpecs(List<_FeatureSpecFile> files) {
 
 /// Places [sameName], files of one name and feature, under their old names.
 ///
-/// Several files of a name each go into a subfolder (E11); a lone file, and a
+/// Several files of a name each go into a subfolder; a lone file, and a
 /// file held directly by `specs/`, go straight into the feature's spec folder.
 Map<String, _Placement> _placeUnderOldNames(List<_FeatureSpecFile> sameName) {
   final subfolders = sameName.length == 1
@@ -445,7 +445,7 @@ Map<String, _Placement> _placeUnderOldNames(List<_FeatureSpecFile> sameName) {
 
 /// Throws `legacy_collision` for every target in [moves] that two moves land
 /// on, that a move shares with a staying file, or that lies on a cycle of
-/// moves (E14).
+/// moves.
 ///
 /// A target is the case-blind path; the fault line names its first spelling in
 /// code point order. [sorted] holds every input path.

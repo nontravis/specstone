@@ -21,9 +21,9 @@ const _blockIndent = '    ';
 
 /// A rule violation kind of the consistency check.
 ///
-/// Values follow the `s02_api_check.md` Finding kinds table. [wire] is the
+/// [wire] is the
 /// snake_case name printed in text and JSON; none equals a Specstone error
-/// code (INV-2).
+/// code.
 enum FindingKind {
   frontmatterInvalid('frontmatter_invalid'),
   requiredFieldMissing('required_field_missing'),
@@ -143,7 +143,7 @@ enum FindingKind {
     _ => WaitsFor.agent,
   };
 
-  /// Whether the kind is reported against the project, not one doc (INV-12).
+  /// Whether the kind is reported against the project, not one doc.
   bool get isProjectLevel =>
       this == codeUncovered ||
       this == docCitedInCode ||

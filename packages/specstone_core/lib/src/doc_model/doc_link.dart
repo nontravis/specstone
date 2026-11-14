@@ -13,15 +13,15 @@ final class DocTarget extends DocLinkTarget {
   /// The docPath the link resolves to.
   final String docPath;
 
-  /// The fragment the link carries, decoded (RULE-7); null with no `#`; `''`
-  /// for `#` alone (the doc's top, RULE-13).
+  /// The fragment the link carries, decoded; null with no `#`; `''`
+  /// for `#` alone (the doc's top).
   final String? anchor;
 
   /// The fragment as written, escapes kept; null with no `#`.
   final String? rawAnchor;
 }
 
-/// A target the grammar cannot read (RULE-11); [shown] is the href as
+/// A target the grammar cannot read; [shown] is the href as
 /// written.
 final class UnreadableTarget extends DocLinkTarget {
   new(this.shown);
@@ -39,7 +39,7 @@ final class OutsideTarget extends DocLinkTarget {
 }
 
 /// Resolves [href], written in the doc at [docPath], to its target, reading
-/// [href] through the reference grammar (RULE-11).
+/// [href] through the reference grammar.
 ///
 /// An escape that is not UTF-8 reads as U+FFFD, so such a link resolves like
 /// any other path.

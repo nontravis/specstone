@@ -6,7 +6,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 ///
 /// Leading and trailing blank lines are dropped, so a section body hashes the
 /// same with or without the gap under its heading; a last line with no line
-/// break gets one; an empty or all-blank [block] stays empty (INV-3).
+/// break gets one; an empty or all-blank [block] stays empty.
 String upstreamText(String block) =>
     _withoutLeadingBlanks(_withoutTrailingBlanks(layOutText(toLf(block))));
 
@@ -25,7 +25,7 @@ String _withoutTrailingBlanks(String lf) {
 /// Returns the first 12 lowercase hex characters of the SHA-256 of [block].
 ///
 /// The hash is [baseHashOf] over [upstreamText], so one function holds the
-/// recipe (F4-D17).
+/// recipe.
 String fingerprintOf(String block) => baseHashOf(upstreamText(block));
 
 /// Returns the 1.1.0 fingerprint of [block], taken before layout.
