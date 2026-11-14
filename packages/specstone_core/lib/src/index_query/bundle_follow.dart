@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show ItemId, acceptanceSectionId, readItemId, scenarioIdPrefix;
 import 'package:specstone_core/src/index_query/bundle.dart';
@@ -8,6 +10,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Parts
@@ -16,8 +19,8 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _pastLastLine = 0x7fffffff;
 
 /// An item, a section, or a summary doc that a link of a bundle cites outside
-/// what the bundle prints, cut from the stored text, or the path of an
-/// untyped doc a link names (INV-84, INV-8).
+/// what the bundle prints, cut from the stored text, or the path of a file no
+/// doc type describes that a link names (INV-84, INV-8).
 final class AppendedPart {
   const new({
     required this.doc,
@@ -27,6 +30,19 @@ final class AppendedPart {
     this.summary = false,
     required this.text,
   });
+
+  /// A part that names [path], a file under the docs root that the index
+  /// holds no doc for, by its path alone, as an untyped doc of that path.
+  new file(String path)
+    : this(
+        doc: IndexedDoc(
+          docPath: path,
+          name: path,
+          frontmatter: const {},
+          tokens: 0,
+        ),
+        text: '',
+      );
 
   final IndexedDoc doc;
 
@@ -49,8 +65,8 @@ final class AppendedPart {
   /// for a path.
   final String text;
 
-  /// Whether the part names an untyped doc by its path alone, since an
-  /// untyped doc never joins a bundle (follow_cited_links E10).
+  /// Whether the part names a file no doc type describes by its path alone,
+  /// since an untyped doc never joins a bundle (follow_cited_links E10).
   bool get pathOnly => !doc.isTyped;
 }
 
@@ -58,10 +74,11 @@ final class AppendedPart {
 /// the links of each part cite, in the order a breadth-first walk first
 /// reaches them, each once (`index_query/get_task_bundle/follow_cited_links`).
 ///
-/// `query` follows no link. An untyped doc adds its path alone. A target the
-/// bundle already prints whole, a doc `--no-project` dropped, and a link
-/// `check` reports as broken add nothing; a link into another code target's
-/// doc is followed.
+/// `query` follows no link. A file no doc type describes, an untyped doc or
+/// any other linked file on disk, adds its path alone. A target the bundle
+/// already prints whole, a doc `--no-project` dropped, and a link `check`
+/// reports as broken add nothing; a link into another code target's doc is
+/// followed.
 List<AppendedPart> followLinks(DocIndex index, Bundle bundle) {
   if (bundle.mode == BundleMode.query) return const [];
   final walk = _Walk(index, bundle);
@@ -77,8 +94,9 @@ List<AppendedPart> followLinks(DocIndex index, Bundle bundle) {
 ///
 /// The index keeps a text only for a link whose text can read as an item ID
 /// (RULE-45), so any other link takes an empty text, which reads as none;
-/// `shaped` tells the two apart.
-typedef _Link = ({LinkText text, bool shaped});
+/// `shaped` tells the two apart. `file` marks a link to a file that is no
+/// `.md` doc.
+typedef _Link = ({LinkText text, bool shaped, bool file});
 
 /// What a link cites, with the doc it lands in, the `##` section its anchor
 /// names, and the link itself.
@@ -179,7 +197,7 @@ final class _Walk {
     for (final (:link, :cited) in classified) {
       final range = cited == null ? null : rangeFrom[cited.link];
       if (cited == null) {
-        _appendPath(link.text);
+        _appendPath(link);
       } else if (range != null) {
         _appendRange(cited, range);
       } else {
@@ -188,12 +206,38 @@ final class _Walk {
     }
   }
 
-  /// Appends the path of the untyped doc [link] lands in, once; any other
-  /// link that cites nothing adds nothing.
-  void _appendPath(LinkText link) {
-    final doc = index.at(link.target);
-    if (doc == null || doc.isTyped || !_paths.add(doc.docPath)) return;
+  /// Appends the path of the file no doc type describes that [link] names,
+  /// once: an untyped doc, or a file that is no `.md` doc and exists on
+  /// disk. Any other link that cites nothing adds nothing.
+  void _appendPath(_Link link) {
+    final path = link.text.target;
+    if (_paths.contains(path)) return;
+    if (link.file) {
+      if (!_onDisk(path)) return;
+      _paths.add(path);
+      _parts.add(AppendedPart.file(path));
+      return;
+    }
+    final doc = index.at(path);
+    if (doc == null || doc.isTyped) return;
+    _paths.add(path);
     _parts.add(AppendedPart(doc: doc, text: ''));
+  }
+
+  /// Whether [path], a path under the docs root, names a file or folder on
+  /// disk; a missing one is `check`'s `link_target_missing`, never followed.
+  bool _onDisk(String path) {
+    if (!isPortablePath(path)) return false;
+    final root = index.docsRoot.path;
+    final separator = Platform.pathSeparator;
+    final onDisk = [
+      if (root.endsWith(separator))
+        root.substring(0, root.length - 1)
+      else
+        root,
+      ...path.split('/'),
+    ].join(separator);
+    return FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound;
   }
 
   /// Returns what [link] cites, or null when it lands in no doc, an untyped
@@ -514,21 +558,22 @@ final class _DocView {
       content.sections.indexWhere((held) => identical(held, section));
 }
 
-/// Returns the doc links and self links of [facts] in line order, each with
-/// the stored [LinkText] of its place when the index keeps one.
+/// Returns the doc links, self links, and file links of [facts] in line
+/// order, each with the stored [LinkText] of its place when the index keeps
+/// one.
 List<_Link> _linksOf(LineFacts facts) {
   final texts = <(int, String, String?, String), List<LinkText>>{};
   for (final text in facts.linkTexts) {
     (texts[(text.line, text.target, text.anchor, text.shown)] ??= []).add(text);
   }
   final taken = <(int, String, String?, String), int>{};
-  _Link linkOf(LinkPlace place) {
+  _Link linkOf(LinkPlace place, {required bool file}) {
     final key = (place.line, place.target, place.anchor, place.shown);
     final nth = taken[key] ?? 0;
     taken[key] = nth + 1;
     final stored = texts[key];
-    if (stored != null && nth < stored.length) {
-      return (text: stored[nth], shaped: true);
+    if (!file && stored != null && nth < stored.length) {
+      return (text: stored[nth], shaped: true, file: false);
     }
     return (
       text: (
@@ -542,24 +587,26 @@ List<_Link> _linksOf(LineFacts facts) {
         shown: place.shown,
       ),
       shaped: false,
+      file: file,
     );
   }
 
-  return [
-    for (final place in _inLineOrder(facts.links, facts.selfLinks))
-      linkOf(place),
+  final links = [
+    for (final place in [...facts.links, ...facts.selfLinks])
+      linkOf(place, file: false),
+    for (final place in facts.fileLinks) linkOf(place, file: true),
   ];
+  return _byLine(links);
 }
 
-/// Returns [a] and [b], each in source order, merged by line; `inSourceOrder`
-/// orders the places of one line.
-List<LinkPlace> _inLineOrder(List<LinkPlace> a, List<LinkPlace> b) {
-  final merged = <LinkPlace>[];
-  var i = 0;
-  var k = 0;
-  while (i < a.length || k < b.length) {
-    final takeA = k >= b.length || (i < a.length && a[i].line <= b[k].line);
-    merged.add(takeA ? a[i++] : b[k++]);
-  }
-  return merged;
+/// Returns [links], whose doc, self, and file links each come in source
+/// order, sorted by line, ties kept in list order; `inSourceOrder` orders
+/// the links of one line.
+List<_Link> _byLine(List<_Link> links) {
+  final order = [for (var i = 0; i < links.length; i++) i]
+    ..sort((a, b) {
+      final byLine = links[a].text.line.compareTo(links[b].text.line);
+      return byLine != 0 ? byLine : a - b;
+    });
+  return [for (final i in order) links[i]];
 }

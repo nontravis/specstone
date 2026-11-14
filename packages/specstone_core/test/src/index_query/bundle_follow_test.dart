@@ -210,6 +210,18 @@ void main() {
       'prds/features/f01_login/us02_reset_password/USER_STORY.md#acceptance_criteria',
     ]);
   });
+  test('f01/us05/fr05/e10: a link to a file that is no .md doc appends its path only, once, in source order; a missing file appends nothing', () async {
+    final parts = await followed(
+      'See [schema]($_specs/schema.dbml), [ranges]($_specs/topics/ranges.md), '
+      '[schema again]($_specs/schema.dbml), and [gone]($_specs/gone.dbml).',
+    );
+    expect(parts.map(_id), [
+      'specs/schema.dbml',
+      'specs/topics/ranges.md summary',
+    ]);
+    expect(parts.first.pathOnly, isTrue);
+    expect(parts.first.text, isEmpty);
+  });
   test('f01/us05/fr05/e10: a link to a file no doc type describes appends its path only, once', () async {
     final parts = await followed(
       'See [the old context](../../../d01_context.md) and '
@@ -243,7 +255,7 @@ void main() {
       isEmpty,
     );
   });
-  test('item_links OtherAnchorCite: a link to an anchor that names no section or block appends nothing', () async {
+  test('f01/us05/fr05/e13: a link to an anchor that names no section or block appends nothing', () async {
     expect(
       await followed(
         'See [the ranges title]($_specs/topics/ranges.md#ranges).',

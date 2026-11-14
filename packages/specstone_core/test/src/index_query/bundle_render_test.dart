@@ -593,6 +593,27 @@ void main() {
         'cited': true,
       });
     });
+    test('f01/us05/fr05/e10: a link to a file that is no .md doc prints its path alone, listed, and under --json a path with no text', () async {
+      final a = implement(
+        await citing('See [the schema]($specs/schema.dbml).'),
+      );
+      expect(
+        a.text,
+        contains(
+          '\n\n==> specs/schema.dbml · cited <==\n==> bundle: 11 docs, ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith('- login (error)\n- specs/schema.dbml · cited\n'),
+      );
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+      expect((a.json['docs']! as List).last, {
+        'path': 'specs/schema.dbml',
+        'tokens': tokenSizeOf('==> specs/schema.dbml · cited <=='),
+        'cited': true,
+      });
+    });
     test('f01/us05/fr05/e03: a ### block that starts no item names its anchor; --json gives its section and heading', () async {
       final a = implement(
         await citing('See [a note]($specs/topics/terms.md#a-note).'),

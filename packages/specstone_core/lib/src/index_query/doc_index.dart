@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -30,6 +32,7 @@ final class DocIndex {
     this.docs,
     this._store,
     this._docPathOfFile, {
+    required this.docsRoot,
     List<String> targetNames = const [],
   }) : _byPath = {for (final doc in docs) doc.docPath: doc},
        _children = _childrenByParent(docs),
@@ -43,6 +46,9 @@ final class DocIndex {
 
   /// Every doc in tree order.
   final List<IndexedDoc> docs;
+
+  /// The docs root on disk, which a file link's path is read under.
+  final Directory docsRoot;
 
   /// The config's target names, in config order; empty with one unnamed
   /// target.
