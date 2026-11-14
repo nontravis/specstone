@@ -1195,7 +1195,125 @@ void _handOffTests() {
     }
     expect(hits..sort(), unorderedEquals(_ownTextNameCites.keys));
   });
+
+  group('the auto approve branch', () {
+    test("expert-sdd's Owner confirmation points the approve item to "
+        'references/approve-mode.md', () {
+      final section = _oneLine(
+        _sectionOf(
+          _pluginText('skills/expert-sdd/SKILL.md'),
+          'Owner confirmation',
+        ),
+      );
+      expect(section, contains('references/approve-mode.md'));
+    });
+
+    test('the approve-mode reference runs the dry run, reads approveMode, '
+        'checks, and approves the clean drafts in one --yes call', () {
+      final text = _oneLine(_pluginText(_approveMode));
+      for (final token in [
+        '--dry-run --json',
+        'approveMode',
+        '`ask`',
+        '`auto`',
+        'check --json',
+        '@<hash>',
+        '--yes',
+        'Owner confirmation',
+      ]) {
+        expect(text, contains(token), reason: token);
+      }
+    });
+
+    test('the approve-mode reference holds five numbered clean-draft tests, '
+        'the last reading Not landed: lines', () {
+      final tests = _sectionOf(_pluginText(_approveMode), 'Clean-draft tests');
+      final numbered = RegExp(
+        r'^\d+\. .*',
+        multiLine: true,
+      ).allMatches(tests).map((match) => match[0]!).toList();
+      expect(numbered, hasLength(5));
+      for (final (at, line) in numbered.indexed) {
+        expect(line, startsWith('${at + 1}. '));
+      }
+      expect(numbered.last, contains('Not landed:'));
+      expect(_oneLine(tests), contains('Not landed: none'));
+    });
+
+    test('the approve-mode reference retries once on exit 75 and makes one '
+        'last call', () {
+      final exit = _oneLine(_sectionOf(_pluginText(_approveMode), 'Exit 75'));
+      for (final token in [
+        '75',
+        '`base_mismatch`',
+        '`index_busy`',
+        'retry once',
+        'one last',
+        'never retried',
+        'the retry',
+      ]) {
+        expect(exit, contains(token), reason: token);
+      }
+      final sentences = _oneLine(_pluginText(_approveMode))
+          .split(RegExp(r'(?<=\.) '));
+      final withThird = sentences.where((line) => line.contains('third'));
+      expect(withThird, isNotEmpty);
+      for (final line in withThird) {
+        expect(line.toLowerCase(), contains('never'), reason: line);
+      }
+    });
+
+    test('the approve-mode reference names docPath and Why: for its list', () {
+      final list = _oneLine(
+        _sectionOf(_pluginText(_approveMode), 'Approved list'),
+      );
+      expect(list, contains('docPath'));
+      expect(list, contains('Why:'));
+    });
+
+    test('only expert-sdd holds the auto rule', () {
+      final holders = [
+        for (final file in _skillAndAgentFiles())
+          if (_pluginText(file).contains('approveMode')) file,
+      ];
+      expect(holders, [_approveMode]);
+    });
+
+    test('no skill reads the approve mode from a shell', () {
+      final root = pluginRoot().uri.toFilePath(windows: false);
+      final holders = [
+        for (final file
+            in pluginRoot().listSync(recursive: true).whereType<File>())
+          if (RegExp(r'\$(?:env:)?SPECSTONE_APPROVE_MODE')
+              .hasMatch(file.readAsStringSync()))
+            file.uri.toFilePath(windows: false).substring(root.length),
+      ];
+      expect(holders, isEmpty);
+    });
+
+    test('confirm-links names the approved list for a re-confirmation under '
+        'auto', () {
+      expect(_pluginText(_confirmLinks), contains('approve-mode.md'));
+    });
+
+    test('every pointing skill names Owner confirmation for its drafts and '
+        'holds no auto copy', () {
+      for (final skill in [
+        'bootstrap-prd',
+        'bootstrap-spec',
+        'init',
+        'sync-sdd',
+        'update-sdd',
+      ]) {
+        final text = _oneLine(_pluginText('skills/$skill/SKILL.md'));
+        expect(text, contains('Owner confirmation'), reason: skill);
+        expect(text, isNot(contains('approveMode')), reason: skill);
+      }
+    });
+  });
 }
+
+const _approveMode = 'skills/expert-sdd/references/approve-mode.md';
 
 /// An instruction to cite by a name: a cite word, then `by` a name, within
 /// one clause, or a citation of a doc name.

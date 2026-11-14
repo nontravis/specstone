@@ -11,6 +11,7 @@ then write the entries with `specstone set <target> --field confirmed --base <ha
 
 A `suspect` link's upstream block moved on since the entry was recorded: re-read it and confirm again the same way.
 Your approval request to the Owner then says what changed upstream.
+Under the `auto` mode, the approved list of `references/approve-mode.md` says it.
 
 ## Cited links (rule 7)
 

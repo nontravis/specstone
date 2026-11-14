@@ -55,10 +55,10 @@ alone can miss a root above it.
 own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
-   - `approve`: run `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own
-     message: first the literal `Why:` (in English), then one sentence in the language of the conversation on why
-     the draft changed; then the draft's printed text, pasted verbatim. Never edit that text. When output is cut,
-     rerun `--dry-run` per draft so each is pasted whole.
+   - `approve`: first follow `references/approve-mode.md`; for each draft it leaves to the Owner, run
+     `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own message: the
+     literal `Why:` (in English), one sentence in the conversation's language on why it changed, then its printed
+     text, pasted verbatim. Never edit that text. When output is cut, rerun `--dry-run` per draft.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.
