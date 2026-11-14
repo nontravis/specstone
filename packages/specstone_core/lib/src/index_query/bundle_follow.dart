@@ -16,41 +16,52 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _pastLastLine = 0x7fffffff;
 
 /// An item, a section, or a summary doc that a link of a bundle cites outside
-/// what the bundle prints, cut from the stored text (INV-84).
+/// what the bundle prints, cut from the stored text, or the path of an
+/// untyped doc a link names (INV-84, INV-8).
 final class AppendedPart {
   const new({
     required this.doc,
     this.sectionKey,
     this.itemId,
+    this.heading,
     this.summary = false,
     required this.text,
   });
 
   final IndexedDoc doc;
 
-  /// The `##` section's key; the link's anchor for a `###` block that starts
-  /// no item; null for a summary doc.
+  /// The key of the `##` section that holds the part; null for a summary doc
+  /// and a path.
   final String? sectionKey;
 
   /// The cited item's ID, each item of a range its own; null for a section,
-  /// a `###` block that starts no item, and a summary doc.
+  /// a `###` block that starts no item, a summary doc, and a path.
   final String? itemId;
+
+  /// The link's anchor for a `###` block that starts no item, else null.
+  final String? heading;
 
   /// Whether the part is the doc in summary (INV-25).
   final bool summary;
 
   /// What prints after the part's naming line: an item's own lines, a
-  /// section whole, or a summary doc's title and summary sections.
+  /// section whole, a summary doc's title and summary sections, or nothing
+  /// for a path.
   final String text;
+
+  /// Whether the part names an untyped doc by its path alone, since an
+  /// untyped doc never joins a bundle (follow_cited_links E10).
+  bool get pathOnly => !doc.isTyped;
 }
 
 /// Returns the parts the links of [bundle]'s printed docs cite, then those
 /// the links of each part cite, in the order a breadth-first walk first
 /// reaches them, each once (`index_query/get_task_bundle/follow_cited_links`).
 ///
-/// `query` follows no link. A target the bundle already prints whole, an
-/// untyped doc, a doc `--no-project` dropped, and a link `check` reports
-/// as broken add nothing; a link into another code target's doc is followed.
+/// `query` follows no link. An untyped doc adds its path alone. A target the
+/// bundle already prints whole, a doc `--no-project` dropped, and a link
+/// `check` reports as broken add nothing; a link into another code target's
+/// doc is followed.
 List<AppendedPart> followLinks(DocIndex index, Bundle bundle) {
   if (bundle.mode == BundleMode.query) return const [];
   final walk = _Walk(index, bundle);
@@ -89,6 +100,7 @@ final class _Walk {
   final Bundle bundle;
   final _whole = <String>{};
   final _summarized = <String>{};
+  final _paths = <String>{};
   final _printedRanges = <String, List<LineRange>>{};
   final _queue = <_Printed>[];
   final _parts = <AppendedPart>[];
@@ -141,21 +153,20 @@ final class _Walk {
           links[end].text.line == links[start].text.line) {
         end++;
       }
-      _followLine(view, links.sublist(start, end));
+      _followLine(view, view.inSourceOrder(links.sublist(start, end)));
       start = end;
     }
   }
 
-  /// Follows [links], every link of one line of [view], in order; a range's
-  /// first link appends each item of the range (RULE-47).
+  /// Follows [links], every link of one line of [view], in source order; a
+  /// range's first link appends each item of the range (RULE-47).
   void _followLine(_DocView view, List<_Link> links) {
     final classified = [
-      for (final link in links)
-        if (_classify(link.text) case final cited?) (link: link, cited: cited),
+      for (final link in links) (link: link, cited: _classify(link.text)),
     ];
     final itemLinks = [
       for (final (:link, :cited) in classified)
-        if (link.shaped) (link: link.text, cite: cited.cite),
+        if (link.shaped && cited != null) (link: link.text, cite: cited.cite),
     ];
     final rangeFrom = {
       if (itemLinks.where((link) => link.cite is ItemCite).length > 1)
@@ -165,14 +176,24 @@ final class _Walk {
         ))
           range.first.link: range,
     };
-    for (final (link: _, :cited) in classified) {
-      final range = rangeFrom[cited.link];
-      if (range != null) {
+    for (final (:link, :cited) in classified) {
+      final range = cited == null ? null : rangeFrom[cited.link];
+      if (cited == null) {
+        _appendPath(link.text);
+      } else if (range != null) {
         _appendRange(cited, range);
       } else {
         _append(cited);
       }
     }
+  }
+
+  /// Appends the path of the untyped doc [link] lands in, once; any other
+  /// link that cites nothing adds nothing.
+  void _appendPath(LinkText link) {
+    final doc = index.at(link.target);
+    if (doc == null || doc.isTyped || !_paths.add(doc.docPath)) return;
+    _parts.add(AppendedPart(doc: doc, text: ''));
   }
 
   /// Returns what [link] cites, or null when it lands in no doc, an untyped
@@ -260,18 +281,19 @@ final class _Walk {
   /// starts an item, else by [anchor] (RULE-46).
   void _appendBlock(_DocView view, int headingLine, String anchor) {
     final at = view.sectionHolding(headingLine);
-    if (at == null) return;
+    final section = at == null ? null : view.citedSectionAt(at);
+    if (at == null || section == null) return;
     final body = view.bodyLinesOf(at);
     final extent = headingBlockExtentOf(body, headingLine);
     if (extent == null) return;
     final itemId = view.headingItemId(at, body, headingLine);
-    final sectionKey = itemId == null ? anchor : view.citedSectionAt(at)?.key;
     _appendLines(
       view,
       body,
       extent,
-      sectionKey: sectionKey ?? anchor,
+      sectionKey: section.key,
       itemId: itemId,
+      heading: itemId == null ? anchor : null,
     );
   }
 
@@ -304,6 +326,7 @@ final class _Walk {
     LineRange extent, {
     required String sectionKey,
     required String? itemId,
+    String? heading,
   }) {
     if (_prints(view, extent)) return;
     final lines = [
@@ -315,6 +338,7 @@ final class _Walk {
         doc: view.doc,
         sectionKey: sectionKey,
         itemId: itemId,
+        heading: heading,
         text: removeHtmlComments(lines.join('\n')).trimRight(),
       ),
       view,
@@ -439,6 +463,47 @@ final class _DocView {
     return null;
   }
 
+  /// Returns [links], every link of one file line, in source order.
+  ///
+  /// A stored text gives its link's column. `LinkPlace` keeps none, so any
+  /// other link sits at the next `](<destination>` of the line outside every
+  /// stored text's link; one the line does not show, such as a reference
+  /// link, goes last.
+  List<_Link> inSourceOrder(List<_Link> links) {
+    if (links.length < 2) return links;
+    final text = lineText(links.first.text.line);
+    final spans = [
+      for (final link in links)
+        if (link.shaped)
+          (
+            start: link.text.column,
+            end: link.text.endLine == link.text.line
+                ? link.text.endColumn
+                : text.length,
+          ),
+    ];
+    final searchFrom = <String, int>{};
+    int columnOf(_Link link) {
+      if (link.shaped) return link.text.column;
+      final opener = '](${link.text.shown}';
+      var at = text.indexOf(opener, searchFrom[opener] ?? 0);
+      while (at >= 0 && spans.any((s) => s.start <= at && at < s.end)) {
+        at = text.indexOf(opener, at + 1);
+      }
+      if (at < 0) return text.length;
+      searchFrom[opener] = at + 1;
+      return at;
+    }
+
+    final columns = [for (final link in links) columnOf(link)];
+    final order = [for (var i = 0; i < links.length; i++) i]
+      ..sort((a, b) {
+        final byColumn = columns[a].compareTo(columns[b]);
+        return byColumn != 0 ? byColumn : a - b;
+      });
+    return [for (final i in order) links[i]];
+  }
+
   /// Returns file line [line] of the stored text, without its line ending.
   String lineText(int line) {
     final text = _lines[line - 1];
@@ -486,8 +551,8 @@ List<_Link> _linksOf(LineFacts facts) {
   ];
 }
 
-/// Returns [a] and [b], each in source order, merged by line; on one line
-/// [a]'s places come first.
+/// Returns [a] and [b], each in source order, merged by line; `inSourceOrder`
+/// orders the places of one line.
 List<LinkPlace> _inLineOrder(List<LinkPlace> a, List<LinkPlace> b) {
   final merged = <LinkPlace>[];
   var i = 0;

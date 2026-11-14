@@ -52,10 +52,12 @@ const _cited = <String, String>{
 String _frWith(String statement) =>
     '---\nverify_method: test\n---\n\n# Validate credentials\n\n## Statement\n$statement\n';
 
-/// Names [part] by its DocPath, `#<section key>`, item ID, and summary mark.
+/// Names [part] by its DocPath, `#<section key>`, `###` anchor, item ID, and
+/// summary mark.
 String _id(AppendedPart part) =>
     '${part.doc.docPath}'
     '${part.sectionKey == null ? '' : '#${part.sectionKey}'}'
+    '${part.heading == null ? '' : ' #${part.heading}'}'
     '${part.itemId == null ? '' : ' ${part.itemId}'}'
     '${part.summary ? ' summary' : ''}';
 
@@ -85,9 +87,12 @@ void main() {
 
   const inv14 = '[INV-14]($_specs/f02_signup/DOMAIN.md#invariants)';
 
-  test('f01/us05/fr05/e17: a bundle whose docs link nowhere outside appends nothing', () async {
-    expect(await followed('The system shall check the password.'), isEmpty);
-  });
+  test(
+    'f01/us05/fr05: a bundle whose docs link nowhere outside appends nothing',
+    () async {
+      expect(await followed('The system shall check the password.'), isEmpty);
+    },
+  );
   test('f01/us05/fr05/e01: an item link appends the item with its nested items and no other', () async {
     final parts = await followed('The system shall lock, by $inv14.');
     expect(parts.first.doc.docPath, 'specs/f02_signup/DOMAIN.md');
@@ -129,7 +134,7 @@ void main() {
     );
     expect(parts.map(_id), [
       'specs/topics/doc_model.md#rules RULE-3',
-      'specs/topics/doc_model.md#a-worked-example',
+      'specs/topics/doc_model.md#examples #a-worked-example',
     ]);
     expect(parts.last.text, '### A worked example\nOne link.');
   });
@@ -205,15 +210,15 @@ void main() {
       'prds/features/f01_login/us02_reset_password/USER_STORY.md#acceptance_criteria',
     ]);
   });
-  test(
-    'f01/us05/fr05/e10: a link to a file no doc type describes appends nothing',
-    () async {
-      expect(
-        await followed('See [the old context](../../../d01_context.md).'),
-        isEmpty,
-      );
-    },
-  );
+  test('f01/us05/fr05/e10: a link to a file no doc type describes appends its path only, once', () async {
+    final parts = await followed(
+      'See [the old context](../../../d01_context.md) and '
+      '[again](../../../d01_context.md#project-name).',
+    );
+    expect(parts.map(_id), ['prds/d01_context.md']);
+    expect(parts.single.pathOnly, isTrue);
+    expect(parts.single.text, isEmpty);
+  });
   test('f01/us05/fr05/e11: --no-project follows no link into, or out of, a dropped doc', () async {
     const projectWithLink = {
       'docs/prds/PROJECT.md':
@@ -238,6 +243,34 @@ void main() {
       isEmpty,
     );
   });
+  test('item_links OtherAnchorCite: a link to an anchor that names no section or block appends nothing', () async {
+    expect(
+      await followed(
+        'See [the ranges title]($_specs/topics/ranges.md#ranges).',
+      ),
+      isEmpty,
+    );
+  });
+  test(
+    's03/inv15: the links of one line append their parts in source order',
+    () async {
+      final parts = await followed(
+        'See [doc model]($_specs/topics/doc_model.md#purpose).',
+        extra: {
+          'docs/specs/topics/doc_model.md':
+              '# Doc model\n\n## Purpose\nSee [examples](#examples), '
+              '[RULE-2](ranges.md#rules), and [ranges](ranges.md#purpose).\n\n'
+              '## Examples\nOne link.\n',
+        },
+      );
+      expect(parts.map(_id), [
+        'specs/topics/doc_model.md#purpose',
+        'specs/topics/doc_model.md#examples',
+        'specs/topics/ranges.md#rules RULE-2',
+        'specs/topics/ranges.md#purpose',
+      ]);
+    },
+  );
   test('f01/us05/fr05/e14: --for query follows no link', () async {
     final index = await indexFor('The system shall lock, by $inv14.');
     expect(

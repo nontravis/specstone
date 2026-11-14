@@ -425,7 +425,7 @@ void main() {
           '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
           '  - **Enforcer:** the lock service\n- **INV-15** Mails the owner.\n',
       'docs/specs/topics/rules.md': '# Rules\n\n## Purpose\nHold the rules.\n',
-      'docs/specs/topics/terms.md': '# Terms\n\n## Purpose\nName things.\n',
+      'docs/specs/topics/terms.md': '# Terms\n\n## Purpose\nName things.\n\n## Examples\n### A note\nShort.\n',
     });
     ReadAnswer implement(DocIndex i, {int? budget}) => ctxIn(
       i,
@@ -570,6 +570,44 @@ void main() {
         BundleMode.query,
       );
       expect(a.text, isNot(contains(' · cited')));
+    });
+    test('f01/us05/fr05/e10: a link to an untyped doc prints its path alone, listed, and under --json a path with no text', () async {
+      final a = implement(
+        await citing('See [the old context](../../../d01_context.md).'),
+      );
+      expect(
+        a.text,
+        contains(
+          '\n\n==> prds/d01_context.md · cited <==\n==> bundle: 11 docs, ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith('- login (error)\n- prds/d01_context.md · cited\n'),
+      );
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+      final path = (a.json['docs']! as List).cast<Map<String, Object?>>().last;
+      expect(path, {
+        'path': 'prds/d01_context.md',
+        'tokens': tokenSizeOf('==> prds/d01_context.md · cited <=='),
+        'cited': true,
+      });
+    });
+    test('f01/us05/fr05/e03: a ### block that starts no item names its anchor; --json gives its section and heading', () async {
+      final a = implement(
+        await citing('See [a note]($specs/topics/terms.md#a-note).'),
+      );
+      expect(
+        a.text,
+        contains(
+          '==> terms (topic) · specs/topics/terms.md#a-note · cited <==\n### A note\nShort.\n',
+        ),
+      );
+      expect(a.text, endsWith('- terms (topic) · cited examples\n'));
+      final block = (a.json['docs']! as List).cast<Map<String, Object?>>().last;
+      expect(block.keys.skip(5).toList(), ['cited', 'section', 'heading']);
+      expect(block['section'], 'examples');
+      expect(block['heading'], 'a-note');
     });
   });
   group('budget', () {

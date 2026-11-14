@@ -17,18 +17,22 @@ String _listName(IndexedDoc doc, bool summary) =>
 
 /// Returns the closing-list name of [part],
 /// `<name> (<doc type>) · cited <section key> [<ID>]`; a summary doc's is
-/// marked ` · summary` before ` · cited` (`trim_and_order_bundle` E15).
+/// marked ` · summary` before ` · cited` (`trim_and_order_bundle` E15), and
+/// a path's is `<DocPath> · cited`.
 String _partListName(AppendedPart part) =>
-    '${_listName(part.doc, part.summary)} · cited'
+    '${part.pathOnly ? part.doc.docPath : _listName(part.doc, part.summary)}'
+    ' · cited'
     '${part.sectionKey == null ? '' : ' ${part.sectionKey}'}'
     '${part.itemId == null ? '' : ' [${part.itemId}]'}';
 
 /// Returns the block of [part]: its naming line, `<DocPath>#<section key>`
-/// with ` · item <ID>` for an item, or `<DocPath> · summary` for a doc, then
-/// ` · cited`, then its text.
+/// (`#<anchor>` for a `###` block that starts no item) with ` · item <ID>`
+/// for an item, or `<DocPath> · summary` for a doc, then ` · cited`, then its
+/// text; a path prints as `==> <DocPath> · cited <==` alone.
 String _partBlock(AppendedPart part) {
   final doc = part.doc;
-  final key = part.sectionKey;
+  if (part.pathOnly) return '==> ${doc.docPath} · cited <==';
+  final key = part.heading ?? part.sectionKey;
   final path = key == null ? doc.docPath : '${doc.docPath}#$key';
   final item = part.itemId == null ? '' : ' · item ${part.itemId}';
   final summary = part.summary ? ' · summary' : '';
@@ -41,6 +45,7 @@ Map<String, Object> _partKeys(AppendedPart part) => {
   if (part.summary) 'summary': true,
   'cited': true,
   'section': ?part.sectionKey,
+  'heading': ?part.heading,
   'item': ?part.itemId,
 };
 
@@ -135,7 +140,7 @@ ReadAnswer answerContext(
       for (final (i, part) in parts.indexed)
         {
           ..._partDocJson(part, partBlocks[i]),
-          'text': _blockBody(partBlocks[i]),
+          if (!part.pathOnly) 'text': _blockBody(partBlocks[i]),
           ..._partKeys(part),
         },
     ],
@@ -146,10 +151,12 @@ ReadAnswer answerContext(
 }
 
 /// Returns the name, doc type, path, and printed size of [part], whose block
-/// is [block].
+/// is [block]; a path gives its path and size alone.
 Map<String, Object> _partDocJson(AppendedPart part, String block) => {
-  'name': part.doc.name,
-  'docType': ?part.doc.docTypeId,
+  if (!part.pathOnly) ...{
+    'name': part.doc.name,
+    'docType': ?part.doc.docTypeId,
+  },
   'path': part.doc.docPath,
   'tokens': tokenSizeOf(block),
 };
