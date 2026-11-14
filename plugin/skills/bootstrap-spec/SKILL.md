@@ -28,10 +28,10 @@ Dispatch only once no `specstone:bootstrap-prd` batch is still running: this ski
 PROJECT's Tech stack, that `specstone:bootstrap-prd` leaves for it.
 
 With the `Agent` tool, split the gate's findings this skill takes by doc path: one batch per feature folder, each
-`architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included. In the first
+`architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included except a file the Owner answered in this run. In the first
 round the rest batch always runs, even with no finding, and names each target's tech stack doc, the doc the procedure's
 step 6 fills; no feature batch fills it. In a later round it runs only when findings it owns remain. Dispatch one
-`specstone:sdd-engineer` per batch with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, and
+`specstone:sdd-engineer` per batch with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, `picks:` each write-a-spec pick of step 3 for the batch's files, and
 `report:`, one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work
 no step of the procedure yourself.
 
@@ -56,13 +56,20 @@ in for item 4.
    proposal; on ok, run its commands yourself, in run order
    (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
-   for the batch with them.
+   for the batch with them. Ask once per batch, every file under its `Uncovered:` in one question: write a spec for it,
+   or change or remove the code. Change or remove writes nothing. A write-a-spec pick whose behavior needs a new story
+   or FR goes to `specstone:brainstorming-sdd`; any other goes with its file to the next round's agent of that batch
+   as `picks:`, which writes the draft and does not report the file. Keep each answered file, whatever the pick, for
+   the run: no later batch reports it and the Owner is not asked again.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
    one command naming each path once, each still quoted, with each path `specstone:bootstrap-prd` left waiting on a
    file this round merged, and get the Owner's word on it per `specstone:expert-sdd`. On exit 64, dispatch again each
    batch whose file a listed referrer names, with those referrers.
 5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
-   `(waits for the Owner)`, the last reports name it as one that clears with no write, or it waits on
+   `(waits for the Owner)`, the last reports name it as one that clears with no write, it is an answered
+   `code_uncovered` file, which starts a round only through a write-a-spec pick, or it waits on
    `specstone:bootstrap-prd`, such as a finding on a file that a `prds/` untyped doc it left still names. With none
-   left, stop; first, in a run that did not name `item_over_limit`, list under `Waits on the Owner:` each
-   `item_over_limit` finding no report's `Waits on the Owner:` line named.
+   left, stop; first, name once each answered `code_uncovered` file the last `check` still lists, with what it waits
+   on: the code change, the brainstorm, or the approval of its draft, and, in a run that did not name
+   `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit` finding no report's
+   `Waits on the Owner:` line named.

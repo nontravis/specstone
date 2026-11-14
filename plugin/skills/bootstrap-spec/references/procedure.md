@@ -1,7 +1,6 @@
-Step 1, the gate, ran in the skill or agent that sent you here.
+Step 1, the gate, ran before you were sent here.
 As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
 Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
 `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once,
 naming every type you write; a type met later gets its own call before its first write.
@@ -12,8 +11,8 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 ## 2. One finding at a time
 
 Fix this skill's first unhandled finding, then run a bare `specstone check` again.
-Stop when each finding left is under `prds/`, clears with no write, or is tagged `(waits for the Owner)`, except an
-unanswered size finding.
+Stop when each finding left is under `prds/`, clears with no write, is a reported `code_uncovered`, or is tagged
+`(waits for the Owner)`, except an unanswered size finding.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
 each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
@@ -44,8 +43,10 @@ the Owner only when no text bears on a whole section.
   with `specstone set implementation:<feature> --field implements --base <hash>`, then drop the key.
 - **`architecture_missing`:** run `specstone new architecture --parent <feature>`, fill it, and list in `covers` the
   code its record entries name.
-- **`code_uncovered`:** add the file or its folder to `covers` on the architecture or topic doc describing it; with
-  none, ask the Owner, then `specstone new topic --slug <slug>`.
+- **`code_uncovered`:** read the file and write nothing for it; report it under `Uncovered:` in the form of step 3 of
+  `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`. On a write-a-spec pick sent to you, with its file:
+  add the file or its folder to `covers` on the architecture or topic doc describing it; with none,
+  `specstone new topic --slug <slug>`.
 
 ## 4. Merge an old file
 
@@ -80,7 +81,7 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 
-`specstone check` skips the migration's empty tech stack doc. With the Owner, fill each target's
+With the Owner, fill each target's
 tech stack doc per the guide you loaded, and its `code`, each code folder under that target's code root in the
 config's `targets:`, or `code_root` for an unnamed one, else the project root.
 Write PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop each

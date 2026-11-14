@@ -2119,6 +2119,143 @@ void _agentTests() {
         ),
       );
     });
+
+    group('uncovered code in a fill run', () {
+      const procedureFile = 'skills/bootstrap-spec/references/procedure.md';
+
+      String afterReports() => _oneLine(
+        _sectionOf(
+          _pluginText('skills/bootstrap-spec/SKILL.md'),
+          '3. After the reports',
+        ),
+      );
+
+      test('the procedure reads a code_uncovered file, writes nothing for it, '
+          'and reports it under Uncovered:', () {
+        expect(
+          text(procedureFile),
+          contains(
+            '- **`code_uncovered`:** read the file and write nothing for it; '
+            'report it under `Uncovered:` in the form of step 3 of '
+            r'`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`.',
+          ),
+        );
+      });
+
+      test('the procedure writes a covers entry or a topic doc only on a '
+          'write-a-spec pick sent to it, and takes a reported file as '
+          'handled', () {
+        final procedure = text(procedureFile);
+        expect(
+          procedure,
+          contains(
+            'On a write-a-spec pick sent to you, with its file: add the file '
+            'or its folder to `covers` on the architecture or topic doc '
+            'describing it; with none, `specstone new topic --slug <slug>`.',
+          ),
+        );
+        expect(
+          _oneLine(
+            _sectionOf(_pluginText(procedureFile), '3. Point and cover code'),
+          ),
+          isNot(contains('ask the Owner')),
+        );
+        expect(
+          procedure,
+          contains(
+            'clears with no write, is a reported `code_uncovered`, or is '
+            'tagged `(waits for the Owner)`, except an unanswered size '
+            'finding.',
+          ),
+        );
+      });
+
+      test('the skill asks the Owner once per batch, every file in one '
+          'question, and writes nothing on change or remove', () {
+        expect(
+          afterReports(),
+          contains(
+            'once per batch, every file under its `Uncovered:` in one '
+            'question: write a spec for it, or change or remove the code. '
+            'Change or remove writes nothing.',
+          ),
+        );
+      });
+
+      test('the skill sends a write-a-spec pick that needs a new story or FR '
+          'to the brainstorm, and any other with its file to the next '
+          "round's agent as picks", () {
+        expect(
+          afterReports(),
+          contains(
+            'A write-a-spec pick whose behavior needs a new story or FR goes '
+            'to `specstone:brainstorming-sdd`; any other goes with its file '
+            "to the next round's agent of that batch as `picks:`, which "
+            'writes the draft and does not report the file.',
+          ),
+        );
+        expect(
+          text('skills/bootstrap-spec/SKILL.md'),
+          contains(
+            "`batch:` the batch's paths, `picks:` each write-a-spec pick of "
+            "step 3 for the batch's files, and `report:`",
+          ),
+        );
+      });
+
+      test("the skill keeps each answered file out of the run's later "
+          'reports and questions, and names it once at the end with what it '
+          'waits on', () {
+        final skill = text('skills/bootstrap-spec/SKILL.md');
+        expect(
+          afterReports(),
+          contains(
+            'Keep each answered file, whatever the pick, for the run: no '
+            'later batch reports it and the Owner is not asked again.',
+          ),
+        );
+        expect(
+          skill,
+          contains(
+            '`code_uncovered` included except a file the Owner answered in '
+            'this run.',
+          ),
+        );
+        expect(
+          afterReports(),
+          contains(
+            'it is an answered `code_uncovered` file, which starts a round '
+            'only through a write-a-spec pick,',
+          ),
+        );
+        expect(
+          afterReports(),
+          contains(
+            'name once each answered `code_uncovered` file the last `check` '
+            'still lists, with what it waits on: the code change, the '
+            'brainstorm, or the approval of its draft,',
+          ),
+        );
+      });
+
+      test('the sibling merge and retire clauses stay in both bootstrap '
+          'procedures', () {
+        for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+          final procedure = text('skills/$skill/references/procedure.md');
+          expect(procedure, contains('Name the set in one '), reason: skill);
+          expect(
+            procedure,
+            contains('On a batch, delete nothing: hand that line to'),
+            reason: skill,
+          );
+          expect(
+            procedure,
+            contains('Add its path to this run'),
+            reason: skill,
+          );
+        }
+      });
+    });
   });
 
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
