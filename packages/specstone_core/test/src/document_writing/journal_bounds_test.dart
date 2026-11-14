@@ -298,16 +298,39 @@ void main() {
       });
     }
 
-    test('an NTFS deleted-file answer for a link that stays refuses', () {
-      final link = '${root.path}${Platform.pathSeparator}side-link';
-      Link(link).createSync(folder);
-      String answerAlias(String asked) =>
-          asked == link ? _deletedAlias : realPathOnDisk(asked);
+    for (final (kind, answer) in _churnAnswers) {
+      test('$kind for a link that stays refuses', () {
+        final link = '${root.path}${Platform.pathSeparator}side-link';
+        Link(link).createSync(folder);
+        String answerForLink(String asked) =>
+            asked == link ? answer(asked) : realPathOnDisk(asked);
 
-      final bounds = JournalBounds(root, [real], resolve: answerAlias);
+        final bounds = JournalBounds(root, [real], resolve: answerForLink);
 
-      expect(bounds.holds('side-link/x.md'), isFalse);
-    }, skip: _linksUnavailable);
+        expect(bounds.holds('side-link/x.md'), isFalse);
+      }, skip: _linksUnavailable);
+    }
+
+    test(
+      'a failed folder below a link that leaves the roots refuses',
+      () async {
+        final outside = await writeTree({'sub/keep.txt': ''});
+        Link('${root.path}/out').createSync(outside.path);
+        final sub = '${root.path}/out/sub';
+        String failSub(String asked) => asked == sub
+            ? throw FileSystemException(
+                '',
+                asked,
+                const OSError('not found', 2),
+              )
+            : realPathOnDisk(asked);
+
+        final bounds = JournalBounds(root, [real], resolve: failSub);
+
+        expect(bounds.holds('out/sub/x.md'), isFalse);
+      },
+      skip: _linksUnavailable,
+    );
   });
 
   group('$_finish E08: a refused replay changes nothing', () {

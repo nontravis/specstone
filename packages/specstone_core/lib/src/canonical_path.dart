@@ -43,6 +43,15 @@ String? pathInside(String root, String path, {bool? isWindows}) {
   return path.substring(prefix.length).split(separator).join('/');
 }
 
+/// Whether [path] is a root no name can be placed under a parent of: `/`,
+/// and on Windows a drive root `C:\` or a network share `\\server\share`.
+/// [isWindows] picks the style; it defaults to the running platform.
+bool isVolumeRoot(String path, {bool? isWindows}) {
+  final windows = isWindows ?? Platform.isWindows;
+  return parentOf(path, isWindows: windows) == path ||
+      windows && _windowsVolumeOf(path) == path;
+}
+
 bool _isBareDrive(String path) => path.length == 2 && _hasDrive(path);
 
 bool _hasDrive(String path) =>
@@ -83,29 +92,35 @@ String canonicalPath(
   );
   String resolved;
   var hops = 0;
+  // A name deleted or replaced since it was seen, such as a SQLite side file
+  // another connection closed, fails or answers for the deleted file. A name
+  // that is no link lies where its parent puts it, gone or made again, so it
+  // is judged from its parent; asking it again can meet the same churn every
+  // time. Only a link needs its own answer.
+  bool placedUnderParent() {
+    if (FileSystemEntity.isLinkSync(existing) || isVolumeRoot(existing)) {
+      return false;
+    }
+    missing.add(_nameOf(existing));
+    existing = parentOf(existing);
+    return true;
+  }
+
   while (true) {
-    while (FileSystemEntity.typeSync(existing, followLinks: false) ==
-        FileSystemEntityType.notFound) {
+    var type = FileSystemEntity.typeSync(existing, followLinks: false);
+    while (type == FileSystemEntityType.notFound) {
       missing.add(_nameOf(existing));
       // An absolute path always reaches the file-system root, which exists.
       existing = parentOf(existing);
+      type = FileSystemEntity.typeSync(existing, followLinks: false);
     }
-    if (FileSystemEntity.typeSync(existing) != FileSystemEntityType.notFound) {
+    if (type != FileSystemEntityType.link ||
+        FileSystemEntity.typeSync(existing) != FileSystemEntityType.notFound) {
       try {
         resolved = resolveExisting(existing, resolve);
         break;
       } on FileSystemException {
-        // A name deleted since the check, such as a SQLite side file another
-        // connection closed, fails or answers for the deleted file. A name
-        // that is no link lies where its parent puts it, gone or made again,
-        // so it is judged from its parent; asking it again can meet the same
-        // churn every time. Only a link needs its own answer.
-        final parent = parentOf(existing);
-        if (!FileSystemEntity.isLinkSync(existing) && parent != existing) {
-          missing.add(_nameOf(existing));
-          existing = parent;
-          continue;
-        }
+        if (placedUnderParent()) continue;
         if (hops++ >= _maxLinkHops) rethrow;
         continue;
       }
@@ -126,10 +141,9 @@ String canonicalPath(
     try {
       target = readLink(existing);
     } on FileSystemException {
-      // A link gone or replaced since the check fails whatever the code; walk
-      // again from the same name, so it reads as it stands now.
-      if (FileSystemEntity.isLinkSync(existing)) rethrow;
-      continue;
+      // A link gone or replaced since the check fails whatever the code.
+      if (placedUnderParent()) continue;
+      rethrow;
     }
     existing = withoutTrailingSeparator(linkTargetPath(existing, target));
   }

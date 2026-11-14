@@ -344,6 +344,33 @@ void main() {
       );
     }, skip: _linksUnavailable);
 
+    test('a link made a plain file at every read, and a link again at every '
+        'resolve, counts it under its parent', () {
+      String replaceThenFail(String asked) {
+        if (asked != link) return linkTargetOnDisk(asked);
+        Link(asked).deleteSync();
+        File(asked).writeAsStringSync('');
+        throw FileSystemException('', asked, const OSError('invalid', 22));
+      }
+
+      String relinkThenFail(String asked) {
+        if (asked != link) return realPathOnDisk(asked);
+        File(asked).deleteSync();
+        createRelativeLink(asked, 'gone');
+        throw FileSystemException('', asked, const OSError('not found', 2));
+      }
+
+      expect(
+        canonicalPath(
+          link,
+          strict: true,
+          resolve: relinkThenFail,
+          readLink: replaceThenFail,
+        ),
+        link,
+      );
+    }, skip: _linksUnavailable);
+
     test('a link that stays a link rethrows its read error', () {
       String fail(String asked) =>
           throw FileSystemException('', asked, const OSError('denied', 5));
@@ -359,6 +386,42 @@ void main() {
         ),
       );
     }, skip: _linksUnavailable);
+  });
+
+  group('$_scope: canonicalPath on a name below a link whose resolve '
+      'fails', () {
+    test('places the name under the real target of the link', () async {
+      final base = Directory(
+        (await writeTree({'proj/keep.txt': '', 'outside/sub/keep.txt': ''}))
+            .resolveSymbolicLinksSync(),
+      );
+      createRelativeLink('${base.path}/proj/lnk', '../outside');
+      final sub = '${base.path}/proj/lnk/sub';
+      String failSub(String asked) => asked == sub
+          ? throw FileSystemException('', asked, const OSError('not found', 2))
+          : realPathOnDisk(asked);
+
+      expect(
+        canonicalPath('$sub/f.md', strict: true, resolve: failSub),
+        '${base.path}/outside/sub/f.md',
+      );
+    }, skip: _linksUnavailable);
+  });
+
+  group('$_scope: isVolumeRoot', () {
+    for (final (path, isWindows, expected) in [
+      ('/', false, true),
+      ('/a', false, false),
+      (r'C:\', true, true),
+      (r'C:\a', true, false),
+      (r'\\srv\sh', true, true),
+      (r'\\srv\sh\a', true, false),
+    ]) {
+      test('$path is ${expected ? '' : 'not '}a root '
+          '${isWindows ? 'on Windows' : 'on POSIX'}', () {
+        expect(isVolumeRoot(path, isWindows: isWindows), expected);
+      });
+    }
   });
 
   group('$_scope: linkTargetPath on POSIX', () {
