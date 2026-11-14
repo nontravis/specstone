@@ -1,7 +1,7 @@
 # Repeated rules and old cites
 
-The `cite_unlinked` fix and the repeats batch of `specstone:bootstrap-prd` and `specstone:bootstrap-spec`. Each link
-takes the form of `specstone:expert-sdd` rule 7, and each write leaves a draft.
+The `cite_unlinked` fix and the repeats batch of `specstone-bootstrap-prd` and `specstone-bootstrap-spec`. Each link
+takes the form of `specstone-expert-sdd` rule 7, and each write leaves a draft.
 
 ## A `cite_unlinked` finding
 

@@ -1,7 +1,7 @@
 # Fix a doc over its size limit
 
 This covers the three size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`, and
-`item_over_limit`, under `specstone:expert-sdd`'s rule 5.
+`item_over_limit`, under `specstone-expert-sdd`'s rule 5.
 
 ## The order
 

@@ -1,6 +1,6 @@
 # Traced and cited links
 
-The steps of `specstone:expert-sdd`'s rule 4, and what rule 7's cite links do.
+The steps of `specstone-expert-sdd`'s rule 4, and what rule 7's cite links do.
 
 ## Traced links (rule 4)
 

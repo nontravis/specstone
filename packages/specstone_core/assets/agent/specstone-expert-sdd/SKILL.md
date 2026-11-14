@@ -1,6 +1,6 @@
 ---
 name: specstone-expert-sdd
-description: Use when about to write, edit, or confirm a PRD or spec doc in a Specstone project, when a doc's upstream changed after it was confirmed, when code does something no spec covers, or when another `specstone:` skill names `specstone:expert-sdd`.
+description: Use when about to write, edit, or confirm a PRD or spec doc in a Specstone project, when a doc's upstream changed after it was confirmed, when code does something no spec covers, or when another Specstone skill names `specstone-expert-sdd`.
 ---
 
 # Specstone cross-doc rules

@@ -238,6 +238,7 @@ void main() {
   _codeParseTests();
   _agentFileTests();
   _hostRenderTests();
+  _dispatchReferenceTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -4703,6 +4704,78 @@ void _hostRenderTests() {
     test('each SKILL.md names its folder and holds a description within 1,024 '
         'characters', () {
       expect(skillHeadProblems(contentFiles()), isEmpty);
+    });
+  });
+}
+
+const _dispatchReference = 'specstone-expert-sdd/references/dispatch.md';
+
+/// The `specstone-expert-sdd` files, in the source and in each skill render.
+List<ContentFile> _expertSddFiles() => [
+  for (final file in contentFiles())
+    if (file.path.contains('specstone-expert-sdd/')) file,
+];
+
+void _dispatchReferenceTests() {
+  group('the dispatch rungs', () {
+    test('f08/us10/fr02/e08: dispatch.md sits in the source and in both '
+        'skill renders', () {
+      final paths = _expertSddFiles().map((file) => file.path);
+      expect(
+        paths,
+        containsAll([
+          _dispatchReference,
+          '.claude/skills/$_dispatchReference',
+          '.agents/skills/$_dispatchReference',
+        ]),
+      );
+    });
+
+    test('f08/us10/fr02/e08: dispatch.md holds the named rung, the generic '
+        'rung, and the main-session rung, in that order', () {
+      final text = _pluginText(_dispatchReference);
+      final rungs = [
+        for (final heading in [
+          '## Named agent',
+          '## Generic subagent',
+          '## Main session',
+        ])
+          text.indexOf('\n$heading\n'),
+      ];
+      expect(rungs, everyElement(isNonNegative));
+      expect([...rungs]..sort(), rungs);
+    });
+
+    test('f08/us10/fr02 statement, e04, e06, e09: the rungs name the host '
+        'lists no such agent, no subagent, the agent file from the skill, '
+        "the failed dispatch, and the audit that is no fresh reader's", () {
+      final text = _oneLine(_pluginText(_dispatchReference));
+      for (final point in [
+        '`specstone-sdd-engineer`',
+        '`specstone-sdd-reader`',
+        '`specstone-plan-engineer`',
+        'the host lists no such agent',
+        'no subagent',
+        '`../../agents/specstone-<agent>.md`',
+        'a dispatch that fails',
+        "not a fresh reader's",
+        '`Report:` line',
+      ]) {
+        expect(text, contains(point), reason: point);
+      }
+    });
+
+    test('f08/us10/fr01, fr02/e09: the specstone-expert-sdd files name no '
+        "host tool, no CLAUDE_ variable, no other host's skills folder, no "
+        'specstone:<name> skill, and every relative path resolves', () {
+      final files = _expertSddFiles();
+      expect(hostTiedText(files), isEmpty);
+      expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);
+      expect(
+        unresolvedPaths(contentFiles())
+            .where((problem) => problem.contains('specstone-expert-sdd/')),
+        isEmpty,
+      );
     });
   });
 }
