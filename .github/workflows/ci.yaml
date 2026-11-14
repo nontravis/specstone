@@ -43,6 +43,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        suite: [core, cli]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
@@ -52,30 +53,39 @@ jobs:
           sdk: 3.13.5
       - run: dart pub get --enforce-lockfile
       - name: Test specstone_core with coverage
+        if: matrix.suite == 'core' && matrix.os == 'ubuntu-latest'
         working-directory: packages/specstone_core
         run: dart run coverage:test_with_coverage --fail-under=80
+      - name: Test specstone_core
+        if: matrix.suite == 'core' && matrix.os != 'ubuntu-latest'
+        working-directory: packages/specstone_core
+        run: dart test --concurrency=4
       - name: Test specstone with coverage
-        if: runner.os != 'Windows'
+        if: matrix.suite == 'cli' && matrix.os == 'ubuntu-latest'
         working-directory: packages/specstone
         run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing
-      # The PowerShell script tests run in test-scripts-windows.
-      - name: Test specstone with coverage (Windows)
-        if: runner.os == 'Windows'
+      - name: Test specstone (macOS)
+        if: matrix.suite == 'cli' && matrix.os == 'macos-latest'
         working-directory: packages/specstone
-        run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing,ps1
+        run: dart test --exclude-tags timing
+      # The PowerShell script tests run in test-scripts-windows.
+      - name: Test specstone (Windows)
+        if: matrix.suite == 'cli' && matrix.os == 'windows-latest'
+        working-directory: packages/specstone
+        run: dart test --exclude-tags timing,ps1
       - name: Timing gate (NFR-P01, NFR-P02)
+        if: matrix.suite == 'cli'
         working-directory: packages/specstone
         run: dart test --tags timing test/nfr_timing_test.dart
       - uses: actions/upload-artifact@v7
+        if: matrix.os == 'ubuntu-latest'
         with:
-          name: coverage-${{ matrix.os }}
+          name: coverage-${{ matrix.os }}-${{ matrix.suite }}
           path: packages/*/coverage/lcov.info
 
   test-scripts-windows:
     runs-on: windows-latest
-    # WORKAROUND: about 30 install.ps1 runs still take ~20 s each on a cold Windows PowerShell 5.1 (cause unconfirmed,
-    # Specstone fix item 79), so the job needs ~16-20 min; remove when those runs take under ~3 s.
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1

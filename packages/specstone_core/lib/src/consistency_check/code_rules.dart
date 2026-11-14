@@ -210,7 +210,7 @@ Iterable<Finding> uncoveredCode(
         if (work.targetOf(doc) == target) doc,
     ];
     final covers = _coversOf(context, docs);
-    final nested = nestedRootsOf(context.projectRoot, target, context.targets);
+    final nested = context.nestedRootsOf(target);
     final reported = <String>{};
     for (final doc in docs) {
       if (!context.typeHoldsField(context.typeOf(doc), _codeField)) continue;

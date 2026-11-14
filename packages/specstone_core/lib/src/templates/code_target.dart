@@ -59,6 +59,18 @@ List<String> nestedRootsOf(
   return nestedPathsOf(own, others);
 }
 
+/// Returns [nestedRootsOf]'s answer for every target of [roots], from the
+/// code roots a caller resolved already.
+Map<CodeTarget, List<String>> nestedRootsByTarget(
+  Map<CodeTarget, Directory> roots,
+) => {
+  for (final MapEntry(key: target, value: own) in roots.entries)
+    target: nestedPathsOf(own.path, [
+      for (final MapEntry(key: other, value: root) in roots.entries)
+        if (other != target) root.path,
+    ]),
+};
+
 /// Returns each of [roots] that lies inside [own], `/`-separated from it.
 ///
 /// Every path is canonical, in the platform's separators, as [pathInside]

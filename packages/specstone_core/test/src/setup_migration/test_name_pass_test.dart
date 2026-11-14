@@ -18,6 +18,7 @@ import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/counting_io.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart' show acmeLegacy;
 import '../../helpers/shipped_pins.dart';
@@ -155,7 +156,26 @@ Object? _testsOf(String text) => frontmatterValuesOf(Doc.parse(text))['tests'];
 
 String _test(String name) => "void main() {\n  test('$name', () {});\n}\n";
 
+/// Returns the real-path resolves of the pass over a project of [count]
+/// tracked test files.
+Future<int> _resolvesOfPass(int count) async {
+  final project = await _project(
+    files: {
+      for (var i = 0; i < count; i++)
+        'app/test/file_${i}_test.dart': 'void main() {}\n',
+    },
+  );
+  return countRealPathResolves(() => _run(project));
+}
+
 void main() {
+  test('the pass resolves real paths as often for twice the files', () async {
+    final base = await _resolvesOfPass(10);
+    final doubled = await _resolvesOfPass(20);
+
+    expect(doubled, base);
+  });
+
   test('a Windows listing path reads as a slash-separated DocPath', () {
     expect(
       _docPathOf(

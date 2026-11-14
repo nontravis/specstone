@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 const _bom = [0xEF, 0xBB, 0xBF];
@@ -122,38 +123,26 @@ void main() {
         'lib/sub/c.dart': 'c',
         'other/d.dart': 'd',
       });
-      expect(
-        codeLinkFiles(root, const CodeTarget(null, codeRoot: '.'), 'lib/'),
-        ['lib/a.dart', 'lib/b.dart', 'lib/sub/c.dart'],
-      );
+      expect(codeLinkFiles(root, 'lib/'), [
+        'lib/a.dart',
+        'lib/b.dart',
+        'lib/sub/c.dart',
+      ]);
     });
 
     test('lists the one file of a file entry', () async {
       final root = await tree({'lib/a.dart': 'a', 'lib/b.dart': 'b'});
-      expect(
-        codeLinkFiles(
-          root,
-          const CodeTarget(null, codeRoot: '.'),
-          'lib/a.dart',
-        ),
-        ['lib/a.dart'],
-      );
+      expect(codeLinkFiles(root, 'lib/a.dart'), ['lib/a.dart']);
     });
 
     test('lists nothing for a path that names nothing', () async {
       final root = await tree({'lib/a.dart': 'a'});
-      expect(
-        codeLinkFiles(root, const CodeTarget(null, codeRoot: '.'), 'gone/'),
-        isEmpty,
-      );
+      expect(codeLinkFiles(root, 'gone/'), isEmpty);
     });
 
     test('skips dot names, as the code root lister does', () async {
       final root = await tree({'lib/a.dart': 'a', 'lib/.hidden.dart': 'h'});
-      expect(
-        codeLinkFiles(root, const CodeTarget(null, codeRoot: '.'), 'lib'),
-        ['lib/a.dart'],
-      );
+      expect(codeLinkFiles(root, 'lib'), ['lib/a.dart']);
     });
 
     test(
@@ -162,12 +151,21 @@ void main() {
         final root = await tree({'app/lib/a.dart': 'a', 'app/web/w.dart': 'w'});
         const flutter = CodeTarget('flutter', codeRoot: 'app');
         const jaspr = CodeTarget('jaspr', codeRoot: 'app/web');
+        const targets = [flutter, jaspr];
         expect(
-          codeLinkFiles(root, flutter, '.', targets: const [flutter, jaspr]),
+          codeLinkFiles(
+            Directory('${root.path}/app'),
+            '.',
+            nestedRoots: nestedRootsOf(root, flutter, targets),
+          ),
           ['lib/a.dart'],
         );
         expect(
-          codeLinkFiles(root, jaspr, '.', targets: const [flutter, jaspr]),
+          codeLinkFiles(
+            Directory('${root.path}/app/web'),
+            '.',
+            nestedRoots: nestedRootsOf(root, jaspr, targets),
+          ),
           ['w.dart'],
         );
       },
@@ -179,12 +177,7 @@ void main() {
       Process.runSync('chmod', ['000', locked]);
       addTearDown(() => Process.runSync('chmod', ['755', locked]));
       final unlistable = <String>[];
-      final files = codeLinkFiles(
-        root,
-        const CodeTarget(null, codeRoot: '.'),
-        'lib',
-        onUnlistable: unlistable.add,
-      );
+      final files = codeLinkFiles(root, 'lib', onUnlistable: unlistable.add);
       expect(files, ['lib/a.dart']);
       expect(unlistable, ['lib/locked']);
     }, skip: unreadablePathSkipReason());
@@ -240,18 +233,14 @@ void main() {
     test(
       'words the warning for a named target as for an unnamed one',
       () async {
-        final project = await writeLoginProject();
-        final session = openSession(project);
+        final session = openSession(await writeTwinProject());
         addTearDown(session.close);
         final context = CheckContext(session);
-
-        expect(
-          context.codeBytesOf(
-            const CodeTarget('jaspr', codeRoot: '.'),
-            'gone.dart',
-          ),
-          isNull,
+        final jaspr = session.project.targets.singleWhere(
+          (target) => target.name == 'jaspr',
         );
+
+        expect(context.codeBytesOf(jaspr, 'gone.dart'), isNull);
         expect(context.unstatedWarnings, [_goneWarning]);
       },
     );

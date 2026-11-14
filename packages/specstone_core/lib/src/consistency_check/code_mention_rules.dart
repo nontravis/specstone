@@ -49,7 +49,7 @@ List<String> _codeFilesOf(
   context.codeRootOf(target),
   _codeEntriesOf(context, work, target),
   docsRoot: context.docsRoot,
-  nestedRoots: nestedRootsOf(context.projectRoot, target, context.targets),
+  nestedRoots: context.nestedRootsOf(target),
   onUnlistable: (folder) => context.warn(
     '$folder: cannot list the folder; files under it are not checked for '
     'doc names',
@@ -77,12 +77,17 @@ final class _DocMentionReader {
       _docsFolder = _context.docsRoot.uri.pathSegments.lastWhere(
         (segment) => segment.isNotEmpty,
       ),
-      _names = {for (final doc in _context.index.docs) doc.name};
+      _names = {for (final doc in _context.index.docs) doc.name},
+      _paths = ProjectPathReader(
+        projectRoot: _context.projectRoot,
+        docsRoot: _context.docsRoot,
+      );
 
   final CheckContext _context;
   final DocIndex _index;
   final String _docsFolder;
   final Set<String> _names;
+  final ProjectPathReader _paths;
 
   Iterable<Finding> mentionsIn(CodeTarget target, String codePath) sync* {
     final extension = _extensionOf(codePath);
@@ -99,12 +104,7 @@ final class _DocMentionReader {
 
   String? _projectPathOf(CodeTarget target, String codePath) {
     try {
-      return projectPathOfCodeFile(
-        codePath,
-        projectRoot: _context.projectRoot,
-        docsRoot: _context.docsRoot,
-        codeRoot: _context.codeRootOf(target),
-      );
+      return _paths.projectPathOf(codePath, _context.codeRootOf(target));
     } on FileSystemException {
       return null;
     }

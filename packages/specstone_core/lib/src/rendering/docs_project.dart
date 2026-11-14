@@ -42,11 +42,14 @@ final class DocsProject {
   new _({
     required this.trust,
     required this.targets,
+    required Map<CodeTarget, Directory> codeRoots,
+    required Map<CodeTarget, List<String>> nestedRoots,
     required this.stampsHaveRun,
     required this.statusesOutsideApproval,
     required this.matcher,
     required this.set,
-  });
+  }) : _codeRoots = codeRoots,
+       _nestedRoots = nestedRoots;
 
   /// Opens the project holding [workingDirectory] and loads its doc types.
   ///
@@ -68,9 +71,18 @@ final class DocsProject {
     );
     final projectRoot = trust.projectRoot;
     final config = ProjectConfig.read(projectRoot);
+    final targets = List<CodeTarget>.unmodifiable(config.targets);
+    final codeRoots = Map<CodeTarget, Directory>.unmodifiable({
+      for (final target in targets)
+        target: codeRootFolderOf(projectRoot, target),
+    });
     return DocsProject._(
       trust: trust,
-      targets: List<CodeTarget>.unmodifiable(config.targets),
+      targets: targets,
+      codeRoots: codeRoots,
+      nestedRoots: Map<CodeTarget, List<String>>.unmodifiable(
+        nestedRootsByTarget(codeRoots),
+      ),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
       statusesOutsideApproval: approval.statusesOutsideApproval(config.pins),
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
@@ -106,9 +118,22 @@ final class DocsProject {
   /// The named targets, in config order; empty with one unnamed target.
   List<String> get targetNames => targetNamesOf(targets);
 
-  /// Returns [target]'s code root as [codeRootFolderOf] reads it.
+  final Map<CodeTarget, Directory> _codeRoots;
+  final Map<CodeTarget, List<String>> _nestedRoots;
+
+  /// Returns [target]'s code root as [codeRootFolderOf] read it at open.
+  ///
+  /// Throws an [ArgumentError] for a target the config does not name.
   Directory codeRootOf(CodeTarget target) =>
-      codeRootFolderOf(projectRoot, target);
+      _codeRoots[target] ?? (throw _unknownTarget(target));
+
+  /// Returns the code roots of the other targets that lie inside [target]'s,
+  /// as [nestedRootsOf] reads them at open.
+  List<String> nestedRootsOf(CodeTarget target) =>
+      _nestedRoots[target] ?? (throw _unknownTarget(target));
+
+  ArgumentError _unknownTarget(CodeTarget target) =>
+      ArgumentError.value(target, 'target', 'is not a target of the project');
 
   /// Throws `output_not_writable` unless the Owner trusts the roots and a
   /// write to [path] lands inside the project or docs root and below no `.git`

@@ -85,11 +85,9 @@ Iterable<Finding> checkCodeLinks(
   );
   for (final link in links) {
     final current = currentCodeFingerprint(
-      context.projectRoot,
-      target,
       link.path,
       codeRoot: context.codeRootOf(target),
-      targets: context.targets,
+      nestedRoots: context.nestedRootsOf(target),
       bytesOf: (file) => context.codeBytesOf(target, file),
       onUnlistable: (folder) => context.warn(
         '$folder: cannot list the folder; files under it are not checked for '
@@ -229,21 +227,19 @@ Iterable<CodeLink> _coversLinks(
 
 // MARK: - Fingerprint
 
-/// Returns the current fingerprint of the file or folder at [path] of
-/// [target], null when a file it reads cannot be read or a folder cannot be
-/// listed.
+/// Returns the current fingerprint of the file or folder at [path], null when
+/// a file it reads cannot be read or a folder cannot be listed.
 ///
 /// The one read `check` and the migrate stamp both hash by.
-/// - [codeRoot]: [target]'s code root.
-/// - [targets]: every target of the project, so a nested root stays out.
+/// - [codeRoot]: the code root of the target [path] belongs to.
+/// - [nestedRoots]: the code roots of the other targets nested in it, which
+///   stay out.
 /// - [bytesOf]: the bytes of a file from [codeRoot], null when unreadable.
 /// - [onUnlistable]: told each folder that cannot be listed.
 String? currentCodeFingerprint(
-  Directory projectRoot,
-  CodeTarget target,
   String path, {
   required Directory codeRoot,
-  required List<CodeTarget> targets,
+  required List<String> nestedRoots,
   required List<int>? Function(String file) bytesOf,
   required void Function(String folder) onUnlistable,
 }) {
@@ -257,10 +253,9 @@ String? currentCodeFingerprint(
   }
   var isReadable = true;
   final listed = codeLinkFiles(
-    projectRoot,
-    target,
+    codeRoot,
     path,
-    targets: targets,
+    nestedRoots: nestedRoots,
     onUnlistable: (folder) {
       isReadable = false;
       onUnlistable(folder);

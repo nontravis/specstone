@@ -10,7 +10,7 @@ import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart' show RunGit, runRealGit;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show projectPathOfCodeFile;
+    show ProjectPathReader;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
@@ -256,6 +256,10 @@ final class _NameSet {
 /// files outside the docs root, then the agent files of the walk.
 Map<String, File> _filesToRead(MentionScope scope) {
   final files = <String, File>{};
+  final paths = ProjectPathReader(
+    projectRoot: scope.projectRoot,
+    docsRoot: scope.docsRoot,
+  );
   for (final (root: codeRoot, path: codePath) in codeFilesOf(
     scope.projectRoot,
     scope.set,
@@ -263,12 +267,7 @@ Map<String, File> _filesToRead(MentionScope scope) {
     moves: scope.docMoves,
   )) {
     if (!readsNameMentions(_extensionOf(codePath))) continue;
-    final projectPath = projectPathOfCodeFile(
-      codePath,
-      projectRoot: scope.projectRoot,
-      docsRoot: scope.docsRoot,
-      codeRoot: codeRoot,
-    );
+    final projectPath = paths.projectPathOf(codePath, codeRoot);
     if (projectPath == null) continue;
     files[projectPath] = _fileIn(codeRoot, codePath);
   }

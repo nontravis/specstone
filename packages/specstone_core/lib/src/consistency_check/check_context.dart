@@ -56,6 +56,10 @@ final class CheckContext {
   Directory codeRootOf(CodeTarget target) =>
       _session.project.codeRootOf(target);
 
+  /// Returns the code roots of the other targets that lie inside [target]'s.
+  List<String> nestedRootsOf(CodeTarget target) =>
+      _session.project.nestedRootsOf(target);
+
   /// Whether the config pins a pack at or above the approval stamps.
   bool get stampsHaveRun => _session.project.stampsHaveRun;
 

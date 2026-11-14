@@ -131,35 +131,48 @@ List<String> mentionScanFiles(
   );
 }
 
-/// Returns the code file [codePath], a path [filesUnderCodeRoot] lists from
-/// [codeRoot], as a `/`-separated path from [projectRoot] with `..` for each
-/// folder it leaves; null when it lies in [docsRoot], whose files are docs.
+/// Turns the code files of one scan into project paths, resolving the project
+/// root, the docs root, and each code folder once.
 ///
-/// The three roots and the file's folder are compared at their canonical
-/// paths, so a case variant such as `Docs/`, a `lib/../docs` entry, or a
-/// `code_root` above the project reads as the folder it names.
-String? projectPathOfCodeFile(
-  String codePath, {
-  required Directory projectRoot,
-  required Directory docsRoot,
-  required Directory codeRoot,
-}) {
-  final segments = codePath.split(_separator);
-  final folder = [
-    codeRoot.path,
-    ...segments.take(segments.length - 1),
-  ].join(Platform.pathSeparator);
-  final real = [
-    Directory(folder).resolveSymbolicLinksSync(),
-    segments.last,
-  ].join(Platform.pathSeparator);
-  if (docsRoot.existsSync() &&
-      real.startsWith(
-        '${docsRoot.resolveSymbolicLinksSync()}${Platform.pathSeparator}',
-      )) {
-    return null;
+/// The roots and a file's folder are compared at their canonical paths, so a
+/// case variant such as `Docs/`, a `lib/../docs` entry, or a `code_root` above
+/// the project reads as the folder it names.
+final class ProjectPathReader {
+  new({required this.projectRoot, required this.docsRoot});
+
+  final Directory projectRoot;
+  final Directory docsRoot;
+
+  late final String _realProjectRoot = projectRoot.resolveSymbolicLinksSync();
+  late final String? _realDocsRoot = docsRoot.existsSync()
+      ? docsRoot.resolveSymbolicLinksSync()
+      : null;
+  final Map<String, String> _realFolders = {};
+
+  /// Returns the code file [codePath], a path [filesUnderCodeRoot] lists from
+  /// [codeRoot], as a `/`-separated path from the project root with `..` for
+  /// each folder it leaves; null when it lies in the docs root, whose files
+  /// are docs.
+  String? projectPathOf(String codePath, Directory codeRoot) {
+    final segments = codePath.split(_separator);
+    final folder = [
+      codeRoot.path,
+      ...segments.take(segments.length - 1),
+    ].join(Platform.pathSeparator);
+    final real = [
+      _realFolders.putIfAbsent(
+        folder,
+        () => Directory(folder).resolveSymbolicLinksSync(),
+      ),
+      segments.last,
+    ].join(Platform.pathSeparator);
+    final realDocsRoot = _realDocsRoot;
+    if (realDocsRoot != null &&
+        real.startsWith('$realDocsRoot${Platform.pathSeparator}')) {
+      return null;
+    }
+    return _relativePath(_realProjectRoot, real);
   }
-  return _relativePath(projectRoot.resolveSymbolicLinksSync(), real);
 }
 
 /// Returns [path] from the folder [from], both canonical, `/`-separated.

@@ -13,6 +13,7 @@ import 'package:specstone_core/src/setup_migration/tree_move.dart'
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/counting_io.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
@@ -117,7 +118,30 @@ List<Finding> _codeFindings(CheckReport report) => [
 String _read(Directory project, String docPath) =>
     File('${project.path}/docs/$docPath').readAsStringSync();
 
+/// Returns the real-path resolves of planning the step over a record that
+/// holds [links] implemented entries for one code file.
+Future<int> _resolvesOfPlan(int links) async {
+  final project = await _project(
+    extra: {
+      'docs/$loginRecord': _record(
+        code: [for (var i = 0; i < links; i++) 'email_login:$_login:Symbol$i'],
+      ),
+    },
+  );
+  return countRealPathResolves(() => _planAt(project));
+}
+
 void main() {
+  test(
+    'planning resolves real paths as often for twice the code links',
+    () async {
+      final base = await _resolvesOfPlan(10);
+      final doubled = await _resolvesOfPlan(20);
+
+      expect(doubled, base);
+    },
+  );
+
   group('which code links take a fingerprint', () {
     test(
       'an implemented entry and a covers folder take the fingerprint the '
