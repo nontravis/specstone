@@ -102,6 +102,8 @@ void main() {
       'unconfirmed',
       'confirmed_entry_malformed',
       'confirmed_entry_stale',
+      'code_suspect',
+      'code_unconfirmed',
       'format_drift',
       'agent_block_stale',
       'tbr_open',
@@ -260,6 +262,70 @@ void main() {
     );
     expect(finding.textLines, [
       'prds/a.md:3: unconfirmed: waits (waits for the Owner)',
+    ]);
+  });
+
+  test('a code_unconfirmed finding prints the current fingerprint on its own '
+      'line, indented 4 spaces, and holds it in no message', () {
+    const finding = Finding(
+      kind: FindingKind.codeUnconfirmed,
+      path: 'specs/a.md',
+      line: 4,
+      message: 'lib/a.dart records no fingerprint',
+      keys: {
+        'entry': 'lib/a.dart',
+        'path': 'lib/a.dart',
+        'fingerprint': '9a1c03be55d2',
+      },
+    );
+    expect(finding.textLines, [
+      'specs/a.md:4: code_unconfirmed: lib/a.dart records no fingerprint',
+      '    fingerprint 9a1c03be55d2',
+    ]);
+    expect(finding.waitsFor, WaitsFor.agent);
+    expect(finding.toJson().keys, [
+      'kind',
+      'docPath',
+      'line',
+      'message',
+      'waitsFor',
+      'entry',
+      'path',
+      'fingerprint',
+    ]);
+  });
+
+  test('a code_suspect finding prints the current fingerprint on its own '
+      'line, indented 4 spaces, and holds it in no message', () {
+    const finding = Finding(
+      kind: FindingKind.codeSuspect,
+      path: 'specs/a.md',
+      line: 4,
+      message:
+          'lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was '
+          'recorded',
+      keys: {
+        'entry': 'lib/a.dart',
+        'path': 'lib/a.dart',
+        'recorded': '5d1e0c4b7a92',
+        'fingerprint': '9a1c03be55d2',
+      },
+    );
+    expect(finding.textLines, [
+      'specs/a.md:4: code_suspect: lib/a.dart changed since its fingerprint 5d1e0c4b7a92 was recorded',
+      '    fingerprint 9a1c03be55d2',
+    ]);
+    expect(finding.waitsFor, WaitsFor.agent);
+    expect(finding.toJson().keys, [
+      'kind',
+      'docPath',
+      'line',
+      'message',
+      'waitsFor',
+      'entry',
+      'path',
+      'recorded',
+      'fingerprint',
     ]);
   });
 

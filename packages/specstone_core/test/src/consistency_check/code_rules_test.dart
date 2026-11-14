@@ -142,9 +142,15 @@ void main() {
     expect(spots(report), [
       '$techStack:4: code_uncovered',
       '$techStack:4: code_uncovered',
+      '$loginArchitecture:4: code_unconfirmed',
+      '$loginRecord:7: code_unconfirmed',
+      '$loginRecord:8: code_unconfirmed',
     ]);
     expect(
-      [for (final f in report.findings) f.toJson()['path']],
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.codeUncovered) f.toJson()['path'],
+      ],
       ['app/lib/login.dart', 'app/lib/x.dart'],
     );
   });
@@ -248,6 +254,54 @@ void main() {
     );
   });
 
+  test(
+    'a covers entry ending in a fingerprint names what its prefix names',
+    () async {
+      for (final entry in [
+        'app/lib/login.dart 9a1c03be55d2',
+        'app/lib/ 9a1c03be55d2',
+      ]) {
+        expect(
+          spots(
+            checkOf(await writeCheckProject(extra: narrow(entry))),
+            FindingKind.coversPathMissing,
+          ),
+          isEmpty,
+          reason: entry,
+        );
+      }
+      final moved = checkOf(
+        await writeCheckProject(extra: narrow('app/lib/login/ 9a1c03be55d2')),
+      );
+      expect(_of(moved, FindingKind.coversPathMissing), [
+        '$loginArchitecture: app/lib/login/',
+      ]);
+    },
+  );
+
+  test('an upper-case token stays part of the covers path', () async {
+    final report = checkOf(
+      await writeCheckProject(extra: narrow('app/lib/ 9A1C03BE55D2')),
+    );
+
+    expect(_of(report, FindingKind.coversPathMissing), [
+      '$loginArchitecture: app/lib/ 9A1C03BE55D2',
+    ]);
+  });
+
+  test(
+    'a file under a covers folder that ends in a fingerprint is covered',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {...narrow('app/lib/ 9a1c03be55d2'), 'app/lib/main.dart': ''},
+        ),
+      );
+
+      expect(spots(report, FindingKind.codeUncovered), isEmpty);
+    },
+  );
+
   test('cc-INV-10: a file under two roots is reported once, under the first root that lists it', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -282,7 +336,7 @@ void main() {
         '$techStack:4: code_uncovered',
       ]);
       expect(report.warnings, [
-        'app/lib/sealed: cannot list the folder; files under it are not checked for covers',
+        'app/lib/sealed: cannot list the folder; files under it are not checked for covers or fingerprints',
         'app/lib/sealed: cannot list the folder; files under it are not checked for doc names',
       ]);
     },

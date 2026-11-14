@@ -1364,6 +1364,26 @@ void _agentTests() {
     );
   });
 
+  test('design mode links every design a doc still states: the design '
+      "references line names no link count and takes the guide's section", () {
+    final design = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/design.md'),
+    );
+    expect(
+      design,
+      isNot(matches(RegExp(r'\b(?:one|two|three|four|five|\d+) links\b'))),
+      reason: 'a link count evicts a design a doc still states',
+    );
+    expect(design, isNot(contains('this replaces')));
+    expect(
+      design,
+      contains(
+        'a link to this document, kept or dropped as the `Design references` '
+        'section of `specstone guide architecture` says.',
+      ),
+    );
+  });
+
   test('E20: design '
       'mode grounds with no --target and names a code target on each '
       'per-target row', () {
@@ -1417,8 +1437,8 @@ void _agentTests() {
         "**Code target** (two or more `targets:`): a changed path's target "
         'is the `code target:` line, or the '
         '`codeTarget` key under `--json`, of its `context --code` call, '
-        "covered or not, and a deleted path's is the finding DocPath's, so "
-        'ask the Owner nothing; each `get`, `set`, and `new` of a per-target '
+        "covered or not, and a deleted path's is the finding DocPath's; each "
+        '`get`, `set`, and `new` of a per-target '
         'doc carries `--target <name>`, or addresses the doc by its DocPath.';
     const recordWrite =
         '`specstone set implementation:<feature> --field implements '
@@ -1468,8 +1488,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          'A record code-path or `covers:` write leaves the draft flag '
-          'untouched: an approved doc keeps its approval.',
+          "Write by outcome through step 4.3's `set --field`, which leaves "
+          'the draft flag as it was.',
         ),
       );
     });
@@ -1479,8 +1499,7 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          "A changed path's target alone: compare and fix its record and "
-          "`covers:` entries, never another target's.",
+          "Compare and fix only that target's record and `covers:` entries.",
         ),
       );
     });
@@ -1519,8 +1538,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          '`specstone new <type>` (`--parent <name>`, `--slug <slug>`, '
-          "`--target <name>`, the path's code target, as the type takes them)",
+          "`specstone new <type>` (`--target <name>`, the path's code target, "
+          'as the type takes it)',
         ),
       );
     });
@@ -1532,9 +1551,8 @@ void _agentTests() {
         procedure(),
         contains(
           'Write no record code path or `covers:` entry that names this code '
-          'until the Owner approves the draft. Then add the entry at once '
-          "with the step 4.3 `specstone set --field` write, on the path's "
-          "target's record:",
+          'until the Owner approves the draft. Then add it at once by step '
+          "4.3, on the path's target's record.",
         ),
       );
     });
@@ -1547,6 +1565,457 @@ void _agentTests() {
           "sync takes the `--code` path's code target, or the finding "
           "DocPath's, on each per-target `get`, `set`, and `new`, and writes "
           "code paths to that target's record entry, never to an FR;",
+        ),
+      );
+    });
+
+    String skill() => _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
+
+    test('the sync skill runs the check as its gate and takes its work list '
+        "from the check's code findings or from a named feature", () {
+      expect(
+        skill(),
+        contains(
+          "The work list is the gate's `code_suspect`, `code_unconfirmed`, "
+          '`implements_path_unresolved`, `implements_symbol_unresolved`, '
+          '`covers_path_missing`, `code_uncovered`, and `tests_unresolved` '
+          'findings, never a `tests_missing` one.',
+        ),
+      );
+      expect(
+        skill(),
+        contains(
+          'When the Owner names a feature, it is every code link of that '
+          'feature that takes a state, findings or not.',
+        ),
+      );
+    });
+
+    test('the sync skill stops with no dispatch on an empty work list and '
+        'hands the engineer no list of paths', () {
+      expect(
+        skill(),
+        contains(
+          'With an empty list, tell the Owner no code changed since its docs '
+          'were compared, and stop with no dispatch and no further call.',
+        ),
+      );
+      expect(
+        skill(),
+        contains(
+          'dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a '
+          'file `mktemp` makes outside the repository, and the feature name '
+          'when the Owner gave one. Send no list of paths or doc text',
+        ),
+      );
+    });
+
+    test('the sync procedure finds the covering docs of each listed code path '
+        "but a tests_unresolved line's, and compares a changed folder on the "
+        'files changed since its stamp', () {
+      expect(
+        procedure(),
+        contains(
+          "For each listed code path but a `tests_unresolved` line's (step "
+          '4.4), run `specstone context --code <code root>/<path> --for '
+          'implement`.',
+        ),
+      );
+      expect(
+        procedure(),
+        contains(
+          "A `code_suspect` folder's code is the files changed under it since "
+          'its stamp: '
+          "`git log -1 --format=%H -S '<recorded>' -- docs/<DocPath>` gives "
+          '`<base>`, then `git diff --name-only <base> -- <prefix>` and '
+          '`git ls-files --others --exclude-standard -- <prefix>`; with no '
+          'such commit, or on a `code_unconfirmed` folder, every file under '
+          'the prefix',
+        ),
+      );
+    });
+
+    test('the sync procedure joins the code root to a finding path for --code '
+        'and every git pathspec, and stops on any other exit', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          "A finding's `path` is relative to its target's code root "
+          '(`code_root:` in `.specstone/config.yaml`, under `targets:` per '
+          'target; default `.`). From the project root, `--code` and each '
+          'git pathspec take `<code root>/<path>`.',
+        ),
+      );
+      final step = _oneLine(
+        _sectionOf(
+          _pluginText('skills/sync-sdd/references/procedure.md'),
+          '3. Find the covering docs',
+        ),
+      );
+      expect(
+        step,
+        contains("**Any other exit:** report the CLI's error and stop."),
+      );
+    });
+
+    test('the sync procedure names the base hash source of a field write, a '
+        'tests repoint included, and of a section draft', () {
+      final text = procedure();
+      expect(text, contains('(hash: `bases.fields.<field>` of `get --json`;'));
+      expect(
+        text,
+        contains(
+          '`specstone set <doc>#<section key> --base <hash>` (hash: the '
+          '`base` of `specstone get <doc>#<key>`)',
+        ),
+      );
+    });
+
+    test('the sync procedure takes its work list from the gate check and '
+        'neither sync file takes a list of changed paths or a base commit', () {
+      expect(
+        procedure(),
+        contains(
+          'Your gate `check` gives it: each '
+          '`code_suspect`, `code_unconfirmed`, `implements_path_unresolved`, '
+          '`implements_symbol_unresolved`, `covers_path_missing`, '
+          '`code_uncovered`, and `tests_unresolved` finding, never a '
+          '`tests_missing` one.',
+        ),
+      );
+      for (final text in [skill(), procedure()]) {
+        for (final input in [
+          'changed paths',
+          'base commit',
+          'base branch',
+          'merge-base',
+          'task lists',
+          'start commit',
+        ]) {
+          expect(text, isNot(contains(input)), reason: input);
+        }
+      }
+    });
+
+    test(
+      'the sync procedure compares each link with the approved text of '
+      'every covering doc and takes a doc printing draft: true as pending',
+      () {
+        expect(
+          procedure(),
+          contains(
+            "Compare the approved text of every covering doc with each link's "
+            'code, its file; a doc printing `draft: true` is a pending draft.',
+          ),
+        );
+      },
+    );
+
+    test('the sync procedure writes on a match the finding fingerprint, any '
+        "pointer fix, and a planned entry's implemented status, never "
+        'skipped or deprecated, and none for a clean link', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          "a named feature's `clean` link takes no fingerprint, only a "
+          "`planned` entry's `implemented`:",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          "**Match:** the finding's `fingerprint` ending the link's entry, "
+          'any pointer fix, and for a `planned` entry `implemented` in its '
+          '`statuses`; never `skipped` or `deprecated`.',
+        ),
+      );
+    });
+
+    test('the sync procedure writes nothing for a link while a covering doc '
+        'is a pending draft and lists a match as a waiting pointer', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          'A pending draft among the covering docs holds every write of a '
+          "match and of a `planned` entry's fingerprint: list a match as a "
+          'waiting pointer, written whole once the Owner approves '
+          '(fingerprint, and on a `planned` entry `implemented`).',
+        ),
+      );
+      expect(
+        text.indexOf('A pending draft among the covering docs holds'),
+        lessThan(text.indexOf('**Match:**')),
+        reason: 'the wait applies before the outcome bullets',
+      );
+    });
+
+    test('the sync skill writes a waiting match whole once its draft is '
+        "approved, a planned entry's implemented status included", () {
+      expect(
+        skill(),
+        contains(
+          'A waiting match is written whole: the fingerprint ends the entry, '
+          "and a `planned` entry's `implemented` goes to `statuses` through "
+          '`--field statuses` with `bases.fields.statuses`.',
+        ),
+      );
+    });
+
+    test('the sync procedure sends the new side of a rename pair to the '
+        'pointer fix before it reports a warning path as uncovered', () {
+      expect(
+        procedure(),
+        contains(
+          "The new side of a rename pair (step 4.3's git commands) goes to "
+          'step 4.3. Else read the file and write nothing for it;',
+        ),
+      );
+    });
+
+    test('the sync procedure keeps each command code span on one line and '
+        'loops the check only until no pointer finding of those docs is '
+        'left', () {
+      for (final line in _pluginText(
+        'skills/sync-sdd/references/procedure.md',
+      ).split('\n')) {
+        expect('`'.allMatches(line).length.isEven, isTrue, reason: line);
+      }
+      expect(
+        procedure(),
+        contains('until no such finding of those docs is left:'),
+      );
+    });
+
+    test('the sync procedure writes the fingerprint alone for a planned entry '
+        'whose code lacks its planned behavior and asks nothing', () {
+      expect(
+        procedure(),
+        contains(
+          "**A `planned` entry's code lacking its planned behavior yet** is "
+          'no mismatch, no question: the fingerprint alone; the entry stays '
+          '`planned`.',
+        ),
+      );
+    });
+
+    test('the sync procedure writes nothing on a mismatch, reports each '
+        'point under Mismatches:, and drafts a spec only on the fix-the-spec '
+        'pick, a story or FR going to the brainstorm', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          '**Mismatch**, code behavior the approved text contradicts: '
+          'nothing for the link; report each point under `Mismatches:`: doc '
+          'and section, what the spec states, what the code does. A '
+          'fix-the-spec pick sent to you: write each stale section as a spec '
+          'draft (step 5); the fingerprint waits for its approval.',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          "On the Owner's write-a-spec or fix-the-spec pick sent to you, a "
+          'story or FR it needs goes to `specstone:brainstorming-sdd`.',
+        ),
+      );
+    });
+
+    test('the sync procedure repoints a moved file found by git rename '
+        'detection with no fingerprint, and a tests_unresolved line with no '
+        'new tests line', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          'find the pair with `git log -1 -M --diff-filter=R --name-status '
+          '--format= -- <old path>`, or `git diff -M --name-status HEAD` '
+          'while the move is uncommitted; write no fingerprint;',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'A `tests_unresolved` line: repoint it with `specstone set '
+          'implementation:<feature> --field tests --target <name> --base '
+          "<hash>` to the moved file of step 4.3 or the test's current name "
+          'in it; one you cannot place stays as written, among the waiting '
+          'pointers. Write no `tests` line for a test a change adds or '
+          'moves.',
+        ),
+      );
+    });
+
+    test('the sync procedure reports each draft by name with one sentence on '
+        'why it changed, never its text', () {
+      expect(
+        _oneLine(
+          _sectionOf(
+            _pluginText('skills/sync-sdd/references/procedure.md'),
+            'Report to the Owner',
+          ),
+        ),
+        contains(
+          "each one's dropped and new sentence counts, and one sentence on "
+          'why it changed, never its text;',
+        ),
+      );
+    });
+
+    test("the sync skill asks the Owner's pick on each mismatch and routes a "
+        'fix that lands in a spec doc to an agent, one that lands in a PRD '
+        'doc to the brainstorm', () {
+      expect(
+        skill(),
+        contains(
+          'Ask the Owner, per point under `Mismatches:`, fix the code or fix '
+          'the spec. Fix the code writes nothing: the next `check` lists the '
+          'link again. Send a fix-the-spec pick to the same agent while it is '
+          'live, else to a new one with the answers, when the fix lands in a '
+          'spec doc.',
+        ),
+      );
+      expect(
+        skill(),
+        contains(
+          'Run `specstone:brainstorming-sdd` for each behavior the report '
+          'hands over and each pick that lands in a story or FR, since the '
+          'sync writes no PRD doc.',
+        ),
+      );
+    });
+
+    test('the sync procedure reads each uncovered file, writes nothing for it, '
+        'and reports it under Uncovered: with what it does that no spec '
+        'states and whether that needs a new story or FR', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          'Else read the file and write nothing for it; report it under '
+          '`Uncovered:`: its path, what it does that no spec states, and '
+          'whether that needs a new story or FR.',
+        ),
+      );
+      expect(
+        _oneLine(
+          _sectionOf(
+            _pluginText('skills/sync-sdd/references/procedure.md'),
+            'Report to the Owner',
+          ),
+        ),
+        contains('each `Mismatches:` point, each `Uncovered:` file,'),
+      );
+    });
+
+    test('the sync procedure writes a spec draft only on the write-a-spec '
+        'pick, in the path code target, and writes no pointer to the code '
+        'before the Owner approves the draft', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          "On the Owner's write-a-spec or fix-the-spec pick sent to you,",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'the Owner approves it with `specstone approve`. Write no record '
+          'code path or `covers:` entry that names this code until the Owner '
+          'approves the draft.',
+        ),
+      );
+    });
+
+    test('the sync skill asks the Owner per uncovered file to write a spec or '
+        'change or remove the code, and routes the spec pick as a '
+        'fix-the-spec pick', () {
+      expect(
+        skill(),
+        contains(
+          'Ask the Owner, per file under `Uncovered:`, write a spec or change '
+          'or remove the code; change or remove writes nothing, and a '
+          'write-a-spec pick routes as a fix-the-spec pick does.',
+        ),
+      );
+    });
+
+    test('sdd-engineer takes a feature name and the Owner picks in sync mode '
+        'and names no changed-path or base-commit input', () {
+      final agent = _oneLine(_pluginText('agents/sdd-engineer.md'));
+      final input = _oneLine(
+        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Input Contract'),
+      );
+      expect(
+        input,
+        contains(
+          '- **`feature`** (sync, optional): the feature name the Owner gave; '
+          'absent, your gate `check` gives the work list.',
+        ),
+      );
+      expect(
+        input,
+        contains(
+          '- **`picks`** (sync, bootstrap, optional): each Owner pick whose '
+          'fix lands in a spec doc. Sync: a fix-the-spec pick per '
+          '`Mismatches:` point or a write-a-spec pick per `Uncovered:` file. '
+          'Bootstrap: a write-a-spec pick per `Uncovered:` file.',
+        ),
+      );
+      for (final phrase in ['changed paths', 'base commit', 'given paths']) {
+        expect(agent, isNot(contains(phrase)), reason: phrase);
+      }
+    });
+
+    test('sdd-engineer syncs on its gate check work list or a named feature '
+        "and writes each pick by the procedure's step 5", () {
+      expect(
+        _oneLine(_sectionOf(_pluginText('agents/sdd-engineer.md'), 'Workflow')),
+        contains(
+          '2. **Sync**: follow the On-Demand procedure from its step 2, on '
+          "your gate `check`'s work list, or on every code link of `feature`; "
+          'write each of `picks` by its step 5. Then Workflow step 5.',
+        ),
+      );
+    });
+
+    test('sdd-engineer writes each pick in bootstrap mode by the procedure '
+        'step that covers code, as it does in sync mode', () {
+      expect(
+        _oneLine(_sectionOf(_pluginText('agents/sdd-engineer.md'), 'Workflow')),
+        contains(
+          '3. **Bootstrap**: follow the On-Demand procedure from its step 2 '
+          'on `batch`, its step 6 only for docs `batch` names, each write '
+          'through `--base`; write each of `picks` by its step 3; list other '
+          'findings. Then Workflow step 5.',
+        ),
+      );
+    });
+
+    test('sdd-engineer reports each Mismatches: point, each Uncovered: file, '
+        'and each waiting pointer in sync mode, and each Uncovered: file in '
+        'bootstrap mode', () {
+      final output = _oneLine(
+        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+      );
+      expect(
+        output,
+        contains(
+          'each pointer fixed; each `Mismatches:` point and each `Uncovered:` '
+          'file; each behavior handed to `specstone:brainstorming-sdd`; each '
+          'pointer that waits on an approval; open questions; then '
+          '`Findings:`.',
+        ),
+      );
+      expect(
+        output,
+        contains(
+          'split proposals, or why none applies; open questions; each '
+          '`Uncovered:` file; one `specstone delete …` line;',
         ),
       );
     });
@@ -1724,6 +2193,154 @@ void _agentTests() {
           'code pointer on a shared doc or an old file whose path names none;',
         ),
       );
+    });
+
+    group('uncovered code in a fill run', () {
+      const procedureFile = 'skills/bootstrap-spec/references/procedure.md';
+
+      String afterReports() => _oneLine(
+        _sectionOf(
+          _pluginText('skills/bootstrap-spec/SKILL.md'),
+          '3. After the reports',
+        ),
+      );
+
+      test('the procedure reads a code_uncovered file, writes nothing for it, '
+          'and reports it under Uncovered:', () {
+        expect(
+          text(procedureFile),
+          contains(
+            '- **`code_uncovered`:** read the file and write nothing for it; '
+            'report it under `Uncovered:` in the form of step 3 of '
+            r'`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`.',
+          ),
+        );
+      });
+
+      test('the procedure writes a covers entry or a topic doc only on a '
+          'write-a-spec pick sent to it, and takes a reported file as '
+          'handled', () {
+        final procedure = text(procedureFile);
+        expect(
+          procedure,
+          contains(
+            'On a write-a-spec pick sent to you, with its file: add the file '
+            'or its folder to `covers` on the architecture or topic doc '
+            'describing it; with none, `specstone new topic --slug <slug>`.',
+          ),
+        );
+        expect(
+          _oneLine(
+            _sectionOf(_pluginText(procedureFile), '3. Point and cover code'),
+          ),
+          isNot(contains('ask the Owner')),
+        );
+        expect(
+          procedure,
+          contains(
+            'clears with no write, is a reported `code_uncovered`, or is '
+            'tagged `(waits for the Owner)`, except an unanswered size '
+            'finding.',
+          ),
+        );
+      });
+
+      test('the skill asks the Owner once per batch, every file in one '
+          'question, and writes nothing on change or remove', () {
+        expect(
+          afterReports(),
+          contains(
+            'once per batch, every file under its `Uncovered:` in one '
+            'question: write a spec for it, or change or remove the code. '
+            'Change or remove writes nothing.',
+          ),
+        );
+      });
+
+      test('the skill sends a write-a-spec pick that needs a new story or FR '
+          'to the brainstorm, and any other with its file to the next '
+          "round's agent as picks", () {
+        expect(
+          afterReports(),
+          contains(
+            'A write-a-spec pick whose behavior needs a new story or FR goes '
+            'to `specstone:brainstorming-sdd`; any other goes with its file '
+            "to the next round's agent of that batch as `picks:`, which "
+            'writes the draft and does not report the file.',
+          ),
+        );
+        expect(
+          text('skills/bootstrap-spec/SKILL.md'),
+          contains(
+            "`batch:` the batch's paths, `picks:` each write-a-spec pick of "
+            "step 3 for the batch's files, and `report:`",
+          ),
+        );
+      });
+
+      test('the rest batch runs in a later round while a write-a-spec pick '
+          'awaits its file, even with no other finding', () {
+        expect(
+          text('skills/bootstrap-spec/SKILL.md'),
+          contains(
+            'In a later round it runs only when findings it owns remain or a '
+            'write-a-spec pick awaits.',
+          ),
+        );
+      });
+
+      test("the skill keeps each answered file out of the run's later "
+          'reports and questions, and names it once at the end with what it '
+          'waits on', () {
+        final skill = text('skills/bootstrap-spec/SKILL.md');
+        expect(
+          afterReports(),
+          contains(
+            'Keep each answered file, whatever the pick, for the run: no '
+            'later batch reports it and the Owner is not asked again.',
+          ),
+        );
+        expect(
+          skill,
+          contains(
+            '`code_uncovered` included except a file the Owner answered in '
+            'this run.',
+          ),
+        );
+        expect(
+          afterReports(),
+          contains(
+            'it is an answered `code_uncovered` file, which starts a round '
+            'only through a write-a-spec pick,',
+          ),
+        );
+        expect(
+          afterReports(),
+          contains(
+            'name once each answered `code_uncovered` file the last `check` '
+            'still lists, with what it waits on: the code change, the '
+            'brainstorm, or the approval of its draft,',
+          ),
+        );
+      });
+
+      test('the sibling merge and retire clauses stay in both bootstrap '
+          'procedures', () {
+        for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+          final procedure = text('skills/$skill/references/procedure.md');
+          expect(procedure, contains('Name the set in one '), reason: skill);
+          expect(
+            procedure,
+            contains('On a batch, delete nothing: hand that line to'),
+            reason: skill,
+          );
+          expect(
+            procedure,
+            contains('Add its path to this run'),
+            reason: skill,
+          );
+        }
+      });
     });
   });
 
@@ -2774,11 +3391,52 @@ void _planTests() {
   });
 
   test('$_writePlan statement: the Ground and Workflow sections of '
-      'plan-engineer name only the context and check commands', () {
+      'plan-engineer name only the context and check commands it runs and '
+      'the set command a tests-line step gives the implementer', () {
     final agent = _pluginText(_planAgent);
     final sections =
         '${_sectionOf(agent, 'Ground')}\n${_sectionOf(agent, 'Workflow')}';
-    expect(cliCommands(sections).toSet(), {'context', 'check'});
+    expect(cliCommands(sections).toSet(), {'context', 'check', 'set'});
+    expect(cliCommands(_sectionOf(agent, 'Ground')).toSet(), {
+      'context',
+    }, reason: 'the Ground section names no write command');
+    final testsLine = RegExp(
+      r'^ +- \*\*Tests line\*\*.*(?:\n {5}.*)*',
+      multiLine: true,
+    ).firstMatch(sections)?[0];
+    expect(testsLine, isNotNull);
+    expect(cliCommands(testsLine!).toSet(), {'set'});
+    expect(cliCommands(sections.replaceFirst(testsLine, '')).toSet(), {
+      'context',
+      'check',
+    }, reason: 'only the tests-line step names set');
+  });
+
+  test('plan-engineer has each task that adds or moves a '
+      "test for an FR write a step that sets that FR's tests line", () {
+    expect(
+      _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
+      contains(
+        '- **Tests line**: a task that adds or moves a test for an FR writes '
+        "out a step that sets that FR's `tests` line in its target's record: "
+        '`specstone set implementation:<feature> --field tests`, with '
+        '`--target <code target>` when one is given. The sync writes no new '
+        '`tests` line.',
+      ),
+    );
+  });
+
+  test('the last task of a plan runs specstone:sync-sdd with '
+      'no path list and carries no read line', () {
+    final workflow = _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow'));
+    expect(
+      workflow,
+      contains(
+        "The plan's last task runs `specstone:sync-sdd` with no path list; it "
+        'builds no doc, so it carries no read line.',
+      ),
+    );
+    expect(workflow, isNot(contains('paths the plan changed')));
   });
 
   test('$_writePlan, domain:agent_plugin INV-10: plan-engineer lists no tools '

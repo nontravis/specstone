@@ -3,6 +3,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -18,9 +19,6 @@ final _hashSuffix = RegExp(r'@[0-9a-f]{12}$');
 /// The docs root as a path from the project root begins.
 const _docsPrefix = 'docs/';
 
-/// The entry item that names the record's own feature (a skip).
-const _featureItem = '';
-
 /// The docs of one read snapshot, with their names, parent tree, and links.
 ///
 /// Every list it returns is in tree order.
@@ -31,10 +29,8 @@ final class DocIndex {
     this._store,
     this._docPathOfFile, {
     List<String> targetNames = const [],
-  }) : _byPath = {for (final doc in docs) doc.docPath: doc},
-       _children = _childrenByParent(docs),
+  }) : statusTree = StatusTree(set, docs, targetNames: targetNames),
        _byName = _groupBy(docs, (doc) => doc.name),
-       _byTypeAndName = _groupBy(docs, (doc) => '${doc.docTypeId}:${doc.name}'),
        _chainTypes = _chainTypeIds(set),
        targetNames = List.unmodifiable(targetNames);
 
@@ -60,43 +56,28 @@ final class DocIndex {
 
   /// Returns the DocPath of the file a working-directory path names, or null.
   final String? Function(String path) _docPathOfFile;
-  final Map<String, IndexedDoc> _byPath;
-  final Map<String, List<IndexedDoc>> _children;
   final Map<String, List<IndexedDoc>> _byName;
-  final Map<String, List<IndexedDoc>> _byTypeAndName;
   final Set<String> _chainTypes;
 
-  /// The record entries of each record doc, keyed by its docPath; built on
-  /// first read.
-  late final Map<String, List<RecordEntry>> _recordEntries = {
-    if (set.recordDocType case final type?)
-      for (final record in docs)
-        if (record.docTypeId == type.id)
-          record.docPath: recordEntriesOf(record, type),
-  };
+  /// The store-free statuses and tree of [docs], which the check and the
+  /// migrate stamp read too.
+  final StatusTree statusTree;
 
   /// Returns the doc at [docPath], or null when none is indexed there.
-  IndexedDoc? at(String docPath) => _byPath[docPath];
+  IndexedDoc? at(String docPath) => statusTree.at(docPath);
 
   /// Returns the docs of the doc type [typeId] named [name], in tree order.
   List<IndexedDoc> ofTypeNamed(String typeId, String name) =>
-      _byTypeAndName['$typeId:$name'] ?? const [];
+      statusTree.ofTypeNamed(typeId, name);
 
   /// Returns the doc [doc] nests under, or null for a root doc.
-  IndexedDoc? parentOf(IndexedDoc doc) {
-    final parentPath = doc.parentPath;
-    return parentPath == null ? null : _byPath[parentPath];
-  }
+  IndexedDoc? parentOf(IndexedDoc doc) => statusTree.parentOf(doc);
 
   /// Returns the docs that nest directly under [doc].
-  List<IndexedDoc> childrenOf(IndexedDoc doc) =>
-      _children[doc.docPath] ?? const [];
+  List<IndexedDoc> childrenOf(IndexedDoc doc) => statusTree.childrenOf(doc);
 
   /// Returns [doc] followed by every doc nested under it, parents first.
-  List<IndexedDoc> subtreeOf(IndexedDoc doc) => [
-    doc,
-    for (final child in childrenOf(doc)) ...subtreeOf(child),
-  ];
+  List<IndexedDoc> subtreeOf(IndexedDoc doc) => statusTree.subtreeOf(doc);
 
   /// Returns [doc], then each parent up to the top doc.
   List<IndexedDoc> chainOf(IndexedDoc doc) {
@@ -167,7 +148,8 @@ final class DocIndex {
   /// when that names one doc, else its DocPath.
   String addressOf(IndexedDoc doc) {
     final typed = '${doc.docTypeId}:${doc.name}';
-    return doc.docTypeId != null && _byTypeAndName[typed]!.length == 1
+    return doc.docTypeId != null &&
+            statusTree.ofTypeNamed(doc.docTypeId!, doc.name).length == 1
         ? typed
         : doc.docPath;
   }
@@ -205,7 +187,8 @@ final class DocIndex {
         'Could not find a doc type named "$typeId".',
       );
     }
-    return _namedOf(_byTypeAndName['$typeId:${read.body}'], codeTarget) ??
+    final typed = statusTree.ofTypeNamed(typeId, read.body);
+    return _namedOf(typed.isEmpty ? null : typed, codeTarget) ??
         _notFound('no $typeId doc carries the name ${read.body}');
   }
 
@@ -237,14 +220,14 @@ final class DocIndex {
   }
 
   IndexedDoc? _docAtPath(String path) {
-    if (_byPath[path] case final doc?) return doc;
+    if (at(path) case final doc?) return doc;
     if (path.startsWith(_docsPrefix)) {
-      if (_byPath[path.substring(_docsPrefix.length)] case final doc?) {
+      if (at(path.substring(_docsPrefix.length)) case final doc?) {
         return doc;
       }
     }
     final docPath = _docPathOfFile(path);
-    return docPath == null ? null : _byPath[docPath];
+    return docPath == null ? null : at(docPath);
   }
 
   /// Returns the subtrees of every doc [name] addresses, each doc once.
@@ -265,165 +248,24 @@ final class DocIndex {
     ];
   }
 
-  /// Returns the status of [doc] in [codeTarget], or in its one target when
-  /// null: the one `targets:` names when it names one, else the unnamed
-  /// target.
-  ///
-  /// A feature computes it from its subtree's stories (INV-17); a story or FR
-  /// takes its record entry's status, or `planned` without one, outside every
-  /// skip that covers it (INV-29); any other doc returns the status it writes,
-  /// or null. With no record doc type every story and FR reads its `status:`
-  /// with no target, and a feature computes from those (INV-29).
-  String? statusOf(IndexedDoc doc, {String? codeTarget}) {
-    final typeId = doc.docTypeId;
-    if (typeId == featureType) return _featureStatusOf(doc, codeTarget).wire;
-    if (typeId != storyType && typeId != frType) return doc.writtenStatus;
-    if (set.recordDocType == null) return doc.writtenStatus;
-    return itemStatus(doc, codeTarget: codeTarget).wire;
-  }
+  /// Returns the status of [doc] in [codeTarget] ([StatusTree.statusOf]).
+  String? statusOf(IndexedDoc doc, {String? codeTarget}) =>
+      statusTree.statusOf(doc, codeTarget: codeTarget);
 
-  /// Returns the status of the story or FR [item] in [codeTarget] (INV-29):
-  /// `skipped` under a skip of its feature, of a feature above, or, for an FR,
-  /// of its story; else its record entry's `statuses` status, `planned`
-  /// without an entry or a status.
-  RecordStatus itemStatus(IndexedDoc item, {String? codeTarget}) {
-    final target = _namedOrGiven(codeTarget);
-    if (_coveringSkip(item, target, includingOwn: true) != null) {
-      return RecordStatus.skipped;
-    }
-    return _entryOf(item, target)?.status ?? RecordStatus.planned;
-  }
+  /// Returns the status of the story or FR [item] in [codeTarget]
+  /// ([StatusTree.itemStatus]).
+  RecordStatus itemStatus(IndexedDoc item, {String? codeTarget}) =>
+      statusTree.itemStatus(item, codeTarget: codeTarget);
 
-  /// Returns the name of the skip that covers the story or FR [item] in
-  /// [codeTarget] apart from its own entry (INV-29), or null when none does.
-  ///
-  /// The narrowest skip wins, and the record nearest [item] first; a skipped
-  /// feature entry is named by its feature.
+  /// Returns the name of the skip that covers [item] in [codeTarget] apart
+  /// from its own entry ([StatusTree.coveringSkipOf]).
   String? coveringSkipOf(IndexedDoc item, {String? codeTarget}) =>
-      _coveringSkip(item, _namedOrGiven(codeTarget), includingOwn: false);
+      statusTree.coveringSkipOf(item, codeTarget: codeTarget);
 
-  String? _coveringSkip(
-    IndexedDoc item,
-    String? codeTarget, {
-    required bool includingOwn,
-  }) {
-    for (final record in _recordsOf(item, codeTarget)) {
-      final relative = _relativeItemOf(item, record);
-      final covering = [
-        for (final entry in record.entries)
-          if (entry.status == RecordStatus.skipped &&
-              (includingOwn || entry.item != relative) &&
-              _skipCovers(entry.item, relative))
-            entry.item,
-      ]..sort((a, b) => b.length.compareTo(a.length));
-      if (covering.isEmpty) continue;
-      return covering.first.isEmpty ? record.feature : covering.first;
-    }
-    return null;
-  }
-
-  /// Returns the record entry of the story or FR [item] in [codeTarget], or
-  /// in its one target when null (as [statusOf] reads it); null with no
-  /// entry, and with no record doc type.
+  /// Returns the record entry of [item] in [codeTarget]
+  /// ([StatusTree.recordEntryOf]).
   RecordEntry? recordEntryOf(IndexedDoc item, {String? codeTarget}) =>
-      _entryOf(item, _namedOrGiven(codeTarget));
-
-  /// Returns the entry of [item] in its own feature's record in [codeTarget],
-  /// the one record `check` resolves it in; a record above names none of it.
-  RecordEntry? _entryOf(IndexedDoc item, String? codeTarget) {
-    final feature = _featureOf(item)?.name;
-    for (final record in _recordsOf(item, codeTarget)) {
-      if (record.feature != feature) continue;
-      final relative = _relativeItemOf(item, record);
-      for (final entry in record.entries) {
-        if (entry.item == relative) return entry;
-      }
-    }
-    return null;
-  }
-
-  /// Returns the nearest feature at or above [doc], or null for none.
-  IndexedDoc? _featureOf(IndexedDoc doc) {
-    for (IndexedDoc? member = doc; member != null; member = parentOf(member)) {
-      if (member.docTypeId == featureType) return member;
-    }
-    return null;
-  }
-
-  /// Returns the feature [doc]'s status in [codeTarget] from the stories of
-  /// its whole subtree (INV-17): `skipped` under its own skip or one above;
-  /// `planned` with no story; `skipped` when every story is; `deprecated`
-  /// when every story not skipped is; `implemented` when every story neither
-  /// skipped nor deprecated is; `planned` otherwise.
-  RecordStatus _featureStatusOf(IndexedDoc doc, String? codeTarget) {
-    final records = _recordsOf(doc, _namedOrGiven(codeTarget));
-    final skippedAbove = records.any(
-      (record) => record.entries.any(
-        (entry) =>
-            entry.item == _featureItem && entry.status == RecordStatus.skipped,
-      ),
-    );
-    if (skippedAbove) return RecordStatus.skipped;
-    RecordStatus storyStatusOf(IndexedDoc story) => set.recordDocType == null
-        ? RecordStatus.byWire(story.writtenStatus ?? '') ?? RecordStatus.planned
-        : itemStatus(story, codeTarget: _namedOrGiven(codeTarget));
-    final stories = [
-      for (final member in subtreeOf(doc).skip(1))
-        if (member.docTypeId == storyType) storyStatusOf(member),
-    ];
-    if (stories.isEmpty) return RecordStatus.planned;
-    if (stories.every((s) => s == RecordStatus.skipped)) {
-      return RecordStatus.skipped;
-    }
-    final left = stories.where((s) => s != RecordStatus.skipped);
-    if (left.every((s) => s == RecordStatus.deprecated)) {
-      return RecordStatus.deprecated;
-    }
-    final live = left.where((s) => s != RecordStatus.deprecated);
-    return live.every((s) => s == RecordStatus.implemented)
-        ? RecordStatus.implemented
-        : RecordStatus.planned;
-  }
-
-  /// Returns [codeTarget], or the one name `targets:` holds when the project
-  /// names exactly one code target and none was given.
-  String? _namedOrGiven(String? codeTarget) =>
-      codeTarget ?? (targetNames.length == 1 ? targetNames.single : null);
-
-  /// The records of [doc]'s feature and of each feature above it in
-  /// [codeTarget], nearest feature first.
-  List<_RecordDoc> _recordsOf(IndexedDoc doc, String? codeTarget) {
-    final type = set.recordDocType;
-    if (type == null) return const [];
-    final records = <_RecordDoc>[];
-    for (IndexedDoc? member = doc; member != null; member = parentOf(member)) {
-      if (member.docTypeId != featureType) continue;
-      for (final record in ofTypeNamed(type.id, member.name)) {
-        if (record.target != codeTarget) continue;
-        records.add((
-          feature: member.name,
-          entries: _recordEntries[record.docPath] ?? const [],
-        ));
-      }
-    }
-    return records;
-  }
-
-  /// Returns [item]'s name relative to [record]'s feature: its own name with
-  /// the feature's prefix dropped.
-  String _relativeItemOf(IndexedDoc item, _RecordDoc record) {
-    final prefix = '${record.feature}/';
-    return item.name.startsWith(prefix)
-        ? item.name.substring(prefix.length)
-        : item.name;
-  }
-
-  /// Whether the skipped [entryItem] covers [relative]: the record's own
-  /// feature, the item itself, or a story or feature above it.
-  bool _skipCovers(String entryItem, String relative) =>
-      entryItem.isEmpty ||
-      entryItem == relative ||
-      relative.startsWith('$entryItem/');
+      statusTree.recordEntryOf(item, codeTarget: codeTarget);
 
   /// Whether the doc type [docTypeId] sits on the parent chain of a query.
   bool isChainType(String docTypeId) => _chainTypes.contains(docTypeId);
@@ -482,10 +324,6 @@ final class DocIndex {
 Never _notFound(String message) =>
     throw IndexFault(IndexFaultCode.docNotFound, message);
 
-/// The record doc of one feature in one target: the feature's name, the one
-/// the record's entry items are relative to, and its parsed entries.
-typedef _RecordDoc = ({String feature, List<RecordEntry> entries});
-
 Map<String, List<IndexedDoc>> _groupBy(
   List<IndexedDoc> docs,
   String Function(IndexedDoc doc) key,
@@ -495,16 +333,6 @@ Map<String, List<IndexedDoc>> _groupBy(
     (groups[key(doc)] ??= []).add(doc);
   }
   return _unmodifiable(groups);
-}
-
-Map<String, List<IndexedDoc>> _childrenByParent(List<IndexedDoc> docs) {
-  final children = <String, List<IndexedDoc>>{};
-  for (final doc in docs) {
-    if (doc.parentPath case final parentPath?) {
-      (children[parentPath] ??= []).add(doc);
-    }
-  }
-  return _unmodifiable(children);
 }
 
 /// Returns [groups] with each list unmodifiable, so no caller can sort the

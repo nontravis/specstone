@@ -1531,7 +1531,11 @@ name: NFR
       for (final (:path, :text, :type) in typed) {
         expect(text, contains('approved: "'), reason: path);
         expect(text, isNot(contains('draft:')), reason: path);
-        expect(withApprovalHash(text, type), text, reason: path);
+        expect(
+          withApprovalHash(text, type, statusesOutside: shippedStatusesOutside),
+          text,
+          reason: path,
+        );
       }
       final tech = plan.creates.singleWhere(
         (c) => c.path == 'docs/specs/TECH_STACK.md',
@@ -1610,7 +1614,11 @@ name: Login API
         expect(plan.toText(), contains(', 1 fingerprints\n'));
         expect(api.text, contains('confirmed:\n  - email_login/'));
         expect(
-          withApprovalHash(api.text, _typeOf('specs/f01_login/API.md')),
+          withApprovalHash(
+            api.text,
+            _typeOf('specs/f01_login/API.md'),
+            statusesOutside: shippedStatusesOutside,
+          ),
           api.text,
         );
       },

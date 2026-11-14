@@ -42,17 +42,18 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.6.0 and adds no migrations '
-      'entry', () {
-    expect(shippedPackVersions()['software-tech'], '1.6.0');
+  test('the shipped software-tech pack is 1.7.0 and stamps code fingerprints '
+      'from 1.6.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.7.0');
     final manifest = PackManifest.parse(
       utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
       file: 'packs/software-tech/pack.yaml',
     );
     expect(
       [for (final entry in manifest.migrations) '${entry.from}'],
-      ['1.4.0'],
+      ['1.4.0', '1.6.0'],
     );
+    expect(manifest.migrations.last.steps.single, isA<StampCodeFingerprints>());
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -224,19 +225,50 @@ void main() {
       ]);
     });
 
-    test('S1: the pack carries the one migrations entry from 1.4.0, a '
-        'move_to_record step', () {
+    test('S1: the pack carries two migrations entries, a move_to_record step '
+        'from 1.4.0 and a stamp_code_fingerprints step from 1.6.0', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
         file: 'packs/software-tech/pack.yaml',
       );
-      expect(manifest.migrations, hasLength(1));
-      final entry = manifest.migrations.single;
-      expect(entry.from.toString(), '1.4.0');
-      final step = entry.steps.single as MoveToRecord;
+      expect(manifest.migrations, hasLength(2));
+      final [move, stamp] = manifest.migrations;
+      expect(move.from.toString(), '1.4.0');
+      final step = move.steps.single as MoveToRecord;
       expect(step.docTypes, ['user_story', 'fr']);
       expect(step.fields, ['status', 'implements']);
       expect(step.to, 'implementation');
+      expect(stamp.from.toString(), '1.6.0');
+      expect(stamp.steps.single, isA<StampCodeFingerprints>());
+    });
+
+    test('the covers and implements descriptions say an entry may end in one '
+        'space and its code fingerprint', () {
+      const phrase = 'may end in one space and its code fingerprint';
+      for (final (docType, field) in const [
+        ('architecture', 'covers'),
+        ('topic', 'covers'),
+        ('implementation', 'implements'),
+      ]) {
+        expect(
+          fieldOf(prdCoreDocType(both, docType), field).description,
+          contains(phrase),
+          reason: '$docType.$field',
+        );
+      }
+    });
+
+    test('the statuses and implements descriptions say they sit outside the '
+        'approval hash', () {
+      final record = both.recordDocType!;
+      expect(
+        fieldOf(record, 'statuses').description,
+        contains('outside the approval hash'),
+      );
+      expect(
+        fieldOf(record, 'implements').description,
+        contains('outside the approval hash'),
+      );
     });
   });
 

@@ -122,9 +122,11 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **Critical files**: it names each file it touches, each existing file and symbol one you opened.
    - **Trade-off**: it states its own trade-off behind each implementation choice, such as a doc that can be built
      more than one way.
+   - **Tests line**: a task that adds or moves a test for an FR writes out a step that sets that FR's `tests` line in
+     its target's record: `specstone set implementation:<feature> --field tests`, with `--target <code target>` when
+     one is given. The sync writes no new `tests` line.
 
-   The plan's last task runs `specstone:sync-sdd` on the paths the plan changed; it builds no doc, so it carries no
-   read line.
+   The plan's last task runs `specstone:sync-sdd` with no path list; it builds no doc, so it carries no read line.
 8. **Write**, either format, taking the first case that holds:
    - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
      the sync task; `Plan:` reads `none`.

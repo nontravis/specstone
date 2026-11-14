@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart'
@@ -63,6 +64,7 @@ const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 const _testsChange = 'add test lines';
+const _codeStampChange = 'stamp code fingerprints';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -216,6 +218,7 @@ RunPlan _upgradeRunOf(
           step: step,
           lf: lf,
         ),
+        StampCodeFingerprints() => lf,
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -229,6 +232,7 @@ RunPlan _upgradeRunOf(
                 false,
           MoveFile() => false,
           MoveToRecord() => false,
+          StampCodeFingerprints() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -242,6 +246,7 @@ RunPlan _upgradeRunOf(
                   '$_resolveCollision',
             MoveFile() => '',
             MoveToRecord() => '',
+            StampCodeFingerprints() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -298,7 +303,32 @@ RunPlan _upgradeRunOf(
       work.changes.add(_recordChange);
     }
   }
-  final recordCreates = recordCreatesOf(placement);
+  final codeStamp = stepKinds.any((step) => step is StampCodeFingerprints)
+      ? _codeStampOf(
+          root,
+          config,
+          set: finalSet,
+          works: works,
+          recordCreates: recordCreatesOf(placement),
+          firstTarget: firstTarget,
+        )
+      : null;
+  final recordCreates = [
+    for (final create in recordCreatesOf(placement))
+      PlannedCreate(
+        path: create.path,
+        text:
+            codeStamp?.rewrites[create.path.substring(_docsFolder.length)] ??
+            create.text,
+        note: create.note,
+      ),
+  ];
+  for (final work in works) {
+    if (codeStamp?.rewrites[work.plannedPath] case final stamped?) {
+      work.lf = stamped;
+      work.changes.add(_codeStampChange);
+    }
+  }
 
   // The passes read every doc's text after the steps and link rewrites (P5).
   final isOneTime = runsOneTimePasses(upgrades);
@@ -367,6 +397,10 @@ RunPlan _upgradeRunOf(
         (docPath: work.plannedPath, lf: laidOut[index], type: work.docType),
     ],
     pins: pins,
+    pinsAfter: {
+      ...pins,
+      for (final upgrade in upgrades) upgrade.pack: upgrade.target,
+    },
     restampsFingerprints: isOneTime,
   );
   final docRewrites = <PlannedRewrite>[];
@@ -419,11 +453,14 @@ RunPlan _upgradeRunOf(
 
   final stepLines = [
     for (final (index, (:from, :step)) in steps.indexed)
-      UpgradeStepLine(
-        from: '$from',
-        step: _describe(step),
-        paths: pathsAt(index),
-      ),
+      if (step is StampCodeFingerprints && codeStamp != null)
+        codeStamp.stepLine(from: '$from', step: _describe(step))
+      else
+        UpgradeStepLine(
+          from: '$from',
+          step: _describe(step),
+          paths: pathsAt(index),
+        ),
   ];
   final upgraded = [
     for (final upgrade in upgrades)
@@ -496,6 +533,38 @@ RunPlan _upgradeRunOf(
   );
   return plan;
 }
+
+/// Plans the `stamp_code_fingerprints` step over the [works] and the
+/// [recordCreates] the steps before it left, each record created in
+/// [firstTarget].
+CodeStampStep _codeStampOf(
+  Directory root,
+  ProjectConfig config, {
+  required MergedSet set,
+  required List<_DocWork> works,
+  required List<PlannedCreate> recordCreates,
+  required String? firstTarget,
+}) => CodeStampStep.plan(
+  [
+    for (final work in works)
+      (
+        docPath: work.plannedPath,
+        lf: work.lf,
+        type: work.docType,
+        target: work.target,
+      ),
+    for (final create in recordCreates)
+      (
+        docPath: create.path.substring(_docsFolder.length),
+        lf: create.text,
+        type: set.recordDocType,
+        target: firstTarget,
+      ),
+  ],
+  projectRoot: Directory(root.resolveSymbolicLinksSync()),
+  set: set,
+  targets: config.targets,
+);
 
 /// Plans the test-name pass over the typed [works] as the earlier passes left
 /// them in [texts], and the [recordCreates] a step of the run already makes.
@@ -653,6 +722,7 @@ List<_OverrideFile> _renamedOverrides(
         ),
         MoveFile() => file.lf,
         MoveToRecord() => file.lf,
+        StampCodeFingerprints() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -1020,6 +1090,7 @@ String _describe(MigrationStep step) => switch (step) {
   MoveToRecord() =>
     '${step.kind} ${step.docTypes.join(', ')} ${step.fields.join(', ')} '
         '-> ${step.to}',
+  StampCodeFingerprints() => step.kind,
 };
 
 /// Returns the doc paths in code point order, then the override paths in the

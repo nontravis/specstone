@@ -117,7 +117,11 @@ Map<String, String> _withApprovalHashes(Map<String, String> files) {
     return {
       for (final MapEntry(:key, :value) in files.entries)
         key: _approvedDocs.contains(_docPathOf(key))
-            ? withApprovalHash(value, _docTypeAt(matcher, _docPathOf(key)))
+            ? withApprovalHash(
+                value,
+                _docTypeAt(matcher, _docPathOf(key)),
+                statusesOutside: shippedStatusesOutside,
+              )
             : value,
     };
   } finally {
@@ -207,15 +211,16 @@ void recordJournalFile(Directory root) => JournalRecords(testHome()).record(
   File('${root.path}/${MoveJournal.journalPath}').readAsBytesSync(),
 );
 
-/// Runs [body] in a [WriteSession] on [root] with the shipped packs, its
-/// journal records under [testHome].
+/// Runs [body] in a [WriteSession] on [root] with the shipped packs, else
+/// [templates], its journal records under [testHome].
 T writeIn<T>(
   Directory root,
   T Function(WriteSession session) body, {
   Duration busyTimeout = indexBusyTimeout,
+  TemplateResolver? templates,
 }) => WriteSession.run(
   body,
-  templates: TemplateResolver(),
+  templates: templates ?? TemplateResolver(),
   workingDirectory: root,
   homeDirectory: testHome(),
   busyTimeout: busyTimeout,

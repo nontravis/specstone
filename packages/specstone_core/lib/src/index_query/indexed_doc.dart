@@ -268,11 +268,13 @@ final class ParsedDoc {
 /// stores no name. Invalid UTF-8 decodes with replacement characters, and
 /// invalid frontmatter YAML leaves no values; each adds a warning instead of
 /// failing. A doc that is not UTF-8, which format skips, is not laid out and
-/// has no `formatted` value.
+/// has no `formatted` value. [statusesOutside] is the rule its approval hash
+/// follows (`comparedApprovalHash`).
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
+  required bool statusesOutside,
   String? codeTarget,
 }) {
   final warnings = <String>[];
@@ -349,7 +351,11 @@ ParsedDoc parseIndexedDoc({
     formatted: laid is Formatted ? laid.text == lfText : null,
     approvalHash: docType == null
         ? null
-        : comparedApprovalHash(lfText, docType),
+        : comparedApprovalHash(
+            lfText,
+            docType,
+            statusesOutside: statusesOutside,
+          ),
     warnings: warnings,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));

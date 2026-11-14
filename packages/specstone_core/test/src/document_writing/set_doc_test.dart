@@ -13,6 +13,7 @@ import 'package:specstone_core/src/document_writing/approval.dart'
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/get_docs.dart' show answerGet;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
@@ -27,6 +28,8 @@ import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/check_fixture.dart' as check show edit, loginFeature;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart'
+    show pinStatusesBelow, statusesBelowResolver;
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/write_fixture.dart';
@@ -52,10 +55,12 @@ String fieldBase(Directory root, String target, String id) =>
 ) => writeIn(root, (s) {
   final doc = s.target(request.address);
   final docType = s.index.typeOf(doc)!;
+  final statusesOutside = s.project.statusesOutsideApproval;
   final read = parseIndexedDoc(
     docPath: doc.docPath,
     bytes: s.readDocBytes(doc.docPath)!,
     match: MatchedDocType(docType),
+    statusesOutside: statusesOutside,
   );
   return splicePart(
     doc: doc,
@@ -65,6 +70,7 @@ String fieldBase(Directory root, String target, String id) =>
     target: request.target,
     base: request.base,
     text: text,
+    statusesOutside: statusesOutside,
   );
 });
 
@@ -3173,9 +3179,14 @@ void main() {
           'docs/$jasprRecord': record,
         },
       );
-      final type = writeIn(root, (s) => s.index.set.recordDocType!);
+      final (type, statusesOutside) = writeIn(
+        root,
+        (s) => (s.index.set.recordDocType!, s.project.statusesOutsideApproval),
+      );
       for (final path in [flutterRecord, jasprRecord]) {
-        docFile(root, path).writeAsStringSync(withApprovalHash(record, type));
+        docFile(root, path).writeAsStringSync(
+          withApprovalHash(record, type, statusesOutside: statusesOutside),
+        );
       }
       return root;
     }
@@ -3270,7 +3281,7 @@ void main() {
       expect(twinsOf(root), before);
     });
 
-    test('f02/us01/fr03/e03, document_writing/approve_drafts/mark_doc_approved E09: an implements write on a target record leaves it approved, a statuses write drafts it', () async {
+    test('an implements write and, at the statuses pin, a statuses write on a target record leave it approved', () async {
       final root = await twinWithRecords();
       const address = 'implementation:login';
       final flutterBefore = readDoc(root, flutterRecord);
@@ -3316,9 +3327,52 @@ void main() {
           '- email_login/check_password:skipped\n',
         ),
       );
-      expect(status.json['draft'], isTrue);
-      expect(readDoc(root, jasprRecord), contains('draft: true'));
+      expect(status.json['draft'], isFalse);
+      expect(
+        readDoc(root, jasprRecord),
+        allOf(
+          contains('  - email_login/check_password:skipped\n'),
+          contains(approvedBefore),
+          isNot(contains('draft')),
+        ),
+      );
+      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
     });
+
+    test(
+      'below the statuses pin, a statuses write on a target record drafts it',
+      () async {
+        final root = await writeTwinProject(
+          extra: {
+            '.specstone/templates/implementation.yaml': recordLayer,
+            'docs/$jasprRecord': record,
+          },
+        );
+        pinStatusesBelow(root);
+        T below<T>(T Function(WriteSession session) body) =>
+            writeIn(root, body, templates: statusesBelowResolver);
+        final type = below((s) => s.index.set.recordDocType!);
+        docFile(root, jasprRecord).writeAsStringSync(
+          withApprovalHash(record, type, statusesOutside: false),
+        );
+        final base = below((s) {
+          final docs = answerGet(s.index, [jasprRecord]).json['docs']! as List;
+          final bases = (docs.single as Map)['bases']! as Map;
+          return (bases['fields']! as Map)['statuses']! as String;
+        });
+
+        final status = below(
+          (s) => answerSet(
+            s,
+            jaspr('implementation:login', base, field: 'statuses'),
+            '- email_login/check_password:skipped\n',
+          ),
+        );
+
+        expect(status.json['draft'], isTrue);
+        expect(readDoc(root, jasprRecord), contains('draft: true'));
+      },
+    );
 
     test('E06: a statuses line that check refuses is field_value_invalid, naming the four statuses', () async {
       final root = await twinWithRecords();

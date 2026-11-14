@@ -31,8 +31,10 @@ and changed code or a batch's findings into drafts.
   pass added; in a fix round, the audit's `Findings:` lines too.
 - **Brief, design path** (design, required): the Owner's approved answers; the document to write or amend.
 - **Targets** (audit, required): the docs to read.
-- **Changed paths or base commit** (sync, optional): absent, step 2 of
-  `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md` finds them.
+- **`feature`** (sync, optional): the feature name the Owner gave; absent, your gate `check` gives the work list.
+- **`picks`** (sync, bootstrap, optional): each Owner pick whose fix lands in a spec doc. Sync: a fix-the-spec pick
+  per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
+  `Uncovered:` file.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
   `item_over_limit` when the Owner named it for the run and a `batch` path holds one; write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report, outside the repository; absent, make one with
@@ -59,10 +61,10 @@ A failed load: report it and stop; never search.
 ## Workflow
 
 1. **Gate**: first run `specstone check` per `specstone:expert-sdd`'s project gate, replying what it tells the Owner.
-2. **Sync**: follow the On-Demand procedure from its step 2, given paths as its step 2.1 list, a given base commit
-   as its `<base>`. Then Workflow step 5.
+2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, or on every code link
+   of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
-   each write through `--base`; list other findings. Then Workflow step 5.
+   each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5.
 4. **Author, design, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added, but leave each
    tagged `(waits for the Owner)`.
@@ -90,11 +92,12 @@ finding.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
   `owner`), and `Outside the drafts:`, each with its items.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
-  one sentence on why it changed, never their text; each other draft; each pointer fixed; each behavior handed to
-  `specstone:brainstorming-sdd`; each pointer that waits on an approval; open questions; then `Findings:`.
+  one sentence on why it changed, never their text; each other draft; each pointer fixed; each `Mismatches:` point and
+  each `Uncovered:` file; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an
+  approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  one `specstone delete …` line; findings outside `batch`; `Waits on the Owner:`, each `item_over_limit` finding
-  on a `batch` path when `batch` does not name `item_over_limit`;
+  each `Uncovered:` file; one `specstone delete …` line; findings outside `batch`; `Waits on the Owner:`, each
+  `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`;
   then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
 ## Scope Boundaries

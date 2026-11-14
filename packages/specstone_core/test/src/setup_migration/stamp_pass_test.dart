@@ -16,6 +16,7 @@ const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
 const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _draftFrPath = 'prds/features/f01_a/us01_b/fr02_d.md';
 const _notesPath = 'notes/free.md';
+const _recordPath = 'specs/f01_a/IMPLEMENTATION.md';
 
 const _one = '### Scenario 1 — [happy] one\n\n- **Given** g';
 const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
@@ -30,6 +31,15 @@ Map<String, PackVersion> get _belowBoth => {
 };
 
 final _approvedHash = RegExp(r'^approved: "[0-9a-f]{12}"$', multiLine: true);
+
+/// The approval hash by the rule of the pins every run here starts from, all
+/// below the statuses pin.
+String _hashOf(String lf, MergedDocType? type) =>
+    approvalHashOf(lf, type, statusesOutside: false);
+
+/// [lf] stamped with [_hashOf].
+String _stamped(String lf, MergedDocType? type) =>
+    withApprovalHash(lf, type, statusesOutside: false);
 
 String _story(String scenarios) =>
     '# B\n\n## Acceptance Criteria\n\n$scenarios\n';
@@ -55,12 +65,14 @@ List<StampDoc> _docs(Map<String, String> texts) => [
   Map<String, String> before,
   Map<String, String> after, {
   Map<String, PackVersion>? pins,
+  Map<String, PackVersion>? pinsAfter,
   bool restampsFingerprints = true,
 }) {
   final pass = StampPass.plan(
     _docs(before),
     _docs(after),
     pins: pins ?? _belowBoth,
+    pinsAfter: pinsAfter ?? pins ?? _belowBoth,
     restampsFingerprints: restampsFingerprints,
   );
   return (
@@ -100,7 +112,7 @@ void main() {
       expect(story, matches(_approvedHash));
       expect(
         story,
-        '---\napproved: "${approvalHashOf(story, _typeAt(_storyPath))}"\n---\n'
+        '---\napproved: "${_hashOf(story, _typeAt(_storyPath))}"\n---\n'
         '${_story(_one)}',
       );
       expect(run.applied[_frPath], matches(_approvedHash));
@@ -213,7 +225,7 @@ void main() {
         _frPath: _tracing('  - S1 000000000000\n'),
       };
       final approvedBefore = {
-        _storyPath: withApprovalHash(before[_storyPath]!, _typeAt(_storyPath)),
+        _storyPath: _stamped(before[_storyPath]!, _typeAt(_storyPath)),
         _frPath: before[_frPath]!,
       };
       final after = {
@@ -233,7 +245,7 @@ void main() {
 
       expect(
         run.applied[_storyPath],
-        withApprovalHash(after[_storyPath]!, _typeAt(_storyPath)),
+        _stamped(after[_storyPath]!, _typeAt(_storyPath)),
       );
       expect(run.applied[_frPath], after[_frPath]);
       expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
@@ -361,11 +373,8 @@ void main() {
       final stamped = _run(before, after).applied[_frPath]!;
 
       final type = _typeAt(_frPath);
-      expect(stamped, contains('approved: "${approvalHashOf(stamped, type)}"'));
-      expect(
-        approvalHashOf(stamped, type),
-        isNot(approvalHashOf(after[_frPath]!, type)),
-      );
+      expect(stamped, contains('approved: "${_hashOf(stamped, type)}"'));
+      expect(_hashOf(stamped, type), isNot(_hashOf(after[_frPath]!, type)));
     });
 
     test('an entry naming a block the run lacks is left as written', () {
@@ -398,22 +407,89 @@ void main() {
       );
       const written = '---\nimplements:\n  - app/a.dart\n---\n# B\n';
       const moved = '---\n---\n# B\n';
-      final approved = withApprovalHash(written, held);
+      final approved = _stamped(written, held);
 
       final pass = StampPass.plan(
         [(docPath: _storyPath, lf: approved, type: held)],
         [(docPath: _storyPath, lf: moved, type: dropped)],
         pins: _belowBoth,
+        pinsAfter: _belowBoth,
         restampsFingerprints: false,
       );
 
       final stamped = pass.apply(_storyPath, moved);
       expect(stamped, matches(_approvedHash));
-      expect(
-        stamped,
-        contains('approved: "${approvalHashOf(stamped, dropped)}"'),
-      );
+      expect(stamped, contains('approved: "${_hashOf(stamped, dropped)}"'));
       expect(pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+  });
+
+  group('records across the statuses rule', () {
+    final below = {
+      'prd-core': _version('1.7.0'),
+      'software-tech': _version('1.6.0'),
+    };
+    final at = {
+      'prd-core': _version('1.7.0'),
+      'software-tech': _version('1.7.0'),
+    };
+    const record =
+        "---\nstatuses:\n  - 'b:implemented'\nimplements:\n"
+        "  - 'b:app/a.dart'\n---\n\n# Record\n";
+
+    test('a record approved by the hash that counted its statuses takes the '
+        'hash that leaves them out', () {
+      final type = _typeAt(_recordPath);
+      final approved = withApprovalHash(record, type, statusesOutside: false);
+      final docs = {_recordPath: approved};
+
+      final run = _run(docs, docs, pins: below, pinsAfter: at);
+
+      final stamped = run.applied[_recordPath]!;
+      expect(stamped, withApprovalHash(approved, type, statusesOutside: true));
+      expect(
+        approvalHashOf(stamped, type, statusesOutside: true),
+        isNot(approvalHashOf(stamped, type, statusesOutside: false)),
+      );
+      expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+
+    test('a record whose hash went stale before the run keeps it, and a '
+        'draft record keeps its draft line', () {
+      final docs = {
+        _recordPath: record.replaceFirst(
+          '---\n',
+          '---\napproved: "000000000000"\n',
+        ),
+        'specs/f02_c/IMPLEMENTATION.md': record.replaceFirst(
+          '---\n',
+          '---\ndraft: true\n',
+        ),
+      };
+
+      final run = _run(docs, docs, pins: below, pinsAfter: at);
+
+      expect(run.applied, docs);
+      expect(run.pass.planLine, isNull);
+    });
+
+    test('an upgrade that keeps the pins below the rule re-stamps a changed '
+        'record by the rule that counts the statuses', () {
+      final type = _typeAt(_recordPath);
+      final approved = withApprovalHash(record, type, statusesOutside: false);
+      final changed = approved.replaceFirst('# Record', '# Login record');
+
+      final run = _run(
+        {_recordPath: approved},
+        {_recordPath: changed},
+        pins: below,
+        pinsAfter: below,
+      );
+
+      expect(
+        run.applied[_recordPath],
+        withApprovalHash(changed, type, statusesOutside: false),
+      );
     });
   });
 }

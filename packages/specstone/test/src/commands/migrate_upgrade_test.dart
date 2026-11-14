@@ -1345,6 +1345,7 @@ void main() {
             ),
           ],
         ),
+        statusesOutside: shippedStatusesOutside,
       );
 
       String planHash(String dryOut) {
@@ -1478,7 +1479,123 @@ void main() {
       });
     });
 
-    group('the shipped software-tech 1.6.0 record', () {
+    group('code fingerprints on the upgrade to software-tech 1.7.0', () {
+      const signIn = 'app/lib/login/sign_in.dart';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const architecturePath = 'docs/specs/f01_login/ARCHITECTURE.md';
+
+      test('the first check after the upgrade finds no code link to compare '
+          'and no stale approval', () async {
+        final types = TemplateResolver().resolveCarried(
+          packNames: const ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        );
+        // Approved under the 1.6.0 pin, whose hash still counts statuses.
+        String approved(String text, String docTypeId) => withApprovalHash(
+          text,
+          types.lookup(docTypeId),
+          statusesOutside: false,
+        );
+        final h = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_login/FEATURE.md': approved(
+            '# Login\n',
+            'feature',
+          ),
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              approved('# Email login\n', 'user_story'),
+          recordPath: approved(
+            "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+                "  - 'email_login:$signIn:SignIn'\n---\n\n# Login record\n",
+            'implementation',
+          ),
+          architecturePath: approved(
+            '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n',
+            'architecture',
+          ),
+          signIn: 'class SignIn {}\n',
+        });
+        Future<List<String>> kinds() async {
+          final check = await _run(root, h, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': final String kind}) kind,
+          ];
+        }
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(_read(root, recordPath), contains('$signIn:SignIn '));
+        expect(_read(root, recordPath), isNot(contains('draft')));
+        final after = await kinds();
+        expect(after, isNot(contains('code_suspect')));
+        expect(after, isNot(contains('code_unconfirmed')));
+        expect(after, isNot(contains('approval_stale')));
+      });
+
+      test('a code file changed after the dry run refuses the planned '
+          'hash and writes nothing', () async {
+        final h = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          recordPath:
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn'\n---\n\n# Login record\n",
+          signIn: 'class SignIn {}\n',
+        });
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+        expect(dry.status, 0, reason: dry.err);
+        final lines = dry.out.split('\n');
+        final hash = lines[lines.length - 3].substring('plan '.length);
+        File('${root.path}/$signIn').writeAsStringSync('class SignIn {} \n');
+        commitAll(root, 'edit the code');
+        final before = _head(root);
+
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          hash,
+        ]);
+
+        expect(applied.status, 75, reason: applied.out);
+        expect(
+          applied.err,
+          startsWith('the plan is not the one the Owner saw'),
+        );
+        expect(_head(root), before);
+        expect(_read(root, recordPath), isNot(contains('$signIn:SignIn ')));
+      });
+    });
+
+    group('the shipped software-tech 1.7.0 record', () {
       const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
       const storyPath =
           'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
@@ -1509,7 +1626,7 @@ void main() {
         final dry = await _run(root, h, ['migrate', '--dry-run']);
 
         expect(dry.status, 0, reason: dry.err);
-        expect(dry.out, contains('software-tech 1.4.0 -> 1.6.0'));
+        expect(dry.out, contains('software-tech 1.4.0 -> 1.7.0'));
         expect(
           dry.out,
           contains(
@@ -1582,6 +1699,7 @@ void main() {
               homeDirectory: null,
             )
             .lookup(docTypeId),
+        statusesOutside: shippedStatusesOutside,
       );
 
       Future<Directory> project() => gitFixture({

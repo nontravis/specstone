@@ -41,6 +41,7 @@ void main() {
     docPath: path,
     bytes: utf8.encode(text),
     match: matcher.match(path),
+    statusesOutside: true,
   );
 
   test('f01/us01/fr03/e01, s03/inv5: an FR is named by its three slugs', () {
@@ -97,6 +98,7 @@ void main() {
       docPath: 'prds/x.md',
       bytes: utf8.encode('# X\n'),
       match: AmbiguousDocType(['fr', 'legacy_fr']),
+      statusesOutside: true,
     ).doc;
     expect(doc.docTypeId, isNull);
     expect(doc.warnings, ['prds/x.md matches two doc types: fr, legacy_fr']);
@@ -107,6 +109,7 @@ void main() {
       docPath: 'prds/x.md',
       bytes: utf8.encode('# X\n'),
       match: AmbiguousDocType(['a', 'b', 'c']),
+      statusesOutside: true,
     ).doc;
     expect(doc.warnings, ['prds/x.md matches 3 doc types: a, b, c']);
   });
@@ -228,6 +231,7 @@ void main() {
       docPath: 'README.md',
       bytes: [0x23, 0x20, 0xFF, 0x0A],
       match: const NoDocType(),
+      statusesOutside: true,
     );
     expect(parsed.content.text, '# �\n');
     expect(parsed.doc.warnings, [
@@ -254,6 +258,7 @@ void main() {
       docPath: 'prds/x.md',
       bytes: utf8.encode('# X\n\n## A\nSee [y](y.md).\n\n[a]:<b\\'),
       match: const NoDocType(),
+      statusesOutside: true,
     );
 
     expect(parsed.content.links, isEmpty);
@@ -303,6 +308,7 @@ void main() {
         'and [s [^1]](s.md).\n\n[ss]: z.md\n[^2]: [c](c.md)\n',
       ),
       match: const NoDocType(),
+      statusesOutside: true,
     );
 
     expect(parsed.doc.warnings, isEmpty);
@@ -359,6 +365,7 @@ void main() {
         docPath: path,
         bytes: utf8.encode('# T\n'),
         match: nested.match(path),
+        statusesOutside: true,
       ).doc.name;
 
       expect(nameOf(storyPath), 'shop/cart/add_item');
@@ -385,6 +392,7 @@ void main() {
         docPath: path,
         bytes: utf8.encode('# T\n'),
         match: targeted.match(path),
+        statusesOutside: true,
       ).doc;
       return (doc.target, doc.name);
     }
@@ -421,6 +429,7 @@ void main() {
         docPath: path,
         bytes: utf8.encode('# T\n'),
         match: targeted.match(path),
+        statusesOutside: true,
       ).doc;
       expect((doc.isTyped, doc.target), (false, null), reason: path);
       expect(doc.name, path);
@@ -447,6 +456,7 @@ void main() {
         docPath: path,
         bytes: utf8.encode('# T\n'),
         match: oneNamed.match(path),
+        statusesOutside: true,
         codeTarget: codeTarget,
       ).doc;
       return (doc.isTyped, doc.target);
@@ -484,6 +494,7 @@ void main() {
       docPath: path,
       bytes: utf8.encode('# T\n'),
       match: targeted.match(path),
+      statusesOutside: true,
     ).doc.name;
 
     expect(nameOf('specs/flutter/f01_login/ARCHITECTURE.md'), 'login');
@@ -570,6 +581,7 @@ void main() {
         docPath: featurePath,
         bytes: bytes,
         match: matcher.match(featurePath),
+        statusesOutside: true,
       );
       final read = utf8.decode(bytes, allowMalformed: true);
       expect(parsed.doc.formatted, isNull);

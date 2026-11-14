@@ -43,6 +43,7 @@ IndexedDoc _record(String path, String text) => parseIndexedDoc(
     MergedSet(docTypes: [_recordType]),
     targetNames: const ['flutter', 'jaspr'],
   ).match(path),
+  statusesOutside: true,
   codeTarget: 'jaspr',
 ).doc;
 
@@ -187,6 +188,29 @@ void main() {
 
     expect(recordEntriesOf(doc, _recordType), const [
       RecordEntry(item: 'show_toast', status: RecordStatus.implemented),
+    ]);
+  });
+
+  test('an implements line with a fingerprint gives its pointer alone', () {
+    final doc = _record(
+      'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      '---\n'
+          'implements:\n'
+          '  - show_toast:lib/toast.dart:showToast 0123456789ab\n'
+          '  - show_toast:lib/toast_host.dart 0123456789ab\n'
+          '  - show_toast:lib/toast_queue.dart\n'
+          '---\n\n# Feedback implementation\n',
+    );
+
+    expect(recordEntriesOf(doc, _recordType), const [
+      RecordEntry(
+        item: 'show_toast',
+        codePaths: [
+          'lib/toast.dart:showToast',
+          'lib/toast_host.dart',
+          'lib/toast_queue.dart',
+        ],
+      ),
     ]);
   });
 

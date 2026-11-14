@@ -1582,7 +1582,11 @@ void main() {
         docFile(root, story2).writeAsStringSync(
           writeIn(
             root,
-            (s) => withApprovalHash(withPersona, s.docTypeAt(story2)),
+            (s) => withApprovalHash(
+              withPersona,
+              s.docTypeAt(story2),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
           ),
         );
         expect(staleDocs(root), isEmpty);
@@ -1815,7 +1819,11 @@ void main() {
       docFile(root, loginFeature).writeAsStringSync(
         writeIn(
           root,
-          (s) => withApprovalHash(approvedText, s.docTypeAt(loginFeature)),
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(loginFeature),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
         ),
       );
       final before = approvedHash(root, loginFeature);
@@ -1876,7 +1884,11 @@ void main() {
         docFile(root, shopDomain).writeAsStringSync(
           writeIn(
             root,
-            (s) => withApprovalHash(approvedText, s.docTypeAt(shopDomain)),
+            (s) => withApprovalHash(
+              approvedText,
+              s.docTypeAt(shopDomain),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
           ),
         );
         final before = approvedHash(root, shopDomain);
@@ -1922,7 +1934,11 @@ void main() {
       docFile(root, projectDoc).writeAsStringSync(
         writeIn(
           root,
-          (s) => withApprovalHash(approvedText, s.docTypeAt(projectDoc)),
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(projectDoc),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
         ),
       );
       final before = approvedHash(root, projectDoc);
@@ -2359,11 +2375,32 @@ void main() {
         final before = approvedValue(root, flutterLogin);
         rename(root, 'user_story:login/reset_password', 'recover');
         expect(holdsApproval(root, flutterLogin), isTrue);
-        expect(approvedValue(root, flutterLogin), isNot(before));
+        // At the shipped pins the rewritten entries all stay outside the hash.
+        expect(approvedValue(root, flutterLogin), before);
         expect(approvedValue(root, jasprLogin), staleHash);
         expect(holdsApproval(root, jasprLogin), isFalse);
         expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
         expect(readDoc(root, jasprLogin), isNot(contains('draft: true')));
+      });
+
+      test('below the statuses pin, a rename stamps the hash the rewritten statuses give a record whose approval held', () async {
+        final root = await twinProject();
+        pinStatusesBelow(root);
+        final below = statusesBelowResolver;
+        stampApproved(root, flutterLogin, templates: below);
+        final before = approvedValue(root, flutterLogin);
+        writeIn(
+          root,
+          templates: below,
+          (s) => answerRename(
+            s,
+            'user_story:login/reset_password',
+            slug: 'recover',
+          ),
+        );
+        expect(holdsApproval(root, flutterLogin, templates: below), isTrue);
+        expect(approvedValue(root, flutterLogin), isNot(before));
+        expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));
       });
     });
   });
@@ -2472,6 +2509,11 @@ void main() {
       Set<String> without = const {},
     }) => writeNestedProject(
       without: without,
+      unfingerprinted: {
+        'docs/$cartFlutter',
+        'docs/$cartJaspr',
+        'docs/$payJaspr',
+      },
       extra: {
         '.specstone/config.yaml': twinConfig(),
         '.specstone/templates/implementation.yaml': recordLayer,
@@ -2553,6 +2595,32 @@ void main() {
         expect(
           created,
           contains("'add_item/check_stock:app/test/shop_test.dart:checks'"),
+        );
+      },
+    );
+
+    test(
+      'a story move carries a code line with its fingerprint after the pointer',
+      () async {
+        final root = await shopTwins(
+          extra: {
+            'docs/$cartFlutter': recordText(
+              statuses: ['add_item:implemented', 'drop_item:planned'],
+              code: [
+                'add_item:app/lib/shop.dart:Shop 0123456789ab',
+                'drop_item:app/lib/drop.dart 0123456789ab',
+              ],
+            ),
+          },
+        );
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'drop_item:app/lib/drop.dart 0123456789ab'"));
+        expect(cart, isNot(contains('add_item')));
+        expect(
+          readDoc(root, payFlutter),
+          contains("'add_item:app/lib/shop.dart:Shop 0123456789ab'"),
         );
       },
     );

@@ -506,6 +506,24 @@ void main() {
     ]);
   });
 
+  test('a fingerprint on an implements line changes no finding', () async {
+    List<String> code(String suffix) => [
+      '$_story:lib/a.dart$suffix',
+      '$_story:lib/a.dart:SignInPage$suffix',
+      'ghost:lib/c.dart$suffix',
+    ];
+    String record(String suffix) => _record(
+      statuses: ['$_story:skipped:no web view', '$_story:planned'],
+      code: code(suffix),
+    );
+
+    final bare = await _check(record(''));
+    final stamped = await _check(record(' 5d1e0c4b7a92'));
+
+    expect(_found(bare), isNotEmpty);
+    expect(_found(stamped), _found(bare));
+  });
+
   test('an unresolved line is no duplicate and no skip '
       'finding, even when it repeats', () async {
     final report = await _check(

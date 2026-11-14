@@ -361,8 +361,14 @@ WriteStep? _stepFor(
   final writtenPath = movedPath(doc.docPath, moves);
   final writtenType = session.docTypeAt(writtenPath);
   final laidOut = layOutDoc(entries, writtenType);
-  final stamped = _wasApproved(lfText, session.docTypeAt(doc.docPath))
-      ? withApprovalHash(laidOut, writtenType)
+  final statusesOutside = session.project.statusesOutsideApproval;
+  final wasApproved = _wasApproved(
+    lfText,
+    session.docTypeAt(doc.docPath),
+    statusesOutside: statusesOutside,
+  );
+  final stamped = wasApproved
+      ? withApprovalHash(laidOut, writtenType, statusesOutside: statusesOutside)
       : laidOut;
   return session.docWriteStep(writtenPath, stamped, bytes);
 }
@@ -373,11 +379,16 @@ WriteStep? _stepFor(
 ///
 /// Read from the bytes the step rewrites, not the index: an edit made after
 /// the session opened stays stale.
-bool _wasApproved(String lfText, MergedDocType? docType) {
+bool _wasApproved(
+  String lfText,
+  MergedDocType? docType, {
+  required bool statusesOutside,
+}) {
   final fields = ApprovalFields.of(Doc.parse(lfText));
   return !fields.isDraft &&
       fields.approvedValue is String &&
-      fields.approvedValue == approvalHashOf(lfText, docType);
+      fields.approvedValue ==
+          approvalHashOf(lfText, docType, statusesOutside: statusesOutside);
 }
 
 /// Returns the Name of [doc]'s parent after the renames in [renamed], null

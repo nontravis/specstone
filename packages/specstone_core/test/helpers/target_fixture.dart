@@ -37,10 +37,12 @@ Future<Directory> writeTwinProject({
       ),
     ),
     fixtureDocTypeOf(loginArchitecture),
+    statusesOutside: shippedStatusesOutside,
   );
   final techTwin = withApprovalHash(
     toLf(checkProjectFiles()['docs/$techStack']!),
     fixtureDocTypeOf(techStack),
+    statusesOutside: shippedStatusesOutside,
   );
   String code(String name) =>
       'class SignInPage {}\nclass ${name}SignIn {}\n'

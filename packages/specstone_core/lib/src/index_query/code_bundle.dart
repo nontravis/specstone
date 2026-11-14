@@ -5,6 +5,7 @@ import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
 const _coversField = 'covers';
@@ -140,7 +141,7 @@ List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
       continue;
     }
     for (final entry in doc.valuesOf(_coversField)) {
-      final covered = _withoutTrailingSlash(entry);
+      final covered = _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
       if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
       if (covered.length > longest) {
         longest = covered.length;
@@ -174,8 +175,9 @@ bool _tracesEntry(DocIndex index, IndexedDoc doc, CodePath code) {
 }
 
 bool _traces(String entry, CodePath code) {
-  final colon = entry.indexOf(':');
-  final path = colon < 0 ? entry : entry.substring(0, colon);
+  final pointer = CodeLinkEntry(entry).pointer;
+  final colon = pointer.indexOf(':');
+  final path = colon < 0 ? pointer : pointer.substring(0, colon);
   return path == code.path ||
       code.isFolder && (code.path == '.' || path.startsWith('${code.path}/'));
 }

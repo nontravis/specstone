@@ -20,7 +20,7 @@ import '../../helpers/temp_tree.dart';
 
 /// The layout the current build writes; a test that rebuilds the meta row by
 /// hand uses it, so a layout bump moves with the code.
-const _layoutVersionForTest = 15;
+const _layoutVersionForTest = 16;
 
 void main() {
   Future<Directory> root() => writeTree({'.specstone/config.yaml': ''});
@@ -28,6 +28,7 @@ void main() {
     docPath: path,
     bytes: utf8.encode(text),
     match: const NoDocType(),
+    statusesOutside: true,
   );
   File file(Directory r, String p) => File('${r.path}/$p');
 
@@ -482,6 +483,7 @@ void main() {
         docPath: 'n.md',
         bytes: utf8.encode('# N\n\n## A\nfast\n\n## B\nfastly\n'),
         match: MatchedDocType(type),
+        statusesOutside: true,
       );
       store.write(() {
         store
@@ -667,6 +669,7 @@ void main() {
         docPath: path,
         bytes: utf8.encode(text),
         match: MatchedDocType(doc),
+        statusesOutside: true,
       );
       store.write(() {
         store
@@ -773,6 +776,18 @@ void main() {
       raw.execute('UPDATE meta SET layout = 14');
       expect(store.readStamp(), isNull);
     });
+    test('an index of layout 15, its approval hashes counting record '
+        'statuses, has no stamp, so it is rebuilt', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute('UPDATE meta SET layout = 15');
+      expect(store.readStamp(), isNull);
+    });
     test('a doc with a target '
         'round-trips through the docs table', () async {
       final r = await root();
@@ -791,6 +806,7 @@ void main() {
         docPath: 'specs/jaspr/f01_login/ARCHITECTURE.md',
         bytes: utf8.encode('# A\n'),
         match: MatchedDocType(type, target: 'jaspr'),
+        statusesOutside: true,
       );
       store.write(() {
         store

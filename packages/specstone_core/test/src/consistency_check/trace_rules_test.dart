@@ -890,6 +890,23 @@ void main() {
     expect(spots(none, FindingKind.implementsMissing), isEmpty);
   });
 
+  test(
+    'an entry whose code lines end in a fingerprint counts them as code',
+    () async {
+      final report = await _checkLogin(
+        _record(
+          statuses: ['$_fr:implemented', '$_story:planned'],
+          code: [
+            '$_loginCode 5d1e0c4b7a92',
+            '$_story:app/lib/login.dart 5d1e0c4b7a92',
+          ],
+        ),
+      );
+
+      expect(spots(report, FindingKind.implementsMissing), isEmpty);
+    },
+  );
+
   test('f04/us03/s8, f04/us03/fr04/e02: an implemented entry that names no code is implements_missing at its statuses line', () async {
     final report = await _checkLogin(
       _record(statuses: ['$_story:planned', '$_fr:implemented']),

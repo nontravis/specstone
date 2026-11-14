@@ -284,6 +284,36 @@ void main() {
     );
   });
 
+  test('a stamp_code_fingerprints step with no keys parses and '
+      'touches no doc type', () {
+    final step = parseMigrationsOf('''
+- from: 1.6.0
+  steps:
+    - stamp_code_fingerprints: {}
+''').single.steps.single;
+
+    expect(step, isA<StampCodeFingerprints>());
+    expect(step.kind, 'stamp_code_fingerprints');
+    expect(step.touches('fr'), isFalse);
+  });
+
+  test('a stamp_code_fingerprints step with a key is '
+      'unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.6.0\n'
+        '  steps:\n'
+        '    - stamp_code_fingerprints: {note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].stamp_code_fingerprints.note',
+        ),
+      ),
+    );
+  });
+
   test('a move_to_record list that holds a non-string is '
       'unknown_value', () {
     expect(

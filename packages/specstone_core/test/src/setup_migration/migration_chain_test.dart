@@ -106,6 +106,32 @@ migrations:
     );
   });
 
+  test('a pin below the version that ships a stamp_code_fingerprints entry '
+      'selects its step after every older entry; a pin at the available '
+      'version selects none', () {
+    PackManifest pack() => PackManifest.parse('''
+name: acme
+version: 1.7.0
+migrations:
+  - from: 1.6.0
+    steps:
+      - stamp_code_fingerprints: {}
+  - from: 1.4.0
+    steps:
+      - rename_field: {doc_type: spec, from: owner, to: oncall}
+''', file: _file);
+
+    for (final pin in ['1.3.0', '1.5.0', '1.6.0']) {
+      final selected = selectUpgrades(
+        {'acme': _v(pin)},
+        {'acme': pack()},
+      ).single.steps;
+      expect(selected.last.step, isA<StampCodeFingerprints>(), reason: pin);
+      expect(selected.last.from.toString(), '1.6.0', reason: pin);
+    }
+    expect(selectUpgrades({'acme': _v('1.7.0')}, {'acme': pack()}), isEmpty);
+  });
+
   test('f06/us02/fr01/e01, f06/us02/s1: no entry in range changes the pin '
       'only', () {
     final upgrades = selectUpgrades(
