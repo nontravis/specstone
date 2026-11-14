@@ -11,6 +11,15 @@ setlocal EnableExtensions DisableDelayedExpansion
 setlocal
 call :find_own_folder
 
+rem Each run line ends the batch before its program starts, which skips the
+rem title restore cmd.exe does at a batch's end; a cmd window gets its title
+rem back on that line. A cmd /c run, as PowerShell starts one, shares its
+rem caller's console, so its title stays.
+set "restore_title="
+setlocal EnableDelayedExpansion
+set "cmdline=!CMDCMDLINE:/c=!"
+if "!cmdline!"=="!CMDCMDLINE!" (endlocal & set "restore_title=1") else endlocal
+
 rem A hand-off that came back here: run the CLI beside it at once
 rem (run_cli_or_yield E01 backs the own-folder compare below).
 if defined SPECSTONE_STN_GUARD goto run_own
@@ -52,22 +61,18 @@ for %%a in ("!split:<=" "!") do (
 
 if not defined target goto run_own
 if /i "%target:~-4%"==".ps1" goto refuse
-if /i "%target:~-4%"==".exe" goto run_target
-if /i "%target:~-4%"==".com" goto run_target
 
-rem Each run line expands its work variables before its endlocal drops them,
-rem then sets the guard in the outer scope. A stn.cmd or stn.bat runs in a
-rem child cmd.exe, so it never replaces this batch and the line still ends it.
-endlocal & set "SPECSTONE_STN_GUARD=1" & "%ComSpec%" /d /v:off /s /c ^""%target%" %*^" & exit /b
-
-:run_target
-rem The run and the exit share one line: cmd.exe parses the whole line before
-rem it runs, so it reads no later line of a stn.cmd that install.ps1 replaced
-rem meanwhile (run_cli_or_yield E06).
-endlocal & set "SPECSTONE_STN_GUARD=1" & "%target%" %* & exit /b
+rem A run line expands its work variables when cmd.exe reads it, then the goto
+rem to a missing label ends the batch, its setlocal scopes with it, and the
+rem rest of the line runs in the caller's context. So cmd.exe reads no later
+rem line of a stn.cmd that install.ps1 replaced meanwhile, and the program is
+rem the last command: its exit status is the batch's for every caller, where
+rem an exit /b after it would hand cmd /c a status of 0. A hand-off runs in a
+rem child cmd.exe that sets the guard, so the guard ends with that run.
+endlocal & goto #_undefined_# 2>nul || (if "%restore_title%"=="1" title %ComSpec% 2>nul) & "%ComSpec%" /d /v:off /s /c ^"set "SPECSTONE_STN_GUARD=1" ^& "%target%" %*^"
 
 :run_own
-endlocal & "%own%\specstone.exe" %* & exit /b
+endlocal & goto #_undefined_# 2>nul || (if "%restore_title%"=="1" title %ComSpec% 2>nul) & "%own%\specstone.exe" %*
 
 :refuse
 rem A stn.ps1 first on the walk: start nothing, PowerShell included, so the
