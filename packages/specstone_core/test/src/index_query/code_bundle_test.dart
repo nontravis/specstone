@@ -63,6 +63,47 @@ void main() {
       },
     );
   });
+  test('a covers entry and an implements line that carry a fingerprint pick the same spec and traced docs', () async {
+    final project = await writeLoginProject(
+      extra: {
+        'docs/specs/f01_login/ARCHITECTURE.md':
+            '---\ncovers:\n  - app/lib/src/login/ 0123456789ab\n---\n\n'
+            '# Login architecture\n\n'
+            '## Components\n| Component | Responsibility |\n|---|---|\n'
+            '| Login form | Collects the email |\n',
+        'docs/specs/f01_login/IMPLEMENTATION.md':
+            "---\nstatuses:\n  - 'email_login/validate_credentials:implemented'\n"
+            'implements:\n'
+            "  - 'email_login/validate_credentials:app/lib/src/login/credential_validator.dart 0123456789ab'\n"
+            '---\n\n# Login implementation\n',
+      },
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    Bundle at(String p) => pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        p,
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      ),
+      BundleMode.implement,
+      noProject: false,
+    );
+
+    expect(at('app/lib/src/login/credential_validator.dart').docPaths, {
+      '$f/FEATURE.md',
+      ...specs,
+      '$f/us01_email_login/USER_STORY.md',
+      '$f/us01_email_login/fr01_validate_credentials.md',
+      '$f/us01_email_login/nf01_login_latency.md',
+    });
+    expect(at('app/lib/src/login/login_form.dart').docPaths, {
+      '$f/FEATURE.md',
+      ...specs,
+    });
+  });
   test('a folder matches every implements entry under it', () async {
     final b = code('app/lib/src/login', BundleMode.implement);
     expect(

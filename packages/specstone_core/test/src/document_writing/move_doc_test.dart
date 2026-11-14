@@ -2557,6 +2557,32 @@ void main() {
       },
     );
 
+    test(
+      'a story move carries a code line with its fingerprint after the pointer',
+      () async {
+        final root = await shopTwins(
+          extra: {
+            'docs/$cartFlutter': recordText(
+              statuses: ['add_item:implemented', 'drop_item:planned'],
+              code: [
+                'add_item:app/lib/shop.dart:Shop 0123456789ab',
+                'drop_item:app/lib/drop.dart 0123456789ab',
+              ],
+            ),
+          },
+        );
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'drop_item:app/lib/drop.dart 0123456789ab'"));
+        expect(cart, isNot(contains('add_item')));
+        expect(
+          readDoc(root, payFlutter),
+          contains("'add_item:app/lib/shop.dart:Shop 0123456789ab'"),
+        );
+      },
+    );
+
     test('a dry run lists the records it would rewrite and create, and writes none', () async {
       final root = await shopTwins();
       final answer = writeIn(

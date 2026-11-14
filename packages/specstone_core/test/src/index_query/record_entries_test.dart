@@ -190,6 +190,29 @@ void main() {
     ]);
   });
 
+  test('an implements line with a fingerprint gives its pointer alone', () {
+    final doc = _record(
+      'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      '---\n'
+          'implements:\n'
+          '  - show_toast:lib/toast.dart:showToast 0123456789ab\n'
+          '  - show_toast:lib/toast_host.dart 0123456789ab\n'
+          '  - show_toast:lib/toast_queue.dart\n'
+          '---\n\n# Feedback implementation\n',
+    );
+
+    expect(recordEntriesOf(doc, _recordType), const [
+      RecordEntry(
+        item: 'show_toast',
+        codePaths: [
+          'lib/toast.dart:showToast',
+          'lib/toast_host.dart',
+          'lib/toast_queue.dart',
+        ],
+      ),
+    ]);
+  });
+
   test('a tests line gives its item the path part alone, the name aside', () {
     final doc = _record(
       'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
