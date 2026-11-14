@@ -2,6 +2,7 @@
 @Timeout(Duration(minutes: 3))
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -823,6 +824,41 @@ void main() {
         ]);
       });
 
+      test('run_cli_or_yield E06: stn upgrade replaces the running stn.exe and '
+          "exits with the upgrade's status", () async {
+        final sb = await createShimSandbox();
+        final shim = File(under(sb.bin, 'stn.exe'));
+        final before = shim.readAsBytesSync();
+        final lines = switch (shell) {
+          StnShell.cmd => [
+            'echo [begin]',
+            'stn upgrade',
+            'echo [end %ERRORLEVEL%]',
+          ],
+          StnShell.powershell => [
+            "echo '[begin]'",
+            'stn upgrade',
+            r'echo "[end $LASTEXITCODE]"',
+          ],
+        };
+
+        final r = await sb.typeStn(
+          lines,
+          shell: shell,
+          path: '${sb.bin.path};$system32',
+          extra: {fakeExitVariable: '5'},
+        );
+
+        expect(r.exitCode, 5, reason: '${r.stdout}${r.stderr}');
+        expect(File(under(sb.bin, 'stn.exe.old')).existsSync(), isTrue);
+        final after = shim.readAsBytesSync();
+        final marker = utf8.encode(upgradeMarker);
+        expect(after.length, before.length + marker.length);
+        expect(after.sublist(after.length - marker.length), marker);
+        expect(nonBlank(r.stdout), ['[begin]', 'upgraded', '[end 5]']);
+        expect(r.stderr, isEmpty);
+      });
+
       test(
         'review focus 1, 3: a spaced PATH entry holds one entry; no argument '
         'reaches the target as none',
@@ -913,6 +949,84 @@ void main() {
       );
     });
   }
+
+  group('a killed shim:', () {
+    // Whether a process with this pid runs, by its row in `tasklist`.
+    bool isRunning(int pid) {
+      final r = Process.runSync('tasklist', [
+        '/FI',
+        'PID eq $pid',
+        '/NH',
+        '/FO',
+        'CSV',
+      ]);
+      return '${r.stdout}'.contains('"$pid"');
+    }
+
+    Future<bool> eventually(
+      bool Function() holds, {
+      Duration timeout = const Duration(seconds: 5),
+    }) async {
+      final deadline = DateTime.now().add(timeout);
+      while (!holds()) {
+        if (DateTime.now().isAfter(deadline)) return false;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      return true;
+    }
+
+    int? readPid(File file) =>
+        file.existsSync() ? int.tryParse(file.readAsStringSync().trim()) : null;
+
+    test('run_cli_or_yield E14: killing stn.exe ends the target; the '
+        "target's own child lives on", () async {
+      final sb = await createShimSandbox();
+      final shim = await sb.startStn(
+        ['check'],
+        path: '${sb.bin.path};$system32',
+        extra: {holdVariable: '1'},
+      );
+      unawaited(shim.stdout.drain<void>());
+      unawaited(shim.stderr.drain<void>());
+      final targetPidFile = File('${sb.logs.path}\\specstone.pid');
+      final grandchildPidFile = File('${sb.logs.path}\\grandchild.pid');
+      int? grandchild;
+      // Registered after the sandbox's own tear-down, so it runs first and
+      // frees the files the processes hold.
+      addTearDown(() async {
+        shim.kill();
+        for (final pid in [readPid(targetPidFile), grandchild]) {
+          if (pid != null) Process.killPid(pid);
+        }
+        for (final pid in [readPid(targetPidFile), grandchild]) {
+          if (pid != null) await eventually(() => !isRunning(pid));
+        }
+      });
+
+      expect(
+        await eventually(
+          () =>
+              readPid(targetPidFile) != null &&
+              readPid(grandchildPidFile) != null,
+          timeout: const Duration(seconds: 15),
+        ),
+        isTrue,
+        reason: 'the target and its child write their pids',
+      );
+      final target = readPid(targetPidFile)!;
+      grandchild = readPid(grandchildPidFile)!;
+      expect(isRunning(target), isTrue);
+
+      expect(Process.killPid(shim.pid), isTrue);
+
+      expect(
+        await eventually(() => !isRunning(target)),
+        isTrue,
+        reason: 'the target ends within 5 s of stn.exe',
+      );
+      expect(isRunning(grandchild), isTrue);
+    });
+  });
 
   group('the built file:', () {
     Future<String> installedExe() async {

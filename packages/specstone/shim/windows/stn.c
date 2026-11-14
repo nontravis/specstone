@@ -195,11 +195,52 @@ static wchar_t *find_cmd(void)
     return join(parts, 2);
 }
 
+/* Takes Ctrl+C and Ctrl+Break so this process lives on while the target, in the
+ * same console, gets the event and decides. The ignore flag of
+ * SetConsoleCtrlHandler(NULL, TRUE) would pass to the target, so it is not used. */
+static BOOL WINAPI take_console_event(DWORD type)
+{
+    return type == CTRL_C_EVENT || type == CTRL_BREAK_EVENT;
+}
+
+/* Returns a job object that ends its processes when its last handle closes and
+ * lets their children break away, or NULL when none can be made. */
+static HANDLE make_job(void)
+{
+    HANDLE job = CreateJobObjectW(NULL, NULL);
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
+
+    if (job == NULL) {
+        return NULL;
+    }
+    ZeroMemory(&limits, sizeof(limits));
+    limits.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK;
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &limits,
+                                 sizeof(limits))) {
+        CloseHandle(job);
+        return NULL;
+    }
+    return job;
+}
+
+/* Puts the suspended process in the job, when there is one, then lets it run.
+ * A job that refuses it (an outer job that forbids nesting) leaves it unjobbed,
+ * since running beats refusing. Returns FALSE when the process cannot resume. */
+static BOOL release_into_job(const PROCESS_INFORMATION *process, HANDLE job)
+{
+    if (job != NULL) {
+        (void)AssignProcessToJobObject(job, process->hProcess);
+    }
+    return ResumeThread(process->hThread) != (DWORD)-1;
+}
+
 /* Starts program with the raw tail and waits for it, in this console and with
  * this process's standard handles and environment; through_cmd starts it as
- * `cmd.exe /d /s /c` does a batch file. Returns the exit status of the program,
- * all 32 bits. When it cannot start, sets start_failure to the system error
- * and returns 1. */
+ * `cmd.exe /d /s /c` does a batch file. The program is in a job object from its
+ * first instruction, so it ends when this process does. Returns the exit status
+ * of the program, all 32 bits. When it cannot start, sets start_failure to the
+ * system error and returns 1. */
 static DWORD start_and_wait(const wchar_t *program, const wchar_t *tail, BOOL through_cmd)
 {
     const wchar_t *separator = (*tail != L'\0') ? L" " : L"";
@@ -210,6 +251,7 @@ static DWORD start_and_wait(const wchar_t *program, const wchar_t *tail, BOOL th
     STARTUPINFOW startup;
     PROCESS_INFORMATION process;
     DWORD status = 1;
+    HANDLE job;
     BOOL started;
 
     if (through_cmd) {
@@ -249,11 +291,17 @@ static DWORD start_and_wait(const wchar_t *program, const wchar_t *tail, BOOL th
     startup.hStdError = inheritable_std_handle(STD_ERROR_HANDLE);
     ZeroMemory(&process, sizeof(process));
 
+    job = make_job();
     started = CreateProcessW(through_cmd ? cmd : program, command_line, NULL, NULL,
-                             TRUE, CREATE_UNICODE_ENVIRONMENT, NULL, NULL,
-                             &startup, &process);
+                             TRUE, CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
+                             NULL, NULL, &startup, &process);
     if (!started) {
         start_failure = GetLastError();
+    } else if (!release_into_job(&process, job)) {
+        start_failure = GetLastError();
+        TerminateProcess(process.hProcess, 1);
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
     } else {
         CloseHandle(process.hThread);
         WaitForSingleObject(process.hProcess, INFINITE);
@@ -261,6 +309,9 @@ static DWORD start_and_wait(const wchar_t *program, const wchar_t *tail, BOOL th
             status = 1;
         }
         CloseHandle(process.hProcess);
+    }
+    if (job != NULL) {
+        CloseHandle(job);
     }
     release(command_line);
     release(cmd);
@@ -485,6 +536,7 @@ int wmain(void)
     DWORD length = GetModuleFileNameW(NULL, own, PATH_CAPACITY);
     int status;
 
+    SetConsoleCtrlHandler(take_console_event, TRUE);
     if (length == 0 || length >= PATH_CAPACITY) {
         report_failure(L"cannot read the path of", L"stn.exe", GetLastError());
         return 1;
