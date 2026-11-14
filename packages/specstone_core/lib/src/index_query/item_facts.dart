@@ -233,14 +233,31 @@ List<ItemFact> _itemFactsIn(List<BodyLine> body, MergedSection? template) => [
 ///
 /// A letter right after the digits makes no ID (RULE-12), so a lettered or
 /// unreadable form holds none.
-String? _itemIdOf(DocItem item, MergedSection? template) {
-  if (item.heading && template?.id == acceptanceSectionId) {
-    final scenario = readScenarioHeading('$itemHeadingMarker${item.text}');
+String? _itemIdOf(DocItem item, MergedSection? template) => itemKeyOfHead(
+  item.text,
+  isHeading: item.heading,
+  prefixId: template?.prefixId,
+  isAcceptanceCriteria: template?.id == acceptanceSectionId,
+);
+
+/// Returns the key `check` holds an item by, read from its [head] (the
+/// item's first line after any marker), or null when it holds none.
+///
+/// The one reader of an item's ID: a `### Scenario <N>` heading of an
+/// `acceptance_criteria` section keys by the number's value; any other item
+/// keys by the ID of [prefixId] at its start, as RULE-19 reads it.
+String? itemKeyOfHead(
+  String head, {
+  required bool isHeading,
+  required String? prefixId,
+  required bool isAcceptanceCriteria,
+}) {
+  if (isHeading && isAcceptanceCriteria) {
+    final scenario = readScenarioHeading('$itemHeadingMarker$head');
     if (scenario is ItemId) return itemKeyOf(scenario, isScenario: true);
   }
-  final prefix = template?.prefixId;
-  if (prefix == null) return null;
-  return switch (readItemId(item.text, prefix)) {
+  if (prefixId == null) return null;
+  return switch (readItemId(head, prefixId)) {
     final ItemId id => itemKeyOf(id, isScenario: false),
     _ => null,
   };
