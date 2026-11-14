@@ -15,8 +15,9 @@ const _agentMd =
     'the PRD asks for; when code needs\n'
     '  something no spec states, stop and ask the Owner. Code and tests name '
     'no doc, path, or item ID.\n'
-    '- Read docs with `specstone context <target> --for <mode>` or '
-    '`specstone get <name>`; never open doc files directly.\n'
+    '- Read docs with `specstone context <target> --for <mode> --out`; '
+    'search its saved file before any `specstone get`; never open doc files '
+    'directly.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
     '- Change docs only with `specstone set`, `new`, `move`, or `rename`; '
     'agent drafts stay drafts until the Owner runs `specstone approve`.\n'
@@ -24,14 +25,13 @@ const _agentMd =
     '`specstone guide <type>`; write each item in its shape,\n'
     '  once, short, complete.\n'
     '- Before writing a plan, tickets, or tests for a story, ground them '
-    'with `specstone context <story> --for implement`.\n'
-    '- Cite a doc by its name (`<feature>/<story>`), never by a number label '
+    'with `specstone context <story> --for implement --out`.\n'
+    '- Cite a doc by a markdown link, never by a number label '
     '(`F-<nn> US-<nn>`).\n'
     '- Before reporting work done, run `specstone check <doc>` on each doc you '
     'changed until every finding ends `(waits for the Owner)` '
     '(`--json`: `waitsFor` is `owner`).\n'
-    '- If the specstone command is not on PATH, run '
-    '`~/.specstone/bin/specstone`.\n';
+    '- Without specstone on PATH, run `~/.specstone/bin/specstone`.\n';
 
 const _agentMdWordBound = 200;
 const _targetClauseWordBound = 9;
@@ -112,7 +112,7 @@ void main() {
           expect(
             rules.single,
             allOf(
-              contains('`specstone context <story> --for implement`'),
+              contains('`specstone context <story> --for implement --out`'),
               contains('plan'),
               contains('tickets'),
               contains('tests'),
@@ -121,6 +121,45 @@ void main() {
         }
       },
     );
+
+    test('$_fr verification: the read rule names a bare --out last in its '
+        'command and a search of the saved file before any get', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.startsWith('- Read docs with'));
+
+        expect(
+          rule,
+          contains('`specstone context <target> --for <mode> --out`'),
+        );
+        expect(
+          rule.indexOf('search its saved file before any `specstone get`'),
+          greaterThan(rule.indexOf('--out`')),
+        );
+      }
+    });
+
+    test(
+      "Ground another plugin's plan, ticket, or test work in the story first "
+      'verification: the plan rule names a bare --out last in its command',
+      () {
+        for (final text in [agentMdText, _inlineBlock()]) {
+          final rule = _rules(text)
+              .singleWhere((r) => r.contains('--for implement'));
+
+          expect(rule, endsWith('--for implement --out`.'));
+        }
+      },
+    );
+
+    test('$_fr verification: the citation rule names a markdown link', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text).singleWhere((r) => r.startsWith('- Cite'));
+
+        expect(rule, contains('markdown link'));
+        expect(rule, isNot(contains('by its name')));
+      }
+    });
 
     test(
       '$_fr: the import block holds the two imports between the markers',
