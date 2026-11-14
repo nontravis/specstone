@@ -145,7 +145,7 @@ void main() {
       startsWith('$named: a @<hash> goes only with --yes.\n'),
     );
   });
-  test('ms-r10: --yes on a draft changed since the Owner saw it exits 75 naming it, and approves nothing', () async {
+  test('--yes on a draft changed since its hash was taken exits 75 naming it, and approves nothing', () async {
     final root = await writeWriteProject();
     final named = _seen(root, 'feature:signup');
     final arch = _seen(root, 'architecture:signup');
@@ -158,8 +158,8 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(
       err.toString(),
-      '$signupFeature: doc: changed since the Owner saw them: feature:signup; '
-      'show each again and ask for a new ok\n',
+      '$signupFeature: doc: changed since their hash was taken: '
+      'feature:signup; read each again and approve it with its new hash\n',
     );
     expect(file.readAsStringSync(), changed);
     expect(

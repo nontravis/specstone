@@ -709,7 +709,7 @@ void main() {
       ]);
     });
 
-    test('ms-r10: a draft changed since the Owner saw it is base_mismatch, exit 75, naming each changed draft, and nothing is approved', () async {
+    test('a draft changed since its hash was taken is base_mismatch, exit 75, naming each changed draft, and nothing is approved', () async {
       final root = await writeWriteProject();
       final drafts = [
         seen(root, 'feature:signup'),
@@ -743,9 +743,9 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'changed since the Owner saw them: '
-                    'user_story:login/email_login, feature:signup; show each '
-                    'again and ask for a new ok',
+                'changed since their hash was taken: '
+                    'user_story:login/email_login, feature:signup; read each '
+                    'again and approve it with its new hash',
               ),
         ),
       );
