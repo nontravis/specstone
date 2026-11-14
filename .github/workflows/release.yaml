@@ -59,6 +59,13 @@ jobs:
       - name: Build the CLI
         working-directory: packages/specstone
         run: dart build cli -t bin/specstone.dart -o "$RUNNER_TEMP/build"
+      - name: Compile stn.exe
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\stn" | Out-Null
+          packages/specstone/shim/windows/build.ps1 -OutFile "$env:RUNNER_TEMP\stn\stn.exe" -Version ($env:GITHUB_REF_NAME -replace '^v', '')
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Stage the bundle
         run: |
           mkdir -p "$RUNNER_TEMP/stage" "$RUNNER_TEMP/dist"
@@ -67,7 +74,7 @@ jobs:
           cp -R "$RUNNER_TEMP/build/bundle/lib" "$RUNNER_TEMP/stage/lib"
           cp LICENSE "$RUNNER_TEMP/stage/LICENSE"
           if [ "$RUNNER_OS" = Windows ]; then
-            cp -p packages/specstone/bin/stn.cmd "$RUNNER_TEMP/stage/bin/stn.cmd"
+            cp -p "$RUNNER_TEMP/stn/stn.exe" "$RUNNER_TEMP/stage/bin/stn.exe"
           else
             cp -p packages/specstone/bin/stn "$RUNNER_TEMP/stage/bin/stn"
           fi
@@ -92,12 +99,16 @@ jobs:
             fi
           else
             listing=$(unzip -l "$RUNNER_TEMP/dist/$ASSET")
-            echo "$listing" | grep -q 'bin/stn.cmd$' || {
-              echo "bin/stn.cmd missing in $ASSET" >&2
+            echo "$listing" | grep -q 'bin/stn.exe$' || {
+              echo "bin/stn.exe missing in $ASSET" >&2
               exit 1
             }
             if echo "$listing" | grep -q 'bin/stn$'; then
               echo "bin/stn packed into $ASSET" >&2
+              exit 1
+            fi
+            if echo "$listing" | grep -q 'stn.cmd$'; then
+              echo "stn.cmd packed into $ASSET" >&2
               exit 1
             fi
           fi
@@ -115,6 +126,17 @@ jobs:
           exe="$RUNNER_TEMP/stage/bin/specstone"
           if [ "$RUNNER_OS" = Windows ]; then exe="$exe.exe"; fi
           test "$("$exe" --version)" = "${GITHUB_REF_NAME#v}"
+          if [ "$RUNNER_OS" = Windows ]; then
+            test "$("$RUNNER_TEMP/stage/bin/stn.exe" --version)" = "${GITHUB_REF_NAME#v}"
+          fi
+      - name: Check the stn.exe version resource
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $expected = $env:GITHUB_REF_NAME -replace '^v', ''
+          $info = [Diagnostics.FileVersionInfo]::GetVersionInfo("$env:RUNNER_TEMP\stage\bin\stn.exe")
+          if ($info.FileVersion -ne $expected) { throw "stn.exe FileVersion '$($info.FileVersion)' is not '$expected'" }
+          if ($info.ProductVersion -ne $expected) { throw "stn.exe ProductVersion '$($info.ProductVersion)' is not '$expected'" }
       - name: Smoke-test install.sh and uninstall.sh
         if: runner.os != 'Windows'
         run: |

@@ -146,18 +146,38 @@ void main() {
     final run = '${stage['run']}';
     final windowsArm = run.indexOf(r'if [ "$RUNNER_OS" = Windows ]; then');
     final posixArm = run.indexOf('else');
-    final cmdCopy = run.indexOf(
-      r'cp -p packages/specstone/bin/stn.cmd "$RUNNER_TEMP/stage/bin/stn.cmd"',
+    final exeCopy = run.indexOf(
+      r'cp -p "$RUNNER_TEMP/stn/stn.exe" "$RUNNER_TEMP/stage/bin/stn.exe"',
     );
     final stnCopy = run.indexOf(
       r'cp -p packages/specstone/bin/stn "$RUNNER_TEMP/stage/bin/stn"',
     );
     // Each copy runs only in its platform arm, so a tar.gz never stages
-    // stn.cmd and the zip never stages stn.
+    // stn.exe and the zip never stages stn.
     expect(windowsArm, isNonNegative);
-    expect(cmdCopy, greaterThan(windowsArm), reason: run);
-    expect(cmdCopy, lessThan(posixArm), reason: run);
+    expect(exeCopy, greaterThan(windowsArm), reason: run);
+    expect(exeCopy, lessThan(posixArm), reason: run);
     expect(stnCopy, greaterThan(posixArm), reason: run);
+    expect(run, isNot(contains('stn.cmd')));
+  });
+
+  test('Package each archive with its notices '
+      'E04: Compile stn.exe runs build.ps1 on Windows between the CLI build '
+      'and the stage', () {
+    final steps = _steps(_job(release, 'build'));
+    final names = steps.map((s) => '${s['name'] ?? s['uses'] ?? ''}').toList();
+    final compile = names.indexOf('Compile stn.exe');
+    expect(compile, isNonNegative, reason: names.join(', '));
+    expect(compile, greaterThan(names.indexOf('Build the CLI')));
+    expect(compile, lessThan(names.indexOf('Stage the bundle')));
+
+    final step = steps[compile];
+    expect(step['if'], "runner.os == 'Windows'");
+    expect(step['shell'], 'pwsh');
+    final run = '${step['run']}';
+    expect(run, contains('packages/specstone/shim/windows/build.ps1'));
+    expect(run, contains(r'-OutFile "$env:RUNNER_TEMP\stn\stn.exe"'));
+    expect(run, contains(r"-Version ($env:GITHUB_REF_NAME -replace '^v', '')"));
   });
 
   test('Package each archive with its notices '
@@ -172,11 +192,60 @@ void main() {
     expect(check, lessThan(names.indexOf('Write SHA256SUMS')));
 
     final run = '${steps[check]['run']}';
+    final zipArm = run.indexOf('unzip -l');
     expect(run, contains('tar -tvzf'));
-    expect(run, contains(r"grep -q 'bin/stn.cmd$'"));
+    expect(run, contains("grep -Eq '^-..x'"));
     expect(run, contains(r"grep 'bin/stn$'"));
     expect(run, contains(r"grep -q 'stn.cmd$'"));
-    expect(run, contains("grep -Eq '^-..x'"));
+    expect(zipArm, isNonNegative, reason: run);
+    expect(run.indexOf(r"grep -q 'bin/stn.exe$'"), greaterThan(zipArm));
+    // The zip arm fails on a leftover stn and on a leftover stn.cmd.
+    expect(run.lastIndexOf(r"grep -q 'bin/stn$'"), greaterThan(zipArm));
+    expect(run.lastIndexOf(r"grep -q 'stn.cmd$'"), greaterThan(zipArm));
+  });
+
+  test('Package each archive with its notices '
+      'E04: the staged-binary smoke runs stn.exe --version on Windows and '
+      'compares it to the tag', () {
+    final smoke = _steps(_job(release, 'build'))
+        .singleWhere((s) => s['name'] == 'Smoke-test the staged binary');
+    final run = '${smoke['run']}';
+    final windowsArm = run.indexOf(r'if [ "$RUNNER_OS" = Windows ]; then');
+    final stnRun = run.indexOf(r'"$RUNNER_TEMP/stage/bin/stn.exe" --version');
+    expect(windowsArm, isNonNegative, reason: run);
+    expect(stnRun, greaterThan(windowsArm), reason: run);
+    expect(
+      run.indexOf(r'"${GITHUB_REF_NAME#v}"', stnRun),
+      isNonNegative,
+      reason: run,
+    );
+  });
+
+  test('Package each archive with its notices '
+      'E04: Check the stn.exe version resource reads both versions after the '
+      'smoke and before the upload', () {
+    final steps = _steps(_job(release, 'build'));
+    final names = steps.map((s) => '${s['name'] ?? s['uses'] ?? ''}').toList();
+    final check = names.indexOf('Check the stn.exe version resource');
+    expect(check, isNonNegative, reason: names.join(', '));
+    expect(check, greaterThan(names.indexOf('Smoke-test the staged binary')));
+    expect(
+      check,
+      lessThan(
+        names.indexWhere((n) => n.startsWith('actions/upload-artifact')),
+      ),
+    );
+
+    final step = steps[check];
+    expect(step['if'], "runner.os == 'Windows'");
+    expect(step['shell'], 'pwsh');
+    final run = '${step['run']}';
+    expect(run, contains('[Diagnostics.FileVersionInfo]::GetVersionInfo'));
+    expect(run, contains(r'$env:RUNNER_TEMP\stage\bin\stn.exe'));
+    expect(run, contains('FileVersion'));
+    expect(run, contains('ProductVersion'));
+    expect(run, contains(r"$env:GITHUB_REF_NAME -replace '^v', ''"));
+    expect(run, contains('throw'));
   });
 
   test('f09/us04/fr05/e02: the version job checks the tag against '
