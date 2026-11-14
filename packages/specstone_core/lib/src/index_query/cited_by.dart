@@ -177,6 +177,7 @@ List<_ItemLink> _itemLinksOn(
     }
     final range = rangeFrom[link];
     if (range == null && rangeEnds.contains(link)) continue;
+    if (range != null && !rangeEnds.contains(link)) spanned.clear();
     for (final id in _idsOf(range, cite, target, at)) {
       final item = (doc: target.doc.docPath, itemId: id);
       if (range == null || spanned.add(item)) found.add(item);

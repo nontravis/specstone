@@ -155,6 +155,24 @@ void main() {
     }
   });
 
+  test('f01/us05/fr06/e07: two separate ranges on one line count apart', () async {
+    const line =
+        'See [RULE-2](ranges.md#rules) to [RULE-3](ranges.md#rules) and [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules).';
+    final index = await _index(
+      'Check it.',
+      extra: {'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n'},
+    );
+    final cited = _citedBy(index);
+    const counts = {'RULE-2': 2, 'RULE-3': 2, 'RULE-4': 1};
+    for (final MapEntry(key: id, value: count) in counts.entries) {
+      expect(
+        _of(cited, 'specs/topics/ranges.md', id),
+        hasLength(count),
+        reason: id,
+      );
+    }
+  });
+
   test('f01/us05/fr06/e07: nested items that end on one line keep every line, inner first', () {
     const outer = (
       item: 'INV-14',
