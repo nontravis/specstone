@@ -657,12 +657,44 @@ void main() {
           report.warnings,
           contains(
             'app/lib/sealed: cannot list the folder; files under it are not '
-            'checked for covers',
+            'checked for covers or fingerprints',
           ),
         );
       },
     );
   });
+
+  test(
+    'a folder that cannot be listed gives one warning, whether the covers '
+    'scan, the fingerprint read, or both list it',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          ..._covering('  - app/lib/ $_stale\n  - app/lib/sealed/ $_stale\n'),
+          'app/lib/sealed/a.dart': 'a\n',
+        },
+      );
+      final path = '${project.path}/app/lib/sealed';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['755', path]));
+
+      const warning =
+          'app/lib/sealed: cannot list the folder; files under it are not '
+          'checked for covers or fingerprints';
+
+      final report = _run(project);
+
+      expect(
+        report.warnings.where(
+          (w) =>
+              w.startsWith('app/lib/sealed: cannot') &&
+              !w.contains('doc names'),
+        ),
+        [warning],
+      );
+    },
+  );
 
   test(
     'an unreadable file of a record entry gives the warning and no '

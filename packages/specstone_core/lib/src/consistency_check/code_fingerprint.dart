@@ -8,7 +8,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
 const _fingerprintLength = 12;
-const _bomChar = '﻿';
+const _bomChar = '\uFEFF';
 const _bomFirst = 0xEF;
 const _bomSecond = 0xBB;
 const _bomThird = 0xBF;

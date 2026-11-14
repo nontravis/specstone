@@ -37,10 +37,19 @@ void main() {
         final lf = fileCodeFingerprint([..._bom, ..._utf8('a\nb\n')]);
         expect(fileCodeFingerprint([..._bom, ..._utf8('a\r\nb\r\n')]), lf);
         expect(lf, isNot(fileCodeFingerprint(_utf8('a\nb\n'))));
-        expect(lf, baseHashOf('﻿a\nb\n'));
-        expect(fileCodeFingerprint(_bom), baseHashOf('﻿'));
+        expect(lf, baseHashOf('\uFEFFa\nb\n'));
+        expect(fileCodeFingerprint(_bom), baseHashOf('\uFEFF'));
       },
     );
+
+    test('writes the BOM character as an escape in its source and test', () {
+      for (final path in [
+        'lib/src/consistency_check/code_fingerprint.dart',
+        'test/src/consistency_check/code_fingerprint_test.dart',
+      ]) {
+        expect(File(path).readAsStringSync(), isNot(contains('\uFEFF')));
+      }
+    });
 
     test('turns only a CRLF pair into LF, never a lone CR', () {
       expect(

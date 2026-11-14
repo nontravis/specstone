@@ -221,10 +221,7 @@ Iterable<Finding> uncoveredCode(
           context.codeRootOf(target),
           value,
           skipFolders: nested,
-          onUnlistable: (folder) => context.warn(
-            '$folder: cannot list the folder; files under it are not checked '
-            'for covers',
-          ),
+          onUnlistable: (folder) => warnUnlistableFolder(context, folder),
         );
         for (final path in paths) {
           if (_isCovered(covers, path) || !reported.add(path)) continue;
@@ -241,6 +238,15 @@ Iterable<Finding> uncoveredCode(
       }
     }
   }
+}
+
+/// States that [folder] cannot be listed, once per run however many scans
+/// list it.
+void warnUnlistableFolder(CheckContext context, String folder) {
+  final warning =
+      '$folder: cannot list the folder; files under it are not checked for '
+      'covers or fingerprints';
+  if (!context.unstatedWarnings.contains(warning)) context.warn(warning);
 }
 
 /// Returns every `covers` entry of the typed [docs] in [normalCodeEntry]'s

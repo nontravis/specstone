@@ -2830,8 +2830,8 @@ void _moveToRecordTests() {
       expect(_valuesOf(text)['statuses'], hasLength(2));
     });
 
-    test('$_fr E30: below the statuses pin, an approved record that gains '
-        'entries is re-stamped with the hash its new statuses give', () async {
+    test('below the statuses pin, an approved record that gains entries is '
+        're-stamped with the hash its new statuses give', () async {
       final probe = await _recordFixture();
       final type = _finalType(probe, 'implementation');
       final record = withApprovalHash(

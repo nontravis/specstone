@@ -336,7 +336,7 @@ void main() {
         '$techStack:4: code_uncovered',
       ]);
       expect(report.warnings, [
-        'app/lib/sealed: cannot list the folder; files under it are not checked for covers',
+        'app/lib/sealed: cannot list the folder; files under it are not checked for covers or fingerprints',
         'app/lib/sealed: cannot list the folder; files under it are not checked for doc names',
       ]);
     },
