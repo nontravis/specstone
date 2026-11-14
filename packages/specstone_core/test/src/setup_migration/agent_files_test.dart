@@ -30,7 +30,8 @@ const _agentMd =
     '- Before reporting work done, run `specstone check <doc>` on each doc you '
     'changed until every finding ends `(waits for the Owner)` '
     '(`--json`: `waitsFor` is `owner`).\n'
-    '- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.\n';
+    '- If the specstone command is not on PATH, run '
+    '`~/.specstone/bin/specstone`.\n';
 
 const _agentMdWordBound = 200;
 const _targetClauseWordBound = 9;

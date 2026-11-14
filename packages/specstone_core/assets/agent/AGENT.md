@@ -13,4 +13,4 @@ This project keeps its PRD and spec as Specstone docs.
 - Before writing a plan, tickets, or tests for a story, ground them with `specstone context <story> --for implement`.
 - Cite a doc by its name (`<feature>/<story>`), never by a number label (`F-<nn> US-<nn>`).
 - Before reporting work done, run `specstone check <doc>` on each doc you changed until every finding ends `(waits for the Owner)` (`--json`: `waitsFor` is `owner`).
-- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.
+- If the specstone command is not on PATH, run `~/.specstone/bin/specstone`.

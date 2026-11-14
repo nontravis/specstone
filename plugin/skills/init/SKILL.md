@@ -27,13 +27,13 @@ that is already a project.
 
 ## 2. Fill each draft with the Owner
 
-Take the drafts one at a time, in this order: `project:project`, `features:features`, `gnfr:gnfr`,
-`tech_stack:tech_stack`. For each one:
+Take the drafts one at a time, in this order: the project, features, gnfr, and tech stack docs.
+For each one:
 
 1. Run `specstone guide <type>` for its title and sections, and `specstone guide <type> --json` for its fields.
-2. Ask the Owner for the title, each section, and each field the guide describes, such as `owner` on `project` and
-   `code` on `tech_stack`; or propose a value and let them correct it. Write only what they gave or agreed to. A new
-   project has one code target, so no `set` here carries `--target` (`domain:agent_plugin` INV-25).
+2. Ask the Owner for the title, each section, and each field the guide describes, such as `owner` on the project doc and
+   `code` on the tech stack doc; or propose a value and let them correct it. Write only what they gave or agreed to. A new
+   project has one code target, so no `set` here carries `--target`.
 3. Read every base at once with `specstone get <type>:<name> --json`: `bases.title`, `bases.sections.<key>`,
    `bases.fields.<id>`.
 4. Pipe each value in through the matching call:

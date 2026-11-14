@@ -48,8 +48,8 @@ Read sources in this order; read a later source only for what the earlier ones l
    by path.
 
    For a target that is no story, an NFR or a spec doc, `specstone context <target> --for implement` on that doc
-   itself. An FR target grounds through its story's step-1 call, as
-   `fr:agent_plugin/ground_a_task/ground_through_context#edge_cases` E01 grounds a task citing a story and its FRs.
+   itself. An FR target grounds through its story's step-1 call, so
+   a task citing a story and its FRs grounds once.
 2. The code the specs point at: each `implements` and `covers` path, then its direct callers.
 3. The project's own instruction files (`CLAUDE.md`, `AGENTS.md`): commands, branch flow, gotchas.
 4. Library docs for each dependency TECH_STACK names (the host's doc tool, when it has one).
@@ -63,15 +63,15 @@ Every task names the doc it builds (a story, FR, NFR, or spec doc), by doc name,
 Verification field, or the TECH_STACK CI commands when it has none. A task that would build behavior no doc states
 is a spec gap: list it, never plan it.
 
-**Code target** (`domain:agent_plugin` INV-25): with one given, every Ground `context` call and each task's read line
+**Code target:** with one given, every Ground `context` call and each task's read line
 adds `--target <code target>`, and the plan holds that target's tasks alone. With none given, add no `--target`.
 
 ## Workflow
 
 1. **Sort the names**: take as a target each story, FR, NFR, or spec doc among `targets`, its type the name's
-   `<type>:` prefix, else the `(<type>)` its bundle header prints. Every other doc, such as a `project`, `feature`,
-   `persona`, or `journey` doc, gets a row with no task that names why no task builds its type; a `project` or
-   `feature` doc's row reads that its stories carry the change.
+   `<type>:` prefix, else the `(<type>)` its bundle header prints. Every other doc, such as a project, feature,
+   persona, or journey doc, gets a row with no task that names why no task builds its type; a project or
+   feature doc's row reads that its stories carry the change.
 2. **Ground**: follow `## Ground` in order. Run source 1's calls through Bash, neither with `--budget`, so you hold
    each bundle whole: first one per story target or FR target's story, then one per NFR or spec doc target. A spec
    doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own. The
@@ -97,7 +97,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **A doc the plan would build that the code target skips**, by its own record entry or one above it, read from its
      bundle: no task, and a `NOT PLANNED` row naming the skip and its reason; a skipped doc the plan only reads gets
      no row.
-   - **Any other doc**, such as the `project` or `feature` doc, an FR target's story, a sibling FR, or a spec doc: a
+   - **Any other doc**, such as the project or feature doc, an FR target's story, a sibling FR, or a spec doc: a
      draft or `approval_stale` one goes under open questions, to be approved before the plan runs; the plan goes on.
      A doc among `targets` that no task builds keeps its row with no task instead.
 6. **Plan format**: when steps 1 to 5 took no target or made each one `NOT PLANNED`, load no skill and go to step 8.
@@ -182,7 +182,7 @@ Findings: <items, or none>
 **DO:**
 
 - Run `specstone context` for the Ground and one `specstone check`, read through its `approval_stale` lines and its
-  exit code (Workflow step 3), and no other `specstone` command.
+  exit code (Workflow step 3), and no other specstone command.
 - Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
 - Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.

@@ -6,7 +6,7 @@ Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections 
 `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once,
 naming every type you write; a type met later gets its own call before its first write.
 
-**Code target** (two or more `targets:`, `domain:agent_plugin` INV-25): each `new`, `get`, and `set` of a per-target
+**Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
 
 ## 2. One finding at a time
@@ -80,8 +80,8 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval
 
-`specstone check` skips the migration's empty `specs/TECH_STACK.md`. With the Owner, fill each target's
-`tech_stack:tech_stack` per the guide you loaded, and its `code`, each code folder under that target's code root in the
+`specstone check` skips the migration's empty tech stack doc. With the Owner, fill each target's
+tech stack doc per the guide you loaded, and its `code`, each code folder under that target's code root in the
 config's `targets:`, or `code_root` for an unnamed one, else the project root.
 Write PROJECT's old `## Tech stack` to `## Stack` and its `## Naming canonicalization` to `## Naming`, then drop each
 PRD section.

@@ -6,7 +6,7 @@ import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:test/test.dart';
 
-/// The `code:` entries of the workspace's `tech_stack` that Specstone's own
+/// The `code:` entries of the tech stack doc that Specstone's own
 /// repository holds, as paths from the repository root.
 const _codeRoots = [
   'packages/specstone_core/lib/',

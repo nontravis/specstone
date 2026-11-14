@@ -362,7 +362,7 @@ MoveToRecord _parseMoveToRecord(
 }
 
 /// A `move_file` `to` pattern must hold the `from` placeholders in the same
-/// order (PD21): `setup_migration/upgrade_pack_pins/apply_steps_and_pins` E04 keeps one value per placeholder.
+/// order, which keeps one value per placeholder.
 void _checkPlaceholders(
   String from,
   String to, {

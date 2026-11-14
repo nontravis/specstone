@@ -31,9 +31,9 @@ String _valueMessage(String value) {
 /// Returns one `tbr_open` finding per open TBR of [doc], a typed doc.
 ///
 /// An open TBR is each `tbr` section an `fr` or `nf` doc holds, each
-/// `**TBR:**` bullet of a `gnfr` doc whose value is not `none`, and each
+/// `**TBR:**` bullet of a gnfr doc whose value is not `none`, and each
 /// stored marker that lies in neither; one inside a section or on a bullet is
-/// that section's or bullet's one finding (`report_open_tbrs`).
+/// that section's or bullet's one finding.
 Iterable<Finding> checkOpenTbrs(CheckContext context, IndexedDoc doc) sync* {
   final claimed = <int>{};
   for (final (:line, :message, :form) in _sectionsOf(context, doc, claimed)) {
@@ -83,7 +83,7 @@ Iterable<_Open> _sectionsOf(
   }
 }
 
-/// Returns a finding row per `**TBR:**` bullet of a `gnfr` [doc] whose value
+/// Returns a finding row per `**TBR:**` bullet of a gnfr [doc] whose value
 /// is not `none`, and adds every such bullet's line to [claimed].
 Iterable<_Open> _bulletsOf(
   CheckContext context,

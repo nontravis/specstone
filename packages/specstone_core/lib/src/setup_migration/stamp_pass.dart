@@ -49,7 +49,7 @@ final class StampPass {
   /// run; a doc whose `confirmed` entries changed in number keeps them.
   ///
   /// [pins] are the pack pins before the run: a doc counts as approved when it
-  /// did not await approval under them (`document_writing` approval rule).
+  /// did not await approval under them.
   /// [restampsFingerprints] holds for the one-time run alone. A typed doc
   /// whose frontmatter is not valid YAML, before or after, is skipped and
   /// named on the plan line.

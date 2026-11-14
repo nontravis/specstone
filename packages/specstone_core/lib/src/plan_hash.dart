@@ -14,7 +14,7 @@ final _recorderKey = Object();
 ///
 /// It is the [baseHashOf] of [planText] followed by [inputs]' lines, so a
 /// change to the plan or to an input it used changes it, and a commit that
-/// leaves every input as it was does not (`setup_migration` INV-4).
+/// leaves every input as it was does not.
 String planHashOf(String planText, PlanInputs inputs) =>
     baseHashOf('$planText${inputs.lines}');
 

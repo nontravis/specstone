@@ -13,7 +13,7 @@ question in your report.
 
 Run `specstone context <target> --for design` on the smallest doc that holds the brief's whole change: the story
 for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story, and
-`project` to add a feature. Pass no `--target`: a design read spans every code target (`domain:agent_plugin` INV-25).
+the project doc to add a feature. Pass no `--target`: a design read spans every code target.
 As the skill's runner, run no other call: your ground is what its step 1 gave, the bundle or `specstone:sdd-reader`'s
 sections, and, for a change from a source, the gate call's bundle plus any `--no-project` call's or the reader's
 sections.
@@ -52,8 +52,7 @@ Sections, in this order:
    ruling that supersedes doc text gets a row for each doc that states it. Each feature the change reaches with
    an `architecture` doc gets a row for its `design_references` section, a link to this document; when that
    section already holds three links, ask under Open questions which one this replaces. With two or more `targets:`, a
-   per-target spec doc's row also names its code target, a row with none an open question (`domain:agent_plugin`
-   INV-25).
+   per-target spec doc's row also names its code target, a row with none an open question.
 7. **Open questions**: each gap that neither the brief nor any doc bears on.
 
 Before the Docs to change table closes, search each decision's dependents:
@@ -66,8 +65,7 @@ Before the Docs to change table closes, search each decision's dependents:
 - When `refs` lists no typed citer, as in a tree that still cites by number labels, the search carries the decision,
   as it does for the limit of `refs` that rule 7 names. Record the searched terms either way, so the audit sees what
   was searched.
-- An amend for an Owner decision that adds or changes behavior, as
-  `agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E12 defines it, runs the same search on that decision's
+- An amend for an Owner decision that adds or changes behavior runs the same search on that decision's
   terms and adds its rows and searched terms before the author writes it.
 
 Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or an

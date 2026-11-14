@@ -973,7 +973,6 @@ const _oneOwnerPoints = [
   'A rule has one owner doc.',
   'Every other doc cites it by name, `<type>:<name>` or',
   '`<type>:<name>` or `<type>:<name>#<section>` and the item ID inside it',
-  '`domain:document_writing#invariants` INV-9',
   'states nothing of the rule',
   '`specstone refs <owner>` lists each citing doc',
   'a citation pins no hash: it never turns `suspect` when the owner changes',
@@ -1184,19 +1183,15 @@ void _agentTests() {
     );
   });
 
-  test(
-    'agent_plugin/ground_a_task/ground_through_context E14: read-sdd runs a '
-    "plan task's read line with its --target as written and cites INV-25",
-    () {
-      final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
-      expect(
-        skill,
-        contains('specstone context <story> --for implement --target <name>'),
-      );
-      expect(skill, contains("a plan task's read line's, as written"));
-      expect(skill, contains('`domain:agent_plugin` INV-25'));
-    },
-  );
+  test('agent_plugin/ground_a_task/ground_through_context E14: read-sdd runs a '
+      "plan task's read line with its --target as written", () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains('specstone context <story> --for implement --target <name>'),
+    );
+    expect(skill, contains("a plan task's read line's, as written"));
+  });
 
   test('agent_plugin/ground_a_task/ground_through_context E15: read-sdd gives '
       'a task no plan wrote no --target in query or design mode', () {
@@ -1262,8 +1257,7 @@ void _agentTests() {
   });
 
   test('agent_plugin/ground_a_task/return_whole_sections E06: sdd-reader runs '
-      "context with the hand-off's --target in implement mode and cites "
-      'INV-25', () {
+      "context with the hand-off's --target in implement mode", () {
     final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
     expect(
       reader,
@@ -1273,7 +1267,7 @@ void _agentTests() {
       reader,
       contains(
         "Add `--target <name>` in `implement` mode: the hand-off's "
-        '`--target`, as `domain:agent_plugin` INV-25 gives',
+        '`--target`, on each call',
       ),
     );
   });
@@ -1293,10 +1287,7 @@ void _agentTests() {
     expect(skill, contains('Without the `Agent` tool, pass no `--budget`'));
     expect(
       skill,
-      contains(
-        'Pass no `--target`: a design read spans every code target '
-        '(`domain:agent_plugin` INV-25).',
-      ),
+      contains('Pass no `--target`: a design read spans every code target.'),
     );
   });
 
@@ -1312,7 +1303,7 @@ void _agentTests() {
         '**Code target** (two or more `targets:`): pass `--target <name>`, '
         "the one its design document's row names, on each `new`, `get`, and "
         '`set` of a per-target spec doc, or address an existing doc by its '
-        'DocPath (`domain:agent_plugin` INV-25).',
+        'DocPath.',
       ),
     );
     expect(author, contains('names only, no `--target`'));
@@ -1327,8 +1318,8 @@ void _agentTests() {
     expect(
       _oneLine(_pluginText('agents/sdd-engineer.md')),
       contains(
-        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
-        'INV-25): author passes `--target <name>`, the code target its '
+        '**Code target** (two or more `targets:`): author passes '
+        '`--target <name>`, the code target its '
         "design document's row names, or the doc's DocPath, on each "
         'per-target `new`, `get`, and `set`;',
       ),
@@ -1345,8 +1336,8 @@ void _agentTests() {
         'A name that matches docs in two or more code targets: ask the Owner '
         'which one, as `specstone:plan-sdd` does, then run `get` and `set` '
         "on that doc's DocPath, the one `get`'s doc header prints, such as "
-        '`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md` '
-        '(`domain:agent_plugin` INV-25). A name that matches one doc asks '
+        '`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md`'
+        '. A name that matches one doc asks '
         'nothing.',
       ),
     );
@@ -1363,8 +1354,7 @@ void _agentTests() {
         '**Code target.** With two or more code targets, `new`, `get`, `set` '
         '(a `confirmed` write included), `structure <doc>`, and '
         '`refs <owner>` take the `--target` of the surface that loads this '
-        'skill, never an Owner question; `approve` and `delete` take none '
-        '(`domain:agent_plugin` INV-25).',
+        'skill, never an Owner question; `approve` and `delete` take none.',
       ),
     );
   });
@@ -1385,17 +1375,13 @@ void _agentTests() {
     );
     expect(
       design,
-      contains(
-        'Pass no `--target`: a design read spans every code target '
-        '(`domain:agent_plugin` INV-25).',
-      ),
+      contains('Pass no `--target`: a design read spans every code target.'),
     );
     expect(
       design,
       contains(
         "With two or more `targets:`, a per-target spec doc's row also names "
-        'its code target, a row with none an open question '
-        '(`domain:agent_plugin` INV-25).',
+        'its code target, a row with none an open question.',
       ),
     );
   });
@@ -1408,17 +1394,10 @@ void _agentTests() {
     expect(
       audit,
       contains(
-        "Pass no `--target`: the bundle takes every code target's spec docs "
-        '(`domain:agent_plugin` INV-25).',
+        "Pass no `--target`: the bundle takes every code target's spec docs.",
       ),
     );
-    expect(
-      audit,
-      contains(
-        "The drafts list's names need no `--target` (`domain:agent_plugin` "
-        'INV-25).',
-      ),
-    );
+    expect(audit, contains("The drafts list's names need no `--target`."));
     expect(
       _oneLine(_pluginText('agents/sdd-engineer.md')),
       contains(
@@ -1432,17 +1411,14 @@ void _agentTests() {
       're-audit get of the drafts list needs no --target', () {
     expect(
       _oneLine(_pluginText('skills/brainstorming-sdd/references/rounds.md')),
-      contains(
-        "The drafts list's names need no `--target` (`domain:agent_plugin` "
-        'INV-25).',
-      ),
+      contains("The drafts list's names need no `--target`."),
     );
   });
 
   group('agent_plugin/sync_code_and_docs', () {
     const targetLine =
-        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
-        "INV-25): a changed path's target is the `code target:` line, or the "
+        "**Code target** (two or more `targets:`): a changed path's target "
+        'is the `code target:` line, or the '
         '`codeTarget` key under `--json`, of its `context --code` call, '
         "covered or not, and a deleted path's is the finding DocPath's, so "
         'ask the Owner nothing; each `get`, `set`, and `new` of a per-target '
@@ -1465,7 +1441,7 @@ void _agentTests() {
       );
     });
 
-    test("domain:agent_plugin INV-25: the sync procedure takes the path's "
+    test("the sync procedure takes the path's "
         'target by the longest code root and asks the Owner nothing', () {
       expect(procedure(), contains(targetLine));
       expect(
@@ -1522,8 +1498,7 @@ void _agentTests() {
           '--field implements --base <hash>` (or `specstone set <type>:<name> '
           '--field covers --base <hash>`), each with `--target <name>`, the '
           'target the report gives for that pointer, when the project has '
-          'two or more '
-          '(`domain:agent_plugin` INV-25), the hash from '
+          'two or more, the hash from '
           '`bases.fields.implements` (or `bases.fields.covers`) of '
           '`specstone get <doc> --json` for the same doc, with the same '
           '`--target`.',
@@ -1597,13 +1572,13 @@ void _agentTests() {
       expect(init(), isNot(contains('that is expected in a new project')));
     });
 
-    test('domain:agent_plugin INV-25: init passes no --target, a new '
+    test('init passes no --target, a new '
         'project having one code target', () {
       expect(
         init(),
         contains(
           'A new project has one code target, so no `set` here carries '
-          '`--target` (`domain:agent_plugin` INV-25).',
+          '`--target`.',
         ),
       );
     });
@@ -1611,15 +1586,15 @@ void _agentTests() {
 
   group('agent_plugin/fill_missing_format', () {
     const procedureTargetLine =
-        '**Code target** (two or more `targets:`, `domain:agent_plugin` '
-        'INV-25): each `new`, `get`, and `set` of a per-target doc carries '
+        '**Code target** (two or more `targets:`): each `new`, `get`, and '
+        '`set` of a per-target doc carries '
         "`--target <name>`, the finding DocPath's code target, else the first "
         'listed one.';
 
     String text(String file) => _oneLine(_pluginText(file));
 
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
-      test('fill_check_findings and merge_old_files, INV-25: the $skill '
+      test('fill_check_findings and merge_old_files: the $skill '
           "procedure takes each write's target from the finding DocPath, else "
           'the first listed', () {
         expect(
@@ -1628,13 +1603,13 @@ void _agentTests() {
         );
       });
 
-      test('fill_check_findings, INV-25: $skill names the batch target '
+      test('fill_check_findings: $skill names the batch target '
           'source, so a bootstrap batch never asks the Owner', () {
         expect(
           text('skills/$skill/SKILL.md'),
           contains(
-            '**Code target** (two or more `targets:`, `domain:agent_plugin` '
-            "INV-25): a finding's code target is its DocPath's, and an old "
+            "**Code target** (two or more `targets:`): a finding's code "
+            "target is its DocPath's, and an old "
             'file whose path names none merges into the first listed one, so '
             'a batch never asks the Owner.',
           ),
@@ -1675,13 +1650,13 @@ void _agentTests() {
       expect(
         text('skills/bootstrap-spec/references/procedure.md'),
         contains(
-          "fill each target's `tech_stack:tech_stack` per the guide you "
+          "fill each target's tech stack doc per the guide you "
           'loaded, and its `code`,',
         ),
       );
       expect(
         text('skills/bootstrap-spec/SKILL.md'),
-        contains("names each target's `tech_stack:tech_stack`"),
+        contains("names each target's tech stack doc"),
       );
     });
 
@@ -1841,8 +1816,8 @@ void _agentTests() {
       contains(
         "on the smallest doc that holds the brief's whole change: the story "
         'for a change inside one story, the feature for one across stories, '
-        'the feature with `--summary` to add a story, and `project` to add a '
-        'feature.',
+        'the feature with `--summary` to add a story, and the project doc to '
+        'add a feature.',
       ),
     );
   });
@@ -1964,7 +1939,6 @@ void _agentTests() {
       '`specstone:bootstrap-spec`',
       '`specstone:sdd-reader`',
       'mktemp',
-      'NFR-Pr01',
       'Source map',
       'not taken',
       'open question',
@@ -2120,9 +2094,8 @@ const _dependentsSearchPoints = [
   'labels, the search carries the decision, as it does for the limit of',
   '`refs` that rule 7 names.',
   'Record the searched terms either way, so the audit sees what was searched.',
-  'An amend for an Owner decision that adds or changes behavior, as',
-  '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E12 defines it,',
-  "runs the same search on that decision's terms and adds its rows and",
+  'An amend for an Owner decision that adds or changes behavior runs',
+  "the same search on that decision's terms and adds its rows and",
   'searched terms before the author writes it.',
 ];
 
@@ -2130,8 +2103,7 @@ const _dependentsSearchPoints = [
 /// step 1 of audit.md words it, cut at line width.
 const _auditReadPoints = [
   'An audit after a fix round, or after the author pass that follows an',
-  'amend, takes the drafts',
-  '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E13 names, each',
+  'amend, takes the drafts list, each',
   'read whole and audited again.',
   'run one `specstone get <targets> --json` on every target.',
   "Each doc's `Audited:` line joins its JSON `docType` and `name` with `:`,",
@@ -2165,9 +2137,9 @@ const _auditReportPoints = [
   '**`Audited:`**: one line per target that names a doc, a draft or not, its',
   "hash that doc's `bases.doc` from the `get` of step 1; each replaces the",
   'line an earlier audit wrote for that draft.',
-  'End a `Findings:` line with `[behavior]` when its fix needs behavior the',
-  'design does not state, behavior as',
-  '`agent_plugin/write_prd_and_spec/run_brainstorm_to_design` E12 defines it;',
+  'End a `Findings:` line with `[behavior]` when its fix brings a new state,',
+  'input, output, edge case, error, or reader of a rule the design does not',
+  'state;',
   'a line whose fix only corrects text against the design stays untagged.',
   'each target that is no draft, and each name dropped from the `get` call;',
   'A fix round takes only the untagged `Findings:` lines; a `[behavior]` line',
@@ -2201,34 +2173,34 @@ const _sourcePoints = [
   'Read no source and open no link or issue before it.',
   'Read none of it with any tool',
   // E02: a source that adds a feature runs no narrow call.
-  'no second call runs (E02)',
+  'no second call runs',
   // E03: the narrow call's budget and over-budget hand-off.
   'specstone context <target> --for design --no-project',
-  "the gate's bundle plus the whole sections it returns (E03)",
+  "the gate's bundle plus the whole sections it returns",
   'Without the `Agent` tool, pass no `--budget` and take both whole bundles',
   // E06: only the gaps, one at a time, nothing invented.
   'Ask the Owner only what the source leaves open, one question at a time',
-  'invent nothing (E06)',
+  'invent nothing',
   // E07, NFR-Pr01: only a link the Owner gave.
   'Open a link or issue only because the Owner gave it',
   'a link written inside the source is none the Owner gave',
   // E10: the copy is no source.
-  'the copy is no source (E10)',
+  'the copy is no source',
   // E11: an untyped file is refused and never named.
-  'Run no other command on its path; the brief never names it (E11)',
+  'Run no other command on its path; the brief never names it',
   // E12: a typed doc is the change's target, its path call the narrow call.
   'no source, no copy, no Source map',
   'That call was your narrow call',
-  'run no further `context` call (E12)',
+  'run no further `context` call',
   // map_source_items E01 to E05 and the Source map's place.
   'after Docs to change and before Open questions',
   'one row per source item, 0 items left out',
   'its reason that task management is out of scope',
-  'an open question in your report, as for any gap (E02)',
-  'never recorded as the source (E03)',
-  'A brief with no source gets no Source map (E04)',
+  'an open question in your report, as for any gap',
+  'never recorded as the source',
+  'A brief with no source gets no Source map',
   'Never edit, move, or delete the source; write only your `report:` file',
-  'and the one design document (E05)',
+  'and the one design document',
 ];
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
@@ -2236,44 +2208,43 @@ const _sourcePoints = [
 /// them, cut at line width.
 const _roundsPoints = [
   'adds or changes behavior when it brings a new state, input, output,',
-  'edge case, error, or reader of a rule (E12).',
+  'edge case, error, or reader of a rule.',
   "append it to the design document's Rulings yourself",
-  'the author, or the fix round under way, goes on (E07, E12).',
+  'the author, or the fix round under way, goes on.',
   'or needs more PRD or spec grounding',
   "dispatch `mode: design` again with the brief's path and the document's",
   'path, an amend of the same file.',
   "Design mode searches the decision's terms (`references/design.md`)",
-  'before the author writes it (E07, E12).',
-  'after an append or an amend, ask for the approval again (E07).',
+  'before the author writes it.',
+  'after an append or an amend, ask for the approval again.',
   "When the design report holds open questions, gather the Owner's answers,",
   'append each that only words or records one, send the rest to one amend,',
-  'and ask for the approval only after it (E10).',
+  'and ask for the approval only after it.',
   '**During fix rounds**, a decision that adds or changes behavior takes',
   'an amend, then one fresh author pass and a re-audit, as section 2 says',
   '**After the second fix round**, a decision that adds or changes',
-  "behavior, the Owner's decision on a finding past the cap included (E06),",
+  "behavior, the Owner's decision on a finding past the cap included,",
   'takes an amend, then one author pass that carries the amend alone and is',
   'no fix round, then a re-audit (section 3) whose findings reach the Owner',
   'with the drafts, with no further round.',
   'Fix an Owner change that only corrects text per `specstone:expert-sdd`,',
-  'with no amend (E12).',
+  'with no amend.',
   "The drafts list is the first author report's drafts plus each doc a fix",
   'round or pass added, renamed or dropped as section 3 says.',
   'every author pass after the first, each fix round and the pass that',
   'follows an amend, is a new `mode: author` dispatch, never the resumed',
-  'one (E05).',
+  'one.',
   "a fix round adds the audit's `Findings:` lines that carry no `[behavior]`",
   'The author re-reads those drafts before its first write',
-  '`agent_plugin/write_prd_and_spec/write_drafts_with_coverage` E12) and',
-  'fixes only those findings, in those drafts.',
+  'and fixes only those findings, in those drafts.',
   'never goes to a fix round: put it, with the decision that answers it,',
   'in the brief for an amend (section 1).',
   'that pass takes them too and counts as a fix round; a pass that carries',
-  'the amend alone is no fix round (E12).',
+  'the amend alone is no fix round.',
   'run at most two fix rounds, counted across an amend.',
   'Lines left after the second get no third round: the Owner sees them',
   'with the drafts before approving any',
-  "and their decision on one takes section 1's route (E06).",
+  "and their decision on one takes section 1's route.",
   'After each fix round, and after each pass that follows an amend,',
   're-audit as section 3 says.',
   "Run one `specstone get <drafts list> --json` and keep each draft's",
@@ -2289,7 +2260,7 @@ const _roundsPoints = [
   'A doc of the list that is no draft, approved between rounds or listed',
   'and never written, is no target.',
   'name each doc approved between rounds and each name item 2 renamed or',
-  'dropped (E13).',
+  'dropped.',
 ];
 
 /// A step number not preceded by "skill's"; in rounds.md it could mean a step
@@ -2334,8 +2305,7 @@ const _authorBatchPoints = [
   '`<file>` a `mktemp` file outside the repository; edit its blocks with',
   '`Edit`, each naming line kept; then run `specstone set --batch <file>`.',
   'A block printed ` · unchanged` wrote nothing and adds no draft.',
-  '**A refused batch** writes nothing',
-  '(`document_writing/edit_one_section_or_field/write_a_batch`), but exit 73',
+  '**A refused batch** writes nothing, but exit 73',
   'leaves docs half written until a write command ends its journal: run',
   'one, or `get` again, first. Per fault, then run it again:',
   '- Stale block: replace the block with the one the reply prints, your',
@@ -2693,9 +2663,8 @@ const _groundSpecstone =
 const _groundNonStoryTarget =
     'For a target that is no story, an NFR or a spec doc, `specstone context '
     '<target> --for implement` on that doc itself. An FR target grounds '
-    "through its story's step-1 call, as "
-    '`fr:agent_plugin/ground_a_task/ground_through_context#edge_cases` E01 '
-    'grounds a task citing a story and its FRs.';
+    "through its story's step-1 call, so "
+    'a task citing a story and its FRs grounds once.';
 
 /// Sources 2 to 4, then the three closing paragraphs the design's later ruling
 /// put in place of the ground ruling's last two.
@@ -2830,7 +2799,7 @@ void _planTests() {
     expect(scope, contains('the one plan file'));
   });
 
-  test('$_runPlanSkill E17, S4, domain:agent_plugin INV-25: plan-sdd runs the '
+  test('$_runPlanSkill E17, S4: plan-sdd runs the '
       'planned-story list after the gate, given targets or not and with no '
       '--target, and learns it must ask from its argument_missing refusal', () {
     final skill = _oneLine(_pluginText(_planSkill));
@@ -2844,7 +2813,7 @@ void _planTests() {
     expect(
       skill,
       contains(
-        '**Code target** (`domain:agent_plugin` INV-25): when the list '
+        '**Code target:** when the list '
         'refuses `argument_missing` naming two or more code targets, ask the '
         'Owner which code target the plan is for, given target names and a '
         'drafts list alike',
@@ -2901,7 +2870,7 @@ void _planTests() {
     );
   });
 
-  test('$_writePlan E29, domain:agent_plugin INV-25: plan-engineer takes the '
+  test('$_writePlan E29: plan-engineer takes the '
       'code target as an input and carries it as --target on every Ground '
       "call and each task's read line, none when no target is given", () {
     final agent = _pluginText(_planAgent);
@@ -2915,7 +2884,7 @@ void _planTests() {
     expect(
       _oneLine(_sectionOf(agent, 'Ground')).trimRight(),
       endsWith(
-        '**Code target** (`domain:agent_plugin` INV-25): with one given, '
+        '**Code target:** with one given, '
         "every Ground `context` call and each task's read line adds "
         "`--target <code target>`, and the plan holds that target's tasks "
         'alone. With none given, add no `--target`.',

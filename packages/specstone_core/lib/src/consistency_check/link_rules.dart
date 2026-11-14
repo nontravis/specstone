@@ -23,7 +23,7 @@ typedef _DocRefValue = ({MergedField field, String value, int line});
 ///
 /// A typed doc is checked for both, an untyped doc of a checked folder for
 /// links only. A doc the markdown parser failed on gets `markdown_unparsed`,
-/// stating the `index_query` warning, since its links go unchecked. With two
+/// stating the index warning, since its links go unchecked. With two
 /// or more targets, a shared doc's reference to a per-target doc gets
 /// `per_target_reference`.
 Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {

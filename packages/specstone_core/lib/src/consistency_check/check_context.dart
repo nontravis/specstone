@@ -135,7 +135,7 @@ final class CheckContext {
   /// Returns the template section the held section [index] of [doc] maps to,
   /// or null.
   ///
-  /// Both headers compare by `headerKey`, as `rendering/format_docs` matches them.
+  /// Both headers compare by `headerKey`, as the doc formatter matches them.
   MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
       _heldTemplatesOf(doc)[index];
 
@@ -233,7 +233,7 @@ final class CheckContext {
   bool hasNoParent(IndexedDoc doc) =>
       parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
 
-  /// Whether the merged set holds a `gnfr` doc type.
+  /// Whether the merged set holds a gnfr doc type.
   bool get hasGnfr =>
       _session.project.set.docTypes.any((type) => type.id == _gnfrType);
 
@@ -249,7 +249,7 @@ final class CheckContext {
         return scenarioBlocksIn(bodyLinesOf(story, index));
       });
 
-  /// Whether the merged set holds a `project` doc type.
+  /// Whether the merged set holds a project doc type.
   bool get hasProject =>
       _session.project.set.docTypes.any((type) => type.id == _projectType);
 
@@ -262,7 +262,7 @@ final class CheckContext {
               entry.group(1)!,
   };
 
-  /// Returns the Role names of every `project` doc.
+  /// Returns the Role names of every project doc.
   ///
   /// A name is the text in backticks that opens a `roles` section entry.
   Set<String> roleNames() => _roleNames;
@@ -272,7 +272,7 @@ final class CheckContext {
       for (final (:key, lines: _) in _itemHeadingBlocksOf(doc)) key,
   };
 
-  /// Returns the ID of each `###` item heading of every `project` doc, as
+  /// Returns the ID of each `###` item heading of every project doc, as
   /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
 
@@ -295,13 +295,13 @@ final class CheckContext {
   Iterable<IndexedDoc> get _projectDocs =>
       index.docs.where((doc) => doc.docTypeId == _projectType);
 
-  /// Maps each NFR id of the `gnfr` docs to its DocPath and Statement line.
+  /// Maps each NFR id of the gnfr docs to its DocPath and Statement line.
   ///
   /// The text is empty when the block has no `- **Statement:**` line.
   late final Map<String, ({String path, String text})> _nfrStatements =
       _readNfrStatements();
 
-  /// Returns the NFR ids of the `gnfr` docs with their Statement lines.
+  /// Returns the NFR ids of the gnfr docs with their Statement lines.
   Map<String, ({String path, String text})> nfrStatements() => _nfrStatements;
 
   Map<String, ({String path, String text})> _readNfrStatements() {

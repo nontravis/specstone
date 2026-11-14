@@ -27,8 +27,7 @@ final class CodePath {
 }
 
 /// Resolves [given] from [workingDirectory] to a [CodePath] inside the code
-/// root of the target whose code root is the longest that holds it
-/// (`index_query/get_task_bundle/bundle_docs_for_code_path`).
+/// root of the target whose code root is the longest that holds it.
 ///
 /// [codeRootOf] answers each target's canonical code root, as
 /// `DocsProject.codeRootOf` does. Throws `code_path_not_found` when nothing
@@ -71,7 +70,7 @@ CodePath resolveCodePath(
   );
 }
 
-/// Returns the bundle [code] holds for [mode] (`index_query/get_task_bundle/bundle_docs_for_code_path`).
+/// Returns the bundle [code] holds for [mode].
 ///
 /// The spec match is the doc of [code]'s target whose `covers:` entry is the
 /// longest prefix of [code]; the traced docs are the stories and FRs whose

@@ -83,9 +83,9 @@ final class MigrateRequest {
 /// first, then prints the plan; bare `migrate` applies it on the Owner's `y`,
 /// or under `--yes` with no prompt, after checking git again.
 ///
-/// A pending journal is finished first: a `document_writing` journal is
+/// A pending journal is finished first: a document-writing journal is
 /// replayed before the git checks, and a migrate journal is resumed with no
-/// second `y`. A dry run replays nothing: it refuses a `document_writing`
+/// second `y`. A dry run replays nothing: it refuses a document-writing
 /// journal the replay would refuse, and refuses `working_tree_dirty` while one
 /// has a step left; a journal with none left goes on to the git checks.
 ///
