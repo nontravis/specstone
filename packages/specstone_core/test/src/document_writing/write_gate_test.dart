@@ -129,6 +129,18 @@ void main() {
       });
     }
 
+    test('f01/us05/fr07: mayLeaveProject lets a path outside the project '
+        'pass and still refuses one under .git', () {
+      String? leaving(String relative) => writeRefusalOf(
+        '${project.path}/$relative',
+        projectRoot: project,
+        mayLeaveProject: true,
+      );
+      expect(leaving('../outside/new.txt'), isNull);
+      expect(leaving('src/new.txt'), isNull);
+      expect(leaving('.git/new.txt'), _underGit);
+    });
+
     test('a link to a folder outside the project leads outside, for a '
         'file below it and for a file not made yet', () {
       expect(refusal('out/victim.txt'), _leaves);

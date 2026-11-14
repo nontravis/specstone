@@ -6,7 +6,8 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
-import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart'
+    show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -69,9 +70,9 @@ File bareBundleFile(Directory projectRoot, String name) {
 /// it (`index_query/get_task_bundle/write_bundle_to_file`).
 ///
 /// The reply names the file by the canonical path the docs-root check
-/// compares. Throws `output_not_writable` for a path inside the docs root,
-/// a bare ([isBare]) one outside the project or below `.git`, or a write
-/// that fails.
+/// compares. Throws `output_not_writable` for a path inside the docs root or
+/// below a `.git` entry of the project, a bare ([isBare]) one outside the
+/// project, or a write that fails.
 ReadAnswer answerBundleFile(
   ContextAnswer answer,
   File file, {
@@ -87,9 +88,11 @@ ReadAnswer answerBundleFile(
       file: shownPath,
     );
   }
-  if (isBare) {
-    requireWritableTarget(shownPath, projectRoot: project.projectRoot);
-  }
+  requireWritableTarget(
+    shownPath,
+    projectRoot: project.projectRoot,
+    mayLeaveProject: !isBare,
+  );
   writeBuildOutput(
     File(shownPath),
     utf8.encode(answer.text),
@@ -151,16 +154,28 @@ Map<String, Object> bundleIndexJson(ContextAnswer answer, String shownPath) => {
   ],
 };
 
-/// Returns `- <list name> · <first>-<last>`, then ` · <key> <first>, …` for
-/// [entry]'s sections when [withSections] and it has any.
+/// Returns `- <name> (<doc type>) · <first>-<last>`, then ` · summary` and
+/// ` · cited <section key> [<ID>]` when they apply, then
+/// ` · <key> <first>, …` for [entry]'s sections when [withSections].
 String _indexLine(BundleEntry entry, {required bool withSections}) {
-  final range = '- ${entry.listName} · ${entry.first}-${entry.last}';
-  if (!withSections || entry.sections.isEmpty) return '$range\n';
-  final sections = [
-    for (final section in entry.sections) '${section.key} ${section.first}',
+  final fields = [
+    nameWithType(entry.doc),
+    '${entry.first}-${entry.last}',
+    if (entry.summary) 'summary',
+    if (entry.cited) _citedField(entry),
+    if (withSections && entry.sections.isNotEmpty)
+      [for (final section in entry.sections) '${section.key} ${section.first}']
+          .join(', '),
   ];
-  return '$range · ${sections.join(', ')}\n';
+  return '- ${fields.join(' · ')}\n';
 }
+
+/// Returns `cited`, with the section key and `[<ID>]` [entry] names.
+String _citedField(BundleEntry entry) => [
+  'cited',
+  ?entry.sectionKey,
+  if (entry.itemId != null) '[${entry.itemId}]',
+].join(' ');
 
 /// Returns the number of picked docs [answer] prints; appended parts aside.
 int _docCountOf(ContextAnswer answer) =>

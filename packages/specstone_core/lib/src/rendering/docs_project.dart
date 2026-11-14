@@ -130,7 +130,7 @@ final class DocsProject {
     required bool defaultsToDocsRoot,
   }) {
     if (target != null) {
-      return _targetAt(_absolute(target, workingDirectory), asGiven: target);
+      return _targetAt(absoluteFrom(workingDirectory, target), asGiven: target);
     }
     if (!defaultsToDocsRoot) {
       throw RenderFault(
@@ -146,7 +146,7 @@ final class DocsProject {
   ///
   /// Symbolic links and `..` resolve first, as [resolveTarget] resolves them.
   String? docPathAt(String path, {required Directory workingDirectory}) {
-    final absolute = _absolute(path, workingDirectory);
+    final absolute = absoluteFrom(workingDirectory, path);
     if (!FileSystemEntity.isFileSync(absolute)) return null;
     return _docPathOf(File(absolute).resolveSymbolicLinksSync());
   }
@@ -207,9 +207,4 @@ final class DocsProject {
     if (!canonical.startsWith(prefix)) return null;
     return canonical.substring(prefix.length).split(_separator).join('/');
   }
-}
-
-String _absolute(String path, Directory workingDirectory) {
-  if (File(path).isAbsolute) return path;
-  return '${workingDirectory.absolute.path}$_separator$path';
 }

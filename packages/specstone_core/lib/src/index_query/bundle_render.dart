@@ -19,12 +19,14 @@ const _overBudgetSummaryNextStep =
 
 /// One doc or appended part a bundle text prints, with the lines it spans
 /// there, counted from 1: its naming line `first` to its `last` line, and
-/// the header line of each `##` section it prints whole.
+/// the header line of each `##` section it prints whole. A cited part names
+/// the `##` section that holds it and its item ID, when it has them.
 typedef BundleEntry = ({
   IndexedDoc doc,
-  String listName,
   bool summary,
   bool cited,
+  String? sectionKey,
+  String? itemId,
   int first,
   int last,
   List<({String key, int first})> sections,
@@ -184,17 +186,14 @@ ContextAnswer answerContext(
     for (final (i, doc) in ordered.indexed)
       _entry(
         doc,
-        _listName(doc, inSummary(doc)),
         docBlocks[i],
         docPrints[i].sections,
         first: starts[i],
         summary: inSummary(doc),
-        cited: false,
       ),
     for (final (i, part) in parts.indexed)
       _entry(
         part.doc,
-        _partListName(part),
         partBlocks[i],
         [
           for (final section in part.sections)
@@ -202,7 +201,7 @@ ContextAnswer answerContext(
         ],
         first: starts[partsFrom + i],
         summary: part.summary,
-        cited: true,
+        cited: (sectionKey: part.sectionKey, itemId: part.itemId),
       ),
   ];
   final text =
@@ -261,19 +260,22 @@ List<int> _blockStarts(List<String> blocks, {required int firstLine}) {
 
 /// Returns the entry of a doc or part whose printed [block] starts on line
 /// [first], its [sections] counted from that line.
+///
+/// - [cited]: an appended part's section key and item ID; null for a picked
+///   doc.
 BundleEntry _entry(
   IndexedDoc doc,
-  String listName,
   String block,
   List<SectionLine> sections, {
   required int first,
   required bool summary,
-  required bool cited,
+  ({String? sectionKey, String? itemId})? cited,
 }) => (
   doc: doc,
-  listName: listName,
   summary: summary,
-  cited: cited,
+  cited: cited != null,
+  sectionKey: cited?.sectionKey,
+  itemId: cited?.itemId,
   first: first,
   last: first + lineCountOf(block) - 1,
   sections: [

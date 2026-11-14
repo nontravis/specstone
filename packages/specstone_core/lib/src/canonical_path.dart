@@ -6,6 +6,13 @@ final String _separator = Platform.pathSeparator;
 /// links followed and names that vanished mid-resolve share this budget.
 const _maxLinkHops = 40;
 
+/// Returns [path] as given when absolute, else joined to [workingDirectory]'s
+/// absolute path; nothing is resolved.
+String absoluteFrom(Directory workingDirectory, String path) {
+  if (File(path).isAbsolute) return path;
+  return '${workingDirectory.absolute.path}$_separator$path';
+}
+
 /// Returns [path] with every `/` changed to `\` on Windows, else unchanged.
 ///
 /// Windows accepts both separators and Dart keeps whichever was written, so a

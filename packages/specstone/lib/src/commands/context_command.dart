@@ -149,21 +149,31 @@ class ContextCommand extends SpecstoneCommand {
       return fail(fault, asJson: asJson);
     }
     final noProject = args.flag('no-project');
-    final name = bundleFileName(
-      target: code == null ? rest.single : null,
-      codePath: code,
-      mode: mode,
-      summary: summary,
-      noProject: noProject,
-      codeTarget: targetOf(args),
-    );
+    final workingDirectory = specstoneRunner.workingDirectory;
+
+    /// Returns the bare `--out` file; a `--code` path is named from the
+    /// project root, so every folder names one file for it.
+    File bareFile(DocsProject project) {
+      final name = bundleFileName(
+        target: code == null ? rest.single : null,
+        codePath: code == null
+            ? null
+            : project.displayPath(File(absoluteFrom(workingDirectory, code))),
+        mode: mode,
+        summary: summary,
+        noProject: noProject,
+        codeTarget: targetOf(args),
+      );
+      return bareBundleFile(project.projectRoot, name);
+    }
+
     ReadAnswer answered(ReadSession session, ContextAnswer answer) {
       if (!writesFile) return answer;
       return answerBundleFile(
         answer,
         out == null
-            ? bareBundleFile(session.project.projectRoot, name)
-            : _fromWorkingDirectory(out),
+            ? bareFile(session.project)
+            : File(absoluteFrom(workingDirectory, out)),
         project: session.project,
         isBare: out == null,
       );
@@ -214,15 +224,5 @@ class ContextCommand extends SpecstoneCommand {
       );
       return answered(session, answer);
     }, asJson: asJson);
-  }
-
-  /// Returns the file [path] names, read from the working directory.
-  File _fromWorkingDirectory(String path) {
-    final file = File(path);
-    if (file.isAbsolute) return file;
-    return File(
-      '${specstoneRunner.workingDirectory.absolute.path}'
-      '${Platform.pathSeparator}$path',
-    );
   }
 }

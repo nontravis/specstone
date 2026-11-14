@@ -1,6 +1,7 @@
 /// Core library of Specstone, shared by the `specstone` CLI and MCP server.
 library;
 
+export 'src/canonical_path.dart' show absoluteFrom;
 export 'src/consistency_check/check_report.dart' show CheckReport;
 export 'src/consistency_check/check_run.dart' show runCheck, runRepeats;
 export 'src/consistency_check/finding.dart' show Finding, FindingKind;

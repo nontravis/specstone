@@ -52,9 +52,10 @@ ContextAnswer _answerOf(
     for (var i = 0; i < count; i++)
       (
         doc: _doc('d$i'),
-        listName: 'd$i (fr)',
         summary: false,
         cited: false,
+        sectionKey: null,
+        itemId: null,
         first: 2 * i + 1,
         last: 2 * i + 1,
         sections: [
@@ -149,16 +150,17 @@ void main() {
   });
 
   group('f01/us05/fr07: bundleIndex', () {
-    test('s20: the header, then each doc with its range and sections', () {
+    test('s20: the header, then each doc and part as <name> (<doc type>) · <first>-<last>, marks after the range', () {
       final answer = ContextAnswer(
-        text: 'a\nb\nc\n\nd\ne\n',
+        text: 'a\nb\nc\n\nd\ne\n\nf\n\ng\n\nh\n\ni\n',
         json: const {},
         entries: [
           (
             doc: _doc('one'),
-            listName: 'one (fr)',
             summary: false,
             cited: false,
+            sectionKey: null,
+            itemId: null,
             first: 1,
             last: 3,
             sections: const [
@@ -168,21 +170,71 @@ void main() {
           ),
           (
             doc: _doc('two'),
-            listName: 'two (fr) · cited statement',
             summary: false,
             cited: true,
+            sectionKey: 'statement',
+            itemId: null,
             first: 5,
             last: 6,
             sections: const [(key: 'statement', first: 5)],
+          ),
+          (
+            doc: _doc('three'),
+            summary: false,
+            cited: true,
+            sectionKey: 'edge_cases',
+            itemId: 'E01',
+            first: 8,
+            last: 8,
+            sections: const [],
+          ),
+          (
+            doc: _doc('four'),
+            summary: true,
+            cited: false,
+            sectionKey: null,
+            itemId: null,
+            first: 10,
+            last: 10,
+            sections: const [(key: 'use_case', first: 10)],
+          ),
+          (
+            doc: _doc('five'),
+            summary: true,
+            cited: true,
+            sectionKey: null,
+            itemId: null,
+            first: 12,
+            last: 12,
+            sections: const [],
+          ),
+          (
+            doc: const IndexedDoc(
+              docPath: 'prds/notes.txt',
+              name: 'prds/notes.txt',
+              frontmatter: {},
+              tokens: 0,
+            ),
+            summary: false,
+            cited: true,
+            sectionKey: null,
+            itemId: null,
+            first: 14,
+            last: 14,
+            sections: const [],
           ),
         ],
         tokens: 42,
       );
       expect(
         bundleIndex(answer, '/work/shop/.specstone/bundles/x.design.txt'),
-        '==> bundle: 1 docs, 42 tokens, 6 lines · /work/shop/.specstone/bundles/x.design.txt <==\n'
+        '==> bundle: 2 docs, 42 tokens, 14 lines · /work/shop/.specstone/bundles/x.design.txt <==\n'
         '- one (fr) · 1-3 · statement 2, edge_cases 3\n'
-        '- two (fr) · cited statement · 5-6 · statement 5\n',
+        '- two (fr) · 5-6 · cited statement · statement 5\n'
+        '- three (fr) · 8-8 · cited edge_cases [E01]\n'
+        '- four (fr) · 10-10 · summary · use_case 10\n'
+        '- five (fr) · 12-12 · summary · cited\n'
+        '- prds/notes.txt · 14-14 · cited\n',
       );
     });
     test('e05: an index of 200 lines keeps its sections', () {
@@ -249,26 +301,29 @@ void main() {
       final lines = answer.text.split('\n');
       expect(answer.entries, isNotEmpty);
       for (final entry in answer.entries) {
-        expect(
-          lines[entry.first - 1],
-          startsWith('==> '),
-          reason: entry.listName,
-        );
-        expect(lines[entry.last - 1], isNotEmpty, reason: entry.listName);
+        final reason = '${entry.doc.name} at ${entry.first}';
+        expect(lines[entry.first - 1], startsWith('==> '), reason: reason);
+        expect(lines[entry.last - 1], isNotEmpty, reason: reason);
         expect(
           lines[entry.last],
           anyOf('', startsWith('==> bundle: ')),
-          reason: entry.listName,
+          reason: reason,
         );
         for (final section in entry.sections) {
           expect(
             lines[section.first - 1],
             startsWith('## '),
-            reason: '${entry.listName} ${section.key}',
+            reason: '$reason ${section.key}',
           );
           expect(section.first, inInclusiveRange(entry.first, entry.last));
         }
       }
+    }
+
+    /// Returns the one index line of [answer] that matches [pattern].
+    void expectIndexLine(ContextAnswer answer, String pattern) {
+      final lines = bundleIndex(answer, '/p').split('\n');
+      expect(lines.where(RegExp('^$pattern\$').hasMatch), hasLength(1));
     }
 
     test(
@@ -288,28 +343,28 @@ void main() {
         );
         expectPlaced(answer);
         final feature = answer.entries.singleWhere(
-          (e) => e.listName == 'login (feature)',
+          (e) => e.doc.name == 'login' && e.doc.docTypeId == 'feature',
         );
         expect(
           [for (final s in feature.sections) s.key],
           ['problem', 'out_of_scope'],
         );
-        final section = answer.entries.singleWhere(
-          (e) => e.listName == 'signup (architecture) · cited components',
+        expectIndexLine(
+          answer,
+          r'- login \(feature\) · \d+-\d+ · problem \d+, out_of_scope \d+',
         );
-        expect(section.cited, isTrue);
-        expect([for (final s in section.sections) s.key], ['components']);
-        final item = answer.entries.singleWhere(
-          (e) => e.listName == 'signup (domain) · cited invariants [INV-14]',
+        expectIndexLine(
+          answer,
+          r'- signup \(architecture\) · \d+-\d+ · cited components · components \d+',
         );
-        expect(item.sections, isEmpty);
-        final summary = answer.entries.singleWhere(
-          (e) =>
-              e.listName ==
-              'signup/create_account (user_story) · summary · cited',
+        expectIndexLine(
+          answer,
+          r'- signup \(domain\) · \d+-\d+ · cited invariants \[INV-14\]',
         );
-        expect(summary.summary, isTrue);
-        expect([for (final s in summary.sections) s.key], ['use_case']);
+        expectIndexLine(
+          answer,
+          r'- signup/create_account \(user_story\) · \d+-\d+ · summary · cited · use_case \d+',
+        );
         expect(answer.entries.where((e) => !e.cited), hasLength(12));
       },
     );
@@ -330,11 +385,10 @@ void main() {
           byCode: false,
         );
         expectPlaced(answer);
-        final story = answer.entries.singleWhere(
-          (e) => e.listName == 'login/email_login (user_story) · summary',
+        expectIndexLine(
+          answer,
+          r'- login/email_login \(user_story\) · \d+-\d+ · summary · use_case \d+',
         );
-        expect(story.summary, isTrue);
-        expect(story.sections, isNotEmpty);
       },
     );
     test('over budget: no doc text, no entry', () async {

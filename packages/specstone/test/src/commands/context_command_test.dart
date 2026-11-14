@@ -1109,6 +1109,50 @@ void main() {
       }
     });
 
+    test('f01/us05/fr07/e11: a --code path names one file from the root and from a subfolder', () async {
+      final project = await writeReadProject(
+        extra: {'app/lib/src/login/form.dart': ''},
+      );
+      final bundles = Directory('${project.path}/.specstone/bundles');
+      for (final (folder, code) in [
+        ('', 'app/lib/src/login/form.dart'),
+        ('/app', 'lib/src/login/form.dart'),
+        ('/app/lib/src/login', './form.dart'),
+      ]) {
+        await saved(Directory('${project.path}$folder'), [
+          '--code',
+          code,
+          '--for',
+          'implement',
+          '--out',
+        ]);
+      }
+      expect(
+        [for (final file in bundles.listSync()) file.uri.pathSegments.last],
+        ['code-app-lib-src-login-form.dart.implement.txt'],
+      );
+    });
+
+    test('f01/us05/fr07/e09: a named --out path under the project .git is output_not_writable, exit 73', () async {
+      final project = await writeReadProject(
+        extra: {'.git/config': '[core]\n'},
+      );
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          '.git/bundle.txt',
+        ]),
+        73,
+      );
+      expect(run.err.toString(), contains('it lies under .git'));
+      expect(File('${project.path}/.git/bundle.txt').existsSync(), isFalse);
+    });
+
     test('f01/us05/fr07/e13: --for design --summary --no-project names <target>.design-summary-no-project.txt', () async {
       final project = await writeReadProject();
       await saved(project, [
