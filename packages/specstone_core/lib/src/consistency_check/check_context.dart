@@ -33,7 +33,7 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
-  final Map<(CodeTarget, String), String?> _codeTexts = {};
+  final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
   final List<String> _codeWarnings = [];
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -85,27 +85,36 @@ final class CheckContext {
   /// to U+FFFD instead of failing. Returns null for a file that cannot be
   /// read, and adds one warning for it.
   String? codeTextOf(CodeTarget target, String path) {
+    final bytes = codeBytesOf(target, path);
+    return bytes == null
+        ? null
+        : const Utf8Decoder(allowMalformed: true).convert(bytes);
+  }
+
+  /// Returns the bytes of the code file at [path] in [target], read once per
+  /// run.
+  ///
+  /// [path] is relative to [target]'s code root. Returns null for a file that
+  /// cannot be read, and adds one warning for it.
+  List<int>? codeBytesOf(CodeTarget target, String path) {
     final key = (target, path);
-    if (_codeTexts.containsKey(key)) return _codeTexts[key];
-    String? text;
+    if (_codeBytes.containsKey(key)) return _codeBytes[key];
+    List<int>? bytes;
     try {
-      text = const Utf8Decoder(allowMalformed: true)
-          .convert(File('${codeRootOf(target).path}/$path').readAsBytesSync());
+      bytes = File('${codeRootOf(target).path}/$path').readAsBytesSync();
     } on FileSystemException {
-      final inTarget = target.name == null ? '' : ' in target ${target.name}';
       _codeWarnings.add(
-        '$path: cannot read the file$inTarget; '
-        'implements Symbols in it are not checked',
+        '$path: cannot read the file; implements Symbols in it are not checked',
       );
     }
-    return _codeTexts[key] = text;
+    return _codeBytes[key] = bytes;
   }
 
   /// Adds [warning], which no finding states.
   void warn(String warning) => _codeWarnings.add(warning);
 
   /// How many code files this run has read.
-  int get codeFilesRead => _codeTexts.length;
+  int get codeFilesRead => _codeBytes.length;
 
   /// Returns the merged doc type of [doc], or null for an untyped doc.
   MergedDocType? typeOf(IndexedDoc doc) => index.typeOf(doc);
