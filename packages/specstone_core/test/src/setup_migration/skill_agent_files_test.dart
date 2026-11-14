@@ -480,6 +480,31 @@ void main() {
       );
 
       expect(_writtenPaths(plan), _allRendered.keys.toSet());
+      expect(plan.skipped, isEmpty);
+    });
+  });
+
+  group('skillFolderOf', () {
+    test('names the folder of a skill or agent file at the root or a top', () {
+      expect(
+        skillFolderOf('.claude/skills/specstone-x/SKILL.md'),
+        '.claude/skills',
+      );
+      expect(skillFolderOf('.codex/agents/specstone-x.toml'), '.codex/agents');
+      expect(
+        skillFolderOf('../other/.agents/agents/specstone-x.md'),
+        '../other/.agents/agents',
+      );
+      expect(
+        skillFolderOf('top/.cursor/agents/specstone-x.md'),
+        'top/.cursor/agents',
+      );
+    });
+
+    test('is null for an instruction file and a Cursor rules file', () {
+      expect(skillFolderOf('AGENTS.md'), isNull);
+      expect(skillFolderOf('.cursor/rules/specstone.mdc'), isNull);
+      expect(skillFolderOf('.specstone/AGENT.md'), isNull);
     });
   });
 

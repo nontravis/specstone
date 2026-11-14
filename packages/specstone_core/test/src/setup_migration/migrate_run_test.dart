@@ -24,6 +24,7 @@ import 'package:test/test.dart';
 import '../../helpers/git_repo.dart';
 import '../../helpers/legacy_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -203,6 +204,7 @@ void main() {
       expect(names.toSet(), {
         '.specstone/AGENT.md',
         'AGENTS.md',
+        ...skillPaths(),
         '.specstone/config.yaml',
         '.specstone/.gitignore',
         '.specstone/templates/gnfr.yaml',
@@ -307,7 +309,11 @@ void main() {
         'plan ${_dryRunPlanHash(root)}',
       );
       expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
-      expect(object['agentFiles'], ['.specstone/AGENT.md', 'AGENTS.md']);
+      expect(object['agentFiles'], [
+        '.specstone/AGENT.md',
+        'AGENTS.md',
+        ...skillPaths(),
+      ]);
       expect(object['numberLabels'], {
         'rewritten': ['prds/features/f01_login/FEATURE.md'],
         'left': isA<List<Object?>>(),
@@ -501,6 +507,7 @@ void main() {
       for (final file in _bytesUnder(root).entries) {
         if (file.key == '.specstone/.gitignore') continue;
         if (file.key == 'docs/specs/TECH_STACK.md') continue;
+        if (skillPaths().contains(file.key)) continue;
         expect(file.value, isNot(contains('draft:')), reason: file.key);
       }
       expect(
@@ -980,7 +987,10 @@ sections:
       claude.readAsStringSync(),
       contains('<!-- BEGIN specstone v$specstoneVersion -->'),
     );
-    expect(out.toString(), contains('  agent files: 2 files\n'));
+    expect(
+      out.toString(),
+      contains('  agent files: ${2 + skillFileCount} files\n'),
+    );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 

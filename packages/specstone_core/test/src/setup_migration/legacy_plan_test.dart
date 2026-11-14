@@ -23,6 +23,7 @@ import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
 /// The `specstone migrate --dry-run` example of `api:setup_migration`, up to
@@ -154,7 +155,7 @@ void main() {
           r'  \.specstone/\.gitignore\n'
           r'  \.specstone/templates/gnfr\.yaml\n'
           r'  specs/TECH_STACK\.md \(draft\)\n'
-          r'  agent files: 2 files\n'
+          '  agent files: ${2 + skillFileCount} files\\n'
           r'left in place for specstone check:\n'
           r'  specs/INDEX\.md\n'
           r'  specs/f01_login/DOMAIN\.md\n$',
@@ -967,14 +968,22 @@ name: NFR
       expect(agents.rootWrites.map((w) => w.path), [
         '.specstone/AGENT.md',
         'CLAUDE.md',
+        ...skillPaths(),
       ]);
-      expect(agents.rootWrites.last.text, startsWith('# Acme\n'));
+      expect(agents.rootWrites[1].text, startsWith('# Acme\n'));
       expect(
-        agents.rootWrites.last.text,
+        agents.rootWrites[1].text,
         contains('<!-- BEGIN specstone v$specstoneVersion -->'),
       );
-      expect(plan.toText(), contains('  agent files: 2 files\n'));
-      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
+      expect(
+        plan.toText(),
+        contains('  agent files: ${2 + skillFileCount} files\n'),
+      );
+      expect(plan.lists.agentFiles, [
+        '.specstone/AGENT.md',
+        'CLAUDE.md',
+        ...skillPaths(),
+      ]);
     });
 
     test('E13: a '
@@ -984,10 +993,18 @@ name: NFR
       expect(plan.agentFiles!.rootWrites.map((w) => w.path), [
         '.specstone/AGENT.md',
         'AGENTS.md',
+        ...skillPaths(),
       ]);
       expect(plan.agentFiles!.topWrites, isEmpty);
-      expect(plan.toText(), contains('  agent files: 2 files\n'));
-      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'AGENTS.md']);
+      expect(
+        plan.toText(),
+        contains('  agent files: ${2 + skillFileCount} files\n'),
+      );
+      expect(plan.lists.agentFiles, [
+        '.specstone/AGENT.md',
+        'AGENTS.md',
+        ...skillPaths(),
+      ]);
     });
 
     test('E08: a '
@@ -1023,16 +1040,24 @@ name: NFR
       });
 
       final agents = plan.agentFiles!;
-      expect(agents.topWrites.map((w) => w.path), ['code/AGENTS.md']);
+      expect(agents.topWrites.map((w) => w.path), [
+        'code/AGENTS.md',
+        ...skillPaths('code/'),
+      ]);
       expect(agents.agentFileRoots, ['code']);
       final config = _configCreate(plan).text;
       expect(config, contains('code_root: code\n'));
       expect(config, contains('agent_file_roots:\n  - code\n'));
-      expect(plan.toText(), contains('  agent files: 3 files\n'));
+      expect(
+        plan.toText(),
+        contains('  agent files: ${3 + 2 * skillFileCount} files\n'),
+      );
       expect(plan.lists.agentFiles, [
         '.specstone/AGENT.md',
         'AGENTS.md',
+        ...skillPaths(),
         'code/AGENTS.md',
+        ...skillPaths('code/'),
       ]);
     });
 
@@ -1052,6 +1077,8 @@ name: NFR
       expect(agents.topWrites.map((w) => w.path), [
         'flutter_ws/AGENTS.md',
         'jaspr_ws/AGENTS.md',
+        ...skillPaths('flutter_ws/'),
+        ...skillPaths('jaspr_ws/'),
       ]);
       expect(agents.agentFileRoots, ['flutter_ws', 'jaspr_ws']);
     });
@@ -1068,7 +1095,10 @@ name: NFR
       );
       expect(rewrite.text, contains('code_root: code\n'));
       expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
-      expect(plan.agentFiles!.topWrites.map((w) => w.path), ['code/AGENTS.md']);
+      expect(plan.agentFiles!.topWrites.map((w) => w.path), [
+        'code/AGENTS.md',
+        ...skillPaths('code/'),
+      ]);
     });
 
     test(
@@ -1094,7 +1124,10 @@ name: NFR
         expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
         expect('agent_file_roots'.allMatches(rewrite.text), hasLength(1));
         expect('- code\n'.allMatches(rewrite.text), hasLength(1));
-        expect(plan.toText(), contains('  agent files: 3 files\n'));
+        expect(
+          plan.toText(),
+          contains('  agent files: ${3 + skillFileCount} files\n'),
+        );
       },
     );
   });

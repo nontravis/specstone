@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
@@ -18,6 +19,8 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show planSkillAndAgentFiles;
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -352,6 +355,7 @@ final class AgentWritePlan {
     required this.agentFileRoots,
     required this.addedRoots,
     required this.writeSet,
+    this.trash = const [],
     this.skipped = const [],
   });
 
@@ -374,6 +378,10 @@ final class AgentWritePlan {
   /// and no others.
   final Set<String> writeSet;
 
+  /// The path from the project root of each skill or agent entry or file the
+  /// run moves to the trash, each real file once.
+  final List<String> trash;
+
   /// The warning line for each agent file the run would write but leaves,
   /// because its real path lies outside the project root or under `.git`.
   final List<String> skipped;
@@ -384,15 +392,18 @@ final class AgentWritePlan {
     for (final write in [...rootWrites, ...topWrites]) write.path,
   ];
 
-  /// The plan's `agent files:` line, empty when no file is written.
+  /// The plan's `agent files:` line, empty when no file is written or trashed.
   String get line {
-    final count = paths.length;
+    final count = paths.length + trash.length;
     return count == 0 ? '' : '$_agentsLinePrefix$count files';
   }
 
-  /// Whether the run writes no file and lists no new top.
+  /// Whether the run writes or trashes no file and lists no new top.
   bool get isEmpty =>
-      rootWrites.isEmpty && topWrites.isEmpty && addedRoots.isEmpty;
+      rootWrites.isEmpty &&
+      topWrites.isEmpty &&
+      trash.isEmpty &&
+      addedRoots.isEmpty;
 }
 
 /// Plans the agent file writes of [inputs].
@@ -455,14 +466,31 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
       skipped.insert(0, skippedLineOf(_agentMdPath, refusal));
     }
   }
+  final skills = planSkillAndAgentFiles(inputs, full: full);
+  for (final write in skills.writes) {
+    (write.isAtTop ? topWrites : rootWrites).add(write);
+  }
+  writeSet.addAll([
+    for (final path in skills.writeSet) _realPathOf(_fileIn(root, path)),
+  ]);
   return AgentWritePlan(
     rootWrites: rootWrites,
     topWrites: topWrites,
     agentFileRoots: [...inputs.agentFileRoots, ...added],
     addedRoots: added,
     writeSet: writeSet,
-    skipped: skipped,
+    trash: _eachRealPathOnce(root, skills.trash),
+    skipped: [...skipped, ...skills.skipped],
   );
+}
+
+/// Returns [paths] from [root] without the second name of one real path.
+List<String> _eachRealPathOnce(Directory root, List<String> paths) {
+  final seen = <String>{};
+  return [
+    for (final path in paths)
+      if (seen.add(canonicalPath(_fileIn(root, path).path))) path,
+  ];
 }
 
 /// The state of `.specstone/AGENT.md`.
@@ -874,7 +902,7 @@ bool _sameBytes(List<int> left, List<int> right) {
 }
 
 File _fileIn(Directory folder, String relative) =>
-    File.fromUri(folder.uri.resolve(relative));
+    File.fromUri(folder.uri.resolveUri(Uri(pathSegments: relative.split('/'))));
 
 /// Returns the real path of [file], every link on it resolved; a missing
 /// file keeps its name under its folder's canonical path.

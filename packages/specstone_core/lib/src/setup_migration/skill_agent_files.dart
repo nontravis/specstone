@@ -68,6 +68,17 @@ SkillFilePlan planSkillAndAgentFiles(
   );
 }
 
+/// Returns the skill or agent folder that holds [path], from the project root
+/// with `/` separators, or null when [path] is no skill or agent file.
+String? skillFolderOf(String path) {
+  final padded = '/$path';
+  for (final folder in AgentFolder.values) {
+    final index = padded.indexOf('/${folder.path}/');
+    if (index >= 0) return path.substring(0, index + folder.path.length);
+  }
+  return null;
+}
+
 /// Returns every drift of the skill and agent files, in plan order.
 ///
 /// Empty exactly when [planSkillAndAgentFiles] with `full: false` has nothing
@@ -103,14 +114,11 @@ final class _Planner {
   final _planned = <String>{};
 
   void plan(AgentFileBase base, {required bool full}) {
-    if (base.isTop) {
-      final refusal = writeRefusalOf(base.directory.path, projectRoot: _root);
-      if (refusal != null) {
-        if (base.isUpsert(full: full)) {
-          _skip(skippedLineOf(base.path, refusal));
-        }
-        return;
-      }
+    // A top the run may not write takes no skill or agent file, and its
+    // instruction files are named already.
+    if (base.isTop &&
+        writeRefusalOf(base.directory.path, projectRoot: _root) != null) {
+      return;
     }
     for (final group in AgentFolderGroup.values) {
       _planGroup(base, group, full: full);

@@ -25,6 +25,7 @@ import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
     show recordLayer, twinConfig;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/skill_files.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
 
@@ -866,7 +867,10 @@ void main() {
           final result = await _run(root, home, ['migrate'], console: _owner());
 
           expect(result.status, 0, reason: result.err);
-          expect(result.out, contains('  agent files: 2 files\n'));
+          expect(
+            result.out,
+            contains('  agent files: ${2 + skillFileCount} files\n'),
+          );
           expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
           expect(_read(root, 'CLAUDE.md'), contains(begin));
         },
@@ -883,7 +887,10 @@ void main() {
         final first = await _run(root, home, ['migrate'], console: _owner());
 
         expect(first.status, 0);
-        expect(first.out, contains('  agent files: 2 files\n'));
+        expect(
+          first.out,
+          contains('  agent files: ${2 + skillFileCount} files\n'),
+        );
         expect(_read(root, 'CLAUDE.md'), startsWith('# Owner rules\n'));
         expect(_read(root, 'CLAUDE.md'), contains(begin));
         expect(_read(root, '.specstone/AGENT.md'), agentMdText);
@@ -894,7 +901,12 @@ void main() {
             '--format=',
             'HEAD',
           ]).trim().split('\n').toSet(),
-          {'.specstone/AGENT.md', 'CLAUDE.md', '.specstone/config.yaml'},
+          {
+            '.specstone/AGENT.md',
+            'CLAUDE.md',
+            ...skillPaths(),
+            '.specstone/config.yaml',
+          },
         );
 
         File('${root.path}/CLAUDE.md').writeAsStringSync('# Owner rules\n');
@@ -919,8 +931,14 @@ void main() {
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0);
-        expect(result.out, contains('  agent files: 1 files\n'));
+        expect(
+          result.out,
+          contains('  agent files: ${1 + skillFileCount} files\n'),
+        );
         expect(File('${root.path}/code/AGENTS.md').existsSync(), isTrue);
+        for (final path in skillPaths('code/')) {
+          expect(File('${root.path}/$path').existsSync(), isTrue, reason: path);
+        }
         expect(
           _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
           '.specstone/config.yaml',

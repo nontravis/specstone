@@ -40,6 +40,7 @@ import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart'
     show oneTargetConfig, recordLayer, recordText, twinConfig;
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
 const _apply = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
@@ -1296,11 +1297,19 @@ void _agentFilesTests() {
       expect(agents.rootWrites.map((write) => write.path), [
         '.specstone/AGENT.md',
         'CLAUDE.md',
+        ...skillPaths(),
       ]);
-      expect(agents.rootWrites.last.text, startsWith('# Owner rules\n'));
-      expect(agents.rootWrites.last.text, contains(_begin));
-      expect(plan.toText(), contains('agent files: 2 files\n'));
-      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
+      expect(agents.rootWrites[1].text, startsWith('# Owner rules\n'));
+      expect(agents.rootWrites[1].text, contains(_begin));
+      expect(
+        plan.toText(),
+        contains('agent files: ${2 + skillFileCount} files\n'),
+      );
+      expect(plan.lists.agentFiles, [
+        '.specstone/AGENT.md',
+        'CLAUDE.md',
+        ...skillPaths(),
+      ]);
     });
 
     test('$_fr E14: software-tech moving up from 1.3.0 with prd-core already '
@@ -1316,6 +1325,7 @@ void _agentFilesTests() {
       expect(plan.agentFiles!.rootWrites.map((write) => write.path), [
         '.specstone/AGENT.md',
         'CLAUDE.md',
+        ...skillPaths(),
       ]);
       expect(plan.toText(), contains('software-tech 1.3.0 -> 1.7.0'));
     });
@@ -1368,7 +1378,7 @@ void _agentFilesTests() {
 
       final text = plan.toText();
       final stepAt = text.indexOf('from 1.1.0: rename_field');
-      final agentsAt = text.indexOf('agent files: 1 files');
+      final agentsAt = text.indexOf('agent files: ${1 + skillFileCount} files');
       final pinAt = text.indexOf('.specstone/config.yaml: acme 1.2.0');
       expect(stepAt, greaterThan(0), reason: 'the steps print');
       expect(agentsAt, greaterThan(stepAt), reason: 'agent files after steps');
@@ -1434,10 +1444,16 @@ void _agentFilesTests() {
       final plan = _planAt(project);
 
       final agents = plan.agentFiles!;
-      expect(agents.topWrites.map((write) => write.path), ['code/AGENTS.md']);
+      expect(agents.topWrites.map((write) => write.path), [
+        'code/AGENTS.md',
+        ...skillPaths('code/'),
+      ]);
       expect(agents.addedRoots, ['code']);
-      expect(plan.toText(), contains('  agent files: 1 files\n'));
-      expect(plan.lists.agentFiles, ['code/AGENTS.md']);
+      expect(
+        plan.toText(),
+        contains('  agent files: ${1 + skillFileCount} files\n'),
+      );
+      expect(plan.lists.agentFiles, ['code/AGENTS.md', ...skillPaths('code/')]);
       expect(
         _rewriteAt(plan, '.specstone/config.yaml').text,
         '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
@@ -2990,6 +3006,7 @@ void _treeMoveTests() {
       ]);
       expect(plan.agentFiles!.topWrites.map((write) => write.path), [
         'flutter_ws/packages/sub/AGENTS.md',
+        ...skillPaths('flutter_ws/packages/sub/'),
       ]);
       expect(plan.agentFiles!.addedRoots, ['flutter_ws/packages/sub']);
     });
