@@ -1,6 +1,6 @@
 ---
 name: specstone-sdd-engineer
-description: (Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path), `design` (brief, design path), or `audit` (targets, design path if any). Sync and bootstrap enter through `specstone:sync-sdd` and `specstone:bootstrap-prd`/`-spec`. Not for plans (`specstone:plan-sdd`) or one-section edits (`specstone:update-sdd`).
+description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path), `design` (brief, design path), or `audit` (targets, design path if any). Sync and bootstrap enter through `specstone:sync-sdd` and `specstone:bootstrap-prd`/`-spec`. Not for plans (`specstone:plan-sdd`) or one-section edits (`specstone:update-sdd`)."
 tools: Bash, Read, Grep, Write, Edit, Skill
 skills:
   - specstone:expert-sdd
