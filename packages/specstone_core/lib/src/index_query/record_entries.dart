@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/path_tail.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -160,7 +161,8 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
 }
 
 /// Returns the `item:path[:Symbol]` lines of [record]'s [codeField] as item
-/// and code path, in line order; a line with no item names none.
+/// and code pointer, a recorded fingerprint left off, in line order; a line
+/// with no item names none.
 List<({String item, String code})> recordCodeLinesOf(
   IndexedDoc record,
   MergedField codeField,
@@ -169,7 +171,7 @@ List<({String item, String code})> recordCodeLinesOf(
   for (final line in record.valuesOf(codeField.id)) {
     final parsed = recordCodeLineOf(line);
     if (parsed == null || parsed.item.isEmpty) continue;
-    lines.add(parsed);
+    lines.add((item: parsed.item, code: CodeLinkEntry(parsed.code).pointer));
   }
   return lines;
 }

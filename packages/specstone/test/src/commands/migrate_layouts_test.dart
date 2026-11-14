@@ -134,7 +134,7 @@ const _context = 'docs/prds/d01_context.md';
 void main() {
   final skip = hasGit ? null : 'git is not available';
 
-  test('f06/us01/s4: flat, as Specstone', () async {
+  test('flat, as Specstone', () async {
     final (_, findings) = await _layout(acmeLegacy);
 
     expect(
@@ -149,7 +149,7 @@ void main() {
     expect(findings.where((f) => f.kind == 'suspect'), isEmpty);
   }, skip: skip);
 
-  test('f06/us01/s5: grouped modules, as brick_dartfrog', () async {
+  test('grouped modules, as brick_dartfrog', () async {
     final (root, findings) = await _layout({
       ...groupedLegacy,
       _context: '# D-01 — Context\n',
@@ -185,7 +185,7 @@ void main() {
     expect(tracked, hasLength(onDisk.length));
   }, skip: skip);
 
-  test('f06/us01/fr03/e06: containers, as stratum_ui', () async {
+  test('containers, as stratum_ui', () async {
     final (root, findings) = await _layout({
       ...containerLegacy,
       _context: '# D-01 — Context\n',
@@ -212,7 +212,7 @@ void main() {
   }, skip: skip);
 
   group('specEdgeLegacy', () {
-    test('f06/us01/fr03/e08: pre-renumber spec numbers', () async {
+    test('pre-renumber spec numbers', () async {
       final (root, findings) = await _layout(specEdgeLegacy);
 
       _expectFiles(
@@ -233,33 +233,29 @@ void main() {
       expect(untyped, isNot(contains('specs/f02_billing/ERROR.md')));
     }, skip: skip);
 
-    test(
-      'f06/us01/fr03/e12: cross-cutting folders and a legacy topic',
-      () async {
-        final (root, findings) = await _layout(specEdgeLegacy);
+    test('cross-cutting folders and a legacy topic', () async {
+      final (root, findings) = await _layout(specEdgeLegacy);
 
-        final topic = File('${root.path}/docs/specs/topics/caching.md');
-        expect(topic.existsSync(), isTrue);
-        expect(
-          topic.readAsStringSync(),
-          allOf(
-            contains('covers:'),
-            contains('api/auth/'),
-            contains('api/billing/'),
-            isNot(contains('applies_to')),
-          ),
-        );
-        expect(
-          File('${root.path}/docs/specs/architecture/caching.schema.json')
-              .existsSync(),
-          isTrue,
-        );
-        expect(_untyped(findings), isNot(contains('specs/topics/caching.md')));
-      },
-      skip: skip,
-    );
+      final topic = File('${root.path}/docs/specs/topics/caching.md');
+      expect(topic.existsSync(), isTrue);
+      expect(
+        topic.readAsStringSync(),
+        allOf(
+          contains('covers:'),
+          contains('api/auth/'),
+          contains('api/billing/'),
+          isNot(contains('applies_to')),
+        ),
+      );
+      expect(
+        File('${root.path}/docs/specs/architecture/caching.schema.json')
+            .existsSync(),
+        isTrue,
+      );
+      expect(_untyped(findings), isNot(contains('specs/topics/caching.md')));
+    }, skip: skip);
 
-    test('f06/us01/fr03/e11: many-to-one files and two of one name', () async {
+    test('many-to-one files and two of one name', () async {
       final (_, findings) = await _layout(specEdgeLegacy);
 
       expect(
@@ -271,7 +267,7 @@ void main() {
       );
     }, skip: skip);
 
-    test('f06/us01/fr03/e13: a Global SoT table and its file stay', () async {
+    test('a Global SoT table and its file stay', () async {
       final root = await gitFixture(specEdgeLegacy);
       final index = specEdgeLegacy['docs/specs/INDEX.md']!;
 
@@ -290,71 +286,62 @@ void main() {
     }, skip: skip);
   });
 
-  test(
-    'f06/us01/fr01/e05: a nested project migrates in a run of its own',
-    () async {
-      final root = await gitFixture(nestedLegacy);
-      final app = Directory('${root.path}/example-app');
+  test('a nested project migrates in a run of its own', () async {
+    final root = await gitFixture(nestedLegacy);
+    final app = Directory('${root.path}/example-app');
 
-      final beforeRoot = _bytesUnder(root);
-      await _migrate(app, repo: root);
-      final afterApp = _bytesUnder(root);
-      for (final path in {...beforeRoot.keys, ...afterApp.keys}) {
-        if (!path.startsWith('example-app/')) {
-          expect(afterApp[path], beforeRoot[path], reason: path);
-        }
+    final beforeRoot = _bytesUnder(root);
+    await _migrate(app, repo: root);
+    final afterApp = _bytesUnder(root);
+    for (final path in {...beforeRoot.keys, ...afterApp.keys}) {
+      if (!path.startsWith('example-app/')) {
+        expect(afterApp[path], beforeRoot[path], reason: path);
       }
-      expect(Directory('${app.path}/.specstone').existsSync(), isTrue);
+    }
+    expect(Directory('${app.path}/.specstone').existsSync(), isTrue);
 
-      final beforeApp = <String, List<int>>{
-        for (final e in afterApp.entries)
-          if (e.key.startsWith('example-app/')) e.key: e.value,
-      };
-      await _migrate(root);
-      final afterRoot = _bytesUnder(root);
-      for (final entry in beforeApp.entries) {
-        expect(afterRoot[entry.key], entry.value, reason: entry.key);
-      }
-      expect(Directory('${root.path}/.specstone').existsSync(), isTrue);
-      await _check(app);
-      await _check(root);
-      await _migrateAgain(app);
-      await _migrateAgain(root);
-    },
-    skip: skip,
-  );
+    final beforeApp = <String, List<int>>{
+      for (final e in afterApp.entries)
+        if (e.key.startsWith('example-app/')) e.key: e.value,
+    };
+    await _migrate(root);
+    final afterRoot = _bytesUnder(root);
+    for (final entry in beforeApp.entries) {
+      expect(afterRoot[entry.key], entry.value, reason: entry.key);
+    }
+    expect(Directory('${root.path}/.specstone').existsSync(), isTrue);
+    await _check(app);
+    await _check(root);
+    await _migrateAgain(app);
+    await _migrateAgain(root);
+  }, skip: skip);
 
-  test(
-    "f06/us01/s6: a feature doc's code pointers stay and check lists them",
-    () async {
-      final files = {
-        ...acmeLegacy,
-        'docs/prds/features/f01_login/FEATURE.md':
-            acmeLegacy['docs/prds/features/f01_login/FEATURE.md']!.replaceFirst(
-              'name: Login\n',
-              'name: Login\nimplements:\n  - lib/login.dart\n',
-            ),
-      };
+  test("a feature doc's code pointers stay and check lists them", () async {
+    final files = {
+      ...acmeLegacy,
+      'docs/prds/features/f01_login/FEATURE.md':
+          acmeLegacy['docs/prds/features/f01_login/FEATURE.md']!.replaceFirst(
+            'name: Login\n',
+            'name: Login\nimplements:\n  - lib/login.dart\n',
+          ),
+    };
 
-      final (root, findings) = await _layout(files);
+    final (root, findings) = await _layout(files);
 
-      expect(
-        File('${root.path}/docs/prds/features/f01_login/FEATURE.md')
-            .readAsStringSync(),
-        contains('implements:'),
-      );
-      expect(
-        findings.any(
-          (f) =>
-              f.kind == 'field_undeclared' && f.message.contains('implements'),
-        ),
-        isTrue,
-      );
-    },
-    skip: skip,
-  );
+    expect(
+      File('${root.path}/docs/prds/features/f01_login/FEATURE.md')
+          .readAsStringSync(),
+      contains('implements:'),
+    );
+    expect(
+      findings.any(
+        (f) => f.kind == 'field_undeclared' && f.message.contains('implements'),
+      ),
+      isTrue,
+    );
+  }, skip: skip);
 
-  test('f06/us01/s7: a requirement with no scenario trace gets no fingerprint '
+  test('a requirement with no scenario trace gets no fingerprint '
       'and check lists the missing field', () async {
     final (_, findings) = await _layout(acmeLegacy);
 
@@ -368,7 +355,7 @@ void main() {
     expect(findings.where((f) => f.kind == 'unconfirmed'), isEmpty);
   }, skip: skip);
 
-  test('f06/us01/fr06/e01: a first fingerprint is clean to check', () async {
+  test('a first fingerprint is clean to check', () async {
     final files = {
       for (final e in acmeLegacy.entries)
         if (!e.key.contains('s02_api_')) e.key: e.value,
@@ -411,7 +398,7 @@ name: Login API
     );
   }, skip: skip);
 
-  test('f06/us01/s10: docs reached through a link migrate in the repository '
+  test('docs reached through a link migrate in the repository '
       'that holds them', () async {
     final parent = await Directory.systemTemp.createTemp('specstone_link_');
     addTearDown(() => parent.delete(recursive: true));

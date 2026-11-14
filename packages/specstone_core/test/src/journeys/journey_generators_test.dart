@@ -47,7 +47,7 @@ int _below(GeneratedBlock block) => (block.place as BelowBodyLine).index;
 
 void main() {
   group('journey_flow', () {
-    test('f10/us01/fr03/e01: steps 1 to 5 and 3x after 2 draw six nodes and '
+    test('steps 1 to 5 and 3x after 2 draw six nodes and '
         'five edges', () async {
       final f = await _open([
         '### 1. Start',
@@ -85,41 +85,35 @@ void main() {
       );
     });
 
-    test('f10/us01/fr03/e02: a " in a heading is written #quot;', () async {
+    test('a " in a heading is written #quot;', () async {
       final f = await _open(['### 1. Say "hi"']);
 
       expect(_flow(f).single.text, contains('  s1["1. Say #quot;hi#quot;"]'));
     });
 
-    test(
-      'f10/us01/fr03/e03: a journey with no step draws flowchart TD alone',
-      () async {
-        final f = await _open(['Nothing yet.']);
+    test('a journey with no step draws flowchart TD alone', () async {
+      final f = await _open(['Nothing yet.']);
 
-        expect(_flow(f).single.text, '```mermaid\nflowchart TD\n```');
-      },
-    );
+      expect(_flow(f).single.text, '```mermaid\nflowchart TD\n```');
+    });
 
-    test(
-      'f10/us01/fr03/e04: a step naming no scenario is still drawn',
-      () async {
-        final f = await _open([
-          '### 1. Start',
-          'step: $_story S9',
-          '### 2. Next',
-          'step: no/such_story S1',
-          'after: 1',
-        ]);
+    test('a step naming no scenario is still drawn', () async {
+      final f = await _open([
+        '### 1. Start',
+        'step: $_story S9',
+        '### 2. Next',
+        'step: no/such_story S1',
+        'after: 1',
+      ]);
 
-        expect(
-          _flow(f).single.text,
-          '```mermaid\nflowchart TD\n  s1["1. Start"]\n  s2["2. Next"]\n'
-          '  s1 --> s2\n```',
-        );
-      },
-    );
+      expect(
+        _flow(f).single.text,
+        '```mermaid\nflowchart TD\n  s1["1. Start"]\n  s2["2. Next"]\n'
+        '  s1 --> s2\n```',
+      );
+    });
 
-    test('f10/us01/fr03/e05: a step whose after: names no step above has no '
+    test('a step whose after: names no step above has no '
         'incoming edge', () async {
       final f = await _open([
         '### 1. Start',
@@ -134,7 +128,7 @@ void main() {
       expect(text, isNot(contains('-->')));
     });
 
-    test('f10/us01/fr03/e05: a step that follows an unresolved-after step '
+    test('a step that follows an unresolved-after step '
         'gets its edge', () async {
       final f = await _open([
         '### 1. Start',
@@ -153,7 +147,7 @@ void main() {
 
   group('scenario_copy', () {
     test(
-      'f10/us01/fr04/e01: a resolving step gets its scenario lines after '
+      'a resolving step gets its scenario lines after '
       'the heading, below its step: line; with after: below that line',
       () async {
         final f = await _open([
@@ -182,7 +176,7 @@ void main() {
       },
     );
 
-    test('f10/us01/fr04/e03: a Then line that wraps onto a second line is '
+    test('a Then line that wraps onto a second line is '
         'copied whole', () async {
       final f = await _open(
         ['### 1. Start', 'step: $_story S1'],
@@ -200,35 +194,29 @@ void main() {
       );
     });
 
-    test(
-      'f10/us01/fr04/e05: S9 of a two-scenario story gets no block',
-      () async {
-        final f = await _open(['### 1. Start', 'step: $_story S9']);
+    test('S9 of a two-scenario story gets no block', () async {
+      final f = await _open(['### 1. Start', 'step: $_story S9']);
 
-        expect(_copy(f), isEmpty);
-      },
-    );
+      expect(_copy(f), isEmpty);
+    });
 
-    test(
-      'f10/us01/fr04/e06: two steps naming one scenario get a block each',
-      () async {
-        final f = await _open([
-          '### 1. Start',
-          'step: $_story S1',
-          '### 2. Again',
-          'step: $_story S1',
-        ]);
+    test('two steps naming one scenario get a block each', () async {
+      final f = await _open([
+        '### 1. Start',
+        'step: $_story S1',
+        '### 2. Again',
+        'step: $_story S1',
+      ]);
 
-        final blocks = _copy(f);
+      final blocks = _copy(f);
 
-        expect(blocks, hasLength(2));
-        expect(blocks[0].text, blocks[1].text);
-        expect(_below(blocks[0]), 1);
-        expect(_below(blocks[1]), 3);
-      },
-    );
+      expect(blocks, hasLength(2));
+      expect(blocks[0].text, blocks[1].text);
+      expect(_below(blocks[0]), 1);
+      expect(_below(blocks[1]), 3);
+    });
 
-    test('f10/us01/fr04: S1 copies Scenario 1, not Scenario 10', () async {
+    test('S1 copies Scenario 1, not Scenario 10', () async {
       final f = await _open(
         ['### 1. Start', 'step: $_story S1'],
         extra: edit(loginStory, [
@@ -245,7 +233,7 @@ void main() {
       expect(_copy(f).single.text, isNot(contains('ten')));
     });
 
-    test('f10/us01/fr04: a step naming no story gets no block', () async {
+    test('a step naming no story gets no block', () async {
       final f = await _open(['### 1. Start', 'step: no/such_story S1']);
 
       expect(_copy(f), isEmpty);
@@ -253,12 +241,12 @@ void main() {
   });
 
   group('step scenarios', () {
-    test('f10/us01/fr04: scenarioCopyOf drops the heading line', () {
+    test('scenarioCopyOf drops the heading line', () {
       expect(scenarioCopyOf('### Scenario 1 — x\n- a\n- b'), '- a\n- b');
       expect(scenarioCopyOf('### Scenario 1 — x'), '');
     });
 
-    test('journeys/lay_out_journey/paste_step_scenarios E01: '
+    test('E01: '
         'a table row right under the heading is copied in the layout', () {
       expect(
         scenarioCopyOf(
@@ -268,12 +256,12 @@ void main() {
       );
     });
 
-    test('journeys/lay_out_journey/paste_step_scenarios E02: '
+    test('E02: '
         'blank lines under the heading are left out', () {
       expect(scenarioCopyOf('### Scenario 1 — x\n\n\n- a\n- b'), '- a\n- b');
     });
 
-    test('journeys/lay_out_journey/paste_step_scenarios E03: '
+    test('E03: '
         'a padded table is copied in the format layout', () {
       const block =
           '### Scenario 1 — x\n\n'
@@ -287,35 +275,29 @@ void main() {
       expect(scenarioCopyOf(block), isNot(endsWith(' ')));
     });
 
-    test(
-      'f10/us01/fr03: stepsOfIndexed reads the steps of an indexed journey',
-      () async {
-        final f = await _open(['### 1. Start', 'step: $_story S1']);
-        final journey = f.index.docs.singleWhere(
-          (d) => d.docPath == _journeyPath,
-        );
+    test('stepsOfIndexed reads the steps of an indexed journey', () async {
+      final f = await _open(['### 1. Start', 'step: $_story S1']);
+      final journey = f.index.docs.singleWhere(
+        (d) => d.docPath == _journeyPath,
+      );
 
-        final steps = stepsOfIndexed(f.index, journey);
+      final steps = stepsOfIndexed(f.index, journey);
 
-        expect([for (final s in steps.steps) s.number], ['1']);
-        expect(steps.steps.single.target?.label, '$_story#S1');
-      },
-    );
+      expect([for (final s in steps.steps) s.number], ['1']);
+      expect(steps.steps.single.target?.label, '$_story#S1');
+    });
 
-    test(
-      'f10/us01/fr03: storyNamed finds a story by name and no other doc',
-      () async {
-        final f = await _open(['### 1. Start']);
+    test('storyNamed finds a story by name and no other doc', () async {
+      final f = await _open(['### 1. Start']);
 
-        expect(storyNamed(f.index, _story)?.docPath, loginStory);
-        expect(storyNamed(f.index, 'no/such_story'), isNull);
-        expect(storyNamed(f.index, 'onboarding'), isNull);
-      },
-    );
+      expect(storyNamed(f.index, _story)?.docPath, loginStory);
+      expect(storyNamed(f.index, 'no/such_story'), isNull);
+      expect(storyNamed(f.index, 'onboarding'), isNull);
+    });
   });
 
   group('journeyGenerators', () {
-    test('f05/us03/fr01: registers exactly the kinds the template loader '
+    test('registers exactly the kinds the template loader '
         'accepts', () {
       expect(journeyGenerators().kinds, shippedGeneratorKinds);
     });

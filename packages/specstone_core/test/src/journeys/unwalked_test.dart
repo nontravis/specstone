@@ -87,7 +87,7 @@ void main() {
     expect(answer.exitStatus, 0);
   });
 
-  test('f10/us04/fr01/e02: with no journey every story with a scenario lists '
+  test('with no journey every story with a scenario lists '
       'each one', () async {
     final answer = await _unwalked(_files([]));
     expect(_lines(answer).skip(1), [
@@ -97,34 +97,25 @@ void main() {
     ]);
   });
 
-  test(
-    'f10/us04/fr01/e03: a step of a draft journey walks its scenario',
-    () async {
-      final answer = await _unwalked(
-        _files(['$_story S1', '$_story S2'], draft: true),
-      );
-      expect(_lines(answer).skip(1), ['  S3 [happy] Step 3']);
-    },
-  );
+  test('a step of a draft journey walks its scenario', () async {
+    final answer = await _unwalked(
+      _files(['$_story S1', '$_story S2'], draft: true),
+    );
+    expect(_lines(answer).skip(1), ['  S3 [happy] Step 3']);
+  });
 
-  test(
-    'f10/us04/fr01/e04: a step naming a missing scenario walks nothing',
-    () async {
-      final answer = await _unwalked(_files(['$_story S1', '$_story S9']));
-      expect(_lines(answer).skip(1), [
-        '  S2 [error] Wrong password',
-        '  S3 [happy] Step 3',
-      ]);
-    },
-  );
+  test('a step naming a missing scenario walks nothing', () async {
+    final answer = await _unwalked(_files(['$_story S1', '$_story S9']));
+    expect(_lines(answer).skip(1), [
+      '  S2 [error] Wrong password',
+      '  S3 [happy] Step 3',
+    ]);
+  });
 
-  test(
-    'f10/us04/fr01: a step naming another story walks nothing here',
-    () async {
-      final answer = await _unwalked(_files(['$_other S1']));
-      expect(_lines(answer).skip(1), hasLength(3));
-    },
-  );
+  test('a step naming another story walks nothing here', () async {
+    final answer = await _unwalked(_files(['$_other S1']));
+    expect(_lines(answer).skip(1), hasLength(3));
+  });
 
   test('f10/us04/s4, f10/us04/fr01/e05: list feature --unwalked is '
       'argument_invalid, exit 64', () async {
@@ -142,15 +133,12 @@ void main() {
     );
   });
 
-  test(
-    'f10/us04/s3: check reports no finding about unwalked scenarios',
-    () async {
-      final project = await writeCheckProject(extra: _files([]));
-      expect(checkOf(project).findings, isEmpty);
-    },
-  );
+  test('check reports no finding about unwalked scenarios', () async {
+    final project = await writeCheckProject(extra: _files([]));
+    expect(checkOf(project).findings, isEmpty);
+  });
 
-  test('f10/us04/fr01: --unwalked combines with --under', () async {
+  test('--unwalked combines with --under', () async {
     final extra = _files(
       [],
       extra: {

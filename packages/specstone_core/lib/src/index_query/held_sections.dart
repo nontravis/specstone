@@ -8,7 +8,7 @@ export 'package:specstone_core/src/doc_model/body_line.dart';
 
 /// Returns the template section each of the held [sections] maps to.
 ///
-/// Both headers compare by `headerKey`, as `rendering/format_docs` matches them. An
+/// Both headers compare by `headerKey`, as the doc formatter matches them. An
 /// entry is null for a header [type] lacks, and every entry is null when
 /// [type] is null.
 List<MergedSection?> heldTemplatesOf(

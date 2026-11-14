@@ -50,7 +50,7 @@ void main() {
     expectSectionsSay(error, _says);
   });
 
-  test('f03/us07/fr03: error caps 400 lines, bans no word, and cites its '
+  test('error caps 400 lines, bans no word, and cites its '
       'four sources', () {
     expectSpecLint(error);
   });

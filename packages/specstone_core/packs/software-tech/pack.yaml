@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.6.0
+version: 1.7.0
 extends: prd-core
 migrations:
   - from: 1.4.0
@@ -8,3 +8,6 @@ migrations:
           doc_types: [user_story, fr]
           fields: [status, implements]
           to: implementation
+  - from: 1.6.0
+    steps:
+      - stamp_code_fingerprints: {}

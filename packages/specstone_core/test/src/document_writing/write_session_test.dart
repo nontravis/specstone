@@ -239,7 +239,7 @@ void main() {
     },
   );
 
-  group('rendering/format_docs/normalize_layout_whitespace: writeDoc lays out', () {
+  group('writeDoc lays out', () {
     const padded =
         '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
         '| Component   | Responsibility |\n|-------------|----------------|\n'
@@ -454,7 +454,7 @@ void main() {
     expect(File('${root.path}/docs/notes.txt').existsSync(), isFalse);
   });
 
-  group('f06/us01/fr07/e06: a pending migrate journal', () {
+  group('a pending migrate journal', () {
     const move = MoveStep(
       'docs/prds/personas/buyer',
       'docs/prds/personas/shopper',
@@ -525,21 +525,15 @@ void main() {
       );
     });
 
-    test(
-      'f02/us04/fr03/e05: a journal with no commit step is still replayed',
-      () async {
-        final root = await writeWriteProject();
-        writeJournal(root, [move]);
-        expect(
-          writeIn(root, (s) => s.target('persona:shopper').docPath),
-          'prds/personas/shopper/PERSONA.md',
-        );
-        expect(
-          Directory('${root.path}/.specstone/trash').existsSync(),
-          isFalse,
-        );
-      },
-    );
+    test('a journal with no commit step is still replayed', () async {
+      final root = await writeWriteProject();
+      writeJournal(root, [move]);
+      expect(
+        writeIn(root, (s) => s.target('persona:shopper').docPath),
+        'prds/personas/shopper/PERSONA.md',
+      );
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    });
 
     test('an unparsable journal is not a migrate journal', () async {
       final root = await writeWriteProject();

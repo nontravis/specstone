@@ -9,7 +9,7 @@ import '../helpers/package_root.dart';
 
 void main() {
   group('readPackSources', () {
-    test('f03/us03/fr03/e08: embeds every fixture pack file as its bytes and '
+    test('embeds every fixture pack file as its bytes and '
         'skips dot-names', () {
       final files = readPackSources(
         Directory.fromUri(packageRoot().uri.resolve('test/fixtures/packs/')),
@@ -27,7 +27,7 @@ void main() {
   });
 
   group('renderShippedPacks', () {
-    test('f03/us03/fr03/e08: a short entry is one line', () {
+    test('a short entry is one line', () {
       final text = renderShippedPacks({
         'a/x.pdf': Uint8List.fromList([0xff, 0, 1]),
       });
@@ -35,14 +35,14 @@ void main() {
       expect(text, contains("  'a/x.pdf': '/wAB',"));
     });
 
-    test('f03/us03/fr03/e08: no files render the empty map', () {
+    test('no files render the empty map', () {
       expect(
         renderShippedPacks({}),
         contains('const Map<String, String> shippedPackFilesBase64 = {};'),
       );
     });
 
-    test('f03/us03/fr03/e08: a long entry wraps in 64-character literals', () {
+    test('a long entry wraps in 64-character literals', () {
       final text = renderShippedPacks({
         'alpha/long.yaml': Uint8List.fromList(List<int>.filled(300, 0x61)),
         'alpha/short.yaml': Uint8List.fromList(utf8.encode('a: 1')),
@@ -70,7 +70,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr03/e08: a key with a quote, backslash, dollar, or control '
+    test('a key with a quote, backslash, dollar, or control '
         'character is refused', () {
       for (final key in ["a'b", r'a\b', r'a$b', 'a\nb']) {
         expect(
@@ -86,7 +86,7 @@ void main() {
       }
     });
 
-    test('f03/us03/fr03/e08: the rendered text is dart format stable', () {
+    test('the rendered text is dart format stable', () {
       final samples = [
         renderShippedPacks({}),
         renderShippedPacks({
@@ -113,7 +113,7 @@ void main() {
   });
 
   group('main output', () {
-    test('f03/us03/fr03/e08: the committed constants match packs/', () {
+    test('the committed constants match packs/', () {
       final root = packageRoot();
       final packs = Directory.fromUri(root.uri.resolve('packs/'));
       final committed = File.fromUri(

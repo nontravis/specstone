@@ -27,7 +27,7 @@ List<DocItem> _items(String text) => itemsOf(_body(text));
 
 void main() {
   group('doc_model/doc_items itemsOf', () {
-    test('index_query/view_docs_tree/print_docs_tree E09: a list item '
+    test('E09: a list item '
         'counts without its nested items and a nested item alone', () {
       final items = _items(
         '- parent one\n'
@@ -43,7 +43,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: an ordered item '
+    test('E09: an ordered item '
         'reads its text after the marker', () {
       expect(_items('1. first\n2) second'), [
         (line: 20, chars: 8, text: 'first', heading: false),
@@ -51,7 +51,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a table row '
+    test('E09: a table row '
         'below the delimiter row is an item, the header and delimiter '
         'rows are none', () {
       final items = _items(
@@ -70,7 +70,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a paragraph is '
+    test('E09: a paragraph is '
         'one item across its lines', () {
       final items = _items(
         'alpha beta\n'
@@ -85,7 +85,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a ### heading '
+    test('E09: a ### heading '
         'counts with the paragraph under it and never its bullets', () {
       final items = _items(
         '### Scenario 1\n'
@@ -106,7 +106,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a blockquote '
+    test('E09: a blockquote '
         'paragraph and list item are items as anywhere else', () {
       final items = _items(
         '> quoted paragraph\n'
@@ -120,7 +120,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a fenced code '
+    test('E09: a fenced code '
         'block is no item', () {
       final items = _items(
         '- before\n'
@@ -136,7 +136,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: an item holding '
+    test('E09: an item holding '
         'an emoji counts a surrogate pair once', () {
       final items = _items(
         '- \u{1F600} smile\n'
@@ -149,7 +149,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a fence inside '
+    test('E09: a fence inside '
         'a list item ends the item and the text after it is its own '
         'item', () {
       final items = itemsOf([
@@ -166,7 +166,7 @@ void main() {
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a fence inside '
+    test('E09: a fence inside '
         'a blockquote is no item', () {
       final items = itemsOf([
         (text: '> ```', line: 20, fenced: true),
@@ -177,21 +177,21 @@ void main() {
       expect(items, isEmpty);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: rows with no '
+    test('E09: rows with no '
         'delimiter row are one paragraph', () {
       expect(_items('| a | b |\n| c | d |'), [
         (line: 20, chars: 19, text: '| a | b |', heading: false),
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: a #### line '
+    test('E09: a #### line '
         'reads as paragraph text', () {
       expect(_items('#### Deep\nparagraph'), [
         (line: 20, chars: 19, text: '#### Deep', heading: false),
       ]);
     });
 
-    test('index_query/view_docs_tree/print_docs_tree E09: an empty body '
+    test('E09: an empty body '
         'holds no item', () {
       expect(_items(''), isEmpty);
     });

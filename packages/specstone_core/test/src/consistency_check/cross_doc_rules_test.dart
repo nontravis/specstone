@@ -167,6 +167,31 @@ void main() {
     },
   );
 
+  test('a covers entry ending in a fingerprint leaves an unreached scope path '
+      'scope_path_uncovered', () async {
+    final found = await _found({
+      'docs/$_topicDoc': _topicDocText(
+        covers: '  - lib/src/doc_model/ 5d1e0c4b7a92\n',
+        scope: 'The topic governs `lib/src/rendering/`.',
+      ),
+    });
+
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.scopePathUncovered);
+    expect(found.single.toJson(), containsPair('path', 'lib/src/rendering/'));
+  });
+
+  test('an upper-case token stays part of the covers prefix', () async {
+    final found = await _found({
+      'docs/$_topicDoc': _topicDocText(
+        covers: '  - lib/src/ 5D1E0C4B7A92\n',
+        scope: 'The topic governs `lib/src/rendering/`.',
+      ),
+    });
+
+    expect(found.single.kind, FindingKind.scopePathUncovered);
+  });
+
   test('a merged set that lacks the field a rule reads runs no rule', () async {
     final found = await _found({
       '.specstone/templates/feature.yaml':

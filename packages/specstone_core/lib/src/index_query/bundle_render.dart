@@ -84,8 +84,7 @@ String _partBlock(AppendedPart part) {
 }
 
 /// Returns the `citedBy` key of a doc object, an empty list when [items] holds
-/// no line; none outside a design bundle, which has no [citedBy]
-/// (`index_query/get_task_bundle/show_cited_by`).
+/// no line; none outside a design bundle, which has no [citedBy].
 Map<String, Object> _citedByKey(List<CitedItem> items, CitedByIndex? citedBy) =>
     {if (citedBy != null) 'citedBy': citedByJson(items)};
 
@@ -103,17 +102,14 @@ Map<String, Object> _partKeys(AppendedPart part) => {
 String _codeTargetLine(String? name) =>
     name == null ? '' : '==> code target: $name <==\n';
 
-/// Renders [bundle]'s docs as one `context` answer (`index_query/get_task_bundle/trim_and_order_bundle`).
+/// Renders [bundle]'s docs as one `context` answer.
 ///
-/// The parts the bundle's links cite print after its docs
-/// (`index_query/get_task_bundle/follow_cited_links`). [label] is the target
-/// as given, or the code path for `--code`; [byCode] prints it under the JSON
-/// key `code` instead of `target`, with the picked `codeTarget` when the
-/// project has two or more. A bundle larger than [budget] prints its sizes
-/// and the next step instead of doc text, with exit status 1
-/// (`index_query/get_task_bundle/refuse_bundle_over_budget`); an equal one prints whole.
-/// The answer places each doc and part in its text, for `--out`'s index
-/// (`index_query/get_task_bundle/write_bundle_to_file`).
+/// The parts the bundle's links cite print after its docs. [label] is the
+/// target as given, or the code path for `--code`; [byCode] prints it under the
+/// JSON key `code` instead of `target`, with the picked `codeTarget` when the
+/// project has two or more. A bundle larger than [budget] prints its sizes and
+/// the next step instead of doc text, with exit status 1; an equal one prints
+/// whole. The answer places each doc and part in its text, for `--out`'s index.
 ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
@@ -297,7 +293,7 @@ Map<String, Object> _partDocJson(AppendedPart part, String block) => {
 
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
 /// [budget]: each doc's and part's size, no doc text, and the next step,
-/// which keeps `--summary` when the bundle has it (`index_query/get_task_bundle/refuse_bundle_over_budget`).
+/// which keeps `--summary` when the bundle has it.
 ContextAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,

@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show fileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -40,6 +43,16 @@ import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _apply = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
+
+/// The approval hash by the rule of the pins an upgrade here starts from,
+/// which the stamp pass hashes by: every record fixture pins the shipped
+/// `software-tech` beside the pack it upgrades.
+String _approvalHashBefore(String lf, MergedDocType? type) =>
+    approvalHashOf(lf, type, statusesOutside: shippedStatusesOutside);
+
+/// [lf] stamped with [_approvalHashBefore].
+String _stampedBefore(String lf, MergedDocType? type) =>
+    withApprovalHash(lf, type, statusesOutside: shippedStatusesOutside);
 
 const _runbookDoc = '''
 ---
@@ -125,6 +138,7 @@ void main() {
   _treeMoveTests();
   _planInputTests();
   _testNameTests();
+  _codeStampTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -140,7 +154,7 @@ void main() {
     expect(agentFilesSince['software-tech'].toString(), '1.4.0');
   });
 
-  test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
+  test('a move onto a staying doc refuses before anything '
       'prints', () async {
     const packYaml = '''
 name: acme
@@ -194,7 +208,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e08: two docs moved onto one path refuse once, each on '
+  test('two docs moved onto one path refuse once, each on '
       'its own line', () async {
     const packYaml = '''
 name: acme
@@ -257,7 +271,7 @@ sections:
         for (final next in fault.more) next.file,
       ];
 
-      test('f06/us02/fr02/e08: three docs moved onto one path print one line '
+      test('three docs moved onto one path print one line '
           'each', () async {
         const packYaml = '''
 name: acme
@@ -300,7 +314,7 @@ sections:
         );
       });
 
-      test('f06/us02/fr02/e08: a doc whose section and field renames both '
+      test('a doc whose section and field renames both '
           'collide prints one line', () async {
         final fixture = await _fixture(
           overrides: const {},
@@ -400,7 +414,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e05: a chained move_file path ends at the last step, '
+  test('a chained move_file path ends at the last step, '
       'one move from the original path', () async {
     const packYaml = '''
 name: acme
@@ -438,10 +452,8 @@ sections:
     ]);
   });
 
-  test(
-    'f06/us02/fr02/e08: a swap composes onto one path and refuses',
-    () async {
-      const packYaml = '''
+  test('a swap composes onto one path and refuses', () async {
+    const packYaml = '''
 name: acme
 version: 1.2.0
 extends: software-tech
@@ -451,36 +463,35 @@ migrations:
       - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
       - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
 ''';
-      const type = '''
+    const type = '''
 id: runbook
 description: A runbook.
 path: prds/runbooks/{slug}/RUNBOOK.md
 sections:
   - {id: steps, header: Steps, required: true}
 ''';
-      final fixture = await _fixture(
-        packYaml: packYaml,
-        runbookType: type,
-        overrides: const {},
-        docs: const {
-          'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
-          'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
-        },
-      );
-      await expectLater(
-        () => _plan(fixture),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.upgradeCollision,
-          ),
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
+      },
+    );
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.upgradeCollision,
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 
-  test('f06/us02/fr02/e08: Scenario B orders a move onto the old path of '
+  test('Scenario B orders a move onto the old path of '
       'another doc after the move that frees it', () async {
     const swapPack = '''
 name: acme
@@ -574,7 +585,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e08: one refusal lists a move collision and a rename '
+  test('one refusal lists a move collision and a rename '
       'collision together', () async {
     const packYaml = '''
 name: acme
@@ -647,7 +658,7 @@ sections:
       MatchedDocType(:final docType) => docType,
       _ => null,
     };
-    final approved = withApprovalHash(_runbookDoc, type);
+    final approved = _stampedBefore(_runbookDoc, type);
     final fixture = await _fixture(overrides: const {}, docs: {path: approved});
 
     final plan = _plan(fixture);
@@ -659,7 +670,7 @@ sections:
         r'^approved: "(\w+)"$',
         multiLine: true,
       ).firstMatch(written.text)!.group(1),
-      approvalHashOf(written.text, type),
+      _approvalHashBefore(written.text, type),
     );
     final approvedLine = RegExp(
       r'^approved: .*$',
@@ -700,7 +711,7 @@ sections:
     expect(plan.left, isEmpty);
   });
 
-  test('f06/us02/fr02/e02: the override takes the new id and keeps every '
+  test('the override takes the new id and keeps every '
       'other key', () async {
     final plan = _plan(await _fixture());
 
@@ -710,7 +721,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e02: an after naming the renamed id takes the new id, '
+  test('an after naming the renamed id takes the new id, '
       'every other byte stays', () async {
     final plan = _plan(
       await _fixture(
@@ -739,7 +750,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e03: an override field with the old id takes the new '
+  test('an override field with the old id takes the new '
       'id and keeps every other key', () async {
     final plan = _plan(
       await _fixture(
@@ -811,7 +822,7 @@ sections:
     );
   }, skip: unreadablePathSkipReason());
 
-  test('f06/us02/fr02/e03: a renamed field keeps its value', () async {
+  test('a renamed field keeps its value', () async {
     final plan = _plan(await _fixture());
 
     final text = _rewriteAt(plan, 'docs/prds/runbooks/deploy/RUNBOOK.md').text;
@@ -820,7 +831,7 @@ sections:
     expect(text, contains('## Procedure\n'));
   });
 
-  test('f06/us02/fr02/e05: two chained renames end in the last name, written '
+  test('two chained renames end in the last name, written '
       'once', () async {
     const packYaml = '''
 name: acme
@@ -859,27 +870,24 @@ sections:
     expect(writes.single.text, '# Deploy\n\n## C\n\nx\n');
   });
 
-  test(
-    'f06/us02/fr02/e07: a doc already lacking the section is unchanged',
-    () async {
-      final plan = _plan(
-        await _fixture(
-          overrides: const {},
-          docs: const {
-            'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Rollback\n\nx\n',
-          },
-        ),
-      );
+  test('a doc already lacking the section is unchanged', () async {
+    final plan = _plan(
+      await _fixture(
+        overrides: const {},
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Rollback\n\nx\n',
+        },
+      ),
+    );
 
-      expect(plan.rewrites.map((rewrite) => rewrite.path), [
-        '.specstone/config.yaml',
-      ]);
-      expect(
-        plan.toText(),
-        contains('rename_section runbook steps -> procedure: 0 docs\n'),
-      );
-    },
-  );
+    expect(plan.rewrites.map((rewrite) => rewrite.path), [
+      '.specstone/config.yaml',
+    ]);
+    expect(
+      plan.toText(),
+      contains('rename_section runbook steps -> procedure: 0 docs\n'),
+    );
+  });
 
   test("f06/us02/fr01/e04, f06/us02/s4: the older release's steps print "
       'first', () async {
@@ -892,28 +900,25 @@ sections:
     expect(newer, contains('from 1.1.0: rename_field'));
   });
 
-  test(
-    'f06/us02/fr02/e01: a release with no step changes the pin only',
-    () async {
-      final plan = _plan(
-        await _fixture(
-          packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
-          overrides: const {},
-        ),
-      );
+  test('a release with no step changes the pin only', () async {
+    final plan = _plan(
+      await _fixture(
+        packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
+        overrides: const {},
+      ),
+    );
 
-      expect(plan.toText(), '''
+    expect(plan.toText(), '''
 pack upgrade: acme 1.0.0 -> 1.2.0
 commit 2, rewrites:
   .specstone/config.yaml: acme 1.2.0
 ''');
-      expect(_rewriteAt(plan, '.specstone/config.yaml').text, _config('1.2.0'));
-      expect(plan.moves, isEmpty);
-      expect(plan.prunes, isEmpty);
-    },
-  );
+    expect(_rewriteAt(plan, '.specstone/config.yaml').text, _config('1.2.0'));
+    expect(plan.moves, isEmpty);
+    expect(plan.prunes, isEmpty);
+  });
 
-  test('f06/us02/fr02/e04: a move_file step keeps the placeholder values and '
+  test('a move_file step keeps the placeholder values and '
       'points links at the new path', () async {
     const packYaml = '''
 name: acme
@@ -1003,7 +1008,7 @@ sections:
       overrides: files,
     );
 
-    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a path '
+    test('a path '
         'mention in an agent file and one in a code file that a move stops '
         'resolving print one count line after the agent files line, and the '
         'files stay as they are', () async {
@@ -1081,7 +1086,7 @@ sections:
       },
     );
 
-    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a mention '
+    test('a mention '
         'of a doc no move touches prints no count line', () async {
       final fixture = await fixtureWith({
         'CLAUDE.md': 'Read prds/notes.md first.\n',
@@ -1094,7 +1099,7 @@ sections:
       expect(plan.lists.mentions, isEmpty);
     });
 
-    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a run '
+    test('a run '
         'with no move reads no code file and prints no count line', () async {
       final plan = _plan(
         await _fixture(
@@ -1130,7 +1135,7 @@ sections:
     });
   });
 
-  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins verification: '
+  test('verification: '
       'no plan line joins several paths', () async {
     final plan = _planAt(await _belowSinceTree(_e18Docs()));
 
@@ -1141,7 +1146,8 @@ sections:
       r'|stamps: \d+ approval hashes, \d+ fingerprints(; skipped: \d+)?'
       r'|agent files: \d+ files'
       r'|mentions: \d+'
-      r'|from \S+: .+: \d+ docs)$',
+      r'|from \S+: .+: \d+ docs'
+      r'(; (\S+: )?\d+ entries)*(; unreadable: \d+)?)$',
     );
     final passLines = plan
         .toText()
@@ -1159,7 +1165,7 @@ sections:
     }
   });
 
-  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: pins equal '
+  test('E11: pins equal '
       'and two docs off their layout plan the layout pass alone', () async {
     final plan = _plan(
       await _fixture(
@@ -1189,7 +1195,7 @@ sections:
     ]);
   });
 
-  test('setup_migration/upgrade_pack_pins/chain_migration_steps E07: a doc a '
+  test('E07: a doc a '
       'step renames and a doc no step touches are each laid out once, a '
       'laid-out doc is not rewritten, a refused doc is left', () async {
     final plan = _plan(
@@ -1234,7 +1240,7 @@ sections:
     );
   });
 
-  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E01: an older '
+  test('E01: an older '
       'pin with no selected step lays out an off-layout doc beside the new '
       'pin', () async {
     final plan = _plan(
@@ -1310,7 +1316,7 @@ void _agentFilesTests() {
         '.specstone/AGENT.md',
         'CLAUDE.md',
       ]);
-      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.6.0'));
+      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.7.0'));
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
@@ -2193,7 +2199,7 @@ Map<String, Object?> _valuesOf(String text) =>
 /// [lf] stamped with the approval hash it has under the shipped packs as
 /// they stood before the `move_to_record` step: the type still declared
 /// `implements`, a field the hash leaves out.
-String _approvedUnderShipped(String lf, String docTypeId) => withApprovalHash(
+String _approvedUnderShipped(String lf, String docTypeId) => _stampedBefore(
   lf,
   typeBeforeMoves(
     TemplateResolver()
@@ -2499,11 +2505,11 @@ void _moveToRecordTests() {
       final fr = _stampedDocText(plan, _loginFrPath);
       expect(
         _valuesOf(story)['approved'],
-        approvalHashOf(story, _finalType(fixture, 'user_story')),
+        _approvalHashBefore(story, _finalType(fixture, 'user_story')),
       );
       expect(
         _valuesOf(fr)['approved'],
-        approvalHashOf(fr, _finalType(fixture, 'fr')),
+        _approvalHashBefore(fr, _finalType(fixture, 'fr')),
       );
       expect(story, isNot(contains('status:')));
       final record = plan.creates.single.text;
@@ -2536,7 +2542,7 @@ void _moveToRecordTests() {
       final story = _stampedDocText(plan, _loginStoryPath);
       expect(
         _valuesOf(story)['approved'],
-        approvalHashOf(story, _finalType(fixture, 'user_story')),
+        _approvalHashBefore(story, _finalType(fixture, 'user_story')),
       );
     });
 
@@ -2565,7 +2571,7 @@ void _moveToRecordTests() {
       ]);
     });
 
-    group('$_fr, the shipped software-tech 1.6.0 pack', () {
+    group('$_fr, the shipped software-tech 1.7.0 pack', () {
       Future<Directory> shippedProject({
         Map<String, String> extra = const {},
       }) => writeTree({
@@ -2577,32 +2583,36 @@ void _moveToRecordTests() {
         ...extra,
       });
 
-      test(
-        'E39: the move from 1.4.0 to 1.6.0 runs no one-time pass, the '
-        'move_to_record step alone beside the passes every upgrade runs',
-        () async {
-          final project = await shippedProject(
-            extra: {'CLAUDE.md': '# Owner rules\n'},
-          );
+      test('E39: the move from 1.4.0 to 1.7.0 runs no one-time pass, the '
+          'move_to_record and stamp_code_fingerprints steps beside the passes '
+          'every upgrade runs', () async {
+        final project = await shippedProject(
+          extra: {'CLAUDE.md': '# Owner rules\n'},
+        );
 
-          final plan = _planAt(project);
+        final plan = _planAt(project);
 
-          final text = plan.toText();
-          expect(text, contains('software-tech 1.4.0 -> 1.6.0'));
-          expect(
-            text,
-            contains(
-              '  from 1.4.0: move_to_record user_story, fr status, implements '
-              '-> implementation: 2 docs\n',
-            ),
-          );
-          expect(text, isNot(contains('renumber ids:')));
-          expect(text, isNot(contains('number labels:')));
-          expect(text, isNot(contains('agent files:')));
-          expect(plan.agentFiles!.rootWrites, isEmpty);
-          expect(plan.agentFiles!.topWrites, isEmpty);
-        },
-      );
+        final text = plan.toText();
+        expect(text, contains('software-tech 1.4.0 -> 1.7.0'));
+        expect(
+          text,
+          contains(
+            '  from 1.4.0: move_to_record user_story, fr status, implements '
+            '-> implementation: 2 docs\n',
+          ),
+        );
+        expect(
+          text,
+          contains(
+            '  from 1.6.0: stamp_code_fingerprints: 0 docs; 0 entries\n',
+          ),
+        );
+        expect(text, isNot(contains('renumber ids:')));
+        expect(text, isNot(contains('number labels:')));
+        expect(text, isNot(contains('agent files:')));
+        expect(plan.agentFiles!.rootWrites, isEmpty);
+        expect(plan.agentFiles!.topWrites, isEmpty);
+      });
 
       test(
         'E33, S11, S13: a story and an FR move their status and code '
@@ -2662,7 +2672,7 @@ void _moveToRecordTests() {
         expect(values['approved'], isNot(oldHash));
         expect(
           values['approved'],
-          approvalHashOf(
+          _approvalHashBefore(
             story,
             TemplateResolver()
                 .resolveCarried(
@@ -2798,7 +2808,7 @@ void _moveToRecordTests() {
     test('$_fr E30: an approved record that gains entries is re-stamped, not '
         'drafted', () async {
       final probe = await _recordFixture();
-      final record = withApprovalHash(
+      final record = _stampedBefore(
         recordText(
           statuses: ['email_login:implemented'],
           code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
@@ -2814,10 +2824,42 @@ void _moveToRecordTests() {
       final text = _stampedDocText(plan, _recordPath);
       expect(
         _valuesOf(text)['approved'],
-        approvalHashOf(text, _finalType(fixture, 'implementation')),
+        _approvalHashBefore(text, _finalType(fixture, 'implementation')),
       );
       expect(_valuesOf(text), isNot(contains('draft')));
       expect(_valuesOf(text)['statuses'], hasLength(2));
+    });
+
+    test('below the statuses pin, an approved record that gains entries is '
+        're-stamped with the hash its new statuses give', () async {
+      final probe = await _recordFixture();
+      final type = _finalType(probe, 'implementation');
+      final record = withApprovalHash(
+        recordText(
+          statuses: ['email_login:implemented'],
+          code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
+        ),
+        type,
+        statusesOutside: false,
+      );
+      final fixture = await _recordFixture(
+        docs: {..._loginDocs, _recordPath: record},
+      );
+      pinStatusesBelow(fixture.project);
+
+      final plan = planUpgradeRun(
+        fixture.project,
+        templates: statusesBelowResolver,
+        homeDirectory: fixture.home,
+      );
+
+      final text = _stampedDocText(plan, _recordPath);
+      expect(
+        _valuesOf(text)['approved'],
+        approvalHashOf(text, type, statusesOutside: false),
+      );
+      expect(_valuesOf(text)['approved'], isNot(_valuesOf(record)['approved']));
+      expect(_valuesOf(text), isNot(contains('draft')));
     });
 
     test(
@@ -3082,11 +3124,11 @@ void _treeMoveTests() {
       );
       final feature = set.lookup('feature');
       final architecture = set.lookup('architecture');
-      final featureText = withApprovalHash(
+      final featureText = _stampedBefore(
         '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
         feature,
       );
-      final archText = withApprovalHash(
+      final archText = _stampedBefore(
         '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
         architecture,
       );
@@ -3104,8 +3146,11 @@ void _treeMoveTests() {
         'prds/features/f02_feedback/FEATURE.md',
       );
       final arch = _stampedDocText(plan, archPath);
-      expect(_valuesOf(feat)['approved'], approvalHashOf(feat, feature));
-      expect(_valuesOf(arch)['approved'], approvalHashOf(arch, architecture));
+      expect(_valuesOf(feat)['approved'], _approvalHashBefore(feat, feature));
+      expect(
+        _valuesOf(arch)['approved'],
+        _approvalHashBefore(arch, architecture),
+      );
       expect(
         _valuesOf(arch)['approved'],
         isNot(_valuesOf(archText)['approved']),
@@ -3479,7 +3524,7 @@ void _testNameTests() {
     });
 
     test('the text counts equal the lists the JSON plan holds, a '
-        'string that is no test call included', () async {
+        'string that is no test name left out', () async {
       final project = await _testNameProject(
         files: {
           _testFile:
@@ -3493,15 +3538,120 @@ void _testNameTests() {
 
       final json = plan.lists.tests!;
       final rewritten = json['rewritten']! as List<Object?>;
-      expect(rewritten, hasLength(2));
+      expect(rewritten, hasLength(1));
       expect(json['left'], isEmpty);
       expect(
         plan.toText(),
         contains(
-          '  tests: 2 lines in 1 records; '
+          '  tests: 1 lines in 1 records; '
           'names: ${rewritten.length} rewritten in 1 files; '
-          'left: 1\n',
+          'left: 0\n',
         ),
+      );
+    });
+  });
+}
+
+void _codeStampTests() {
+  group('stamp_code_fingerprints step', () {
+    const signIn = 'app/lib/login/sign_in.dart';
+    const signInCode = 'class SignIn {}\n';
+    const architecturePath = 'specs/f01_login/ARCHITECTURE.md';
+    final signInFingerprint = fileCodeFingerprint(utf8.encode(signInCode));
+
+    /// A project on the shipped prd-core and software-tech 1.6.0, whose
+    /// record and architecture doc name code with no fingerprint recorded.
+    Future<Directory> project({Map<String, String> extra = const {}}) =>
+        writeTree({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          'docs/$_featurePath': '# Login\n',
+          'docs/$_loginStoryPath': '# Email login\n',
+          'docs/$_recordPath': recordText(
+            statuses: ['email_login:implemented'],
+            code: ['email_login:$signIn:SignIn'],
+          ),
+          'docs/$architecturePath':
+              '---\ncovers:\n  - app/lib/\n---\n# Login architecture\n',
+          signIn: signInCode,
+          ...extra,
+        });
+
+    test('commit 2 writes each fingerprint, and the step line counts the '
+        'docs and entries with its paths and unreadable list', () async {
+      final plan = _planAt(await project());
+
+      expect(plan.moves, isEmpty);
+      expect(
+        _rewriteAt(plan, 'docs/$_recordPath').text,
+        contains("  - 'email_login:$signIn:SignIn $signInFingerprint'\n"),
+      );
+      expect(
+        _rewriteAt(plan, 'docs/$architecturePath').text,
+        contains('covers:\n  - app/lib/ '),
+      );
+      final text = plan.toText();
+      expect(
+        text,
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.6.0',
+          'step': 'stamp_code_fingerprints',
+          'paths': [architecturePath, _recordPath],
+          'unreadable': <String>[],
+        },
+      ]);
+    });
+
+    test('the plan hash holds while no code file changes, and moves when a '
+        'named file changes or a covered folder gains one', () async {
+      final root = _canonical(await project());
+      final first = _hashOf(_planAt(root));
+
+      expect(_hashOf(_planAt(root)), first);
+
+      File('${root.path}/$signIn').writeAsStringSync('class SignIn {} \n');
+      final edited = _planAt(root);
+      expect(_hashOf(edited), isNot(first));
+      expect(
+        _rewriteAt(edited, 'docs/$_recordPath').text,
+        isNot(contains(signInFingerprint)),
+      );
+
+      final beforeAdd = _hashOf(edited);
+      File('${root.path}/app/lib/extra.dart').writeAsStringSync('// x\n');
+      expect(_hashOf(_planAt(root)), isNot(beforeAdd));
+    });
+
+    test('a record the move_to_record step creates in the same run takes '
+        'its fingerprints', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        for (final MapEntry(:key, :value) in _loginDocs.entries)
+          'docs/$key': value,
+        signIn: signInCode,
+      });
+
+      final plan = _planAt(root);
+
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_recordPath',
+      );
+      expect(_valuesOf(record.text)['implements'], [
+        'email_login:$signIn:SignIn $signInFingerprint',
+      ]);
+      expect(_valuesOf(record.text)['draft'], isTrue);
+      expect(
+        plan.toText(),
+        contains('  from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
       );
     });
   });

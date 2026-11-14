@@ -6,12 +6,15 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart'
     show parseBatchFile;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/document_writing/set_batch.dart';
+import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -20,10 +23,13 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/check_fixture.dart'
+    show checkOf, loginRecord, spots, writeCheckProject;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
+import '../../helpers/shipped_pins.dart'
+    show pinStatusesBelow, statusesBelowResolver;
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -1313,6 +1319,56 @@ void main() {
       expect(readDoc(root, loginArch), contains('draft: true\n'));
     },
   );
+
+  group('a whole-doc block that changes only a record status', () {
+    const from = 'email_login/check_password:implemented';
+    const to = 'email_login/check_password:planned';
+
+    test('at the statuses pin leaves the approved record approved', () async {
+      final root = await writeCheckProject();
+      final before = readDoc(root, loginRecord);
+      final approved = RegExp('approved: "[0-9a-f]{12}"')
+          .firstMatch(before)![0]!;
+
+      final answer = runBatch(
+        root,
+        edit(getText(root, [loginRecord]), from, to),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        allOf(contains(to), contains(approved), isNot(contains('draft'))),
+      );
+      expect(answer.json['blocks'], [containsPair('draft', false)]);
+      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+    });
+
+    test('below the statuses pin drafts the record', () async {
+      final root = await writeCheckProject();
+      pinStatusesBelow(root);
+      T below<T>(T Function(WriteSession session) body) =>
+          writeIn(root, body, templates: statusesBelowResolver);
+      below((s) {
+        final file = docFile(root, loginRecord);
+        file.writeAsStringSync(
+          withApprovalHash(
+            withKeyBlock(file.readAsStringSync(), 'approved', null),
+            s.docTypeAt(loginRecord),
+            statusesOutside: false,
+          ),
+        );
+      });
+      final text = below((s) => answerGet(s.index, [loginRecord]).text);
+
+      final answer = below(
+        (s) =>
+            answerSetBatch(s, parseBatchFile('batch.md', edit(text, from, to))),
+      );
+
+      expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      expect(answer.json['blocks'], [containsPair('draft', true)]);
+    });
+  });
 
   test(
     '$_serialize E05: a lock the batch cannot take propagates as index_busy, unwrapped',

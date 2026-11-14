@@ -23,7 +23,7 @@ void main() {
       );
     },
   );
-  test('f01/us06/fr01: --json prints hits and warnings', () async {
+  test('--json prints hits and warnings', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['search', 'check the email', '--json']), 0);
     final json = jsonDecode(out.toString()) as Map<String, Object?>;
@@ -36,7 +36,7 @@ void main() {
       'snippet',
     ]);
   });
-  test('f01/us06/fr01/e08: no query is argument_missing, exit 64', () async {
+  test('no query is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['search']), 64);
     expect(
@@ -57,7 +57,7 @@ void main() {
       isFalse,
     );
   });
-  test('f01/us06/fr02/e06: --limit 0 exits 64', () async {
+  test('--limit 0 exits 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['search', 'login', '--limit', '0']), 64);
     expect(err.toString(), '--limit takes a positive integer, not 0\n');

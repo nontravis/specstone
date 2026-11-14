@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -51,7 +52,8 @@ final class _Ref {
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
 /// links to, each story a journey step or an `fr`'s `traced_from` entry names,
-/// and its `output_ref` pointers as written: a record's code paths, `covers`.
+/// and its `output_ref` pointers without a fingerprint: a record's code paths,
+/// `covers`.
 /// Inbound holds the docs whose `doc_ref` value reaches the doc, then those
 /// linking to it, then the journeys with a step naming it, then the `fr` docs
 /// tracing it, each group in tree order of the referring docs. Mentions holds
@@ -150,7 +152,7 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
 }
 
 /// Returns the `output_ref` pointers of [doc], one field after another in
-/// field order, each as written.
+/// field order, each without a code fingerprint.
 ///
 /// An `item_exact` field belongs to a record: it gives each line's code path
 /// with the item left off, in line order, as [recordCodeLinesOf] reads them.
@@ -170,7 +172,10 @@ List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
             _Ref.toPointer(field.id, line.path)
         else
           for (final value in doc.valuesOf(field.id))
-            _Ref.toPointer(field.id, value),
+            _Ref.toPointer(
+              field.id,
+              isCodeLinkField(field) ? CodeLinkEntry(value).pointer : value,
+            ),
   ];
 }
 

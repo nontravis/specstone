@@ -84,7 +84,7 @@ File docFileOf(Directory docsRoot, String docPath) {
 /// bytes are not UTF-8 text.
 ///
 /// A run moves a doc it gets null for untouched and rewrites none of it, as
-/// it does a file that is not `.md` (`setup_migration/migrate_legacy_docs/move_legacy_files` E15).
+/// it does a file that is not `.md`.
 ///
 /// Throws [RenderFault] `output_not_writable` naming [docPath] when the file
 /// cannot be read.
@@ -127,10 +127,8 @@ final class DocRewrite {
 
 /// Rewrites the title, keys, and sections of one legacy doc of [kind].
 ///
-/// A doc line the edge cases of
-/// `fr:setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links` do
-/// not name stays byte-equal. [gnfrHeaders] are the section headers of the
-/// `gnfr` doc type.
+/// A doc line the legacy rewrite rules do not name stays byte-equal.
+/// [gnfrHeaders] are the section headers of the gnfr doc type.
 DocRewrite rewriteLegacyDoc(
   String lf,
   LegacyKind kind, {
@@ -268,7 +266,7 @@ String _withoutIndexes(String lf) {
     if (index < 0) break;
     text = withoutSection(text, index);
   }
-  // A legacy doc that ended in a blank line keeps one (`setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links` E12);
+  // A legacy doc that ended in a blank line keeps one;
   // `withoutSection` ends a doc whose last section went in one newline.
   final keepsBlankTail = lf.endsWith('\n\n') && !text.endsWith('\n\n');
   return keepsBlankTail && text != lf ? '$text\n' : text;

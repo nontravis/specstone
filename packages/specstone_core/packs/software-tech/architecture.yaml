@@ -20,6 +20,7 @@ fields:
     description: |-
       Lists the folders or files of code that the feature's spec folder covers, each relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
       A path matches by longest prefix, so a folder covers every file under it.
+      An entry may end in one space and its code fingerprint, which `check` compares with the code it names.
 sections:
   - id: component_diagram
     header: Component diagram

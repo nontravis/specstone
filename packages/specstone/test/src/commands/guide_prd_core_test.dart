@@ -114,7 +114,7 @@ void main() {
       expect(at, orderedEquals(List.of(at)..sort()));
     });
 
-    test('f03/us01/fr02: guide fr lists the statement banned words after the '
+    test('guide fr lists the statement banned words after the '
         'description that names them, and shows the verification '
         'template', () async {
       final runner = await runnerIn(await prdCoreProject());
@@ -142,7 +142,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
+    test('Write the shipped writing guides '
         'E06: guide fr prints the item shape', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'fr']), 0);
@@ -245,7 +245,7 @@ void main() {
       ]);
     });
 
-    test('f04/us03/fr01: guide fr --json describes the three traced_from '
+    test('guide fr --json describes the three traced_from '
         'forms', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'fr', '--json']), 0);
@@ -309,7 +309,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us06/fr03: guide fr ends with the NASA source', () async {
+    test('guide fr ends with the NASA source', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'fr']), 0);
       expect(
@@ -324,21 +324,18 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us06/fr03/e01: guide journey prints no sources', () async {
+    test('guide journey prints no sources', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'journey']), 0);
       expect(out.toString(), isNot(contains('Guide sources:')));
     });
 
-    test(
-      'f03/us06/fr01/e02: with --json the refusal is doc_type_unknown',
-      () async {
-        final runner = await runnerIn(await prdCoreProject());
-        expect(await runner.run(['guide', 'project_document', '--json']), 64);
-        final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
-        expect(error['code'], 'doc_type_unknown');
-        expect(out.toString(), isEmpty);
-      },
-    );
+    test('with --json the refusal is doc_type_unknown', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'project_document', '--json']), 64);
+      final error = (jsonDecode(err.toString()) as Map)['error'] as Map;
+      expect(error['code'], 'doc_type_unknown');
+      expect(out.toString(), isEmpty);
+    });
   });
 }

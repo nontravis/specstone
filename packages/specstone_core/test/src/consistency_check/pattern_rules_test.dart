@@ -30,7 +30,7 @@ Future<List<Finding>> _findings(
 }
 
 void main() {
-  test('f04/us01/fr08/e01: a banned pattern reports its line, message, and three keys', () async {
+  test('a banned pattern reports its line, message, and three keys', () async {
     final found = await _findings(
       _banned(r'''
       - id: no-fast
@@ -55,9 +55,11 @@ void main() {
     );
   });
 
-  test('f04/us01/fr08/e02: text skips code spans, code reads only them, all reads the raw line', () async {
-    final found = await _findings(
-      _banned('''
+  test(
+    'text skips code spans, code reads only them, all reads the raw line',
+    () async {
+      final found = await _findings(
+        _banned('''
       - id: t
         pattern: 'fooBar'
         message: text
@@ -70,18 +72,19 @@ void main() {
         message: all
         in: all
 '''),
-      edits: fr(
-        checkPasswordStatement,
-        'The system shall refuse `fooBar` and fooBar within 1 s.',
-      ),
-    );
-    expect(
-      found.map((f) => f.toJson()['pattern']),
-      unorderedEquals(['t', 'c', 'a', 'a']),
-    );
-  });
+        edits: fr(
+          checkPasswordStatement,
+          'The system shall refuse `fooBar` and fooBar within 1 s.',
+        ),
+      );
+      expect(
+        found.map((f) => f.toJson()['pattern']),
+        unorderedEquals(['t', 'c', 'a', 'a']),
+      );
+    },
+  );
 
-  test('f04/us01/fr08/e02: adjacent and empty code spans close in pairs, and '
+  test('adjacent and empty code spans close in pairs, and '
       'an unclosed backtick leaves the rest of the line text', () async {
     final found = await _findings(
       _banned('''
@@ -110,7 +113,7 @@ void main() {
     expect(byScope, {'t': 3, 'c': 2, 'a': 5});
   });
 
-  test('f04/us01/fr08/e03: except clears a full match only', () async {
+  test('except clears a full match only', () async {
     final found = await _findings(
       _banned(r'''
       - id: no-fast
@@ -126,29 +129,26 @@ void main() {
     expect(found.map((f) => f.toJson()['match']), ['faster']);
   });
 
-  test(
-    'f04/us01/fr08/e04: fenced code, frontmatter, and the title give nothing',
-    () async {
-      final found = await _findings(
-        _banned('''
+  test('fenced code, frontmatter, and the title give nothing', () async {
+    final found = await _findings(
+      _banned('''
       - id: zed
         pattern: 'zed'
         message: no zed
 '''),
-        edits: edit(loginFr, [
-          ('# Check the password', '# Check the zed password'),
-          ('verify_method: test', 'verify_method: test\nnote: zed'),
-          (
-            'A wrong password must not sign in.',
-            '```\nzed\n```\nA wrong password must not sign in.',
-          ),
-        ]),
-      );
-      expect(found, isEmpty);
-    },
-  );
+      edits: edit(loginFr, [
+        ('# Check the password', '# Check the zed password'),
+        ('verify_method: test', 'verify_method: test\nnote: zed'),
+        (
+          'A wrong password must not sign in.',
+          '```\nzed\n```\nA wrong password must not sign in.',
+        ),
+      ]),
+    );
+    expect(found, isEmpty);
+  });
 
-  test('f04/us01/fr08/e05: a section entry with line_prefix hits only on that line', () async {
+  test('a section entry with line_prefix hits only on that line', () async {
     final found = await _findings(
       _sectionLayer('statement', '''
       line_prefix: '- **Statement:**'
@@ -164,7 +164,8 @@ void main() {
     expect(found.single.line, 14);
   });
 
-  test('f04/us01/fr08/e07: a match naming a doc-tree folder, or a run of them, gives nothing', () async {
+  test('a match naming a doc-tree folder, or a run of them, '
+      'gives nothing', () async {
     final found = await _findings(
       _banned(r'''
       - id: code
@@ -205,7 +206,8 @@ void main() {
     expect(own.map((f) => f.toJson()['match']), ['docs/superpowers']);
   });
 
-  test('f04/us01/fr08/e08: a code span the grammar reads as a doc address with no lookup is no hit, under the '
+  test('a code span the grammar reads as a doc address with no lookup is no '
+      'hit, under the '
       'shipped code_identifier and a project in: code entry', () async {
     const kept = [
       'parseDoc()',
@@ -272,7 +274,8 @@ void main() {
     );
   });
 
-  test('consistency_check/find_template_breaks/check_patterns E08: a code span whose text before its first colon is no slug is no doc address, so an in: code '
+  test('E08: a code span whose text before its first colon is no slug is no '
+      'doc address, so an in: code '
       'entry reports it', () async {
     final findings = await _findings(
       _banned('''
@@ -339,7 +342,8 @@ void main() {
     expect(matched(), ['slow']);
   });
 
-  test('f04/us01/fr08/e06: a required pattern no line matches reports at the header; an absent section reports none', () async {
+  test('a required pattern no line matches reports at the header; an absent '
+      'section reports none', () async {
     const layer = '''
 sections:
   - id: statement

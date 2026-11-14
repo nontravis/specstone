@@ -20,7 +20,7 @@ void main() {
     ..createSync(recursive: true)
     ..writeAsStringSync('');
 
-  test('document_writing/rename_doc/rewrite_name_references code input: a code root '
+  test('code input: a code root '
       'lists its files as paths from the code root, sorted by code point', () {
     ['lib/b.dart', 'lib/a/z.dart', 'lib/a-b.dart'].forEach(touch);
     expect(filesUnderCodeRoot(root, 'lib/'), [
@@ -30,7 +30,7 @@ void main() {
     ]);
   });
 
-  test('document_writing/rename_doc/rewrite_name_references code input: a name starting '
+  test('code input: a name starting '
       'with a dot is skipped, a folder with it and all below', () {
     touch('lib/a.dart');
     touch('lib/.hidden.dart');
@@ -38,20 +38,16 @@ void main() {
     expect(filesUnderCodeRoot(root, 'lib'), ['lib/a.dart']);
   });
 
-  test(
-    'document_writing/rename_doc/rewrite_name_references code input: a link is '
-    'skipped and not followed',
-    () {
-      touch('lib/a.dart');
-      touch('other/b.dart');
-      Link('${root.path}/lib/to_other').createSync('${root.path}/other');
-      Link('${root.path}/lib/to_file').createSync('${root.path}/other/b.dart');
-      expect(filesUnderCodeRoot(root, 'lib'), ['lib/a.dart']);
-    },
-    skip: Platform.isWindows ? 'links need a privilege on Windows' : false,
-  );
+  test('code input: a link is '
+      'skipped and not followed', () {
+    touch('lib/a.dart');
+    touch('other/b.dart');
+    Link('${root.path}/lib/to_other').createSync('${root.path}/other');
+    Link('${root.path}/lib/to_file').createSync('${root.path}/other/b.dart');
+    expect(filesUnderCodeRoot(root, 'lib'), ['lib/a.dart']);
+  }, skip: Platform.isWindows ? 'links need a privilege on Windows' : false);
 
-  test('document_writing/rename_doc/rewrite_name_references code input: a missing root '
+  test('code input: a missing root '
       'yields none and reports nothing', () {
     final unlistable = <String>[];
     expect(
@@ -61,7 +57,7 @@ void main() {
     expect(unlistable, isEmpty);
   });
 
-  test('document_writing/rename_doc/rewrite_name_references code input: a file entry '
+  test('code input: a file entry '
       'lists that file', () {
     touch('lib/a.dart');
     touch('lib/b.dart');
@@ -72,7 +68,7 @@ void main() {
     ]);
   });
 
-  test('document_writing/rename_doc/rewrite_name_references code input: a folder that '
+  test('code input: a folder that '
       'cannot be listed is reported and its files left out', () {
     touch('lib/a.dart');
     touch('lib/locked/b.dart');
@@ -86,7 +82,7 @@ void main() {
     expect(unlistable, ['lib/locked']);
   }, skip: unreadablePathSkipReason() ?? false);
 
-  test('document_writing/rename_doc/rewrite_name_references code input: codeRootFiles '
+  test('code input: codeRootFiles '
       'lists every entry, a file under two entries once, all sorted', () {
     ['lib/b.dart', 'lib/a.dart', 'test/t.dart'].forEach(touch);
     expect(codeRootFiles(root, ['test/', 'lib/', 'lib/']), [
@@ -96,7 +92,7 @@ void main() {
     ]);
   });
 
-  test('document_writing/rename_doc/rewrite_name_references code input: dot '
+  test('code input: dot '
       'segments of an entry are dropped, so every path is in one form', () {
     touch('lib/a.dart');
     touch('top.dart');
@@ -107,7 +103,7 @@ void main() {
   });
 
   test(
-    'consistency_check/find_broken_pointers/report_uncovered_code: a nested '
+    'a nested '
     'code root of another target is left out, a folder of it and all below',
     () {
       [

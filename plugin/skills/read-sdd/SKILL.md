@@ -22,7 +22,7 @@ work from text a plan or brief quotes.
   `Agent` tool, when the task cites more than three stories, NFRs, and spec docs in all, the next call would pass
   three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites, `--summary` beside each ID whose
   call used it, the call's `--target`, and no doc text.
-- **Code target:** the `--target` `domain:agent_plugin` INV-25 gives: a plan task's read line's, as written
+- **Code target:** the `--target` is a plan task's read line's, as written
   (`specstone context <story> --for implement --target <name>`); none in `query` or `design`. In `implement` with no
   plan target and no `--code` path, an `argument_missing` refusal names the targets: a main session asks the Owner and
   reruns with `--target <name>`; a Subagent runs no further call and reports the missing target, naming them, to its

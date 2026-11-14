@@ -61,7 +61,7 @@ void main() {
     expectSectionsSay(auth, _says);
   });
 
-  test('f03/us07/fr03: auth caps 400 lines, bans no word, and cites its four '
+  test('auth caps 400 lines, bans no word, and cites its four '
       'sources', () {
     expectSpecLint(auth);
   });

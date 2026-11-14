@@ -19,8 +19,7 @@ typedef CitedByIndex = Map<({String docPath, String itemId}), List<CitedBy>>;
 /// line `after` of its doc.
 typedef CitedItem = ({String item, int after, List<CitedBy> by});
 
-/// Returns who cites each item, from the links the index stores
-/// (`index_query/get_task_bundle/show_cited_by`).
+/// Returns who cites each item, from the links the index stores.
 ///
 /// One line per item link from a typed doc other than the item's own, an item
 /// range giving one to each item it spans, in tree order of the citing docs

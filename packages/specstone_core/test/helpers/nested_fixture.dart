@@ -133,11 +133,17 @@ Map<String, String> nestedFiles() => {
 
 /// Writes the check fixture and the nested docs under a new temp folder.
 ///
-/// A key in [extra] replaces or adds a file; a path in [without] drops one.
+/// A key in [extra] replaces or adds a file; a path in [without] drops one; a
+/// key in [unfingerprinted] keeps its code links as written.
 Future<Directory> writeNestedProject({
   Map<String, String> extra = const {},
   Set<String> without = const {},
-}) => writeCheckProject(extra: {...nestedFiles(), ...extra}, without: without);
+  Set<String> unfingerprinted = const {},
+}) => writeCheckProject(
+  extra: {...nestedFiles(), ...extra},
+  without: without,
+  unfingerprinted: unfingerprinted,
+);
 
 /// Opens a session on the nested project with [extra] files and returns its
 /// index; `addTearDown` closes the session.

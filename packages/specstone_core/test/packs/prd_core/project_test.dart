@@ -31,7 +31,7 @@ void main() {
     project = prdCoreDocType(await resolvePrdCore(), 'project');
   });
 
-  test('f03/us06/fr01: project sits at prds/PROJECT.md with no parent, an '
+  test('project sits at prds/PROJECT.md with no parent, an '
       'owner field, and six sections', () {
     expect(project.path, 'prds/PROJECT.md');
     expect(project.parent, isNull);
@@ -49,7 +49,7 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr01: the status field gives the three meanings', () {
+  test('the status field gives the three meanings', () {
     expect(
       fieldOf(project, 'status').description,
       allOf(
@@ -68,14 +68,14 @@ void main() {
     expectSources(project, []);
   });
 
-  test('f03/us06/fr02/e04: the templates carry the quote line and the '
+  test('the templates carry the quote line and the '
       'English labels', () {
     for (final MapEntry(:key, :value) in _templates.entries) {
       expect(sectionOf(project, key).template, value, reason: key);
     }
   });
 
-  test('f03/us06/fr01: project joins every bundle mode and marks roles, '
+  test('project joins every bundle mode and marks roles, '
       'out_of_scope, and glossary query', () async {
     final project = prdCoreDocType(await resolvePrdCore(), 'project');
     expect(project.bundle, ['query', 'implement', 'design']);
@@ -88,19 +88,16 @@ void main() {
     );
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        project,
-        'Write one rule per `PV-*` or `PG-*` ID, '
-        'and leave mechanics to the spec docs.\n'
-        "Keep a goal's bound in its own `**Metric:**` and "
-        '`**By:**` lines, and its trace in its `**Serves:**` '
-        'line.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      project,
+      'Write one rule per `PV-*` or `PG-*` ID, '
+      'and leave mechanics to the spec docs.\n'
+      "Keep a goal's bound in its own `**Metric:**` and "
+      '`**By:**` lines, and its trace in its `**Serves:**` '
+      'line.',
+    );
+  });
 }

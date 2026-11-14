@@ -86,7 +86,7 @@ void main() {
     ]);
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
-  test('f04/us02/fr05/e03: a listed name with a backslash is no file on any '
+  test('a listed name with a backslash is no file on any '
       'OS, though a POSIX disk holds one', () async {
     final root = await writeCheckProject(
       extra: {
@@ -191,41 +191,44 @@ void main() {
     );
   });
 
-  test('f04/us02/fr05: a see link target reads every CommonMark link form the link rule reads', () async {
-    Future<List<String>> targetsOf(String concerns) async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: {
-            ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
-            'docs/specs/f01_login/a(b).md': '# B\n',
-            'docs/specs/f01_login/API.md': '# Api\n',
-            'docs/specs/f01_login/My File.md': '# Mine\n',
-          },
+  test(
+    'a see link target reads every CommonMark link form the link rule reads',
+    () async {
+      Future<List<String>> targetsOf(String concerns) async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: {
+              ...doc(loginArchitecture, '- Errors: see Components\n', concerns),
+              'docs/specs/f01_login/a(b).md': '# B\n',
+              'docs/specs/f01_login/API.md': '# Api\n',
+              'docs/specs/f01_login/My File.md': '# Mine\n',
+            },
+          ),
+        );
+        return [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.concernsTargetUnresolved)
+              f.toJson()['target']! as String,
+        ];
+      }
+
+      expect(
+        await targetsOf(
+          '- A: see [x](a(b).md)\n'
+          '- B: see [x](<API.md>)\n'
+          '- C: see [x](API.md "t")\n'
+          '- D: see [x](<My File.md>)\n'
+          '- E: see [x][mine]\n\n[mine]: <My File.md>\n',
         ),
+        isEmpty,
       );
-      return [
-        for (final f in report.findings)
-          if (f.kind == FindingKind.concernsTargetUnresolved)
-            f.toJson()['target']! as String,
-      ];
-    }
+      expect(await targetsOf('- A: see [x](<MISSING.md>)\n'), [
+        '[x](<MISSING.md>)',
+      ]);
+    },
+  );
 
-    expect(
-      await targetsOf(
-        '- A: see [x](a(b).md)\n'
-        '- B: see [x](<API.md>)\n'
-        '- C: see [x](API.md "t")\n'
-        '- D: see [x](<My File.md>)\n'
-        '- E: see [x][mine]\n\n[mine]: <My File.md>\n',
-      ),
-      isEmpty,
-    );
-    expect(await targetsOf('- A: see [x](<MISSING.md>)\n'), [
-      '[x](<MISSING.md>)',
-    ]);
-  });
-
-  test('f04/us02/fr05: a bare see path stays a path and a reference-style link reads the doc definitions', () async {
+  test('a bare see path stays a path and a reference-style link reads the doc definitions', () async {
     Future<List<String>> targetsOf(
       String concerns,
       Map<String, String> files,
@@ -415,19 +418,16 @@ void main() {
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
 
-  test(
-    'f04/us02/fr05: a fenced line in the Concerns section names no target',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: doc(
-            loginArchitecture,
-            '- Errors: see Components\n',
-            '- Errors: see Components\n```\n- Auth: see MISSING.md\n```\n',
-          ),
+  test('a fenced line in the Concerns section names no target', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginArchitecture,
+          '- Errors: see Components\n',
+          '- Errors: see Components\n```\n- Auth: see MISSING.md\n```\n',
         ),
-      );
-      expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
-    },
-  );
+      ),
+    );
+    expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
+  });
 }

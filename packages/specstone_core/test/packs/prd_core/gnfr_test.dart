@@ -34,7 +34,7 @@ void main() {
     gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');
   });
 
-  test('f03/us06/fr01: gnfr sits at prds/GNFR.md with no parent and the nine '
+  test('gnfr sits at prds/GNFR.md with no parent and the nine '
       'categories in order', () {
     expect(gnfr.path, 'prds/GNFR.md');
     expect(gnfr.parent, isNull);
@@ -84,7 +84,7 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e01, f03/us06/fr02/e03, '
-      'f03/us06/fr03/e04: titled # Project-wide non-functional requirements, '
+      'titled # Project-wide non-functional requirements, '
       'naming the -ly and -ize words', () {
     expectGuideShape(gnfr, title: '# Project-wide non-functional requirements');
     expect(gnfr.description, allOf(contains('-ly'), contains('-ize')));
@@ -109,43 +109,40 @@ void main() {
     );
   });
 
-  test('f03/us06/fr02: each category template is one NFR block with its '
+  test('each category template is one NFR block with its '
       'prefix', () {
     for (final MapEntry(:key, :value) in _prefixes.entries) {
       expect(sectionOf(gnfr, key).template, _block(value), reason: key);
     }
   });
 
-  test('f03/us06/fr02: Maintainability reads industry-neutral', () {
+  test('Maintainability reads industry-neutral', () {
     expect(
       sectionOf(gnfr, 'maintainability').description,
       contains('cost and time to change, inspect, and repair'),
     );
   });
 
-  test('f03/us06/fr03: no starter template holds a listed word', () {
+  test('no starter template holds a listed word', () {
     expectTemplatesFreeOfListedWords(gnfr);
   });
 
-  test('f03/us06/fr01: gnfr joins implement and design and marks no query '
+  test('gnfr joins implement and design and marks no query '
       'section', () async {
     final gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');
     expect(gnfr.bundle, ['implement', 'design']);
     expect(gnfr.sections.where((s) => s.query != null), isEmpty);
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        gnfr,
-        'Write one rule per `NFR-*` ID, keep its bound in its '
-        'Statement, and leave mechanics to the spec docs.\n'
-        "Keep the trace in the entry's `**Traced from:**` bullet, "
-        'never in the Statement.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      gnfr,
+      'Write one rule per `NFR-*` ID, keep its bound in its '
+      'Statement, and leave mechanics to the spec docs.\n'
+      "Keep the trace in the entry's `**Traced from:**` bullet, "
+      'never in the Statement.',
+    );
+  });
 }

@@ -855,7 +855,7 @@ void main() {
       );
     });
 
-    test('f01/us05/fr03: the budget counts only the docs that print under --target', () async {
+    test('the budget counts only the docs that print under --target', () async {
       final index = await toastIndex();
       final flutterAnswer = answerContext(
         index,

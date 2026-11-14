@@ -35,7 +35,7 @@ String _body(Doc doc) => renderDocBody(
 
 void main() {
   group('pageStylesheet', () {
-    test('f05/us02/fr05: starts each doc on a new page', () {
+    test('starts each doc on a new page', () {
       expect(pageStylesheet, contains('section.doc { break-before: page; }'));
     });
 
@@ -51,7 +51,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr02/e02: labels a draft visibly and borders tables', () {
+    test('labels a draft visibly and borders tables', () {
       expect(pageStylesheet, contains('.draft'));
       expect(pageStylesheet, contains('border:'));
     });
@@ -76,7 +76,7 @@ void main() {
   });
 
   group('renderPage', () {
-    test('f05/us02/fr02: lays out the head, the toc, and one section per '
+    test('lays out the head, the toc, and one section per '
         'doc in order', () {
       final html = _page(const [
         _oneDoc,
@@ -133,7 +133,7 @@ void main() {
       expect(html, isNot(contains('counter(page')));
     });
 
-    test('f05/us02/fr02/e05: escapes a toc entry and the title', () {
+    test('escapes a toc entry and the title', () {
       final html = _page(const [
         RenderedDoc(anchor: 'doc-1', tocEntry: 'A <b> & "c"', bodyHtml: ''),
       ], title: '<x>');
@@ -218,7 +218,7 @@ void main() {
   });
 
   group('renderDocBody', () {
-    test('f05/us02/fr02: shows the title, then the frontmatter table, then '
+    test('shows the title, then the frontmatter table, then '
         'the body without its title line', () {
       final html = _body(
         Doc.parse('---\nstatus: planned\n---\n# F-05 — Rendering\n\nBody.\n'),
@@ -237,14 +237,14 @@ void main() {
       expect(RegExp('<h1').allMatches(html), hasLength(1));
     });
 
-    test('f05/us02/fr02: escapes a key, a value, and the title', () {
+    test('escapes a key, a value, and the title', () {
       final html = _body(Doc.parse('---\n"a<b": x & y\n---\n# T <i>\n'));
 
       expect(html, contains('<h1 id="doc-1-t-">T &lt;i&gt;</h1>'));
       expect(html, contains('<tr><th>&quot;a&lt;b&quot;</th><td>x &amp; y'));
     });
 
-    test('f05/us02/fr02: a keyless block is one row with an empty th and its '
+    test('a keyless block is one row with an empty th and its '
         'whole text escaped, line breaks kept', () {
       final html = _body(
         Doc.parse('---\n  stray: <line>\nstatus: planned\n---\n# T\n'),
@@ -258,7 +258,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr02: a bare "# " title line is no title: no h1, and the '
+    test('a bare "# " title line is no title: no h1, and the '
         'line is not in the body', () {
       final html = _body(Doc.parse('# \n\nBody.\n'));
 
@@ -266,7 +266,7 @@ void main() {
       expect(html, contains('<p>Body.</p>'));
     });
 
-    test('f05/us02/fr02: only the real title line leaves the body, not a '
+    test('only the real title line leaves the body, not a '
         'fenced line equal to it', () {
       final html = _body(Doc.parse('```\n# T\n```\n# T\n\nBody.\n'));
 
@@ -275,14 +275,14 @@ void main() {
       expect(RegExp('<h1').allMatches(html), hasLength(1));
     });
 
-    test('f05/us02/fr02: a doc without frontmatter has no table', () {
+    test('a doc without frontmatter has no table', () {
       final html = _body(Doc.parse('# T\n\nBody.\n'));
 
       expect(html, isNot(contains('<table')));
       expect(html, startsWith('<h1 id="doc-1-t">T</h1>'));
     });
 
-    test('f05/us02/fr02: a doc without a title line has no h1 and keeps its '
+    test('a doc without a title line has no h1 and keeps its '
         'body', () {
       final html = _body(Doc.parse('Intro.\n\n## Section\ntext\n'));
 
@@ -291,7 +291,7 @@ void main() {
       expect(html, contains('<h2 id="doc-1-section">Section</h2>'));
     });
 
-    test('f05/us02/fr02/e02: a draft shows its label after the table and '
+    test('a draft shows its label after the table and '
         'before the body', () {
       final html = _body(Doc.parse('---\ndraft: true\n---\n# T\n\nBody.\n'));
 
@@ -301,7 +301,7 @@ void main() {
       expect(html.indexOf('<p>Body.</p>'), greaterThan(label));
     });
 
-    test('f05/us02/fr02/e02: a doc that is not a draft has no label', () {
+    test('a doc that is not a draft has no label', () {
       final html = _body(Doc.parse('---\ndraft: false\n---\n# T\n\nBody.\n'));
 
       expect(html, isNot(contains('class="draft"')));
@@ -317,7 +317,7 @@ void main() {
       expect(html, isNot(contains('language-mermaid')));
     });
 
-    test('f05/us02/fr02: another fence stays a code block, and github '
+    test('another fence stays a code block, and github '
         'flavored tables render', () {
       final html = _body(
         Doc.parse(

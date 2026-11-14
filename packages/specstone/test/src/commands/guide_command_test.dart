@@ -64,7 +64,7 @@ void main() {
     Future<Directory> projectWith(Map<String, String> files) =>
         writeTree({_configPath: 'packs:\n  prd-core: 1.1.0\n', ...files});
 
-    test('f03/us01/fr01: lists one doc type id per line', () async {
+    test('lists one doc type id per line', () async {
       final runner = await runnerIn(await projectWith({}));
 
       expect(await runner.run(['guide']), 0);
@@ -88,7 +88,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us01/fr02: a type prints its writing guide', () async {
+    test('a type prints its writing guide', () async {
       final runner = await runnerIn(await projectWith({}));
 
       expect(await runner.run(['guide', 'feature']), 0);
@@ -115,7 +115,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us01/fr03: guide <type> --json prints bundle and a section '
+    test('guide <type> --json prints bundle and a section '
         'query set by a project layer', () async {
       final runner = await runnerIn(
         await projectWith({
@@ -134,24 +134,21 @@ void main() {
       expect(sections.first['query'], isTrue);
     });
 
-    test(
-      'f03/us01/fr03: guide feature --json prints maxDepth 2 after path',
-      () async {
-        final runner = await runnerIn(
-          await projectWith({
-            '.specstone/templates/feature.yaml': 'max_depth: 2\n',
-          }),
-        );
+    test('guide feature --json prints maxDepth 2 after path', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml': 'max_depth: 2\n',
+        }),
+      );
 
-        expect(await runner.run(['guide', 'feature', '--json']), 0);
-        final json = jsonDecode(out.toString()) as Map<String, Object?>;
-        final keys = json.keys.toList();
-        expect(keys.indexOf('maxDepth'), keys.indexOf('path') + 1);
-        expect(json['maxDepth'], 2);
-      },
-    );
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final keys = json.keys.toList();
+      expect(keys.indexOf('maxDepth'), keys.indexOf('path') + 1);
+      expect(json['maxDepth'], 2);
+    });
 
-    test('template_packs/read_writing_guide/print_merged_schema: guide <type> '
+    test('guide <type> '
         '--json prints lint.maxItemChars as a project layer sets it, and no '
         'such key with no layer', () async {
       final runner = await runnerIn(
@@ -202,7 +199,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us01/fr03/e01: an unknown type with --json prints the envelope '
+    test('an unknown type with --json prints the envelope '
         'pretty-printed with no file or key', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -233,7 +230,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us01/fr01/e04: --json reports a fault as one '
+    test('--json reports a fault as one '
         'envelope on stderr and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'bogus: 1\n'}),
@@ -251,7 +248,7 @@ void main() {
       expect(error['key'], 'bogus');
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file/e30: a project '
+    test('a project '
         'doc-type file named Grid.yaml exits 78 as unknown_value', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/Grid.yaml': 'max_depth: 1\n'}),
@@ -266,7 +263,7 @@ void main() {
       expect(error['key'], 'id');
     });
 
-    test('f03/us01/fr02/e04: a broken project template prints file and line on '
+    test('a broken project template prints file and line on '
         'stderr for a doc type and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'id: [\n'}),
@@ -280,7 +277,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us01/fr03/e04: --json reports a fault for a doc type as one '
+    test('--json reports a fault for a doc type as one '
         'envelope on stderr and exits 78', () async {
       final runner = await runnerIn(
         await projectWith({'.specstone/templates/feature.yaml': 'bogus: 1\n'}),
@@ -297,7 +294,7 @@ void main() {
       expect(error['key'], 'bogus');
     });
 
-    test('f03/us01/fr01/e03: a pin older than the carried version exits 78 and '
+    test('a pin older than the carried version exits 78 and '
         'names packs.prd-core', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.0.0\n',
@@ -309,18 +306,15 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test(
-      'f03/us05/fr02/e04: a pin newer than the carried version exits 78',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 2.0.0\n',
-        });
-        final runner = await runnerIn(project);
+    test('a pin newer than the carried version exits 78', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 2.0.0\n',
+      });
+      final runner = await runnerIn(project);
 
-        expect(await runner.run(['guide']), 78);
-        expect(err.toString(), contains('packs.prd-core'));
-      },
-    );
+      expect(await runner.run(['guide']), 78);
+      expect(err.toString(), contains('packs.prd-core'));
+    });
 
     for (final args in [
       ['--version'],
@@ -329,17 +323,14 @@ void main() {
       <String>[],
       ['help', 'guide'],
     ]) {
-      test(
-        'f03/us05/s2, f03/us01/fr04/e04, f03/us05/fr01/e07, '
-        'f03/us05/fr02/e03: `${args.join(' ')}` ignores a broken config',
-        () async {
-          final project = await writeTree({_configPath: 'packs: [\n'});
-          final runner = await runnerIn(project);
+      test('f03/us05/s2, f03/us01/fr04/e04, f03/us05/fr01/e07, '
+          '`${args.join(' ')}` ignores a broken config', () async {
+        final project = await writeTree({_configPath: 'packs: [\n'});
+        final runner = await runnerIn(project);
 
-          expect(await runner.run(args), 0);
-          expect(err.toString(), isEmpty);
-        },
-      );
+        expect(await runner.run(args), 0);
+        expect(err.toString(), isEmpty);
+      });
     }
 
     test('guide --help prints the usage to out and exits 0', () async {
@@ -370,7 +361,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide E01: two '
+    test('E01: two '
         'unknown ids among known ones refuse the whole call, name each, and '
         'print no guide', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -385,7 +376,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide E01: one '
+    test('E01: one '
         'unknown id among known ones names it in the singular form and '
         'prints no guide', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -398,7 +389,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide E01: an '
+    test('E01: an '
         'unknown id named twice is named once', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -410,25 +401,22 @@ void main() {
       );
     });
 
-    test(
-      'template_packs/read_writing_guide/print_writing_guide E07: a repeated '
-      'id prints once at its first place under ==> lines',
-      () async {
-        final runner = await runnerIn(await projectWith(_frLayer));
+    test('E07: a repeated '
+        'id prints once at its first place under ==> lines', () async {
+      final runner = await runnerIn(await projectWith(_frLayer));
 
-        expect(await runner.run(['guide', 'fr', 'user_story', 'fr']), 0);
-        expect(
-          out.toString(),
-          '==> fr <==\n'
-          'One requirement.\n'
-          '==> user_story <==\n'
-          'One story\n',
-        );
-        expect(err.toString(), isEmpty);
-      },
-    );
+      expect(await runner.run(['guide', 'fr', 'user_story', 'fr']), 0);
+      expect(
+        out.toString(),
+        '==> fr <==\n'
+        'One requirement.\n'
+        '==> user_story <==\n'
+        'One story\n',
+      );
+      expect(err.toString(), isEmpty);
+    });
 
-    test('template_packs/read_writing_guide/print_writing_guide E08: one id '
+    test('E08: one id '
         'named twice prints its guide once, with no ==> line', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -437,7 +425,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test("template_packs/read_writing_guide: read several doc types' guides in "
+    test("read several doc types' guides in "
         'one call, each once in the order named under its own line', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -457,7 +445,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/read_writing_guide: several merged schemas for a '
+    test('several merged schemas for a '
         'program come as one list in the order named', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -475,7 +463,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide E01: an empty '
+    test('E01: an empty '
         'id refuses the call with exit 64 and names ""', () async {
       final runner = await runnerIn(await projectWith({}));
 
@@ -487,7 +475,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide E01: an empty '
+    test('E01: an empty '
         'id beside a known one refuses the whole call', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -499,7 +487,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide: a project '
+    test('a project '
         'layer that overrides a shipped type prints the override in the '
         'order named', () async {
       final runner = await runnerIn(
@@ -521,7 +509,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/read_writing_guide/print_writing_guide E04: a broken '
+    test('E04: a broken '
         'template file with an unknown id among the types exits 78 with the '
         'template fault and no output', () async {
       final runner = await runnerIn(
@@ -536,7 +524,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_merged_schema E04: a broken '
+    test('E04: a broken '
         'template file with an unknown id among the types exits 78 with one '
         'JSON envelope', () async {
       final runner = await runnerIn(
@@ -553,7 +541,7 @@ void main() {
       expect(error['key'], 'bogus');
     });
 
-    test('template_packs/read_writing_guide: one unknown doc type among '
+    test('one unknown doc type among '
         'several refuses the whole call and names it', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 
@@ -565,7 +553,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_merged_schema E01: unknown '
+    test('E01: unknown '
         'ids with --json print one envelope naming each, and stdout stays '
         'empty', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -586,7 +574,7 @@ void main() {
       );
     });
 
-    test('template_packs/read_writing_guide/print_merged_schema E01: one '
+    test('E01: one '
         'unknown id among known ones with --json names it in the singular '
         'form', () async {
       final runner = await runnerIn(await projectWith({}));
@@ -601,7 +589,7 @@ void main() {
     });
 
     test(
-      'template_packs/read_writing_guide/print_merged_schema E07: a '
+      'E07: a '
       'repeated id with --json prints one array in order, the id once',
       () async {
         final runner = await runnerIn(await projectWith(_frLayer));
@@ -619,7 +607,7 @@ void main() {
       },
     );
 
-    test('template_packs/read_writing_guide/print_merged_schema: one id named '
+    test('one id named '
         'twice with --json prints the object alone', () async {
       final runner = await runnerIn(await projectWith(_frLayer));
 

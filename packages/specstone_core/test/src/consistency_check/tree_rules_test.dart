@@ -84,7 +84,7 @@ void main() {
     const banner = 'prds/features/display/f01_banner/FEATURE.md';
     const video = 'prds/features/control/f01_video_player/FEATURE.md';
 
-    test('f04/us01/fr07/e09: an f01 in each of two groups is no order_number_duplicate', () async {
+    test('an f01 in each of two groups is no order_number_duplicate', () async {
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -98,7 +98,7 @@ void main() {
       expect(spots(report, FindingKind.orderNumberDuplicate), isEmpty);
     });
 
-    test('f04/us01/fr07/e10: two f01 in one group are reported on each, siblings naming only the same-group doc', () async {
+    test('two f01 in one group are reported on each, siblings naming only the same-group doc', () async {
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -149,7 +149,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr07/e04: a spec doc whose feature does not exist is parent_missing', () async {
+  test('a spec doc whose feature does not exist is parent_missing', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -162,7 +162,7 @@ void main() {
     expect(spots(report), ['specs/f03_billing/API.md:1: parent_missing']);
   });
 
-  test('f04/us01/fr07/e05: two features named login make their children parent_ambiguous, warning not printed', () async {
+  test('two features named login make their children parent_ambiguous, warning not printed', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -180,7 +180,7 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  test('f04/us01/fr07/e06: a Latin-1 file is file_not_utf8, its warning not printed', () async {
+  test('a Latin-1 file is file_not_utf8, its warning not printed', () async {
     final project = await writeCheckProject();
     const reset = 'prds/features/f01_login/us02_reset/USER_STORY.md';
     File('${project.path}/docs/$reset')
@@ -194,7 +194,7 @@ void main() {
   });
 
   test(
-    'f04/us01/fr07/e07: a doc whose mode refuses reading is file_unreadable',
+    'a doc whose mode refuses reading is file_unreadable',
     skip: unreadablePathSkipReason(),
     () async {
       final project = await writeCheckProject();
@@ -220,34 +220,34 @@ void main() {
     },
   );
 
+  test('a doc type with no parent is never parent_missing', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/runbook.yaml': 'id: runbook\ndescription: Run steps.\npath: ops/{slug}/runbook.md\n',
+          'docs/ops/deploy/runbook.md': '# Deploy\n',
+        },
+      ),
+    );
+    expect(spots(report, FindingKind.parentMissing), isEmpty);
+  });
+
   test(
-    'f04/us01/fr07/e08: a doc type with no parent is never parent_missing',
+    'a merged set with no project doc type runs no vision quote rule',
     () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: {
-            '.specstone/templates/runbook.yaml': 'id: runbook\ndescription: Run steps.\npath: ops/{slug}/runbook.md\n',
-            'docs/ops/deploy/runbook.md': '# Deploy\n',
-          },
-        ),
+      final project = await fixtureProject({
+        'docs/prds/d01_context.md':
+            '# Context\n\n## Project vision\n### PV-01 — X\nNo quote line.\n',
+      });
+      final session = ReadSession.open(
+        templates: TemplateResolver(shippedFiles: fixturePackFiles()),
+        workingDirectory: project,
+        homeDirectory: null,
       );
-      expect(spots(report, FindingKind.parentMissing), isEmpty);
+      addTearDown(session.close);
+      expect(spots(runCheck(session), FindingKind.visionQuoteMissing), isEmpty);
     },
   );
-
-  test('f04/us01/fr04/e08: a merged set with no project doc type runs no vision quote rule', () async {
-    final project = await fixtureProject({
-      'docs/prds/d01_context.md':
-          '# Context\n\n## Project vision\n### PV-01 — X\nNo quote line.\n',
-    });
-    final session = ReadSession.open(
-      templates: TemplateResolver(shippedFiles: fixturePackFiles()),
-      workingDirectory: project,
-      homeDirectory: null,
-    );
-    addTearDown(session.close);
-    expect(spots(runCheck(session), FindingKind.visionQuoteMissing), isEmpty);
-  });
   group('nested features', () {
     test('f04/us01/fr07/e11, sf-c11: cart with no shop FEATURE.md is parent_missing', () async {
       final report = checkOf(
@@ -274,7 +274,7 @@ void main() {
       );
     });
 
-    test('f04/us01/fr07/e12: nested siblings cart/pay and add_item/drop_item give no order_number_duplicate; a second f01_x beside cart gives one', () async {
+    test('nested siblings cart/pay and add_item/drop_item give no order_number_duplicate; a second f01_x beside cart gives one', () async {
       const kind = FindingKind.orderNumberDuplicate;
       expect(spots(checkOf(await writeNestedProject()), kind), isEmpty);
       const twin = 'prds/features/f02_shop/f01_x/FEATURE.md';
@@ -293,7 +293,7 @@ void main() {
     });
   });
 
-  test('f04/us01/fr06/e08: a FEATURE.md past max_depth is nesting_over_limit, not untyped_doc, and a note in its folder reports no untyped_doc and no link finding', () async {
+  test('a FEATURE.md past max_depth is nesting_over_limit, not untyped_doc, and a note in its folder reports no untyped_doc and no link finding', () async {
     const folder = 'prds/features/f02_shop/f01_cart/f01_a/f01_b/f01_c';
     final report = checkOf(
       await writeNestedProject(

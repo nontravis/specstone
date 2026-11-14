@@ -224,7 +224,7 @@ void main() {
       expect(merged.fields.last.type, FieldType.integer);
     });
 
-    test('f03/us02/fr01: a complete new section is added last', () {
+    test('a complete new section is added last', () {
       final merged = project(
         shipped(),
         'sections: [{id: risks, header: Risks, required: true}]',
@@ -245,7 +245,7 @@ void main() {
       expect(ids(merged.sections), ['goal', 'risks', 'scope']);
     });
 
-    test('f03/us02/fr02/e02: an added section with no after goes last', () {
+    test('an added section with no after goes last', () {
       final merged = project(
         shipped(),
         'sections: [{id: risks, header: Risks}]',
@@ -270,7 +270,7 @@ void main() {
       },
     );
 
-    test('f03/us02/fr02/e03: after naming the section itself leaves it in '
+    test('after naming the section itself leaves it in '
         'place', () {
       final merged = project(
         shipped(),
@@ -303,7 +303,7 @@ void main() {
       },
     );
 
-    test('f03/us02/fr02: entries of one layer place in file order, so a '
+    test('entries of one layer place in file order, so a '
         'later entry may follow an earlier one', () {
       final merged = project(shipped(), '''
 sections:
@@ -330,7 +330,7 @@ sections:
       expect(goal.header, 'Feature goal');
     });
 
-    test('f03/us02/fr01/e04: the highest layer wins a property three layers '
+    test('the highest layer wins a property three layers '
         'write', () {
       var merged = merger.apply(
         merger.builtInBase('feature'),
@@ -354,20 +354,17 @@ sections:
       expect(merged.files, [_shippedFile, _personalFile, _projectFile]);
     });
 
-    test(
-      'f03/us02/fr01/e05: doc-level description and path replace the base',
-      () {
-        final merged = project(
-          shipped(),
-          'description: Other\npath: x/{slug}.md',
-        );
+    test('doc-level description and path replace the base', () {
+      final merged = project(
+        shipped(),
+        'description: Other\npath: x/{slug}.md',
+      );
 
-        expect(merged.description, 'Other');
-        expect(merged.path, 'x/{slug}.md');
-      },
-    );
+      expect(merged.description, 'Other');
+      expect(merged.path, 'x/{slug}.md');
+    });
 
-    test('f03/us02/fr01/e05: doc-level keys a layer leaves out keep the base '
+    test('doc-level keys a layer leaves out keep the base '
         'value', () {
       final merged = project(
         shipped(),
@@ -415,7 +412,7 @@ sections:
 
     for (final type in ['boolean', 'integer', 'date']) {
       test(
-        'template_packs/customize_shipped_doc_type/keep_locked_fields E06, E09: writing type $type on approved is locked_field_disabled',
+        'E06, E09: writing type $type on approved is locked_field_disabled',
         () {
           expect(
             () => project(shipped(), 'fields: [{id: approved, type: $type}]'),
@@ -425,19 +422,22 @@ sections:
       );
     }
 
-    test('template_packs/customize_shipped_doc_type/keep_locked_fields E09: approved is of type string, so writing type string is accepted', () {
-      final merged = project(
-        shipped(),
-        'fields: [{id: approved, type: string}]',
-      );
+    test(
+      'E09: approved is of type string, so writing type string is accepted',
+      () {
+        final merged = project(
+          shipped(),
+          'fields: [{id: approved, type: string}]',
+        );
 
-      expect(
-        merged.fields.singleWhere((f) => f.id == 'approved').type,
-        FieldType.string,
-      );
-    });
+        expect(
+          merged.fields.singleWhere((f) => f.id == 'approved').type,
+          FieldType.string,
+        );
+      },
+    );
 
-    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing enum values on approved is locked_field_disabled', () {
+    test('E10: writing enum values on approved is locked_field_disabled', () {
       expect(
         () => project(
           shipped(),
@@ -447,14 +447,15 @@ sections:
       );
     });
 
-    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing list on approved is locked_field_disabled', () {
+    test('E10: writing list on approved is locked_field_disabled', () {
       expect(
         () => project(shipped(), 'fields: [{id: approved, list: true}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
       );
     });
 
-    test('template_packs/customize_shipped_doc_type/keep_locked_fields E10: writing enum values with no type on approved is locked_field_disabled', () {
+    test('E10: writing enum values with no type on approved is '
+        'locked_field_disabled', () {
       expect(
         () => project(shipped(), 'fields: [{id: approved, enum: [a, b]}]'),
         throwsA(fault(FaultCode.lockedFieldDisabled, 'fields.approved')),
@@ -484,7 +485,7 @@ sections:
       expect(project(base, 'parent: epic\n').parent, 'epic');
     });
 
-    test('f03/us02/fr04: a layer that does not write parent keeps the base '
+    test('a layer that does not write parent keeps the base '
         'parent', () {
       final base = merger.apply(
         merger.builtInBase('feature'),
@@ -506,7 +507,7 @@ sections:
       expect(status.type, FieldType.enumType);
     });
 
-    test('f03/us02/fr04/e08: a layer may describe a built-in without '
+    test('a layer may describe a built-in without '
         'changing its type', () {
       final merged = project(
         shipped(),
@@ -519,7 +520,7 @@ sections:
       expect(slug.list, isTrue);
     });
 
-    test('f03/us02/fr04: changing enum to string drops the enum list', () {
+    test('changing enum to string drops the enum list', () {
       final base = merger.apply(
         merger.builtInBase('feature'),
         layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
@@ -532,7 +533,7 @@ sections:
       expect(kind.enumValues, isNull);
     });
 
-    test('f03/us02/fr04: changing doc_ref to string drops doc_types', () {
+    test('changing doc_ref to string drops doc_types', () {
       final base = merger.apply(
         merger.builtInBase('feature'),
         layer('fields: [{id: parent, type: doc_ref, doc_types: [epic]}]'),
@@ -545,7 +546,7 @@ sections:
       expect(parent.docTypes, isNull);
     });
 
-    test('f03/us02/fr04: changing a type keeps the lists the layer writes', () {
+    test('changing a type keeps the lists the layer writes', () {
       final base = merger.apply(
         merger.builtInBase('feature'),
         layer('fields: [{id: kind, type: string}]'),
@@ -560,23 +561,20 @@ sections:
       expect(kind.enumValues, ['x', 'y']);
     });
 
-    test(
-      'f03/us02/fr04: a layer that leaves the type alone keeps the lists',
-      () {
-        final base = merger.apply(
-          merger.builtInBase('feature'),
-          layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
-        );
+    test('a layer that leaves the type alone keeps the lists', () {
+      final base = merger.apply(
+        merger.builtInBase('feature'),
+        layer('fields: [{id: kind, type: enum, enum: [a, b]}]'),
+      );
 
-        final merged = project(base, 'fields: [{id: kind, description: Kind}]');
+      final merged = project(base, 'fields: [{id: kind, description: Kind}]');
 
-        final kind = merged.fields.singleWhere((f) => f.id == 'kind');
-        expect(kind.enumValues, ['a', 'b']);
-        expect(kind.description, 'Kind');
-      },
-    );
+      final kind = merged.fields.singleWhere((f) => f.id == 'kind');
+      expect(kind.enumValues, ['a', 'b']);
+      expect(kind.description, 'Kind');
+    });
 
-    test('f03/us02/fr04: writing the built-in type again is not a change', () {
+    test('writing the built-in type again is not a change', () {
       final merged = project(
         shipped(),
         'fields: [{id: draft, type: boolean, description: Hidden}]',
@@ -595,7 +593,7 @@ sections:
       expect(merged.fields.last.pointer, PointerKind.prefix);
     });
 
-    test('f03/us02/fr01: an override that writes only pointer changes the '
+    test('an override that writes only pointer changes the '
         'kind', () {
       final base = project(
         shipped(),
@@ -611,7 +609,7 @@ sections:
       expect(covers.pointer, PointerKind.exact);
     });
 
-    test('f03/us02/fr01: an override that writes no pointer keeps the lower '
+    test('an override that writes no pointer keeps the lower '
         'layer kind', () {
       final base = project(
         shipped(),
@@ -628,7 +626,7 @@ sections:
       expect(covers.pointer, PointerKind.prefix);
     });
 
-    test('f03/us03/fr01/e17: a typeless override with a pointer other than '
+    test('a typeless override with a pointer other than '
         'exact or prefix over an output_ref field is unknown_value', () {
       final base = project(
         shipped(),
@@ -641,7 +639,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr01/e17: a typeless override with a non-string pointer '
+    test('a typeless override with a non-string pointer '
         'over an output_ref field is unknown_value', () {
       final base = project(
         shipped(),
@@ -654,7 +652,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr01/e18: a pointer on a field of another type has no '
+    test('a pointer on a field of another type has no '
         'effect, whatever its kind', () {
       final added = project(
         shipped(),
@@ -672,7 +670,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr01/e18: a field turned from output_ref to another type '
+    test('a field turned from output_ref to another type '
         'drops its pointer', () {
       final base = project(
         shipped(),
@@ -757,7 +755,7 @@ sections:
       expect(merged.lint.bannedWords, ['fast']);
     });
 
-    test('f03/us02/fr03: a layer max_lines replaces the base and keeps the '
+    test('a layer max_lines replaces the base and keeps the '
         'other limit', () {
       final base = project(
         shipped(),
@@ -770,7 +768,7 @@ sections:
       expect(merged.lint.maxLines, 200);
     });
 
-    test('f03/us02/fr03: a layer max_chars replaces the base and keeps the '
+    test('a layer max_chars replaces the base and keeps the '
         'other limit', () {
       final base = project(
         shipped(),
@@ -783,7 +781,7 @@ sections:
       expect(merged.lint.maxLines, 300);
     });
 
-    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+    test('Override lint settings '
         'E15: a project max_item_chars sets that doc type; every other keeps '
         'the 600 default', () {
       final domain = merger.apply(
@@ -809,7 +807,7 @@ sections:
       expect(merger.builtInBase('feature').lint.itemCharLimit, 600);
     });
 
-    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+    test('Override lint settings '
         'Input: an upper layer max_item_chars replaces the lower one and a '
         'layer without it keeps it', () {
       final base = project(shipped(), 'lint: {max_item_chars: 900}');
@@ -821,7 +819,7 @@ sections:
       expect(project(base, 'lint: {max_chars: 50}').lint.maxItemChars, 900);
     });
 
-    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+    test('Override lint settings '
         'E01: a doc-level lint key outside the list is unknown_key, and '
         'max_item_chars is inside it', () {
       expect(
@@ -834,7 +832,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr03/e04: a section keeps its own lint and an unwritten '
+    test('a section keeps its own lint and an unwritten '
         'one stays null', () {
       final merged = project(
         shipped(),
@@ -848,7 +846,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr03: a layer with no lint keeps the base lint', () {
+    test('a layer with no lint keeps the base lint', () {
       final base = project(withBannedWords(), 'lint: {max_chars: 100}');
 
       final merged = project(base, 'description: Other\n');
@@ -887,7 +885,7 @@ sections:
       );
     });
 
-    test('f03/us02/fr05/e02: a layer with no reference keeps the base', () {
+    test('a layer with no reference keeps the base', () {
       final merged = project(withReferences(), 'description: Other\n');
 
       expect(titles(merged), ['A', 'B']);
@@ -918,7 +916,7 @@ sections:
   });
 
   group('DocTypeMerger.apply generators', () {
-    test('f03/us03/fr01/e23: a plain generators list over a lower one is '
+    test('a plain generators list over a lower one is '
         'list_override_needs_add_remove', () {
       final base = project(shipped(), 'generators: [a]\n');
       expect(
@@ -934,7 +932,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr01: a plain generators list over a base that sets none '
+    test('a plain generators list over a base that sets none '
         'is accepted', () {
       final merged = project(shipped(), 'generators: [a, b]\n');
       expect(merged.generators, ['a', 'b']);
@@ -942,7 +940,7 @@ sections:
       expect(shipped().listedGenerators, isEmpty);
     });
 
-    test('f03/us03/fr01: add appends a kind and remove drops one, in list '
+    test('add appends a kind and remove drops one, in list '
         'order', () {
       final base = project(shipped(), 'generators: [a, b]\n');
       final merged = project(base, 'generators: {add: [c], remove: [a]}\n');
@@ -950,7 +948,7 @@ sections:
       expect(merged.listedGenerators, ['b', 'c']);
     });
 
-    test('f03/us03/fr01: a removed kind the lower list lacks is '
+    test('a removed kind the lower list lacks is '
         'unknown_value', () {
       final base = project(shipped(), 'generators: [a]\n');
       expect(
@@ -1001,7 +999,7 @@ sections:
       },
     );
 
-    test('f03/us03/fr01: add and remove change the lower list in order', () {
+    test('add and remove change the lower list in order', () {
       final base = project(shipped(), 'bundle: [query, implement]\n');
       expect(
         project(base, 'bundle: {add: [design], remove: [query]}\n').bundle,
@@ -1009,21 +1007,18 @@ sections:
       );
     });
 
-    test(
-      'f03/us03/fr01: a section query set by one layer survives a layer that '
-      'leaves it out',
-      () {
-        final withQuery = project(
-          shipped(),
-          'sections: [{id: goal, query: true}]\n',
-        );
-        final later = project(
-          withQuery,
-          'sections: [{id: goal, description: Why it exists}]\n',
-        );
-        expect(later.sections.firstWhere((s) => s.id == 'goal').query, isTrue);
-      },
-    );
+    test('a section query set by one layer survives a layer that '
+        'leaves it out', () {
+      final withQuery = project(
+        shipped(),
+        'sections: [{id: goal, query: true}]\n',
+      );
+      final later = project(
+        withQuery,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(later.sections.firstWhere((s) => s.id == 'goal').query, isTrue);
+    });
 
     test('f03/us03/fr01, db-r7: a section summary survives a layer that leaves '
         'it out; a later false turns it off', () {
@@ -1350,7 +1345,7 @@ lint: {banned_words: [simply]}
       );
     });
 
-    test('f03/us02/fr03/e06: a plain section list over a lower one is '
+    test('a plain section list over a lower one is '
         'list_override_needs_add_remove', () {
       expect(
         () => project(
@@ -1366,7 +1361,7 @@ lint: {banned_words: [simply]}
       );
     });
 
-    test('f03/us02/fr03/e07: the first layer to define a section list writes '
+    test('the first layer to define a section list writes '
         'it plain', () {
       final merged = project(
         shipped(),
@@ -1380,7 +1375,7 @@ lint: {banned_words: [simply]}
       expect(section(added, 'notes').bannedWords, ['x']);
     });
 
-    test('f03/us02/fr03: an upper line_prefix replaces the lower one', () {
+    test('an upper line_prefix replaces the lower one', () {
       final merged = project(
         withSectionWords(),
         'sections: [{id: goal, lint: {line_prefix: "- **Rule:**"}}]',
@@ -1389,7 +1384,7 @@ lint: {banned_words: [simply]}
       expect(section(merged, 'goal').bannedWords, ['fast', 'robust']);
     });
 
-    test('f03/us03/fr05/e02: a higher layer max_depth replaces a lower one, '
+    test('a higher layer max_depth replaces a lower one, '
         '0 included', () {
       final base = project(shipped(), 'max_depth: 3');
       expect(base.maxDepth, 3);
@@ -1397,7 +1392,7 @@ lint: {banned_words: [simply]}
       expect(project(base, 'description: Another').maxDepth, 3);
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file Input per_target, '
+    test('Input per_target, '
         'INV-30: a higher layer replaces per_target; a layer that writes none '
         'keeps the lower value', () {
       final base = project(shipped(), 'per_target: true');

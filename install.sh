@@ -537,10 +537,9 @@ absolute_path_only() {
 }
 
 # Prints one notice naming the first `stn` on an absolute PATH entry other
-# than the install folder's bin, which the Owner then types `specstone` in
-# place of; the walk and the test of a `stn` mirror bin/stn (run_cli_or_yield
-# E02, E08, E09, named by name_other_stn_at_install). Always returns 0: the
-# notice never changes the run's exit status.
+# than the install folder's bin, which the Owner then types the specstone
+# command in place of; the walk and the test of a `stn` mirror bin/stn.
+# Always returns 0: the notice never changes the run's exit status.
 name_other_stn() {
   other_stn_dir=$(cd "$install_dir/bin" 2>/dev/null && pwd -P) ||
     other_stn_dir=''

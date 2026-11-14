@@ -180,32 +180,29 @@ void main() {
       expect(_texts(doc), ['# one\n\n# two\nk: 1\n']);
     });
 
-    test('f05/us01/fr03/e04: no leading --- means no frontmatter', () {
+    test('no leading --- means no frontmatter', () {
       final doc = Doc.parse('\n---\nstatus: planned\n---\n# T\n');
 
       expect(doc.frontmatter, isNull);
       expect(doc.afterFrontmatter, '\n---\nstatus: planned\n---\n# T\n');
     });
 
-    test('f05/us01/fr03/e04: --- with trailing space does not open or close '
+    test('--- with trailing space does not open or close '
         'frontmatter', () {
       expect(Doc.parse('--- \nk: v\n---\n').frontmatter, isNull);
       expect(Doc.parse('---\nk: v\n--- \n').frontmatter, isNull);
     });
 
-    test(
-      'f05/us01/fr03/e04: no closing line means no frontmatter and all text is '
-      'head',
-      () {
-        final doc = Doc.parse('---\nstatus: planned\n');
+    test('no closing line means no frontmatter and all text is '
+        'head', () {
+      final doc = Doc.parse('---\nstatus: planned\n');
 
-        expect(doc.frontmatter, isNull);
-        expect(doc.head, '---\nstatus: planned\n');
-        expect(doc.sections, isEmpty);
-      },
-    );
+      expect(doc.frontmatter, isNull);
+      expect(doc.head, '---\nstatus: planned\n');
+      expect(doc.sections, isEmpty);
+    });
 
-    test('f05/us01/fr03/e01: a ### heading stays in the ## body', () {
+    test('a ### heading stays in the ## body', () {
       final doc = Doc.parse('## A\n### sub\ntext\n#### deeper\n## B\n');
 
       expect(_headers(doc), ['A', 'B']);
@@ -238,7 +235,7 @@ void main() {
       expect(_headers(doc), ['A']);
     });
 
-    test('rendering/format_docs/match_section_headers: a ## line inside a '
+    test('a ## line inside a '
         'fence nested in a list item is not a section', () {
       final doc = Doc.parse(
         '# T\n\n## A\n\n- item\n\n    ```\n    ## not a section\n'
@@ -249,7 +246,7 @@ void main() {
       expect(doc.hasUnclosedFence, isFalse);
     });
 
-    test('rendering/format_docs/match_section_headers: a fence nested in a '
+    test('a fence nested in a '
         'list item or a block quote ends where its container ends', () {
       for (final text in [
         '## A\n- item\n  ```\n  code\n## B\n',
@@ -263,7 +260,7 @@ void main() {
       }
     });
 
-    test('rendering/format_docs/match_section_headers E04: a fence nested in '
+    test('E04: a fence nested in '
         'a list item that runs to the end is unclosed', () {
       expect(
         Doc.parse('## A\n- item\n\n    ```\n    code\n').hasUnclosedFence,
@@ -271,7 +268,7 @@ void main() {
       );
     });
 
-    test('rendering/format_docs/match_section_headers: fencedLines marks the '
+    test('fencedLines marks the '
         'lines of a fence nested in a container', () {
       expect(
         fencedLines(['- a', '', '    ```', '    x', '    ```', '  after']),
@@ -300,13 +297,13 @@ void main() {
       }
     });
 
-    test('f05/us01/fr04: hasUnclosedFence is true when the text ends inside '
+    test('hasUnclosedFence is true when the text ends inside '
         'a fence', () {
       expect(Doc.parse('## A\n```\n## in\n').hasUnclosedFence, isTrue);
       expect(Doc.parse('# T\n~~~~\ncode\n~~~\n').hasUnclosedFence, isTrue);
     });
 
-    test('f05/us01/fr04: hasUnclosedFence is false when every fence closes '
+    test('hasUnclosedFence is false when every fence closes '
         'or the frontmatter holds the backticks', () {
       expect(Doc.parse('## A\n```\ncode\n```\n').hasUnclosedFence, isFalse);
       expect(Doc.parse('## A\ntext\n').hasUnclosedFence, isFalse);
@@ -335,28 +332,25 @@ void main() {
       expect(Doc.parse('lead\n#  Spaced \n# second\n').title, ' Spaced ');
     });
 
-    test('f01/us04/fr02/e11: lead is the head text after the title line, as a section body', () {
+    test('lead is the head text after the title line, as a section body', () {
       const text =
           '---\ndraft: true\n---\n\n# GNFR\n\nLead [x](a.md).\n\n## P\nfast\n';
       expect(Doc.parse(text).lead, '\nLead [x](a.md).\n');
     });
 
-    test('f01/us04/fr02/e11: lead is the whole head when the doc has no title line', () {
+    test('lead is the whole head when the doc has no title line', () {
       const text =
           '---\ndraft: true\n---\n\nOnly lead.\n\n## Performance\nfast\n';
       expect(Doc.parse(text).lead, '\nOnly lead.\n');
     });
 
-    test(
-      'f01/us04/fr02/e12: lead is empty when nothing follows the title line',
-      () {
-        expect(Doc.parse('# GNFR\n\n## A\n').lead, '');
-        expect(Doc.parse('# GNFR\n').lead, '');
-        expect(Doc.parse('').lead, '');
-      },
-    );
+    test('lead is empty when nothing follows the title line', () {
+      expect(Doc.parse('# GNFR\n\n## A\n').lead, '');
+      expect(Doc.parse('# GNFR\n').lead, '');
+      expect(Doc.parse('').lead, '');
+    });
 
-    test('f01/us04/fr02/e11: text before the title line is no lead', () {
+    test('text before the title line is no lead', () {
       expect(Doc.parse('before\n# T\nlead\n\n## A\n').lead, 'lead\n');
     });
 

@@ -15,7 +15,8 @@ Future<List<int>> _linesNaming(String notes) async {
 }
 
 void main() {
-  test('f01/us07/fr01: a file name at a line start, after a slash, and closing a sentence is a mention; the doc itself is not', () async {
+  test('a file name at a line start, after a slash, and closing a sentence is '
+      'a mention; the doc itself is not', () async {
     final lines = await _linesNaming(
       '# Notes\n'
       '\n'
@@ -26,7 +27,7 @@ void main() {
 
     expect(lines, [3, 4, 5]);
   });
-  test('f01/us07/fr01: a longer name, a folder, or another extension is no mention', () async {
+  test('a longer name, a folder, or another extension is no mention', () async {
     final lines = await _linesNaming(
       '# Notes\n'
       '\n'
@@ -38,7 +39,8 @@ void main() {
 
     expect(lines, isEmpty);
   });
-  test('f01/us07/fr01: a link destination, angle-bracketed or in a reference definition, is no mention', () async {
+  test('a link destination, angle-bracketed or in a reference definition, is '
+      'no mention', () async {
     final lines = await _linesNaming(
       '# Notes\n'
       '\n'
@@ -50,16 +52,19 @@ void main() {
 
     expect(lines, isEmpty);
   });
-  test('f01/us07/fr01: a destination with balanced or escaped parentheses is no mention', () async {
-    final index = await indexWith({
-      'docs/specs/LEDGER.md': '# Ledger\n',
-      'docs/specs/f01/B.md':
-          '# B\n\nSee [x](a(b)/LEDGER.md).\n\nSee [y](a\\)b/LEDGER.md).\n',
-    });
-    final target = index.resolve('specs/LEDGER.md').single;
+  test(
+    'a destination with balanced or escaped parentheses is no mention',
+    () async {
+      final index = await indexWith({
+        'docs/specs/LEDGER.md': '# Ledger\n',
+        'docs/specs/f01/B.md':
+            '# B\n\nSee [x](a(b)/LEDGER.md).\n\nSee [y](a\\)b/LEDGER.md).\n',
+      });
+      final target = index.resolve('specs/LEDGER.md').single;
 
-    expect(mentionsOf(index, target), isEmpty);
-  });
+      expect(mentionsOf(index, target), isEmpty);
+    },
+  );
   test("perf-fix-10: the mentions of several docs are each doc's own, read "
       'in one pass over the docs that hold their file names', () async {
     final index = await indexWith({
@@ -99,16 +104,13 @@ void main() {
     ]);
     expect(spots(each['specs/b/USER.md']!), [('specs/notes.md', 4)]);
   });
-  test(
-    'f01/us07/fr01: a frontmatter line naming the DocPath is a mention',
-    () async {
-      final lines = await _linesNaming(
-        '---\nsource: specs/INDEX.md\n---\n\n# Notes\n',
-      );
+  test('a frontmatter line naming the DocPath is a mention', () async {
+    final lines = await _linesNaming(
+      '---\nsource: specs/INDEX.md\n---\n\n# Notes\n',
+    );
 
-      expect(lines, [2]);
-    },
-  );
+    expect(lines, [2]);
+  });
 
   group('doc-name mentions', () {
     const notes = 'docs/specs/tools/notes.md';
@@ -120,23 +122,20 @@ void main() {
       return [for (final mention in mentionsOf(index, target)) mention.line];
     }
 
-    test(
-      'index_query/follow_references/list_doc_references E04: a code span of '
-      'the name or the typed name is a mention, a bare one-slug name or '
-      'plain text is none',
-      () async {
-        expect(
-          await linesNaming(
-            '# Notes\n\n`feature:login` here.\n\nA `login` alone.\n\n'
-            'Plain feature:login text.\n\n`feature:login#goal`.\n',
-          ),
-          [3, 9],
-        );
-      },
-    );
+    test('E04: a code span of '
+        'the name or the typed name is a mention, a bare one-slug name or '
+        'plain text is none', () async {
+      expect(
+        await linesNaming(
+          '# Notes\n\n`feature:login` here.\n\nA `login` alone.\n\n'
+          'Plain feature:login text.\n\n`feature:login#goal`.\n',
+        ),
+        [3, 9],
+      );
+    });
 
     test(
-      'index_query/follow_references/list_doc_references E04: a story is '
+      'E04: a story is '
       'mentioned by its name and its typed name, not by another type',
       () async {
         final index = await indexWith({
@@ -150,7 +149,7 @@ void main() {
     );
 
     test(
-      'index_query/follow_references/list_doc_references E13: a name in '
+      'E13: a name in '
       'fenced code or on a line that links to the doc is no mention',
       () async {
         expect(
@@ -164,7 +163,7 @@ void main() {
       },
     );
 
-    test('index_query/follow_references/list_doc_references E12: a path and a '
+    test('E12: a path and a '
         'name on one line give one mention of it', () async {
       expect(
         await linesNaming(
@@ -175,7 +174,7 @@ void main() {
       );
     });
 
-    test('index_query/follow_references/list_doc_references E04: a name '
+    test('E04: a name '
         'mention of the doc inside the doc itself is no mention', () async {
       final index = await indexWith({
         'docs/prds/features/f01_login/FEATURE.md':

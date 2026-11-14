@@ -4,7 +4,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
-    show approvalHashOf;
+    show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -19,8 +19,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The `key` a whole-doc block carries in its result and its fault line.
@@ -64,11 +62,20 @@ typedef _Refusal = ({int line, BatchEntry entry});
 
 /// One block resolved to the doc and the part it writes.
 final class _Planned {
-  const new(this.block, this.doc, this.docType, this.target);
+  const new(
+    this.block,
+    this.doc,
+    this.docType,
+    this.target, {
+    required this.statusesOutside,
+  });
 
   final BatchBlock block;
   final IndexedDoc doc;
   final MergedDocType docType;
+
+  /// The project's rule for a record's statuses and the approval hash.
+  final bool statusesOutside;
 
   /// What the block writes: a section, the lead, a field, the title, or null
   /// for a whole doc. A field or the title is refused, but still resolved, so
@@ -185,7 +192,13 @@ _Planned? _resolveBlock(
       (_, _, leadKey) => const LeadTarget(),
       (_, _, final section?) => SectionTarget(section),
     };
-    return _Planned(block, doc, docType, target);
+    return _Planned(
+      block,
+      doc,
+      docType,
+      target,
+      statusesOutside: session.project.statusesOutsideApproval,
+    );
   } on SpecstoneFault catch (fault) {
     _refuse(
       refusals,
@@ -417,6 +430,7 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
         target: target,
         base: block.base,
         text: block.block.text,
+        statusesOutside: block.statusesOutside,
       ),
     };
 
@@ -440,7 +454,7 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
   _checkRemovedSections(block, disk, lfText);
   return (
     lfText: lfText,
-    marksDraft: _marksDraft(block.docType, disk.lfText, lfText, changedFields),
+    marksDraft: _marksDraft(block, disk.lfText, lfText, changedFields),
   );
 }
 
@@ -537,6 +551,7 @@ void _checkRemovedSections(_Planned block, _Disk disk, String lfText) {
       target: SectionTarget(section.key),
       base: sectionBaseOf(section.body, block.docType),
       text: '',
+      statusesOutside: block.statusesOutside,
     );
   }
 }
@@ -546,26 +561,29 @@ List<IndexedSection> _sectionsOf(_Planned block, String lfText) =>
       docPath: block.doc.docPath,
       bytes: utf8.encode(lfText),
       match: MatchedDocType(block.docType),
+      statusesOutside: block.statusesOutside,
     ).content.sections;
 
-/// Whether the write marks the doc a draft: false only when every change is an
-/// `output_ref` field and the approval hash of the doc does not move, the one
-/// rule `approval_stale` judges a content change by.
+/// Whether the write of [block] marks the doc a draft: false only when every
+/// change is a field outside the approval hash ([isOutsideApproval]) and that
+/// hash does not move, the one rule `approval_stale` judges a content change
+/// by.
 bool _marksDraft(
-  MergedDocType docType,
+  _Planned block,
   String heldText,
   String proposedText,
   List<String> changedFields,
 ) {
-  final outputRefs = {
-    for (final field in docType.fields)
-      if (field.type == FieldType.outputRef) field.id,
+  final statusesOutside = block.statusesOutside;
+  String hashOf(String text) =>
+      approvalHashOf(text, block.docType, statusesOutside: statusesOutside);
+  final outsideFields = {
+    for (final field in block.docType.fields)
+      if (isOutsideApproval(field, statusesOutside: statusesOutside)) field.id,
   };
-  final onlyOutputRefs =
-      changedFields.isNotEmpty && changedFields.every(outputRefs.contains);
-  return !onlyOutputRefs ||
-      approvalHashOf(heldText, docType) !=
-          approvalHashOf(proposedText, docType);
+  final onlyOutsideFields =
+      changedFields.isNotEmpty && changedFields.every(outsideFields.contains);
+  return !onlyOutsideFields || hashOf(heldText) != hashOf(proposedText);
 }
 
 // MARK: - Writing
@@ -609,6 +627,7 @@ _Write _writeOf(WriteSession session, _DocCheck check) {
       target: next.target!,
       base: next.base,
       text: next.block.text,
+      statusesOutside: next.statusesOutside,
     );
     lfText = part.lfText;
     marksDraft = marksDraft || part.marksDraft;
@@ -646,6 +665,7 @@ ReadAnswer _answerOf(
         docPath: docPath,
         bytes: utf8.encode(write.lfText),
         match: MatchedDocType(block.docType),
+        statusesOutside: block.statusesOutside,
       ),
       null => check.disk.parsed,
     };

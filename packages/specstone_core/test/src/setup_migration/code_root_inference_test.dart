@@ -28,7 +28,7 @@ CodeRootChoice _infer(
 );
 
 void main() {
-  test('f06/us01/fr05/e11: a real docs folder in a repo whose code sits one '
+  test('a real docs folder in a repo whose code sits one '
       'folder up infers .. and counts the stale entry as cited', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -47,7 +47,7 @@ void main() {
     expect(choice, (value: '..', found: 39, cited: 40));
   });
 
-  test('f06/us01/fr05/e11: a folder above the repository top is never a '
+  test('a folder above the repository top is never a '
       'candidate', () async {
     final tree = await _tree({
       'repo/$_repositoryMark': '',
@@ -65,7 +65,7 @@ void main() {
     expect(choice, (value: '..', found: 1, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: equal counts go to the deeper folder', () async {
+  test('equal counts go to the deeper folder', () async {
     final tree = await _tree({
       'proj/keep.txt': '',
       'proj/code/lib/a.dart': '',
@@ -81,7 +81,7 @@ void main() {
     expect(choice, (value: 'code', found: 1, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: at equal depth the root wins over the link '
+  test('at equal depth the root wins over the link '
       'folder', () async {
     final tree = await _tree({
       'proj/keep.txt': '',
@@ -98,7 +98,7 @@ void main() {
     expect(choice, (value: '.', found: 1, cited: 1));
   });
 
-  test('f06/us01/fr05/e11: at equal depth the link folder wins over a folder '
+  test('at equal depth the link folder wins over a folder '
       'above the root', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -116,7 +116,7 @@ void main() {
     expect(choice, (value: '../../../z/l', found: 1, cited: 1));
   });
 
-  test('f06/us01/fr05/e11: at equal depth and rank the code point order of '
+  test('at equal depth and rank the code point order of '
       'the paths decides', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -135,7 +135,7 @@ void main() {
     expect(choice, (value: '../../../l1/b', found: 1, cited: 1));
   });
 
-  test('f06/us01/fr05/e11: two entries citing one path count twice', () async {
+  test('two entries citing one path count twice', () async {
     final tree = await _tree({
       _repositoryMark: '',
       'proj/keep.txt': '',
@@ -151,7 +151,7 @@ void main() {
     expect(choice, (value: '..', found: 3, cited: 3));
   });
 
-  test('f06/us01/fr05/e11: an implements entry naming a folder does not '
+  test('an implements entry naming a folder does not '
       'count', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -167,7 +167,7 @@ void main() {
     expect(choice, (value: '.', found: 0, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: a covers entry naming a folder counts', () async {
+  test('a covers entry naming a folder counts', () async {
     final tree = await _tree({
       _repositoryMark: '',
       'proj/keep.txt': '',
@@ -179,7 +179,7 @@ void main() {
     expect(choice, (value: '..', found: 1, cited: 1));
   });
 
-  test('f06/us01/fr05/e12: a winner outside the project root is written '
+  test('a winner outside the project root is written '
       'as a path with .. steps', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -196,7 +196,7 @@ void main() {
     expect(choice, (value: '../code', found: 1, cited: 1));
   });
 
-  test('f06/us01/fr05/e12: no cited entry gives .', () async {
+  test('no cited entry gives .', () async {
     final tree = await _tree({_repositoryMark: '', 'proj/keep.txt': ''});
 
     final choice = _infer(_at(tree, 'proj'));
@@ -204,7 +204,7 @@ void main() {
     expect(choice, (value: '.', found: 0, cited: 0));
   });
 
-  test('f06/us01/fr05/e12: the root as winner gives .', () async {
+  test('the root as winner gives .', () async {
     final tree = await _tree({
       _repositoryMark: '',
       'proj/lib/a.dart': '',
@@ -219,7 +219,7 @@ void main() {
     expect(choice, (value: '.', found: 2, cited: 3));
   });
 
-  test('f06/us01/fr05/e11: a root reached through a symlink gives the value '
+  test('a root reached through a symlink gives the value '
       'of its canonical path', () async {
     final tree = await _tree({
       'real/repo/$_repositoryMark': '',
@@ -244,7 +244,7 @@ void main() {
     expect(viaLink, canonical);
   });
 
-  test('f06/us01/fr05/e11: a link folder reached through a symlink adds no '
+  test('a link folder reached through a symlink adds no '
       'folder above the repository top', () async {
     final tree = await _tree({
       'proj/keep.txt': '',
@@ -263,7 +263,7 @@ void main() {
     expect(choice, (value: '.', found: 0, cited: 1));
   });
 
-  test('f06/us01/fr05/e11: a candidate whose value the reader refuses is '
+  test('a candidate whose value the reader refuses is '
       'skipped, so the winner is a value that can be written', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -284,7 +284,7 @@ void main() {
     expect(choice, (value: '..', found: 1, cited: 2));
   }, skip: _windowsSkip);
 
-  test('f06/us01/fr05/e11: entries every candidate resolves go to the '
+  test('entries every candidate resolves go to the '
       'deepest candidate', () async {
     final tree = await _tree({'proj/keep.txt': '', 'proj/code/keep.txt': ''});
 
@@ -297,7 +297,7 @@ void main() {
     expect(choice, (value: 'code', found: 2, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: a link folder in no repository adds no folder '
+  test('a link folder in no repository adds no folder '
       'above it', () async {
     final tree = await _tree({
       'a/proj/keep.txt': '',
@@ -314,7 +314,7 @@ void main() {
     expect(choice, (value: '.', found: 0, cited: 1));
   });
 
-  test('f06/us01/fr05/e11: a link folder in another repository climbs to its '
+  test('a link folder in another repository climbs to its '
       'own repository top and no further', () async {
     final tree = await _tree({
       'r1/$_repositoryMark': '',
@@ -334,7 +334,7 @@ void main() {
     expect(choice, (value: '../../r2', found: 1, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: a repository top equal to the root adds no '
+  test('a repository top equal to the root adds no '
       'folder above it', () async {
     final tree = await _tree({
       'proj/$_repositoryMark': '',
@@ -351,7 +351,7 @@ void main() {
     expect(choice, (value: '.', found: 0, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: an entry with Windows separators does not count '
+  test('an entry with Windows separators does not count '
       r'where \ is a name character', () async {
     final tree = await _tree({
       _repositoryMark: '',
@@ -368,7 +368,7 @@ void main() {
     expect(choice, (value: '.', found: 0, cited: 2));
   }, skip: _windowsSkip);
 
-  test('f06/us01/fr05/e11: an absolute entry counts as the path under the '
+  test('an absolute entry counts as the path under the '
       'candidate, as check resolves it', () async {
     final tree = await _tree({_repositoryMark: '', 'proj/lib/q.dart': ''});
 
@@ -381,7 +381,7 @@ void main() {
     expect(choice, (value: '.', found: 2, cited: 2));
   }, skip: _windowsSkip);
 
-  test('f06/us01/fr05/e11: an entry that leaves the repository counts from '
+  test('an entry that leaves the repository counts from '
       'the candidate that reaches it', () async {
     final tree = await _tree({
       'repo/$_repositoryMark': '',
@@ -398,7 +398,7 @@ void main() {
     expect(choice, (value: '.', found: 2, cited: 2));
   });
 
-  test('f06/us01/fr05/e11: an entry through a symlinked code folder counts, '
+  test('an entry through a symlinked code folder counts, '
       'as check follows links', () async {
     final tree = await _tree({
       _repositoryMark: '',

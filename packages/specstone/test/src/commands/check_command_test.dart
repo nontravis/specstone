@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
@@ -14,6 +15,8 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedStatusesOutside;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
 import '../../helpers/built_cli.dart';
@@ -37,7 +40,7 @@ void main() {
     expect(err.toString(), isEmpty);
   });
 
-  test('f04/us01/fr02: each finding prints on its own line before the count, and the check exits 1', () async {
+  test('each finding prints on its own line before the count, and the check exits 1', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(extra: frWith('verify_method: maybe')),
     );
@@ -49,7 +52,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr01/e15: check architecture:login prints the finding of ARCHITECTURE.md only, not API.md beside it', () async {
+  test('check architecture:login prints the finding of ARCHITECTURE.md only, not API.md beside it', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: {
@@ -74,7 +77,7 @@ void main() {
     expect(out.toString(), endsWith('1 finding\n'));
   });
 
-  test('f04/us01/fr10/e01: check --json on a feature that holds a story and sub-features lists feature_mixed_children and exits 1', () async {
+  test('check --json on a feature that holds a story and sub-features lists feature_mixed_children and exits 1', () async {
     final (:runner, :out, :err) = readRunner(
       await writeNestedProject(
         extra: {
@@ -176,7 +179,7 @@ void main() {
     });
   });
 
-  test('consistency_check/find_template_breaks/print_findings E08: an '
+  test('E08: an '
       'approval_stale finding ends its line with the tag, and its JSON holds '
       'waitsFor owner with a message that carries no tag', () async {
     final project = await writeCheckProject(
@@ -256,7 +259,7 @@ void main() {
     );
   });
 
-  group('consistency_check/find_template_breaks/print_findings upstream block', () {
+  group('upstream block', () {
     final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
     final fingerprint = fingerprintFor(edited);
     final block = printedBlockOf(edited);
@@ -292,7 +295,130 @@ void main() {
     });
   });
 
-  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+  group('code link', () {
+    const recorded = '0123456789ab';
+    const entry = 'app/lib/login.dart:checkPassword';
+    final current = fileCodeFingerprint(
+      utf8.encode(checkProjectFiles()['app/lib/login.dart']!),
+    );
+
+    // The record's other entry records its fingerprint, so the entry named
+    // by [suffix] is the project's one code finding.
+    Future<Directory> project([String suffix = ' $recorded']) =>
+        writeCheckProject(
+          extra: edit(loginRecord, [
+            (
+              "email_login:app/lib/login.dart:SignInPage'",
+              "email_login:app/lib/login.dart:SignInPage $current'",
+            ),
+            ("check_password:$entry'", "check_password:$entry$suffix'"),
+          ]),
+          unfingerprinted: {'docs/$loginRecord'},
+        );
+
+    int lineOf(Directory dir, [String suffix = ' $recorded']) =>
+        File('${dir.path}/docs/$loginRecord')
+            .readAsLinesSync()
+            .indexWhere((l) => l.contains('$entry$suffix')) +
+        1;
+
+    test('text prints the finding line, then the current fingerprint '
+        'indented 4 spaces, then the count', () async {
+      final dir = await project();
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginRecord:${lineOf(dir)}: code_suspect: app/lib/login.dart changed since its fingerprint $recorded was recorded\n'
+        '    fingerprint $current\n'
+        '1 finding\n',
+      );
+    });
+
+    test('--json holds the entry, path, recorded, and current fingerprint '
+        'after waitsFor, and none in the message', () async {
+      final dir = await project();
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map<String, Object?>;
+      expect(finding['kind'], 'code_suspect');
+      expect(finding['docPath'], loginRecord);
+      expect(finding['line'], lineOf(dir));
+      expect(
+        finding['message'],
+        'app/lib/login.dart changed since its fingerprint $recorded was recorded',
+      );
+      expect(finding.keys.skipWhile((key) => key != 'waitsFor'), [
+        'waitsFor',
+        'entry',
+        'path',
+        'recorded',
+        'fingerprint',
+      ]);
+      expect(finding['waitsFor'], 'agent');
+      expect(finding['entry'], entry);
+      expect(finding['path'], 'app/lib/login.dart');
+      expect(finding['recorded'], recorded);
+      expect(finding['fingerprint'], current);
+      expect(finding['message'], isNot(contains(current)));
+    });
+
+    test('with no fingerprint prints the finding line, then the current '
+        'fingerprint indented 4 spaces, then the count', () async {
+      final dir = await project('');
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginRecord:${lineOf(dir, '')}: code_unconfirmed: app/lib/login.dart records no fingerprint\n'
+        '    fingerprint $current\n'
+        '1 finding\n',
+      );
+    });
+
+    test('with no fingerprint holds the entry, path, and current fingerprint '
+        'after waitsFor, and none in the message', () async {
+      final dir = await project('');
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map<String, Object?>;
+      expect(finding['kind'], 'code_unconfirmed');
+      expect(finding['docPath'], loginRecord);
+      expect(finding['line'], lineOf(dir, ''));
+      expect(finding['message'], 'app/lib/login.dart records no fingerprint');
+      expect(finding.keys.skipWhile((key) => key != 'waitsFor'), [
+        'waitsFor',
+        'entry',
+        'path',
+        'fingerprint',
+      ]);
+      expect(finding['waitsFor'], 'agent');
+      expect(finding['entry'], entry);
+      expect(finding['path'], 'app/lib/login.dart');
+      expect(finding['fingerprint'], current);
+      expect(finding['message'], isNot(contains(current)));
+    });
+
+    test(
+      'with no fingerprint counts toward no doc of list --suspect',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project(''));
+
+        expect(await runner.run(['list', 'fr', '--suspect']), 0);
+        expect(out.toString(), isEmpty);
+      },
+    );
+  });
+
+  test('E12: an owner '
       'finding counts and exits 1 as any other', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
@@ -303,7 +429,7 @@ void main() {
     expect(out.toString(), contains('\n1 finding\n'));
   });
 
-  group('consistency_check/find_template_breaks/print_findings E11, E12: item_over_limit', () {
+  group('E11, E12: item_over_limit', () {
     final overlong = 'A long rationale'.padRight(700, '.');
 
     Future<Directory> project() => writeCheckProject(
@@ -368,21 +494,27 @@ void main() {
     expect(outside.out.toString(), isEmpty);
   });
 
-  test('f04/us01/fr02/e05: a warning no finding states goes to stderr, and to warnings under --json', () async {
-    Future<Directory> damaged() async {
-      final project = await writeCheckProject();
-      File('${project.path}/.specstone/index.sqlite')
-          .writeAsStringSync('not a database');
-      return project;
-    }
+  test(
+    'a warning no finding states goes to stderr, and to warnings under --json',
+    () async {
+      Future<Directory> damaged() async {
+        final project = await writeCheckProject();
+        File('${project.path}/.specstone/index.sqlite')
+            .writeAsStringSync('not a database');
+        return project;
+      }
 
-    final text = readRunner(await damaged());
-    expect(await text.runner.run(['check']), 0);
-    expect(text.err.toString(), startsWith('⚠️ WARNING: '));
-    final json = readRunner(await damaged());
-    expect(await json.runner.run(['check', '--json']), 0);
-    expect((jsonDecode(json.out.toString()) as Map)['warnings'], hasLength(1));
-  });
+      final text = readRunner(await damaged());
+      expect(await text.runner.run(['check']), 0);
+      expect(text.err.toString(), startsWith('⚠️ WARNING: '));
+      final json = readRunner(await damaged());
+      expect(await json.runner.run(['check', '--json']), 0);
+      expect(
+        (jsonDecode(json.out.toString()) as Map)['warnings'],
+        hasLength(1),
+      );
+    },
+  );
 
   test('f04/us01/fr01/e08, f04/us01/fr01/e19: a pin fault exits 78 before any rule; an unknown option or two targets '
       'exit 64', () async {
@@ -401,29 +533,32 @@ void main() {
     }
   });
 
-  test('f04/us01/fr01/e09: a write lock held past the busy timeout exits 75 with the JSON envelope', () async {
-    final project = await writeCheckProject();
-    expect(await readRunner(project).runner.run(['check']), 0);
-    final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
-      ..execute('BEGIN IMMEDIATE');
-    addTearDown(
-      () => holder
-        ..execute('ROLLBACK')
-        ..close(),
-    );
-    File('${project.path}/docs/$loginFeature')
-        .writeAsStringSync('# Login v2\n');
-    final (:runner, :out, :err) = readRunner(
-      project,
-      busyTimeout: const Duration(milliseconds: 200),
-    );
-    expect(await runner.run(['check', '--json']), 75);
-    expect(
-      (jsonDecode(err.toString()) as Map)['error'],
-      containsPair('code', 'index_busy'),
-    );
-    expect(out.toString(), isEmpty);
-  });
+  test(
+    'a write lock held past the busy timeout exits 75 with the JSON envelope',
+    () async {
+      final project = await writeCheckProject();
+      expect(await readRunner(project).runner.run(['check']), 0);
+      final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
+        ..execute('BEGIN IMMEDIATE');
+      addTearDown(
+        () => holder
+          ..execute('ROLLBACK')
+          ..close(),
+      );
+      File('${project.path}/docs/$loginFeature')
+          .writeAsStringSync('# Login v2\n');
+      final (:runner, :out, :err) = readRunner(
+        project,
+        busyTimeout: const Duration(milliseconds: 200),
+      );
+      expect(await runner.run(['check', '--json']), 75);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'index_busy'),
+      );
+      expect(out.toString(), isEmpty);
+    },
+  );
   test('user_story:consistency_check/find_template_breaks S13: check names a stale agent block and its fix, and --json holds no name', () async {
     final project = await writeCheckProject(
       extra: {
@@ -463,7 +598,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_template_breaks/report_format_drift S12: check names the drifted file and its fix, and format clears it', () async {
+  test('S12: check names the drifted file and its fix, and format clears it', () async {
     final project = await writeCheckProject(
       extra: fr(
         'A wrong password must not sign in.\n',
@@ -486,7 +621,7 @@ void main() {
     expect(clean.out.toString(), '0 findings\n');
   });
 
-  test('consistency_check/find_template_breaks: check names an approved story edited outside the commands; padded table cells draw format_drift only', () async {
+  test('check names an approved story edited outside the commands; padded table cells draw format_drift only', () async {
     final project = await writeCheckProject(
       extra: {
         ...editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
@@ -509,7 +644,7 @@ void main() {
     );
   });
 
-  test('consistency_check/find_template_breaks: check names a doc made outside the commands in a project upgraded to 1.2.0', () async {
+  test('check names a doc made outside the commands in a project upgraded to 1.2.0', () async {
     final project = await writeCheckProject(
       extra: {'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!},
       unstamped: {'docs/$loginFr'},
@@ -538,7 +673,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_broken_pointers S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
+  test('S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
       'prints the anchor, self, malformed, and doc_ref findings with their keys', () async {
     final project = await writeCheckProject(
       extra: edit(loginFeature, [
@@ -626,7 +761,7 @@ void main() {
     expect(file.readAsStringSync(), contains(kept));
   });
 
-  test('consistency_check/find_broken_pointers S15: check prints one number_label finding per label with its key, '
+  test('S15: check prints one number_label finding per label with its key, '
       'and none for a placeholder', () async {
     // The labels are built from parts so this file holds no number label.
     final run = ['F-${2}', 'US-${3}', 'FR-${4}'].join(' ');
@@ -788,6 +923,7 @@ void main() {
                 .replaceFirst('One box.', 'One box. $sentence'),
           ),
           fixtureDocTypeOf(loginArchitecture),
+          statusesOutside: shippedStatusesOutside,
         );
 
     /// Writes the twin project with the two records; no jaspr record when

@@ -43,6 +43,7 @@ final class DocsProject {
     required this.trust,
     required this.targets,
     required this.stampsHaveRun,
+    required this.statusesOutsideApproval,
     required this.matcher,
     required this.set,
   });
@@ -71,6 +72,7 @@ final class DocsProject {
       trust: trust,
       targets: List<CodeTarget>.unmodifiable(config.targets),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
+      statusesOutsideApproval: approval.statusesOutsideApproval(config.pins),
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
     );
@@ -79,6 +81,15 @@ final class DocsProject {
   /// Whether the config pins a pack at or above the version whose upgrade
   /// stamps every doc; read once at open.
   final bool stampsHaveRun;
+
+  /// Whether the config pins `software-tech` where a record's statuses stay
+  /// outside the approval hash and the draft mark; read once at open.
+  ///
+  /// Every hash the project's index stores, a writer compares, and `approve`
+  /// writes follows it. An index never needs it in its stamp: the packs
+  /// refuse any pin but the version this binary carries, so the binary
+  /// version the stamp holds fixes it.
+  final bool statusesOutsideApproval;
 
   /// The roots and whether this machine's Owner trusts them for writes.
   final RootTrust trust;

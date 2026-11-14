@@ -30,7 +30,8 @@ const _agentMd =
     '- Before reporting work done, run `specstone check <doc>` on each doc you '
     'changed until every finding ends `(waits for the Owner)` '
     '(`--json`: `waitsFor` is `owner`).\n'
-    '- If `specstone` is not on PATH, run `~/.specstone/bin/specstone`.\n';
+    '- If the specstone command is not on PATH, run '
+    '`~/.specstone/bin/specstone`.\n';
 
 const _agentMdWordBound = 200;
 const _targetClauseWordBound = 9;
@@ -99,23 +100,27 @@ void main() {
       expect(_inlineBlock(), contains('`waitsFor`'));
     });
 
-    test('agent_plugin/ground_other_plugins_work/ground_the_story_first '
-        'verification: one rule names the implement grounding for a plan, '
-        'tickets, and tests, in AGENT.md and in the inline block', () {
-      for (final text in [agentMdText, _inlineBlock()]) {
-        final rules = _rules(text).where((r) => r.contains('--for implement'));
-        expect(rules, hasLength(1));
-        expect(
-          rules.single,
-          allOf(
-            contains('`specstone context <story> --for implement`'),
-            contains('plan'),
-            contains('tickets'),
-            contains('tests'),
-          ),
-        );
-      }
-    });
+    test(
+      "Ground another plugin's plan, ticket, or test work in the story first "
+      'verification: one rule names the implement grounding for a plan, '
+      'tickets, and tests, in AGENT.md and in the inline block',
+      () {
+        for (final text in [agentMdText, _inlineBlock()]) {
+          final rules = _rules(text)
+              .where((r) => r.contains('--for implement'));
+          expect(rules, hasLength(1));
+          expect(
+            rules.single,
+            allOf(
+              contains('`specstone context <story> --for implement`'),
+              contains('plan'),
+              contains('tickets'),
+              contains('tests'),
+            ),
+          );
+        }
+      },
+    );
 
     test(
       '$_fr: the import block holds the two imports between the markers',

@@ -1,4 +1,4 @@
-/// Core library of Specstone, shared by the `specstone` CLI and MCP server.
+/// Core library of Specstone, shared by the specstone CLI and MCP server.
 library;
 
 export 'src/canonical_path.dart' show absoluteFrom;

@@ -21,8 +21,7 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
 
 - **Guide**: before your first write, run `specstone guide <type> …` once, naming every type you write.
 - **Code target** (two or more `targets:`): pass `--target <name>`, the one its design document's row names, on each
-  `new`, `get`, and `set` of a per-target spec doc, or address an existing doc by its DocPath
-  (`domain:agent_plugin` INV-25).
+  `new`, `get`, and `set` of a per-target spec doc, or address an existing doc by its DocPath.
 - **New doc**: pipe its text to `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes
   them), parents first.
 - **Section**: base from the naming line of `specstone get <type>:<name>#<key>`; pipe the body to
@@ -32,7 +31,7 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
 - **Several docs in one step**: run `specstone get <names> > <file>`, `<file>` a `mktemp` file outside the
   repository; edit its blocks with `Edit`, each naming line kept; then run `specstone set --batch <file>`. A block
   printed ` · unchanged` wrote nothing and adds no draft.
-- **A refused batch** writes nothing (`document_writing/edit_one_section_or_field/write_a_batch`), but exit 73
+- **A refused batch** writes nothing, but exit 73
   leaves docs half written until a write command ends its journal: run one, or `get` again, first.
   Per fault, then run it again:
   - Stale block: replace the block with the one the reply prints, your edit merged in; run no `get`.

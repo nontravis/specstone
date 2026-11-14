@@ -17,7 +17,7 @@ void main() {
     expect(PageSetup.defaults.pageRule, rule);
   });
 
-  test('f05/us02/fr05/e02: each paper and orientation names its CSS '
+  test('each paper and orientation names its CSS '
       'keyword', () {
     expect(
       PageSetup.parse(paper: 'letter', landscape: true, margin: '1in').pageRule,

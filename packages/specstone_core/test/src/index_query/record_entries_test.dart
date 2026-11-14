@@ -43,6 +43,7 @@ IndexedDoc _record(String path, String text) => parseIndexedDoc(
     MergedSet(docTypes: [_recordType]),
     targetNames: const ['flutter', 'jaspr'],
   ).match(path),
+  statusesOutside: true,
   codeTarget: 'jaspr',
 ).doc;
 
@@ -187,6 +188,29 @@ void main() {
 
     expect(recordEntriesOf(doc, _recordType), const [
       RecordEntry(item: 'show_toast', status: RecordStatus.implemented),
+    ]);
+  });
+
+  test('an implements line with a fingerprint gives its pointer alone', () {
+    final doc = _record(
+      'specs/jaspr/f02_feedback/IMPLEMENTATION.md',
+      '---\n'
+          'implements:\n'
+          '  - show_toast:lib/toast.dart:showToast 0123456789ab\n'
+          '  - show_toast:lib/toast_host.dart 0123456789ab\n'
+          '  - show_toast:lib/toast_queue.dart\n'
+          '---\n\n# Feedback implementation\n',
+    );
+
+    expect(recordEntriesOf(doc, _recordType), const [
+      RecordEntry(
+        item: 'show_toast',
+        codePaths: [
+          'lib/toast.dart:showToast',
+          'lib/toast_host.dart',
+          'lib/toast_queue.dart',
+        ],
+      ),
     ]);
   });
 
@@ -448,14 +472,16 @@ void main() {
       _ => null,
     };
 
-    test('document_writing/move_story/move_story_folder E19: the lines of the carried items come back with the new item and the rest of the line as written', () {
+    test('E19: the lines of the carried items come back with the new item and '
+        'the rest of the line as written', () {
       final lines = recordLinesCarried(record, _recordType, carry);
 
       expect(lines.statuses, ['k/a:implemented', 'k/a/x:planned']);
       expect(lines.code, ['k/a:lib/a.dart:A']);
     });
 
-    test('document_writing/move_story/move_story_folder E21: the own line of the feature is left out when carry gives its empty item no name', () {
+    test('E21: the own line of the feature is left out when carry gives its '
+        'empty item no name', () {
       final lines = recordLinesCarried(
         record,
         _recordType,
@@ -466,7 +492,7 @@ void main() {
       expect(lines.statuses, hasLength(3));
     });
 
-    test('document_writing/move_story/move_story_folder E19: a skip reason keeps its text', () {
+    test('E19: a skip reason keeps its text', () {
       final lines = recordLinesCarried(
         record,
         _recordType,
@@ -476,7 +502,8 @@ void main() {
       expect(lines.statuses, ['k/b:skipped:out of scope']);
     });
 
-    test('document_writing/move_story/move_story_folder E19: added lines follow the held ones, each field written as a block list of quoted lines', () {
+    test('E19: added lines follow the held ones, each field written as a block '
+        'list of quoted lines', () {
       final text = addRecordLines(
         '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
         _recordType,
@@ -495,7 +522,7 @@ void main() {
       );
     });
 
-    test('document_writing/move_story/move_story_folder E20: a skeleton key with no value takes the lines', () {
+    test('E20: a skeleton key with no value takes the lines', () {
       final text = addRecordLines(
         '---\ndraft: true\nstatuses:\n---\n\n# R\n',
         _recordType,
@@ -508,7 +535,7 @@ void main() {
       );
     });
 
-    test('document_writing/move_story/move_story_folder E20: no line to add leaves the text and returns null', () {
+    test('E20: no line to add leaves the text and returns null', () {
       expect(
         addRecordLines(record, _recordType, (
           statuses: const [],
@@ -533,18 +560,21 @@ void main() {
       ),
     );
 
-    test('document_writing/move_story/move_story_folder E19: addRecordLines refuses rather than drop the lines held there', () {
-      expect(
-        () => addRecordLines(broken, _recordType, (
-          statuses: const [],
-          code: const ['k/a:lib/a.dart'],
-          tests: const [],
-        )),
-        unreadable,
-      );
-    });
+    test(
+      'E19: addRecordLines refuses rather than drop the lines held there',
+      () {
+        expect(
+          () => addRecordLines(broken, _recordType, (
+            statuses: const [],
+            code: const ['k/a:lib/a.dart'],
+            tests: const [],
+          )),
+          unreadable,
+        );
+      },
+    );
 
-    test('document_writing/move_story/move_story_folder E19: addRecordLines adds to a readable field beside it', () {
+    test('E19: addRecordLines adds to a readable field beside it', () {
       expect(
         addRecordLines(broken, _recordType, (
           statuses: const ['k/a:planned'],
@@ -555,14 +585,16 @@ void main() {
       );
     });
 
-    test('document_writing/move_story/move_story_folder E19: rewriteRecordItems refuses, as the block may hold a line it must change', () {
+    test('E19: rewriteRecordItems refuses, as the block may hold a line it '
+        'must change', () {
       expect(
         () => rewriteRecordItems(broken, _recordType, (_) => null),
         unreadable,
       );
     });
 
-    test('document_writing/move_story/move_story_folder E19: recordLinesCarried refuses, as the block may hold a line it must carry', () {
+    test('E19: recordLinesCarried refuses, as the block may hold a line it '
+        'must carry', () {
       expect(
         () => recordLinesCarried(broken, _recordType, (_) => 'k'),
         unreadable,

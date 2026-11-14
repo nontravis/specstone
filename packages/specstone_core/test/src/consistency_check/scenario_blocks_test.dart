@@ -11,7 +11,7 @@ List<BodyLine> _body(String text, {Set<int> fenced = const {}}) => [
 
 void main() {
   group('scenarioBlocksIn', () {
-    test('f04/us04/fr01: keys each block S<N> from its heading to the next '
+    test('keys each block S<N> from its heading to the next '
         '### outside fences, the first of a repeated number winning', () {
       final blocks = scenarioBlocksIn(
         _body(
@@ -40,7 +40,7 @@ void main() {
       expect(blocks['S2'], '### Scenario 2 — two\n- b');
     });
 
-    test('f04/us04/fr01: a block is keyed by the value of its number, so '
+    test('a block is keyed by the value of its number, so '
         'Scenario 01 keys S1 and a later Scenario 1 is its repeat', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 01 — one\n- a\n### Scenario 1 — again\n- b'),
@@ -49,7 +49,7 @@ void main() {
       expect(blocks, {'S1': '### Scenario 01 — one\n- a'});
     });
 
-    test('f04/us04/fr01: Scenario 1 does not match Scenario 10', () {
+    test('Scenario 1 does not match Scenario 10', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 10 — ten\n- a\n### Scenario 1 — one\n- b'),
       );
@@ -60,7 +60,7 @@ void main() {
   });
 
   group('scenarioBlocksIn lettered', () {
-    test('f04/us01/fr09/e06: Scenario 6 ends at Scenario 6a, which keys no '
+    test('Scenario 6 ends at Scenario 6a, which keys no '
         'block', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 6 — a\n- x\n### Scenario 6a — b\n- y'),
@@ -71,7 +71,7 @@ void main() {
   });
 
   group('headingBlocksOf', () {
-    test('f04/us04/fr01: a ### block whose heading does not match closes the '
+    test('a ### block whose heading does not match closes the '
         'block above and opens none', () {
       final blocks = headingBlocksOf(
         _body('### A — a\n- 1\n### other\n- 2\n### B — b\n- 3'),
@@ -89,22 +89,19 @@ void main() {
   });
 
   group('storyScenarioBlocks', () {
-    test(
-      'f04/us04/fr01: reads the acceptance_criteria section of a story',
-      () async {
-        final session = openSession(await writeCheckProject());
-        addTearDown(session.close);
-        final index = session.index;
-        final story = index.docs.singleWhere((d) => d.docPath == loginStory);
+    test('reads the acceptance_criteria section of a story', () async {
+      final session = openSession(await writeCheckProject());
+      addTearDown(session.close);
+      final index = session.index;
+      final story = index.docs.singleWhere((d) => d.docPath == loginStory);
 
-        expect(storyScenarioBlocks(index, story), {
-          'S1': loginScenario1,
-          'S2': loginScenario2,
-        });
-      },
-    );
+      expect(storyScenarioBlocks(index, story), {
+        'S1': loginScenario1,
+        'S2': loginScenario2,
+      });
+    });
 
-    test('f04/us04/fr01: a story whose header is spelled in another case '
+    test('a story whose header is spelled in another case '
         'still reads, as CheckContext matches headers', () async {
       final session = openSession(
         await writeCheckProject(
@@ -120,7 +117,7 @@ void main() {
       expect(storyScenarioBlocks(index, story).keys, ['S1', 'S2']);
     });
 
-    test('f04/us04/fr01: a doc with no acceptance_criteria section has no '
+    test('a doc with no acceptance_criteria section has no '
         'blocks', () async {
       final session = openSession(await writeCheckProject());
       addTearDown(session.close);

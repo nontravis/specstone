@@ -28,7 +28,7 @@ void main() {
     expect(upstreamText('\n \n'), '');
   });
 
-  group('consistency_check/find_suspect_links/report_suspect_links E06: a fingerprint reads the block as format lays it out', () {
+  group('E06: a fingerprint reads the block as format lays it out', () {
     const laid =
         '### Scenario 3 — [happy] Table\n\n| Item | Count |\n| --- | --- |\n'
         '| apple | 2 |\n';
@@ -55,7 +55,7 @@ void main() {
     });
   });
 
-  test('consistency_check/find_suspect_links/report_suspect_links E06: a section body fingerprints the same with or without the gap under its heading', () {
+  test('E06: a section body fingerprints the same with or without the gap under its heading', () {
     expect(fingerprintOf('Text\n'), fingerprintOf('\nText\n'));
     expect(fingerprintOf('\n\nText\n'), fingerprintOf('Text\n'));
     expect(fingerprintOf('\nText\n'), isNot(fingerprintOf('\nTest\n')));

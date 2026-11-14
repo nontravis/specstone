@@ -213,7 +213,7 @@ Matcher _endingWith(String commitLine) => matches(
 );
 
 void main() {
-  group('f06/us02: upgrade a pack pin', () {
+  group('upgrade a pack pin', () {
     test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
         'only adds makes one commit that changes only the pins', () async {
       final home = await _home(migrations: '');
@@ -293,7 +293,7 @@ void main() {
       expect(dry.out, endsWith('dry run: nothing written\n'));
     });
 
-    test('f06/us02/s2: every doc of the type and the override carry the new '
+    test('every doc of the type and the override carry the new '
         'section name, and the pin moves', () async {
       final home = await _home();
       final root = await _project();
@@ -395,8 +395,8 @@ void main() {
       ], contains('section_undeclared'));
     });
 
-    test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11, '
-        'setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+    test('E11, '
+        'E04: pins equal '
         'and one doc off its layout makes one layout-only commit, then a rerun '
         'has nothing to migrate', () async {
       final home = await _home(migrations: '');
@@ -438,7 +438,7 @@ void main() {
       expect(again.out, 'nothing to migrate\n');
     });
 
-    test('f06/us02/s6: nothing to upgrade prints nothing to migrate and writes '
+    test('nothing to upgrade prints nothing to migrate and writes '
         'nothing', () async {
       final home = await _home(
         version: '1.0.0',
@@ -536,7 +536,7 @@ void main() {
       expect(edited.out, startsWith('pack upgrade: acme 1.0.0 -> 1.2.0\n'));
     });
 
-    test('f06/us02/fr01/e06: a malformed migrations list refuses with the pack '
+    test('a malformed migrations list refuses with the pack '
         'fault', () async {
       final home = await _home(
         migrations: 'migrations:\n  - from: 1.0\n    steps: []\n',
@@ -553,7 +553,7 @@ void main() {
       expect(result.out, isEmpty);
     });
 
-    test('f06/us01/fr07: a hook that prepends a paragraph to each message '
+    test('a hook that prepends a paragraph to each message '
         'still lists both commits', () async {
       final home = await _home(
         migrations: _moveMigrations,
@@ -607,7 +607,7 @@ void main() {
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
 
-    test('f06/us02/fr02/e08: a move onto a staying doc refuses in the dry '
+    test('a move onto a staying doc refuses in the dry '
         'run and in bare migrate, exits 65, and writes nothing', () async {
       final home = await _home(
         migrations: _collideMigrations,
@@ -640,7 +640,7 @@ void main() {
       expect(_bytesUnder(root), before);
     });
 
-    test('f06/us02/fr02/e08: a rename onto a header or key the doc already '
+    test('a rename onto a header or key the doc already '
         'holds refuses, exits 65, listing the doc once', () async {
       final home = await _home(
         migrations: _heldRenamedMigrations,
@@ -667,7 +667,7 @@ void main() {
       expect(_subjects(root).single, 'legacy');
     });
 
-    test('f06/us02/fr02/e08: a swap composes onto one path and refuses at the '
+    test('a swap composes onto one path and refuses at the '
         'terminal', () async {
       final home = await _home(
         migrations: _swapMigrations,
@@ -697,7 +697,7 @@ void main() {
       expect(_subjects(root).single, 'legacy');
     });
 
-    test('f06/us02/fr02/e08: a chained move through a freed path lands with no '
+    test('a chained move through a freed path lands with no '
         'content lost', () async {
       final home = await _home(
         migrations: _chainMigrations,
@@ -795,7 +795,7 @@ void main() {
       }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
     });
 
-    group('setup_migration/upgrade_pack_pins agent files', () {
+    group('agent files', () {
       const begin = '<!-- BEGIN specstone v$specstoneVersion -->';
       const staleBlock = '$begin\nold rules\n<!-- END specstone -->\n';
       const belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
@@ -933,7 +933,7 @@ void main() {
         expect(rerun.out, 'nothing to migrate\n');
       });
 
-      test('setup_migration/upgrade_pack_pins E16: a malformed file refuses '
+      test('E16: a malformed file refuses '
           'before anything prints', () async {
         final root = await agentProject({
           'AGENTS.md': '$begin\nbody\n',
@@ -948,7 +948,7 @@ void main() {
       });
     });
 
-    group('setup_migration/upgrade_pack_pins renumber pass', () {
+    group('renumber pass', () {
       const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
       const topicPath = 'docs/specs/topics/doc_model.md';
       const storyPath = 'docs/prds/features/f01_a/us01_b/USER_STORY.md';
@@ -1177,7 +1177,7 @@ void main() {
       });
     });
 
-    group('setup_migration/upgrade_pack_pins label pass', () {
+    group('label pass', () {
       const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
       test('$fr E26, E27: the run converts a label in a doc, keeps the rest '
@@ -1228,7 +1228,7 @@ void main() {
       });
     });
 
-    group('setup_migration/upgrade_pack_pins item limit', () {
+    group('item limit', () {
       const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
       test('$fr E32: the upgrade of E14 keeps an over-limit invariant as one '
@@ -1283,7 +1283,7 @@ void main() {
       });
     });
 
-    group('setup_migration/upgrade_pack_pins stamp pass', () {
+    group('stamp pass', () {
       const fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
       test('$fr E30, E31: the first check after the upgrade of a 1.1.0 tree '
@@ -1337,7 +1337,7 @@ void main() {
       });
     });
 
-    group('f06/us02: status and code paths move into records', () {
+    group('status and code paths move into records', () {
       const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
       const storyPath =
           'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
@@ -1388,6 +1388,7 @@ void main() {
             ),
           ],
         ),
+        statusesOutside: shippedStatusesOutside,
       );
 
       String planHash(String dryOut) {
@@ -1395,7 +1396,7 @@ void main() {
         return lines[lines.length - 3].substring('plan '.length);
       }
 
-      test('f06/us02/s11: the dry run lists the record, and the run writes it '
+      test('the dry run lists the record, and the run writes it '
           'as a draft with the values the docs held', () async {
         final h = await home();
         final root = await project();
@@ -1440,7 +1441,7 @@ void main() {
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
       });
 
-      test('f06/us02/s11: a story and an FR approved before the run are still '
+      test('a story and an FR approved before the run are still '
           'approved after it', () async {
         final h = await home();
         final root = await project(
@@ -1468,7 +1469,7 @@ void main() {
         expect(stale, isNot(contains(frPath.substring('docs/'.length))));
       });
 
-      test('f06/us02/fr02/e36: a record override the plan lists lands in '
+      test('a record override the plan lists lands in '
           'commit 2 with the pins', () async {
         final h = await home();
         final root = await _project(
@@ -1497,7 +1498,7 @@ void main() {
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
       });
 
-      test('f06/us02/s13: a value no record entry takes refuses on the dry '
+      test('a value no record entry takes refuses on the dry '
           'run and the bare run alike, and writes nothing', () async {
         final h = await home();
         final root = await project(
@@ -1521,7 +1522,123 @@ void main() {
       });
     });
 
-    group('f06/us02: the shipped software-tech 1.6.0 record', () {
+    group('code fingerprints on the upgrade to software-tech 1.7.0', () {
+      const signIn = 'app/lib/login/sign_in.dart';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const architecturePath = 'docs/specs/f01_login/ARCHITECTURE.md';
+
+      test('the first check after the upgrade finds no code link to compare '
+          'and no stale approval', () async {
+        final types = TemplateResolver().resolveCarried(
+          packNames: const ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        );
+        // Approved under the 1.6.0 pin, whose hash still counts statuses.
+        String approved(String text, String docTypeId) => withApprovalHash(
+          text,
+          types.lookup(docTypeId),
+          statusesOutside: false,
+        );
+        final h = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_login/FEATURE.md': approved(
+            '# Login\n',
+            'feature',
+          ),
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              approved('# Email login\n', 'user_story'),
+          recordPath: approved(
+            "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+                "  - 'email_login:$signIn:SignIn'\n---\n\n# Login record\n",
+            'implementation',
+          ),
+          architecturePath: approved(
+            '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n',
+            'architecture',
+          ),
+          signIn: 'class SignIn {}\n',
+        });
+        Future<List<String>> kinds() async {
+          final check = await _run(root, h, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              if (finding case {'kind': final String kind}) kind,
+          ];
+        }
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(_read(root, recordPath), contains('$signIn:SignIn '));
+        expect(_read(root, recordPath), isNot(contains('draft')));
+        final after = await kinds();
+        expect(after, isNot(contains('code_suspect')));
+        expect(after, isNot(contains('code_unconfirmed')));
+        expect(after, isNot(contains('approval_stale')));
+      });
+
+      test('a code file changed after the dry run refuses the planned '
+          'hash and writes nothing', () async {
+        final h = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          recordPath:
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn'\n---\n\n# Login record\n",
+          signIn: 'class SignIn {}\n',
+        });
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+        expect(dry.status, 0, reason: dry.err);
+        final lines = dry.out.split('\n');
+        final hash = lines[lines.length - 3].substring('plan '.length);
+        File('${root.path}/$signIn').writeAsStringSync('class SignIn {} \n');
+        commitAll(root, 'edit the code');
+        final before = _head(root);
+
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          hash,
+        ]);
+
+        expect(applied.status, 75, reason: applied.out);
+        expect(
+          applied.err,
+          startsWith('the plan is not the one the Owner saw'),
+        );
+        expect(_head(root), before);
+        expect(_read(root, recordPath), isNot(contains('$signIn:SignIn ')));
+      });
+    });
+
+    group('the shipped software-tech 1.7.0 record', () {
       const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
       const storyPath =
           'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
@@ -1540,7 +1657,7 @@ void main() {
         frPath: '---\nstatus: planned\n---\n# Validate credentials\n',
       });
 
-      test('f06/us02/s11: a 1.4.0 project moves its values into a draft '
+      test('a 1.4.0 project moves its values into a draft '
           'record of the shipped implementation type, with no one-time '
           'pass', () async {
         final h = await writeTree({});
@@ -1552,7 +1669,7 @@ void main() {
         final dry = await _run(root, h, ['migrate', '--dry-run']);
 
         expect(dry.status, 0, reason: dry.err);
-        expect(dry.out, contains('software-tech 1.4.0 -> 1.6.0'));
+        expect(dry.out, contains('software-tech 1.4.0 -> 1.7.0'));
         expect(
           dry.out,
           contains(
@@ -1592,7 +1709,7 @@ void main() {
         expect(kinds, isNot(contains('requirement_status_written')));
       });
 
-      test('f06/us02/s13: a status no entry takes refuses the shipped run '
+      test('a status no entry takes refuses the shipped run '
           'and writes nothing', () async {
         final h = await writeTree({});
         final root = await project('---\nstatus: wip\n---\n# Email login\n');
@@ -1610,7 +1727,7 @@ void main() {
       });
     });
 
-    group('f06/us02: a second code target over a one-target spec tree', () {
+    group('a second code target over a one-target spec tree', () {
       const featurePath = 'docs/prds/features/f02_feedback/FEATURE.md';
       const oldArch = 'docs/specs/f02_feedback/ARCHITECTURE.md';
       const newArch = 'docs/specs/flutter/f02_feedback/ARCHITECTURE.md';
@@ -1625,6 +1742,7 @@ void main() {
               homeDirectory: null,
             )
             .lookup(docTypeId),
+        statusesOutside: shippedStatusesOutside,
       );
 
       Future<Directory> project() => gitFixture({
@@ -1641,7 +1759,7 @@ void main() {
         oldTech: '---\ndraft: true\n---\n# Tech stack\n',
       });
 
-      test('f06/us02/s12: a first commit that only moves the spec docs under '
+      test('a first commit that only moves the spec docs under '
           "the first target's folder, a second that rewrites their links, and "
           'every approval kept', () async {
         final home = await writeTree({});

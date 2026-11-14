@@ -34,7 +34,7 @@ const _badLine = BatchEntry(
 );
 
 void main() {
-  group('document_writing/edit_one_section_or_field/write_a_batch fault', () {
+  group('fault', () {
     test('a file-level fault exits 64 and prints its one line', () {
       final fault = BatchFault.fileLevel(_batch, 'cannot read $_batch');
       expect(fault.exitStatus, 64);

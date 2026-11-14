@@ -24,8 +24,7 @@ const _nameSeparators = ['/', r'\', ':'];
 
 // MARK: - Name
 
-/// Returns the name a bare `--out` gives the bundle file, by the Name rule of
-/// `index_query/get_task_bundle/write_bundle_to_file`.
+/// Returns the name a bare `--out` gives the bundle file.
 ///
 /// - [target]: the call's target, as given; else [codePath], the `--code`
 ///   value as given, which takes `code-` before it.
@@ -67,7 +66,7 @@ File bareBundleFile(Directory projectRoot, String name) {
 // MARK: - Write
 
 /// Writes [answer]'s bundle text to [file] and returns the reply that indexes
-/// it (`index_query/get_task_bundle/write_bundle_to_file`).
+/// it.
 ///
 /// The reply names the file by the canonical path the docs-root check
 /// compares. Throws `output_not_writable` for a path inside the docs root or

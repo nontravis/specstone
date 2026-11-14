@@ -13,6 +13,7 @@ DocContent _contentOf(String text, {String docPath = 'doc.md'}) =>
       docPath: docPath,
       bytes: utf8.encode(text),
       match: const NoDocType(),
+      statusesOutside: true,
     ).content;
 
 LineFacts _factsOf(String text, {String docPath = 'doc.md'}) =>
@@ -37,7 +38,7 @@ void main() {
       'héllo \u{1F600}\n'; // 14
 
   group('LineFacts.of', () {
-    test('consistency_check/find_broken_pointers/report_number_labels: the '
+    test('the '
         'body labels are found once at index time, at their file lines, and '
         'stored', () {
       const labelled =
@@ -57,7 +58,7 @@ void main() {
       );
     });
 
-    test('consistency_check/find_template_breaks/report_open_tbrs: each TBR '
+    test('each TBR '
         'marker of the body is stored at its file line and survives a JSON '
         'round trip', () {
       const marked =
@@ -83,13 +84,13 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_template_breaks/report_open_tbrs E08: a '
+    test('E08: a '
         'marker in a frontmatter value is not stored', () {
       const doc = '---\nnote: TBR \u2014 in the frontmatter\n---\n# T\n';
       expect(_factsOf(doc).tbrMarkers, isEmpty);
     });
 
-    test('consistency_check/find_template_breaks/report_open_tbrs: a CRLF '
+    test('a CRLF '
         'doc stores the markers of its LF text', () {
       const lf = '---\na: 1\n---\n# T\n\nTBR \u2014 gap\n';
       expect(_factsOf(lf.replaceAll('\n', '\r\n')).tbrMarkers, [
@@ -417,6 +418,7 @@ void main() {
       docPath: 'specs/topics/a.md',
       bytes: utf8.encode(text),
       match: MatchedDocType(type),
+      statusesOutside: true,
     ).content.lineFacts;
 
     LineFacts roundTrip(LineFacts facts) => LineFacts.fromJson(

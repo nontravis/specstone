@@ -11,7 +11,7 @@ void main() {
     journey = prdCoreDocType(await resolvePrdCore(), 'journey');
   });
 
-  test('f10/us01/fr01: journey has its path, no parent, two optional fields, '
+  test('journey has its path, no parent, two optional fields, '
       'three required sections, and its generators', () {
     expect(journey.path, 'prds/journeys/{slug}/JOURNEY.md');
     expect(journey.parent, isNull);
@@ -40,7 +40,7 @@ void main() {
     expect(headers.toList(), orderedEquals(List.of(headers)..sort()));
   });
 
-  test("f10/us01/fr01/e06: a journey's Name is its slug", () {
+  test("a journey's Name is its slug", () {
     expect(
       docNameOf('prds/journeys/first_project_to_html/JOURNEY.md', journey),
       'first_project_to_html',
@@ -54,17 +54,14 @@ void main() {
     expectSources(journey, []);
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        journey,
-        'Write one rule per ID; in a section with no IDs, one '
-        'rule per item, with mechanics left to the spec docs.\n'
-        'Keep a bound in the step it limits, never in the prose.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      journey,
+      'Write one rule per ID; in a section with no IDs, one '
+      'rule per item, with mechanics left to the spec docs.\n'
+      'Keep a bound in the step it limits, never in the prose.',
+    );
+  });
 }

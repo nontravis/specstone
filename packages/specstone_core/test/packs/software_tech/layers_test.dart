@@ -52,7 +52,7 @@ void main() {
     }
   });
 
-  test('f03/us07/fr01: the pack writes no layer over nf or any other prd-core '
+  test('the pack writes no layer over nf or any other prd-core '
       'doc type', () {
     final files = shippedPackFiles.keys
         .where((k) => k.startsWith('software-tech/'))

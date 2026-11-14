@@ -13,8 +13,7 @@ typedef RepeatItem = ({String docPath, String name, int line, String? item});
 /// docs that hold it.
 typedef RepeatGroup = ({String run, List<RepeatItem> items});
 
-/// Returns the repeat groups of the rule-bearing items the index stores
-/// (`consistency_check/list_repeated_text/list_repeat_groups`).
+/// Returns the repeat groups of the rule-bearing items the index stores.
 ///
 /// Each window of [minRepeatRunWords] words maps to the places (item, word
 /// offset) that hold it; a run grows from such a map one word at a time over

@@ -10,8 +10,7 @@ const _bareOut = 'bare-out';
 /// hidden flag, since `package:args` gives an option no optional value.
 ///
 /// `--out` is bare when it is the last argument before any `--`, or the next
-/// one starts with `-` (`index_query/get_task_bundle/write_bundle_to_file`);
-/// any other next argument, `""` included, is its path.
+/// one starts with `-`; any other next argument, `""` included, is its path.
 List<String> withBareOut(Iterable<String> args) {
   final list = args.toList();
   final command = list.indexWhere((arg) => !arg.startsWith('-'));

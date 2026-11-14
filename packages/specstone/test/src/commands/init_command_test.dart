@@ -27,7 +27,7 @@ Future<String> _dryRunPlanHash(Directory root) async {
 }
 
 void main() {
-  test("f06/us03/s2: an Agent's shell sets up the same files", () async {
+  test("an Agent's shell sets up the same files", () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
 
@@ -46,35 +46,25 @@ void main() {
     );
   });
 
-  test(
-    'f06/us03/fr02/e07: list --draft lists every doc init created',
-    () async {
-      final root = await writeTree({'keep.txt': 'x\n'});
-      final (:runner, :out, :err) = writeRunner(root);
-      await runner.run(['init']);
-      expect(out.toString(), endsWith(_configLine()));
+  test('list --draft lists every doc init created', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    final (:runner, :out, :err) = writeRunner(root);
+    await runner.run(['init']);
+    expect(out.toString(), endsWith(_configLine()));
 
-      final listed = writeRunner(root);
-      final listRunner = listed.runner;
-      final listOut = listed.out;
-      final listErr = listed.err;
-      for (final type in ['project', 'features', 'gnfr', 'tech_stack']) {
-        expect(
-          await listRunner.run(['list', type, '--draft']),
-          0,
-          reason: type,
-        );
-        expect(
-          listOut.toString(),
-          contains('$type ($type) — $type · draft · '),
-        );
-        listOut.clear();
-      }
-      expect(listErr.toString(), isEmpty);
-    },
-  );
+    final listed = writeRunner(root);
+    final listRunner = listed.runner;
+    final listOut = listed.out;
+    final listErr = listed.err;
+    for (final type in ['project', 'features', 'gnfr', 'tech_stack']) {
+      expect(await listRunner.run(['list', type, '--draft']), 0, reason: type);
+      expect(listOut.toString(), contains('$type ($type) — $type · draft · '));
+      listOut.clear();
+    }
+    expect(listErr.toString(), isEmpty);
+  });
 
-  test('setup_migration/set_up_new_project/write_agent_files: init prints '
+  test('init prints '
       'the agent files before the config line', () async {
     final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
     final (:runner, :out, :err) = writeRunner(root);
@@ -91,7 +81,7 @@ void main() {
     );
   });
 
-  test('setup_migration/set_up_new_project/write_agent_files: init writes '
+  test('init writes '
       'an AGENT.md of at most 200 words with the one target clause', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
@@ -104,7 +94,7 @@ void main() {
   });
 
   test(
-    'setup_migration/set_up_new_project/write_agent_files E05: init '
+    'E05: init '
     'refuses a malformed instruction file, exit 65, writing nothing',
     () async {
       final root = await writeTree({
@@ -121,7 +111,7 @@ void main() {
     },
   );
 
-  test('f06/us03/s5: init in a configured folder prints the config_exists '
+  test('init in a configured folder prints the config_exists '
       'line', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -197,7 +187,7 @@ void main() {
     expect(out.toString(), endsWith(_configLine()));
   });
 
-  test('f06/us03/fr01: init takes no argument', () async {
+  test('init takes no argument', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
 

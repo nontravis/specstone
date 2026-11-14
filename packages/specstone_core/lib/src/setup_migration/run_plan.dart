@@ -56,7 +56,13 @@ String? mentionsLine(List<StaleMention> mentions) =>
 /// One step line of a pack upgrade, `from <version>: <step>: <n> docs`, and
 /// the files it rewrites.
 final class UpgradeStepLine {
-  const new({required this.from, required this.step, required this.paths});
+  const new({
+    required this.from,
+    required this.step,
+    required this.paths,
+    this.tail = '',
+    this.unreadable,
+  });
 
   /// The `from:` version of the migration entry holding the step.
   final String from;
@@ -68,8 +74,23 @@ final class UpgradeStepLine {
   /// each project-layer override after them, each group in code point order.
   final List<String> paths;
 
+  /// The counts the line prints after its doc count, such as `; 48 entries`.
+  final String tail;
+
+  /// Each file a step that reads code could not read; null for any other
+  /// step.
+  final List<String>? unreadable;
+
   /// The plan line.
-  String get text => 'from $from: $step: ${paths.length} docs';
+  String get text => 'from $from: $step: ${paths.length} docs$tail';
+
+  /// The line as one object of the JSON plan's `steps`.
+  Map<String, Object> toJson() => {
+    'from': from,
+    'step': step,
+    'paths': paths,
+    'unreadable': ?unreadable,
+  };
 }
 
 /// The path lists the plan's count lines print as numbers, each kept whole
@@ -127,10 +148,7 @@ final class PlanLists {
     'renumberIds': renumberIds,
     'agentFiles': agentFiles,
     'stamps': {'skipped': stampsSkipped},
-    'steps': [
-      for (final step in steps)
-        {'from': step.from, 'step': step.step, 'paths': step.paths},
-    ],
+    'steps': [for (final step in steps) step.toJson()],
     'mentions': mentionsJsonOf(mentions),
     'tests': ?tests,
   };

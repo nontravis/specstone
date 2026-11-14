@@ -117,7 +117,7 @@ void main() {
     }
   });
 
-  test('rendering/format_docs/normalize_layout_whitespace: init then check reports no format_drift on the four drafts', () async {
+  test('init then check reports no format_drift on the four drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
     final (status, _) = _run(root);
@@ -147,7 +147,7 @@ void main() {
     },
   );
 
-  test('f06/us03/fr02/e08: a run stopped before the config is finished by '
+  test('a run stopped before the config is finished by '
       'the next init', () async {
     // A full run supplies the two drafts a crash after them leaves.
     final whole = await writeTree({'keep.txt': 'x\n'});
@@ -175,7 +175,7 @@ void main() {
     expect(_read(root, _draftPaths[1]), features);
   });
 
-  test('setup_migration/set_up_new_project/write_agent_files verification: '
+  test('verification: '
       'init upserts each file, keeps the Owner bytes, and prints them before '
       'the config', () async {
     final root = await writeTree({
@@ -213,7 +213,7 @@ void main() {
     );
   });
 
-  test('setup_migration/set_up_new_project/write_agent_files E05: a '
+  test('E05: a '
       'malformed file refuses before any write', () async {
     final root = await writeTree({
       'CLAUDE.md': '<!-- BEGIN specstone v1.0.0 -->\nno end\n',
@@ -234,7 +234,7 @@ void main() {
   });
 
   test(
-    'setup_migration/set_up_new_project/write_agent_files E09: a rerun '
+    'E09: a rerun '
     'after a stop before the config changes 0 bytes of the agent files',
     () async {
       final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
@@ -251,7 +251,7 @@ void main() {
     },
   );
 
-  test('setup_migration/set_up_new_project/write_agent_files: a symbolic '
+  test('a symbolic '
       'link CLAUDE.md stays a link and its target takes the block', () async {
     final root = await writeTree({'shared/rules.md': 'shared\n'});
     try {
@@ -272,7 +272,7 @@ void main() {
     expect(_read(root, 'shared/rules.md'), contains('@.specstone/AGENT.md'));
   });
 
-  test('setup_migration/set_up_new_project/write_agent_files E18: a repository '
+  test('E18: a repository '
       'top inside the project that a code entry reaches is upserted, printed, '
       'and listed in the config', () async {
     final base = await writeTree({
@@ -299,7 +299,7 @@ void main() {
     );
   });
 
-  test('setup_migration/set_up_new_project/write_agent_files R99: a '
+  test('R99: a '
       'repository top outside the project root is named, never written, and '
       'not listed', () async {
     final base = await writeTree({
@@ -325,7 +325,7 @@ void main() {
     );
   });
 
-  group('setup_migration/set_up_new_project/write_agent_files: a link that '
+  group('a link that '
       'leads out of the write bounds', () {
     final skipLinks = Platform.isWindows
         ? 'symbolic links need a privilege'
@@ -421,7 +421,7 @@ void main() {
     }, skip: skipLinks);
   });
 
-  test('setup_migration/set_up_new_project/write_agent_files: a repository '
+  test('a repository '
       'top folder named with a # gets its agent file at that folder, not at '
       'a URI fragment', () async {
     final base = await writeTree({
@@ -441,7 +441,7 @@ void main() {
     (real: 'AGENTS.md', link: 'CLAUDE.md'),
     (real: 'CLAUDE.md', link: 'AGENTS.md'),
   ]) {
-    test('setup_migration/set_up_new_project/write_agent_files E22: $link '
+    test('E22: $link '
         'linked to $real takes the inline block and prints one line', () async {
       final root = await writeTree({real: 'Owner\n'});
       try {
@@ -480,7 +480,7 @@ void main() {
     );
   });
 
-  test('f06/us03/fr02/e05: each draft holds every required field empty and '
+  test('each draft holds every required field empty and '
       'every required section, nothing else', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final set = TemplateResolver().resolveCarried(
@@ -497,7 +497,7 @@ void main() {
     }
   });
 
-  test('f06/us03/fr02/e06: init makes no commit', () async {
+  test('init makes no commit', () async {
     final root = await gitFixture({'keep.txt': 'x\n'});
     final headBefore = git(root, ['rev-parse', 'HEAD']).stdout as String;
 
@@ -559,7 +559,7 @@ void main() {
     expect(lines.any((line) => line.contains('apply? [y/N] ')), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: '
+  test('E07: '
       'init on a legacy tree stamps each typed doc it leaves and keeps the '
       'created draft', () async {
     final root = await gitFixture(acmeLegacy);
@@ -582,7 +582,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('setup_migration/set_up_new_project/write_agent_files E08: init on a '
+  test('E08: init on a '
       'legacy tree writes the agent files in commit 2', () async {
     final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
 
@@ -664,7 +664,7 @@ void main() {
     expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e02: a legacy folder without a terminal prints the '
+  test('a legacy folder without a terminal prints the '
       'plan, then refuses owner_terminal_required', () async {
     final root = await gitFixture(acmeLegacy);
     final legacy = _bytesUnder(root);
@@ -698,7 +698,7 @@ void main() {
     expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e02: the legacy entry from the folder holding the docs '
+  test('the legacy entry from the folder holding the docs '
       'link plans code_root as migrate does', () async {
     final tree = await writeTree(
       linkedAcme({
@@ -746,7 +746,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e05: init on a legacy root reached through a docs link '
+  test('init on a legacy root reached through a docs link '
       'infers the same code_root as migrate run from that folder', () async {
     final tree = await writeTree({
       ...linkedAcme({
@@ -803,7 +803,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e02: the legacy entry refuses untrusted roots before any '
+  test('the legacy entry refuses untrusted roots before any '
       'git call', () async {
     final tree = await writeTree(linkedAcme({}));
     if (!linkCodeDocs(tree)) return;
@@ -830,7 +830,7 @@ void main() {
     expect(calls, isEmpty);
   });
 
-  test('f06/us03/fr01/e02: the legacy entry refuses a dirty tree before the '
+  test('the legacy entry refuses a dirty tree before the '
       'plan prints', () async {
     final root = await gitFixture(acmeLegacy);
     File('${root.path}/notes.txt').writeAsStringSync('x\n');
@@ -859,7 +859,7 @@ void main() {
     expect(out.toString(), isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e02: the legacy entry outside a git work tree, or in a '
+  test('the legacy entry outside a git work tree, or in a '
       'repository with no first commit, refuses git_work_tree_required '
       'before the plan prints', () async {
     final outside = await writeTree(acmeLegacy);
@@ -894,7 +894,7 @@ void main() {
     }
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e02: a refused commit in the legacy entry is git_failed, '
+  test('a refused commit in the legacy entry is git_failed, '
       'exit 75, and the journal stays', () async {
     final root = await gitFixture(acmeLegacy);
 
@@ -917,7 +917,7 @@ void main() {
     expect(MoveJournal.pendingMigrate(root), isTrue);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us03/fr01/e02: git that cannot start in the legacy entry is '
+  test('git that cannot start in the legacy entry is '
       'git_work_tree_required', () async {
     final root = await writeTree(acmeLegacy);
 
@@ -958,7 +958,7 @@ void main() {
     );
   }, skip: unreadablePathSkipReason());
 
-  test('f06/us03/fr01/e03: a folder inside another project becomes its own '
+  test('a folder inside another project becomes its own '
       'project', () async {
     final outer = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -982,7 +982,7 @@ void main() {
     );
   });
 
-  test('f06/us03/fr01/e04: a docs link puts the config beside the real docs '
+  test('a docs link puts the config beside the real docs '
       'folder', () async {
     final tree = await writeTree({
       'docsrepo/docs/keep.txt': 'x\n',

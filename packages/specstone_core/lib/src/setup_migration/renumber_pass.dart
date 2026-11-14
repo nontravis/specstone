@@ -22,7 +22,7 @@ typedef _BodyPass = ({Map<String, String> bodies, Set<String> linksUnread});
 // MARK: - RenumberPass
 
 /// The one-time pass of a pack upgrade that renumbers each lettered item ID
-/// and scenario number (`doc_model` RULE-12, apply_steps_and_pins E18, E19).
+/// and scenario number.
 ///
 /// It reads IDs and next numbers as `check` does, so each new number is the
 /// `next` its `item_id_lettered` finding named. Its cost follows the lettered

@@ -15,7 +15,7 @@ TypeMatcher<TemplateFault> _invalid() => isA<TemplateFault>()
 
 void main() {
   group('PackVersion.parse', () {
-    test('f03/us04/fr01: reads major, minor, and patch', () {
+    test('reads major, minor, and patch', () {
       final version = _parse('2.10.3');
 
       expect(version.major, 2);
@@ -45,7 +45,7 @@ void main() {
       },
     );
 
-    test('f03/us04/fr01/e06: empty text is pack_version_invalid', () {
+    test('empty text is pack_version_invalid', () {
       expect(() => _parse(''), throwsA(_invalid()));
     });
 
@@ -63,23 +63,23 @@ void main() {
       return PackVersion.fromYaml(map.nodes['v']!, file: _file, key: 'version');
     }
 
-    test('f03/us04/fr01: reads a plain scalar', () {
+    test('reads a plain scalar', () {
       expect(read('v: 1.2.0\n').toString(), '1.2.0');
     });
 
-    test('f03/us04/fr01: reads a quoted string without its quotes', () {
+    test('reads a quoted string without its quotes', () {
       expect(read("v: '1.2.0'\n").toString(), '1.2.0');
     });
 
-    test('f03/us04/fr01/e06: a YAML double keeps its written form', () {
+    test('a YAML double keeps its written form', () {
       expect(() => read('v: 1.10\n'), throwsA(_invalid()));
     });
 
-    test('f03/us04/fr01/e06: a list is pack_version_invalid', () {
+    test('a list is pack_version_invalid', () {
       expect(() => read('v: [1, 2, 3]\n'), throwsA(_invalid()));
     });
 
-    test('f03/us04/fr01/e06: a mapping is pack_version_invalid', () {
+    test('a mapping is pack_version_invalid', () {
       expect(() => read('v: {a: 1}\n'), throwsA(_invalid()));
     });
   });

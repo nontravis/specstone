@@ -50,12 +50,13 @@ const _notWritableMessage =
 /// `target_names`: an index of layout 13 holds neither, so it is rebuilt
 /// instead of read as one with none. Layout 15 counts the doc's non-blank body
 /// lines and a section's non-blank lines, so an index of layout 14, whose
-/// counts cover blank lines and frontmatter, is rebuilt. Layout 16 stores the
-/// cite candidates, link texts, and heading levels and lines in the line facts
-/// and the `item_words` table, so an index of layout 15 is rebuilt to hold
-/// them. Layout 17 stores each link text's destination as written, so an
-/// index of layout 16, whose link texts hold none, is rebuilt.
-const indexLayoutVersion = 17;
+/// counts cover blank lines and frontmatter, is rebuilt. Two builds took
+/// layouts 16 and 17 apart: one hashes a record's statuses by the project's
+/// statuses rule; the other stores the cite candidates, link texts with each
+/// destination as written, and heading levels and lines in the line facts and
+/// the `item_words` table. Layout 18 holds both, so an index of any earlier
+/// layout, which lacks one or the other, is rebuilt.
+const indexLayoutVersion = 18;
 
 const _schema = '''
 CREATE TABLE meta (

@@ -15,7 +15,7 @@ LegacyFeature _featureAt(LegacyFeatures scan, String folder) =>
 
 void main() {
   group('readSpecMap', () {
-    test('f06/us01/fr03: readSpecMap reads the acme rows', () {
+    test('readSpecMap reads the acme rows', () {
       final rows = readSpecMap(acmeLegacy['docs/specs/INDEX.md']!);
 
       expect(rows, hasLength(2));
@@ -27,7 +27,7 @@ void main() {
       expect(rows[1].featureId, '—');
     });
 
-    test('f06/us01/fr03: readSpecMap finds columns by header name', () {
+    test('readSpecMap finds columns by header name', () {
       const text = '''
 ## Spec map
 
@@ -44,7 +44,7 @@ void main() {
       expect(rows.single.featureId, 'f01_login');
     });
 
-    test('f06/us01/fr03: readSpecMap gives [] for a missing column', () {
+    test('readSpecMap gives [] for a missing column', () {
       const text = '''
 ## Spec map
 
@@ -56,11 +56,11 @@ void main() {
       expect(readSpecMap(text), isEmpty);
     });
 
-    test('f06/us01/fr03: readSpecMap gives [] for a missing section', () {
+    test('readSpecMap gives [] for a missing section', () {
       expect(readSpecMap('# Spec index\n\n## Global SoT files\n'), isEmpty);
     });
 
-    test('f06/us01/fr03: readSpecMap adds the trailing slash a spec path '
+    test('readSpecMap adds the trailing slash a spec path '
         'lacks and reads a missing cell as empty', () {
       const text = '''
 ## Spec map
@@ -79,7 +79,7 @@ void main() {
       expect(rows[1].featureId, '');
     });
 
-    test('f06/us01/fr03: readSpecMap skips a table line that is a lone '
+    test('readSpecMap skips a table line that is a lone '
         'pipe', () {
       const text = '''
 ## Spec map
@@ -93,7 +93,7 @@ void main() {
       expect(readSpecMap(text).map((r) => r.codePath), ['a/']);
     });
 
-    test('f06/us01/fr03: readSpecMap stops at the next heading', () {
+    test('readSpecMap stops at the next heading', () {
       const text = '''
 ## Spec map
 
@@ -113,7 +113,7 @@ void main() {
   });
 
   group('scanLegacyFeatures', () {
-    test('f06/us01/fr03/e03: a gap folder between a feature and a deeper '
+    test('a gap folder between a feature and a deeper '
         'FEATURE.md keeps the feature a feature', () {
       final scan = scanLegacyFeatures([
         'prds/features/f01_a/FEATURE.md',
@@ -127,7 +127,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e03: a folder whose child holds FEATURE.md is a '
+    test('a folder whose child holds FEATURE.md is a '
         'container', () {
       final scan = scanLegacyFeatures(_docPaths(containerLegacy));
 
@@ -155,7 +155,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e02: a flat feature keeps its folder name', () {
+    test('a flat feature keeps its folder name', () {
       final scan = scanLegacyFeatures(_docPaths(acmeLegacy));
 
       final feature = scan.features.single;
@@ -183,7 +183,7 @@ void main() {
       expect(scan.grouped, isTrue);
     });
 
-    test('f06/us01/fr03/e07: a tree with flat and grouped features is grouped '
+    test('a tree with flat and grouped features is grouped '
         'and its flat features stay', () {
       final scan = scanLegacyFeatures(_docPaths(mixedLegacy));
 
@@ -222,7 +222,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e02: a flat name with no prefix stays in place', () {
+    test('a flat name with no prefix stays in place', () {
       final scan = scanLegacyFeatures(['prds/features/notes/FEATURE.md']);
 
       expect(scan.features.single.featurePath, isNull);
@@ -231,7 +231,7 @@ void main() {
   });
 
   group('names', () {
-    test('f06/us01/fr03/e04: the group slug drops its prefix and the feature '
+    test('the group slug drops its prefix and the feature '
         'takes f and its last number', () {
       expect(groupSlugOf('co01_utilities'), 'utilities');
       expect(groupSlugOf('ai_module'), 'ai_module');
@@ -276,7 +276,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e09: further duplicate slugs chain under more', () {
+    test('further duplicate slugs chain under more', () {
       final scan = scanLegacyFeatures([
         'prds/features/a/aa01_x/z01_a/FEATURE.md',
         'prds/features/b/bb02_x/z01_b/FEATURE.md',
@@ -306,7 +306,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e09: distinct group slugs pass', () {
+    test('distinct group slugs pass', () {
       refuseDuplicateGroups(scanLegacyFeatures(_docPaths(groupedLegacy)));
       refuseDuplicateGroups(scanLegacyFeatures(_docPaths(mixedLegacy)));
       refuseDuplicateGroups(scanLegacyFeatures(_docPaths(containerLegacy)));
@@ -314,7 +314,7 @@ void main() {
   });
 
   group('gitFixture', () {
-    test('f06/us01/fr03: gitFixture commits the tree as one commit', () async {
+    test('gitFixture commits the tree as one commit', () async {
       final root = await gitFixture(acmeLegacy);
 
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);

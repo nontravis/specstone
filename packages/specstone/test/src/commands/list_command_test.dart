@@ -79,7 +79,7 @@ void main() {
     }
   });
 
-  test('f04/us04/fr04: list journey --suspect keeps a journey with a suspect step', () async {
+  test('list journey --suspect keeps a journey with a suspect step', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: {
@@ -129,7 +129,7 @@ void main() {
     expect(out.toString(), isEmpty);
   });
 
-  test('f04/us04/fr04/e06: --json gives F-01\'s docs object', () async {
+  test('--json gives F-01\'s docs object', () async {
     final (:runner, :out, :err) = readRunner(await suspectProject());
     expect(await runner.run(['list', 'fr', '--suspect', '--json']), 0);
     final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
@@ -139,26 +139,23 @@ void main() {
     );
   });
 
-  test(
-    'f04/us04/fr04/e07: list\'s faults come before any link state',
-    () async {
-      final unknown = readRunner(await suspectProject());
-      expect(await unknown.runner.run(['list', 'nope', '--suspect']), 64);
-      final under = readRunner(await suspectProject());
-      expect(
-        await under.runner.run([
-          'list',
-          'fr',
-          '--suspect',
-          '--under',
-          'login/emial_login',
-        ]),
-        64,
-      );
-      final outside = readRunner(await writeTree({}));
-      expect(await outside.runner.run(['list', 'fr', '--suspect']), 78);
-    },
-  );
+  test('list\'s faults come before any link state', () async {
+    final unknown = readRunner(await suspectProject());
+    expect(await unknown.runner.run(['list', 'nope', '--suspect']), 64);
+    final under = readRunner(await suspectProject());
+    expect(
+      await under.runner.run([
+        'list',
+        'fr',
+        '--suspect',
+        '--under',
+        'login/emial_login',
+      ]),
+      64,
+    );
+    final outside = readRunner(await writeTree({}));
+    expect(await outside.runner.run(['list', 'fr', '--suspect']), 78);
+  });
   test('f01/us03/s10, f01/us03/fr01/e06: outside a project, or under a 9.9.9 pin, exits 78', () async {
     final outside = readRunner(await writeTree({}));
     expect(await outside.runner.run(['list', 'feature']), 78);
@@ -170,12 +167,18 @@ void main() {
     expect(await pinned.runner.run(['list', 'feature']), 78);
   });
 
-  test('f10/us04/fr01: list user_story --unwalked --json adds unwalked to each doc, exit 0', () async {
-    final (:runner, :out, :err) = readRunner(await writeCheckProject());
-    expect(await runner.run(['list', 'user_story', '--unwalked', '--json']), 0);
-    final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
-    expect(docs.single, containsPair('unwalked', ['S1', 'S2']));
-  });
+  test(
+    'list user_story --unwalked --json adds unwalked to each doc, exit 0',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeCheckProject());
+      expect(
+        await runner.run(['list', 'user_story', '--unwalked', '--json']),
+        0,
+      );
+      final docs = (jsonDecode(out.toString()) as Map)['docs']! as List;
+      expect(docs.single, containsPair('unwalked', ['S1', 'S2']));
+    },
+  );
 
   test('f10/us04/s4, f10/us04/fr01/e05: list feature --unwalked exits 64 with the refusal', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
@@ -187,7 +190,7 @@ void main() {
     expect(out.toString(), isEmpty);
   });
 
-  test('f10/us04/fr01: list user_story --suspect --unwalked exits 0', () async {
+  test('list user_story --suspect --unwalked exits 0', () async {
     final (:runner, :out, :err) = readRunner(await suspectProject());
     expect(
       await runner.run(['list', 'user_story', '--suspect', '--unwalked']),

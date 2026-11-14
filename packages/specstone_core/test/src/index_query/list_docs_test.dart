@@ -379,7 +379,7 @@ void main() {
       );
     });
 
-    test('index_query/read_doc_section/resolve_doc_name E22: a target targets: holds none of is argument_invalid', () async {
+    test('E22: a target targets: holds none of is argument_invalid', () async {
       final targeted = await twoTargets();
       expect(
         () => answerList(targeted, 'fr', const ListFilters(codeTarget: 'web')),

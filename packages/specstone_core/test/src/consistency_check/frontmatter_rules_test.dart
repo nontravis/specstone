@@ -41,30 +41,30 @@ void main() {
     expect(report.findings.single.toJson()['value'], 'maybe');
   });
 
-  test('f04/us01/fr03/e03: a list field written as a scalar, and a date that is not a date, mismatch', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          ...fr('traced_from:\n  - S2\n', 'traced_from: S2\n'),
-          'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Agent\npriority: primary\nbasis: proto\nreviewed: next week\n---\n\n# Buyer\n',
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.fieldValueMismatch), [
-      '$loginFr:3: field_value_mismatch',
-      'prds/personas/buyer/PERSONA.md:6: field_value_mismatch',
-    ]);
-  });
-
   test(
-    'f04/us01/fr03/e04: a key no layer defines is field_undeclared at its line',
+    'a list field written as a scalar, and a date that is not a date, mismatch',
     () async {
       final report = checkOf(
-        await writeCheckProject(extra: _frWithKey('priority: high')),
+        await writeCheckProject(
+          extra: {
+            ...fr('traced_from:\n  - S2\n', 'traced_from: S2\n'),
+            'docs/prds/personas/buyer/PERSONA.md': '---\nrole: Agent\npriority: primary\nbasis: proto\nreviewed: next week\n---\n\n# Buyer\n',
+          },
+        ),
       );
-      expect(spots(report), ['$loginFr:8: field_undeclared']);
+      expect(spots(report, FindingKind.fieldValueMismatch), [
+        '$loginFr:3: field_value_mismatch',
+        'prds/personas/buyer/PERSONA.md:6: field_value_mismatch',
+      ]);
     },
   );
+
+  test('a key no layer defines is field_undeclared at its line', () async {
+    final report = checkOf(
+      await writeCheckProject(extra: _frWithKey('priority: high')),
+    );
+    expect(spots(report), ['$loginFr:8: field_undeclared']);
+  });
 
   test('f04/us01/fr03/e05, cc-s03/inv2, review focus 4: approved follows the merged set, with no F-04 change', () async {
     final project = await writeCheckProject(
@@ -89,19 +89,16 @@ void main() {
     ('E10, a list', 'approved: [a]'),
     ('E10, a number', 'approved: 7'),
   ]) {
-    test(
-      'consistency_check/find_template_breaks/check_frontmatter_fields $label: approved raises no field finding',
-      () async {
-        final report = checkOf(
-          await writeCheckProject(extra: _frWithKey(written)),
-        );
-        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
-        expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
-      },
-    );
+    test('$label: approved raises no field finding', () async {
+      final report = checkOf(
+        await writeCheckProject(extra: _frWithKey(written)),
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+      expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
+    });
   }
 
-  test('f04/us01/fr03/e06: a status written in a FEATURE is feature_status_written, whatever its stories hold', () async {
+  test('a status written in a FEATURE is feature_status_written, whatever its stories hold', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -117,47 +114,47 @@ void main() {
     expect(report.findings.single.toJson().containsKey('field'), isFalse);
   });
 
-  group(
-    'consistency_check/find_template_breaks/check_frontmatter_fields, records',
-    () {
-      const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+  group('consistency_check/find_template_breaks/check_frontmatter_fields, records', () {
+    const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
 
-      /// The record doc with [recordFrontmatter]; the shipped pack types it.
-      Map<String, String> recordProject(String recordFrontmatter) => {
-        'docs/$recordPath': '---\n$recordFrontmatter---\n\n# Login record\n',
-      };
+    /// The record doc with [recordFrontmatter]; the shipped pack types it.
+    Map<String, String> recordProject(String recordFrontmatter) => {
+      'docs/$recordPath': '---\n$recordFrontmatter---\n\n# Login record\n',
+    };
 
-      /// The story and the FR, each writing the status the record now holds.
-      final withStatus = {
-        ...edit(loginStory, [
-          ('---\ngoals:', '---\nstatus: implemented\ngoals:'),
-        ]),
-        ...fr('---\ntraced_from:', '---\nstatus: implemented\ntraced_from:'),
-      };
+    /// The story and the FR, each writing the status the record now holds.
+    final withStatus = {
+      ...edit(loginStory, [
+        ('---\ngoals:', '---\nstatus: implemented\ngoals:'),
+      ]),
+      ...fr('---\ntraced_from:', '---\nstatus: implemented\ntraced_from:'),
+    };
 
-      test('f04/us01/fr03/e11: a story or FR writing status is requirement_status_written while the merged set holds the record doc type', () async {
-        final report = checkOf(
-          await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
-            extra: {...recordProject(''), ...withStatus},
-          ),
-        );
-        expect(spots(report, FindingKind.requirementStatusWritten), [
-          '$loginStory:2: requirement_status_written',
-          '$loginFr:2: requirement_status_written',
-        ]);
-        expect(
-          report.findings
-              .firstWhere((f) => f.kind == FindingKind.requirementStatusWritten)
-              .toJson()
-              .containsKey('field'),
-          isFalse,
-        );
-        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
-        expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
-      });
+    test('a story or FR writing status is requirement_status_written while the merged set holds the record doc type', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: {...recordProject(''), ...withStatus},
+        ),
+      );
+      expect(spots(report, FindingKind.requirementStatusWritten), [
+        '$loginStory:2: requirement_status_written',
+        '$loginFr:2: requirement_status_written',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.requirementStatusWritten)
+            .toJson()
+            .containsKey('field'),
+        isFalse,
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+      expect(spots(report, FindingKind.fieldUndeclared), isEmpty);
+    });
 
-      test('f04/us01/fr03/e11: the same docs with no record doc type in the merged set take no finding', () async {
+    test(
+      'the same docs with no record doc type in the merged set take no finding',
+      () async {
         final report = checkOf(
           await writeCheckProject(
             extra: {
@@ -167,19 +164,22 @@ void main() {
           ),
         );
         expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
-      });
+      },
+    );
 
-      test('f04/us01/fr03/e11: a story or FR with no status written takes no finding', () async {
-        final report = checkOf(
-          await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
-            extra: recordProject(''),
-          ),
-        );
-        expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
-      });
+    test('a story or FR with no status written takes no finding', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: recordProject(''),
+        ),
+      );
+      expect(spots(report, FindingKind.requirementStatusWritten), isEmpty);
+    });
 
-      test('f04/us01/fr03/e11: a feature still takes feature_status_written, not the requirement kind', () async {
+    test(
+      'a feature still takes feature_status_written, not the requirement kind',
+      () async {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},
@@ -196,55 +196,55 @@ void main() {
         expect(spots(report, FindingKind.featureStatusWritten), [
           '$loginFeature:2: feature_status_written',
         ]);
-      });
+      },
+    );
 
-      test('f04/us01/fr03/e13: the record doc type is found by its record_status field, whatever its id', () async {
-        final report = checkOf(
-          await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
-            extra: {
-              ...withStatus,
-              '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-              '.specstone/templates/target_record.yaml':
-                  'id: target_record\n'
-                  'description: One feature record per target.\n'
-                  'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-                  'parent: feature\n'
-                  'per_target: true\n'
-                  'fields:\n'
-                  '  - id: statuses\n'
-                  '    type: record_status\n'
-                  '    list: true\n',
-              ...recordProject(''),
-            },
-          ),
-        );
-        expect(spots(report, FindingKind.requirementStatusWritten), [
-          '$loginStory:2: requirement_status_written',
-          '$loginFr:2: requirement_status_written',
-        ]);
-      });
+    test('the record doc type is found by its record_status field, whatever its id', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: {
+            ...withStatus,
+            '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+            '.specstone/templates/target_record.yaml':
+                'id: target_record\n'
+                'description: One feature record per target.\n'
+                'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+                'parent: feature\n'
+                'per_target: true\n'
+                'fields:\n'
+                '  - id: statuses\n'
+                '    type: record_status\n'
+                '    list: true\n',
+            ...recordProject(''),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.requirementStatusWritten), [
+        '$loginStory:2: requirement_status_written',
+        '$loginFr:2: requirement_status_written',
+      ]);
+    });
 
-      test('f04/us01/fr03/e14: an implements line with a space after the colon reads as a map and mismatches', () async {
-        final report = checkOf(
-          await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
-            extra: recordProject(
-              'implements:\n  - show_toast: lib/toast.dart\n',
-            ),
-          ),
-        );
-        final mismatches = [
-          for (final f in report.findings)
-            if (f.kind == FindingKind.fieldValueMismatch &&
-                f.path == recordPath)
-              f,
-        ];
-        expect(mismatches.map((f) => '${f.path}:${f.line}'), ['$recordPath:2']);
-        expect(mismatches.single.toJson()['field'], 'implements');
-      });
+    test('an implements line with a space after the colon reads as a map and mismatches', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: recordProject('implements:\n  - show_toast: lib/toast.dart\n'),
+        ),
+      );
+      final mismatches = [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.fieldValueMismatch && f.path == recordPath)
+            f,
+      ];
+      expect(mismatches.map((f) => '${f.path}:${f.line}'), ['$recordPath:2']);
+      expect(mismatches.single.toJson()['field'], 'implements');
+    });
 
-      test('f04/us01/fr03/e14: an implements line with no space stays one string and gives no finding', () async {
+    test(
+      'an implements line with no space stays one string and gives no finding',
+      () async {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},
@@ -254,58 +254,58 @@ void main() {
           ),
         );
         expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
-      });
+      },
+    );
 
-      test('f04/us01/fr03/e15: a statuses line giving an item the status wip mismatches, naming the field and the four statuses', () async {
+    test('a statuses line giving an item the status wip mismatches, naming the field and the four statuses', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: recordProject('statuses:\n  - login:wip\n'),
+        ),
+      );
+      final mismatch = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.fieldValueMismatch,
+      );
+      expect('${mismatch.path}:${mismatch.line}', '$recordPath:2');
+      expect(mismatch.toJson()['field'], 'statuses');
+      expect(
+        mismatch.message,
+        contains('planned, implemented, deprecated, or skipped'),
+      );
+    });
+
+    for (final line in [
+      'login:planned',
+      'login/email_login:implemented',
+      ':deprecated',
+      'login/email_login/check_password:skipped:no UI here',
+    ]) {
+      test('the statuses line $line fits', () async {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},
-            extra: recordProject('statuses:\n  - login:wip\n'),
+            extra: recordProject('statuses:\n  - "$line"\n'),
           ),
         );
-        final mismatch = report.findings.singleWhere(
-          (f) => f.kind == FindingKind.fieldValueMismatch,
-        );
-        expect('${mismatch.path}:${mismatch.line}', '$recordPath:2');
-        expect(mismatch.toJson()['field'], 'statuses');
-        expect(
-          mismatch.message,
-          contains('planned, implemented, deprecated, or skipped'),
-        );
+        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
       });
+    }
 
-      for (final line in [
-        'login:planned',
-        'login/email_login:implemented',
-        ':deprecated',
-        'login/email_login/check_password:skipped:no UI here',
-      ]) {
-        test('f04/us01/fr03/e15: the statuses line $line fits', () async {
-          final report = checkOf(
-            await writeCheckProject(
-              unstamped: {'docs/$recordPath'},
-              extra: recordProject('statuses:\n  - "$line"\n'),
-            ),
-          );
-          expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
-        });
-      }
+    test('a statuses line with no status, or no colon, mismatches', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: recordProject('statuses:\n  - login\n  - "login:"\n'),
+        ),
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), [
+        '$recordPath:2: field_value_mismatch',
+      ]);
+    });
+  });
 
-      test('f04/us01/fr03/e15: a statuses line with no status, or no colon, mismatches', () async {
-        final report = checkOf(
-          await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
-            extra: recordProject('statuses:\n  - login\n  - "login:"\n'),
-          ),
-        );
-        expect(spots(report, FindingKind.fieldValueMismatch), [
-          '$recordPath:2: field_value_mismatch',
-        ]);
-      });
-    },
-  );
-
-  test('f04/us01/fr03/e12: an FR that still writes implements under the shipped pack, which declares no such field on fr, is field_undeclared naming the field', () async {
+  test('an FR that still writes implements under the shipped pack, which declares no such field on fr, is field_undeclared naming the field', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: _frWithKey('implements:\n  - app/lib/login.dart:checkPassword'),
@@ -318,23 +318,26 @@ void main() {
     expect(found.single.toJson()['field'], 'implements');
   });
 
-  test('f04/us01/fr03/e12: a story that still writes implements is field_undeclared the same way', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: edit(loginStory, [
-          (
-            '  - PG-01\n---',
-            '  - PG-01\nimplements:\n  - app/lib/login.dart:SignInPage\n---',
-          ),
-        ]),
-      ),
-    );
-    expect(spots(report, FindingKind.fieldUndeclared), [
-      '$loginStory:5: field_undeclared',
-    ]);
-  });
+  test(
+    'a story that still writes implements is field_undeclared the same way',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: edit(loginStory, [
+            (
+              '  - PG-01\n---',
+              '  - PG-01\nimplements:\n  - app/lib/login.dart:SignInPage\n---',
+            ),
+          ]),
+        ),
+      );
+      expect(spots(report, FindingKind.fieldUndeclared), [
+        '$loginStory:5: field_undeclared',
+      ]);
+    },
+  );
 
-  test('f04/us01/fr03/e07: invalid frontmatter is frontmatter_invalid only, and its warning is not printed', () async {
+  test('invalid frontmatter is frontmatter_invalid only, and its warning is not printed', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: fr('verify_method: test\n', 'verify_method: "test\n'),
@@ -344,7 +347,7 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  test('f04/us01/fr03/e08: an untyped doc gets no field rule', () async {
+  test('an untyped doc gets no field rule', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {'docs/notes/idea.md': '---\npriority: high\n---\n\n# Idea\n'},
@@ -366,14 +369,17 @@ void main() {
     ]);
   });
 
-  test('f04/us01/fr03/e04: an undeclared key with an empty value is still field_undeclared', () async {
-    final report = checkOf(
-      await writeCheckProject(extra: _frWithKey('priority:')),
-    );
-    expect(spots(report), ['$loginFr:8: field_undeclared']);
-  });
+  test(
+    'an undeclared key with an empty value is still field_undeclared',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(extra: _frWithKey('priority:')),
+      );
+      expect(spots(report), ['$loginFr:8: field_undeclared']);
+    },
+  );
 
-  group('f04/us01/fr03/e09: a required field group', () {
+  group('a required field group', () {
     const layer = '.specstone/templates/feature.yaml';
     const groups = 'lint:\n  required_field_groups:\n    - [vision, goals]\n';
     final feature = checkProjectFiles()['docs/$loginFeature']!;

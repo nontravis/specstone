@@ -6,8 +6,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_text.g.dart';
 
 /// The AGENT.md text, ending in one line feed, embedded from
-/// `assets/agent/AGENT.md` by `tool/generate_agent_text.dart`
-/// (`setup_migration/set_up_new_project/write_agent_files`).
+/// `assets/agent/AGENT.md` by `tool/generate_agent_text.dart`.
 final String agentMdText = utf8.decode(base64Decode(agentMdTextBase64));
 
 /// The instruction files that import `.specstone/AGENT.md`.

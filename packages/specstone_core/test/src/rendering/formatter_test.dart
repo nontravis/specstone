@@ -92,7 +92,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr03/e01: a subsection moves with its section', () async {
+    test('a subsection moves with its section', () async {
       final feature = await _feature();
       const disk =
           '## Feature goal\n\n- **why:** x\n### Detail\n\nd1\nd2\n\n'
@@ -105,7 +105,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr03/e02: defined keys first in field order, the rest '
+    test('defined keys first in field order, the rest '
         'after in file order', () async {
       final feature = await _feature();
       const disk =
@@ -133,7 +133,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr03/e04: a doc without frontmatter gets none', () async {
+    test('a doc without frontmatter gets none', () async {
       final feature = await _feature();
 
       final text = _format(
@@ -218,7 +218,7 @@ void main() {
       expect(refused.duplicateHeaders, ['## Feature goal', '## Feature name']);
     });
 
-    test('f05/us01/fr04: a doc that ends inside a fence is refused, with no '
+    test('a doc that ends inside a fence is refused, with no '
         'header fault listed', () async {
       final feature = await _feature();
 
@@ -232,7 +232,7 @@ void main() {
       expect(refused.duplicateHeaders, isEmpty);
     });
 
-    test('rendering/format_docs/match_section_headers: a layout that turns a '
+    test('a layout that turns a '
         'body line into a frontmatter close is refused, apart from the '
         'header faults', () async {
       final feature = await _feature();
@@ -245,7 +245,7 @@ void main() {
       expect(refused.duplicateHeaders, isEmpty);
     });
 
-    test('rendering/format_docs/match_section_headers: declared fields the '
+    test('declared fields the '
         'layout reorders are formatted, whatever lines trail the last '
         'block', () async {
       final keyed = (await fixtureDocTypes(extra: {'keyed.yaml': _keyed}))
@@ -267,7 +267,7 @@ void main() {
       }
     });
 
-    test('rendering/format_docs/match_section_headers: a doc the layout '
+    test('a doc the layout '
         'leaves as it is keeps its own parse', () async {
       final feature = await _feature();
       final doc = Doc.parse('# T\n\n## Feature name\n\nx\n');
@@ -278,7 +278,7 @@ void main() {
       expect(identical((outcome as Formatted).doc, doc), isTrue);
     });
 
-    test('f05/us01/fr04: a header fault is not unclosedFence', () async {
+    test('a header fault is not unclosedFence', () async {
       final feature = await _feature();
 
       expect(_refused('## Notes\nx\n', feature).unclosedFence, isFalse);
@@ -297,7 +297,7 @@ void main() {
       expect(refused.duplicateHeaders, ['## Feature name']);
     });
 
-    test('rendering/format_docs/leave_missing_sections E01: a missing required '
+    test('E01: a missing required '
         'section stays absent', () async {
       final feature = await _feature();
 
@@ -311,7 +311,7 @@ void main() {
       );
     });
 
-    test('rendering/format_docs/leave_missing_sections E02: a missing optional '
+    test('E02: a missing optional '
         'section stays absent', () async {
       final feature = await _feature();
 
@@ -323,7 +323,7 @@ void main() {
       expect(text, isNot(contains('Feature flow')));
     });
 
-    test('rendering/format_docs/leave_missing_sections E03: draft stays as '
+    test('E03: draft stays as '
         'written when a section is missing', () async {
       final feature = await _feature();
 
@@ -335,7 +335,7 @@ void main() {
       expect(text, '---\ndraft: false\n---\n\n## Feature name\n\nn\n');
     });
 
-    test('rendering/format_docs/order_sections_and_keys: orders and renames '
+    test('orders and renames '
         'headers, keeps text, lays out a table and a heading gap', () async {
       final feature = await _feature();
 
@@ -353,7 +353,7 @@ void main() {
       );
     });
 
-    test('rendering/format_docs/normalize_layout_whitespace E07: a laid-out '
+    test('E07: a laid-out '
         'doc comes back byte-equal', () async {
       final feature = await _feature();
       const disk = '## Feature name\n\nn\n\n## Feature goal\n\ng\n';
@@ -361,7 +361,7 @@ void main() {
       expect(_format(disk, feature), disk);
     });
 
-    test('rendering/format_docs/normalize_layout_whitespace E09: a '
+    test('E09: a '
         'frontmatter line starting "# " and a key block line ending in '
         'spaces stay verbatim', () async {
       final feature = await _feature();
@@ -451,7 +451,7 @@ void main() {
     Future<MergedDocType> journey() async =>
         prdCoreDocType(await resolvePrdCore(), 'journey');
 
-    test('rendering/keep_generated_blocks_current/write_generated_blocks E06: '
+    test('E06: '
         'an opening marker of a listed kind with no end marker is refused, '
         'naming the marker and its kind', () async {
       final docType = await journey();
@@ -466,7 +466,7 @@ void main() {
       }
     });
 
-    test('rendering/keep_generated_blocks_current/write_generated_blocks E06: '
+    test('E06: '
         'a doc with an open generated block is written as given and is not '
         'laid out', () async {
       final docType = await journey();
@@ -475,7 +475,7 @@ void main() {
       expect(isLaidOut(Doc.parse(unclosed), unclosed, docType), isFalse);
     });
 
-    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+    test('Write each generated block '
         'E06: a marker whose line ends in spaces or a tab, with no end '
         'marker, is refused, naming the marker as written', () async {
       final docType = await journey();
@@ -490,7 +490,7 @@ void main() {
       }
     });
 
-    test('rendering/keep_generated_blocks_current/write_generated_blocks E04: '
+    test('E04: '
         'an open marker of a kind the type does not list is text', () async {
       final docType = await journey();
       final other = generatedOpenMarker('note_toc');
@@ -501,7 +501,7 @@ void main() {
   });
 
   group('layOutDoc', () {
-    test('rendering/format_docs/normalize_layout_whitespace: a null doc type '
+    test('a null doc type '
         'returns the text unchanged', () {
       const text = '## A\n\n\n\nx   \n';
 
@@ -509,7 +509,7 @@ void main() {
       expect(isLaidOut(Doc.parse(text), text, null), isFalse);
     });
 
-    test('rendering/format_docs/match_section_headers: each refusal returns '
+    test('each refusal returns '
         'the text byte-equal', () async {
       final feature = await _feature();
 
@@ -523,7 +523,7 @@ void main() {
       }
     });
 
-    test('rendering/format_docs/order_sections_and_keys: lays out as '
+    test('lays out as '
         'formatDoc does', () async {
       final feature = await _feature();
       const text = '## Feature goal\n\ng\n\n\n## Feature name\n\nn\n';

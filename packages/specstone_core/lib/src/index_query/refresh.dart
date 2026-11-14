@@ -89,6 +89,7 @@ RefreshResult refreshIndex(IndexStore store, DocsProject project) {
             docPath: docPath,
             bytes: content.bytes,
             match: project.matcher.match(docPath),
+            statusesOutside: project.statusesOutsideApproval,
             codeTarget: singleTarget,
             idPrefixes: idPrefixes,
           ),

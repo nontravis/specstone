@@ -60,7 +60,7 @@ Future<HtmlBuild> _build(
 }
 
 void main() {
-  test('f05/us02/fr05: buildHtml carries the page it is given', () async {
+  test('buildHtml carries the page it is given', () async {
     final build = await _build({
       _featurePath: _feature,
     }, page: PageSetup.parse(paper: 'legal'));
@@ -95,28 +95,25 @@ void main() {
     expect(build.warnings, isEmpty);
   });
 
-  test('f05/us02/fr01: the docs root titles the page docs', () async {
+  test('the docs root titles the page docs', () async {
     final build = await _build({_featurePath: _feature});
 
     expect(build.html, contains('<title>docs</title>'));
   });
 
-  test(
-    'f05/us02/fr02: shows the frontmatter table right after the h1',
-    () async {
-      final build = await _build({
-        _featurePath: '---\nstatus: planned\n---\n$_feature',
-      });
+  test('shows the frontmatter table right after the h1', () async {
+    final build = await _build({
+      _featurePath: '---\nstatus: planned\n---\n$_feature',
+    });
 
-      expect(
-        build.html,
-        contains(
-          '<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>\n'
-          '<table class="frontmatter">$_statusRow</table>',
-        ),
-      );
-    },
-  );
+    expect(
+      build.html,
+      contains(
+        '<h1 id="doc-1-f-05--rendering">F-05 — Rendering</h1>\n'
+        '<table class="frontmatter">$_statusRow</table>',
+      ),
+    );
+  });
 
   test('f05/us02/fr02/e01, s03/inv11: renders sections as on disk and '
       'warns the doc does not match its template', () async {
@@ -135,7 +132,7 @@ void main() {
     ]);
   });
 
-  test('rendering/format_docs/leave_missing_sections: a doc lacking a section '
+  test('a doc lacking a section '
       'raises no template warning', () async {
     final build = await _build({
       _featurePath: '# F-05\n\n## Feature name\n\n- **Human:** Rendering\n',
@@ -144,7 +141,7 @@ void main() {
     expect(build.warnings, isEmpty);
   });
 
-  test('rendering/format_docs/normalize_layout_whitespace: layout drift '
+  test('layout drift '
       'raises the template warning', () async {
     final build = await _build({
       _featurePath:
@@ -180,7 +177,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr02/e02: a draft shows its label after the frontmatter '
+  test('a draft shows its label after the frontmatter '
       'table and before the body', () async {
     final build = await _build({
       _featurePath: '---\ndraft: true\n---\n$_feature',
@@ -224,7 +221,7 @@ void main() {
     expect(html, contains("default-src 'none'"));
   });
 
-  test('f05/us02/fr02/e05: a toc entry is the title line, else the path '
+  test('a toc entry is the title line, else the path '
       'from the docs root', () async {
     final build = await _build({
       _frPath: '# List doc types\n\n## Statement\nx\n',
@@ -282,7 +279,7 @@ void main() {
     expect(build.html, isNot(contains('doc-2')));
   });
 
-  test('f05/us02/fr01: a file target renders only that doc, titled by its '
+  test('a file target renders only that doc, titled by its '
       'path', () async {
     final build = await _build({
       _featurePath: _feature,
@@ -294,13 +291,13 @@ void main() {
     expect(build.html, isNot(contains('F-05 — Rendering')));
   });
 
-  test('f05/us02/fr05: every built page carries the page-break rule', () async {
+  test('every built page carries the page-break rule', () async {
     final build = await _build({_featurePath: _feature});
 
     expect(build.html, contains(pageStylesheet));
   });
 
-  test('f05/us02/fr01: a folder where no doc type matches any file builds an '
+  test('a folder where no doc type matches any file builds an '
       'empty table of contents, one warning per file', () async {
     final build = await _build({
       '$_featureDir/notes.md': 'notes\n',
@@ -339,7 +336,7 @@ void main() {
     expect(RegExp('<script nonce="').allMatches(html), hasLength(2));
   });
 
-  test('f05/us02/fr02: an unclosed <title> in a doc is shown as text and the '
+  test('an unclosed <title> in a doc is shown as text and the '
       'next doc still gets its section', () async {
     final build = await _build({
       _featurePath: "# F-05\n\nSet the page's <title> from the doc.\n",
@@ -356,7 +353,7 @@ void main() {
     expect(html, contains('<h1 id="doc-2-story-one">Story one</h1>'));
   });
 
-  test('f05/us02/fr02: an unclosed <title lang=x> or <STYLE media=print> in '
+  test('an unclosed <title lang=x> or <STYLE media=print> in '
       'prose is shown as text and every later doc keeps its section', () async {
     final build = await _build({
       _featurePath:
@@ -378,7 +375,7 @@ void main() {
     expect(html, contains('<h1 id="doc-3-req">Req</h1>'));
   });
 
-  test('f05/us02/fr02: an unclosed <noscript> or <TEMPLATE id=x> and their end '
+  test('an unclosed <noscript> or <TEMPLATE id=x> and their end '
       'tags in prose are shown as text and every later doc keeps its '
       'section', () async {
     final build = await _build({
@@ -404,7 +401,7 @@ void main() {
     expect(html, contains('<section class="doc" id="doc-2">'));
   });
 
-  test('f05/us02/fr02: a fenced code block that shows <script> still renders '
+  test('a fenced code block that shows <script> still renders '
       'as code', () async {
     final build = await _build({
       _featurePath:
@@ -423,7 +420,7 @@ void main() {
     );
   });
 
-  test('f05/us02/fr02/e05: a bare "# " title line is no title, so the toc '
+  test('a bare "# " title line is no title, so the toc '
       'entry is the path and the body has no h1', () async {
     final build = await _build({
       _frPath: '# \n\n## Statement\nx\n',
@@ -488,26 +485,22 @@ void main() {
   });
 
   group('an unreadable path', () {
-    test(
-      'f05/us02/fr02: a doc that cannot be read is skipped with a warning and '
-      'the other docs still render',
-      () async {
-        final build = await _build(
-          {_featurePath: _feature, _storyPath: _story},
-          beforeBuild: (root) {
-            final locked = File('${root.path}/docs/$_featurePath');
-            Process.runSync('chmod', ['000', locked.path]);
-            addTearDown(() => Process.runSync('chmod', ['644', locked.path]));
-          },
-        );
+    test('a doc that cannot be read is skipped with a warning and '
+        'the other docs still render', () async {
+      final build = await _build(
+        {_featurePath: _feature, _storyPath: _story},
+        beforeBuild: (root) {
+          final locked = File('${root.path}/docs/$_featurePath');
+          Process.runSync('chmod', ['000', locked.path]);
+          addTearDown(() => Process.runSync('chmod', ['644', locked.path]));
+        },
+      );
 
-        expect(build.warnings, ['docs/$_featurePath: cannot be read; skipped']);
-        expect(build.html, contains('Story one'));
-      },
-      skip: unreadablePathSkipReason() ?? false,
-    );
+      expect(build.warnings, ['docs/$_featurePath: cannot be read; skipped']);
+      expect(build.html, contains('Story one'));
+    }, skip: unreadablePathSkipReason() ?? false);
 
-    test('f05/us02/fr02: a folder that cannot be listed is skipped with a '
+    test('a folder that cannot be listed is skipped with a '
         'warning whose path ends in a slash', () async {
       final build = await _build(
         {_featurePath: _feature, _storyPath: _story},

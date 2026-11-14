@@ -45,7 +45,7 @@ Directory? homeFrom(Map<String, String> env) {
   return null;
 }
 
-/// Runs the `specstone` command line.
+/// Runs the specstone command line.
 ///
 /// Prints the Specstone version for `--version`, prints generated usage for
 /// `--help` or no arguments, and maps a [UsageException] to usage on stderr

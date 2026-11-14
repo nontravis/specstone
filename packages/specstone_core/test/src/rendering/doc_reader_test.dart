@@ -113,25 +113,21 @@ void main() {
     expect(read, isA<UnmatchedDoc>());
   });
 
-  test(
-    'f05/us01/fr02: a matched doc that cannot be read is an UnreadableDoc with '
-    'a warning',
-    () async {
-      final read = await _read(
-        _feature,
-        '# T\n',
-        prepare: (file) {
-          Process.runSync('chmod', ['000', file.path]);
-          addTearDown(() => Process.runSync('chmod', ['644', file.path]));
-        },
-      );
+  test('a matched doc that cannot be read is an UnreadableDoc with '
+      'a warning', () async {
+    final read = await _read(
+      _feature,
+      '# T\n',
+      prepare: (file) {
+        Process.runSync('chmod', ['000', file.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', file.path]));
+      },
+    );
 
-      expect(read, isA<UnreadableDoc>());
-      expect(
-        (read as UnreadableDoc).warning,
-        'docs/$_feature: cannot be read; skipped',
-      );
-    },
-    skip: unreadablePathSkipReason() ?? false,
-  );
+    expect(read, isA<UnreadableDoc>());
+    expect(
+      (read as UnreadableDoc).warning,
+      'docs/$_feature: cannot be read; skipped',
+    );
+  }, skip: unreadablePathSkipReason() ?? false);
 }

@@ -30,7 +30,7 @@ String? _matchedId(DocTypeMatcher matcher, String docPath) =>
 
 void main() {
   group('project files', () {
-    test('f06/us01/fr05: the config pins prd-core and software-tech at the '
+    test('the config pins prd-core and software-tech at the '
         'carried versions', () {
       final manifests = TemplateResolver().availableManifests(
         _packs,
@@ -208,7 +208,7 @@ void main() {
       }
     });
 
-    test('f06/us01/fr05/e01: an ARCHITECTURE renamed one to one covers each '
+    test('an ARCHITECTURE renamed one to one covers each '
         'Code path of its old folder, in row order', () {
       final rows = [
         const SpecMapRow(
@@ -235,7 +235,7 @@ void main() {
       expect(coversOf('specs/missing/', rows), isNull);
     });
 
-    test('f06/us01/fr05/e01: the acme fixture covers one path', () {
+    test('the acme fixture covers one path', () {
       final rows = readSpecMap(acmeLegacy['docs/specs/INDEX.md']!);
 
       final covers = coversOf('specs/api/auth/', rows);
@@ -244,7 +244,7 @@ void main() {
       expect(covers?.label, 'covers (1 path)');
     });
 
-    test('f06/us01/fr05/e03: a grouped tree gets the eleven path overrides, '
+    test('a grouped tree gets the eleven path overrides, '
         'and they load', () {
       final overrides = groupedPathOverrides();
 
@@ -287,7 +287,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr05/e04: a legacy NFR category with no GNFR section '
+    test('a legacy NFR category with no GNFR section '
         'becomes a gnfr section override', () {
       final entry = gnfrOverride(['Data integrity', 'Token efficiency']);
 
@@ -312,7 +312,7 @@ void main() {
       expect(gnfrOverride([]), isNull);
     });
 
-    test('f06/us01/fr05/e04: an id a carried section holds is taken, so the '
+    test('an id a carried section holds is taken, so the '
         'override adds a section', () {
       final entry = gnfrOverride(['Safety!'], carriedIds: {'safety'})!;
 
@@ -335,7 +335,7 @@ void main() {
       ]);
     });
 
-    test('f06/us01/fr05/e04: free-text legacy headers round-trip through the '
+    test('free-text legacy headers round-trip through the '
         'gnfr override', () {
       const headers = [
         'Cost: low',
@@ -369,7 +369,7 @@ void main() {
       expect(entry.value, contains('id: data_integrity_2\n'));
     });
 
-    test('f06/us01/fr05/e01: headers Cost, cost and Cost 2 get three distinct '
+    test('headers Cost, cost and Cost 2 get three distinct '
         'ids and keep three sections', () {
       final entry = gnfrOverride(['Cost', 'cost', 'Cost 2'])!;
 
@@ -389,7 +389,7 @@ void main() {
       expect(ids.toSet(), hasLength(3));
     });
 
-    test('f06/us01/fr05/e01: covers skips an empty Code path and quotes a '
+    test('covers skips an empty Code path and quotes a '
         'path holding a colon', () {
       final rows = [
         const SpecMapRow(codePath: '', specPath: 'specs/a/', featureId: 'f01'),
@@ -408,7 +408,7 @@ void main() {
       expect(coversOf('specs/b/', rows), isNull);
     });
 
-    test('f06/us01/fr05/e01: covers quotes a path YAML reads as a number or '
+    test('covers quotes a path YAML reads as a number or '
         'a word', () {
       final rows = [
         for (final codePath in ['2024', 'true', 'null', '1.5'])
@@ -423,7 +423,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr05/e06: a project-layer singular doc type follows the '
+    test('a project-layer singular doc type follows the '
         'four by DocPath', () {
       final set = TemplateResolver().resolveCarried(
         packNames: _packs,
@@ -443,7 +443,7 @@ void main() {
       ]);
     });
 
-    test('f06/us01/fr05: parseOverrides reads only doc-type files, in code '
+    test('parseOverrides reads only doc-type files, in code '
         'point order', () {
       final layers = parseOverrides({
         '.specstone/templates/zeta.yaml': 'path: z/{slug}.md\n',

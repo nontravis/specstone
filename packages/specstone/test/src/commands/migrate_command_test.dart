@@ -29,7 +29,7 @@ Future<String> _dryRunPlanHash(Directory root) async {
 }
 
 void main() {
-  test('f06/us01/s2: migrate --dry-run prints the plan, writes nothing, and '
+  test('migrate --dry-run prints the plan, writes nothing, and '
       'exits 0', () async {
     final root = await gitFixture(acmeLegacy);
     final before = _bytesUnder(root);
@@ -61,27 +61,24 @@ void main() {
     expect(out.toString(), endsWith('dry run: nothing written\n'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test(
-    'f06/us01/fr01/e04: nothing to migrate, with and without --dry-run',
-    () async {
-      final root = await writeTree({
-        '.specstone/config.yaml': shippedPinsConfig(),
-      });
+  test('nothing to migrate, with and without --dry-run', () async {
+    final root = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+    });
 
-      for (final args in [
-        ['migrate'],
-        ['migrate', '--dry-run'],
-      ]) {
-        final (:runner, :out, :err) = writeRunner(root);
+    for (final args in [
+      ['migrate'],
+      ['migrate', '--dry-run'],
+    ]) {
+      final (:runner, :out, :err) = writeRunner(root);
 
-        expect(await runner.run(args), 0);
-        expect(out.toString(), 'nothing to migrate\n');
-        expect(err.toString(), isEmpty);
-      }
-    },
-  );
+      expect(await runner.run(args), 0);
+      expect(out.toString(), 'nothing to migrate\n');
+      expect(err.toString(), isEmpty);
+    }
+  });
 
-  test('f06/us01/fr04/e16: migrate --dry-run labels a doc changed by a path '
+  test('migrate --dry-run labels a doc changed by a path '
       'mention', () async {
     final root = await gitFixture({
       ...acmeLegacy,
@@ -98,7 +95,7 @@ void main() {
     expect(out.toString(), contains('  prds/d04_glossary.md: 1 mention\n'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr01/e01: no project is project_not_found, exit 78', () async {
+  test('no project is project_not_found, exit 78', () async {
     final root = await writeTree({'notes.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
 
@@ -107,7 +104,7 @@ void main() {
     expect(err.toString(), startsWith('no Specstone project'));
   });
 
-  test('f06/us01/fr01/e06: a newer pin refuses before the run, exit 78, in '
+  test('a newer pin refuses before the run, exit 78, in '
       '--dry-run', () async {
     final root = await writeTree({
       '.specstone/config.yaml': 'packs:\n  prd-core: 99.0.0\n',
@@ -119,28 +116,24 @@ void main() {
     expect(err.toString(), contains('prd-core'));
   });
 
-  test(
-    'f06/us01/s14: two groups with one name refuse in the dry run',
-    () async {
-      final root = await gitFixture({
-        ...duplicateGroupLegacy,
-        'docs/prds/d01_context.md': '# D-01 — Context\n',
-      });
-      final (:runner, :out, :err) = writeRunner(root);
+  test('two groups with one name refuse in the dry run', () async {
+    final root = await gitFixture({
+      ...duplicateGroupLegacy,
+      'docs/prds/d01_context.md': '# D-01 — Context\n',
+    });
+    final (:runner, :out, :err) = writeRunner(root);
 
-      expect(await runner.run(['migrate', '--dry-run']), 65);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'prds/features/components/co01_utilities: two group folders give the '
-        'group utilities; rename one, then run specstone migrate again; also '
-        'prds/features/core/cr02_utilities\n',
-      );
-    },
-    skip: hasGit ? null : 'git is not available',
-  );
+    expect(await runner.run(['migrate', '--dry-run']), 65);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      'prds/features/components/co01_utilities: two group folders give the '
+      'group utilities; rename one, then run specstone migrate again; also '
+      'prds/features/core/cr02_utilities\n',
+    );
+  }, skip: hasGit ? null : 'git is not available');
 
-  group('f06/us01/s15: a legacy collision', () {
+  group('a legacy collision', () {
     const featureWithSpecs = {
       'docs/prds/d01_context.md': '# D-01 — Context\n',
       'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
@@ -189,7 +182,7 @@ void main() {
     }
   });
 
-  test('f06/us01/fr03/e12: Spec map rows outside specs/ sharing a last '
+  test('Spec map rows outside specs/ sharing a last '
       'segment plan, exit 0', () async {
     final root = await gitFixture({
       'docs/prds/d01_context.md': '# D-01 — Context\n',
@@ -210,7 +203,7 @@ void main() {
     expect(out.toString(), endsWith('dry run: nothing written\n'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e04: migrate --dry-run over a dirty tree is '
+  test('migrate --dry-run over a dirty tree is '
       'working_tree_dirty, exit 75, with no plan', () async {
     final root = await gitFixture(acmeLegacy);
     File('${root.path}/notes.txt').writeAsStringSync('x\n');
@@ -221,7 +214,7 @@ void main() {
     expect(err.toString(), isNotEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e03: migrate --dry-run outside a git work tree is '
+  test('migrate --dry-run outside a git work tree is '
       'git_work_tree_required, exit 78, with no plan', () async {
     final root = await writeTree(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(root);
@@ -231,7 +224,7 @@ void main() {
     expect(err.toString(), contains('not in a git work tree'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02: migrate takes no argument', () async {
+  test('migrate takes no argument', () async {
     final root = await writeTree(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(root);
 
@@ -383,7 +376,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  group('f06/us01/fr05/e14: the legacy run writes records', () {
+  group('the legacy run writes records', () {
     const storyFile =
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
     String story(String status) =>
@@ -447,7 +440,7 @@ void main() {
     });
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/s17: a commit that touches no input between the dry run and '
+  test('a commit that touches no input between the dry run and '
       'migrate --yes --plan leaves the hash, and the plan applies', () async {
     final root = await gitFixture(acmeLegacy);
     final hash = await _dryRunPlanHash(root);
@@ -468,7 +461,7 @@ void main() {
     ]);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us02/s17: a tracked file added between the dry run and migrate '
+  test('a tracked file added between the dry run and migrate '
       '--yes --plan leaves the hash of an upgrade with a labelled code file, '
       'and the plan applies without reading it', () async {
     final root = await gitFixture({
@@ -500,7 +493,7 @@ void main() {
   }, skip: hasGit ? null : 'git is not available');
 
   test(
-    'f06/us01/s18: a committed edit to a doc between the dry run and '
+    'a committed edit to a doc between the dry run and '
     'migrate --yes --plan exits 75, plan_mismatch, and writes nothing',
     () async {
       final root = await gitFixture(acmeLegacy);
@@ -523,7 +516,7 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
-  test('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: '
+  test('E07: '
       'migrate --yes --plan leaves the typed docs stamped and no stale '
       'approval for check', () async {
     final root = await gitFixture(acmeLegacy);
@@ -541,7 +534,7 @@ void main() {
     expect(checkOut.toString(), isNot(contains('approval_stale')));
   }, skip: hasGit ? null : 'git is not available');
 
-  test("f06/us01/s1: the Owner's y at a terminal makes two commits", () async {
+  test("the Owner's y at a terminal makes two commits", () async {
     final root = await gitFixture(acmeLegacy);
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -564,8 +557,8 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links E17, '
-      'setup_migration/migrate_legacy_docs/write_first_fingerprints: the first '
+  test('E17, '
+      'the first '
       'check after a legacy run reports no format_drift and no '
       'confirmed_entry_stale', () async {
     final root = await gitFixture(acmeLegacy);
@@ -660,7 +653,7 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  group('f06/us01/fr02/e15: under an exported git repository variable', () {
+  group('under an exported git repository variable', () {
     late String binary;
     setUpAll(() async {
       binary = await buildSpecstone();

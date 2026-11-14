@@ -111,20 +111,20 @@ final class _DocMentionReader {
   }
 
   String? _readText(CodeTarget target, String codePath, String projectPath) {
+    final bytes = _context.readCodeBytes(target, codePath);
+    if (bytes == null) {
+      _context.warn(
+        '$projectPath: cannot read the file; doc names in it are not checked',
+      );
+      return null;
+    }
     try {
-      final bytes = File(
-        '${_context.codeRootOf(target).path}$_separator$codePath',
-      ).readAsBytesSync();
       final text = utf8.decode(bytes);
       return text.startsWith(_byteOrderMark) ? text.substring(1) : text;
     } on FormatException {
       _context.warn('$projectPath: not UTF-8; doc names in it are not checked');
-    } on FileSystemException {
-      _context.warn(
-        '$projectPath: cannot read the file; doc names in it are not checked',
-      );
+      return null;
     }
-    return null;
   }
 
   /// Whether [mention] names a doc: a path read from the docs root or the

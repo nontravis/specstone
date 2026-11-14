@@ -58,7 +58,7 @@ void main() {
     feature = prdCoreDocType(await resolvePrdCore(), 'feature');
   });
 
-  test('f03/us06/fr01: feature sits at prds/features/f{nn}_{slug}/FEATURE.md '
+  test('feature sits at prds/features/f{nn}_{slug}/FEATURE.md '
       'with no parent, its fields, and ten sections', () {
     expect(feature.path, 'prds/features/f{nn}_{slug}/FEATURE.md');
     expect(feature.parent, isNull);
@@ -81,7 +81,7 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr01: the feature file writes no status entry', () {
+  test('the feature file writes no status entry', () {
     expect(
       shippedLayer('feature').fields.map((f) => f.id),
       isNot(contains('status')),
@@ -90,7 +90,7 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'f03/us06/fr03/e04: titled # <Name>, no NASA list', () {
+      'titled # <Name>, no NASA list', () {
     expectGuideShape(feature, title: '# <Name>');
     expectNoNasaLint(feature);
     expectSources(feature, [
@@ -113,14 +113,14 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr02: the templates hold the flow sketch and the line '
+  test('the templates hold the flow sketch and the line '
       'forms', () {
     for (final MapEntry(:key, :value) in _templates.entries) {
       expect(sectionOf(feature, key).template, value, reason: key);
     }
   });
 
-  test('f03/us06/fr02: the flow guide ends with the Mermaid quoting '
+  test('the flow guide ends with the Mermaid quoting '
       'sentence', () {
     expect(
       sectionOf(feature, 'flow').description,
@@ -128,11 +128,11 @@ void main() {
     );
   });
 
-  test('f03/us06/fr02: Out-of-scope carries no line cap', () {
+  test('Out-of-scope carries no line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
   });
 
-  test('f03/us06/fr01: feature joins no bundle and marks problem and '
+  test('feature joins no bundle and marks problem and '
       'out_of_scope query', () async {
     final feature = prdCoreDocType(await resolvePrdCore(), 'feature');
     expect(feature.bundle, isNull);
@@ -145,13 +145,13 @@ void main() {
     );
   });
 
-  test('template_packs/write_prd_docs_from_prd_core/ship_prd_core_pack: depends_on '
+  test('depends_on '
       'carries the description the workspace layer gave it', () {
     expect(fieldOf(feature, 'depends_on').description, _dependsOnDescription);
   });
 
   test(
-    'template_packs/customize_shipped_doc_type/merge_layers_by_id E03, E04: a project '
+    'E03, E04: a project '
     'layer that still declares depends_on merges into the one shipped field',
     () async {
       final merged = prdCoreDocType(
@@ -178,7 +178,7 @@ void main() {
     },
   );
 
-  test('f03/us03/fr05/e01: a project feature.yaml of max_depth 3 makes the '
+  test('a project feature.yaml of max_depth 3 makes the '
       'nested FEATURE.md the feature shop/cart', () async {
     final session = openSession(await writeNestedProject());
     addTearDown(session.close);
@@ -194,18 +194,15 @@ void main() {
     expect(session.index.at(cartFeature)!.name, 'shop/cart');
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        feature,
-        'Write one rule per ID; in a section with no IDs, one '
-        'rule per item, with mechanics left to the spec docs.\n'
-        'Keep a bound in the item it limits, and the trace in '
-        '`vision:` and `goals:`, never in the prose.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      feature,
+      'Write one rule per ID; in a section with no IDs, one '
+      'rule per item, with mechanics left to the spec docs.\n'
+      'Keep a bound in the item it limits, and the trace in '
+      '`vision:` and `goals:`, never in the prose.',
+    );
+  });
 }

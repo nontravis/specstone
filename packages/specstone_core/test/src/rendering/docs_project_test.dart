@@ -159,46 +159,43 @@ void main() {
       );
     });
 
-    test(
-      'template_packs/pin_pack_versions/read_project_config E23: a two-target '
-      'config opens with two CodeTargets in config order',
-      () async {
-        final root = await fixtureProject({
-          '.specstone/config.yaml':
-              'packs:\n  prd-core: 1.1.0\n'
-              'targets:\n  flutter:\n    code_root: stratum_ui\n'
-              '  jaspr:\n    code_root: jaspr-stratum-ui\n',
-          'stratum_ui/lib/a.dart': '',
-          'jaspr-stratum-ui/lib/b.dart': '',
-          'specs/implementation/IMPLEMENTATION.md': '',
-        });
-        final project = DocsProject.open(
-          templates: TemplateResolver(
-            shippedFiles: fixturePackFiles(
-              extra: {'implementation.yaml': _recordDocType},
-            ),
+    test('E23: a two-target '
+        'config opens with two CodeTargets in config order', () async {
+      final root = await fixtureProject({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.1.0\n'
+            'targets:\n  flutter:\n    code_root: stratum_ui\n'
+            '  jaspr:\n    code_root: jaspr-stratum-ui\n',
+        'stratum_ui/lib/a.dart': '',
+        'jaspr-stratum-ui/lib/b.dart': '',
+        'specs/implementation/IMPLEMENTATION.md': '',
+      });
+      final project = DocsProject.open(
+        templates: TemplateResolver(
+          shippedFiles: fixturePackFiles(
+            extra: {'implementation.yaml': _recordDocType},
           ),
-          workingDirectory: root,
-          homeDirectory: null,
-        );
+        ),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
 
-        expect(project.targets, [
-          const CodeTarget('flutter', codeRoot: 'stratum_ui'),
-          const CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
-        ]);
-        expect(project.targetNames, ['flutter', 'jaspr']);
-        expect(
-          project.codeRootOf(project.targets.first).path,
-          _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
-        );
-        expect(
-          project.codeRootOf(project.targets.last).path,
-          _dir(root, 'jaspr-stratum-ui').resolveSymbolicLinksSync(),
-        );
-      },
-    );
+      expect(project.targets, [
+        const CodeTarget('flutter', codeRoot: 'stratum_ui'),
+        const CodeTarget('jaspr', codeRoot: 'jaspr-stratum-ui'),
+      ]);
+      expect(project.targetNames, ['flutter', 'jaspr']);
+      expect(
+        project.codeRootOf(project.targets.first).path,
+        _dir(root, 'stratum_ui').resolveSymbolicLinksSync(),
+      );
+      expect(
+        project.codeRootOf(project.targets.last).path,
+        _dir(root, 'jaspr-stratum-ui').resolveSymbolicLinksSync(),
+      );
+    });
 
-    test('template_packs/pin_pack_versions/read_project_config: a code_root '
+    test('a code_root '
         'config opens with one unnamed target', () async {
       final root = await fixtureProject({
         '.specstone/config.yaml':
@@ -216,7 +213,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr01: a project without docs/ still opens', () async {
+    test('a project without docs/ still opens', () async {
       final root = await fixtureProject({});
 
       final project = _open(root);
@@ -243,7 +240,7 @@ void main() {
       expect(target.entity.path, project.docsRoot.path);
     });
 
-    test('f05/us01/fr01/e04: no target and no docs/ is target_not_found '
+    test('no target and no docs/ is target_not_found '
         'naming docs/', () async {
       final root = await fixtureProject({});
       final project = _open(root);
@@ -263,28 +260,25 @@ void main() {
       );
     });
 
-    test(
-      'f05/us02/fr01/e02: no target without a default is target_missing',
-      () async {
-        final root = await fixtureProject({'docs/a.md': ''});
-        final project = _open(root);
+    test('no target without a default is target_missing', () async {
+      final root = await fixtureProject({'docs/a.md': ''});
+      final project = _open(root);
 
-        expect(
-          () => project.resolveTarget(
-            null,
-            workingDirectory: root,
-            defaultsToDocsRoot: false,
+      expect(
+        () => project.resolveTarget(
+          null,
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetMissing,
+            'no target given: name a file or folder under the docs root to '
+            'build',
           ),
-          throwsA(
-            _renderFault(
-              RenderFaultCode.targetMissing,
-              'no target given: name a file or folder under the docs root to '
-              'build',
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test('f05/us01/fr01/e02, f05/us02/fr01/e02: a target that does not exist '
         'is target_not_found', () async {
@@ -408,30 +402,27 @@ void main() {
       },
     );
 
-    test(
-      'f05/us01/fr01: a sibling folder named like docs is outside',
-      () async {
-        final root = await fixtureProject({
-          'docs/a.md': '',
-          'docs-extra/b.md': '',
-        });
-        final project = _open(root);
+    test('a sibling folder named like docs is outside', () async {
+      final root = await fixtureProject({
+        'docs/a.md': '',
+        'docs-extra/b.md': '',
+      });
+      final project = _open(root);
 
-        expect(
-          () => project.resolveTarget(
-            'docs-extra',
-            workingDirectory: root,
-            defaultsToDocsRoot: false,
+      expect(
+        () => project.resolveTarget(
+          'docs-extra',
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          _renderFault(
+            RenderFaultCode.targetOutsideDocsRoot,
+            'the target docs-extra lies outside the docs root docs/',
           ),
-          throwsA(
-            _renderFault(
-              RenderFaultCode.targetOutsideDocsRoot,
-              'the target docs-extra lies outside the docs root docs/',
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test(
       's03/inv9: a link inside docs/ that points outside is outside',
@@ -513,7 +504,7 @@ void main() {
   });
 
   group('DocsProject.displayPath', () {
-    test('f05/us02/fr01: a docs root that is a link to a folder outside the '
+    test('a docs root that is a link to a folder outside the '
         'project still prints docs/... paths', () async {
       final root = await fixtureProject({});
       final outside = await writeTree({'prds/a.md': ''});
@@ -656,14 +647,14 @@ void main() {
   });
 
   group('parentOf', () {
-    test('f05/us02/fr04: on Windows a path whose first folder is missing stops '
+    test('on Windows a path whose first folder is missing stops '
         r'at the drive root C:\, never the bare drive C:', () {
       expect(parentOf(r'C:\missing', isWindows: true), r'C:\');
       expect(parentOf(r'C:\missing\x', isWindows: true), r'C:\missing');
       expect(parentOf(r'D:\a\b\c', isWindows: true), r'D:\a\b');
     });
 
-    test('f05/us02/fr04: on Windows the drive root is its own parent', () {
+    test('on Windows the drive root is its own parent', () {
       expect(parentOf(r'C:\', isWindows: true), r'C:\');
     });
 
@@ -681,7 +672,7 @@ void main() {
   });
 
   group('withoutTrailingSeparator', () {
-    test('f05/us02/fr04: on Windows a drive root keeps its separator, so it '
+    test('on Windows a drive root keeps its separator, so it '
         'never becomes the bare drive C:', () {
       expect(withoutTrailingSeparator(r'C:\', isWindows: true), r'C:\');
       expect(withoutTrailingSeparator('C:/', isWindows: true), r'C:\');
@@ -702,7 +693,7 @@ void main() {
 
   group('withNativeSeparators', () {
     test(
-      'f05/us02/fr04: on Windows every slash becomes a backslash, so a '
+      'on Windows every slash becomes a backslash, so a '
       'path spelled with slashes splits like one spelled with backslashes',
       () {
         expect(
@@ -720,7 +711,7 @@ void main() {
       },
     );
 
-    test('f05/us02/fr04: off Windows the path is unchanged, since a backslash '
+    test('off Windows the path is unchanged, since a backslash '
         'is a file name character there', () {
       expect(
         withNativeSeparators(r'/proj/docs/a\b.html', isWindows: false),

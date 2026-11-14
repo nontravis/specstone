@@ -5,7 +5,7 @@ TraceBodyLine _line(String text, int line, {bool fenced = false}) =>
     (text: text, line: line, fenced: fenced);
 
 void main() {
-  test('f06/us01/fr06: the reader keeps the rows check tracks', () {
+  test('the reader keeps the rows check tracks', () {
     final rows = readFrTraceRows([
       _line('', 1),
       _line('| FR id | Method |', 2),

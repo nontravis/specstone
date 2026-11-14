@@ -473,7 +473,7 @@ void main() {
     );
   });
 
-  test('f06/us01/fr07/e02: one git reset undoes the run', () async {
+  test('one git reset undoes the run', () async {
     final root = await gitFixture(acmeLegacy);
     final legacy = _bytesUnder(root);
     final out = StringBuffer();
@@ -511,33 +511,30 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
-  test(
-    'setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes E07: the '
-    'applied run leaves each typed doc stamped with the hash of its text, and '
-    'the created draft keeps draft: true',
-    () async {
-      final root = await gitFixture(acmeLegacy);
+  test('E07: the '
+      'applied run leaves each typed doc stamped with the hash of its text, '
+      'and '
+      'the created draft keeps draft: true', () async {
+    final root = await gitFixture(acmeLegacy);
 
-      expect(_run(root, StringBuffer(), answers: ['y']), 0);
+    expect(_run(root, StringBuffer(), answers: ['y']), 0);
 
-      final files = _bytesUnder(root);
-      for (final path in [
-        'docs/prds/PROJECT.md',
-        'docs/prds/FEATURES.md',
-        'docs/prds/features/f01_login/FEATURE.md',
-        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
-        'docs/specs/f01_login/ARCHITECTURE.md',
-        'docs/specs/f01_login/DOMAIN.md',
-      ]) {
-        expect(files[path], startsWith('---\napproved: "'), reason: path);
-      }
-      expect(files['docs/specs/TECH_STACK.md'], startsWith('---\ndraft: true'));
-      expect(files['docs/specs/INDEX.md'], isNot(contains('approved:')));
-    },
-    skip: hasGit ? null : 'git is not available',
-  );
+    final files = _bytesUnder(root);
+    for (final path in [
+      'docs/prds/PROJECT.md',
+      'docs/prds/FEATURES.md',
+      'docs/prds/features/f01_login/FEATURE.md',
+      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md',
+      'docs/specs/f01_login/ARCHITECTURE.md',
+      'docs/specs/f01_login/DOMAIN.md',
+    ]) {
+      expect(files[path], startsWith('---\napproved: "'), reason: path);
+    }
+    expect(files['docs/specs/TECH_STACK.md'], startsWith('---\ndraft: true'));
+    expect(files['docs/specs/INDEX.md'], isNot(contains('approved:')));
+  }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr07/e08: INDEX.md, the untyped files, and the container doc '
+  test('INDEX.md, the untyped files, and the container doc '
       'stay after both commits', () async {
     const indexText = '# Spec index\n';
     const untypedText = '# Notes\n';
@@ -639,7 +636,7 @@ void main() {
       ),
     );
 
-    test('f06/us01/fr02/e04: a doc edited before the y is '
+    test('a doc edited before the y is '
         'working_tree_dirty, and the edit and the tree stay', () async {
       final root = await gitFixture(acmeLegacy);
       final head = headOf(root);
@@ -667,7 +664,7 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e08: a commit that leaves every input as it was, made '
+    test('a commit that leaves every input as it was, made '
         'while the prompt waits, lets the run apply on top of it', () async {
       final root = await gitFixture(acmeLegacy);
       late final String meanwhile;
@@ -697,7 +694,7 @@ void main() {
       );
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e08: a committed edit to an input, made while the '
+    test('a committed edit to an input, made while the '
         'prompt waits, is working_tree_dirty naming it, and nothing is '
         'written', () async {
       final root = await gitFixture(acmeLegacy);
@@ -723,7 +720,7 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e08: a committed deletion of an input, made while the '
+    test('a committed deletion of an input, made while the '
         'prompt waits, is working_tree_dirty naming it, never a raw '
         'FileSystemException', () async {
       final root = await gitFixture(acmeLegacy);
@@ -744,7 +741,7 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }, skip: skipGit);
 
-    test('f06/us02/fr02: an upgrade doc edited before the y is '
+    test('an upgrade doc edited before the y is '
         'working_tree_dirty, and the edit stays', () async {
       final (:project, :home) = await _upgradeFixture();
       final runbook = File(
@@ -797,7 +794,7 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     }
 
-    test('f06/us01/fr02/e08: a legacy doc committed while the prompt waits is '
+    test('a legacy doc committed while the prompt waits is '
         'working_tree_dirty naming it, and nothing is written', () async {
       final root = await gitFixture(acmeLegacy);
       const added = 'docs/prds/d09_extra.md';
@@ -810,7 +807,7 @@ void main() {
       expect(_bytesUnder(root), {...acmeLegacy, added: '# D-09 — Extra\n'});
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e08: a committed doc that makes the re-plan refuse '
+    test('a committed doc that makes the re-plan refuse '
         'legacy_collision, made while the prompt waits, refuses '
         'legacy_collision as E06 says, and nothing is written', () async {
       final root = await gitFixture(acmeLegacy);
@@ -838,7 +835,7 @@ void main() {
       });
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e08: an ignored legacy doc made unreadable while the '
+    test('an ignored legacy doc made unreadable while the '
         'prompt waits is working_tree_dirty naming that doc, and nothing is '
         'written', () async {
       const ignored = 'docs/prds/zz_local.md';
@@ -856,7 +853,7 @@ void main() {
       });
     }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : skipGit);
 
-    test('f06/us02/fr02/e08: a runbook committed while an upgrade prompt '
+    test('a runbook committed while an upgrade prompt '
         'waits is working_tree_dirty naming it, and nothing is '
         'written', () async {
       final (:project, :home) = await _upgradeFixture();
@@ -875,7 +872,7 @@ void main() {
       );
     }, skip: skipGit);
 
-    test('f06/us02/fr02/e08: a file added to the personal pack while an '
+    test('a file added to the personal pack while an '
         'upgrade prompt waits is working_tree_dirty naming it, and nothing '
         'is written', () async {
       final (:project, :home) = await _upgradeFixture();
@@ -899,7 +896,7 @@ sections:
       }, home: home);
     }, skip: skipGit);
 
-    test('f06/us02/fr02/e08: a config committed as deleted while an upgrade '
+    test('a config committed as deleted while an upgrade '
         'prompt waits is working_tree_dirty naming it, never a raw '
         'FileSystemException', () async {
       final (:project, :home) = await _upgradeFixture();
@@ -913,7 +910,7 @@ sections:
       expect(File('${project.path}/$config').existsSync(), isFalse);
     }, skip: skipGit);
 
-    test('f06/us02/fr02/e08: a personal pack.yaml deleted while an upgrade '
+    test('a personal pack.yaml deleted while an upgrade '
         'prompt waits is working_tree_dirty naming it, and nothing is '
         'written', () async {
       final (:project, :home) = await _upgradeFixture();
@@ -929,7 +926,7 @@ sections:
       );
     }, skip: skipGit);
 
-    test('f06/us02/fr02/e08: an invalid file dropped in the personal pack '
+    test('an invalid file dropped in the personal pack '
         'while an upgrade prompt waits is working_tree_dirty naming it, and '
         'nothing is written', () async {
       final (:project, :home) = await _upgradeFixture();
@@ -941,7 +938,7 @@ sections:
       }, home: home);
     }, skip: skipGit);
 
-    test('f06/us02/fr02/e08: a tracked file committed while an upgrade with a '
+    test('a tracked file committed while an upgrade with a '
         'labelled code file waits leaves every input, and the run applies '
         'without reading the code file', () async {
       final project = await _labelledCodeFixture();
@@ -962,7 +959,7 @@ sections:
     }, skip: skipGit);
   });
 
-  test('setup_migration/migrate_legacy_docs/commit_and_resume E02: commit 2 '
+  test('E02: commit 2 '
       'holds the agent files, a CLAUDE.md block appended', () async {
     final root = await _spacedFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
     final out = StringBuffer();
@@ -1204,7 +1201,7 @@ sections:
     expect(_bytesUnder(root), legacy);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e06: a plan refusal in bare migrate comes after the git '
+  test('a plan refusal in bare migrate comes after the git '
       'checks', () async {
     const duplicateWithContext = {
       ...duplicateGroupLegacy,
@@ -1242,7 +1239,7 @@ sections:
     expect(dirtyOut.toString(), isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e06: a legacy collision refuses in --dry-run and bare '
+  test('a legacy collision refuses in --dry-run and bare '
       'migrate before any plan line prints', () async {
     final root = await gitFixture({
       ...acmeLegacy,
@@ -1267,7 +1264,7 @@ sections:
     expect(_bytesUnder(root), before);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr07/e01: a plan that moves no file journals one commit', () {
+  test('a plan that moves no file journals one commit', () {
     final plan = RunPlan(
       header: 'legacy migration: x',
       moves: [],
@@ -1289,8 +1286,8 @@ sections:
     expect(steps.whereType<CommitStep>().single.message, _commit2Message);
   });
 
-  test('f06/us01/fr01: a root whose path holds a space migrates; '
-      'f06/us01/fr01/e04: migrate after an applied run prints nothing to '
+  test('a root whose path holds a space migrates; '
+      'migrate after an applied run prints nothing to '
       'migrate', () async {
     final root = await _spacedFixture(acmeLegacy);
     final out = StringBuffer();
@@ -1332,10 +1329,10 @@ sections:
     expect(MoveJournal.pending(root), isFalse);
   }, skip: hasGit ? null : 'git is not available');
 
-  group('f06/us01/fr07: resume and replay', () {
+  group('resume and replay', () {
     final skipGit = hasGit ? null : 'git is not available';
 
-    test('document_writing/delete_doc_subtree/finish_interrupted_move R99: a '
+    test('R99: a '
         'stopped migrate whose journal writes the CLAUDE.md of the repository '
         'top above the project refuses and leaves the file', () async {
       final base = await gitFixture({
@@ -1382,7 +1379,7 @@ sections:
       expect(MoveJournal.pending(project), isTrue);
     }, skip: skipGit);
 
-    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+    test('a '
         'stopped migrate replays the CLAUDE.md of the project it wrote, whose '
         'real path is recorded', () async {
       final base = await gitFixture({
@@ -1424,7 +1421,7 @@ sections:
       expect(MoveJournal.pending(base), isFalse);
     }, skip: skipGit);
 
-    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+    test('a '
         'migrate stopped at commit 2 resumes the agent file it wrote at the '
         "top of a repository nested in the project's code root", () async {
       final base = await _twoRepositories({
@@ -1472,7 +1469,7 @@ sections:
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
     test(
-      'setup_migration/set_up_new_project/write_agent_files R99: a '
+      'R99: a '
       'migrate whose code root sits in a repository outside the project '
       'plans and writes no agent file there, names it, and finishes',
       () async {
@@ -1507,7 +1504,7 @@ sections:
       skip: skipGit,
     );
 
-    test('document_writing/delete_doc_subtree/finish_interrupted_move: a '
+    test('a '
         'legacy migrate stopped at commit 1, before its config exists, '
         'resumes and still writes no agent file at the top of a repository '
         'outside the project', () async {
@@ -1561,7 +1558,7 @@ sections:
       );
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : skipGit);
 
-    group('setup_migration/set_up_new_project/write_agent_files: a root '
+    group('a root '
         'AGENTS.md that is a link', () {
       test(
         'R99: to the AGENTS.md of a top outside the project is named and '
@@ -1760,46 +1757,39 @@ sections:
       );
     }, skip: skipGit);
 
-    test(
-      'document_writing/delete_doc_subtree/finish_interrupted_move: a resumed '
-      'migrate leaves an edited doc and an edited CLAUDE.md as they are and '
-      'finishes the rest',
-      () async {
-        final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
-        _stopAfterCommit1(root);
-        final journal = jsonDecode(
-          File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
-        ) as Map<String, Object?>;
-        final writes = [
-          for (final step in journal['steps']! as List<Object?>)
-            if ((step! as Map<String, Object?>)['write']
-                case final Map<String, Object?> write)
-              write['path']! as String,
-        ];
-        final doc = writes.firstWhere((path) => path.startsWith('docs/'));
-        expect(writes, contains('CLAUDE.md'));
-        final edits = <String, String>{};
-        for (final path in [doc, 'CLAUDE.md']) {
-          final file = File('${root.path}/$path');
-          file.writeAsStringSync('${file.readAsStringSync()}\nuser edit\n');
-          edits[path] = file.readAsStringSync();
-        }
+    test('a resumed '
+        'migrate leaves an edited doc and an edited CLAUDE.md as they are and '
+        'finishes the rest', () async {
+      final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
+      _stopAfterCommit1(root);
+      final journal = jsonDecode(
+        File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
+      ) as Map<String, Object?>;
+      final writes = [
+        for (final step in journal['steps']! as List<Object?>)
+          if ((step! as Map<String, Object?>)['write']
+              case final Map<String, Object?> write)
+            write['path']! as String,
+      ];
+      final doc = writes.firstWhere((path) => path.startsWith('docs/'));
+      expect(writes, contains('CLAUDE.md'));
+      final edits = <String, String>{};
+      for (final path in [doc, 'CLAUDE.md']) {
+        final file = File('${root.path}/$path');
+        file.writeAsStringSync('${file.readAsStringSync()}\nuser edit\n');
+        edits[path] = file.readAsStringSync();
+      }
 
-        expect(_run(root, StringBuffer()), 0);
+      expect(_run(root, StringBuffer()), 0);
 
-        for (final MapEntry(:key, :value) in edits.entries) {
-          expect(File('${root.path}/$key').readAsStringSync(), value);
-        }
-        expect(MoveJournal.pending(root), isFalse);
-        expect(
-          File('${root.path}/.specstone/config.yaml').existsSync(),
-          isTrue,
-        );
-      },
-      skip: skipGit,
-    );
+      for (final MapEntry(:key, :value) in edits.entries) {
+        expect(File('${root.path}/$key').readAsStringSync(), value);
+      }
+      expect(MoveJournal.pending(root), isFalse);
+      expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
+    }, skip: skipGit);
 
-    test('f06/us01/fr07/e04: --dry-run lists the remaining steps and writes '
+    test('--dry-run lists the remaining steps and writes '
         'nothing', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
@@ -1826,7 +1816,7 @@ sections:
       );
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e05: bare migrate with no terminal lists the '
+    test('bare migrate with no terminal lists the '
         'remaining steps and exits 77', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
@@ -1870,7 +1860,7 @@ sections:
       expect(subjects.first, _commit2Message);
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e03: a resume plan hash survives a new commit and '
+    test('a resume plan hash survives a new commit and '
         'changes with the cursor file', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
@@ -1921,7 +1911,7 @@ sections:
       expect(MoveJournal.pending(root), isTrue);
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e07: a pending F-02 journal is replayed, then the '
+    test('a pending F-02 journal is replayed, then the '
         'clean-tree check runs', () async {
       final files = {
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -1976,7 +1966,7 @@ sections:
       expect(hasDoc(dry, 'prds/b.md'), isFalse);
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e09: a commit a hook refuses stops the run, and the '
+    test('a commit a hook refuses stops the run, and the '
         'next migrate resumes it', () async {
       final root = await gitFixture(acmeLegacy);
       final hook = File('${root.path}/.git/hooks/pre-commit')
@@ -2013,7 +2003,7 @@ sections:
       expect(MoveJournal.pending(root), isFalse);
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
-    test('f06/us01/fr07/e09: a resume commits only its own paths and leaves '
+    test('a resume commits only its own paths and leaves '
         "the Owner's staged change staged", () async {
       final root = await gitFixture(acmeLegacy);
       final hook = File('${root.path}/.git/hooks/pre-commit')
@@ -2048,7 +2038,7 @@ sections:
       );
     }, skip: Platform.isWindows ? 'the hook is a sh script' : skipGit);
 
-    test('f06/us01/fr07/e03: the resume lists only the commits of the '
+    test('the resume lists only the commits of the '
         "journal's steps", () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
@@ -2071,7 +2061,7 @@ sections:
       expect(out.toString(), contains('commit 2 '));
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e09: git that cannot start during a resume is '
+    test('git that cannot start during a resume is '
         'git_work_tree_required', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
@@ -2134,7 +2124,7 @@ sections:
       expect(MoveJournal.pendingMigrate(root), isTrue);
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e09: git that cannot start after the checks is '
+    test('git that cannot start after the checks is '
         'git_failed naming the command, and the journal stays', () async {
       final root = await gitFixture(acmeLegacy);
 
@@ -2177,7 +2167,7 @@ sections:
     }, skip: skipGit);
   });
 
-  group('f06/us01/fr02: the dry run and apply share one preflight', () {
+  group('the dry run and apply share one preflight', () {
     final skipGit = hasGit ? null : 'git is not available';
 
     Matcher gitRefusal() => throwsA(
@@ -2196,7 +2186,7 @@ sections:
       ),
     );
 
-    test('f06/us01/fr02/e04: a dry run over a dirty tree refuses and prints '
+    test('a dry run over a dirty tree refuses and prints '
         'no plan', () async {
       final root = await gitFixture(acmeLegacy);
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
@@ -2215,7 +2205,7 @@ sections:
       expect(out.toString(), isEmpty);
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e03: a dry run outside a work tree, or under git '
+    test('a dry run outside a work tree, or under git '
         '2.24, refuses git_work_tree_required, as does a resume dry run '
         'outside one', () async {
       final root = await gitFixture(acmeLegacy);
@@ -2282,7 +2272,7 @@ sections:
       expect(out.toString(), isEmpty);
     });
 
-    test('f06/us01/fr07/e04: a resume dry run over a dirty tree prints the '
+    test('a resume dry run over a dirty tree prints the '
         'remaining steps and a plan line', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
@@ -2295,7 +2285,7 @@ sections:
       expect(out.toString(), contains('\nplan '));
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal refuses '
+    test('a dry run over a pending F-02 journal refuses '
         'untrusted roots first and replays nothing', () async {
       final tree = await writeTree(linkedAcme({}));
       if (!linkCodeDocs(tree)) return;
@@ -2319,7 +2309,7 @@ sections:
       expect(journal.readAsStringSync(), before);
     });
 
-    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal with a step '
+    test('a dry run over a pending F-02 journal with a step '
         'left replays nothing and refuses before any git call', () async {
       final root = await gitFixture(acmeLegacy);
       _writeF02Journal(root);
@@ -2351,7 +2341,7 @@ sections:
     Matcher refusesWith(MigrateFaultCode code) =>
         throwsA(isA<MigrateFault>().having((f) => f.code, 'code', code));
 
-    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal whose step '
+    test('a dry run over a pending F-02 journal whose step '
         'is applied refuses the tree as it stands', () async {
       final root = await gitFixture({
         ...acmeLegacy,
@@ -2379,7 +2369,7 @@ sections:
       expect(journal.readAsStringSync(), before);
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e07: a dry run over a pending F-02 journal with no '
+    test('a dry run over a pending F-02 journal with no '
         'step left and a clean tree passes the git checks and plans', () async {
       final root = await gitFixture({
         ...acmeLegacy,
@@ -2397,7 +2387,7 @@ sections:
       expect(out.toString(), endsWith('dry run: nothing written\n'));
     }, skip: skipGit);
 
-    test('f06/us01/fr07/e07: a dry run over a two-step F-02 journal goes by '
+    test('a dry run over a two-step F-02 journal goes by '
         'the cursor: a step left refuses, none left passes', () async {
       const replaced = 'replaced\n';
       const first = 'docs/prds/d01_context.md';
@@ -2556,7 +2546,7 @@ sections:
       }, skip: skipGit);
     });
 
-    test('f06/us01/fr02/e04: a dry run over a tree dirty only by a '
+    test('a dry run over a tree dirty only by a '
         'git-ignored file prints the plan', () async {
       final root = await gitFixture({...acmeLegacy, '.gitignore': '*.log\n'});
       File('${root.path}/build.log').writeAsStringSync('x\n');
@@ -2567,7 +2557,7 @@ sections:
       expect(out.toString(), endsWith('dry run: nothing written\n'));
     }, skip: skipGit);
 
-    test('f06/us01/fr02/e04: an untracked file counts whatever the git '
+    test('an untracked file counts whatever the git '
         'configuration hides', () async {
       final root = await gitFixture(acmeLegacy);
       expect(
@@ -2585,7 +2575,7 @@ sections:
       expect(out.toString(), isEmpty);
     }, skip: skipGit);
 
-    test('f06/us01/fr01/e04: an up-to-date project outside git has nothing '
+    test('an up-to-date project outside git has nothing '
         'to migrate, with or without --dry-run', () async {
       final root = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(),

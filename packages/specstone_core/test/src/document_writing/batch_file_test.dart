@@ -22,94 +22,86 @@ BatchFault _refusal(void Function() run) {
 }
 
 void main() {
-  group(
-    'document_writing/edit_one_section_or_field/write_a_batch E17 read',
-    () {
-      late Directory dir;
-      setUp(() => dir = Directory.systemTemp.createTempSync('batch_file_'));
-      tearDown(() => dir.deleteSync(recursive: true));
+  group('E17 read', () {
+    late Directory dir;
+    setUp(() => dir = Directory.systemTemp.createTempSync('batch_file_'));
+    tearDown(() => dir.deleteSync(recursive: true));
 
-      test('reads a relative path from the working directory', () {
-        File('${dir.path}/b.txt').writeAsStringSync('text\n');
-        expect(readBatchFile('b.txt', workingDirectory: dir), 'text\n');
+    test('reads a relative path from the working directory', () {
+      File('${dir.path}/b.txt').writeAsStringSync('text\n');
+      expect(readBatchFile('b.txt', workingDirectory: dir), 'text\n');
+    });
+
+    test('reads an absolute path', () {
+      final file = File('${dir.path}/b.txt')..writeAsStringSync('text\n');
+      final elsewhere = Directory.systemTemp.createTempSync('batch_cwd_');
+      addTearDown(() => elsewhere.deleteSync(recursive: true));
+      expect(readBatchFile(file.path, workingDirectory: elsewhere), 'text\n');
+    });
+
+    test('a missing path refuses alone, `cannot read <path>`', () {
+      final fault = _refusal(
+        () => readBatchFile('none.txt', workingDirectory: dir),
+      );
+      expect(fault.exitStatus, 64);
+      expect(fault.toText(), 'none.txt: cannot read none.txt');
+      final error = fault.toJson()['error']! as Map<String, Object?>;
+      expect(error, {
+        'code': 'argument_invalid',
+        'message': 'cannot read none.txt',
+        'file': 'none.txt',
       });
+    });
 
-      test('reads an absolute path', () {
-        final file = File('${dir.path}/b.txt')..writeAsStringSync('text\n');
-        final elsewhere = Directory.systemTemp.createTempSync('batch_cwd_');
-        addTearDown(() => elsewhere.deleteSync(recursive: true));
-        expect(readBatchFile(file.path, workingDirectory: elsewhere), 'text\n');
-      });
+    test('a folder refuses as a missing path does', () {
+      Directory('${dir.path}/sub').createSync();
+      final fault = _refusal(() => readBatchFile('sub', workingDirectory: dir));
+      expect(fault.toText(), 'sub: cannot read sub');
+    });
 
-      test('a missing path refuses alone, `cannot read <path>`', () {
-        final fault = _refusal(
-          () => readBatchFile('none.txt', workingDirectory: dir),
-        );
-        expect(fault.exitStatus, 64);
-        expect(fault.toText(), 'none.txt: cannot read none.txt');
-        final error = fault.toJson()['error']! as Map<String, Object?>;
-        expect(error, {
-          'code': 'argument_invalid',
-          'message': 'cannot read none.txt',
-          'file': 'none.txt',
-        });
-      });
+    test('a file of bytes that are no text is unreadable', () {
+      File('${dir.path}/b.txt').writeAsBytesSync([0xff, 0xfe, 0x41]);
+      final fault = _refusal(
+        () => readBatchFile('b.txt', workingDirectory: dir),
+      );
+      expect(fault.toText(), 'b.txt: cannot read b.txt');
+    });
 
-      test('a folder refuses as a missing path does', () {
-        Directory('${dir.path}/sub').createSync();
-        final fault = _refusal(
-          () => readBatchFile('sub', workingDirectory: dir),
-        );
-        expect(fault.toText(), 'sub: cannot read sub');
-      });
+    test('a file the process may not read is unreadable', () {
+      final file = File('${dir.path}/b.txt')..writeAsStringSync('text\n');
+      Process.runSync('chmod', ['000', file.path]);
+      addTearDown(() => Process.runSync('chmod', ['600', file.path]));
+      final fault = _refusal(
+        () => readBatchFile('b.txt', workingDirectory: dir),
+      );
+      expect(fault.toText(), 'b.txt: cannot read b.txt');
+    }, skip: Platform.isWindows ? 'no POSIX modes on Windows' : null);
+  });
 
-      test('a file of bytes that are no text is unreadable', () {
-        File('${dir.path}/b.txt').writeAsBytesSync([0xff, 0xfe, 0x41]);
-        final fault = _refusal(
-          () => readBatchFile('b.txt', workingDirectory: dir),
-        );
-        expect(fault.toText(), 'b.txt: cannot read b.txt');
-      });
+  group('E17 split', () {
+    test('an empty file holds no block', () {
+      final fault = _refusal(() => parseBatchFile(_batch, ''));
+      expect(fault.exitStatus, 64);
+      expect(fault.toText(), '$_batch: $_batch holds no block');
+    });
 
-      test('a file the process may not read is unreadable', () {
-        final file = File('${dir.path}/b.txt')..writeAsStringSync('text\n');
-        Process.runSync('chmod', ['000', file.path]);
-        addTearDown(() => Process.runSync('chmod', ['600', file.path]));
-        final fault = _refusal(
-          () => readBatchFile('b.txt', workingDirectory: dir),
-        );
-        expect(fault.toText(), 'b.txt: cannot read b.txt');
-      }, skip: Platform.isWindows ? 'no POSIX modes on Windows' : null);
-    },
-  );
+    test('text with no naming line holds no block, nothing else named', () {
+      final fault = _refusal(
+        () => parseBatchFile(_batch, 'some words\n\nmore words\n'),
+      );
+      expect(fault.toText(), '$_batch: $_batch holds no block');
+      expect(fault.toJson()['error'], isNot(contains('blocks')));
+    });
 
-  group(
-    'document_writing/edit_one_section_or_field/write_a_batch E17 split',
-    () {
-      test('an empty file holds no block', () {
-        final fault = _refusal(() => parseBatchFile(_batch, ''));
-        expect(fault.exitStatus, 64);
-        expect(fault.toText(), '$_batch: $_batch holds no block');
-      });
+    test('a naming line inside fenced code is no naming line', () {
+      final fault = _refusal(
+        () => parseBatchFile(_batch, '```text\n${_head(_storyPath)}\n```\n'),
+      );
+      expect(fault.toText(), '$_batch: $_batch holds no block');
+    });
+  });
 
-      test('text with no naming line holds no block, nothing else named', () {
-        final fault = _refusal(
-          () => parseBatchFile(_batch, 'some words\n\nmore words\n'),
-        );
-        expect(fault.toText(), '$_batch: $_batch holds no block');
-        expect(fault.toJson()['error'], isNot(contains('blocks')));
-      });
-
-      test('a naming line inside fenced code is no naming line', () {
-        final fault = _refusal(
-          () => parseBatchFile(_batch, '```text\n${_head(_storyPath)}\n```\n'),
-        );
-        expect(fault.toText(), '$_batch: $_batch holds no block');
-      });
-    },
-  );
-
-  group('document_writing/edit_one_section_or_field/write_a_batch blocks', () {
+  group('blocks', () {
     test(
       'splits at each naming line, each block holding the lines under it',
       () {
@@ -228,29 +220,26 @@ void main() {
     });
   });
 
-  group(
-    'document_writing/edit_one_section_or_field/write_a_batch E10 fence',
-    () {
-      test('a fence that stays open to the end is left open by its block', () {
-        final text =
-            '${_head(_storyPath)}\n'
-            'one\n'
-            '${_head('$_storyPath#problem', _other)}\n'
-            '```text\n'
-            'never closed\n'
-            '${_head('$_storyPath#goal')}\n';
-        final parsed = parseBatchFile(_batch, text);
-        expect(parsed.lineFaults, isEmpty);
-        expect(parsed.blocks, hasLength(2));
-        expect(parsed.blocks.first.leavesFenceOpen, isFalse);
-        expect(parsed.blocks.last.leavesFenceOpen, isTrue);
-        expect(parsed.blocks.last.line, 3);
-        expect(parsed.blocks.last.text, contains(_head('$_storyPath#goal')));
-      });
-    },
-  );
+  group('E10 fence', () {
+    test('a fence that stays open to the end is left open by its block', () {
+      final text =
+          '${_head(_storyPath)}\n'
+          'one\n'
+          '${_head('$_storyPath#problem', _other)}\n'
+          '```text\n'
+          'never closed\n'
+          '${_head('$_storyPath#goal')}\n';
+      final parsed = parseBatchFile(_batch, text);
+      expect(parsed.lineFaults, isEmpty);
+      expect(parsed.blocks, hasLength(2));
+      expect(parsed.blocks.first.leavesFenceOpen, isFalse);
+      expect(parsed.blocks.last.leavesFenceOpen, isTrue);
+      expect(parsed.blocks.last.line, 3);
+      expect(parsed.blocks.last.text, contains(_head('$_storyPath#goal')));
+    });
+  });
 
-  group('document_writing/edit_one_section_or_field/write_a_batch E18 lines', () {
+  group('E18 lines', () {
     test('text before the first naming line is refused by line number', () {
       final parsed = parseBatchFile(
         _batch,

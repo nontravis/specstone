@@ -44,7 +44,7 @@ Future<Directory> _project(Map<String, String> files) async {
 String _inline() => inlineBlock(cliVersion: specstoneVersion);
 
 void main() {
-  test('f06/us01/fr01/e07: a pending migrate journal is resume', () async {
+  test('a pending migrate journal is resume', () async {
     final root = await writeTree({
       MoveJournal.journalPath: _journal,
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -54,7 +54,7 @@ void main() {
     expect(_choose(root), RunKind.resume);
   });
 
-  test('f06/us01/fr01/e03: config and legacy context doc together are '
+  test('config and legacy context doc together are '
       'legacy', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -73,7 +73,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+  test('E04: pins equal '
       'and every typed doc laid out is none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -83,7 +83,7 @@ void main() {
     expect(_choose(root), RunKind.none);
   });
 
-  test('setup_migration/migrate_legacy_docs/find_project_root E04: pins equal '
+  test('E04: pins equal '
       'and one typed doc off its layout is upgrade', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -94,7 +94,7 @@ void main() {
     expect(_choose(root), RunKind.upgrade);
   });
 
-  test('setup_migration/migrate_legacy_docs/find_project_root E04: a doc '
+  test('E04: a doc '
       'format refuses alone is none', () async {
     final root = await writeTree({
       '.specstone/config.yaml': shippedPinsConfig(),
@@ -118,7 +118,7 @@ void main() {
     expect(() => _choose(beside), _pinNewer());
   });
 
-  test('f06/us02/fr01/e03: with two newer pins the refusal names the earlier '
+  test('with two newer pins the refusal names the earlier '
       'pack in code point order', () async {
     final root = await writeTree({
       '.specstone/config.yaml':
@@ -128,7 +128,7 @@ void main() {
     expect(() => _choose(root), _pinNewer());
   });
 
-  test('f06/us02/fr01: an older pin is upgrade', () async {
+  test('an older pin is upgrade', () async {
     final root = await writeTree({
       '.specstone/config.yaml':
           '${shippedPinsConfig(['prd-core'])}  software-tech: 1.0.0\n',
@@ -137,7 +137,7 @@ void main() {
     expect(_choose(root), RunKind.upgrade);
   });
 
-  test('f06/us02/fr01: a personal pack pinned below its home-folder version '
+  test('a personal pack pinned below its home-folder version '
       'is upgrade', () async {
     final home = await writeTree({
       '.specstone/packs/acme/pack.yaml':

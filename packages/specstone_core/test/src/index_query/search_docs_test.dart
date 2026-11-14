@@ -98,34 +98,28 @@ void main() {
       isTrue,
     );
   });
-  test(
-    'f01/us06/fr02/e01: 20 hits at most by default, untyped docs included',
-    () async {
-      final zebras = await indexWith({
-        for (var i = 1; i <= 25; i++)
-          'docs/z/zebra_$i.md': '# Z\n\n## Body\nzebra\n',
-      });
-      final hits = heads(answerSearch(zebras, 'zebra', const SearchOptions()));
-      expect(hits, hasLength(20));
-      expect(hits.every((h) => h.startsWith('z/zebra_')), isTrue);
-    },
-  );
-  test('f01/us06/fr02/e03: an unknown --type is doc_type_unknown', () async {
+  test('20 hits at most by default, untyped docs included', () async {
+    final zebras = await indexWith({
+      for (var i = 1; i <= 25; i++)
+        'docs/z/zebra_$i.md': '# Z\n\n## Body\nzebra\n',
+    });
+    final hits = heads(answerSearch(zebras, 'zebra', const SearchOptions()));
+    expect(hits, hasLength(20));
+    expect(hits.every((h) => h.startsWith('z/zebra_')), isTrue);
+  });
+  test('an unknown --type is doc_type_unknown', () async {
     expect(
       () => answerSearch(index, 'login', const SearchOptions(docTypeId: 'frr')),
       throwsA(isA<TemplateFault>()),
     );
   });
-  test(
-    'f01/us06/fr02/e04: an --under no doc carries is doc_not_found',
-    () async {
-      expect(
-        () => answerSearch(index, 'login', const SearchOptions(under: 'logn')),
-        throwsA(isA<IndexFault>()),
-      );
-    },
-  );
-  test('f01/us06/fr02/e05: --type drops untyped docs', () async {
+  test('an --under no doc carries is doc_not_found', () async {
+    expect(
+      () => answerSearch(index, 'login', const SearchOptions(under: 'logn')),
+      throwsA(isA<IndexFault>()),
+    );
+  });
+  test('--type drops untyped docs', () async {
     expect(
       heads(
         answerSearch(index, 'ค้นหา', const SearchOptions(docTypeId: 'feature')),
@@ -133,7 +127,7 @@ void main() {
       isEmpty,
     );
   });
-  test('f01/us06/fr02/e06: a --limit that is not a positive integer is argument_invalid', () {
+  test('a --limit that is not a positive integer is argument_invalid', () {
     for (final v in ['0', '-5', 'ten']) {
       expect(
         () => parsePositiveOption('--limit', v),
@@ -161,7 +155,8 @@ void main() {
       );
     },
   );
-  test('f01/us06/fr01: a snippet over several lines prints as one indented line, JSON keeps it as indexed', () async {
+  test('a snippet over several lines prints as one indented line, JSON keeps '
+      'it as indexed', () async {
     final multi = await indexWith({
       'docs/m/multi.md': '# M\n\n## Body\nalpha beta\ngamma delta\n',
     });

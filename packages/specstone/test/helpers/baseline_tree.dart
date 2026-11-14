@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 
 import '../../../specstone_core/test/helpers/shipped_pins.dart';
 import 'temp_tree.dart';
@@ -47,7 +49,9 @@ const _padWords = [
 /// FRs has an `implemented` entry in its feature's record that names one class
 /// in its own `src/` file, and each of the two topics holds one `src/` file, so
 /// 1,042 code files sit under the tech stack's `code:` root and every one is
-/// reached by a `covers:` prefix. The folder is deleted by `addTearDown`.
+/// reached by a `covers:` prefix. Each entry and prefix ends in the fingerprint
+/// of the code it names, from the shipped recipe, so a check finds no code link
+/// changed or unconfirmed. The folder is deleted by `addTearDown`.
 Future<Directory> writeBaselineTree() async {
   final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
@@ -81,23 +85,39 @@ Future<Directory> writeBaselineTree() async {
 
 String _codePath(int f, int s, int r) => 'src/feature_$f/story_$s/req_$r.dart';
 
+String _topicPath(int t) => 'src/topic_$t/topic.dart';
+
+/// Every code file of the tree, by path from the project root.
+final Map<String, String> _codeFiles = {
+  for (var f = 1; f <= _featureCount; f++)
+    for (var s = 1; s <= _storiesPerFeature; s++)
+      for (var r = 1; r <= _frsPerStory; r++)
+        _codePath(f, s, r): 'class Req$r {}\n',
+  for (var t = 1; t <= _topicCount; t++) _topicPath(t): '// topic $t\n',
+};
+
+String _fileFingerprint(String path) =>
+    fileCodeFingerprint(utf8.encode(_codeFiles[path]!));
+
+/// Returns the fingerprint of every code file under [folder].
+String _folderFingerprint(String folder) {
+  final paths = _codeFiles.keys.where((p) => p.startsWith(folder)).toList()
+    ..sort();
+  return folderCodeFingerprint([
+    for (final path in paths) (path: path, fingerprint: _fileFingerprint(path)),
+  ]);
+}
+
+/// Returns the `covers:` frontmatter of a doc that covers [folder].
+String _coversFrontmatter(String folder) =>
+    'covers:\n  - $folder ${_folderFingerprint(folder)}\n';
+
 /// Writes the code files the FRs implement and the topics cover.
 Future<void> _writeCode(Directory root) async {
-  Future<void> write(String path, String content) async {
-    final file = File.fromUri(root.uri.resolve(path));
+  for (final MapEntry(:key, :value) in _codeFiles.entries) {
+    final file = File.fromUri(root.uri.resolve(key));
     await file.parent.create(recursive: true);
-    await file.writeAsString(content);
-  }
-
-  for (var f = 1; f <= _featureCount; f++) {
-    for (var s = 1; s <= _storiesPerFeature; s++) {
-      for (var r = 1; r <= _frsPerStory; r++) {
-        await write(_codePath(f, s, r), 'class Req$r {}\n');
-      }
-    }
-  }
-  for (var t = 1; t <= _topicCount; t++) {
-    await write('src/topic_$t/topic.dart', '// topic $t\n');
+    await file.writeAsString(value);
   }
 }
 
@@ -133,7 +153,7 @@ List<_DocSpec> _docSpecs() => [
       'topic',
       'specs/topics/topic_$t.md',
       'Topic $t',
-      'covers:\n  - src/topic_$t/\n',
+      _coversFrontmatter('src/topic_$t/'),
     ),
 ];
 
@@ -145,7 +165,7 @@ List<_DocSpec> _featureSpecs(int f) {
       'architecture',
       'specs/$key/ARCHITECTURE.md',
       'Architecture $f',
-      'covers:\n  - src/feature_$f/\n',
+      _coversFrontmatter('src/feature_$f/'),
     ),
     _spec('domain', 'specs/$key/DOMAIN.md', 'Domain $f'),
     _spec('api', 'specs/$key/API.md', 'Api $f'),
@@ -179,7 +199,7 @@ List<_DocSpec> _featureSpecs(int f) {
 }
 
 /// Returns the frontmatter of feature [f]'s record: each FR `implemented`, with
-/// the one class its `src/` file holds.
+/// the one class its `src/` file holds and that file's fingerprint.
 String _recordFrontmatter(int f) {
   final items = [
     for (var s = 1; s <= _storiesPerFeature; s++)
@@ -189,10 +209,10 @@ String _recordFrontmatter(int f) {
       '$key:\n${[for (final (s, r) in items) "  - '${line(s, r)}'\n"].join()}';
   String item(int s, int r) => 'story_$s/req_$r';
   return lines('statuses', (s, r) => '${item(s, r)}:implemented') +
-      lines(
-        'implements',
-        (s, r) => '${item(s, r)}:${_codePath(f, s, r)}:Req$r',
-      );
+      lines('implements', (s, r) {
+        final path = _codePath(f, s, r);
+        return '${item(s, r)}:$path:Req$r ${_fileFingerprint(path)}';
+      });
 }
 
 /// Expands [baselineBuckets] to one size per file, smallest first.

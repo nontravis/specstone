@@ -22,6 +22,7 @@ fields:
       Lists one line per entry: `<item>:<status>`, or `<item>:skipped:<reason>`; the item is a story or an FR named relative to the feature, such as `email_login` or `email_login/validate_credentials`.
       The status is `planned`, `implemented`, `deprecated`, or `skipped`; write a leading `:` for the feature itself, and only to skip it.
       An item with no line takes the status `planned`.
+      This field sits outside the approval hash, so a status change marks no draft.
   - id: implements
     type: output_ref
     list: true
@@ -29,6 +30,8 @@ fields:
     description: |-
       Lists one line per code path: `<item>:path[:Symbol]`, the item named as in `statuses`, such as `show_toast:lib/toast.dart:showToast`.
       Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
+      An entry may end in one space and its code fingerprint, which `check` compares with the code it names.
+      This field sits outside the approval hash, so a write of code paths alone marks no draft.
   - id: tests
     type: output_ref
     list: true

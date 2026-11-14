@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart' show pathInside;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
@@ -107,7 +108,7 @@ Future<Directory?> _home() async => null;
   final types = <String, MergedDocType>{};
   for (final entity in docsRoot.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.md')) continue;
-    final docPath = entity.path.substring(docsRoot.path.length + 1);
+    final docPath = _docPathOf(docsRoot.path, entity.path);
     final match = matcher.match(docPath);
     final type = match is MatchedDocType ? match.docType : null;
     if (type != null) types[docPath] = type;
@@ -142,6 +143,11 @@ Future<Directory?> _home() async => null;
   return (pass: pass, inputs: inputs);
 }
 
+/// Returns the DocPath of [listed], a path a listing of [docsRoot] gave in the
+/// platform's separators; [isWindows] picks the style.
+String _docPathOf(String docsRoot, String listed, {bool? isWindows}) =>
+    pathInside(docsRoot, listed, isWindows: isWindows)!;
+
 String _fileText(TestNamePass pass, String path) =>
     pass.fileRewrites.singleWhere((rewrite) => rewrite.path == path).text;
 
@@ -150,6 +156,33 @@ Object? _testsOf(String text) => frontmatterValuesOf(Doc.parse(text))['tests'];
 String _test(String name) => "void main() {\n  test('$name', () {});\n}\n";
 
 void main() {
+  test('a Windows listing path reads as a slash-separated DocPath', () {
+    expect(
+      _docPathOf(
+        r'C:\p\docs',
+        r'C:\p\docs\prds\features\f01_login\FEATURE.md',
+        isWindows: true,
+      ),
+      'prds/features/f01_login/FEATURE.md',
+    );
+  });
+  test('a nested repository folder on Windows lies under its code root', () {
+    final folder = repositoryFolderOf(
+      r'C:\p\ws',
+      'app/vendor',
+      isWindows: true,
+    );
+
+    expect(folder, r'C:\p\ws\app\vendor');
+    expect(
+      pathInside(
+        r'C:\p\ws\app',
+        '$folder\\test\\dep_test.dart',
+        isWindows: true,
+      ),
+      'vendor/test/dep_test.dart',
+    );
+  });
   _legacyTests();
   group('test-name pass', () {
     test('a label opening a test name moves into the record as one '
@@ -357,6 +390,119 @@ void main() {
       expect(pass.recordCreates, isEmpty);
       expect(pass.recordEdits, isEmpty);
       expect(pass.left, 0);
+    });
+
+    test('a literal that is no test or group name is not read, whatever it '
+        'opens with', () async {
+      const source =
+          "const _fr = 'f01/us01/fr01 rejects';\n"
+          "void main() {\n  test('plain', () {}, tags: 'f01/us01/fr01');\n"
+          "  expect(read('f01/us01/fr01 input'), 'login/email_login: out');\n"
+          '}\n';
+      final project = await _project(files: {_testPath: source});
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(pass.planLine, isNull);
+      expect(pass.fileRewrites, isEmpty);
+      expect(pass.recordCreates, isEmpty);
+      expect(pass.left, 0);
+    });
+
+    test('the name of a test or group call is read, whatever the call is '
+        'named', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  group('f01/us01/fr01 g', () {});\n"
+              "  it('f01/us01/fr01 i', () {});\n"
+              "  describe('f01/us01/fr01 d', () {});\n"
+              "  testWidgets('f01/us01/fr01 w', (t) async {});\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        _fileText(pass, _testPath),
+        "void main() {\n  group('g', () {});\n  it('i', () {});\n"
+        "  describe('d', () {});\n  testWidgets('w', (t) async {});\n}\n",
+      );
+      expect(pass.recordLines, hasLength(1));
+    });
+
+    test('a member, a receiver, and a wrapper call declare a test', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  test.skip('f01/us01/fr01 s', () {});\n"
+              "  Deno.test('f01/us01/fr01 r', () {});\n"
+              "  pathTest('f01/us01/fr01 p', () {});\n"
+              "  context('f01/us01/fr01 c', () {});\n"
+              "  run_test('f01/us01/fr01 u', () {});\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        _fileText(pass, _testPath),
+        "void main() {\n  test.skip('s', () {});\n"
+        "  Deno.test('r', () {});\n  pathTest('p', () {});\n"
+        "  context('c', () {});\n  run_test('u', () {});\n}\n",
+      );
+    });
+
+    test('a longer word that only contains a call name, or a wrapper in '
+        'lower case alone, is no declaring call', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  contest('f01/us01/fr01 a');\n"
+              "  latest('f01/us01/fr01 b');\n"
+              "  pathtest('f01/us01/fr01 c');\n"
+              "  _test('f01/us01/fr01 e');\n"
+              "  submit('f01/us01/fr01 d');\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(pass.planLine, isNull);
+      expect(pass.fileRewrites, isEmpty);
+    });
+
+    test('a raw-string name is not read', () async {
+      final project = await _project(
+        files: {
+          _testPath: "void main() {\n  test(r'f01/us01/fr01 raw', () {});\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(pass.planLine, isNull);
+      expect(pass.fileRewrites, isEmpty);
+    });
+
+    test('a name split over adjacent literals, or a call over several '
+        'lines, is read at its first literal', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  test('f01/us01/fr01 one '\n"
+              "      'two', () {});\n  test(\n    'f01/us01/fr01 three',\n"
+              '    () {},\n  );\n}\n',
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        _fileText(pass, _testPath),
+        "void main() {\n  test('one '\n      'two', () {});\n  test(\n"
+        "    'three',\n    () {},\n  );\n}\n",
+      );
     });
 
     test('a project whose merged set holds no record doc type runs no '
@@ -614,11 +760,11 @@ void main() {
 
       final rewritten = pass.json['rewritten']! as List;
       final left = pass.json['left']! as List;
-      expect(rewritten, hasLength(3));
+      expect(rewritten, hasLength(2));
       expect(left, hasLength(1));
       expect(
         pass.planLine,
-        'tests: 3 lines in 1 records; names: 3 rewritten in 1 files; '
+        'tests: 3 lines in 1 records; names: 2 rewritten in 1 files; '
         'left: ${left.length}',
       );
       expect(pass.left, left.length);

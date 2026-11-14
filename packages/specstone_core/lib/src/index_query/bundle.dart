@@ -266,7 +266,7 @@ int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
       return compareCodePoints(a.docPath, b.docPath);
     };
 
-/// Returns the bundle [target] holds for [mode] (`index_query/get_task_bundle/pick_bundle_docs`).
+/// Returns the bundle [target] holds for [mode].
 ///
 /// `--no-project` drops the docs that join through `bundle:` lists. [summary]
 /// prints a top doc's ChainType children in summary and throws

@@ -82,7 +82,7 @@ final class AppendedPart {
 
 /// Returns the parts the links of [bundle]'s printed docs cite, then those
 /// the links of each part cite, in the order a breadth-first walk first
-/// reaches them, each once (`index_query/get_task_bundle/follow_cited_links`).
+/// reaches them, each once.
 ///
 /// `query` follows no link. A file no doc type describes, an untyped doc or
 /// any other linked file on disk, adds its path alone. A target the bundle
@@ -91,7 +91,7 @@ final class AppendedPart {
 /// followed.
 ///
 /// Given [citedBy], each part holds its items' cited-by lines right after
-/// them (`index_query/get_task_bundle/show_cited_by`).
+/// them.
 List<AppendedPart> followLinks(
   DocIndex index,
   Bundle bundle, {

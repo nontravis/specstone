@@ -73,15 +73,12 @@ void main() {
     expect(finding.toJson(), containsPair('step', '$_story S9'));
   });
 
-  test(
-    'f04/us02/fr06/e02: a step naming no story is journey_step_unresolved',
-    () async {
-      final found = await _check(['### 1. Sign in', 'step: nope/none S1']);
-      expect(_of(found, FindingKind.journeyStepUnresolved).map((f) => f.line), [
-        _firstStepLine + 2,
-      ]);
-    },
-  );
+  test('a step naming no story is journey_step_unresolved', () async {
+    final found = await _check(['### 1. Sign in', 'step: nope/none S1']);
+    expect(_of(found, FindingKind.journeyStepUnresolved).map((f) => f.line), [
+      _firstStepLine + 2,
+    ]);
+  });
 
   test('f04/us02/fr06, f04/us02/fr06/e10: a lettered scenario number is '
       'journey_step_unresolved, never Scenario 1', () async {
@@ -91,7 +88,7 @@ void main() {
     expect(unresolved.single.toJson(), containsPair('step', '$_story S1a'));
   });
 
-  test('f04/us02/fr06: a readable story part that names no story is '
+  test('a readable story part that names no story is '
       'journey_step_unresolved', () async {
     final found = await _check(['### 1. Sign in', 'step: Login/email S1']);
     final unresolved = _of(found, FindingKind.journeyStepUnresolved);
@@ -99,7 +96,7 @@ void main() {
     expect(unresolved.single.toJson(), containsPair('step', 'Login/email S1'));
   });
 
-  test('f04/us02/fr06/e03: a step heading with no step: line is '
+  test('a step heading with no step: line is '
       'journey_step_unresolved at the heading, step empty', () async {
     final found = await _check(['### 1. Sign in']);
     expect(found, hasLength(1));
@@ -125,7 +122,7 @@ void main() {
     expect(found, hasLength(1));
   });
 
-  test('f04/us02/fr06/e05: an after: naming a step written below is '
+  test('an after: naming a step written below is '
       'journey_after_unresolved', () async {
     final found = await _check([
       '### 1. One',
@@ -152,7 +149,7 @@ void main() {
     expect(found.single.toJson(), containsPair('number', '3'));
   });
 
-  test('f04/us02/fr06/e09: an after: 3 below two step 3s gives the duplicate '
+  test('an after: 3 below two step 3s gives the duplicate '
       'finding only', () async {
     final found = await _check([
       '### 3. First',
@@ -175,18 +172,15 @@ void main() {
     expect(found.single.toJson(), containsPair('step', 'login'));
   });
 
-  test(
-    'f04/us02/fr06: an approved journey is checked as a draft one is',
-    () async {
-      final found = await _check(
-        ['### 1. Sign in', 'step: $_story S9'],
-        fields: ['status: approved'],
-      );
-      expect(_of(found, FindingKind.journeyStepUnresolved), hasLength(1));
-    },
-  );
+  test('an approved journey is checked as a draft one is', () async {
+    final found = await _check(
+      ['### 1. Sign in', 'step: $_story S9'],
+      fields: ['status: approved'],
+    );
+    expect(_of(found, FindingKind.journeyStepUnresolved), hasLength(1));
+  });
 
-  test('f04/us01/fr01: check journey:sign_in reports an untyped file in the '
+  test('check journey:sign_in reports an untyped file in the '
       "journey's folder", () async {
     final report = checkOf(
       await writeCheckProject(
@@ -213,7 +207,7 @@ void main() {
       expect(await _check(steps), isEmpty);
     });
 
-    test('f10/us01/fr01/e02: three personas, none unresolved', () async {
+    test('three personas, none unresolved', () async {
       const names = ['buyer', 'seller', 'admin'];
       final found = await _check(
         steps,
@@ -228,7 +222,7 @@ void main() {
       expect(_of(found, FindingKind.docRefUnresolved), isEmpty);
     });
 
-    test('f10/us01/fr01/e04: 40 steps raise no count finding', () async {
+    test('40 steps raise no count finding', () async {
       final found = await _check([
         for (var n = 1; n <= 40; n++) ...[
           '### $n. Step $n',
@@ -238,7 +232,7 @@ void main() {
       expect(found, isEmpty);
     });
 
-    test('f10/us01/fr01/e05: persona: [buyer] with no persona buyer is '
+    test('persona: [buyer] with no persona buyer is '
         'doc_ref_unresolved', () async {
       final found = await _check(steps, fields: ['persona: [buyer]']);
       expect(found.map((f) => f.kind), [FindingKind.docRefUnresolved]);

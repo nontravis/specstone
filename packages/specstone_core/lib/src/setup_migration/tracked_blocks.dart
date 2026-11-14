@@ -3,7 +3,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 
 /// Returns the blocks of [doc] a link tracks, keyed as a `confirmed` label
-/// resolves to them: scenario blocks, `gnfr` NFR Statements, an FR's
+/// resolves to them: scenario blocks, gnfr NFR Statements, an FR's
 /// Statement.
 ///
 /// A lettered scenario is read from its line span (P5), since `check` keys

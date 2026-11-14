@@ -8,7 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
-    show withApprovalHash;
+    show statusesOutsideApproval, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
@@ -200,6 +200,7 @@ RunPlan _legacyRunOf(
     ),
     exists: (path) => _existsIn(docsRoot, path),
     isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    statusesOutside: statusesOutsideApproval(pins),
     testNames: projectSet.recordDocType != null
         ? (
             root: Directory(root.resolveSymbolicLinksSync()),
@@ -539,7 +540,8 @@ _Titled _titledWorksOf(
 /// fingerprints hash each FR as the run writes it, laid out, so the FR docs
 /// are rewritten first. [targetNames] are the config's named targets;
 /// [recordSteps] are the carried packs' `move_to_record` steps; [isTaken]
-/// tells whether a record's DocPath holds an entry once [moves] ran.
+/// tells whether a record's DocPath holds an entry once [moves] ran;
+/// [statusesOutside] is the approval-hash rule of the pins the run writes.
 _Rewrites _rewritesOf(
   List<_Work> works, {
   required MergedSet projectSet,
@@ -549,6 +551,7 @@ _Rewrites _rewritesOf(
   required List<MoveToRecord> recordSteps,
   required bool Function(String path) exists,
   required bool Function(String docPath) isTaken,
+  required bool statusesOutside,
   required _TestNameScope? testNames,
 }) {
   final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
@@ -565,7 +568,11 @@ _Rewrites _rewritesOf(
     work.lf = layOutDoc(work.lf, type);
     work.laidOut = work.lf;
     if (type != null) {
-      work.lf = withApprovalHash(withKeyBlock(work.lf, 'draft', null), type);
+      work.lf = withApprovalHash(
+        withKeyBlock(work.lf, 'draft', null),
+        type,
+        statusesOutside: statusesOutside,
+      );
     }
   }
 

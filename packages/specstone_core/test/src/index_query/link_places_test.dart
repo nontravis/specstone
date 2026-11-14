@@ -343,7 +343,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E16: the '
+    test('E16: the '
         'links markdown makes for a footnote are no link the author wrote', () {
       final footnoteOnly = linkPlacesOf(
         'A claim.[^1]\n\n[^1]: The source.\n',

@@ -89,7 +89,7 @@ void main() {
     },
   );
 
-  test('f06/us01/fr07/e06: migrate_pending exits 75', () {
+  test('migrate_pending exits 75', () {
     expect(WriteFaultCode.migratePending.wire, 'migrate_pending');
     expect(WriteFaultCode.migratePending.exitStatus, 75);
   });

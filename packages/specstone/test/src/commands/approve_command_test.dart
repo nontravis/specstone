@@ -29,7 +29,7 @@ void main() {
       "approve runs only at an interactive terminal, or with --yes after the Owner's ok in the chat\n",
     );
   });
-  test('f02/us03/s7: a terminal on stdin alone is still refused', () async {
+  test('a terminal on stdin alone is still refused', () async {
     final (:runner, :out, :err) = writeRunner(
       await writeWriteProject(),
       console: FakeConsole(stdinIsTerminal: true),
@@ -37,7 +37,7 @@ void main() {
     expect(await runner.run(['approve']), 77);
     expect(out.toString(), isEmpty);
   });
-  test('f02/us03/s1: at a terminal, y approves the draft', () async {
+  test('at a terminal, y approves the draft', () async {
     final root = await writeWriteProject();
     final console = FakeConsole(
       stdinIsTerminal: true,
@@ -224,17 +224,14 @@ void main() {
     );
   });
 
-  test(
-    'f02/us03/fr05/e01: dry run needs no terminal and prints no colour',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(await runner.run(['approve', '--dry-run']), 0);
-      expect(out.toString(), contains('### Draft 1/'));
-      expect(out.toString(), contains('```diff'));
-      expect(out.toString(), isNot(contains('\x1b[')));
-      expect(err.toString(), isEmpty);
-    },
-  );
+  test('dry run needs no terminal and prints no colour', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['approve', '--dry-run']), 0);
+    expect(out.toString(), contains('### Draft 1/'));
+    expect(out.toString(), contains('```diff'));
+    expect(out.toString(), isNot(contains('\x1b[')));
+    expect(err.toString(), isEmpty);
+  });
   test(
     'dry run shows the no-copy cell for a never-approved doc, with the '
     'hint when it carries approved: on disk and without it otherwise',
@@ -276,7 +273,7 @@ void main() {
       expect(out.toString(), isNot(contains('commit an approval')));
     },
   );
-  test('f02/us03/fr05/e02: dry run with --yes is a usage error', () async {
+  test('dry run with --yes is a usage error', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(root);
     expect(
@@ -290,7 +287,7 @@ void main() {
     );
     expect(err.toString(), contains('--dry-run goes without --yes.'));
   });
-  test('f02/us03/fr05/e03: a hash with --dry-run is a usage error', () async {
+  test('a hash with --dry-run is a usage error', () async {
     final root = await writeWriteProject();
     final (:runner, :out, :err) = writeRunner(root);
     expect(
@@ -298,7 +295,7 @@ void main() {
       64,
     );
   });
-  group('document_writing/approve_drafts/print_drafts_for_chat E09', () {
+  group('E09', () {
     for (final (args, message) in [
       (['--json'], '--json goes only with --dry-run.'),
       (
@@ -327,7 +324,7 @@ void main() {
       );
     }
   });
-  group('document_writing/approve_drafts/print_drafts_for_chat E10', () {
+  group('E10', () {
     test('--dry-run --json prints one object holding each draft and the count, the drafts and hashes its view prints', () async {
       final root = await writeWriteProject();
       var (:runner, :out, :err) = writeRunner(root);
@@ -436,7 +433,7 @@ void main() {
       );
     },
   );
-  test('f02/us03/fr05/e07: --context rules', () async {
+  test('--context rules', () async {
     final root = await writeWriteProject();
     final seen = _seen(root, 'feature:signup');
     var (:runner, :out, :err) = writeRunner(root);
@@ -453,70 +450,61 @@ void main() {
     (:runner, :out, :err) = writeRunner(root);
     expect(await runner.run(['approve', '--dry-run', '--context', '0']), 0);
   });
-  test(
-    'f02/us03/fr02/e16: the walk colours at a terminal unless NO_COLOR',
-    () async {
-      final root = await writeWriteProject();
-      var (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(
-          stdinIsTerminal: true,
-          stdoutIsTerminal: true,
-          answers: ['n'],
-        ),
-      );
-      expect(await runner.run(['approve', 'signup']), 0);
-      expect(out.toString(), contains('\x1b[32m+'));
-      (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(
-          stdinIsTerminal: true,
-          stdoutIsTerminal: true,
-          noColor: true,
-          answers: ['n'],
-        ),
-      );
-      expect(await runner.run(['approve', 'signup']), 0);
-      expect(out.toString(), isNot(contains('\x1b[')));
-    },
-  );
-  test(
-    'f02/us03/fr05/e07: --yes with a bad --context reports --yes first',
-    () async {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'approve',
-          '--yes',
-          '--context',
-          'x',
-          _seen(root, 'feature:signup'),
-        ]),
-        64,
-      );
-      expect(err.toString(), contains('--context goes without --yes.'));
-    },
-  );
-  test(
-    'f02/us03/fr05/e01: dry run colours at a terminal unless NO_COLOR',
-    () async {
-      final root = await writeWriteProject();
-      var (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(stdoutIsTerminal: true),
-      );
-      expect(await runner.run(['approve', '--dry-run']), 0);
-      expect(out.toString(), contains('\x1b['));
-      (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(stdoutIsTerminal: true, noColor: true),
-      );
-      expect(await runner.run(['approve', '--dry-run']), 0);
-      expect(out.toString(), isNot(contains('\x1b[')));
-    },
-  );
-  test('document_writing/approve_drafts/show_changes_since_approval E17: --dry-run on a layout-only draft shows no change', () async {
+  test('the walk colours at a terminal unless NO_COLOR', () async {
+    final root = await writeWriteProject();
+    var (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        answers: ['n'],
+      ),
+    );
+    expect(await runner.run(['approve', 'signup']), 0);
+    expect(out.toString(), contains('\x1b[32m+'));
+    (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(
+        stdinIsTerminal: true,
+        stdoutIsTerminal: true,
+        noColor: true,
+        answers: ['n'],
+      ),
+    );
+    expect(await runner.run(['approve', 'signup']), 0);
+    expect(out.toString(), isNot(contains('\x1b[')));
+  });
+  test('--yes with a bad --context reports --yes first', () async {
+    final root = await writeWriteProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'approve',
+        '--yes',
+        '--context',
+        'x',
+        _seen(root, 'feature:signup'),
+      ]),
+      64,
+    );
+    expect(err.toString(), contains('--context goes without --yes.'));
+  });
+  test('dry run colours at a terminal unless NO_COLOR', () async {
+    final root = await writeWriteProject();
+    var (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(stdoutIsTerminal: true),
+    );
+    expect(await runner.run(['approve', '--dry-run']), 0);
+    expect(out.toString(), contains('\x1b['));
+    (:runner, :out, :err) = writeRunner(
+      root,
+      console: FakeConsole(stdoutIsTerminal: true, noColor: true),
+    );
+    expect(await runner.run(['approve', '--dry-run']), 0);
+    expect(out.toString(), isNot(contains('\x1b[')));
+  });
+  test('E17: --dry-run on a layout-only draft shows no change', () async {
     const compact =
         '| Component | Responsibility |\n|---|---|\n| Signup form | Collects the email |\n';
     const padded =
@@ -540,7 +528,7 @@ void main() {
     expect(out.toString(), contains('| changes | none |'));
     expect(out.toString(), contains('no change since the approved copy'));
   });
-  test('document_writing/approve_drafts/show_changes_since_approval E23: --dry-run lists the sentence dropped and the one new, and not the one moved', () async {
+  test('E23: --dry-run lists the sentence dropped and the one new, and not the one moved', () async {
     String story(String mark, String useCase) =>
         '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'
         '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';
@@ -598,45 +586,51 @@ void main() {
     }
 
     const kept = ' They stay signed in.';
-    test('f02/us03/fr05/e07: --dry-run shows the unchanged line by default, not at --context 0', () async {
-      final root = await editedDraft();
-      var (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['approve', '--dry-run', 'feature:signup']), 0);
-      expect(out.toString(), contains(kept));
-      (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'approve',
-          '--dry-run',
-          '--context',
-          '0',
-          'feature:signup',
-        ]),
-        0,
-      );
-      expect(out.toString(), contains('+Users sign up.'));
-      expect(out.toString(), isNot(contains(kept)));
-    });
-    test('f02/us03/fr02/e07: the walk shows the unchanged line by default, not at --context 0', () async {
-      final root = await editedDraft();
-      for (final (args, shown) in [
-        (<String>[], true),
-        (['--context', '0'], false),
-      ]) {
-        final (:runner, :out, :err) = writeRunner(
-          root,
-          console: FakeConsole(
-            stdinIsTerminal: true,
-            stdoutIsTerminal: true,
-            noColor: true,
-            answers: ['n'],
-          ),
+    test(
+      '--dry-run shows the unchanged line by default, not at --context 0',
+      () async {
+        final root = await editedDraft();
+        var (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['approve', '--dry-run', 'feature:signup']), 0);
+        expect(out.toString(), contains(kept));
+        (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'approve',
+            '--dry-run',
+            '--context',
+            '0',
+            'feature:signup',
+          ]),
+          0,
         );
-        expect(await runner.run(['approve', ...args, 'feature:signup']), 0);
         expect(out.toString(), contains('+Users sign up.'));
-        expect(out.toString().contains(kept), shown);
-      }
-    });
+        expect(out.toString(), isNot(contains(kept)));
+      },
+    );
+    test(
+      'the walk shows the unchanged line by default, not at --context 0',
+      () async {
+        final root = await editedDraft();
+        for (final (args, shown) in [
+          (<String>[], true),
+          (['--context', '0'], false),
+        ]) {
+          final (:runner, :out, :err) = writeRunner(
+            root,
+            console: FakeConsole(
+              stdinIsTerminal: true,
+              stdoutIsTerminal: true,
+              noColor: true,
+              answers: ['n'],
+            ),
+          );
+          expect(await runner.run(['approve', ...args, 'feature:signup']), 0);
+          expect(out.toString(), contains('+Users sign up.'));
+          expect(out.toString().contains(kept), shown);
+        }
+      },
+    );
   });
 
   group('what awaits approval, through the built CLI', () {
@@ -651,7 +645,7 @@ void main() {
     String editedStory(String text) =>
         text.replaceFirst('Sign out.\n', 'Sign out of every device.\n');
 
-    test('f02/us03/s12: an approved story edited in an editor is walked, its view showing the edit', () async {
+    test('an approved story edited in an editor is walked, its view showing the edit', () async {
       final root = await writeWriteProject();
       File('${root.path}/docs/$story2').writeAsStringSync(
         editedStory(File('${root.path}/docs/$story2').readAsStringSync()),
@@ -662,21 +656,24 @@ void main() {
       expect(shown.stdout, contains('+Sign out of every device.'));
     });
 
-    test('f02/us03/s13: a layout change keeps the approval, so the story is not walked', () async {
-      final root = await writeWriteProject();
-      final arch = File('${root.path}/docs/$loginArch');
-      arch.writeAsStringSync(
-        arch.readAsStringSync().replaceFirst(
-          '| Component | Responsibility |\n|---|---|\n| Login form | Collects the email and the password |\n',
-          '| Component  | Responsibility                       |\n|------------|--------------------------------------|\n| Login form | Collects the email and the password  |\n',
-        ),
-      );
-      final shown = await run(root, ['approve', '--dry-run']);
-      expect(shown.exitCode, 0, reason: '${shown.stderr}');
-      expect(shown.stdout, isNot(contains('`docs/$loginArch`')));
-    });
+    test(
+      'a layout change keeps the approval, so the story is not walked',
+      () async {
+        final root = await writeWriteProject();
+        final arch = File('${root.path}/docs/$loginArch');
+        arch.writeAsStringSync(
+          arch.readAsStringSync().replaceFirst(
+            '| Component | Responsibility |\n|---|---|\n| Login form | Collects the email and the password |\n',
+            '| Component  | Responsibility                       |\n|------------|--------------------------------------|\n| Login form | Collects the email and the password  |\n',
+          ),
+        );
+        final shown = await run(root, ['approve', '--dry-run']);
+        expect(shown.exitCode, 0, reason: '${shown.stderr}');
+        expect(shown.stdout, isNot(contains('`docs/$loginArch`')));
+      },
+    );
 
-    test('f02/us03/s14: a story made in an editor with neither mark is walked, and its approval writes the hash', () async {
+    test('a story made in an editor with neither mark is walked, and its approval writes the hash', () async {
       const made = '# Reset password\n\n## Use Case\n\nReset a password.\n';
       final root = await writeWriteProject(extra: {'docs/$story3': made});
       final shown = await run(root, ['approve', '--dry-run']);
@@ -707,7 +704,7 @@ void main() {
       expect(after.stdout, isNot(contains('`docs/$story3`')));
     });
 
-    test("f06/us01/fr02/e15: --dry-run shows the changes against the project's own committed copy under an exported GIT_INDEX_FILE and GIT_DIR", () async {
+    test("--dry-run shows the changes against the project's own committed copy under an exported GIT_INDEX_FILE and GIT_DIR", () async {
       final root = await writeWriteProject(
         extra: {
           'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\nThey stay signed in.\n',
@@ -754,27 +751,30 @@ void main() {
       },
     );
 
-    test('f02/us03/fr05: approve --dry-run --target jaspr --json lists the jaspr draft only', () async {
-      final (:runner, :out, :err) = writeRunner(await twinDrafts());
-      expect(
-        await runner.run([
-          'approve',
-          '--dry-run',
-          '--target',
-          'jaspr',
-          '--json',
-        ]),
-        0,
-        reason: err.toString(),
-      );
-      final drafts = (jsonDecode(out.toString()) as Map)['drafts']! as List;
-      expect(
-        [for (final d in drafts) (d as Map)['docPath']],
-        [jasprArchitecture],
-      );
-    });
+    test(
+      'approve --dry-run --target jaspr --json lists the jaspr draft only',
+      () async {
+        final (:runner, :out, :err) = writeRunner(await twinDrafts());
+        expect(
+          await runner.run([
+            'approve',
+            '--dry-run',
+            '--target',
+            'jaspr',
+            '--json',
+          ]),
+          0,
+          reason: err.toString(),
+        );
+        final drafts = (jsonDecode(out.toString()) as Map)['drafts']! as List;
+        expect(
+          [for (final d in drafts) (d as Map)['docPath']],
+          [jasprArchitecture],
+        );
+      },
+    );
 
-    test('f02/us03/fr04: --yes --target flutter approves the flutter twin and leaves the jaspr twin a draft', () async {
+    test('--yes --target flutter approves the flutter twin and leaves the jaspr twin a draft', () async {
       final root = await twinDrafts();
       final hash = (getDoc(root, flutterArchitecture)['bases']! as Map)['doc'];
       final (:runner, :out, :err) = writeRunner(root);
@@ -797,35 +797,38 @@ void main() {
       expect(readDoc(root, jasprArchitecture), contains('draft: true'));
     });
 
-    test('f02/us03/fr03/e09: at a terminal, y under --target jaspr approves that twin only', () async {
-      final root = await twinDrafts();
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(
-          stdinIsTerminal: true,
-          stdoutIsTerminal: true,
-          answers: ['y'],
-        ),
-      );
-      expect(
-        await runner.run([
-          'approve',
-          'architecture:login',
-          '--target',
-          'jaspr',
-        ]),
-        0,
-        reason: err.toString(),
-      );
-      expect('approve? [y/n/q] '.allMatches(out.toString()), hasLength(1));
-      expect(
-        readDoc(root, jasprArchitecture),
-        matches(RegExp('approved: "[0-9a-f]{12}"')),
-      );
-      expect(readDoc(root, flutterArchitecture), contains('draft: true'));
-    });
+    test(
+      'at a terminal, y under --target jaspr approves that twin only',
+      () async {
+        final root = await twinDrafts();
+        final (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(
+            stdinIsTerminal: true,
+            stdoutIsTerminal: true,
+            answers: ['y'],
+          ),
+        );
+        expect(
+          await runner.run([
+            'approve',
+            'architecture:login',
+            '--target',
+            'jaspr',
+          ]),
+          0,
+          reason: err.toString(),
+        );
+        expect('approve? [y/n/q] '.allMatches(out.toString()), hasLength(1));
+        expect(
+          readDoc(root, jasprArchitecture),
+          matches(RegExp('approved: "[0-9a-f]{12}"')),
+        );
+        expect(readDoc(root, flutterArchitecture), contains('draft: true'));
+      },
+    );
 
-    test('f02/us03/fr04/e06: --yes on a name two targets share, with no --target, exits 64 listing both docs', () async {
+    test('--yes on a name two targets share, with no --target, exits 64 listing both docs', () async {
       final root = await twinDrafts();
       final (:runner, :out, :err) = writeRunner(root);
       expect(
@@ -845,42 +848,42 @@ void main() {
       expect(readDoc(root, jasprArchitecture), contains('draft: true'));
     });
 
+    test('--target with no value exits 64 naming the targets', () async {
+      final (:runner, :out, :err) = writeRunner(
+        await twinDrafts(),
+        console: FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true),
+      );
+      expect(await runner.run(['approve', '--dry-run', '--target']), 64);
+      expect(
+        err.toString(),
+        '--target needs a code target name: the code targets are flutter, jaspr\n',
+      );
+    });
+
     test(
-      'f02/us03/fr01: --target with no value exits 64 naming the targets',
+      '--dry-run without --target shows each target status in the status row',
       () async {
-        final (:runner, :out, :err) = writeRunner(
-          await twinDrafts(),
-          console: FakeConsole(stdinIsTerminal: true, stdoutIsTerminal: true),
+        final root = await writeTwinProject(
+          extra: {
+            ...edit(loginStory, [('goals:\n', 'draft: true\ngoals:\n')]),
+            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
+          },
         );
-        expect(await runner.run(['approve', '--dry-run', '--target']), 64);
+        final (:runner, :out, :err) = writeRunner(root);
         expect(
-          err.toString(),
-          '--target needs a code target name: the code targets are flutter, jaspr\n',
+          await runner.run([
+            'approve',
+            '--dry-run',
+            'user_story:login/email_login',
+          ]),
+          0,
+          reason: err.toString(),
+        );
+        expect(
+          out.toString(),
+          contains('| status  | `flutter implemented · jaspr planned` |'),
         );
       },
     );
-
-    test('f02/us03/fr01: --dry-run without --target shows each target status in the status row', () async {
-      final root = await writeTwinProject(
-        extra: {
-          ...edit(loginStory, [('goals:\n', 'draft: true\ngoals:\n')]),
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'approve',
-          '--dry-run',
-          'user_story:login/email_login',
-        ]),
-        0,
-        reason: err.toString(),
-      );
-      expect(
-        out.toString(),
-        contains('| status  | `flutter implemented · jaspr planned` |'),
-      );
-    });
   });
 }

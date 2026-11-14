@@ -10,6 +10,8 @@ import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show normalCodeEntry;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -33,8 +35,8 @@ final class CheckContext {
   final ReadSession _session;
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
-  final Map<(CodeTarget, String), String?> _codeTexts = {};
-  final List<String> _codeWarnings = [];
+  final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
+  final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
   final Map<String, RegExp> _bannedPatterns = {};
@@ -85,27 +87,51 @@ final class CheckContext {
   /// to U+FFFD instead of failing. Returns null for a file that cannot be
   /// read, and adds one warning for it.
   String? codeTextOf(CodeTarget target, String path) {
-    final key = (target, path);
-    if (_codeTexts.containsKey(key)) return _codeTexts[key];
-    String? text;
-    try {
-      text = const Utf8Decoder(allowMalformed: true)
-          .convert(File('${codeRootOf(target).path}/$path').readAsBytesSync());
-    } on FileSystemException {
-      final inTarget = target.name == null ? '' : ' in target ${target.name}';
-      _codeWarnings.add(
-        '$path: cannot read the file$inTarget; '
+    final bytes = codeBytesOf(target, path);
+    return bytes == null
+        ? null
+        : const Utf8Decoder(allowMalformed: true).convert(bytes);
+  }
+
+  /// Returns the bytes of the code file at [path] in [target], read once per
+  /// run, and states the warning of a file that cannot be read.
+  ///
+  /// [path] is relative to [target]'s code root. Returns null for a file that
+  /// cannot be read; its warning is stated once per run, whoever reads it.
+  List<int>? codeBytesOf(CodeTarget target, String path) {
+    final bytes = readCodeBytes(target, path);
+    if (bytes == null) {
+      warn(
+        '${normalCodeEntry(path)}: cannot read the file; '
         'implements Symbols in it are not checked',
       );
     }
-    return _codeTexts[key] = text;
+    return bytes;
   }
 
-  /// Adds [warning], which no finding states.
+  /// Returns the bytes of the code file at [path] in [target], read once per
+  /// run, or null when it cannot be read; the caller states its own warning.
+  ///
+  /// [path] is relative to [target]'s code root; `./a.dart` and `a.dart` are
+  /// one file.
+  List<int>? readCodeBytes(CodeTarget target, String path) {
+    final key = (target, normalCodeEntry(path));
+    if (_codeBytes.containsKey(key)) return _codeBytes[key];
+    List<int>? bytes;
+    try {
+      bytes = File('${codeRootOf(target).path}/${key.$2}').readAsBytesSync();
+    } on FileSystemException {
+      bytes = null;
+    }
+    return _codeBytes[key] = bytes;
+  }
+
+  /// Adds [warning], which no finding states; a text already added is kept
+  /// once, at its first place.
   void warn(String warning) => _codeWarnings.add(warning);
 
   /// How many code files this run has read.
-  int get codeFilesRead => _codeTexts.length;
+  int get codeFilesRead => _codeBytes.length;
 
   /// Returns the merged doc type of [doc], or null for an untyped doc.
   MergedDocType? typeOf(IndexedDoc doc) => index.typeOf(doc);
@@ -135,7 +161,7 @@ final class CheckContext {
   /// Returns the template section the held section [index] of [doc] maps to,
   /// or null.
   ///
-  /// Both headers compare by `headerKey`, as `rendering/format_docs` matches them.
+  /// Both headers compare by `headerKey`, as the doc formatter matches them.
   MergedSection? templateSectionAt(IndexedDoc doc, int index) =>
       _heldTemplatesOf(doc)[index];
 
@@ -233,7 +259,7 @@ final class CheckContext {
   bool hasNoParent(IndexedDoc doc) =>
       parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
 
-  /// Whether the merged set holds a `gnfr` doc type.
+  /// Whether the merged set holds a gnfr doc type.
   bool get hasGnfr =>
       _session.project.set.docTypes.any((type) => type.id == _gnfrType);
 
@@ -249,7 +275,7 @@ final class CheckContext {
         return scenarioBlocksIn(bodyLinesOf(story, index));
       });
 
-  /// Whether the merged set holds a `project` doc type.
+  /// Whether the merged set holds a project doc type.
   bool get hasProject =>
       _session.project.set.docTypes.any((type) => type.id == _projectType);
 
@@ -262,7 +288,7 @@ final class CheckContext {
               entry.group(1)!,
   };
 
-  /// Returns the Role names of every `project` doc.
+  /// Returns the Role names of every project doc.
   ///
   /// A name is the text in backticks that opens a `roles` section entry.
   Set<String> roleNames() => _roleNames;
@@ -272,7 +298,7 @@ final class CheckContext {
       for (final (:key, lines: _) in _itemHeadingBlocksOf(doc)) key,
   };
 
-  /// Returns the ID of each `###` item heading of every `project` doc, as
+  /// Returns the ID of each `###` item heading of every project doc, as
   /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
 
@@ -295,13 +321,13 @@ final class CheckContext {
   Iterable<IndexedDoc> get _projectDocs =>
       index.docs.where((doc) => doc.docTypeId == _projectType);
 
-  /// Maps each NFR id of the `gnfr` docs to its DocPath and Statement line.
+  /// Maps each NFR id of the gnfr docs to its DocPath and Statement line.
   ///
   /// The text is empty when the block has no `- **Statement:**` line.
   late final Map<String, ({String path, String text})> _nfrStatements =
       _readNfrStatements();
 
-  /// Returns the NFR ids of the `gnfr` docs with their Statement lines.
+  /// Returns the NFR ids of the gnfr docs with their Statement lines.
   Map<String, ({String path, String text})> nfrStatements() => _nfrStatements;
 
   Map<String, ({String path, String text})> _readNfrStatements() {

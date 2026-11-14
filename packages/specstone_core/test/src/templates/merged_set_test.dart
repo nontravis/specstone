@@ -95,7 +95,7 @@ void main() {
       expect(json.single['description'], 'First line.');
     });
 
-    test('f03/us01/fr01/e05: a doc type with extends and no description of '
+    test('a doc type with extends and no description of '
         'its own lists the first line of the target description', () async {
       final project = await writeTree({
         '.specstone/config.yaml': 'packs:\n  prd-core: 1.1.0\n',
@@ -131,7 +131,7 @@ path: b/{slug}.md
       ]);
     });
 
-    test('f03/us01/fr01: an empty description lists as an empty string', () {
+    test('an empty description lists as an empty string', () {
       final json = MergedSet(docTypes: [_docType('a', description: '')])
           .listJson();
 

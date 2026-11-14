@@ -6,6 +6,7 @@ import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 
 const _coversField = 'covers';
@@ -28,8 +29,7 @@ final class CodePath {
 }
 
 /// Resolves [given] from [workingDirectory] to a [CodePath] inside the code
-/// root of the target whose code root is the longest that holds it
-/// (`index_query/get_task_bundle/bundle_docs_for_code_path`).
+/// root of the target whose code root is the longest that holds it.
 ///
 /// [codeRootOf] answers each target's canonical code root, as
 /// `DocsProject.codeRootOf` does. Throws `code_path_not_found` when nothing
@@ -70,7 +70,7 @@ CodePath resolveCodePath(
   );
 }
 
-/// Returns the bundle [code] holds for [mode] (`index_query/get_task_bundle/bundle_docs_for_code_path`).
+/// Returns the bundle [code] holds for [mode].
 ///
 /// The spec match is the doc of [code]'s target whose `covers:` entry is the
 /// longest prefix of [code]; the traced docs are the stories and FRs whose
@@ -140,7 +140,7 @@ List<IndexedDoc> _specMatch(DocIndex index, CodePath code) {
       continue;
     }
     for (final entry in doc.valuesOf(_coversField)) {
-      final covered = _withoutTrailingSlash(entry);
+      final covered = _withoutTrailingSlash(CodeLinkEntry(entry).pointer);
       if (covered.isEmpty || !_isPrefixOf(covered, code.path)) continue;
       if (covered.length > longest) {
         longest = covered.length;
@@ -162,7 +162,7 @@ List<IndexedDoc> _tracedDocs(DocIndex index, CodePath code) => [
 
 /// Whether [doc] is traced to [code] in its target: its record entry's code
 /// paths or test paths name [code] or a path under it; with no record doc
-/// type, its own `implements:` values stand in, as INV-29 reads a status then.
+/// type, its own `implements:` values stand in, as a status is read then.
 bool _tracesEntry(DocIndex index, IndexedDoc doc, CodePath code) {
   if (index.set.recordDocType == null) {
     return doc.valuesOf(_implementsField).any((path) => _traces(path, code));
@@ -174,8 +174,9 @@ bool _tracesEntry(DocIndex index, IndexedDoc doc, CodePath code) {
 }
 
 bool _traces(String entry, CodePath code) {
-  final colon = entry.indexOf(':');
-  final path = colon < 0 ? entry : entry.substring(0, colon);
+  final pointer = CodeLinkEntry(entry).pointer;
+  final colon = pointer.indexOf(':');
+  final path = colon < 0 ? pointer : pointer.substring(0, colon);
   return path == code.path ||
       code.isFolder && (code.path == '.' || path.startsWith('${code.path}/'));
 }

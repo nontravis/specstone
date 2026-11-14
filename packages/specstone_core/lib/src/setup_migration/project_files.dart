@@ -133,14 +133,14 @@ Map<String, String> groupedPathOverrides() => {
     '$_templatesFolder/$key.yaml': 'path: $value\n',
 };
 
-/// Returns the `gnfr` section override for [headers], null when empty.
+/// Returns the gnfr section override for [headers], null when empty.
 ///
 /// Each header is a single-quoted YAML scalar. Its id is the lowercased
 /// `[a-z0-9]` runs joined by `_`, `category_<n>` (n the 1-based position) when
 /// none remain, and suffixed `_2`, `_3`, ... to the first id no earlier header
 /// took, so ids stay unique for any header list.
 ///
-/// [carriedIds] are the section ids the carried `gnfr` already holds; they
+/// [carriedIds] are the section ids the carried gnfr already holds; they
 /// count as taken, so an override adds a section and never replaces one.
 MapEntry<String, String>? gnfrOverride(
   List<String> headers, {
@@ -167,7 +167,7 @@ MapEntry<String, String>? gnfrOverride(
 
 /// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`.
 ///
-/// Ordered `project`, `features`, `gnfr`, `tech_stack`, then the rest by
+/// Ordered project, features, gnfr, tech_stack, then the rest by
 /// DocPath (PD16).
 List<MergedDocType> singularDocTypes(MergedSet set) {
   final singular = [

@@ -79,7 +79,7 @@ void main() {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
     });
 
-    test('f04/us02/fr04/e21: a WHATWG-unreadable href is an '
+    test('a WHATWG-unreadable href is an '
         'UnreadableTarget', () {
       expect(
         resolveDocLink('http://h:abc/x.md', from),
@@ -87,7 +87,7 @@ void main() {
       );
     });
 
-    test('f04/us02/fr04/e03: a link to a doc carries its anchor', () {
+    test('a link to a doc carries its anchor', () {
       final target = resolveDocLink(
         '../../d03_non_functional.md#performance',
         'prds/f/us01/fr01.md',
@@ -96,14 +96,14 @@ void main() {
       expect(target.anchor, 'performance');
     });
 
-    test('f04/us02/fr04/e16: a bare fragment resolves against the linking '
+    test('a bare fragment resolves against the linking '
         'doc with its anchor', () {
       final target = resolveDocLink('#rules', from) as DocTarget;
       expect(target.docPath, from);
       expect(target.anchor, 'rules');
     });
 
-    test('f04/us02/fr04/e22: an empty fragment resolves with anchor ""', () {
+    test('an empty fragment resolves with anchor ""', () {
       final target = resolveDocLink('#', from) as DocTarget;
       expect(target.docPath, from);
       expect(target.anchor, '');
@@ -135,7 +135,7 @@ void main() {
   group('relativeFilePathOf', () {
     const from = 'prds/f/FEATURE.md';
 
-    test('f04/us02/fr04/e10: a path leaving the docs root keeps its leading '
+    test('a path leaving the docs root keeps its leading '
         '../ segments', () {
       expect(relativeFilePathOf('../../../x/a.png', from), '../x/a.png');
       expect(relativeFilePathOf('../../../../x.md', from), '../../x.md');
@@ -157,7 +157,7 @@ void main() {
       );
     });
 
-    test('f04/us02/fr04/e11: a path inside the docs root is relative to it, '
+    test('a path inside the docs root is relative to it, '
         'decoded, with no fragment or query', () {
       expect(
         relativeFilePathOf('flow%20chart.png#top', from),
@@ -171,7 +171,7 @@ void main() {
       expect(relativeFilePathOf('../../d03.md', from), 'd03.md');
     });
 
-    test('f04/us02/fr04/e13: a web address, another scheme, an authority, a '
+    test('a web address, another scheme, an authority, a '
         'rooted path, and an empty path give null', () {
       for (final href in [
         'https://e.com/a.png',

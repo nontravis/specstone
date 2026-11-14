@@ -20,7 +20,7 @@ String _canonical(Directory dir) => dir.resolveSymbolicLinksSync();
 
 void main() {
   group('locateMigrateRoot', () {
-    test('f06/us01/fr01: the walk stops at the first folder holding config, '
+    test('the walk stops at the first folder holding config, '
         'legacy context doc, or journal', () async {
       for (final marker in {
         '.specstone/config.yaml': 'packs:\n',
@@ -41,7 +41,7 @@ void main() {
       }
     });
 
-    test('f06/us01/fr01/e01: no marker up to the filesystem root is '
+    test('no marker up to the filesystem root is '
         'project_not_found', () async {
       final tree = await writeTree({'a/b/keep.txt': ''});
 
@@ -77,7 +77,7 @@ void main() {
       expect(_canonical(root), _canonical(Directory('${tree.path}/docsrepo')));
     });
 
-    test('f06/us01/fr01/e05: a nested project with its own legacy context '
+    test('a nested project with its own legacy context '
         'doc is its own root', () async {
       final tree = await writeTree({
         'outer/docs/prds/d01_context.md': '# D-01\n',
@@ -95,7 +95,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr01/e07: a pending journal marks the root when the '
+    test('a pending journal marks the root when the '
         'context doc has moved and no config exists', () async {
       final tree = await writeTree({
         MoveJournal.journalPath: _journal,
@@ -303,7 +303,7 @@ void main() {
   });
 
   group('rootThroughDocsLink', () {
-    test('f06/us01/fr01/e02: a dangling docs link leaves the folder as its '
+    test('a dangling docs link leaves the folder as its '
         'own root', () async {
       final tree = await writeTree({'keep.txt': ''});
       try {
@@ -316,13 +316,10 @@ void main() {
       expect(_canonical(rootThroughDocsLink(tree)), _canonical(tree));
     });
 
-    test(
-      'f06/us01/fr01/e02: a folder without a docs link stays itself',
-      () async {
-        final tree = await writeTree({'docs/prds/d01_context.md': '# D-01\n'});
+    test('a folder without a docs link stays itself', () async {
+      final tree = await writeTree({'docs/prds/d01_context.md': '# D-01\n'});
 
-        expect(_canonical(rootThroughDocsLink(tree)), _canonical(tree));
-      },
-    );
+      expect(_canonical(rootThroughDocsLink(tree)), _canonical(tree));
+    });
   });
 }

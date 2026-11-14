@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 
 import 'shipped_pins.dart';
 import 'write_fixture.dart';
@@ -56,26 +57,39 @@ String recordText({
 }
 
 /// Stamps the doc at [docPath] under [root] with the approval hash of its
-/// content, as `approve` leaves it.
-void stampApproved(Directory root, String docPath) {
+/// content, as `approve` leaves it under the shipped packs, else [templates].
+void stampApproved(
+  Directory root,
+  String docPath, {
+  TemplateResolver? templates,
+}) {
   final file = docFile(root, docPath);
-  writeIn(root, (session) {
+  writeIn(templates: templates, root, (session) {
     final stamped = withApprovalHash(
       toLf(file.readAsStringSync()),
       session.docTypeAt(docPath),
+      statusesOutside: session.project.statusesOutsideApproval,
     );
     file.writeAsStringSync(stamped);
   });
 }
 
 /// Whether the doc at [docPath] under [root] is no draft and holds the
-/// approval hash of its content.
-bool holdsApproval(Directory root, String docPath) {
+/// approval hash of its content under the shipped packs, else [templates].
+bool holdsApproval(
+  Directory root,
+  String docPath, {
+  TemplateResolver? templates,
+}) {
   final text = toLf(readDoc(root, docPath));
-  return writeIn(root, (session) {
+  return writeIn(templates: templates, root, (session) {
     final fields = ApprovalFields.of(Doc.parse(text));
     return !fields.isDraft &&
         fields.approvedValue ==
-            approvalHashOf(text, session.docTypeAt(docPath));
+            approvalHashOf(
+              text,
+              session.docTypeAt(docPath),
+              statusesOutside: session.project.statusesOutsideApproval,
+            );
   });
 }

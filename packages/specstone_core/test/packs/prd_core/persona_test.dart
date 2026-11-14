@@ -10,7 +10,7 @@ void main() {
     persona = prdCoreDocType(await resolvePrdCore(), 'persona');
   });
 
-  test('f03/us06/fr01: persona sits at prds/personas/{slug}/PERSONA.md with '
+  test('persona sits at prds/personas/{slug}/PERSONA.md with '
       'its fields, status values, and fourteen sections', () {
     expect(persona.path, 'prds/personas/{slug}/PERSONA.md');
     expect(persona.parent, isNull);
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'f03/us06/fr03/e04: titled # <archetype title>, no NASA list', () {
+      'titled # <archetype title>, no NASA list', () {
     expectGuideShape(persona, title: '# <archetype title>');
     expectNoNasaLint(persona);
     expectSources(persona, [
@@ -74,11 +74,11 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr01: share is written only for a statistical persona', () {
+  test('share is written only for a statistical persona', () {
     expect(fieldOf(persona, 'share').description, contains('statistical'));
   });
 
-  test('f03/us06/fr01: the status field gives the retired meaning', () {
+  test('the status field gives the retired meaning', () {
     expect(
       fieldOf(persona, 'status').description,
       contains(
@@ -88,19 +88,16 @@ void main() {
     );
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        persona,
-        'Write one rule per ID; in a section with no IDs, one '
-        'rule per item, with mechanics left to the spec docs.\n'
-        'Keep a bound in the item it limits, and the research '
-        'trace in `basis:` and the Sources section, never in the '
-        'prose.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      persona,
+      'Write one rule per ID; in a section with no IDs, one '
+      'rule per item, with mechanics left to the spec docs.\n'
+      'Keep a bound in the item it limits, and the research '
+      'trace in `basis:` and the Sources section, never in the '
+      'prose.',
+    );
+  });
 }

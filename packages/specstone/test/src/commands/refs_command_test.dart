@@ -20,7 +20,8 @@ void main() {
       ),
     );
   });
-  test('f01/us07/fr01/e08: no name is argument_missing, exit 64; a typed name no doc carries names the type', () async {
+  test('no name is argument_missing, exit 64; a typed name no doc carries '
+      'names the type', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['refs']), 64);
     expect(err.toString(), 'refs needs a name, such as specstone refs login\n');
@@ -44,7 +45,8 @@ void main() {
     );
     expect(await readRunner(pinned).runner.run(['refs', 'login']), 78);
   });
-  test('f01/us07/fr01/e22: refs prints a traced_from line on the FR and on the story it traces', () async {
+  test('refs prints a traced_from line on the FR and on the story it '
+      'traces', () async {
     const base = 'docs/prds/features/f01_login';
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(
@@ -66,24 +68,28 @@ void main() {
       ),
     );
   });
-  test('f01/us07/fr02: refs --json gives the step reference kind, name, and docType', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(
-        extra: {
-          'docs/prds/journeys/sign_in/JOURNEY.md':
-              '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
-              '### 1. Enter\nstep: login/email_login S1\n',
-        },
-      ),
-    );
-    expect(await runner.run(['refs', 'journey:sign_in', '--json']), 0);
-    final doc =
-        ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
-    expect(doc['outbound'], [
-      {'kind': 'step', 'name': 'login/email_login', 'docType': 'user_story'},
-    ]);
-  });
-  test('index_query/follow_references/list_doc_references S3: a doc that writes the name in a code span shows among the mentions, in text and in JSON', () async {
+  test(
+    'refs --json gives the step reference kind, name, and docType',
+    () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(
+          extra: {
+            'docs/prds/journeys/sign_in/JOURNEY.md':
+                '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+                '### 1. Enter\nstep: login/email_login S1\n',
+          },
+        ),
+      );
+      expect(await runner.run(['refs', 'journey:sign_in', '--json']), 0);
+      final doc =
+          ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
+      expect(doc['outbound'], [
+        {'kind': 'step', 'name': 'login/email_login', 'docType': 'user_story'},
+      ]);
+    },
+  );
+  test('S3: a doc that writes the name in a code span shows among the '
+      'mentions, in text and in JSON', () async {
     final project = await writeReadProject(
       extra: {
         'docs/prds/personas/buyer/PERSONA.md':
@@ -153,7 +159,8 @@ void main() {
       );
     });
 
-    test('f01/us07/fr01: refs on a record prints its tests lines outbound, the kind tests, in JSON too', () async {
+    test('refs on a record prints its tests lines outbound, the kind tests, in '
+        'JSON too', () async {
       final project = await writeReadProject(
         extra: {
           '.specstone/templates/implementation.yaml':
@@ -217,19 +224,27 @@ void main() {
       ]);
     });
 
-    test('f01/us07/fr01: refs --target jaspr keeps the jaspr record of a shared name', () async {
-      final (:runner, :out, :err) = readRunner(await twoTargets());
+    test(
+      'refs --target jaspr keeps the jaspr record of a shared name',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twoTargets());
 
-      expect(
-        await runner.run(['refs', 'implementation:login', '--target', 'jaspr']),
-        0,
-      );
+        expect(
+          await runner.run([
+            'refs',
+            'implementation:login',
+            '--target',
+            'jaspr',
+          ]),
+          0,
+        );
 
-      expect(out.toString(), contains('- implements: lib/web_page.dart\n'));
-      expect(out.toString(), isNot(contains('sign_in_page')));
-    });
+        expect(out.toString(), contains('- implements: lib/web_page.dart\n'));
+        expect(out.toString(), isNot(contains('sign_in_page')));
+      },
+    );
 
-    test('index_query/read_doc_section/resolve_doc_name E22: refs --target web is argument_invalid, exit 64', () async {
+    test('E22: refs --target web is argument_invalid, exit 64', () async {
       final (:runner, :out, :err) = readRunner(await twoTargets());
 
       expect(

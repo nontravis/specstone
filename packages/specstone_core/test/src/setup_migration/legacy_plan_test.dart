@@ -171,25 +171,22 @@ void main() {
     );
   });
 
-  test(
-    'f06/us01/fr04/e11: an untyped file gets only the link rewrite',
-    () async {
-      final plan = await _plan(specEdgeLegacy);
+  test('an untyped file gets only the link rewrite', () async {
+    final plan = await _plan(specEdgeLegacy);
 
-      final rewrite = _rewrite(
-        plan,
-        'specs/f02_billing/billing_ui/s01_architecture.md',
-      );
+    final rewrite = _rewrite(
+      plan,
+      'specs/f02_billing/billing_ui/s01_architecture.md',
+    );
 
-      expect(rewrite.changes, ['1 link']);
-      expect(rewrite.text, contains('(../DOMAIN.md)'));
-      expect(rewrite.text, contains('name: Billing UI architecture\n'));
-      expect(rewrite.text, contains('feature_id: f02_billing\n'));
-      expect(rewrite.text, contains('# S-01 — Billing UI architecture\n'));
-    },
-  );
+    expect(rewrite.changes, ['1 link']);
+    expect(rewrite.text, contains('(../DOMAIN.md)'));
+    expect(rewrite.text, contains('name: Billing UI architecture\n'));
+    expect(rewrite.text, contains('feature_id: f02_billing\n'));
+    expect(rewrite.text, contains('# S-01 — Billing UI architecture\n'));
+  });
 
-  test('f06/us01/fr05/e02: a topic renamed one to one carries its '
+  test('a topic renamed one to one carries its '
       'applies_to entries as covers', () async {
     final plan = await _plan(specEdgeLegacy);
 
@@ -253,7 +250,7 @@ confirmed: [x]
     );
   });
 
-  test('f06/us01/fr06/e01: a lone API doc renamed to API.md gains a '
+  test('a lone API doc renamed to API.md gains a '
       'confirmed entry for the FR its trace names', () async {
     final tree = Map.of(acmeLegacy)
       ..remove('docs/specs/api/auth/s02_api_session.md')
@@ -293,7 +290,7 @@ name: Login API
     expect(tech.text, startsWith('---\ndraft: true\n'));
   });
 
-  test('f06/us01/fr05/e07: a tree with no d02 gets a FEATURES draft; '
+  test('a tree with no d02 gets a FEATURES draft; '
       'PROJECT is never created', () async {
     final tree = Map.of(acmeLegacy)..remove('docs/prds/d02_features.md');
 
@@ -303,7 +300,7 @@ name: Login API
     expect(_createdPaths(plan), isNot(contains('docs/prds/PROJECT.md')));
   });
 
-  test('f06/us01/fr05/e08: specs/INDEX.md stays with its rows', () async {
+  test('specs/INDEX.md stays with its rows', () async {
     final plan = await _plan(acmeLegacy);
 
     expect(plan.left, contains('specs/INDEX.md'));
@@ -313,17 +310,14 @@ name: Login API
     );
   });
 
-  test(
-    'f06/us01/fr05/e09: a tech stack doc already in place is kept',
-    () async {
-      final plan = await _plan({
-        ...acmeLegacy,
-        'docs/specs/TECH_STACK.md': '# Tech stack\n',
-      });
+  test('a tech stack doc already in place is kept', () async {
+    final plan = await _plan({
+      ...acmeLegacy,
+      'docs/specs/TECH_STACK.md': '# Tech stack\n',
+    });
 
-      expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
-    },
-  );
+    expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
+  });
 
   test('f06/us01/fr06/e04, f06/us01/s7: a legacy FR gets no traced_from and '
       'no confirmed', () async {
@@ -338,7 +332,7 @@ name: Login API
     expect(fr.text, isNot(contains('confirmed')));
   });
 
-  test('f06/us01/fr06/e05: a legacy nf gets no kind, overrides, or '
+  test('a legacy nf gets no kind, overrides, or '
       'confirmed', () async {
     final plan = await _plan({
       ...acmeLegacy,
@@ -370,7 +364,7 @@ name: Login API
     }
   });
 
-  test('f06/us01/fr07/e08: the run removes no file', () async {
+  test('the run removes no file', () async {
     final plan = await _plan(acmeLegacy);
 
     final steps = plan.journalSteps(
@@ -399,22 +393,19 @@ name: Login API
     );
   });
 
-  test(
-    'f06/us01/fr07/e08: a container FEATURE.md moves, so it is not left',
-    () async {
-      final plan = await _plan(containerLegacy);
+  test('a container FEATURE.md moves, so it is not left', () async {
+    final plan = await _plan(containerLegacy);
 
-      expect(
-        plan.moves.map((m) => m.from),
-        contains('prds/features/components/co01_utilities/FEATURE.md'),
-        reason: 'the container doc has a planned path',
-      );
-      expect(
-        plan.left,
-        isNot(contains('prds/features/components/co01_utilities/FEATURE.md')),
-      );
-    },
-  );
+    expect(
+      plan.moves.map((m) => m.from),
+      contains('prds/features/components/co01_utilities/FEATURE.md'),
+      reason: 'the container doc has a planned path',
+    );
+    expect(
+      plan.left,
+      isNot(contains('prds/features/components/co01_utilities/FEATURE.md')),
+    );
+  });
 
   test('f06/us01/fr03/e04, final I5: a group whose slug is not [a-z0-9_]+ '
       'stays in place with its container and prints under left', () async {
@@ -454,7 +445,7 @@ name: Login API
     expect(ignore.text, 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n');
   });
 
-  test('f06/us01/fr07: the journal commits the moves, then the rewrites and '
+  test('the journal commits the moves, then the rewrites and '
       'creates with .specstone/.gitignore', () async {
     final plan = await _plan(acmeLegacy);
 
@@ -480,7 +471,7 @@ name: Login API
     expect(steps.indexOf(commits.first), lessThan(steps.indexOf(commits.last)));
   });
 
-  test('f06/us01/fr03/e13: a binary file in a moved folder moves untouched '
+  test('a binary file in a moved folder moves untouched '
       'and is never read as text', () async {
     final root = await writeTree(acmeLegacy);
     File('${root.path}/docs/specs/shared/logo.png').writeAsBytesSync([
@@ -519,7 +510,7 @@ name: Login API
       );
     }
 
-    test('f06/us01/fr03/e13: moves untouched with no rewrite, and the plan '
+    test('moves untouched with no rewrite, and the plan '
         'prints its move; one left in place is skipped too', () async {
       final plan = await planWith({
         'docs/specs/shared/notes.md': latin1,
@@ -548,7 +539,7 @@ name: Login API
       );
     });
 
-    test('f06/us01/fr03/e13: a Spec map that is not UTF-8 reads as no Spec '
+    test('a Spec map that is not UTF-8 reads as no Spec '
         'map', () async {
       final plan = await planWith({'docs/specs/INDEX.md': latin1});
 
@@ -559,7 +550,7 @@ name: Login API
       expect(plan.left, contains('specs/shared/s01_architecture.md'));
     });
 
-    test('f06/us01/fr03: a .md file that cannot be read refuses '
+    test('a .md file that cannot be read refuses '
         'output_not_writable naming it', () async {
       final root = await writeTree(acmeLegacy);
       final glossary = File('${root.path}/docs/prds/d04_glossary.md')
@@ -617,7 +608,7 @@ See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_valida
     expect(plan.left, contains('prds/d04_glossary.md'));
   });
 
-  test('f06/us01/fr04/e16: a path mention of a moved legacy file follows it, '
+  test('a path mention of a moved legacy file follows it, '
       'labelled as mentions', () async {
     const fr =
         'features/f01_login/us01_email_login/functional_requirements/'
@@ -642,7 +633,7 @@ See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_valida
     );
   });
 
-  test('f06/us01/fr04/e16: a mention of a name Windows would trim is left '
+  test('a mention of a name Windows would trim is left '
       'as written, though a POSIX disk holds the file', () async {
     final plan = await _plan({
       ...acmeLegacy,
@@ -658,7 +649,7 @@ See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_valida
     expect(text, contains('See ../notes./a.md.\n'));
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
-  test('f06/us01/fr04/e16: one mention is labelled in the singular', () async {
+  test('one mention is labelled in the singular', () async {
     final plan = await _plan({
       ...acmeLegacy,
       'docs/prds/d04_glossary.md': [
@@ -670,7 +661,7 @@ See [FR](features/f01_login/us01_email_login/functional_requirements/fr01_valida
     expect(_rewrite(plan, 'prds/d04_glossary.md').changes, ['1 mention']);
   });
 
-  test('f06/us01/fr06/e01: the fingerprint hashes the Statement as the run '
+  test('the fingerprint hashes the Statement as the run '
       'writes it', () async {
     final plan = await _plan(
       {
@@ -855,7 +846,7 @@ name: Login API
     );
   });
 
-  test('f06/us01/fr05/e04: a legacy header whose id a carried section holds '
+  test('a legacy header whose id a carried section holds '
       'is added, not merged into it', () async {
     final plan = await _plan({
       ...acmeLegacy,
@@ -882,7 +873,7 @@ name: NFR
     expect(override.text, contains("header: 'Safety!'"));
   });
 
-  test('f06/us01/fr01/e03: an existing config is rewritten with the carried '
+  test('an existing config is rewritten with the carried '
       'pins and keeps its other pins', () async {
     final versions = shippedPackVersions();
     final plan = await _plan({
@@ -968,7 +959,7 @@ name: NFR
   });
 
   group('agent files', () {
-    test('setup_migration/migrate_legacy_docs/write_project_files E13: a '
+    test('E13: a '
         'CLAUDE.md with no block gets the import block', () async {
       final plan = await _plan({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
 
@@ -986,7 +977,7 @@ name: NFR
       expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
     });
 
-    test('setup_migration/migrate_legacy_docs/write_project_files E13: a '
+    test('E13: a '
         'root with no instruction file gets AGENTS.md', () async {
       final plan = await _plan(acmeLegacy);
 
@@ -999,7 +990,7 @@ name: NFR
       expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'AGENTS.md']);
     });
 
-    test('setup_migration/set_up_new_project/write_agent_files E08: a '
+    test('E08: a '
         'malformed block refuses before the plan returns', () async {
       final root = await writeTree({
         ...acmeLegacy,
@@ -1022,7 +1013,7 @@ name: NFR
       );
     });
 
-    test('setup_migration/migrate_legacy_docs/write_project_files E11, E13: '
+    test('E11, E13: '
         'a code root in another repository takes its files outside the '
         'commits', () async {
       final plan = await _linkedPlan({
@@ -1045,7 +1036,7 @@ name: NFR
       ]);
     });
 
-    test('setup_migration/set_up_new_project/write_agent_files E35: a kept '
+    test('E35: a kept '
         'targets: config takes the files at each target repository top, and '
         'lists both', () async {
       final plan = await _plan({
@@ -1235,7 +1226,7 @@ name: NFR
       },
     );
 
-    test('f06/us01/fr05/e12: no cited entry leaves the config line with no '
+    test('no cited entry leaves the config line with no '
         'code_root part', () async {
       final plan = await _plan(_citingLegacy);
 
@@ -1271,7 +1262,7 @@ name: NFR
       );
     });
 
-    test('f06/us01/fr05/e11: the create line names the count of the folder '
+    test('the create line names the count of the folder '
         'above the root', () async {
       final tree = await writeTree({
         ...linkedAcme({
@@ -1290,7 +1281,7 @@ name: NFR
       expect(create.note, endsWith('; code_root .. (39 of 40 paths)'));
     });
 
-    test('f06/us01/fr05/e10: a config with no code_root key gains the key '
+    test('a config with no code_root key gains the key '
         'in its rewrite, and the line names it', () async {
       final tree = await writeTree({
         ...linkedAcme({
@@ -1313,7 +1304,7 @@ name: NFR
       );
     });
 
-    test('f06/us01/fr05/e10: a config with a code_root key keeps it and its '
+    test('a config with a code_root key keeps it and its '
         'line has no code_root part', () async {
       final tree = await writeTree({
         ...linkedAcme({
@@ -1344,7 +1335,7 @@ name: NFR
         config: 'packs:\n  prd-core: 0.0.1\ncode_root:\n',
       ),
     ]) {
-      test('f06/us01/fr05/e10: a config with $label keeps the key, infers '
+      test('a config with $label keeps the key, infers '
           'none, and its line has no code_root part', () async {
         final plan = await _linkedPlan({
           '.specstone/config.yaml': config,
@@ -1360,7 +1351,7 @@ name: NFR
       });
     }
 
-    test('f06/us01/fr05/e10: a config whose rewrite text stays unchanged is '
+    test('a config whose rewrite text stays unchanged is '
         'not written and has no plan line', () async {
       final versions = shippedPackVersions();
       final pins =
@@ -1381,7 +1372,7 @@ name: NFR
       }
     });
 
-    test('f06/us01/fr05/e11: a topic applies_to entry is a cited path of the '
+    test('a topic applies_to entry is a cited path of the '
         'plan', () async {
       final plan = await _linkedPlan({
         'docs/specs/architecture/caching.md': '---\nname: Caching\napplies_to:\n  - lib/a.dart\n---\n\n# Caching\n',
@@ -1394,156 +1385,145 @@ name: NFR
     });
   });
 
-  test(
-    'f06/us01/fr03/e09: a plan refusal throws before anything prints',
-    () async {
-      final root = await writeTree(duplicateGroupLegacy);
+  test('a plan refusal throws before anything prints', () async {
+    final root = await writeTree(duplicateGroupLegacy);
 
-      expect(
-        () => planLegacyRun(
-          Directory(root.resolveSymbolicLinksSync()),
-          templates: TemplateResolver(),
-          homeDirectory: null,
+    expect(
+      () => planLegacyRun(
+        Directory(root.resolveSymbolicLinksSync()),
+        templates: TemplateResolver(),
+        homeDirectory: null,
+      ),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.groupSlugDuplicate,
         ),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.groupSlugDuplicate,
-          ),
-        ),
-      );
-    },
-  );
+      ),
+    );
+  });
 
-  group(
-    'setup_migration/migrate_legacy_docs/rewrite_titles_keys_and_links',
-    () {
-      const featurePath = 'prds/features/f01_login/FEATURE.md';
-      const frPath =
-          'prds/features/f01_login/us01_email_login/'
-          'fr01_validate_credentials.md';
+  group('Rewrite titles, keys, and links', () {
+    const featurePath = 'prds/features/f01_login/FEATURE.md';
+    const frPath =
+        'prds/features/f01_login/us01_email_login/'
+        'fr01_validate_credentials.md';
 
-      test('E19: a link to a heading whose label became a name follows the '
-          "heading's new slug", () async {
-        final plan = await _plan({
-          ..._citingLegacy,
-          'docs/prds/features/ai01_login/us01_email_login/USER_STORY.md':
-              '# US-01 — Email login\n\n### Scenario 2 — FR-02 lockout\n',
-          'docs/prds/features/ai01_login/us01_email_login/functional_requirements/'
-                  'fr01_validate_credentials.md':
-              '# FR-01 — Validate credentials\n\n'
-              'See [lockout](../USER_STORY.md#scenario-2--fr-02-lockout).\n',
-        });
-
-        final story = _rewrite(
-          plan,
-          'prds/features/f01_login/us01_email_login/USER_STORY.md',
-        ).text;
-        final fr = _rewrite(plan, frPath).text;
-
-        expect(story, contains('`login/email_login/lock_account` lockout'));
-        expect(fr, isNot(contains('#scenario-2--fr-02-lockout')));
-        expect(
-          fr,
-          contains(
-            '(USER_STORY.md#scenario-2--loginemail_loginlock_account-lockout)',
-          ),
-        );
+    test('E19: a link to a heading whose label became a name follows the '
+        "heading's new slug", () async {
+      final plan = await _plan({
+        ..._citingLegacy,
+        'docs/prds/features/ai01_login/us01_email_login/USER_STORY.md':
+            '# US-01 — Email login\n\n### Scenario 2 — FR-02 lockout\n',
+        'docs/prds/features/ai01_login/us01_email_login/functional_requirements/'
+                'fr01_validate_credentials.md':
+            '# FR-01 — Validate credentials\n\n'
+            'See [lockout](../USER_STORY.md#scenario-2--fr-02-lockout).\n',
       });
 
-      test(
-        'E18: a legacy ID the move list maps to one FR becomes its name, '
-        'one in a code span stays uncounted, another is kept and listed',
-        () async {
-          final plan = await _plan(_citingLegacy);
+      final story = _rewrite(
+        plan,
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+      ).text;
+      final fr = _rewrite(plan, frPath).text;
 
-          final text = _rewrite(plan, featurePath).text;
-
-          expect(
-            text,
-            contains(
-              'Built by `login/email_login/lock_account` and '
-              '`ai01/us01/fr01`; ai09/us01/fr01 names',
-            ),
-          );
-          expect(
-            plan.lists.numberLabelsLeft,
-            contains('prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01'),
-          );
-          expect(
-            plan.toText(),
-            contains(
-              RegExp(
-                r'^  number labels: \d+ rewrites in \d+ files; '
-                r'left: [1-9]\d*$',
-                multiLine: true,
-              ),
-            ),
-          );
-        },
+      expect(story, contains('`login/email_login/lock_account` lockout'));
+      expect(fr, isNot(contains('#scenario-2--fr-02-lockout')));
+      expect(
+        fr,
+        contains(
+          '(USER_STORY.md#scenario-2--loginemail_loginlock_account-lockout)',
+        ),
       );
+    });
 
-      test('E19: a full label and a feature label name their doc; a partial '
-          "label reads against the citing doc's story", () async {
+    test(
+      'E18: a legacy ID the move list maps to one FR becomes its name, '
+      'one in a code span stays uncounted, another is kept and listed',
+      () async {
         final plan = await _plan(_citingLegacy);
 
+        final text = _rewrite(plan, featurePath).text;
+
         expect(
-          _rewrite(plan, featurePath).text,
+          text,
           contains(
-            'The story is `login/email_login` and the feature '
-            '`feature:login`.',
+            'Built by `login/email_login/lock_account` and '
+            '`ai01/us01/fr01`; ai09/us01/fr01 names',
           ),
         );
         expect(
-          _rewrite(plan, frPath).text,
-          contains('After `login/email_login/lock_account` and not FR-09.'),
+          plan.lists.numberLabelsLeft,
+          contains('prds/features/f01_login/FEATURE.md:7 ai09/us01/fr01'),
         );
-        expect(plan.lists.numberLabelsLeft, contains('$frPath:7 FR-09'));
-      });
-
-      test(
-        'E19: the plan names each doc a label became a name in, as the '
-        'upgrade plan does, and an untyped one is no layout rewrite',
-        () async {
-          final plan = await _plan({
-            ..._citingLegacy,
-            'docs/prds/d04_glossary.md': 'See F-01.\n',
-          });
-
-          final lines = plan.toText().split('\n');
-
-          expect(
-            lines.singleWhere((l) => l.startsWith('  number labels: ')),
-            matches(
-              RegExp(
-                r'^  number labels: \d+ rewrites in \d+ files; left: \d+$',
-              ),
+        expect(
+          plan.toText(),
+          contains(
+            RegExp(
+              r'^  number labels: \d+ rewrites in \d+ files; '
+              r'left: [1-9]\d*$',
+              multiLine: true,
             ),
-          );
-          expect(plan.lists.numberLabelsRewritten.take(2), [
-            'prds/d04_glossary.md',
-            'prds/features/f01_login/FEATURE.md',
-          ]);
-          expect(lines.any((l) => l.contains('format layout:')), isFalse);
-          expect(
-            _rewrite(plan, 'prds/d04_glossary.md').text,
-            'See `feature:login`.\n',
-          );
-        },
+          ),
+        );
+      },
+    );
+
+    test('E19: a full label and a feature label name their doc; a partial '
+        "label reads against the citing doc's story", () async {
+      final plan = await _plan(_citingLegacy);
+
+      expect(
+        _rewrite(plan, featurePath).text,
+        contains(
+          'The story is `login/email_login` and the feature '
+          '`feature:login`.',
+        ),
       );
+      expect(
+        _rewrite(plan, frPath).text,
+        contains('After `login/email_login/lock_account` and not FR-09.'),
+      );
+      expect(plan.lists.numberLabelsLeft, contains('$frPath:7 FR-09'));
+    });
 
-      test('E19: a tree with no label to keep prints a left count of 0 and '
-          'lists none', () async {
-        final plan = await _plan(acmeLegacy);
-
-        expect(plan.toText(), contains('; left: 0\n'));
-        expect(plan.lists.numberLabelsLeft, isEmpty);
+    test('E19: the plan names each doc a label became a name in, as the '
+        'upgrade plan does, and an untyped one is no layout rewrite', () async {
+      final plan = await _plan({
+        ..._citingLegacy,
+        'docs/prds/d04_glossary.md': 'See F-01.\n',
       });
-    },
-  );
 
-  group('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes', () {
+      final lines = plan.toText().split('\n');
+
+      expect(
+        lines.singleWhere((l) => l.startsWith('  number labels: ')),
+        matches(
+          RegExp(r'^  number labels: \d+ rewrites in \d+ files; left: \d+$'),
+        ),
+      );
+      expect(plan.lists.numberLabelsRewritten.take(2), [
+        'prds/d04_glossary.md',
+        'prds/features/f01_login/FEATURE.md',
+      ]);
+      expect(lines.any((l) => l.contains('format layout:')), isFalse);
+      expect(
+        _rewrite(plan, 'prds/d04_glossary.md').text,
+        'See `feature:login`.\n',
+      );
+    });
+
+    test('E19: a tree with no label to keep prints a left count of 0 and '
+        'lists none', () async {
+      final plan = await _plan(acmeLegacy);
+
+      expect(plan.toText(), contains('; left: 0\n'));
+      expect(plan.lists.numberLabelsLeft, isEmpty);
+    });
+  });
+
+  group("Show the plan and apply it on the Owner's yes", () {
     test('E07: each typed doc the run leaves carries the hash of its final '
         'text and no draft key; a created draft keeps draft: true', () async {
       final plan = await _plan(acmeLegacy);
@@ -1562,7 +1542,11 @@ name: NFR
       for (final (:path, :text, :type) in typed) {
         expect(text, contains('approved: "'), reason: path);
         expect(text, isNot(contains('draft:')), reason: path);
-        expect(withApprovalHash(text, type), text, reason: path);
+        expect(
+          withApprovalHash(text, type, statusesOutside: shippedStatusesOutside),
+          text,
+          reason: path,
+        );
       }
       final tech = plan.creates.singleWhere(
         (c) => c.path == 'docs/specs/TECH_STACK.md',
@@ -1641,13 +1625,17 @@ name: Login API
         expect(plan.toText(), contains(', 1 fingerprints\n'));
         expect(api.text, contains('confirmed:\n  - email_login/'));
         expect(
-          withApprovalHash(api.text, _typeOf('specs/f01_login/API.md')),
+          withApprovalHash(
+            api.text,
+            _typeOf('specs/f01_login/API.md'),
+            statusesOutside: shippedStatusesOutside,
+          ),
           api.text,
         );
       },
     );
   });
-  group('setup_migration/migrate_legacy_docs/write_project_files E14, E15', () {
+  group('E14, E15', () {
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     const frPath =
         'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';

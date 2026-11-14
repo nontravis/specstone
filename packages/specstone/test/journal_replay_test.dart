@@ -26,7 +26,7 @@ void main() {
   });
 
   test(
-    'document_writing/delete_doc_subtree/finish_interrupted_move: a replay '
+    'a replay '
     'names a file edited since the stopped run on stderr and leaves it',
     () async {
       const edited = 'old text\nthe user added a line\n';
@@ -58,7 +58,7 @@ void main() {
     },
   );
 
-  test('document_writing/edit_one_section_or_field/write_a_batch E14: the next '
+  test('E14: the next '
       'write command finishes a stopped batch and keeps a doc edited after the '
       'stop', () async {
     final twin = await writeWriteProject();

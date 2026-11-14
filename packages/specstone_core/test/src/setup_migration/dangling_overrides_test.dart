@@ -118,7 +118,7 @@ void main() {
     );
   });
 
-  test('f06/us02/fr03/e01: an override naming a section a selected step '
+  test('an override naming a section a selected step '
       'renames does not refuse', () async {
     final fixture = await _case({
       'runbook': 'sections: [{id: steps, required: true}]',
@@ -127,14 +127,14 @@ void main() {
     expect(fixture.run, returnsNormally);
   });
 
-  test('f06/us02/fr03/e02: a removed section no override names does not '
+  test('a removed section no override names does not '
       'refuse', () async {
     final fixture = await _case({'user_story': 'description: Mine'});
 
     expect(fixture.run, returnsNormally);
   });
 
-  test('f06/us02/fr03/e03: several dangling entries refuse once, listing '
+  test('several dangling entries refuse once, listing '
       'every one in file order', () async {
     final fault = _refusal(
       await _case({
@@ -160,7 +160,7 @@ void main() {
     expect(fault.more, hasLength(2));
   });
 
-  test('f06/us02/fr03/e04: an override of a doc type the new version lacks '
+  test('an override of a doc type the new version lacks '
       'is listed', () async {
     final fault = _refusal(
       await _case({'playbook': 'sections: [{id: x, required: true}]'}),
@@ -175,7 +175,7 @@ void main() {
     expect(fault.key, isNull);
   });
 
-  test('f06/us02/fr03: an entry that adds a section with its header is not '
+  test('an entry that adds a section with its header is not '
       'dangling', () async {
     final fixture = await _case({
       'runbook': 'sections: [{id: notes, header: Notes}]',
@@ -184,7 +184,7 @@ void main() {
     expect(fixture.run, returnsNormally);
   });
 
-  test('f06/us02/fr03: a path: override of a pack doc type is still checked '
+  test('a path: override of a pack doc type is still checked '
       'for dangling entries', () async {
     final fault = _refusal(
       await _case({
@@ -198,7 +198,7 @@ void main() {
     expect(fault.key, 'sections.checklist');
   });
 
-  test('f06/us02/fr03: a layer that writes path: for a new doc type defines '
+  test('a layer that writes path: for a new doc type defines '
       'its own and is skipped', () async {
     final fixture = await _case({
       'playbook':
@@ -212,7 +212,7 @@ void main() {
   group('move_to_record record override', () {
     const file = '.specstone/templates/implementation.yaml';
 
-    test('f06/us02/fr03/e06: no layer sets the record path and architecture '
+    test('no layer sets the record path and architecture '
         'names its file by the feature slug, so the run refuses and lists '
         'the override to write', () async {
       final fault = _refusal(
@@ -229,7 +229,7 @@ void main() {
       expect(fault.more, isEmpty);
     });
 
-    test('f06/us02/fr03/e06: the entry joins the other dangling entries, '
+    test('the entry joins the other dangling entries, '
         'after them', () async {
       final fault = _refusal(
         await _case({
@@ -242,7 +242,7 @@ void main() {
       expect(fault.more.map((more) => more.file), [file]);
     });
 
-    test('f06/us02/fr03/e06: once the record override sets path, the plan '
+    test('once the record override sets path, the plan '
         'prints', () async {
       final fixture = await _case({
         'architecture': _slugNamedArchitecture,
@@ -252,7 +252,7 @@ void main() {
       expect(fixture.run, returnsNormally);
     });
 
-    test('f06/us02/fr03/e06: an architecture path the pack gives, or one '
+    test('an architecture path the pack gives, or one '
         'whose file has no slug, does not refuse', () async {
       expect(
         (await _case(const {}, packFiles: _recordPackFiles)).run,
@@ -266,7 +266,7 @@ void main() {
       );
     });
 
-    test('f06/us02/fr03/e06: a run with no move_to_record step does not '
+    test('a run with no move_to_record step does not '
         'refuse', () async {
       final fixture = await _case({'architecture': _slugNamedArchitecture});
 

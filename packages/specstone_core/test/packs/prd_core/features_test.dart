@@ -22,7 +22,7 @@ void main() {
     features = prdCoreDocType(await resolvePrdCore(), 'features');
   });
 
-  test('f03/us06/fr01: the diagram guide ends with the Mermaid quoting '
+  test('the diagram guide ends with the Mermaid quoting '
       'sentence', () {
     expect(
       sectionOf(features, 'diagram').description,
@@ -30,7 +30,7 @@ void main() {
     );
   });
 
-  test('f03/us06/fr01: features sits at prds/FEATURES.md with no parent, no '
+  test('features sits at prds/FEATURES.md with no parent, no '
       'own field, and two sections', () {
     expect(features.path, 'prds/FEATURES.md');
     expect(features.parent, isNull);
@@ -50,25 +50,22 @@ void main() {
     expectSources(features, []);
   });
 
-  test('f03/us06/fr02: the templates hold the diagram and the Systems '
+  test('the templates hold the diagram and the Systems '
       'table', () {
     for (final MapEntry(:key, :value) in _templates.entries) {
       expect(sectionOf(features, key).template, value, reason: key);
     }
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        features,
-        'Write one rule per ID; in a section with no IDs, one '
-        'rule per item, with mechanics left to the spec docs.\n'
-        'Keep a bound in the rule it limits, never in the '
-        'diagram or a row.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      features,
+      'Write one rule per ID; in a section with no IDs, one '
+      'rule per item, with mechanics left to the spec docs.\n'
+      'Keep a bound in the rule it limits, never in the '
+      'diagram or a row.',
+    );
+  });
 }

@@ -116,9 +116,8 @@ final _whitespaceRun = RegExp(r'\s+');
 /// [definitions] are the link reference definitions of the doc [text] is
 /// from (see [definitionLinesOf]), so `[text][label]` reads as `text`. Two
 /// items that word one rule alike give the same words, whatever the IDs,
-/// bold, links, or punctuation around them
-/// (`consistency_check/list_repeated_text/list_repeat_groups` E01). An HTML
-/// comment is no part of an item; [withCommentsBlanked] takes it out first.
+/// bold, links, or punctuation around them. An HTML comment is no part of an
+/// item; [withCommentsBlanked] takes it out first.
 List<String> normalizedWordsOf(
   String text, {
   Set<String> idPrefixes = const {},

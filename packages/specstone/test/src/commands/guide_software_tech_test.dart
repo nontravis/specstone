@@ -153,6 +153,10 @@ void main() {
       expect(covers['list'], isTrue);
       expect(covers['required'], isTrue);
       expect(covers['pointer'], 'prefix');
+      expect(
+        covers['description'],
+        contains('may end in one space and its code fingerprint'),
+      );
       expect(_idsOf(json['sections']), [
         'component_diagram',
         'components',
@@ -235,6 +239,14 @@ void main() {
           '(`.specstone/config.yaml`, else the project root)',
         ),
       );
+      expect([
+        statuses['description'],
+        implements['description'],
+      ], everyElement(contains('outside the approval hash')));
+      expect(
+        implements['description'],
+        contains('may end in one space and its code fingerprint'),
+      );
       final tests = fields.singleWhere((f) => f['id'] == 'tests');
       expect(tests['type'], 'output_ref');
       expect(tests['list'], isTrue);
@@ -276,7 +288,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us07/fr02/e03: each spec guide says a spec doc never writes '
+    test('each spec guide says a spec doc never writes '
         "status:, and names the target's record as the home of whether code "
         'exists', () async {
       final runner = await runnerFor(_bothPacks);
@@ -296,7 +308,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('f03/us07/fr02/e04: each guide states its line target, and the '
+    test('each guide states its line target, and the '
         "record's is one line per entry under the 400-line cap", () async {
       const targets = {
         'tech_stack': 'about 80 lines',
@@ -319,7 +331,7 @@ void main() {
       }
     });
 
-    test('f03/us07/fr02/e11: each guide states its item shape, one rule per '
+    test('each guide states its item shape, one rule per '
         'ID', () async {
       const shapes = {
         'tech_stack': 'one Stack row per slot',
@@ -340,7 +352,7 @@ void main() {
       }
     });
 
-    test('f03/us07/fr02/e14: the implementation guide names the record as '
+    test('the implementation guide names the record as '
         'the one home of status and code paths, a missing line as planned, '
         'and a skip with a reason and no code path', () async {
       final runner = await runnerFor(_bothPacks);
@@ -447,7 +459,7 @@ void main() {
       );
     });
 
-    test('f03/us07/fr02/e15: the architecture and tech stack guides name '
+    test('the architecture and tech stack guides name '
         "the target's record as the holder of status and code paths, and "
         "covers and code as the target's own code", () async {
       final runner = await runnerFor(_bothPacks);
@@ -539,7 +551,7 @@ void main() {
       expect(description, isNot(contains('FR-<NN>')));
     });
 
-    test('f03/us01/fr02: guide api ends with its four sources as '
+    test('guide api ends with its four sources as '
         'written', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', 'api']), 0);
@@ -575,7 +587,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us07/fr01/e02: with only prd-core and --json the refusal is '
+    test('with only prd-core and --json the refusal is '
         'doc_type_unknown', () async {
       final runner = await runnerFor(_prdCoreOnly);
       expect(await runner.run(['guide', 'architecture', '--json']), 64);
@@ -586,7 +598,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us07/fr01/e03: software-tech without prd-core is '
+    test('software-tech without prd-core is '
         'prd_core_missing', () async {
       final runner = await runnerFor(_softwareTechOnly);
       expect(await runner.run(['guide', '--json']), 78);
@@ -597,7 +609,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('f03/us07/fr01/e04: a spec index doc type is refused with the '
+    test('a spec index doc type is refused with the '
         'usage', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', 'index']), 64);

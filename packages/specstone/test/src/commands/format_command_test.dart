@@ -62,7 +62,7 @@ void main() {
     String read(Directory project, String path) =>
         File.fromUri(project.uri.resolve(path)).readAsStringSync();
 
-    test('f05/us01/s1: formats one file named by path to the template order '
+    test('formats one file named by path to the template order '
         'and prints one line', () async {
       final project = await fixtureProject({_feature: _featureOutOfOrder});
       final runner = await runnerIn(project);
@@ -87,7 +87,7 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('rendering/format_docs S10: a layout-only doc gets trimmed table '
+    test('S10: a layout-only doc gets trimmed table '
         'cells, a two-space line break, no other trailing space, and a '
         'blank line under each heading', () async {
       const disk =
@@ -105,7 +105,7 @@ void main() {
       );
     });
 
-    test('rendering/format_docs/leave_missing_sections S3: adds no section, '
+    test('S3: adds no section, '
         'leaves draft as written, and check still lists the gap', () async {
       const disk = '---\ndraft: false\n---\n# F-05\n\n## Feature name\n\nx\n';
       final project = await fixtureProject({_feature: disk});
@@ -118,25 +118,22 @@ void main() {
       expect(out.toString(), contains('required_section_missing'));
     });
 
-    test(
-      'f05/us01/s4: rewrites a header to the form the template writes',
-      () async {
-        final project = await fixtureProject({
-          _feature:
-              '# F-05\n\n## Feature name\n\nx\n\n'
-              '## feature   goal\n\n- **why:** y\n',
-        });
-        final runner = await runnerIn(project);
+    test('rewrites a header to the form the template writes', () async {
+      final project = await fixtureProject({
+        _feature:
+            '# F-05\n\n## Feature name\n\nx\n\n'
+            '## feature   goal\n\n- **why:** y\n',
+      });
+      final runner = await runnerIn(project);
 
-        expect(await runner.run(['format', _feature]), 0);
-        expect(
-          read(project, _feature),
-          '# F-05\n\n## Feature name\n\nx\n\n## Feature goal\n\n- **why:** y\n',
-        );
-      },
-    );
+      expect(await runner.run(['format', _feature]), 0);
+      expect(
+        read(project, _feature),
+        '# F-05\n\n## Feature name\n\nx\n\n## Feature goal\n\n- **why:** y\n',
+      );
+    });
 
-    test('f05/us01/s5: --check lists the doc that would change, exits 1, and '
+    test('--check lists the doc that would change, exits 1, and '
         'writes nothing', () async {
       final project = await fixtureProject({
         _feature: _featureOutOfOrder,
@@ -151,7 +148,7 @@ void main() {
       expect(read(project, _story), _storyFormatted);
     });
 
-    test('f05/us01/s6: a doc no doc type matches is skipped with a warning on '
+    test('a doc no doc type matches is skipped with a warning on '
         'stderr; the rest is formatted', () async {
       final project = await fixtureProject({
         _feature: _featureOutOfOrder,
@@ -169,7 +166,7 @@ void main() {
       expect(read(project, _notes), 'free text');
     });
 
-    test('f05/us01/s7: a doc with a header the template lacks is refused and '
+    test('a doc with a header the template lacks is refused and '
         'left byte for byte; exit 1', () async {
       final project = await fixtureProject({_story: _storyUnknown});
       final runner = await runnerIn(project);
@@ -179,7 +176,7 @@ void main() {
       expect(read(project, _story), _storyUnknown);
     });
 
-    test('f05/us01/fr04: a doc ending inside a fence is refused and left '
+    test('a doc ending inside a fence is refused and left '
         'byte for byte; exit 1; --json marks unclosedFence', () async {
       const unclosed = '# US-01\n\n## Summary\nx\n```\ncode\n';
       final project = await fixtureProject({_story: unclosed});
@@ -199,7 +196,7 @@ void main() {
       });
     });
 
-    test('rendering/format_docs/match_section_headers: a doc whose layout '
+    test('a doc whose layout '
         'would turn a body line into a frontmatter close is refused and '
         'left byte for byte', () async {
       const text = '---\n# US-01\n\n## Summary\nx\n--- \n';
@@ -214,7 +211,7 @@ void main() {
       expect(read(project, _story), text);
     });
 
-    test('f05/us01/s8: a target outside the docs root, then a missing target, '
+    test('a target outside the docs root, then a missing target, '
         'exit 64 and change nothing', () async {
       final project = await fixtureProject({
         _feature: _featureOutOfOrder,
@@ -237,7 +234,7 @@ void main() {
       expect(read(project, 'README.md'), '# Readme\n');
     });
 
-    test('f05/us01/s9: outside a project prints project_not_found text on '
+    test('outside a project prints project_not_found text on '
         'stderr; exit 78', () async {
       final runner = await runnerIn(await writeTree({}));
 
@@ -250,7 +247,7 @@ void main() {
       );
     });
 
-    test('f05/us01/fr08/e01: --json prints every file and the warnings on '
+    test('--json prints every file and the warnings on '
         'stdout and nothing on stderr', () async {
       final project = await fixtureProject({
         _feature: _featureOutOfOrder,
@@ -273,7 +270,7 @@ void main() {
       expect(out.toString(), contains('\n  "files": ['));
     });
 
-    test('f05/us01/fr08/e03: --json outside a project prints the error '
+    test('--json outside a project prints the error '
         'envelope on stderr and nothing on stdout; exit 78', () async {
       final runner = await runnerIn(await writeTree({}));
 
@@ -287,7 +284,7 @@ void main() {
       expect(error.containsKey('file'), isFalse);
     });
 
-    test('f05/us01/fr08/e01: --json with --check lists the doc that would '
+    test('--json with --check lists the doc that would '
         'change, writes nothing, and exits 1', () async {
       final project = await fixtureProject({_feature: _featureOutOfOrder});
       final runner = await runnerIn(project);
@@ -312,7 +309,7 @@ void main() {
     });
 
     test(
-      'f05/us01/fr07: a doc that cannot be written is output_not_writable '
+      'a doc that cannot be written is output_not_writable '
       'with its path, exit 73; docs written before it stay written',
       () async {
         final project = await fixtureProject({
@@ -339,7 +336,7 @@ void main() {
       skip: _readOnlyFolderSkipReason(),
     );
 
-    test('f05/us01/fr07: a read-only doc that needs a rewrite is '
+    test('a read-only doc that needs a rewrite is '
         'output_not_writable, exit 73, and stays untouched', () async {
       final project = await fixtureProject({_feature: _featureOutOfOrder});
       final doc = File('${project.path}/$_feature');
@@ -354,7 +351,7 @@ void main() {
       expect(read(project, _feature), _featureOutOfOrder);
     }, skip: _readOnlyFolderSkipReason() ?? false);
 
-    test('f05/us01/fr02: a doc that cannot be read is skipped with a warning '
+    test('a doc that cannot be read is skipped with a warning '
         'and the run exits 0', () async {
       final project = await fixtureProject({
         _feature: _featureFormatted,
@@ -414,7 +411,7 @@ sections:
         );
       }
 
-      test('f05/us03/s7: specstone format prints refused: open generated '
+      test('specstone format prints refused: open generated '
           'block note_toc and exits 1', () async {
         final project = await fixtureProject({
           notePath: '# A\n\n## Contents\n$toc\nno end\n',
@@ -428,7 +425,7 @@ sections:
         );
       });
 
-      test('f05/us03/fr01: format opens the index only when a doc type under '
+      test('format opens the index only when a doc type under '
           'the Target lists generators', () async {
         final shipped = await fixtureProject({_feature: _featureFormatted});
         final plain = await noteRunnerIn(shipped);
@@ -450,7 +447,7 @@ sections:
         );
       });
 
-      test('rendering/keep_generated_blocks_current S1: a stale block gets '
+      test('S1: a stale block gets '
           'the generator text now and every line outside it keeps its '
           'text', () async {
         const before = '# A\n\n## Contents\n\n';
@@ -534,7 +531,7 @@ sections:
       expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
-    test('f05/us03/fr01: the default runner registers journey_flow and '
+    test('the default runner registers journey_flow and '
         'scenario_copy', () {
       expect(SpecstoneCommandRunner().generators.kinds, shippedGeneratorKinds);
     });

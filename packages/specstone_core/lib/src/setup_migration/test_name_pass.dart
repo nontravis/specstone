@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show pathInside;
+import 'package:specstone_core/src/canonical_path.dart'
+    show pathInside, withNativeSeparators;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/number_label.dart';
@@ -47,6 +48,18 @@ const _change = 'move test-name ids';
 /// The text after a test name's ID that is the separator, longest first; the
 /// text after the separator is the name.
 const _nameSeparators = [': ', ' — ', ' - ', ' '];
+
+/// A call that declares a test or group, matched through the quote that opens
+/// its name: a callee whose last identifier is `test`, `testWidgets`, `group`,
+/// `it`, `describe`, or `context`, or ends in `Test` or, after a word, `_test`
+/// (a wrapper such as `pathTest`), with an optional receiver and member
+/// (`Deno.test.skip`). A longer word that only contains `test` (`contest`,
+/// `latest`), a bare `_test` helper, and a lower-case wrapper (`pathtest`) are
+/// no call.
+final _declaringCall = RegExp(
+  r'(?<![\w$])(?:test|testWidgets|group|it|describe|context|\w*Test|\w+_test)'
+  '(?:\\.\\w+)?\\s*\\(\\s*(?=[\'"])',
+);
 
 final _nameRun = RegExp('^[a-z0-9_]+(?:/[a-z0-9_]+)*');
 final _caseSuffix = RegExp(r'/([es]\d+)(?![A-Za-z0-9_])');
@@ -327,8 +340,13 @@ List<_Name> _scan({
     final shown = projectPath ?? file.path;
     final lines = text.lf.split('\n');
     final before = names.length;
+    final nameQuotes = _nameQuoteOffsets(text.lf);
+    var lineStart = 0;
     for (final (index, line) in lines.indexed) {
+      final lineOffset = lineStart;
+      lineStart += line.length + 1;
       for (final literal in _literalsOf(line)) {
+        if (!nameQuotes.contains(lineOffset + literal.start - 1)) continue;
         final read = _readOpening(literal.text, tree, resolveLabel);
         if (read == null) continue;
         names.add(
@@ -363,9 +381,7 @@ List<({String path, bool isOwnRepository})> _trackedFilesOf(
   final seen = <String>{};
   final files = <({String path, bool isOwnRepository})>[];
   for (final top in [_projectTop, ...agentFileRoots]) {
-    final folder = top == _projectTop
-        ? root
-        : Directory('${root.path}${Platform.pathSeparator}$top');
+    final folder = Directory(repositoryFolderOf(root.path, top));
     for (final relative in _trackedIn(folder, runGit)) {
       final path = _nativePath(folder.path, relative);
       if (seen.add(path)) {
@@ -375,6 +391,14 @@ List<({String path, bool isOwnRepository})> _trackedFilesOf(
   }
   return files;
 }
+
+/// Returns the folder of the repository whose top is [top], `.` for the
+/// project's own or a `/`-separated path from [root], in the platform's
+/// separators as [root] is; [isWindows] picks the style.
+String repositoryFolderOf(String root, String top, {bool? isWindows}) =>
+    top == _projectTop
+    ? root
+    : withNativeSeparators('$root/$top', isWindows: isWindows);
 
 String _nativePath(String folder, String relative) =>
     '$folder${Platform.pathSeparator}'
@@ -439,6 +463,13 @@ List<String> _trackedIn(Directory folder, RunGit runGit) {
   }
   return null;
 }
+
+/// Returns the offsets in [lf] of the quote that opens the name argument of a
+/// call that declares a test or group, the call's first argument on the same
+/// line or a later one.
+Set<int> _nameQuoteOffsets(String lf) => {
+  for (final call in _declaringCall.allMatches(lf)) call.end,
+};
 
 /// A string literal of one line: the offsets of its text, the text, and the
 /// quote that opens it.
