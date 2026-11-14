@@ -32,6 +32,14 @@ void main() {
     'SPECSTONE_ARCHIVE_DIR': sandbox.archives.path,
   };
 
+  // Gives every file a zsh install writes its PATH line, so a run adds none.
+  void writeZshEntries(ScriptSandbox sandbox) {
+    for (final name in ['.zshrc', '.zshenv', '.profile']) {
+      File('${sandbox.home.path}/$name')
+          .writeAsStringSync('export PATH="\$HOME/.specstone/bin:\$PATH"\n');
+    }
+  }
+
   String installedVersion(ScriptSandbox sandbox) {
     final result = Process.runSync(
       '${sandbox.home.path}/.specstone/bin/specstone',
@@ -272,8 +280,7 @@ fi''');
           'nothing is placed', () async {
         final sb = await sandboxServing('1.2.0-beta.1');
         sb.installFake(version: '1.2.0-beta.1');
-        File('${sb.home.path}/.zshrc')
-            .writeAsStringSync('export PATH="\$HOME/.specstone/bin:\$PATH"\n');
+        writeZshEntries(sb);
         final before = sb.snapshot();
 
         final r = await sb.run(
@@ -495,8 +502,7 @@ echo "$dir"''');
     test('the same version is left as it is', () async {
       final sb = await sandboxWith();
       sb.installFake(version: '0.2.0');
-      File('${sb.home.path}/.zshrc')
-          .writeAsStringSync('export PATH="\$HOME/.specstone/bin:\$PATH"\n');
+      writeZshEntries(sb);
       final before = sb.snapshot();
 
       final r = await sb.run('install.sh', extra: archiveEnv(sb));
@@ -810,36 +816,90 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         Map<String, String> extra,
       ) => sb.run('install.sh', extra: {...archiveEnv(sb), ...extra});
 
+      // The one note naming each file the run wrote, in the order written.
+      String addedIn(List<String> paths) {
+        final names = switch (paths) {
+          [final one] => one,
+          [final first, final second] => '$first and $second',
+          _ => '${paths.take(paths.length - 1).join(', ')}, and ${paths.last}',
+        };
+        return 'Added ~/.specstone/bin to the PATH in $names. '
+            'Open a new terminal to use specstone.\n';
+      }
+
       String added(ScriptSandbox sb, String file) =>
-          'Added ~/.specstone/bin to the PATH in ${sb.home.path}/$file. '
-          'Open a new terminal to use specstone.\n';
+          addedIn(['${sb.home.path}/$file']);
 
-      test('zsh gains one line in ~/.zshrc and '
-          'the new-terminal note', () async {
+      test('zsh gains one line in ~/.zshrc, ~/.zshenv, and ~/.profile '
+          'and the new-terminal note', () async {
         final sb = await sandboxWith();
 
         final r = await runWith(sb, {'SHELL': '/bin/zsh'});
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
-        expect(r.stdout, contains(added(sb, '.zshrc')));
-        expect(sb.snapshot().keys, isNot(contains('.profile')));
+        for (final file in ['.zshrc', '.zshenv', '.profile']) {
+          expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
+        }
+        expect(
+          r.stdout,
+          contains(
+            addedIn([
+              for (final file in ['.zshrc', '.zshenv', '.profile'])
+                '${sb.home.path}/$file',
+            ]),
+          ),
+        );
       });
 
-      test('a second run keeps one line and prints no '
-          'note', () async {
+      test('zsh with ZDOTDIR set writes .zshenv there and '
+          'not in ~', () async {
         final sb = await sandboxWith();
-        await runWith(sb, {'SHELL': '/bin/zsh'});
+        final zdotdir = '${sb.root.path}/zdot';
 
-        final r = await runWith(sb, {'SHELL': '/bin/zsh'});
+        final r = await runWith(sb, {'SHELL': '/bin/zsh', 'ZDOTDIR': zdotdir});
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
-        expect(r.stdout, isNot(contains('Added')));
+        expect(File('$zdotdir/.zshenv').readAsStringSync(), posixLine);
+        expect(sb.snapshot().keys, isNot(contains('.zshenv')));
+        for (final file in ['.zshrc', '.profile']) {
+          expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
+        }
+        expect(
+          r.stdout,
+          contains(
+            addedIn([
+              '${sb.home.path}/.zshrc',
+              '$zdotdir/.zshenv',
+              '${sb.home.path}/.profile',
+            ]),
+          ),
+        );
       });
 
-      test('bash on macOS writes ~/.bashrc and '
-          '~/.bash_profile', () async {
+      for (final zdotdir in [null, 'zdot']) {
+        test('a second zsh run keeps one line in each file and prints no '
+            'note${zdotdir == null ? '' : ' with ZDOTDIR'}', () async {
+          final sb = await sandboxWith();
+          final env = {
+            'SHELL': '/bin/zsh',
+            'ZDOTDIR': ?zdotdir == null ? null : '${sb.root.path}/$zdotdir',
+          };
+          await runWith(sb, env);
+          final before = sb.snapshot();
+
+          final r = await runWith(sb, env);
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(r.stdout, isNot(contains('Added')));
+          expect(sb.snapshot(), before);
+          for (final file in ['.zshrc', '.profile']) {
+            expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
+          }
+        });
+      }
+
+      test('bash on macOS writes ~/.bashrc, ~/.bash_profile, and '
+          '~/.profile', () async {
         final sb = await sandboxWith(target: 'macos-arm64');
 
         final r = await runWith(sb, {
@@ -849,35 +909,48 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         });
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
-        for (final file in ['.bashrc', '.bash_profile']) {
+        for (final file in ['.bashrc', '.bash_profile', '.profile']) {
           expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
-          expect(r.stdout, contains(added(sb, file)));
         }
+        expect(
+          r.stdout,
+          contains(
+            addedIn([
+              for (final file in ['.bashrc', '.bash_profile', '.profile'])
+                '${sb.home.path}/$file',
+            ]),
+          ),
+        );
       });
 
-      test('bash on Linux writes ~/.bashrc only', () async {
+      test('bash on Linux writes ~/.bashrc and ~/.profile', () async {
         final sb = await sandboxWith();
 
         final r = await runWith(sb, {'SHELL': '/usr/bin/bash'});
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(File('${sb.home.path}/.bashrc').readAsStringSync(), posixLine);
+        for (final file in ['.bashrc', '.profile']) {
+          expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
+        }
         expect(sb.snapshot().keys, isNot(contains('.bash_profile')));
       });
 
       test('fish writes ~/.config/fish/conf.d/specstone.fish '
-          'and not ~/.profile', () async {
+          'and ~/.profile', () async {
         final sb = await sandboxWith();
 
         final r = await runWith(sb, {'SHELL': '/usr/local/bin/fish'});
 
         expect(r.exitCode, 0, reason: '${r.stderr}');
+        const fishFile = '.config/fish/conf.d/specstone.fish';
+        expect(File('${sb.home.path}/$fishFile').readAsStringSync(), fishLine);
+        expect(File('${sb.home.path}/.profile').readAsStringSync(), posixLine);
         expect(
-          File('${sb.home.path}/.config/fish/conf.d/specstone.fish')
-              .readAsStringSync(),
-          fishLine,
+          r.stdout,
+          contains(
+            addedIn(['${sb.home.path}/$fishFile', '${sb.home.path}/.profile']),
+          ),
         );
-        expect(sb.snapshot().keys, isNot(contains('.profile')));
       });
 
       for (final shell in ['/bin/tcsh', 'nu']) {
@@ -970,10 +1043,9 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
           '${posixLine.trim()} to it yourself\n',
         );
         expect(rc.readAsStringSync(), '# mine\n');
-        expect(
-          File('${sb.home.path}/.bash_profile').readAsStringSync(),
-          posixLine,
-        );
+        for (final file in ['.bash_profile', '.profile']) {
+          expect(File('${sb.home.path}/$file').readAsStringSync(), posixLine);
+        }
       }, skip: runsAsRoot ? rootSkip : null);
 
       test('an unreadable profile is not appended to', () async {
@@ -1015,6 +1087,12 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
             File('${sb.home.path}/$expected').readAsStringSync(),
             '# mine\n$posixLine',
           );
+          expect(
+            File('${sb.home.path}/.profile')
+                .readAsLinesSync()
+                .where((line) => line == posixLine.trim()),
+            hasLength(1),
+          );
           expect(sb.snapshot().keys, isNot(contains('.bash_profile')));
           final before = sb.snapshot();
 
@@ -1052,7 +1130,15 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(r.exitCode, 0, reason: '${r.stderr}');
         expect(r.stdout, contains('is already the latest release'));
         expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
-        expect(r.stdout, contains(added(sb, '.zshrc')));
+        expect(
+          r.stdout,
+          contains(
+            addedIn([
+              for (final file in ['.zshrc', '.zshenv', '.profile'])
+                '${sb.home.path}/$file',
+            ]),
+          ),
+        );
       });
     });
 
