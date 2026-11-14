@@ -1054,6 +1054,31 @@ final _modeBullet = RegExp(
 
 final _codeSpan = RegExp(r'`([^`\n]+)`');
 
+final _fencedBlock = RegExp(r'^```[^\n]*\n([\s\S]*?)^```', multiLine: true);
+
+final _contextCall = RegExp(r'specstone context\b(.*?)(?=specstone |$)');
+
+/// The words after `specstone context` of each call with arguments in
+/// [markdown]'s fenced code lines and inline code spans, a span wrapped over
+/// lines read whole.
+List<List<String>> _contextCalls(String markdown) {
+  final text = markdown.replaceAll('\r\n', '\n');
+  final codes = [
+    for (final block in _fencedBlock.allMatches(text))
+      ...block.group(1)!.split('\n'),
+    for (final span in _codeSpan.allMatches(
+      _oneLine(text.replaceAll(_fencedBlock, '')),
+    ))
+      span.group(1)!,
+  ];
+  return [
+    for (final code in codes)
+      for (final call in _contextCall.allMatches(code))
+        if (call.group(1)!.trim().isNotEmpty)
+          call.group(1)!.trim().split(RegExp(r'\s+')),
+  ];
+}
+
 void _agentTests() {
   test(
     'E04, '
@@ -1174,9 +1199,74 @@ void _agentTests() {
 
   test('E06: read-sdd names '
       'the context call it runs per cited story, NFR, and spec doc', () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(skill, contains('specstone context <story> --for implement --out'));
+    expect(skill, contains('specstone context <target> --for implement --out'));
+  });
+
+  test('f08/us01/fr01, f08/us01/fr02/e09, f08/us01/s6: no read-sdd or '
+      'sdd-reader context call passes --budget, and each ends with a bare '
+      '--out', () {
+    for (final file in ['skills/read-sdd/SKILL.md', 'agents/sdd-reader.md']) {
+      final calls = _contextCalls(_pluginText(file));
+      expect(calls, isNotEmpty, reason: file);
+      for (final call in calls) {
+        final shown = call.join(' ');
+        expect(
+          call.where((token) => token.startsWith('--budget')),
+          isEmpty,
+          reason: '$file: $shown',
+        );
+        expect(call.last, '--out', reason: '$file: $shown');
+      }
+    }
+  });
+
+  test('f08/us01/fr01: read-sdd names no mktemp, no budget figure, and no '
+      'hand-off by bundle size', () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    expect(skill, isNot(contains('mktemp')));
+    expect(skill, isNot(contains('20000')));
+    expect(skill, isNot(contains('over the budget')));
+    expect(skill, contains('No bundle size calls for it.'));
+  });
+
+  test('f08/us01/fr01/e19, f08/us01/fr01/e20: read-sdd searches the saved '
+      'file before any get and finds a section by its header', () {
+    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
-      contains('specstone context <target> --for implement --budget 20000'),
+      skill,
+      contains(
+        "search the saved file with the host's text search before any "
+        '`specstone get`. Never `get` a doc the file holds',
+      ),
+    );
+    expect(
+      skill,
+      contains('find a section by searching the file for its `## ` header'),
+    );
+  });
+
+  test('f08/us01/fr02/e08, f08/us01/s3: sdd-reader reads the saved file its '
+      'hand-off names and runs no context of its own', () {
+    final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
+    expect(
+      reader,
+      contains(
+        "the path of a bundle file the main session's `context --out` call "
+        'saved, exactly as its header printed it',
+      ),
+    );
+    expect(
+      reader,
+      contains(
+        'read that file with `Read`, in parts as the task needs, and '
+        'run no `context`',
+      ),
+    );
+    expect(
+      _sectionOf(_pluginText('agents/sdd-reader.md'), 'Scope Boundaries'),
+      contains('- Run `context` when the hand-off names a saved file.\n'),
     );
   });
 
@@ -1224,32 +1314,30 @@ void _agentTests() {
   });
 
   test('E18: read-sdd '
-      "hands the call's --target to sdd-reader on exit 1", () {
-    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+      "hands sdd-reader the saved file's path as the header printed it", () {
     expect(
-      skill,
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
       contains(
-        'Dispatch `specstone:sdd-reader` with the same target IDs, '
-        "the call's `--target`, the mode, and the task",
-      ),
-    );
-    expect(
-      skill,
-      contains(
-        "`--summary` beside each ID whose call used it, the call's "
-        '`--target`, and no doc text',
+        "Hand it the saved file's path exactly as the header printed it, the "
+        'mode, and the task: no doc text, no index lines, and no path you '
+        'join yourself.',
       ),
     );
   });
 
-  test('E05, E13: read-sdd '
-      'allows one target a third call after an argument_missing refusal', () {
+  test('E05, E06: read-sdd '
+      'bounds one target at three tool calls, a refusal and part reads '
+      'included', () {
     expect(
       _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
       contains(
-        'one target takes two calls at most, three after an '
-        '`argument_missing` refusal',
+        "One target takes three tool calls at most up to the task's first "
+        'other action',
       ),
+    );
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains('an `argument_missing` refusal counts among them'),
     );
   });
 
@@ -2415,10 +2503,6 @@ void _agentTests() {
     expect(
       flat('skills/brainstorming-sdd/SKILL.md'),
       contains('`--summary` beside each target whose call used it'),
-    );
-    expect(
-      flat('skills/read-sdd/SKILL.md'),
-      contains('`--summary` beside each ID whose call used it'),
     );
   });
 

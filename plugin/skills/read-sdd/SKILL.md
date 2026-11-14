@@ -5,32 +5,23 @@ description: Use when a task in a Specstone project needs its PRD or spec docs, 
 
 # Ground a task in its Specstone docs
 
-One `specstone context` call hands you the docs a task needs. Ground from IDs: never walk the docs folder, and never
-work from text a plan or brief quotes.
+One `specstone context` call saves the docs a task needs to a file and prints its index. Ground from IDs: never walk
+the docs folder, and never work from text a plan or brief quotes.
 
 ## Pick the target and mode
 
 - **Target:** the doc the task names. For `design`, the smallest doc that holds the change: a story's bundle holds its
   sibling stories in summary; a feature's holds them whole; add `--summary` on the feature to add a story. A plan task
   names each doc it builds: a story and its FRs, an NFR, or a spec doc. Run one
-  `specstone context <story> --for implement --budget 20000` per story the task cites or whose FR it cites: in
-  `implement` mode a story's bundle already holds its FRs, so that call covers the story and every FR ID the task lists
-  under it. Run one `specstone context <target> --for implement --budget 20000` on each cited NFR or spec doc itself.
-  Never target the feature: its `implement` bundle lists only its stories' names, not the FRs the task cites. With the
-  `Agent` tool, every tool call from the first CLI call counts toward three, a `Read` of a saved output included: run
-  the next call only while the calls so far, plus that call and its possible `Read`, stay within three. With the
-  `Agent` tool, when the task cites more than three stories, NFRs, and spec docs in all, the next call would pass
-  three, or any call exits 1, give `specstone:sdd-reader` every ID the task cites, `--summary` beside each ID whose
-  call used it, the call's `--target`, and no doc text.
+  `specstone context <story> --for implement --out` per story the task cites or whose FR it cites: in `implement` mode
+  a story's bundle already holds its FRs, so that call covers the story and every FR ID the task lists under it. Run
+  one `specstone context <target> --for implement --out` on each cited NFR or spec doc itself. Never target the
+  feature: its `implement` bundle lists only its stories' names, not the FRs the task cites.
 - **Code target:** the `--target` is a plan task's read line's, as written
-  (`specstone context <story> --for implement --target <name>`); none in `query` or `design`. In `implement` with no
-  plan target and no `--code` path, an `argument_missing` refusal names the targets: a main session asks the Owner and
-  reruns with `--target <name>`; a Subagent runs no further call and reports the missing target, naming them, to its
-  dispatcher.
-- **Budget:** pass `--budget 20000` only when you have the `Agent` tool. Without it, as in an implementer Subagent,
-  make the same calls, the first included, with no `--budget`, and `Read` each saved output once. The CLI then prints
-  each whole bundle and exits 0, so nothing goes to `specstone:sdd-reader`, and these calls may pass three. All of
-  this holds in every mode.
+  (`specstone context <story> --for implement --target <name> --out`); none in `query` or `design`. In `implement`
+  with no plan target and no `--code` path, an `argument_missing` refusal names the targets: a main session asks the
+  Owner and reruns with `--target <name>`; a Subagent runs no further call and reports the missing target, naming
+  them, to its dispatcher.
 - **Mode:**
 
 | Task                                | `--for`     |
@@ -41,43 +32,56 @@ work from text a plan or brief quotes.
 
 ## Ground in one call
 
-Make this your first CLI call, before any other command or file read:
+Make this your first CLI call, before any other command or file read, with `--out` bare and last and no `--budget`,
+in every mode:
 
 ```
-specstone context <target> --for <mode> --budget 20000   # with the Agent tool
-specstone context <target> --for <mode>                  # without it
+specstone context <target> --for <mode> --out
 ```
 
-Then act on its exit status, as the host reports it for the call. When the host shows none, tell it from the output:
-an over-budget answer says `over the budget` in its first line, and a bundle ends with a `==> bundle: …` line and its
-doc list.
+The CLI names the file under the project root's `.specstone/bundles/`; never pick a path yourself. Then act on its
+exit status:
 
-1. **0:** the printed bundle is the task's docs. Work from it as printed, and open none of its files. When the host
-   saves the output to a file and shows a preview, `Read` that file once: it is the printed bundle, so run no `tail`
-   or other command on it. When a plan words a requirement differently, the bundle wins: someone may have edited the
-   doc since the plan was made.
-2. **1:** only a call with `--budget` gets it, so you have the `Agent` tool. The bundle is over 20,000 est. tokens,
-   so the CLI printed only its size and doc list. Dispatch `specstone:sdd-reader` with the same target IDs, the call's
-   `--target`, the mode, and the task in a sentence or two. Put no doc text in that prompt, and not the printed doc
-   list either. The whole sections it returns, each cited by doc and section, are the task's docs.
-3. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
+1. **0:** stdout is the index: a `==> bundle: … · <path> <==` header naming the saved file, then one line per doc
+   with its line range in that file and, while the index stays within 200 lines and 8 KiB, its sections' first
+   lines. Read the parts the task needs from that file with the host's file read, now or at any later point of the
+   task. Once the index lists docs only, find a section by searching the file for its `## ` header. The file is the
+   task's docs: open none of the doc files. When a plan words a requirement differently, the file wins: someone may
+   have edited the doc since the plan was made.
+2. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
    is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
    second command, and neither read nor write a doc.
-4. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
+3. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
 That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward, so a run
-from a subfolder goes on as normal.
+from a subfolder goes on as normal; to read the file, such a session needs the project root among its working
+directories. A later call with the same target and flags replaces the file: read by the newest index.
 
-With or without the tool, one target takes two calls at most, three after an `argument_missing` refusal: its call, at
-or under the budget or with no `--budget`, plus one `Read` when the host saved its output to a file. When a saved
-output is too long for one `Read`, read it in parts; those part reads are the only calls past that bound.
+## Search before `get`
+
+When the index does not show a fact the task needs, search the saved file with the host's text search before any
+`specstone get`. Never `get` a doc the file holds; a `get` only for a write's base hash before `set` is fine.
+
+## Count the calls
+
+One target takes three tool calls at most up to the task's first other action, its first code or task-file read,
+edit, or design output: the `context` call and each part read before that action; an `argument_missing` refusal
+counts among them. Loading this skill counts as none. Each further target the task cites takes a call of its own.
+Part reads after that action fall outside the bound.
+
+## Whole sections from the reader
+
+With the `Agent` tool, you may dispatch `specstone:sdd-reader` for whole sections, each cited by doc and section.
+Hand it the saved file's path exactly as the header printed it, the mode, and the task: no doc text, no index lines,
+and no path you join yourself. It reads that file and runs no `context` of its own. No bundle size calls for it.
 
 ## Red flags
 
-| Thought                                            | Do instead                                                |
-|----------------------------------------------------|-----------------------------------------------------------|
-| "The plan already quotes the FR."                  | Ground from its IDs; the doc may have moved on.           |
-| "Check that `.specstone/` exists first."           | The `context` call is the check.                          |
-| "Over budget: rerun with a bigger or no budget."   | With `Agent`: keep `--budget 20000`, dispatch the reader. |
-| "Paste the doc list so the reader saves a call."   | Hand over target IDs only.                                |
-| "Open the doc files to be sure."                   | The bundle is the docs, as printed.                       |
+| Thought                                         | Do instead                                         |
+|-------------------------------------------------|----------------------------------------------------|
+| "The plan already quotes the FR."               | Ground from its IDs; the doc may have moved on.    |
+| "Check that `.specstone/` exists first."        | The `context` call is the check.                   |
+| "The bundle is big: hand it to the reader."     | Read the parts you need; size hands nothing off.   |
+| "`get` the doc to be sure of one fact."         | Search the saved file first.                       |
+| "Paste the index so the reader saves a call."   | Hand over the saved file's path only.              |
+| "Open the doc files to be sure."                | The saved file is the docs.                        |
