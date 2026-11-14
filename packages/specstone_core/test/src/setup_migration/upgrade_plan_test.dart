@@ -3470,7 +3470,7 @@ void _testNameTests() {
     });
 
     test('the text counts equal the lists the JSON plan holds, a '
-        'string that is no test call included', () async {
+        'string that is no test name left out', () async {
       final project = await _testNameProject(
         files: {
           _testFile:
@@ -3484,14 +3484,14 @@ void _testNameTests() {
 
       final json = plan.lists.tests!;
       final rewritten = json['rewritten']! as List<Object?>;
-      expect(rewritten, hasLength(2));
+      expect(rewritten, hasLength(1));
       expect(json['left'], isEmpty);
       expect(
         plan.toText(),
         contains(
-          '  tests: 2 lines in 1 records; '
+          '  tests: 1 lines in 1 records; '
           'names: ${rewritten.length} rewritten in 1 files; '
-          'left: 1\n',
+          'left: 0\n',
         ),
       );
     });
