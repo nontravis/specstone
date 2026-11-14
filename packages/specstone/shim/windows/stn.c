@@ -12,7 +12,7 @@
 
 #define PATH_CAPACITY 32768
 #define TARGET_NAME L"specstone.exe"
-#define FALLBACK_CMD L"\\System32\\cmd.exe"
+#define FALLBACK_CMD L"\\cmd.exe"
 #define GUARD_NAME L"SPECSTONE_STN_GUARD"
 #define OTHER_NAME_COUNT 5
 
@@ -175,7 +175,7 @@ static BOOL is_absolute_entry(const wchar_t *entry)
 }
 
 /* Returns the cmd.exe that ComSpec names when it is an absolute path, else the
- * one under SystemRoot. */
+ * one in the system folder, which no environment variable or search can move. */
 static wchar_t *find_cmd(void)
 {
     wchar_t buffer[PATH_CAPACITY];
@@ -186,7 +186,7 @@ static wchar_t *find_cmd(void)
         parts[0] = buffer;
         return join(parts, 1);
     }
-    length = GetEnvironmentVariableW(L"SystemRoot", buffer, PATH_CAPACITY);
+    length = GetSystemDirectoryW(buffer, PATH_CAPACITY);
     if (length == 0 || length >= PATH_CAPACITY) {
         return NULL;
     }

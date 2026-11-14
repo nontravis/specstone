@@ -20,6 +20,32 @@ typedef _ArgumentCase = ({
   bool delayedExpansion,
 });
 
+// The argument lines typed in [shell] after `stn`; shared by the own-target run
+// and the exe hand-off.
+//
+// Windows PowerShell 5.1 quotes only an argument that holds a space when it
+// starts a batch file, and drops an inner quote for any program, so its words
+// carry each character beside a space.
+List<_ArgumentCase> _argumentCases(StnShell shell) => switch (shell) {
+  StnShell.cmd => <_ArgumentCase>[
+    (
+      line: r'"a b" "x&y" "c^d" "50%" "say \"hi\""',
+      expected: ['a b', 'x&y', 'c^d', '50%', 'say "hi"'],
+      delayedExpansion: false,
+    ),
+    (line: '"odd', expected: null, delayedExpansion: false),
+    (line: '%PATH%', expected: null, delayedExpansion: false),
+    (line: '"a!b" !PATH!', expected: null, delayedExpansion: true),
+  ],
+  StnShell.powershell => <_ArgumentCase>[
+    (
+      line: "'a b' 'x & y' 'c ^ d' '50 %'",
+      expected: ['a b', 'x & y', 'c ^ d', '50 %'],
+      delayedExpansion: false,
+    ),
+  ],
+};
+
 void main() {
   // Every PATH a case passes ends with System32, as a real PATH does; it holds
   // no stn.
@@ -154,30 +180,9 @@ void main() {
 
       test('run_cli_or_yield S1: arguments arrive as typing specstone gives '
           'them', () async {
-        // Windows PowerShell 5.1 quotes only an argument that holds a space
-        // when it starts a batch file, and drops an inner quote for any
-        // program, so its words carry each character beside a space.
-        final cases = switch (shell) {
-          StnShell.cmd => <_ArgumentCase>[
-            (
-              line: r'"a b" "x&y" "c^d" "50%" "say \"hi\""',
-              expected: ['a b', 'x&y', 'c^d', '50%', 'say "hi"'],
-              delayedExpansion: false,
-            ),
-            (line: '"odd', expected: null, delayedExpansion: false),
-            (line: '%PATH%', expected: null, delayedExpansion: false),
-            (line: '"a!b" !PATH!', expected: null, delayedExpansion: true),
-          ],
-          StnShell.powershell => <_ArgumentCase>[
-            (
-              line: "'a b' 'x & y' 'c ^ d' '50 %'",
-              expected: ['a b', 'x & y', 'c ^ d', '50 %'],
-              delayedExpansion: false,
-            ),
-          ],
-        };
-
-        for (final (:line, :expected, :delayedExpansion) in cases) {
+        for (final (:line, :expected, :delayedExpansion) in _argumentCases(
+          shell,
+        )) {
           final sb = await createShimSandbox();
           final path = '${sb.bin.path};$system32';
 
@@ -417,6 +422,43 @@ void main() {
             '1',
           ], reason: extension);
           expect(sb.logOf('specstone'), isEmpty, reason: extension);
+        }
+      });
+
+      test('run_cli_or_yield S3: another stn.exe on a later entry gets the '
+          'argument lines as typing that stn.exe by its path gives', () async {
+        for (final (:line, :expected, :delayedExpansion) in _argumentCases(
+          shell,
+        )) {
+          final sb = await createShimSandbox();
+          final other = dir(under(sb.root, 'tools'));
+          sb.otherStn(other.path, extension: 'exe');
+          final path = '${sb.bin.path};${other.path};$system32';
+
+          final viaStn = await sb.typeStn(
+            ['stn $line'],
+            shell: shell,
+            path: path,
+            delayedExpansion: delayedExpansion,
+          );
+          final typedFirst = await sb.typeStn(
+            [byPath(under(other, 'stn.exe'), line)],
+            shell: shell,
+            path: path,
+            delayedExpansion: delayedExpansion,
+          );
+
+          expect(
+            viaStn.exitCode,
+            0,
+            reason: '$line: ${viaStn.stdout}${viaStn.stderr}',
+          );
+          expect(typedFirst.exitCode, 0, reason: line);
+          final argv = argvOfRuns(sb.logOf('other'));
+          expect(argv, hasLength(2), reason: line);
+          expect(argv[0], argv[1], reason: line);
+          if (expected != null) expect(argv[0], expected, reason: line);
+          expect(sb.logOf('specstone'), isEmpty, reason: line);
         }
       });
 
@@ -804,8 +846,12 @@ void main() {
         }
 
         // A relative ComSpec is no cmd.exe to start: the shim falls back to
-        // the one under SystemRoot.
-        for (final comSpec in [null, 'cmd.exe']) {
+        // the one in the system folder, even when SystemRoot is relative too.
+        for (final (comSpec, systemRoot) in [
+          (null, null),
+          ('cmd.exe', null),
+          ('cmd.exe', '.'),
+        ]) {
           final r = await sb.typeStn(
             ['stn check'],
             shell: shell,
@@ -813,12 +859,18 @@ void main() {
             extra: {
               'NoDefaultCurrentDirectoryInExePath': '1',
               'ComSpec': ?comSpec,
+              'SystemRoot': ?systemRoot,
             },
           );
 
-          expect(r.exitCode, 8, reason: '$comSpec: ${r.stdout}${r.stderr}');
+          expect(
+            r.exitCode,
+            8,
+            reason: '$comSpec, $systemRoot: ${r.stdout}${r.stderr}',
+          );
         }
         expect(argvOfRuns(sb.logOf('other')), [
+          ['check'],
           ['check'],
           ['check'],
         ]);
