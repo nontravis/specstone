@@ -1296,6 +1296,41 @@ void _handOffTests() {
       expect(_pluginText(_confirmLinks), contains('approve-mode.md'));
     });
 
+    for (final skill in ['update-sdd', 'init']) {
+      test("$skill's approve red flag waits for the ok under ask and defers "
+          'to Owner confirmation under auto', () {
+        final row = _oneLine(
+          _sectionOf(_pluginText('skills/$skill/SKILL.md'), 'Red flags')
+              .split('\n')
+              .singleWhere((line) => line.contains('specstone approve')),
+        );
+        expect(row, contains('`ask`'));
+        expect(row, contains('Owner confirmation'));
+      });
+    }
+
+    test("update-sdd's step 4 limits waiting for the ok to the ask mode", () {
+      final step = _oneLine(
+        _sectionOf(
+          _pluginText('skills/update-sdd/SKILL.md'),
+          '4. Name the change for the Owner',
+        ),
+      );
+      expect(step, contains('`ask`'));
+    });
+
+    test("init's approval section names Owner confirmation and the auto "
+        'mode', () {
+      final section = _oneLine(
+        _sectionOf(
+          _pluginText('skills/init/SKILL.md'),
+          '3. Get the drafts approved',
+        ),
+      );
+      expect(section, contains('Owner confirmation'));
+      expect(section, contains('`auto`'));
+    });
+
     test('every pointing skill names Owner confirmation for its drafts and '
         'holds no auto copy', () {
       for (final skill in [

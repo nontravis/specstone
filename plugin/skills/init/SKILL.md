@@ -55,7 +55,7 @@ is and the folder is still missing; keep the entry either way.
 ## 3. Get the drafts approved
 
 Tell the Owner the four drafts are filled, then get each one approved through `specstone:expert-sdd`'s Owner
-confirmation (terminal or chat).
+confirmation (terminal or chat); it holds both the `ask` and the `auto` mode.
 
 ## 4. Features go to brainstorming
 
@@ -64,11 +64,11 @@ then, and for every later feature, hand it to `specstone:brainstorming-sdd`, one
 
 ## Red flags
 
-| Thought                                          | Do instead                                         |
-|--------------------------------------------------|----------------------------------------------------|
-| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own. |
-| "Already a project: I'll migrate it."            | Say it is a project already, and stop.             |
-| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.            |
-| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.           |
-| "The Owner named a feature: `specstone new`."    | Note it; `specstone:brainstorming-sdd` takes it.   |
-| "I'll run `specstone approve` without an `ok`."  | Show each draft; wait for the Owner's `ok`.        |
+| Thought                                          | Do instead                                                  |
+|--------------------------------------------------|-------------------------------------------------------------|
+| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own.          |
+| "Already a project: I'll migrate it."            | Say it is a project already, and stop.                      |
+| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.                     |
+| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.                    |
+| "The Owner named a feature: `specstone new`."    | Note it; `specstone:brainstorming-sdd` takes it.            |
+| "I'll run `specstone approve` without an `ok`."  | Under `ask`, wait for the `ok`; `auto`: Owner confirmation. |
