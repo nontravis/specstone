@@ -1662,6 +1662,7 @@ name: Login API
             'email_login/validate_credentials:planned',
           ],
           code: ['email_login:lib/a.dart:A'],
+          tests: const [],
         ),
       )!;
       expect(record.text, expected.text);

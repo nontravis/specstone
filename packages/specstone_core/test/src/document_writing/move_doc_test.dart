@@ -2359,6 +2359,36 @@ void main() {
     });
   });
 
+  group('with one unnamed code target and a tests line', () {
+    const record = 'specs/f01_login/IMPLEMENTATION.md';
+
+    test('a story rename renames its tests lines, so check finds no entry the rename left behind', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'app/test/reset_test.dart': 'void main() {}\n',
+          'docs/$record': recordText(
+            statuses: ['reset_password:implemented'],
+            tests: [
+              'reset_password:app/test/reset_test.dart',
+              'reset_password/send_reset_link:app/test/reset_test.dart:sends',
+            ],
+          ),
+        },
+      );
+      rename(root, 'user_story:login/reset_password', 'recover');
+      final text = readDoc(root, record);
+      expect(text, contains("'recover:app/test/reset_test.dart'"));
+      expect(
+        text,
+        contains("'recover/send_reset_link:app/test/reset_test.dart:sends'"),
+      );
+      expect(text, isNot(contains('reset_password')));
+      expect(spots(checkOf(root), FindingKind.recordEntryUnresolved), isEmpty);
+    });
+  });
+
   group('with one named code target', () {
     test('document_writing/rename_doc/rewrite_name_references E03: a per-target doc outside a target folder keeps the feature name its mention takes', () async {
       final root = await writeWriteProject(
@@ -2464,6 +2494,35 @@ void main() {
         containsAll([cartFlutter, cartJaspr, payFlutter, payJaspr]),
       );
     });
+
+    test(
+      'a story move carries its tests lines to the record it lands in',
+      () async {
+        final root = await shopTwins(
+          extra: {
+            'docs/$cartFlutter': recordText(
+              statuses: ['add_item:implemented', 'drop_item:planned'],
+              tests: [
+                'add_item:app/test/shop_test.dart',
+                'add_item/check_stock:app/test/shop_test.dart:checks',
+                'drop_item:app/test/shop_test.dart',
+              ],
+            ),
+          },
+        );
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'drop_item:app/test/shop_test.dart'"));
+        expect(cart, isNot(contains('add_item')));
+        final created = readDoc(root, payFlutter);
+        expect(created, contains("'add_item:app/test/shop_test.dart'"));
+        expect(
+          created,
+          contains("'add_item/check_stock:app/test/shop_test.dart:checks'"),
+        );
+      },
+    );
 
     test('a dry run lists the records it would rewrite and create, and writes none', () async {
       final root = await shopTwins();

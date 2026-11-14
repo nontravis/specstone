@@ -245,9 +245,13 @@ Map<String, IndexedDoc> recordItemsOf(
   };
 }
 
-/// The `record_status` lines and the `item_exact` lines of a record, each as
-/// written in its field.
-typedef RecordLines = ({List<String> statuses, List<String> code});
+/// The `record_status`, `item_exact`, and `item_test` lines of a record, each
+/// as written in its field.
+typedef RecordLines = ({
+  List<String> statuses,
+  List<String> code,
+  List<String> tests,
+});
 
 /// Thrown when a record field block a write reads is not valid YAML, so the
 /// write cannot tell which lines it holds and refuses rather than drop any.
@@ -262,16 +266,16 @@ final class RecordFieldUnreadable implements Exception {
 }
 
 /// Returns [lfText], the text of a record of [recordType], with the item of
-/// each line of its `record_status` and `item_exact` fields set to what
-/// [rewrite] returns; null when no line changes.
+/// each line of its `record_status`, `item_exact`, and `item_test` fields set
+/// to what [rewrite] returns; null when no line changes.
 ///
 /// [rewrite] takes a line's item, empty for the feature itself, and returns
 /// the item to write in its place, the same item to leave the line, or null to
 /// drop the line. A line that names no item stays. A field that changes is
 /// written back as a block list, one quoted line each, or removed when no line
 /// is left; every other key, and a field that does not change, stays as
-/// written. It marks no draft. Throws [RecordFieldUnreadable] when either
-/// field's block is not valid YAML.
+/// written. It marks no draft. Throws [RecordFieldUnreadable] when a field's
+/// block is not valid YAML.
 String? rewriteRecordItems(
   String lfText,
   MergedDocType recordType,
@@ -284,13 +288,13 @@ String? rewriteRecordItems(
   return text == lfText ? null : text;
 }
 
-/// Returns the lines of [lfText]'s `record_status` and `item_exact` fields
-/// whose item [carry] gives a name, each with that name in place of its item
-/// and the rest of the line as written.
+/// Returns the lines of [lfText]'s `record_status`, `item_exact`, and
+/// `item_test` fields whose item [carry] gives a name, each with that name in
+/// place of its item and the rest of the line as written.
 ///
 /// [carry] takes a line's item and returns the name to carry it under, or null
 /// to leave the line out. A line that names no item is left out. Throws
-/// [RecordFieldUnreadable] when either field's block is not valid YAML.
+/// [RecordFieldUnreadable] when a field's block is not valid YAML.
 RecordLines recordLinesCarried(
   String lfText,
   MergedDocType recordType,
@@ -312,12 +316,13 @@ RecordLines recordLinesCarried(
   return (
     statuses: carried(recordStatusFieldOf(recordType)),
     code: carried(recordCodeFieldOf(recordType)),
+    tests: carried(recordTestFieldOf(recordType)),
   );
 }
 
-/// Returns [lfText] with [lines] added at the end of its `record_status` and
-/// `item_exact` fields, a field that holds none yet gaining its key; null
-/// when [lines] holds none.
+/// Returns [lfText] with [lines] added at the end of its `record_status`,
+/// `item_exact`, and `item_test` fields, a field that holds none yet gaining
+/// its key; null when [lines] holds none.
 ///
 /// A field that gains lines is written back as a block list, one quoted line
 /// each, as [rewriteRecordItems] writes it. It marks no draft. Throws
@@ -332,6 +337,7 @@ String? addRecordLines(
   for (final (field, added) in [
     (recordStatusFieldOf(recordType), lines.statuses),
     (recordCodeFieldOf(recordType), lines.code),
+    (recordTestFieldOf(recordType), lines.tests),
   ]) {
     if (field == null || added.isEmpty) continue;
     final held = _fieldLinesOf(text, field);
@@ -346,6 +352,7 @@ String? addRecordLines(
 List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
   ?recordStatusFieldOf(recordType),
   ?recordCodeFieldOf(recordType),
+  ?recordTestFieldOf(recordType),
 ];
 
 /// Returns the key as spelled in the block of [field] in [lfText] and the
@@ -430,8 +437,10 @@ String _withItem(String line, String item, String name) =>
 
 /// Returns the reader of the item of a line of [field]: null for a line that
 /// names none.
-String? Function(String line) _itemReaderOf(MergedField field) =>
-    field.type == FieldType.recordStatus ? _statusItemOf : _codeItemOf;
+String? Function(String line) _itemReaderOf(MergedField field) {
+  if (field.type == FieldType.recordStatus) return _statusItemOf;
+  return field.pointer == PointerKind.itemTest ? _testItemOf : _codeItemOf;
+}
 
 String? _statusItemOf(String line) => recordStatusLineOf(line)?.item;
 
@@ -439,6 +448,13 @@ String? _statusItemOf(String line) => recordStatusLineOf(line)?.item;
 /// [recordCodeLinesOf] skips a line whose item is empty.
 String? _codeItemOf(String line) {
   final item = recordCodeLineOf(line)?.item;
+  return item == null || item.isEmpty ? null : item;
+}
+
+/// Returns the item of a test line, null for no item, as
+/// [recordTestLinesOf] skips a line whose item is empty.
+String? _testItemOf(String line) {
+  final item = recordTestLineOf(line)?.item;
   return item == null || item.isEmpty ? null : item;
 }
 
