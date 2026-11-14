@@ -8,6 +8,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
+import 'package:specstone_core/src/setup_migration/tree_move.dart'
+    show docPathsOf;
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -63,12 +65,11 @@ CodeStampStep _planAt(Directory project) {
   final session = openSession(project);
   try {
     final config = session.project;
+    final docsRoot = Directory('${config.projectRoot.path}/docs');
     final docs = [
-      for (final file in Directory(
-        '${config.projectRoot.path}/docs',
-      ).listSync(recursive: true).whereType<File>())
-        _docOf(config.matcher, config.projectRoot, file),
-    ]..sort((a, b) => a.docPath.compareTo(b.docPath));
+      for (final docPath in docPathsOf(docsRoot)..sort())
+        _docOf(config.matcher, docPath, File('${docsRoot.path}/$docPath')),
+    ];
     return CodeStampStep.plan(
       docs,
       projectRoot: config.projectRoot,
@@ -80,8 +81,7 @@ CodeStampStep _planAt(Directory project) {
   }
 }
 
-CodeStampDoc _docOf(DocTypeMatcher matcher, Directory root, File file) {
-  final docPath = file.path.substring('${root.path}/docs/'.length);
+CodeStampDoc _docOf(DocTypeMatcher matcher, String docPath, File file) {
   final match = matcher.match(docPath);
   return (
     docPath: docPath,
@@ -337,7 +337,12 @@ void main() {
     });
 
     test('two code targets count the entries of each target', () async {
-      final project = await writeTwinProject();
+      final project = await writeTwinProject(
+        unfingerprinted: {
+          'docs/$flutterArchitecture',
+          'docs/$jasprArchitecture',
+        },
+      );
       final records = {
         _flutterRecord: _record(code: ['email_login:$_login:SignInPage']),
         _jasprRecord: _record(

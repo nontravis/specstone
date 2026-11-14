@@ -287,6 +287,8 @@ void main() {
           '.specstone/config.yaml':
               '${shippedPinsConfig()}code_root: ../$folder\n',
         },
+        // The code lies outside the project, so no link can take a fingerprint.
+        unfingerprinted: {'docs/$loginRecord', 'docs/$loginArchitecture'},
       );
 
       expect(staleAfter(root, renameLogin), [

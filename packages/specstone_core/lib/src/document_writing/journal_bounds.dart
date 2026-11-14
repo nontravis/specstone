@@ -13,7 +13,8 @@ const _gitEntry = '.git';
 /// The 8.3 short name Windows may give a `.git` folder.
 const _gitShortName = 'git~1';
 
-/// The most times one folder path is walked again after its resolve failed.
+/// The most times one folder path is walked again after a link on it failed
+/// to resolve.
 const _maxResolveAttempts = 40;
 
 /// The dots and spaces Windows drops from the end of a file name.
@@ -77,12 +78,13 @@ final class JournalBounds {
     () => _resolvedFolder(segments),
   );
 
-  /// Resolves [segments] against the disk; a resolve that fails or answers for
-  /// a folder deleted since the check walks again, so a folder gone counts as
-  /// missing and one made again resolves again.
+  /// Resolves [segments] against the disk. A name that is no link and fails
+  /// to resolve, such as a folder deleted since the check, is placed under
+  /// its parent, where it lies whether gone or made again; a link whose
+  /// resolve fails walks again.
   String? _resolvedFolder(List<String> segments) {
-    for (var attempt = 0; attempt < _maxResolveAttempts; attempt++) {
-      var existing = segments.length;
+    var existing = segments.length;
+    for (var attempt = 0; attempt < _maxResolveAttempts;) {
       while (existing > 0 && !_exists(segments.take(existing))) {
         existing--;
       }
@@ -90,15 +92,18 @@ final class JournalBounds {
       if (holdsDotSegment(missing)) {
         return null;
       }
+      final folder = _joined(segments.take(existing));
       try {
-        final real = resolveExisting(
-          _joined(segments.take(existing)),
-          _resolve,
-        );
+        final real = resolveExisting(folder, _resolve);
         return [real, ...missing].join(Platform.pathSeparator);
       } on FileSystemException {
-        // A folder deleted since the check: only a fresh walk tells gone from
-        // made again.
+        // Asking the name again can meet the same churn every time.
+        if (existing > 0 && !FileSystemEntity.isLinkSync(folder)) {
+          existing--;
+          continue;
+        }
+        attempt++;
+        existing = segments.length;
       }
     }
     return null;

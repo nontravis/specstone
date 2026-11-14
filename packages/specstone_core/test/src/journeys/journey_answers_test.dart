@@ -527,6 +527,40 @@ void main() {
       });
     });
 
+    test('--json holds the pointer alone for entries holding a code '
+        'fingerprint', () async {
+      final answer = await _code(
+        [_step('2', 2)],
+        extra: _oneTarget(['$storyCode 5d1e0c4b7a92', '$frCode 0a1b2c3d4e5f']),
+      );
+
+      expect(answer.json, {
+        'journeys': [
+          {
+            'name': _slug,
+            'path': 'prds/journeys/$_slug/JOURNEY.md',
+            'steps': [
+              {
+                'number': '2',
+                'heading': 'Heading 2',
+                'step': '$_story S2',
+                'story': {
+                  'name': _story,
+                  'implements': ['app/lib/login.dart:SignInPage'],
+                },
+                'frs': [
+                  {
+                    'name': frName,
+                    'implements': ['app/lib/login.dart:checkPassword'],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    });
+
     group('skips and a single named target', () {
       test('a skipped item holding paths prints skipped '
           'and gives [] in JSON', () async {

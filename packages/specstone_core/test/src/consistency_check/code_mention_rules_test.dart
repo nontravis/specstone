@@ -61,16 +61,22 @@ void main() {
 
     test('a file an implements entry, a code link, and the scan all read is '
         'read once', () async {
-      final session = openSession(await writeCheckProject());
+      final project = await writeCheckProject();
+      final session = openSession(project);
       addTearDown(session.close);
       final context = CheckContext(session);
       final work = ImplementedWork(context, context.targets);
       final record = session.index.at(loginRecord)!;
 
       checkImplements(context, record).toList();
-      checkCodeLinks(context, work, record).toList();
-      docNamesInCode(context, work).toList();
+      File('${project.path}/app/lib/login.dart')
+          .writeAsStringSync('class SignInPage {}\n// Implements `$_fr`.\n');
+      final linkFindings = checkCodeLinks(context, work, record).toList();
+      final mentions = docNamesInCode(context, work).toList();
 
+      expect(linkFindings, isEmpty);
+      expect(mentions, isEmpty);
+      expect(context.unstatedWarnings, isEmpty);
       expect(context.codeFilesRead, 1);
     });
 

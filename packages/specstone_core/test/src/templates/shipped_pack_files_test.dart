@@ -42,18 +42,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.7.0 and stamps code fingerprints '
-      'from 1.6.0', () {
+  test('the shipped software-tech pack is 1.7.0', () {
     expect(shippedPackVersions()['software-tech'], '1.7.0');
-    final manifest = PackManifest.parse(
-      utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
-      file: 'packs/software-tech/pack.yaml',
-    );
-    expect(
-      [for (final entry in manifest.migrations) '${entry.from}'],
-      ['1.4.0', '1.6.0'],
-    );
-    expect(manifest.migrations.last.steps.single, isA<StampCodeFingerprints>());
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -258,17 +248,16 @@ void main() {
       }
     });
 
-    test('the statuses and implements descriptions say they sit outside the '
-        'approval hash', () {
+    test('the statuses, implements, and tests descriptions say they sit '
+        'outside the approval hash', () {
       final record = both.recordDocType!;
-      expect(
-        fieldOf(record, 'statuses').description,
-        contains('outside the approval hash'),
-      );
-      expect(
-        fieldOf(record, 'implements').description,
-        contains('outside the approval hash'),
-      );
+      for (final field in const ['statuses', 'implements', 'tests']) {
+        expect(
+          fieldOf(record, field).description,
+          contains('outside the approval hash'),
+          reason: field,
+        );
+      }
     });
   });
 

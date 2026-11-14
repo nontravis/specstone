@@ -2,9 +2,11 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -123,6 +125,25 @@ void main() {
 
     expect(_spots(report), isEmpty);
     expect(report.warnings, isEmpty);
+  });
+
+  test('a test file another rule read is read from that read', () async {
+    final project = await _project(
+      _record(tests: ['$_fr:$_testFile:shows a toast']),
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    final context = CheckContext(session);
+    context.readCodeBytes(context.targets.single, _testFile);
+    File('${project.path}/$_testFile').writeAsStringSync('void main() {}\n');
+
+    final findings = checkTestPointers(
+      context,
+      session.index.at(_recordPath)!,
+    ).toList();
+
+    expect(findings, isEmpty);
+    expect(context.codeFilesRead, 1);
   });
 
   test('a line naming no test reads no file', () async {

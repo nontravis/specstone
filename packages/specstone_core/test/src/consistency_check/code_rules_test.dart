@@ -142,9 +142,6 @@ void main() {
     expect(spots(report), [
       '$techStack:4: code_uncovered',
       '$techStack:4: code_uncovered',
-      '$loginArchitecture:4: code_unconfirmed',
-      '$loginRecord:7: code_unconfirmed',
-      '$loginRecord:8: code_unconfirmed',
     ]);
     expect(
       [

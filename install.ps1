@@ -20,9 +20,10 @@ try {
     # command lookup has to find makes a Windows PowerShell 5.1 with no module
     # analysis cache (a fresh profile, a CI runner) analyze every module folder
     # first, about 25 s; a module named here is loaded straight from its folder.
-    # A lookup that finds nothing, such as Get-Command claude with no claude on
-    # the PATH, searches every module folder too, so module search is off from
-    # here: every cmdlet below comes from these modules or the core.
+    # Module search is off from here: every cmdlet below comes from these
+    # modules or the core. Get-Command still searches every module folder for a
+    # name it does not find, such as claude with no claude on the PATH, so
+    # Find-Program looks a program up instead.
     Import-Module -Name Microsoft.PowerShell.Management, Microsoft.PowerShell.Utility, Microsoft.PowerShell.Archive
     $PSModuleAutoLoadingPreference = 'None'
 
@@ -74,6 +75,32 @@ try {
             }
         }
         return ($kept.ToArray() -join ';')
+    }
+
+    # Returns the full path of the first file named $Name plus a PATHEXT
+    # extension on $env:Path, each entry in order and each extension in order
+    # inside it, as cmd.exe finds a program; $null when there is none.
+    function Find-Program([string]$Name) {
+        $extensions = @((Get-EnvText 'PATHEXT').Split(';') | Where-Object { $_.Length -gt 0 })
+        if ($extensions.Count -eq 0) {
+            $extensions = @('.COM', '.EXE', '.BAT', '.CMD')
+        }
+        foreach ($entry in @(Split-PathText (Get-EnvText 'Path'))) {
+            if ($entry.Length -eq 0) {
+                continue
+            }
+            foreach ($extension in $extensions) {
+                try {
+                    $candidate = Join-Path $entry ($Name + $extension)
+                    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                        return $candidate
+                    }
+                } catch {
+                    # an entry the OS cannot read holds no program to run
+                }
+            }
+        }
+        return $null
     }
 
     # Returns the release target for this machine, or refuses before any download.
@@ -570,12 +597,11 @@ try {
             $wanted = "$wanted#v$Version"
             $wantedRef = "v$Version"
         }
-        $found = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($null -eq $found) {
+        $claude = Find-Program 'claude'
+        if ($null -eq $claude) {
             Write-ManualPluginCommands $wanted
             return
         }
-        $claude = $found.Source
         $marketplaces = Get-ClaudeList $claude @('plugin', 'marketplace', 'list', '--json') $wanted 'marketplaces'
         if ($null -eq $marketplaces) {
             return
@@ -628,9 +654,9 @@ try {
     function Write-MissingPrerequisites {
         $gitCommand = 'winget install Git.Git'
         $gitText = ''
-        $git = Get-Command git -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        $git = Find-Program 'git'
         if ($null -ne $git) {
-            $probe = Invoke-Native $git.Source @('--version') $false
+            $probe = Invoke-Native $git @('--version') $false
             if ($probe.Status -eq 0) {
                 $gitText = (@($probe.Output) -join "`n").Trim()
             }
@@ -641,8 +667,7 @@ try {
         if (-not ($gitText -cmatch '\.windows[.0-9]')) {
             Write-Host "specstone: Git for Windows is missing; install it with $gitCommand"
         }
-        $claude = Get-Command claude -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($null -eq $claude) {
+        if ($null -eq (Find-Program 'claude')) {
             Write-Host 'specstone: Claude Code is missing; install it with irm https://claude.ai/install.ps1 | iex'
         }
     }

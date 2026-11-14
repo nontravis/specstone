@@ -14,16 +14,20 @@ final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
 
-// WORKAROUND: a name a churning isolate deletes and makes again can answer
-// the NTFS deleted-file alias or an empty path on every walk inside the hop
-// budget, so the resolve throws when the budget ends; remove when the 1.2.1
-// fix of the Windows mid-resolve race lands.
-final String? _churnRaceOnWindows = Platform.isWindows
-    ? 'the Windows mid-resolve race can outlast the hop budget'
-    : null;
-
 /// What Windows answered on CI for a file deleted while it was resolved.
 const _deletedAlias = r'C:\$Extend\$Deleted\002200000014DCAD7A7FE315';
+
+/// What a resolve answered on CI for a name deleted while it was resolved:
+/// ENOENT on Linux, the deleted-file alias or an empty path on Windows.
+final _churnAnswers = <(String, String Function(String))>[
+  (
+    'a not-found failure',
+    (asked) =>
+        throw FileSystemException('', asked, const OSError('not found', 2)),
+  ),
+  ('an NTFS deleted-file answer', (_) => _deletedAlias),
+  ('an empty answer', (_) => ''),
+];
 
 void main() {
   group('$_scope: canonicalPath follows a link to a target not made yet', () {
@@ -200,7 +204,7 @@ void main() {
             '$wrong of $rounds judgments wrong or refused; the first: '
             '$firstWrong',
       );
-    }, skip: _churnRaceOnWindows);
+    });
   });
 
   group('$_scope: canonicalPath when the resolve answers for a name deleted '
@@ -264,25 +268,37 @@ void main() {
       );
     });
 
-    test('an empty answer for a name that stays throws', () {
-      String answerEmpty(String asked) =>
-          asked == path ? '' : realPathOnDisk(asked);
+    for (final (kind, answer) in _churnAnswers) {
+      test('$kind at every walk for a name deleted and made again each time '
+          'counts it under its parent', () {
+        String churnThenAnswer(String asked) {
+          if (asked != path) return realPathOnDisk(asked);
+          File(asked)
+            ..deleteSync()
+            ..writeAsStringSync('');
+          return answer(asked);
+        }
 
-      expect(
-        () => canonicalPath(path, resolve: answerEmpty),
-        throwsA(isA<FileSystemException>()),
-      );
-    });
+        expect(
+          canonicalPath(path, strict: true, resolve: churnThenAnswer),
+          path,
+        );
+      });
+    }
 
-    test('an NTFS deleted-file answer for a name that stays throws', () {
-      String answerAlias(String asked) =>
-          asked == path ? _deletedAlias : realPathOnDisk(asked);
+    for (final (kind, answer) in _churnAnswers) {
+      test('$kind for a link that stays throws', () {
+        final link = '$path-link';
+        Link(link).createSync(path);
+        String answerForLink(String asked) =>
+            asked == link ? answer(asked) : realPathOnDisk(asked);
 
-      expect(
-        () => canonicalPath(path, resolve: answerAlias),
-        throwsA(isA<FileSystemException>()),
-      );
-    });
+        expect(
+          () => canonicalPath(link, resolve: answerForLink),
+          throwsA(isA<FileSystemException>()),
+        );
+      }, skip: _linksUnavailable);
+    }
 
     test(r'an answer elsewhere under $Extend is a real path, since another '
         'file system lets a user make that folder', () {
@@ -328,6 +344,33 @@ void main() {
       );
     }, skip: _linksUnavailable);
 
+    test('a link made a plain file at every read, and a link again at every '
+        'resolve, counts it under its parent', () {
+      String replaceThenFail(String asked) {
+        if (asked != link) return linkTargetOnDisk(asked);
+        Link(asked).deleteSync();
+        File(asked).writeAsStringSync('');
+        throw FileSystemException('', asked, const OSError('invalid', 22));
+      }
+
+      String relinkThenFail(String asked) {
+        if (asked != link) return realPathOnDisk(asked);
+        File(asked).deleteSync();
+        createRelativeLink(asked, 'gone');
+        throw FileSystemException('', asked, const OSError('not found', 2));
+      }
+
+      expect(
+        canonicalPath(
+          link,
+          strict: true,
+          resolve: relinkThenFail,
+          readLink: replaceThenFail,
+        ),
+        link,
+      );
+    }, skip: _linksUnavailable);
+
     test('a link that stays a link rethrows its read error', () {
       String fail(String asked) =>
           throw FileSystemException('', asked, const OSError('denied', 5));
@@ -343,6 +386,59 @@ void main() {
         ),
       );
     }, skip: _linksUnavailable);
+  });
+
+  group('$_scope: canonicalPath on a name below a link whose resolve '
+      'fails', () {
+    test('places the name under the real target of the link', () async {
+      final base = Directory(
+        (await writeTree({'proj/keep.txt': '', 'outside/sub/keep.txt': ''}))
+            .resolveSymbolicLinksSync(),
+      );
+      createRelativeLink('${base.path}/proj/lnk', '../outside');
+      final sub = '${base.path}/proj/lnk/sub';
+      String failSub(String asked) => asked == sub
+          ? throw FileSystemException('', asked, const OSError('not found', 2))
+          : realPathOnDisk(asked);
+
+      expect(
+        canonicalPath('$sub/f.md', strict: true, resolve: failSub),
+        '${base.path}/outside/sub/f.md',
+      );
+    }, skip: _linksUnavailable);
+  });
+
+  group('$_scope: canonicalPath on a network share the disk cannot reach', () {
+    const share = r'\\localhost\specstone-missing-share$';
+    const path = '$share\\f.md';
+    const posixHasNoShare = 'only Windows reads a path as a network share';
+
+    test('stays as named, never under the current drive', () {
+      expect(canonicalPath(path), path);
+    }, skip: Platform.isWindows ? null : posixHasNoShare);
+
+    test('throws in strict mode', () {
+      expect(
+        () => canonicalPath(path, strict: true),
+        throwsA(isA<FileSystemException>()),
+      );
+    }, skip: Platform.isWindows ? null : posixHasNoShare);
+  });
+
+  group('$_scope: isVolumeRoot', () {
+    for (final (path, isWindows, expected) in [
+      ('/', false, true),
+      ('/a', false, false),
+      (r'C:\', true, true),
+      (r'C:\a', true, false),
+      (r'\\srv\sh', true, true),
+      (r'\\srv\sh\a', true, false),
+    ]) {
+      test('$path is ${expected ? '' : 'not '}a root '
+          '${isWindows ? 'on Windows' : 'on POSIX'}', () {
+        expect(isVolumeRoot(path, isWindows: isWindows), expected);
+      });
+    }
   });
 
   group('$_scope: linkTargetPath on POSIX', () {

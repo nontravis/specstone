@@ -167,12 +167,14 @@ void main() {
     },
   );
 
-  test('a covers entry ending in a fingerprint leaves an unreached scope path '
-      'scope_path_uncovered', () async {
+  test('a covers entry ending in a fingerprint reaches its own scope path and '
+      'leaves an unreached one scope_path_uncovered', () async {
     final found = await _found({
       'docs/$_topicDoc': _topicDocText(
         covers: '  - lib/src/doc_model/ 5d1e0c4b7a92\n',
-        scope: 'The topic governs `lib/src/rendering/`.',
+        scope:
+            'The topic governs `lib/src/doc_model/` and '
+            '`lib/src/rendering/`.',
       ),
     });
 
