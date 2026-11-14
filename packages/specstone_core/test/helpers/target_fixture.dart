@@ -23,10 +23,12 @@ const brokenLink = ' See [x](../../../nowhere.md).';
 /// each, since a shared doc with code paths is a finding; the API doc stays
 /// shared, and no record is written. The feature, the API doc, and each twin
 /// hold one broken link, so each finding names its doc. A key in [extra]
-/// replaces or adds a file; a path in [without] drops one.
+/// replaces or adds a file; a path in [without] drops one; a key in
+/// [unfingerprinted] keeps its code links as written.
 Future<Directory> writeTwinProject({
   Map<String, String> extra = const {},
   Set<String> without = const {},
+  Set<String> unfingerprinted = const {},
 }) {
   // The twins read as approved: the helper's stamp skips a per-target path.
   final twin = withApprovalHash(
@@ -48,6 +50,7 @@ Future<Directory> writeTwinProject({
       'class SignInPage {}\nclass ${name}SignIn {}\n'
       'bool checkPassword(String p) => p.isNotEmpty;\n';
   return writeCheckProject(
+    unfingerprinted: unfingerprinted,
     without: {
       'docs/$loginArchitecture',
       'docs/$techStack',

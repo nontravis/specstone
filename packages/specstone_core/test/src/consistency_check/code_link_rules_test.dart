@@ -302,24 +302,28 @@ void main() {
 
     test('written with a ./ prefix shares its one read with the Symbol '
         'rule', () async {
-      final session = openSession(
-        await _project(
-          _record(
-            code: ['$_fr:./$_pointer $_stale', '$_fr:$_login:SignInPage'],
-          ),
+      final project = await _project(
+        _record(
+          code: [
+            '$_fr:./$_pointer $_loginFingerprint',
+            '$_fr:$_login:SignInPage $_loginFingerprint',
+          ],
         ),
       );
+      final session = openSession(project);
       addTearDown(session.close);
       final context = CheckContext(session);
       final record = session.index.at(_recordPath)!;
 
       checkImplements(context, record).toList();
-      checkCodeLinks(
+      File('${project.path}/$_login').writeAsStringSync('class SignInPage {}');
+      final findings = checkCodeLinks(
         context,
         ImplementedWork(context, context.targets),
         record,
       ).toList();
 
+      expect(findings, isEmpty);
       expect(context.codeFilesRead, 1);
     });
 
@@ -635,38 +639,11 @@ void main() {
         ]);
       },
     );
-
-    test(
-      'over a folder that cannot be listed takes no state',
-      skip: unreadablePathSkipReason(),
-      () async {
-        final project = await writeCheckProject(
-          extra: {
-            ..._covering('  - app/lib/ $_stale\n'),
-            'app/lib/sealed/a.dart': 'a\n',
-          },
-        );
-        final path = '${project.path}/app/lib/sealed';
-        Process.runSync('chmod', ['000', path]);
-        addTearDown(() => Process.runSync('chmod', ['755', path]));
-
-        final report = _run(project);
-
-        expect(_suspects(report), isEmpty);
-        expect(
-          report.warnings,
-          contains(
-            'app/lib/sealed: cannot list the folder; files under it are not '
-            'checked for covers or fingerprints',
-          ),
-        );
-      },
-    );
   });
 
   test(
-    'a folder that cannot be listed gives one warning, whether the covers '
-    'scan, the fingerprint read, or both list it',
+    'a folder that cannot be listed takes no state and gives one warning, '
+    'whether the covers scan, the fingerprint read, or both list it',
     skip: unreadablePathSkipReason(),
     () async {
       final project = await writeCheckProject(
@@ -685,6 +662,7 @@ void main() {
 
       final report = _run(project);
 
+      expect(_suspects(report), isEmpty);
       expect(
         report.warnings.where(
           (w) =>

@@ -19,6 +19,7 @@ import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:yaml/yaml.dart';
 
 import 'index_fixture.dart';
 import 'shipped_pins.dart';
@@ -169,21 +170,69 @@ Future<Directory> writeCheckProject({
 /// `covers` entry names recorded after it, for a doc not in [unfingerprinted].
 ///
 /// An entry that records one, or names no file or folder of [files], stays as
-/// written. The code is every file outside `docs/` and `.specstone/`.
+/// written. The code is every file outside `docs/` and `.specstone/`; an entry
+/// reads from the code root of its doc's target under `targets:`, else from
+/// the config's `code_root:`, else from the project root.
 Map<String, String> withCodeFingerprints(
   Map<String, String> files, {
   Set<String> unfingerprinted = const {},
 }) {
-  final code = {
+  final codeFiles = {
     for (final MapEntry(:key, :value) in files.entries)
       if (!key.startsWith('docs/') && !key.startsWith('.specstone/'))
         key: fileCodeFingerprint(utf8.encode(value)),
   };
+  final config = _configOf(files);
+  final codeByRoot = <String, Map<String, String>>{};
+  String stamped(String docKey, String text) {
+    final root = _codeRootOf(docKey, config);
+    return _withCodeFingerprints(
+      text,
+      codeByRoot.putIfAbsent(root, () => _codeUnder(root, codeFiles)),
+    );
+  }
+
   return {
     for (final MapEntry(:key, :value) in files.entries)
       key: key.startsWith('docs/') && !unfingerprinted.contains(key)
-          ? _withCodeFingerprints(value, code)
+          ? stamped(key, value)
           : value,
+  };
+}
+
+Map<Object?, Object?> _configOf(Map<String, String> files) {
+  final text = files['.specstone/config.yaml'];
+  if (text == null) return const {};
+  try {
+    return switch (loadYaml(text)) {
+      final Map<Object?, Object?> config => config,
+      _ => const {},
+    };
+  } on YamlException {
+    // A fixture may hold a config the loader refuses; it names no code root.
+    return const {};
+  }
+}
+
+/// Returns the code root [docKey] reads its entries from, `''` for the
+/// project root.
+String _codeRootOf(String docKey, Map<Object?, Object?> config) {
+  final targets = config['targets'];
+  if (targets is! Map) return '${config['code_root'] ?? ''}';
+  for (final MapEntry(:key, :value) in targets.entries) {
+    if (docKey.startsWith('docs/specs/$key/')) {
+      return '${(value as Map)['code_root']}';
+    }
+  }
+  return '';
+}
+
+/// Returns the fingerprints of the files under [root], by path from [root].
+Map<String, String> _codeUnder(String root, Map<String, String> codeFiles) {
+  if (root.isEmpty) return codeFiles;
+  return {
+    for (final MapEntry(:key, :value) in codeFiles.entries)
+      if (key.startsWith('$root/')) key.substring(root.length + 1): value,
   };
 }
 
