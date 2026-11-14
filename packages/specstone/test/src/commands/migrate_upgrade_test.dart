@@ -208,6 +208,18 @@ Matcher _endingWith(String commitLine) => matches(
   ),
 );
 
+const _noRelease =
+    'the shipped software-tech does not carry the release that names tests '
+    'in the records yet';
+
+/// Returns [version], `major.minor.patch`, as one number: `1.6.0` is 1006000.
+int _versionOf(String version) {
+  final [major, minor, patch] = [
+    for (final part in version.split('.')) int.parse(part),
+  ];
+  return major * 1000000 + minor * 1000 + patch;
+}
+
 void main() {
   group('f06/us02: upgrade a pack pin', () {
     test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
@@ -1665,6 +1677,91 @@ void main() {
         final again = await _run(root, home, ['migrate'], console: _owner());
         expect(again.out, 'nothing to migrate\n');
       });
+    });
+
+    group('test-name pass', () {
+      const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const testPath = 'app/test/auth_test.dart';
+      const otherPath = 'app/vendor/test/dep_test.dart';
+
+      String source(String name) =>
+          "void main() {\n  test('$name', () {});\n}\n";
+
+      // The release that names tests in the records is not carried yet.
+      final carriesRelease =
+          _versionOf(shippedPackVersions()['software-tech']!) >= 1006000;
+
+      test(
+        'a project pinned before the release gets each '
+        'requirement test file in its record, the test names keep their '
+        'words, and the plan counts the name in another repository left',
+        () async {
+          final home = await writeTree({});
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.4.0\ncode_root: app\n'
+                'agent_file_roots:\n  - app/vendor\n',
+            _gitignore: 'index.sqlite*\nbuild/\ntrash/\n',
+            '.gitignore': 'app/vendor/\n',
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            frPath: '# Validate credentials\n',
+            testPath: source('f01/us01/fr01 rejects a wrong password'),
+          });
+          final vendor = Directory('${root.path}/app/vendor')
+            ..createSync(recursive: true);
+          File('${root.path}/$otherPath')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync(source('f01/us01/fr01 dep'));
+          commitRepo(vendor);
+
+          final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          expect(
+            dry.out,
+            contains(
+              '  tests: 2 lines in 1 records; names: 1 rewritten in 1 files; '
+              'left: 1\n',
+            ),
+          );
+          expect(
+            dry.out,
+            contains('  specs/f01_login/IMPLEMENTATION.md (draft)'),
+          );
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, home, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          final record = _read(root, recordPath);
+          expect(record, contains('draft: true'));
+          expect(
+            record,
+            contains("'email_login/validate_credentials:test/auth_test.dart'"),
+          );
+          expect(
+            record,
+            contains(
+              "'email_login/validate_credentials:vendor/test/dep_test.dart'",
+            ),
+          );
+          expect(_read(root, testPath), source('rejects a wrong password'));
+          expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
+        },
+        skip: carriesRelease ? null : _noRelease,
+      );
     });
   }, skip: hasGit ? null : 'git is not available');
 }
