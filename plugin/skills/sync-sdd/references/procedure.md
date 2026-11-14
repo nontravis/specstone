@@ -16,13 +16,12 @@ A finding's `path` is relative to its target's code root (`code_root:` in `.spec
 per target; default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's (step 4.4), run
-`specstone context --code <code root>/<path> --for implement`.
-It takes its path's code target, prints it, and carries no
-`--target`.
+`specstone context --code <code root>/<path> --for implement --out`, which takes its path's code target and carries
+no `--target`; read its saved file's parts per `specstone:read-sdd`.
 
-- **Warning `no doc covers or implements <path>`:** The new side of a rename pair (step 4.3's
-  git commands) goes to step 4.3. Else read the file and write nothing for it; report it under `Uncovered:`: its path,
-  what it does that no spec states, and whether that needs a new story or FR.
+- **Warning `no doc covers or implements <path>`:** The new side of a rename pair goes to step 4.3. Else read the
+  file and write nothing for it; report it under `Uncovered:`: its path, what it does that no spec states, and
+  whether that needs a new story or FR.
 - **64, `code_path_not_found`:** the file moved or is gone. `specstone check` lists the record entries that still name
   it; step 4.3 fixes them.
 - **Any other exit:** report the CLI's error and stop.
@@ -53,16 +52,16 @@ It takes its path's code target, prints it, and carries no
      code root; the stories and FRs, which name no code, stay as they are; find the pair with
      `git log -1 -M --diff-filter=R --name-status --format= -- <old path>`, or `git diff -M --name-status HEAD` while
      the move is uncommitted; write no fingerprint;
-   - deleted file: drop the entry, or point it at the code that does the work now.
+   - deleted file: drop the entry, or point it at the code doing that work now.
 4. A `tests_unresolved` line: repoint it with
    `specstone set implementation:<feature> --field tests --target <name> --base <hash>` to the moved file of step 4.3
    or the test's current name in it; one you cannot place stays as written, among the waiting pointers. Write no
    `tests` line for a test a change adds or moves.
-5. Report under `Mismatches:` each rule meaning a changed AGENT.md asset holds that the agent-files FR's rule list
-   lacks, and each bare item ID such as `E21`, or number label, in changed code or a test file read for step 4.4, by
-   file and line.
+5. Report under `Mismatches:`, by file and line, each rule meaning a changed AGENT.md asset holds that the
+   agent-files FR's rule list lacks, and each bare item ID (`E21`) or number label in changed code or a test file
+   read for step 4.4.
 
-## 5. Spec drafts, pointers after
+## 5. Spec drafts
 
 On the Owner's write-a-spec or fix-the-spec pick sent to you, a story or FR it needs goes to
 `specstone:brainstorming-sdd`. Else write the draft: `specstone new <type>` (`--target <name>`, the path's code

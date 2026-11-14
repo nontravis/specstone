@@ -13,24 +13,22 @@ only rewrites one section or field of an existing doc, and adds no story or FR, 
 
 Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
 change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
-with `--summary` to add a story, and the project doc to add a feature. Without the `Agent` tool, pass no `--budget`; `Read`
-a saved output once, in parts if long. Pass no `--target`: a design read spans every code target.
+with `--summary` to add a story, and the project doc to add a feature. Keep `--out` bare and last, and pass no
+`--budget`, with or without the `Agent` tool. Pass no `--target`: a design read spans every code target.
 
 ```
-specstone context <target> --for design --budget 20000
+specstone context <target> --for design --out
 ```
 
-- **0:** the printed bundle is the ground; open no doc file.
-- **1:** over budget: give `specstone:sdd-reader` the target IDs, `--summary` beside each target
-  whose call used it, mode `design`, and the change in a sentence, with no doc text; the whole sections it returns
-  are the ground.
+- **0:** the saved file is the ground: read it per `specstone:read-sdd`, searching it before any `get`; open no doc
+  file.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
 
 For a change from a source, another tool's spec or design, that first call is
-`specstone context project --for design`, never with `--budget`. Read or open the source, a link or an issue included,
-only after it exits 0; then follow `## Take in the source` in
+`specstone context project --for design --out`, never with `--budget`. Read or open the source, a link or an issue
+included, only after it exits 0; then follow `## Take in the source` in
 `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md`.
 
 That call is the gate. Never look for `.specstone/` first: the CLI searches upward.

@@ -43,12 +43,12 @@ touches, the trade-off behind each choice, and its test.
 
 Read sources in this order; read a later source only for what the earlier ones leave out.
 
-1. Specstone, always first: `specstone context <story> --for implement` for each story the plan builds. The bundle
-   holds the story, its FRs, NFR overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open a doc file
-   by path.
+1. Specstone, always first: `specstone context <story> --for implement --out` for each story the plan builds. The
+   bundle holds the story, its FRs, NFR overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open a doc
+   file by path.
 
-   For a target that is no story, an NFR or a spec doc, `specstone context <target> --for implement` on that doc
-   itself. An FR target grounds through its story's step-1 call, so
+   For a target that is no story, an NFR or a spec doc, `specstone context <target> --for implement --out` on that
+   doc itself. An FR target grounds through its story's step-1 call, so
    a task citing a story and its FRs grounds once.
 2. The code the specs point at: each `implements` and `covers` path, then its direct callers.
 3. The project's own instruction files (`CLAUDE.md`, `AGENTS.md`): commands, branch flow, gotchas.
@@ -72,12 +72,13 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    `<type>:` prefix, else the `(<type>)` its bundle header prints. Every other doc, such as a project, feature,
    persona, or journey doc, gets a row with no task that names why no task builds its type; a project or
    feature doc's row reads that its stories carry the change.
-2. **Ground**: follow `## Ground` in order. Run source 1's calls through Bash, neither with `--budget`, so you hold
-   each bundle whole: first one per story target or FR target's story, then one per NFR or spec doc target. A spec
-   doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own. The
-   first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the binary.
-   - **0**: the bundle is the docs, as printed. When the host cuts it short and saves it to a file, `Read` that file
-     in parts through its closing `==> bundle:` line.
+2. **Ground**: follow `## Ground` in order. Run source 1's calls through Bash, each with `--out` bare and last and
+   neither with `--budget`: first one per story target or FR target's story, then one per NFR or spec doc target. A
+   spec doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own.
+   The first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the
+   binary.
+   - **0**: the saved file is the docs, as they stand: read it per `specstone:read-sdd`, in parts, searching it with
+     `Grep`; you run no `get`.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
      other targets.
@@ -117,8 +118,8 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    steps in the task itself: never "as Task N", a pointer to another task's line, or one line set for a whole phase.
    - **No doc text**: it holds none of its doc's text (no statement, scenario, edge case, or table), and tells its
      implementer to read the doc fresh before writing code by its own read line:
-     `specstone context <target> --for implement`, with `--target <code target>` when one is given, the FR's story as
-     `<target>` for an FR, then the doc to read in that bundle.
+     `specstone context <target> --for implement --out`, with `--target <code target>` before `--out` when one is
+     given, the FR's story as `<target>` for an FR, then the doc to read in that bundle.
    - **Critical files**: it names each file it touches, each existing file and symbol one you opened.
    - **Trade-off**: it states its own trade-off behind each implementation choice, such as a doc that can be built
      more than one way.
@@ -142,9 +143,9 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 9. **Check before reporting**, and fix the plan until all four hold:
    - **Coverage**: each approved FR of a target that gets a task is built by a task.
    - **No doc text**: no line in any section of the plan, its header, constraints, and step lists included, quotes a
-     doc's text. `Grep` the files the host saved the bundles to, case-insensitive, with `multiline` and `\s+` between
-     words, for each constraint's longest phrase (its longest run of words between punctuation) and each step phrase
-     that restates a doc's point; check a bundle printed inline against its printed text. Rewrite each hit as a
+     doc's text. `Grep` the Ground's saved bundle files, case-insensitive, with `multiline` and `\s+` between words,
+     for each constraint's longest phrase (its longest run of words between punctuation) and each step phrase that
+     restates a doc's point. Rewrite each hit as a
      citation of the doc name and its ID or section anchor (`BR-02`, `E05`, `#verification`).
    - **Own lines**: each task that builds a doc writes out its own read line, trade-off, and steps (step 7).
    - **Printed names**: each name a task cites is one a Ground bundle printed. List each name no bundle printed, and

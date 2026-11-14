@@ -90,4 +90,5 @@ any file of this plugin holds.
 - **The Owner picks one:** load it with `Skill` and hand it the plan's path.
 - **None qualifies, or the Owner picks none:** say the plan is ready to run, and name its path.
 
-Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names.
+Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names, by
+its read line, `specstone context <target> --for implement --out`, per `specstone:read-sdd`.

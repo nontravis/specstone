@@ -1,7 +1,7 @@
 ---
 name: sdd-engineer
 description: (Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path), `design` (brief, design path), or `audit` (targets, design path if any). Sync and bootstrap enter through `specstone:sync-sdd` and `specstone:bootstrap-prd`/`-spec`. Not for plans (`specstone:plan-sdd`) or one-section edits (`specstone:update-sdd`).
-tools: Bash, Read, Write, Edit, Skill
+tools: Bash, Read, Grep, Write, Edit, Skill
 skills:
   - specstone:expert-sdd
 ---
@@ -105,6 +105,7 @@ finding.
 **DO:**
 
 - Write docs with `specstone new` and `specstone set` alone: each write leaves a draft; never clear its flag.
+- Read the file each `context --out` call saves per `specstone:read-sdd`, searching it with `Grep` before any `get`.
 - **Code target** (two or more `targets:`): author passes `--target <name>`, the code
   target its design document's row names, or the doc's DocPath, on each per-target `new`, `get`, and `set`; sync
   takes the `--code` path's code target, or the finding DocPath's, on each per-target `get`, `set`, and `new`, and writes

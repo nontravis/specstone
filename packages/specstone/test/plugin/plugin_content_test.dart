@@ -1058,6 +1058,34 @@ final _fencedBlock = RegExp(r'^ *```[^\n]*\n([\s\S]*?)^ *```', multiLine: true);
 
 final _contextCall = RegExp(r'specstone context\b(.*?)(?=specstone |$)');
 
+/// Each `.md` file under the plugin's `skills/` and `agents/`, relative to
+/// the plugin folder with `/` separators, sorted.
+List<String> _skillAndAgentFiles() {
+  final root = pluginRoot().uri.toFilePath(windows: false);
+  return [
+      for (final file
+          in pluginRoot().listSync(recursive: true).whereType<File>())
+        file.uri.toFilePath(windows: false).substring(root.length),
+    ].where((path) {
+      final top = path.split('/').first;
+      return (top == 'skills' || top == 'agents') && path.endsWith('.md');
+    }).toList()
+    ..sort();
+}
+
+/// The skill and agent files that ground through their own `context` call.
+const _groundingFiles = [
+  'skills/read-sdd/SKILL.md',
+  'agents/sdd-reader.md',
+  'skills/brainstorming-sdd/SKILL.md',
+  'skills/brainstorming-sdd/references/design.md',
+  'skills/brainstorming-sdd/references/audit.md',
+  'skills/brainstorming-sdd/references/source.md',
+  'skills/plan-sdd/SKILL.md',
+  'agents/plan-engineer.md',
+  'skills/sync-sdd/references/procedure.md',
+];
+
 /// The words after `specstone context` of each call with arguments in
 /// [markdown]'s fenced code lines and inline code spans, a span wrapped over
 /// lines read whole.
@@ -1204,22 +1232,63 @@ void _agentTests() {
     expect(skill, contains('specstone context <target> --for implement --out'));
   });
 
-  test('f08/us01/fr01, f08/us01/fr02/e09, f08/us01/s6: no read-sdd or '
-      'sdd-reader context call passes --budget, and each ends with a bare '
-      '--out', () {
-    for (final file in ['skills/read-sdd/SKILL.md', 'agents/sdd-reader.md']) {
-      final calls = _contextCalls(_pluginText(file));
-      expect(calls, isNotEmpty, reason: file);
-      for (final call in calls) {
-        final shown = call.join(' ');
-        expect(
-          call.where((token) => token.startsWith('--budget')),
-          isEmpty,
-          reason: '$file: $shown',
-        );
-        expect(call.last, '--out', reason: '$file: $shown');
+  test('f08/us01/fr01, f08/us01/fr02/e09, f08/us01/s6, f08/us02/fr01/e17, '
+      'f08/us02/fr01/e26, f08/us02/fr06, f08/us02/fr07/e16, f08/us03/fr01, '
+      'f08/us07/fr02/e31, f08/us08/fr01/e03: no skill or agent context call '
+      'passes --budget, and each ends with a bare --out', () {
+    final problems = <String>[];
+    for (final file in _skillAndAgentFiles()) {
+      for (final call in _contextCalls(_pluginText(file))) {
+        final shown = 'specstone context ${call.join(' ')}';
+        if (call.any((token) => token.startsWith('--budget')) ||
+            call.last != '--out') {
+          problems.add('$file: $shown');
+        }
       }
     }
+    expect(problems, isEmpty);
+    for (final file in _groundingFiles) {
+      expect(_contextCalls(_pluginText(file)), isNotEmpty, reason: file);
+    }
+  });
+
+  test('f08/us01/fr01/e20, f08/us02/fr06, f08/us07/fr02/e31: each file that '
+      'grounds through a saved bundle names read-sdd for its read, and each '
+      'agent that reads one holds Grep for the search', () {
+    for (final file in _groundingFiles) {
+      if (!file.startsWith('skills/') || file == 'skills/read-sdd/SKILL.md') {
+        continue;
+      }
+      expect(_pluginText(file), contains('`specstone:read-sdd`'), reason: file);
+    }
+    final engineer = _pluginText('agents/sdd-engineer.md');
+    expect(_toolsOf(engineer, 'tools'), contains('Grep'));
+    expect(
+      _oneLine(_sectionOf(engineer, 'Scope Boundaries')),
+      contains(
+        'Read the file each `context --out` call saves per '
+        '`specstone:read-sdd`, searching it with `Grep` before any `get`.',
+      ),
+    );
+    expect(
+      _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
+      contains(
+        'the saved file is the docs, as they stand: read it per '
+        '`specstone:read-sdd`, in parts, searching it with `Grep`',
+      ),
+    );
+  });
+
+  test("f08/us07/fr02 statement, e29: plan-engineer writes each task's read "
+      'line with a bare --out last, its --target before it', () {
+    expect(
+      _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
+      contains(
+        '`specstone context <target> --for implement --out`, with `--target '
+        "<code target>` before `--out` when one is given, the FR's story as "
+        '`<target>` for an FR',
+      ),
+    );
   });
 
   test('f08/us01/fr01: read-sdd names no mktemp, no budget figure, and no '
@@ -1404,10 +1473,16 @@ void _agentTests() {
   });
 
   test('E17: the '
-      'first design call passes no --budget without the Agent tool and no '
-      '--target', () {
+      'first design call keeps a bare --out last and passes no --budget, '
+      'with or without the Agent tool, and no --target', () {
     final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
-    expect(skill, contains('Without the `Agent` tool, pass no `--budget`'));
+    expect(
+      skill,
+      contains(
+        'Keep `--out` bare and last, and pass no `--budget`, with or without '
+        'the `Agent` tool.',
+      ),
+    );
     expect(
       skill,
       contains('Pass no `--target`: a design read spans every code target.'),
@@ -1590,7 +1665,7 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          "takes its path's code target, prints it, and carries no `--target`",
+          "which takes its path's code target and carries no `--target`",
         ),
       );
     });
@@ -1744,7 +1819,9 @@ void _agentTests() {
         contains(
           "For each listed code path but a `tests_unresolved` line's (step "
           '4.4), run `specstone context --code <code root>/<path> --for '
-          'implement`.',
+          "implement --out`, which takes its path's code target and carries "
+          "no `--target`; read its saved file's parts per "
+          '`specstone:read-sdd`.',
         ),
       );
       expect(
@@ -1895,8 +1972,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          "The new side of a rename pair (step 4.3's git commands) goes to "
-          'step 4.3. Else read the file and write nothing for it;',
+          'The new side of a rename pair goes to step 4.3. Else read the file '
+          'and write nothing for it;',
         ),
       );
     });
@@ -2526,8 +2603,8 @@ void _agentTests() {
     );
   });
 
-  test('f08/us01/fr02, db-r6: sdd-reader takes --summary per target and the '
-      'design callers hand it over beside each target on the over-budget '
+  test('f08/us01/fr02, db-r6, f08/us08/fr01/e03: sdd-reader takes --summary '
+      'per target, and no design caller hands it targets on an over-budget '
       'route', () {
     String flat(String f) => _pluginText(f).replaceAll(RegExp(r'\s+'), ' ');
     final reader = flat('agents/sdd-reader.md');
@@ -2538,10 +2615,12 @@ void _agentTests() {
       contains('only on the call for a target the dispatch marks with it'),
     );
     expect(reader, isNot(contains('**`--summary`** (optional)')));
-    expect(
-      flat('skills/brainstorming-sdd/SKILL.md'),
-      contains('`--summary` beside each target whose call used it'),
-    );
+    for (final file in [
+      'skills/brainstorming-sdd/SKILL.md',
+      'skills/brainstorming-sdd/references/source.md',
+    ]) {
+      expect(flat(file), isNot(contains('over budget')), reason: file);
+    }
   });
 
   test('f08/us02/fr01, db-r5: design.md names the smallest doc itself, as the '
@@ -2674,7 +2753,7 @@ void _agentTests() {
       'untyped_target',
       '`specstone:bootstrap-prd`',
       '`specstone:bootstrap-spec`',
-      '`specstone:sdd-reader`',
+      '`specstone:read-sdd`',
       'mktemp',
       'Source map',
       'not taken',
@@ -2911,10 +2990,10 @@ const _sourcePoints = [
   'Read none of it with any tool',
   // E02: a source that adds a feature runs no narrow call.
   'no second call runs',
-  // E03: the narrow call's budget and over-budget hand-off.
-  'specstone context <target> --for design --no-project',
-  "the gate's bundle plus the whole sections it returns",
-  'Without the `Agent` tool, pass no `--budget` and take both whole bundles',
+  // E03: the narrow call's bare --out, and both saved bundles whatever size.
+  'specstone context <target> --for design --no-project --out',
+  'both saved bundles are the grounding, whatever their size',
+  'read them per `specstone:read-sdd`, searching them before any `get`.',
   // E06: only the gaps, one at a time, nothing invented.
   'Ask the Owner only what the source leaves open, one question at a time',
   'invent nothing',
@@ -3389,17 +3468,17 @@ const _groundLead =
     'Read sources in this order; read a later source only for what the '
     'earlier ones leave out.';
 const _groundSpecstone =
-    '1. Specstone, always first: `specstone context <story> --for implement` '
-    'for each story the plan builds. The bundle holds the story, its FRs, NFR '
-    'overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open '
-    'a doc file by path.';
+    '1. Specstone, always first: `specstone context <story> --for implement '
+    '--out` for each story the plan builds. The bundle holds the story, its '
+    'FRs, NFR overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). '
+    'Never open a doc file by path.';
 
 /// The line between sources 1 and 2: the plan-sdd design's line for a target
 /// that is no story, opening with a capital where the design's colon let it
 /// open on a lowercase word.
 const _groundNonStoryTarget =
     'For a target that is no story, an NFR or a spec doc, `specstone context '
-    '<target> --for implement` on that doc itself. An FR target grounds '
+    '<target> --for implement --out` on that doc itself. An FR target grounds '
     "through its story's step-1 call, so "
     'a task citing a story and its FRs grounds once.';
 
@@ -3671,8 +3750,8 @@ void _planTests() {
     expect(
       _oneLine(_sectionOf(agent, 'Workflow')),
       contains(
-        '`specstone context <target> --for implement`, with `--target <code '
-        "target>` when one is given, the FR's story as `<target>` for an FR",
+        'with `--target <code target>` before `--out` when one is given, the '
+        "FR's story as `<target>` for an FR",
       ),
     );
   });

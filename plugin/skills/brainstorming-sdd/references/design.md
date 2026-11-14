@@ -11,14 +11,15 @@ question in your report.
 
 ## 2. Ground each claim
 
-Run `specstone context <target> --for design` on the smallest doc that holds the brief's whole change: the story
-for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story, and
-the project doc to add a feature. Pass no `--target`: a design read spans every code target.
+Run `specstone context <target> --for design --out` on the smallest doc that holds the brief's whole change: the
+story for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story,
+and the project doc to add a feature. Pass no `--budget`. Pass no `--target`: a design read spans every code target.
+Read the saved file per `specstone:read-sdd`, searching it before any `get`.
 As the skill's runner, run no other call: your ground is what its step 1 gave, the bundle or `specstone:sdd-reader`'s
 sections, and, for a change from a source, the gate call's bundle plus any `--no-project` call's or the reader's
 sections.
 
-- **0:** the bundle is your ground. Cite only what your ground holds.
+- **0:** the saved bundle is your ground. Cite only what your ground holds.
 - **Any other exit:** report the CLI's error and stop.
 
 Before any write, judge the design path by that bundle:
