@@ -1026,7 +1026,11 @@ void main() {
           result.out,
           contains('  stamps: 7 approval hashes, 3 fingerprints\n'),
         );
-        expect(_read(root, tracingPath), contains('`doc_model` RULE-31\n'));
+        // The cite pass after the renumber pass links the renumbered ID.
+        expect(
+          _read(root, tracingPath),
+          contains('[RULE-31](../../../../specs/topics/doc_model.md#rules)\n'),
+        );
         expect(_read(root, storyPath), contains('unlike Scenario 9\n'));
         expect(await findingsOf(root, home, 'item_id_lettered'), isEmpty);
         expect(await findingsOf(root, home, 'suspect'), [
@@ -1047,7 +1051,7 @@ void main() {
         // The two re-stamped links are live: an edit upstream makes each
         // suspect.
         edit(storyPath, 'unlike Scenario 9', 'unlike Scenario 1');
-        edit(tracingPath, '`doc_model` RULE-31', '`doc_model` RULE-1');
+        edit(tracingPath, '[RULE-31](', '[RULE-1](');
         expect(await findingsOf(root, home, 'item_id_lettered'), [
           topicPath.substring(5),
         ]);
@@ -1918,6 +1922,116 @@ void main() {
           expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
         },
       );
+    });
+
+    group('cite pass', () {
+      const storyPath =
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+      const frPath =
+          'docs/prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      const topicPath = 'docs/specs/topics/cites.md';
+      const scenario =
+          '### Scenario 1 — [happy] Sign in\n\n'
+          '- **Given** the rule `domain:login` INV-6\n';
+
+      test('f06/us02/s14, f06/us02/fr02/e83, f06/us02/fr02/e86: a release '
+          'that brings the cite rule links each cite that names one part, '
+          'counts the rest, keeps every approval, and runs once', () async {
+        final types = TemplateResolver().resolveCarried(
+          packNames: const ['prd-core', 'software-tech'],
+          homeDirectory: null,
+        );
+        // Approved under the 1.6.0 pin, whose hash still counts statuses.
+        String approved(String text, String docTypeId) => withApprovalHash(
+          text,
+          types.lookup(docTypeId),
+          statusesOutside: false,
+        );
+        Future<List<Map<String, Object?>>> findings(
+          Directory root,
+          Directory home,
+        ) async {
+          final check = await _run(root, home, ['check', '--json']);
+          final report = jsonDecode(check.out) as Map<String, Object?>;
+          return [
+            for (final finding in report['findings']! as List<Object?>)
+              finding! as Map<String, Object?>,
+          ];
+        }
+
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n',
+          _gitignore: _ignoreFile,
+          'docs/prds/features/f01_login/FEATURE.md': approved(
+            '# Login\n',
+            'feature',
+          ),
+          storyPath: approved(
+            '# Email login\n\n## Acceptance Criteria\n\n$scenario',
+            'user_story',
+          ),
+          frPath: approved(
+            '---\ntraced_from:\n  - S1\nconfirmed:\n'
+                '  - S1 ${fingerprintOf(scenario)}\n---\n\n# Validate\n',
+            'fr',
+          ),
+          'docs/specs/f01_login/DOMAIN.md': approved(
+            '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n',
+            'domain',
+          ),
+          topicPath: approved(
+            '# Cites\n\n## Rules\n\nSee `domain:login` INV-6 and `login`.\n',
+            'topic',
+          ),
+        });
+
+        final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(json.status, 0, reason: json.err);
+        final plan = jsonDecode(json.out) as Map<String, Object?>;
+        expect(plan['cites'], {
+          'rewritten': [
+            'prds/features/f01_login/us01_email_login/USER_STORY.md',
+            'specs/topics/cites.md',
+          ],
+          'left': [matches(RegExp(r'^specs/topics/cites\.md:\d+ login$'))],
+        });
+        expect(result.status, 0, reason: result.err);
+        expect(
+          result.out,
+          contains('  cites: 2 rewrites in 2 docs; left: 1\n'),
+        );
+        expect(
+          _read(root, storyPath),
+          contains(
+            '- **Given** the rule '
+            '[INV-6](../../../../specs/f01_login/DOMAIN.md#invariants)\n',
+          ),
+        );
+        expect(
+          _read(root, topicPath),
+          contains(
+            'See [INV-6](../f01_login/DOMAIN.md#invariants) and `login`.\n',
+          ),
+        );
+        final after = await findings(root, home);
+        final kinds = [for (final finding in after) finding['kind']];
+        expect(kinds, isNot(contains('approval_stale')));
+        expect(kinds, isNot(contains('suspect')));
+        expect(
+          [
+            for (final finding in after)
+              if (finding['kind'] == 'cite_unlinked') finding['docPath'],
+          ],
+          [topicPath.substring('docs/'.length)],
+        );
+        final rerun = await _run(root, home, ['migrate'], console: _owner());
+        expect(rerun.out, 'nothing to migrate\n');
+      });
     });
   }, skip: hasGit ? null : 'git is not available');
 }

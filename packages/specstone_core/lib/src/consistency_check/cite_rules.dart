@@ -27,7 +27,7 @@ Iterable<Finding> checkOldCites(CheckContext context, IndexedDoc doc) sync* {
   );
   final seeTargets = _seeTargetsOf(context, doc);
   for (final candidate in candidates) {
-    if (_isSeeTarget(seeTargets[candidate.line], candidate)) continue;
+    if (isSeeTargetCite(seeTargets[candidate.line], candidate)) continue;
     final message = _messageOf(
       resolveCite(tree, doc.docPath, candidate),
       doc,
@@ -92,6 +92,6 @@ Map<int, String> _seeTargetsOf(CheckContext context, IndexedDoc doc) {
 }
 
 /// Whether [see], the `see` target of the candidate's line, is [candidate].
-bool _isSeeTarget(String? see, CiteCandidate candidate) =>
+bool isSeeTargetCite(String? see, CiteCandidate candidate) =>
     see != null &&
     (see == candidate.written || see.startsWith('${candidate.written}#'));

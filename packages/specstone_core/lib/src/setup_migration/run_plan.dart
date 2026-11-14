@@ -100,6 +100,8 @@ final class PlanLists {
     this.formatLayout = const [],
     this.numberLabelsRewritten = const [],
     this.numberLabelsLeft = const [],
+    this.citesRewritten = const [],
+    this.citesLeft = const [],
     this.renumberIds = const [],
     this.agentFiles = const [],
     this.stampsSkipped = const [],
@@ -117,6 +119,12 @@ final class PlanLists {
 
   /// Each label the label pass keeps, `<DocPath>:<line> <label>`.
   final List<String> numberLabelsLeft;
+
+  /// The DocPath of each doc the cite pass rewrites.
+  final List<String> citesRewritten;
+
+  /// Each old cite form the cite pass keeps, `<DocPath>:<line> <cite>`.
+  final List<String> citesLeft;
 
   /// Each renumbering as `<DocPath> <old> -> <new>`, then each doc the pass
   /// rewrites or cannot fully rewrite.
@@ -145,6 +153,7 @@ final class PlanLists {
       'rewritten': numberLabelsRewritten,
       'left': numberLabelsLeft,
     },
+    'cites': {'rewritten': citesRewritten, 'left': citesLeft},
     'renumberIds': renumberIds,
     'agentFiles': agentFiles,
     'stamps': {'skipped': stampsSkipped},

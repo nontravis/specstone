@@ -292,6 +292,7 @@ void main() {
         'plan',
         'formatLayout',
         'numberLabels',
+        'cites',
         'renumberIds',
         'agentFiles',
         'stamps',

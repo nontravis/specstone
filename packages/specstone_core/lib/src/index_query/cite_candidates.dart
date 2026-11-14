@@ -30,6 +30,24 @@ typedef CiteCandidate = ({
   List<String> itemIds,
 });
 
+/// One item ID of a cite form: its 0-based column on the form's line and the
+/// ID as written.
+typedef CiteItemAt = ({int column, String itemId});
+
+/// A cite candidate with its place on its line, which the cite pass rewrites.
+///
+/// `start` and `end` are the 0-based columns the doc part spans, its code
+/// span's backticks, `#key`, and header span included; `items` holds each
+/// item ID it owns, repeats included. `isInSpan` holds when the doc part sits
+/// inside a code span it does not fill, where no link can stand.
+typedef CiteForm = ({
+  CiteCandidate candidate,
+  int start,
+  int end,
+  bool isInSpan,
+  List<CiteItemAt> items,
+});
+
 /// Returns the cite candidates of [lfText], a typed doc with LF line ends, in
 /// file order.
 ///
@@ -41,7 +59,13 @@ typedef CiteCandidate = ({
 /// line's prose after the candidate, up to the next citation, a link or
 /// another candidate, so the nearest citation before an ID owns it
 /// (setup_migration `apply_steps_and_pins` E47).
-List<CiteCandidate> citeCandidatesOf(String lfText) {
+List<CiteCandidate> citeCandidatesOf(String lfText) => [
+  for (final form in citeFormsOf(lfText)) form.candidate,
+];
+
+/// Returns the cite candidates of [lfText] as [citeCandidatesOf] reads them,
+/// each with its place on its line.
+List<CiteForm> citeFormsOf(String lfText) {
   final mentions = docMentionsInFile(lfText, markdownExtension);
   if (mentions.isEmpty) return const [];
   final body = Doc.parse(lfText).afterFrontmatter;
@@ -57,7 +81,7 @@ List<CiteCandidate> citeCandidatesOf(String lfText) {
     ..sort();
   return [
     for (final (mention, offset) in kept)
-      _candidateOf(
+      _formOf(
         mention,
         lines.lineOf(mention.line - firstLine),
         nextBoundary: _firstAfter(boundaries, offset),
@@ -66,7 +90,7 @@ List<CiteCandidate> citeCandidatesOf(String lfText) {
   ];
 }
 
-CiteCandidate _candidateOf(
+CiteForm _formOf(
   NameMention mention,
   String line, {
   required int? nextBoundary,
@@ -87,12 +111,39 @@ CiteCandidate _candidateOf(
   final stop = nextBoundary == null
       ? line.length
       : (nextBoundary - lineStart).clamp(end, line.length);
+  final items = [
+    for (final (:at, :id) in itemIdsInProse(
+      _proseOf(line, spans, from: end).substring(end, stop),
+    ))
+      (column: end + at, itemId: id.written),
+  ];
+  final holder = _spanHolding(spans, mention.column);
+  final fillsHolder =
+      holder != null &&
+      holder.start + holder.ticks == mention.column &&
+      holder.end <= end;
   return (
-    line: mention.line,
-    written: mention.address.docPart,
-    sectionKey: key,
-    itemIds: _itemIdsIn(_proseOf(line, spans, from: end).substring(end, stop)),
+    candidate: (
+      line: mention.line,
+      written: mention.address.docPart,
+      sectionKey: key,
+      itemIds: [
+        ...{for (final item in items) item.itemId},
+      ],
+    ),
+    start: fillsHolder ? holder.start : mention.column,
+    end: end,
+    isInSpan: holder != null && !fillsHolder,
+    items: items,
   );
+}
+
+/// The code span of [spans] whose text holds [column], or null.
+CodeSpan? _spanHolding(List<CodeSpan> spans, int column) {
+  for (final span in spans) {
+    if (span.start < column && column < span.end) return span;
+  }
+  return null;
 }
 
 String? _nonEmpty(String? text) => text == null || text.isEmpty ? null : text;
@@ -149,13 +200,6 @@ String _proseOf(String line, List<CodeSpan> spans, {required int from}) {
   }
   return prose;
 }
-
-List<String> _itemIdsIn(String prose) => [
-  for (final written in {
-    for (final (at: _, :id) in itemIdsInProse(prose)) id.written,
-  })
-    written,
-];
 
 /// The offset of the first element of the sorted [offsets] after [offset].
 int? _firstAfter(List<int> offsets, int offset) {
