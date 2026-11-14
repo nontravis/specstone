@@ -323,14 +323,14 @@ final class RunPlan {
   /// Returns the journal steps that apply the plan on top of HEAD [base].
   ///
   /// Moves and prunes, commit 1 when any file moves, the writes and creates,
-  /// then commit 2. No step deletes a file (INV-6). Commit 1 carries each move
+  /// then commit 2. No step deletes a file. Commit 1 carries each move
   /// once as a ProjectPath pair, its stage hops left out, so a tracked file
   /// moved onto an ignored path still commits as a rename.
   ///
   /// An agent file reached through a symbolic link, of the file or of a folder
   /// above it, gets its step on the real path from [projectRoot], so the link
   /// stays a link. The plan lists no agent file whose real path lies outside
-  /// the project (R99), so each step lands inside the project root.
+  /// the project, so each step lands inside the project root.
   ///
   /// Throws [StateError] when two text steps land on one path: both would
   /// carry one `before` text, so the first would make the second skip.
@@ -446,7 +446,7 @@ final class RunPlan {
   /// target once every move has run.
   ///
   /// A cycle, such as two docs trading places, has no order in which each
-  /// target is free; parking one of its moves breaks it (F6-D34).
+  /// target is free; parking one of its moves breaks it.
   List<MoveStep> _moveSteps() {
     final unmoved = {for (final move in moves) move.from};
     final steps = <MoveStep>[];

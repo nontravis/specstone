@@ -62,7 +62,7 @@ String sectionKeyOf(String headerText) => headerText
 /// doc type id when that path has none; [docPath] when [docType] is null. A
 /// doc matched through [target]'s pattern set is read with that set's
 /// patterns, as the matcher expands them, so its target folder names no slug
-/// and twins of two targets share the name (RULE-21).
+/// and twins of two targets share the name.
 String docNameOf(String docPath, MergedDocType? docType, {String? target}) {
   if (docType == null) return docPath;
   for (final path in docType.paths) {
@@ -131,11 +131,11 @@ final class IndexedDoc {
   /// matched with two or more targets, else the single target when named.
   ///
   /// Null for a shared doc, a doc of a doc type that is not per-target, and
-  /// an untyped doc (INV-26).
+  /// an untyped doc.
   final String? target;
 
   /// Whether the doc shows under [codeTarget]: always with none, else only
-  /// when the doc is shared or belongs to that target (INV-26).
+  /// when the doc is shared or belongs to that target.
   bool inTarget(String? codeTarget) =>
       codeTarget == null || target == null || target == codeTarget;
 
@@ -272,7 +272,7 @@ final class ParsedDoc {
 /// Parses the file [bytes] at [docPath] into its index entry and content.
 ///
 /// [codeTarget] names the project's one target when it has exactly one and it
-/// is named, so a per-target doc stores it (E24); null leaves a per-target
+/// is named, so a per-target doc stores it; null leaves a per-target
 /// doc's target unset, as a project with one unnamed target or no code root
 /// stores no name. Invalid UTF-8 decodes with replacement characters, and
 /// invalid frontmatter YAML leaves no values; each adds a warning instead of
@@ -461,7 +461,7 @@ Map<String, MergedSection> _templatesByKey(MergedDocType? docType) => {
     headerKey(section.header): section,
 };
 
-/// Keys [section] by the template section its header names (rendering INV-5).
+/// Keys [section] by the template section its header names.
 IndexedSection _sectionOf(
   Section section,
   Map<String, MergedSection> templates,

@@ -7,7 +7,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
 
-/// A field's type; [wire] is the snake_case name the format uses (INV-13).
+/// A field's type; [wire] is the snake_case name the format uses.
 enum FieldType {
   string('string'),
   integer('integer'),
@@ -441,8 +441,7 @@ final class DocTypeLayer {
   /// The folder nesting cap, when this layer writes it; 0 keeps the type flat.
   final int? maxDepth;
 
-  /// Whether the doc type reads its patterns once per target, when written
-  /// (INV-30).
+  /// Whether the doc type reads its patterns once per target, when written.
   final bool? perTarget;
 
   /// The fields this layer writes, in file order.

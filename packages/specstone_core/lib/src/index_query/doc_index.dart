@@ -108,7 +108,7 @@ final class DocIndex {
   /// meant to narrow.
   ///
   /// [codeTarget], when given, must be one of [targetNames] and keeps a name
-  /// to that target's docs and the shared docs (INV-26); a path names its doc
+  /// to that target's docs and the shared docs; a path names its doc
   /// whatever target.
   ///
   /// Throws an [IndexFault] for a code target [targetNames] holds none of
@@ -160,8 +160,7 @@ final class DocIndex {
         : doc.docPath;
   }
 
-  /// Splits [address] into the text that names docs and its `#<section key>`
-  /// (RULE-11).
+  /// Splits [address] into the text that names docs and its `#<section key>`.
   ///
   /// The whole text is read as a path first, as [resolve] reads it: one that
   /// names a doc has no section key, even when it holds `#`.
@@ -355,7 +354,7 @@ Map<String, List<IndexedDoc>> _unmodifiable(
     key: List.unmodifiable(value),
 };
 
-/// Returns the ids INV-10 calls chain types: a doc type with a child doc type,
+/// Returns the ids of the chain types: a doc type with a child doc type,
 /// or one whose parent has no child doc type with children of its own.
 Set<String> _chainTypeIds(MergedSet set) {
   final parents = {for (final type in set.docTypes) ?type.parent};

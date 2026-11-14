@@ -22,7 +22,7 @@ const _separator = '/';
 /// The code targets of one run and the implemented work each holds.
 ///
 /// A target's `covers` entries and `code` roots resolve once the target holds
-/// an `implemented` story or FR (INV-19); this reads that once per target, so
+/// an `implemented` story or FR; this reads that once per target, so
 /// each rule stays one pass over the docs.
 final class ImplementedWork {
   /// Reads the work of [targets] from the index of a check run.

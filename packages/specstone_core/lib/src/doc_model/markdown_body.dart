@@ -28,8 +28,7 @@ const maxMarkdownDepth = 1000;
 /// definition holding a list), and a StackOverflowError (a deeply nested
 /// blockquote). A tree the parser builds but that is too deep to walk counts
 /// as a failed parse, so no consumer gets a tree it cannot walk. A caller that
-/// gets null treats the doc as one it can read no links from and goes on, as
-/// LP2 decides.
+/// gets null treats the doc as one it can read no links from and goes on.
 List<Node>? parseMarkdown(String text) => parseMarkdownTree(text)?.nodes;
 
 /// Nodes `markdown` parses a text into, in source order, and the top-level
@@ -144,8 +143,8 @@ void _parseInline(Document document, List<Node> nodes) {
 /// (`<` and a scheme).
 ///
 /// A scheme autolink never resolves to a doc, but the grammar may fail to
-/// read it (RULE-11), so it passes too. This is the one gate of the index
-/// (P17): a body that fails it needs no full inline parse.
+/// read it, so it passes too. This is the one gate of the index:
+/// a body that fails it needs no full inline parse.
 bool holdsLinkSyntax(String body) =>
     body.contains('](') || body.contains(']:') || _holdsSchemeAutolink(body);
 

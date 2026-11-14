@@ -8,7 +8,7 @@ const _traceHeader = 'FR trace';
 const _operationsHeader = 'Operations';
 
 /// The text between two labels of a heading that makes the second follow the
-/// first (apply_steps_and_pins E28).
+/// first.
 const _joiners = {', ', '; ', ' to '};
 
 const _storyMarker = ' of ';
@@ -45,7 +45,7 @@ typedef _Frs = Set<({int story, int fr})>;
 
 /// Returns [lf], an `api` doc, with the label dropped from each operation
 /// heading whose labels each name one FR of that operation's `## FR trace`
-/// rows (D58, apply_steps_and_pins E28, E29).
+/// rows.
 ///
 /// A heading is `` ### `<operation>` — <labels> ``: the labels are
 /// `US-<nn> FR-<nn>`, `FR-<nn>`, or a range of two, joined by `,` or `;`,

@@ -30,7 +30,7 @@ sealed class CiteResolution {
 /// of the `##` section that holds it.
 typedef CiteItem = ({String itemId, String sectionKey, String anchor});
 
-/// One doc, section, or set of items: the cite's links (doc_model RULE-45).
+/// One doc, section, or set of items: the cite's links.
 final class CiteLink extends CiteResolution {
   const new({
     required this.docPath,
@@ -53,7 +53,7 @@ final class CiteLink extends CiteResolution {
   /// item link each, and empty for a doc or section link.
   final List<CiteItem> items;
 
-  /// The text of a doc or section link (apply_steps_and_pins E81).
+  /// The text of a doc or section link.
   final String linkText;
 }
 
@@ -71,7 +71,7 @@ final class CiteMissingPart extends CiteResolution {
   final String docPath;
 }
 
-/// A cite that names no doc: plain text (doc_model RULE-28).
+/// A cite that names no doc: plain text.
 final class CiteNoDoc extends CiteResolution {
   const new();
 }
@@ -120,7 +120,7 @@ CiteResolution resolveCite(
 /// or section link.
 ///
 /// The caller joins item links with the cite's own words, such as ` and `
-/// (E79) or the ` to ` of a range (E80). A link into the citing doc itself is
+/// or the ` to ` of a range. A link into the citing doc itself is
 /// a bare `#anchor`.
 List<String> citeLinkMarkdown(String citingDocPath, CiteLink link) {
   final isSelf = link.docPath == citingDocPath;
@@ -219,7 +219,7 @@ typedef CiteSection = ({String key, String anchor, Set<String> itemKeys});
 /// migrate run plans.
 abstract interface class CiteTree {
   /// Returns the docs [name] names, of the doc type [typeId] when not null,
-  /// that the doc at [fromDocPath] reaches (doc_model RULE-21), in tree order.
+  /// that the doc at [fromDocPath] reaches, in tree order.
   List<CiteDoc> named(
     String name, {
     required String? typeId,

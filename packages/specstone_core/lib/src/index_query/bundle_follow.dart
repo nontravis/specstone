@@ -22,7 +22,7 @@ const _pastLastLine = 0x7fffffff;
 
 /// An item, a section, or a summary doc that a link of a bundle cites outside
 /// what the bundle prints, cut from the stored text, or the path of a file no
-/// doc type describes that a link names (INV-84, INV-8).
+/// doc type describes that a link names.
 final class AppendedPart {
   const new({
     required this.doc,
@@ -61,7 +61,7 @@ final class AppendedPart {
   /// The link's anchor for a `###` block that starts no item, else null.
   final String? heading;
 
-  /// Whether the part is the doc in summary (INV-25).
+  /// Whether the part is the doc in summary.
   final bool summary;
 
   /// The items of the part whose cited-by lines [text] holds, in print order;
@@ -79,7 +79,7 @@ final class AppendedPart {
   final String text;
 
   /// Whether the part names a file no doc type describes by its path alone,
-  /// since an untyped doc never joins a bundle (follow_cited_links E10).
+  /// since an untyped doc never joins a bundle.
   bool get pathOnly => !doc.isTyped;
 }
 
@@ -112,8 +112,8 @@ List<AppendedPart> followLinks(
 
 /// A link with the [LinkText] that [classifyLink] reads it by.
 ///
-/// The index keeps a text only for a link whose text can read as an item ID
-/// (RULE-45), so any other link takes an empty text, which reads as none;
+/// The index keeps a text only for a link whose text can read as an item ID,
+/// so any other link takes an empty text, which reads as none;
 /// `shaped` tells the two apart. `file` marks a link to a file that is no
 /// `.md` doc.
 typedef _Link = ({LinkText text, bool shaped, bool file});
@@ -198,7 +198,7 @@ final class _Walk {
   }
 
   /// Follows [links], every link of one line of [view], in source order; a
-  /// range's first link appends each item of the range (RULE-47).
+  /// range's first link appends each item of the range.
   void _followLine(_DocView view, List<_Link> links) {
     final classified = [
       for (final link in links) (link: link, cited: _classify(link.text)),
@@ -383,7 +383,7 @@ final class _Walk {
   }
 
   /// Appends the `###` block at [headingLine], named by its item ID when it
-  /// starts an item, else by [anchor] (RULE-46).
+  /// starts an item, else by [anchor].
   void _appendBlock(_DocView view, int headingLine, String anchor) {
     final at = view.sectionHolding(headingLine);
     final section = at == null ? null : view.citedSectionAt(at);
@@ -405,7 +405,7 @@ final class _Walk {
 
   /// Appends the first and last item of [range] and each item of their
   /// section whose ID has their prefix and a number between theirs, in
-  /// section order (RULE-47).
+  /// section order.
   void _appendRange(_Cited cited, ItemRange range) {
     final at = cited.sectionIndex;
     final section = at == null ? null : cited.view.citedSectionAt(at);

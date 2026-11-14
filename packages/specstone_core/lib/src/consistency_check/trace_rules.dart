@@ -260,7 +260,7 @@ String? _goalKeyOf(String heading) {
 }
 
 /// The IDs of a Serves line's [text] as the grammar reads each: plain,
-/// lettered, or unreadable, each whole, so none is skipped (INV-21).
+/// lettered, or unreadable, each whole, so none is skipped.
 List<String> _servedIdsOf(String text) {
   final ids = <String>[];
   var readUpTo = 0;
@@ -441,7 +441,7 @@ Map<String, int> _singleStatusLines(DocLines lines, String statusFieldId) {
 /// is `implemented` and that names no code path, and `tests_missing` for each
 /// such entry that names no test while its item's `verify_method` is `test`.
 ///
-/// An entry's status is its status in the record's own target (INV-29); an
+/// An entry's status is its status in the record's own target; an
 /// entry no story or FR of the feature carries is `check_record_entries`'s.
 /// A record type with no `item_test` field has no `tests_missing`.
 Iterable<Finding> checkImplementedStatus(

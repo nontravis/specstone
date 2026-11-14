@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/fault.dart';
 
-/// A template, pack, or config fault code from the `s05_errors.md` catalog.
+/// A template, pack, or config fault code.
 ///
 /// Values follow catalog order. [wire] is the snake_case code printed in the
 /// JSON `error.code`; [exitStatus] is the process exit status for the fault.

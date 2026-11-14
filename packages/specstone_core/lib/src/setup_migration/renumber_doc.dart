@@ -35,7 +35,7 @@ String scenarioRefOf(String id) {
 }
 
 /// Returns the key of the scenario block [number] names, by the value of its
-/// digits (W9): `S<value>`, and `S<value><letters>` for a lettered number.
+/// digits: `S<value>`, and `S<value><letters>` for a lettered number.
 String scenarioBlockKeyOf(IdRead number) => switch (number) {
   ItemId(:final number) => '$_scenarioRefPrefix$number',
   LetteredId(:final digits, :final letters) =>
@@ -54,7 +54,7 @@ String scenarioBlockKeyOfId(String id) =>
 // MARK: - RenumberDoc
 
 /// One typed doc of the renumber pass, read for its structure only, as
-/// `check` reads its items and blocks: no markdown parse runs (W17).
+/// `check` reads its items and blocks: no markdown parse runs.
 final class RenumberDoc {
   new(this.docPath, this.lf, this.type) : name = docNameOf(docPath, type);
 
@@ -72,7 +72,7 @@ final class RenumberDoc {
   late final List<IdAt> items = idsInDoc(content, type);
 
   /// The doc's lettered IDs, each with the next free number of its prefix,
-  /// counted as `check`'s `item_id_lettered` counts it (R61).
+  /// counted as `check`'s `item_id_lettered` counts it.
   late final List<LetteredItem> lettered = _mayHoldLettered()
       ? _letteredOf()
       : const [];

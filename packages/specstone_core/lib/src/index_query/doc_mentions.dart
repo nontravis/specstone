@@ -43,7 +43,7 @@ String _withoutDestinations(String lf) {
 }
 
 /// Returns the lines of other docs whose text names [target] by a path, plain
-/// or in a code span, or holds a doc-name mention of it (RULE-11), docs in
+/// or in a code span, or holds a doc-name mention of it, docs in
 /// tree order, each line once.
 ///
 /// A path names the doc it reaches from its own doc, as a link would, else
@@ -221,7 +221,7 @@ Iterable<int> _pathLines(
   }
 }
 
-/// Whether [address], a doc-name mention (RULE-11), is the name of [doc] or
+/// Whether [address], a doc-name mention, is the name of [doc] or
 /// its `<doc type>:<name>`.
 bool _namesDoc(DocAddress address, IndexedDoc doc) =>
     address.body == doc.name &&

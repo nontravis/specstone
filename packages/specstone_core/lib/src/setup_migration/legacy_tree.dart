@@ -119,7 +119,7 @@ final class LegacyFeatures {
 /// Reads the features of the legacy tree whose docs are [docPaths].
 ///
 /// A feature folder holds `FEATURE.md` and no child folder holding one; a
-/// container holds `FEATURE.md` and a direct child folder that does (INV-3).
+/// container holds `FEATURE.md` and a direct child folder that does.
 LegacyFeatures scanLegacyFeatures(List<String> docPaths) {
   final folders = [
     for (final path in docPaths)
@@ -171,7 +171,7 @@ String? _featurePathIn(String featureFolder, {required bool grouped}) {
 /// Returns the GroupSlug of the group folder [folderName], its leading
 /// `[a-z]+[0-9]+_` removed, or null when what remains is not `[a-z0-9_]+`.
 ///
-/// A group with no GroupSlug stays in place with its features (INV-2): the
+/// A group with no GroupSlug stays in place with its features: the
 /// grouped doc types match a `{slug}` only, so a moved feature would be
 /// untyped.
 String? groupSlugOf(String folderName) {
@@ -204,7 +204,7 @@ String? legacyFolderIdOf(String folderName) {
 }
 
 /// Throws [MigrateFault] `group_slug_duplicate` when two group folders give
-/// one GroupSlug (INV-3); a group with no GroupSlug stays, so never clashes.
+/// one GroupSlug; a group with no GroupSlug stays, so never clashes.
 ///
 /// One entry per duplicated slug in code point order of the slug, the second
 /// and later chained under `more`.

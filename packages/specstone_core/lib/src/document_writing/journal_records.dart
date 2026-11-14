@@ -34,7 +34,7 @@ final class JournalRecords {
 
   /// Records [journal], the bytes of the journal file, for [projectRoot],
   /// with [agentFiles]: the canonical paths of the agent files its run writes,
-  /// each inside the project root (R99).
+  /// each inside the project root.
   ///
   /// Throws [FileSystemException] when there is no usable home folder or the
   /// record cannot be written.

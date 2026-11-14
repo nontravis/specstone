@@ -155,8 +155,8 @@ String _offPathWarning(IndexedDoc journey, JourneySteps steps, int i) {
 /// Returns the `fr` docs whose `traced_from` names [target] of [story]: the
 /// story's own first, then those of any other story in tree order.
 ///
-/// Entries compare by resolved story and scenario number, never by label
-/// (P10); a story of another feature counts, as only `check` limits to
+/// Entries compare by resolved story and scenario number, never by label;
+/// a story of another feature counts, as only `check` limits to
 /// siblings.
 List<IndexedDoc> _frsTracing(
   DocIndex index,

@@ -18,14 +18,14 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// What a link cites (doc_model RULE-45): the whole doc, one `##` section,
+/// What a link cites: the whole doc, one `##` section,
 /// one item of a section, the block of a `###` heading, or nothing the doc
 /// holds.
 sealed class LinkCite {
   const new();
 }
 
-/// A doc link: no fragment, or an empty one (RULE-42).
+/// A doc link: no fragment, or an empty one.
 final class DocCite extends LinkCite {
   const new();
 }
@@ -39,18 +39,18 @@ final class SectionCite extends LinkCite {
 }
 
 /// An item link: the anchor names the `##` section and the whole text an
-/// item ID of it (RULE-12), or `S<N>` on an `acceptance_criteria` section.
+/// item ID of it, or `S<N>` on an `acceptance_criteria` section.
 final class ItemCite extends LinkCite {
   const new({required this.sectionKey, required this.itemId});
 
   final String sectionKey;
 
   /// The key `check` holds the item by: the ID as written, or
-  /// `Scenario <n>` for an `S<N>` link (RULE-35).
+  /// `Scenario <n>` for an `S<N>` link.
   final String itemId;
 }
 
-/// A fragment that names a `###` heading (RULE-46): the cite is that
+/// A fragment that names a `###` heading: the cite is that
 /// heading's whole block, which [headingBlockExtentOf] bounds.
 final class HeadingBlockCite extends LinkCite {
   const new({required this.headingLine});
@@ -59,9 +59,9 @@ final class HeadingBlockCite extends LinkCite {
   final int headingLine;
 }
 
-/// A link whose fragment matches no anchor of its target's known anchor set
-/// (RULE-13): a broken pointer. `check` reports it (`link_anchor_missing`);
-/// a follow skips it and never prints the doc (follow_cited_links E13).
+/// A link whose fragment matches no anchor of its target's known anchor set:
+/// a broken pointer. `check` reports it (`link_anchor_missing`);
+/// a follow skips it and never prints the doc.
 final class UnresolvedCite extends LinkCite {
   const new();
 }
@@ -71,7 +71,7 @@ final class UnresolvedCite extends LinkCite {
 /// heading below `###`, or a heading whose line the scan cannot pair, or an
 /// anchor set that is unknown. The anchor cannot be judged as a section or a
 /// block, so a reader skips it: `check` reports no finding for it
-/// (resolve_doc_links E23) and a follow never prints the doc.
+/// and a follow never prints the doc.
 final class OtherAnchorCite extends LinkCite {
   const new();
 }
@@ -83,12 +83,12 @@ typedef CitedSection = ({
   bool isAcceptanceCriteria,
 });
 
-/// Classifies [link] as RULE-45 reads it, by the [target] that
+/// Classifies [link] as a cite reads it, by the [target] that
 /// [anchorTargetOf] gave its anchor, so no reader maps anchors but that
 /// one.
 ///
 /// [sectionAt] gives the held section at an index of the doc's sections, or
-/// null when it holds none. A lettered or unreadable form (RULE-33) is no
+/// null when it holds none. A lettered or unreadable form is no
 /// item ID, so its link is a section link.
 LinkCite classifyLink(
   LinkText link, {
@@ -142,7 +142,7 @@ LinkCite _sectionCite(String text, CitedSection section) {
   return SectionCite(sectionKey: section.key);
 }
 
-/// The target of an anchor (RULE-46): a `##` section or a `###` heading
+/// The target of an anchor: a `##` section or a `###` heading
 /// block.
 sealed class AnchorTarget {
   const new();
@@ -166,7 +166,7 @@ final class HeadingBlockTarget extends AnchorTarget {
   final int headingLine;
 }
 
-/// The anchor exists in the doc (RULE-13) but names no `##` section and no
+/// The anchor exists in the doc but names no `##` section and no
 /// `###` block it can place; never a broken pointer.
 final class OtherAnchorTarget extends AnchorTarget {
   const new();
@@ -179,7 +179,7 @@ final class OtherAnchorTarget extends AnchorTarget {
 /// An html id, the title, a heading below `###`, and a heading whose line
 /// the scan cannot pair with its slug (so none is guessed at) are
 /// other anchors; so is any anchor of a doc whose anchor set is unknown,
-/// which `check` never reports (resolve_doc_links E23).
+/// which `check` never reports.
 AnchorTarget? anchorTargetOf(LineFacts facts, String anchor) {
   final anchors = facts.anchors;
   if (anchors == null) return const OtherAnchorTarget();
@@ -199,11 +199,11 @@ AnchorTarget? anchorTargetOf(LineFacts facts, String anchor) {
 /// A link a reader classified as an item link.
 typedef ItemLink = ({LinkText link, ItemCite cite});
 
-/// Two item links of one section joined by ` to ` (RULE-47).
+/// Two item links of one section joined by ` to `.
 typedef ItemRange = ({ItemLink first, ItemLink last});
 
 /// Returns each pair of adjacent item links on [line], the text of the
-/// line they sit on, joined by ` to `, in source order (RULE-47).
+/// line they sit on, joined by ` to `, in source order.
 ///
 /// [links] are every link of the line that holds text, each with its
 /// [classifyLink] cite, in source order; only two [ItemCite]s of one
@@ -240,7 +240,7 @@ List<ItemRange> itemRangesOn(
 
 /// Returns the IDs of the items [range] spans in [items], the stored items of
 /// its [section]: the first and last item and each item whose ID has their
-/// prefix and a number between theirs, in section order (RULE-47).
+/// prefix and a number between theirs, in section order.
 List<String> itemIdsInRange(
   ItemRange range,
   CitedSection section,
@@ -270,8 +270,8 @@ BigInt? _numberOf(String id, String? prefix) {
 }
 
 /// The first and last body line of the item [itemId] of [section], spanning
-/// its nested items, their fenced code, and a heading's block (RULE-46);
-/// null when no item of the section holds that ID (RULE-19).
+/// its nested items, their fenced code, and a heading's block;
+/// null when no item of the section holds that ID.
 ///
 /// [prefixId] and [isAcceptanceCriteria] are the section's; the ID is read
 /// as the index reads it (`itemKeyOfHead`), so this and `check` agree on
@@ -301,7 +301,7 @@ BigInt? _numberOf(String id, String? prefix) {
 
 /// The first and last body line of the block of the heading at file line
 /// [headingLine] of [section]: up to the next heading of its level or above,
-/// trailing blank lines off (RULE-46, RULE-5); null when that line is no
+/// trailing blank lines off; null when that line is no
 /// heading of [section].
 ///
 /// A heading inside fenced code is no heading, and a quoted `> ###` heading

@@ -22,7 +22,7 @@ const _emptyTarget = '(empty)';
 /// One string `doc_ref` value of a doc, with its field and its file line.
 typedef _DocRefValue = ({MergedField field, String value, int line});
 
-/// Returns the `resolve_doc_links` findings of [doc]'s `doc_ref` values and
+/// Returns the link findings of [doc]'s `doc_ref` values and
 /// links.
 ///
 /// A typed doc is checked for both, an untyped doc of a checked folder for
@@ -63,7 +63,7 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
 /// Returns the docs of [named] that [from] reaches by a Name.
 ///
 /// With two or more targets a per-target doc reaches its own target's docs
-/// and the shared docs alone (RULE-21).
+/// and the shared docs alone.
 List<IndexedDoc> _reachable(
   CheckContext context,
   IndexedDoc from,
@@ -108,8 +108,8 @@ _NameSets _readNameSets(DocIndex index) {
 }
 
 /// Yields a finding per doc-name mention of [doc] that names no doc it
-/// reaches while the first slug of its Name names a top-level feature
-/// (RULE-11); any other unresolved mention is plain text.
+/// reaches while the first slug of its Name names a top-level feature;
+/// any other unresolved mention is plain text.
 ///
 /// The mention's section key is never read.
 Iterable<Finding> _unresolvedNames(CheckContext context, IndexedDoc doc) sync* {
@@ -214,7 +214,7 @@ Iterable<Finding> _selfDocRefs(
 }
 
 /// Yields a finding per non-empty `#anchor` of a doc link or a self link of
-/// [doc] that is no anchor of its target (RULE-13).
+/// [doc] that is no anchor of its target.
 ///
 /// An empty anchor names the target's top, so it always resolves. A target
 /// whose anchor set is unknown is not checked: unknown is never empty.
@@ -240,7 +240,7 @@ Iterable<Finding> _missingAnchors(CheckContext context, IndexedDoc doc) sync* {
 }
 
 /// Yields a finding per item link of [doc] whose `##` section of its target
-/// holds no item with the cited ID (RULE-45).
+/// holds no item with the cited ID.
 ///
 /// [classifyLink] alone judges each link. Only a link whose anchor resolves
 /// to a `##` section can be an item link, so a missing anchor and an unknown
@@ -303,7 +303,7 @@ Iterable<Finding> _selfLinks(CheckContext context, IndexedDoc doc) sync* {
 }
 
 /// Yields a finding per link of [doc] whose target the reference grammar
-/// cannot read (RULE-11), so no such link is skipped silently.
+/// cannot read, so no such link is skipped silently.
 Iterable<Finding> _malformedLinks(CheckContext context, IndexedDoc doc) sync* {
   for (final place in context.contentOf(doc).lineFacts.unreadableLinks) {
     yield context.finding(

@@ -74,10 +74,10 @@ final class InitRequest {
 /// Runs `specstone init` and returns its exit status.
 ///
 /// The root is [rootThroughDocsLink] of the working directory with no walk up,
-/// so a nested project stays possible (INV-1). A root holding the config
+/// so a nested project stays possible. A root holding the config
 /// refuses `config_exists`; a root holding the legacy context doc enters the
-/// legacy migrate run at its git checks (F6-D15); otherwise the drafts are
-/// written and the config last (F6-D23). A root reached through a `docs` link
+/// legacy migrate run at its git checks; otherwise the drafts are
+/// written and the config last. A root reached through a `docs` link
 /// that leaves the folder, or whose docs folder lies outside it, is written
 /// only once the Owner trusted it: the scaffold refuses `output_not_writable`
 /// naming the config before any write. Throws a `SpecstoneFault` for a
@@ -133,10 +133,10 @@ Directory? _linkFolderOf(Directory folder, Directory root) {
 }
 
 /// Plans the agent files, writes each singular draft, then the agent files,
-/// then the config last (PD16, F6-D23).
+/// then the config last.
 ///
 /// Keeps each draft that already exists and names it `kept`; starts no git
-/// process, so the new files stay untracked (E06). Throws
+/// process, so the new files stay untracked. Throws
 /// `agent_block_malformed` before the first write.
 int _scaffold(Directory root, InitRequest request) {
   final (:set, :pins) = request.templates.resolveCarriedPinned(

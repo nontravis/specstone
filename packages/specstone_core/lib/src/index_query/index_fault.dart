@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/fault.dart';
 
-/// An index query fault code from the `s05_errors.md` catalog.
+/// An index query fault code.
 ///
 /// Values follow catalog order. [wire] is the snake_case code printed in the
 /// JSON `error.code`; [exitStatus] is the process exit status for the fault.

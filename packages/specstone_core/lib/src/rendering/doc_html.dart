@@ -12,7 +12,7 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 /// GitHub-flavored markdown. A `mermaid` fence becomes
 /// `<pre class="mermaid">` holding its escaped source. A blank title line shows
 /// no title. Every heading, the title included, takes the id of its slug in
-/// the doc's anchor set (doc_model RULE-13). Links are rewritten by
+/// the doc's anchor set. Links are rewritten by
 /// `rewriteLinks`. The GFM tag filter then turns a raw start or end tag of
 /// `title`, `script`, `style`, `textarea` and the like into text, so one doc
 /// cannot swallow the docs after it. Last, `scopeIds` prefixes every `id` and
@@ -25,7 +25,7 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
 ///
 /// The body is parsed once, and the anchor set the record returns comes from
 /// that parse of the text after the frontmatter, title line included, as
-/// `check` reads it (R60).
+/// `check` reads it.
 ///
 /// - [docPath]: the path of [doc] relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath.
@@ -126,7 +126,7 @@ String _bodyHtml(List<Node> body, String? anchor) {
   return anchor == null ? html : scopeIds(html, anchor: anchor);
 }
 
-// Splits the doc's slugs, in `anchorsOf` order (P2), into the title line's
+// Splits the doc's slugs, in `anchorsOf` order, into the title line's
 // slug and the body headings' slugs. The title line made a heading only when
 // the doc's slugs outnumber the body's headings by one; its slug then sits
 // after the slugs of the headings that precede the title line in the source.

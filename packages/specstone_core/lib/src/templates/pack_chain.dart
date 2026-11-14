@@ -3,11 +3,11 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-/// Orders [packs] by their `extends` chains (INV-4, INV-18).
+/// Orders [packs] by their `extends` chains.
 ///
 /// Shipped packs come first, then personal packs. Within each kind a pack
 /// sits above every pack its chain reaches; packs outside one chain keep name
-/// order (INV-18, INV-22). Every `extends` must name a loaded pack
+/// order. Every `extends` must name a loaded pack
 /// (`extends_target_unknown`), no chain may return to its start
 /// (`extends_cycle`), and no two personal packs may extend one pack
 /// (`personal_pack_conflict`, [configFile], key `packs`). Chains run over
@@ -39,7 +39,7 @@ Map<String, String?> extendsMapOf(Iterable<LoadedPack> packs) => {
   for (final pack in packs) pack.manifest.name: pack.manifest.extendsPack,
 };
 
-/// Whether [upper]'s `extends` chain reaches [lower] (INV-5).
+/// Whether [upper]'s `extends` chain reaches [lower].
 ///
 /// [extendsOf] is [extendsMapOf] of the loaded packs; false when [upper] is
 /// [lower] itself or a target is no loaded pack. The walk stops at a name it
@@ -77,8 +77,8 @@ void _checkTargets(List<LoadedPack> packs, Map<String, String?> extendsOf) {
 
 /// Throws `extends_cycle` for a chain that returns to its start.
 ///
-/// `file` holds the later-loaded `pack.yaml` of the cycle in name order
-/// (INV-22); `relatedFiles` holds the other cycle files in that order.
+/// `file` holds the later-loaded `pack.yaml` of the cycle in name order;
+/// `relatedFiles` holds the other cycle files in that order.
 void _checkCycles(List<LoadedPack> packs, Map<String, String?> extendsOf) {
   final byName = {for (final pack in packs) pack.manifest.name: pack};
   final sorted = [...packs]
@@ -138,7 +138,7 @@ void _checkPersonalConflicts(List<LoadedPack> packs, String configFile) {
 /// Sorts [packs] so each pack sits above every pack its chain reaches.
 ///
 /// Packs wait until every pack they reach is placed; among unblocked packs
-/// the name-first (INV-22) is placed first. Cycles cannot reach here:
+/// the name-first is placed first. Cycles cannot reach here:
 /// `_checkCycles` ran first.
 List<LoadedPack> _chainOrdered(
   Iterable<LoadedPack> packs,

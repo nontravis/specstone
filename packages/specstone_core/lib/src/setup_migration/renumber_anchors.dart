@@ -56,14 +56,14 @@ final class SlugMoves {
 typedef AnchorRewrite = ({String lf, bool citesOthers});
 
 /// The anchor rewrite of a doc's links, null when none changes, and whether
-/// `markdown` read those links, without which none of them moves (LP2).
+/// `markdown` read those links, without which none of them moves.
 typedef LinkAnchorRewrite = ({AnchorRewrite? moved, bool linksRead});
 
 // MARK: - Slug moves
 
 /// Returns, per doc of [docs] whose heading text the body rewrite changed,
 /// each old heading slug and the slug its heading has after, by heading
-/// position (W3).
+/// position.
 ///
 /// [rewritten] holds the text after the body rewrite of each doc it changed.
 SlugMoves slugMovesOf(
@@ -114,7 +114,7 @@ bool _isAtxHeading(String line) {
 }
 
 /// The heading slugs of [body], read by the anchor-only parse, whose heading
-/// subtrees are the ones the full parse builds (P17).
+/// subtrees are the ones the full parse builds.
 List<String>? headingSlugsOf(String body) {
   final nodes = parseLinkFreeBody(body);
   return nodes == null ? null : anchorsOf(nodes).headingSlugs;
@@ -124,7 +124,7 @@ List<String>? headingSlugsOf(String body) {
 
 /// Returns [lf], the text of the doc at [docPath], typed or not, with the
 /// `#anchor` of each link and definition destination whose href names an old
-/// slug of [moves] set to its new slug, self links included (W3).
+/// slug of [moves] set to its new slug, self links included.
 ///
 /// The href is the one `markdown` gives the destination (see
 /// [hrefDestinationsOf]), so a slug written with escapes or character
@@ -179,7 +179,7 @@ bool _mayMoveAnchors(String body, SlugMoves moves) {
 
 /// Returns [lf] with the `#anchor` of each bare `see` target of the Concerns
 /// section of [doc], an `architecture` doc, set to its new slug when it names
-/// an old slug of [moves]; null when none changes (R63, E18).
+/// an old slug of [moves]; null when none changes.
 ///
 /// A `see [text](href)` target is a link, which [withAnchorsMoved] moves.
 AnchorRewrite? withConcernsAnchorsMoved(

@@ -28,7 +28,7 @@ final class UnreadableFolder extends DocEntry {
   final Directory folder;
 }
 
-/// Returns the docs under [target] in tree order (R-INV-10).
+/// Returns the docs under [target] in tree order.
 ///
 /// A file target yields itself. A folder yields every file under it,
 /// pre-order: inside one folder the files come before the subfolders, and in
@@ -67,7 +67,7 @@ List<DocEntry> _walk(Directory folder, String docPath, DocTypeMatcher matcher) {
         files.add(entry);
       case Directory():
         folders.add(entry);
-      default: // A link: not followed (Plan decision 15).
+      default: // A link: not followed.
     }
   }
   return [

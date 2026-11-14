@@ -13,7 +13,7 @@ const _visionKey = 'vision';
 const _goalsKey = 'goals';
 
 /// The frontmatter keys whose values `check` resolves against item IDs, the
-/// one list the pass rewrites (E18, W1); a lettered token in any other value
+/// one list the pass rewrites; a lettered token in any other value
 /// stays byte-equal.
 const List<String> renumberedEntryKeys = [
   _tracedFromKey,

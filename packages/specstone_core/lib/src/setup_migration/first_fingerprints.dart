@@ -16,7 +16,7 @@ final _frPath = RegExp(
 /// `entries` counts the `confirmed` entries it added.
 typedef FirstFingerprints = ({String lf, String? label, int entries});
 
-/// One FR file of the feature as a trace cell can name it (PD11).
+/// One FR file of the feature as a trace cell can name it.
 final class _NamedFr {
   const new(this.path, this.story, this.fr, this.storySlug, this.frSlug);
 
@@ -39,7 +39,7 @@ final class _NamedFr {
   String get ref => '$storySlug/$frSlug';
 }
 
-/// Writes the first `confirmed` entries of an API doc's FR trace (F6-D18).
+/// Writes the first `confirmed` entries of an API doc's FR trace.
 ///
 /// [lf] is an `API.md` renamed one to one, after `rewriteLegacyDoc`. Each
 /// `## FR trace` row `check` tracks, whose cell names exactly one FR of
@@ -113,7 +113,7 @@ List<_NamedFr> _namedFrs(Iterable<String> paths) => [
       ),
 ];
 
-/// Returns the one FR of [named] that [cell] names, or null (PD11).
+/// Returns the one FR of [named] that [cell] names, or null.
 _NamedFr? _frNamedBy(String cell, List<_NamedFr> named) {
   final match = _traceCell.firstMatch(cell);
   if (match == null) return null;

@@ -278,7 +278,7 @@ typedef AgentDrift = ({String path, int line, AgentDriftKind kind});
 /// The one predicate `check` and `migrate` call: it is empty exactly when
 /// [planAgentWrites] with `full: false` has nothing to do, bar a malformed
 /// file. A file whose real path lies outside the project root is no drift,
-/// since no run writes it (R99).
+/// since no run writes it.
 List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
   final survey = _Survey.of(inputs);
   final root = _canonicalOf(inputs.projectRoot);
@@ -293,7 +293,7 @@ List<AgentDrift> agentFileDrifts(AgentFileInputs inputs) {
     ));
   }
   for (final folder in survey.folders) {
-    // A top outside the project root is never listed (R99), and a file no run
+    // A top outside the project root is never listed, and a file no run
     // may write (outside the root or under `.git`) has no drift a run could
     // fix; a file that links into the project still has.
     if (folder.isUnlisted && !_isOutside(folder.path)) {
@@ -375,8 +375,7 @@ final class AgentWritePlan {
   final Set<String> writeSet;
 
   /// The warning line for each agent file the run would write but leaves,
-  /// because its real path lies outside the project root or under `.git`
-  /// (R99).
+  /// because its real path lies outside the project root or under `.git`.
   final List<String> skipped;
 
   /// The path from the project root of each file the run writes, the root's
@@ -715,7 +714,7 @@ final class _Survey {
 /// Returns the qualifying repository tops of [folders], by their path from
 /// [root], in code point order, each once.
 ///
-/// A top qualifies unless its work tree holds [root] (E17).
+/// A top qualifies unless its work tree holds [root].
 Map<String, Directory> _qualifyingTops(
   Directory root,
   List<Directory> folders,
@@ -739,7 +738,7 @@ Map<String, Directory> _qualifyingTops(
 bool _isOutside(String path) => path == '..' || path.startsWith('../');
 
 /// Whether a run may write the file at the canonical [path]: it lies inside
-/// the canonical project [root] and below no `.git` entry (R99).
+/// the canonical project [root] and below no `.git` entry.
 bool _isWritable(Directory root, String path) =>
     writeRefusalOf(path, projectRoot: root) == null;
 

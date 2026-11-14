@@ -70,11 +70,11 @@ void _requireGitFloor(Directory root, RunGit runGit) {
   );
 }
 
-/// Refuses a [root] whose work tree holds an uncommitted change (PD12).
+/// Refuses a [root] whose work tree holds an uncommitted change.
 ///
 /// Untracked files count, whatever `status.showUntrackedFiles` says; ignored
-/// ones do not. `s05_errors.md` names no code for a `git status` that fails,
-/// so that case is `git_work_tree_required`.
+/// ones do not. No other fault code covers a `git status` that fails, so that
+/// case is `git_work_tree_required`.
 void requireCleanWorkTree(Directory root, RunGit runGit) {
   final ProcessResult status;
   try {

@@ -75,12 +75,12 @@ final class RenumberIndex {
   );
 
   /// Per story DocPath, the one lettered scenario of each number value that
-  /// the story holds no plain scenario of, which 1.1.0 read `S<N>` as (W10).
+  /// the story holds no plain scenario of, which 1.1.0 read `S<N>` as.
   late final Map<String, Map<BigInt, LetteredItem>> _soleLettered =
       _soleLetteredOf();
 
   /// The texts one of which a doc must hold for the body rewrite to change
-  /// it: each renumbered ID and its short scenario ref (W17).
+  /// it: each renumbered ID and its short scenario ref.
   late final Set<String> _tokens = {
     for (final (:from, docPath: _, item: _, to: _) in _lettered) ...[
       from,
@@ -165,7 +165,7 @@ final class RenumberIndex {
       _slugPlaceholder.allMatches(type.path ?? '').length;
 
   /// The key of the ID [id] among a doc's lettered items: a scenario ID by
-  /// the value of its number (W9), any other ID as written.
+  /// the value of its number, any other ID as written.
   static String _keyOf(String id) =>
       id.startsWith(scenarioIdPrefix) ? scenarioBlockKeyOfId(id) : id;
 
@@ -180,7 +180,7 @@ final class RenumberIndex {
 
   /// The lettered scenario of the story at [storyPath] the number [number]
   /// names: a lettered number by its value, or a plain one 1.1.0 read as the
-  /// story's one lettered scenario of that value (W10); null for none.
+  /// story's one lettered scenario of that value; null for none.
   LetteredItem? scenarioAt(String storyPath, IdRead number) => switch (number) {
     LetteredId() => _letteredByDoc[storyPath]?[scenarioBlockKeyOf(number)],
     ItemId(:final number) => _soleLettered[storyPath]?[number],
@@ -282,7 +282,7 @@ final class RenumberIndex {
   // MARK: - Citations
 
   /// The docs the code span text [text] in the doc at [fromPath] cites: a
-  /// Name, `<doc type>:<Name>`, or a path that resolves (RULE-11); empty for
+  /// Name, `<doc type>:<Name>`, or a path that resolves; empty for
   /// a doc address naming no doc of the run; null when it cites no doc.
   List<String>? citedBySpan(String text, String fromPath) {
     final address = readDocAddress(text);

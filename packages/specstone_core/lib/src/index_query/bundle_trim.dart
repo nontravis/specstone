@@ -22,7 +22,7 @@ int lineAfterBlocks(Iterable<String> blocks) =>
     blocks.fold(0, (line, block) => line + lineCountOf(block) + 1);
 
 /// Returns the text a summary of [doc] prints after its naming line: its
-/// `# ` title line, then its summary sections, one blank line apart (INV-25),
+/// `# ` title line, then its summary sections, one blank line apart,
 /// with the items [citedBy] holds lines for, each printed whole there, and
 /// the line each section starts on.
 ({String text, List<CitedItem> cited, List<SectionLine> sections})
@@ -71,7 +71,7 @@ summaryPrintOf(
 }
 
 /// Returns the kept sections of a summary doc whose merged section is a
-/// summary section, in section order (INV-25).
+/// summary section, in section order.
 List<IndexedSection> summarySectionsOf(
   DocContent content,
   MergedDocType? docType,
@@ -101,11 +101,11 @@ String sectionBlockOf(
     '${printedBodyOf(section.body, firstLine: bodyLine, after: after)}';
 
 /// Returns the sections [content] keeps for [mode], in its doc type's section
-/// order, a section the type does not define after them in file order
-/// (INV-15). A section is kept unless, with HTML comments removed and both
+/// order, a section the type does not define after them in file order.
+/// A section is kept unless, with HTML comments removed and both
 /// ends trimmed, its body equals its merged section's `template` likewise
 /// cleaned, or is `N/A`, or starts with `N/A —`; in `query` only the sections
-/// whose merged section is a query section stay (INV-14).
+/// whose merged section is a query section stay.
 List<IndexedSection> keptSectionsOf(
   DocContent content,
   MergedDocType? docType,
@@ -161,7 +161,7 @@ String removeHtmlComments(String text) {
 
 /// Returns [text], whose first line is file line [firstLine], as a bundle
 /// prints a body: HTML comments removed, trimmed at its end, and each of
-/// [after]'s lines right after its file line (INV-85).
+/// [after]'s lines right after its file line.
 ///
 /// A file line inside a removed comment, or past the trimmed end, takes its
 /// lines at the nearest kept offset, so none is dropped.
