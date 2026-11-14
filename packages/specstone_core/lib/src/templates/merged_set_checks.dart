@@ -73,9 +73,8 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`unknown_value`), every `lint.required_field_groups` entry names a
 /// field of its doc type (`unknown_value`), every section `required_when`
 /// names a section of its doc type (`unknown_value`), at most one doc type
-/// holds a `record_status` field and its merged `per_target` is `true`
-/// (INV-31), and
-/// a `targets:` config without the record doc type is refused (INV-29).
+/// holds a `record_status` field and its merged `per_target` is `true`, and
+/// a `targets:` config without the record doc type is refused.
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {

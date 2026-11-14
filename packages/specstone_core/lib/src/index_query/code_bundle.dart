@@ -162,7 +162,7 @@ List<IndexedDoc> _tracedDocs(DocIndex index, CodePath code) => [
 
 /// Whether [doc] is traced to [code] in its target: its record entry's code
 /// paths or test paths name [code] or a path under it; with no record doc
-/// type, its own `implements:` values stand in, as INV-29 reads a status then.
+/// type, its own `implements:` values stand in, as a status is read then.
 bool _tracesEntry(DocIndex index, IndexedDoc doc, CodePath code) {
   if (index.set.recordDocType == null) {
     return doc.valuesOf(_implementsField).any((path) => _traces(path, code));
