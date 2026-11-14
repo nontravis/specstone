@@ -10,6 +10,7 @@ import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/html_build.dart';
+import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -228,6 +229,84 @@ void main() {
         (text) => approved(withFront(text, front(['$label1 $recorded']))),
       );
       expect(check(root), isEmpty);
+    });
+
+    test('f10/us01/fr04/e08, f10/us01/fr04/e09: format pastes links that '
+        'resolve from the journey, and a second format changes '
+        'nothing', () async {
+      const links =
+          '[problem](../FEATURE.md#problem) and '
+          '[criteria](#acceptance-criteria)';
+      final edited = loginScenario1.replaceFirst(
+        'home page',
+        'home page, $links',
+      );
+      final root = await _project(
+        _journey([
+          _step('1', 'Open', 'S1'),
+        ], frontMatter: front(['$label1 ${fingerprintOf(edited)}'])),
+        extra: edit(loginStory, [(loginScenario1, edited)]),
+      );
+
+      _format(root);
+      final first = _read(root);
+      final report = _format(root);
+
+      expect(
+        first,
+        contains(
+          '[problem](../../features/f01_login/FEATURE.md#problem) and '
+          '[criteria](../../features/f01_login/us01_email_login/USER_STORY.md'
+          '#acceptance-criteria)',
+        ),
+      );
+      final journey = report.files.singleWhere((f) => f.path == _journeyKey);
+      expect(journey.status, FileStatus.unchanged);
+      expect(_read(root), first);
+      expect(check(root), isEmpty);
+    });
+
+    test('a cite the cite pass links in a story and in its pasted copy '
+        'stays as the next format pastes it', () async {
+      const storyKey = 'docs/$loginStory';
+      final cited = loginScenario1.replaceFirst(
+        'home page',
+        'home page of `feature:login`',
+      );
+      final root = await _project(
+        _journey([_step('1', 'Open', 'S1')]),
+        extra: edit(loginStory, [(loginScenario1, cited)]),
+      );
+      _format(root);
+      String lf(String key) =>
+          File.fromUri(root.uri.resolve(key)).readAsStringSync();
+      final pass = CitePass.plan([
+        for (final docPath in [loginFeature, loginStory, journeyDocPath])
+          (
+            docPath: docPath,
+            lf: lf('docs/$docPath'),
+            type: fixtureDocTypeOf(docPath),
+            target: null,
+          ),
+      ]);
+      for (final (docPath, key) in [
+        (loginStory, storyKey),
+        (journeyDocPath, _journeyKey),
+      ]) {
+        File.fromUri(root.uri.resolve(key))
+            .writeAsStringSync(pass.apply(docPath, lf(key)));
+      }
+      final linked = _read(root);
+
+      final report = _format(root);
+
+      expect(
+        linked,
+        contains('home page of [feature:login](../../features/f01_login/'),
+      );
+      final journey = report.files.singleWhere((f) => f.path == _journeyKey);
+      expect(journey.status, FileStatus.unchanged);
+      expect(_read(root), linked);
     });
 
     test('a step added by hand stays unconfirmed until the '

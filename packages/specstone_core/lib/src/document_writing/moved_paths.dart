@@ -45,10 +45,21 @@ String relativeHref(String fromDocPath, String toDocPath) {
 String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
   final target = relativeFilePathOf(path, docPath);
   if (target == null) return null;
-  final movedDoc = movedPath(docPath, moves);
-  final movedTarget = movedFilePath(target, moves);
-  if (relativeFilePathOf(path, movedDoc) == movedTarget) return null;
-  final after = relativeHref(movedDoc, movedTarget);
+  return rebasedRelativePath(
+    path,
+    movedPath(docPath, moves),
+    movedFilePath(target, moves),
+  );
+}
+
+/// Returns the decoded path that reaches [target] from the doc at [docPath],
+/// or null when [path], written there, already reaches it.
+///
+/// [path] has no `?` or `#` part; an empty one reaches no file. A leading
+/// `./` stays unless the new path starts with `../`.
+String? rebasedRelativePath(String path, String docPath, String target) {
+  if (relativeFilePathOf(path, docPath) == target) return null;
+  final after = relativeHref(docPath, target);
   return path.startsWith('./') && !after.startsWith('../') ? './$after' : after;
 }
 

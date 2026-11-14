@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
+    show rebaseDocLinks;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -52,6 +54,28 @@ String? scenarioBlockOf(
   final story = storyNamed(index, target.identity, codeTarget: codeTarget);
   if (story == null) return null;
   return storyScenarioBlocks(index, story)[target.scenarioLabel];
+}
+
+/// Returns the copy of the scenario [target] names for the journey at
+/// [journeyPath], or null when [scenarioBlockOf] finds no block.
+///
+/// Holds [scenarioCopyOf]'s lines, each relative link rewritten to reach from
+/// the journey's folder what it reaches from the story (INV-18).
+String? scenarioCopyFor(
+  DocIndex index,
+  StepTarget target, {
+  required String journeyPath,
+  String? codeTarget,
+}) {
+  final story = storyNamed(index, target.identity, codeTarget: codeTarget);
+  if (story == null) return null;
+  final block = storyScenarioBlocks(index, story)[target.scenarioLabel];
+  if (block == null) return null;
+  return rebaseDocLinks(
+    scenarioCopyOf(block),
+    fromDocPath: story.docPath,
+    toDocPath: journeyPath,
+  );
 }
 
 /// Returns the lines of [block] after its heading line, in the format layout.

@@ -169,16 +169,17 @@ void main() {
       }
     });
 
-    test('runGenerators runs the listed kinds in list order', () async {
+    test('runGenerators runs the listed kinds in list order, each '
+        "given the doc's path", () async {
       final type = await _noteType();
       final log = <String>[];
       final registry = GeneratorRegistry<int>({
-        'note_end': (doc, docType, resolver) {
-          log.add('note_end');
+        'note_end': (doc, docPath, docType, resolver) {
+          log.add('note_end $docPath');
           return [_block('E', kind: 'note_end')];
         },
-        'note_toc': (doc, docType, resolver) {
-          log.add('note_toc');
+        'note_toc': (doc, docPath, docType, resolver) {
+          log.add('note_toc $docPath');
           return [_block('T')];
         },
       });
@@ -188,9 +189,10 @@ void main() {
         type,
         registry,
         7,
+        docPath: 'notes/a.md',
       );
 
-      expect(log, ['note_toc', 'note_end']);
+      expect(log, ['note_toc notes/a.md', 'note_end notes/a.md']);
       expect([for (final b in blocks) b.kind], ['note_toc', 'note_end']);
       expect(registry.kinds, {'note_end', 'note_toc'});
       expect(registry['absent'], isNull);
@@ -200,11 +202,17 @@ void main() {
         'leaves that place', () async {
       final type = await _noteType();
       final registry = GeneratorRegistry<int>({
-        'note_toc': (doc, docType, resolver) => const [],
+        'note_toc': (doc, docPath, docType, resolver) => const [],
       });
       final disk = '## Contents\n$_toc\nold\n$_end\n';
 
-      final blocks = runGenerators(Doc.parse(disk), type, registry, 0);
+      final blocks = runGenerators(
+        Doc.parse(disk),
+        type,
+        registry,
+        0,
+        docPath: 'notes/a.md',
+      );
 
       expect(blocks, isEmpty);
       expect(_write(disk, type, blocks), disk);

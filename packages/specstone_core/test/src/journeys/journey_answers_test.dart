@@ -207,6 +207,28 @@ void main() {
       expect(answer.text, isNot(contains('OLD COPY LINE')));
     });
 
+    test('f10/us02/fr01/e10: a relative link prints from the journey '
+        "folder, as the journey's block holds it", () async {
+      final answer = await _paths(
+        [_step('1', 1)],
+        extra: {
+          'docs/$loginStory': _storyText().replaceFirst(
+            'sees the home page',
+            'sees the home page and '
+                '[sign out](../us02_sign_out/USER_STORY.md#acceptance-criteria)',
+          ),
+        },
+      );
+
+      const signOut =
+          '../../features/f01_login/us02_sign_out/USER_STORY.md'
+          '#acceptance-criteria';
+      expect(
+        answer.text,
+        contains('sees the home page and [sign out]($signOut)\n'),
+      );
+    });
+
     test('a step naming a missing scenario prints its line '
         'alone and one warning', () async {
       final answer = await _paths([_step('1', 1), _step('2', 9)]);

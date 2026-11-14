@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
-    show DocTarget, resolveDocLink;
+    show DocTarget, relativeFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
@@ -21,7 +21,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show hrefDestinationsOf, sourceHrefsOf;
 import 'package:specstone_core/src/index_query/link_scan.dart'
-    show LinkSource, linkScanOf;
+    show LinkScan, LinkSource, linkScanOf;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
@@ -38,6 +38,9 @@ typedef TextEdit = String? Function(String lfText);
 /// The `(doc type id, old name)` key in a `renamed` map of each doc whose Name
 /// changes, by the DocPath the doc has before the moves.
 typedef RenamedDocs = Map<String, (String, String)>;
+
+/// One replacement in a text: the units from `start` up to `end` take `text`.
+typedef _TextEdit = ({int start, int end, String text});
 
 const _backslash = 0x5C;
 const _openParen = 0x28;
@@ -96,16 +99,69 @@ String? rewriteDocLinks(
   RenamedDocs renamedDocs = const {},
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
-  if (!body.contains('](') && !body.contains(']:')) return null;
+  if (!_mayHoldLink(body)) return null;
   final scan = linkScanOf(body, firstLine: 1);
+  final pathEdits = _pathEdits(
+    body,
+    scan,
+    (href) => _movedPath(href, docPath, moves),
+  );
+  final edits = [
+    ...pathEdits,
+    ..._linkTextEdits(body, scan.sources, docPath, renamed, renamedDocs),
+  ];
+  if (edits.isEmpty) return null;
+  return (
+    lfText:
+        lfText.substring(0, lfText.length - body.length) +
+        _withEdits(body, edits),
+    count: pathEdits.length,
+  );
+}
+
+/// Returns [lfBody], text written in the doc at [fromDocPath], with each
+/// relative link's path set to reach from [toDocPath] what it reaches from
+/// [fromDocPath]; a link with an empty path, such as `#rules`, takes the path
+/// of [fromDocPath] itself.
+///
+/// A link keeps every other byte, and every other text stays, as
+/// [rewriteDocLinks] keeps it: a web address, another scheme, a rooted path,
+/// and an href in a code span or a fenced block.
+String rebaseDocLinks(
+  String lfBody, {
+  required String fromDocPath,
+  required String toDocPath,
+}) {
+  if (!_mayHoldLink(lfBody)) return lfBody;
+  String? newPathOf(String href) => _encodedPath(href, (path) {
+    final target = path.isEmpty
+        ? fromDocPath
+        : relativeFilePathOf(path, fromDocPath);
+    return target == null ? null : rebasedRelativePath(path, toDocPath, target);
+  });
+  final scan = linkScanOf(lfBody, firstLine: 1);
+  return _withEdits(lfBody, _pathEdits(lfBody, scan, newPathOf));
+}
+
+/// Whether [body] may hold an inline link or a link definition.
+bool _mayHoldLink(String body) => body.contains('](') || body.contains(']:');
+
+/// Returns the edits that set the path of each link destination in [body],
+/// scanned as [scan], to the one [newPathOf] gives its href, when it gives
+/// one.
+List<_TextEdit> _pathEdits(
+  String body,
+  LinkScan scan,
+  String? Function(String href) newPathOf,
+) {
   final (:destinations, linksRead: _) = hrefDestinationsOf(
     body,
     scan,
-    canMove: (href) => _movedPath(href, docPath, moves) != null,
+    canMove: (href) => newPathOf(href) != null,
   );
-  final pathEdits = [
+  return [
     for (final (:start, :end, :href, :kind) in destinations)
-      if (_movedPath(href, docPath, moves) case final newPath?)
+      if (newPathOf(href) case final newPath?)
         (
           start: start,
           end: end,
@@ -117,26 +173,22 @@ String? rewriteDocLinks(
           ),
         ),
   ];
-  final edits = [
-    ...pathEdits,
-    ..._linkTextEdits(body, scan.sources, docPath, renamed, renamedDocs),
-  ];
-  if (edits.isEmpty) return null;
-  edits.sort((a, b) => b.start.compareTo(a.start));
+}
+
+/// Returns [body] with each of [edits], which never overlap, applied.
+String _withEdits(String body, List<_TextEdit> edits) {
+  final rightFirst = [...edits]..sort((a, b) => b.start.compareTo(a.start));
   var result = body;
-  for (final edit in edits) {
+  for (final edit in rightFirst) {
     result = result.replaceRange(edit.start, edit.end, edit.text);
   }
-  return (
-    lfText: lfText.substring(0, lfText.length - body.length) + result,
-    count: pathEdits.length,
-  );
+  return result;
 }
 
 /// Returns the edits that set the text of each inline or full reference link
 /// in [body] equal to a renamed doc's old Name, after its `<doc type>:` prefix
 /// or bare on a link that reaches that doc, to the new Name.
-List<({int start, int end, String text})> _linkTextEdits(
+List<_TextEdit> _linkTextEdits(
   String body,
   List<LinkSource> sources,
   String docPath,
@@ -175,7 +227,7 @@ List<({int start, int end, String text})> _linkTextEdits(
 ///
 /// A bare Name counts only when [reached], the renamed doc the link reaches,
 /// is the doc it names.
-({int start, int end, String text})? _namedLinkText(
+_TextEdit? _namedLinkText(
   String body,
   LinkSource source,
   Map<(String, String), String> renamed,
@@ -649,21 +701,25 @@ String? _newName(
 ///
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
-String? _movedPath(String href, String docPath, List<PathMove> moves) {
+String? _movedPath(String href, String docPath, List<PathMove> moves) =>
+    _encodedPath(href, (path) => movedRelativePath(path, docPath, moves));
+
+/// Returns the decoded path [newPathOf] gives the path part of [href], a
+/// relative link, encoded, or null when the link keeps its text.
+///
+/// A folder link keeps its trailing `/`.
+String? _encodedPath(String href, String? Function(String path) newPathOf) {
   if (readLinkTarget(href) case RelativeLink(:final pathEnd)) {
-    return _movedRelativePath(href.substring(0, pathEnd), docPath, moves);
+    final path = href.substring(0, pathEnd);
+    // Re-encoding the decoded path would turn an escape that is not UTF-8
+    // into U+FFFD, so the link keeps the bytes the author wrote.
+    if (!percentDecodesCleanly(path)) return null;
+    final after = newPathOf(path);
+    if (after == null) return null;
+    final slash = path.endsWith('/') ? '/' : '';
+    return '${after.split('/').map(Uri.encodeComponent).join('/')}$slash';
   }
   return null;
-}
-
-String? _movedRelativePath(String path, String docPath, List<PathMove> moves) {
-  // Re-encoding the decoded path would turn an escape that is not UTF-8 into
-  // U+FFFD, so the link keeps the bytes the author wrote.
-  if (!percentDecodesCleanly(path)) return null;
-  final after = movedRelativePath(path, docPath, moves);
-  if (after == null) return null;
-  final slash = path.endsWith('/') ? '/' : '';
-  return '${after.split('/').map(Uri.encodeComponent).join('/')}$slash';
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.

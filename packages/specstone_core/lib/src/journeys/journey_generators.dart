@@ -34,6 +34,7 @@ String journeyFlowText(JourneySteps steps) {
 /// Returns the flow diagram block for the top of the `flow` section.
 List<GeneratedBlock> journeyFlowBlocks(
   Doc doc,
+  String _,
   MergedDocType docType,
   DocIndex index,
 ) => [
@@ -48,20 +49,21 @@ List<GeneratedBlock> journeyFlowBlocks(
 // MARK: - scenario_copy
 
 /// Returns, for each step whose scenario resolves, the scenario's lines below
-/// the step's last field line.
+/// the step's last field line, its links reaching from [docPath]'s folder.
 List<GeneratedBlock> scenarioCopyBlocks(
   Doc doc,
+  String docPath,
   MergedDocType docType,
   DocIndex index,
 ) => [
   for (final step in stepsOfDoc(doc, docType).steps)
     if (step.target case final target?)
-      if (scenarioBlockOf(index, target) case final block?)
+      if (scenarioCopyFor(index, target, journeyPath: docPath) case final copy?)
         GeneratedBlock(
           kind: scenarioCopyKind,
           sectionId: stepsSectionId,
           place: BelowBodyLine(step.anchorIndex),
-          text: scenarioCopyOf(block),
+          text: copy,
         ),
 ];
 

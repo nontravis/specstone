@@ -149,6 +149,7 @@ ReadAnswer answerNew(
           docType,
           generators,
           session.index,
+          docPath: docPath,
         );
       }
       if (firstConfirmations != null) {

@@ -35,6 +35,7 @@ final class ReadableDoc extends DocRead {
   const new(
     this.file,
     super.path, {
+    required this.docPath,
     required this.text,
     required this.lineEnding,
     required this.hasBom,
@@ -44,6 +45,9 @@ final class ReadableDoc extends DocRead {
 
   /// The file on disk.
   final File file;
+
+  /// The doc's path from the docs root.
+  final String docPath;
 
   /// The file text as written, with its own line endings.
   final String text;
@@ -136,6 +140,7 @@ DocRead _readFile(DocsProject project, File file, String docPath) {
       return ReadableDoc(
         file,
         path,
+        docPath: docPath,
         text: text,
         lineEnding: LineEnding.of(text),
         hasBom: startsWithUtf8Bom(bytes),
