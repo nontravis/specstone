@@ -47,6 +47,7 @@ typedef RenderedFile = ({
 
 const _sourceSkillPrefix = '.agents/skills/';
 const _claudeSkillPrefix = '.claude/skills/';
+const _markdownSuffix = '.md';
 const _frontmatterFence = '---\n';
 const _frontmatterEnd = '\n---\n';
 const _writeToolNames = {'Write', 'Edit'};
@@ -118,8 +119,17 @@ class _Agent {
     if (fields is! YamlMap) {
       throw FormatException('Frontmatter is not a map in ${asset.path}');
     }
+    final name = asset.path.substring(
+      0,
+      asset.path.length - _markdownSuffix.length,
+    );
+    if (fields['name'] != name) {
+      throw FormatException(
+        'The name of ${asset.path} is not its file name: ${fields['name']}',
+      );
+    }
     return _Agent(
-      name: '${fields['name']}',
+      name: name,
       description: '${fields['description']}',
       tools: _toolsOf(fields['tools']),
       disallowedTools: _toolsOf(fields['disallowedTools']),

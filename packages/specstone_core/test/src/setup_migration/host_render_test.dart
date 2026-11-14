@@ -318,6 +318,57 @@ void main() {
     });
   });
 
+  group('renderHostFilesOf agent names', () {
+    AgentAsset agent(String path, String frontmatter) =>
+        (path: path, text: '---\n$frontmatter---\n\nBody.\n');
+
+    test('throws naming the asset when the name differs from the path', () {
+      expect(
+        () => renderHostFilesOf([
+          agent('specstone-one.md', 'name: specstone-two\ndescription: D\n'),
+        ]),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('specstone-one.md'),
+          ),
+        ),
+      );
+    });
+
+    test('throws naming the asset when the name is missing', () {
+      expect(
+        () =>
+            renderHostFilesOf([agent('specstone-one.md', 'description: D\n')]),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('specstone-one.md'),
+          ),
+        ),
+      );
+    });
+
+    test('takes the entry and file name from the asset path', () {
+      final files = renderHostFilesOf([
+        agent('specstone-one.md', 'name: specstone-one\ndescription: D\n'),
+      ]);
+      expect(
+        {for (final file in files) file.folder: file.path},
+        containsPair(
+          AgentFolder.codexAgents,
+          '.codex/agents/specstone-one.toml',
+        ),
+      );
+      expect(files.map((file) => file.entry).toSet(), {
+        'specstone-one.md',
+        'specstone-one.toml',
+      });
+    });
+  });
+
   group('renderHostFiles', () {
     final files = renderHostFiles();
     final assets = shippedAgentAssets();

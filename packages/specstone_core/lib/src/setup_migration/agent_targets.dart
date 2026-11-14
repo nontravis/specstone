@@ -593,30 +593,70 @@ final class _AgentFile {
 }
 
 /// One folder that takes agent files: the project root or a repository top.
-final class _Folder {
+final class AgentFileBase {
   const new({
     required this.path,
+    required this.directory,
     required this.isTop,
     required this.isListed,
-    required this.files,
   });
 
   /// The path from the project root, empty for the root.
   final String path;
+
+  /// The folder on disk, canonical for the root and each top.
+  final Directory directory;
   final bool isTop;
   final bool isListed;
-  final List<_AgentFile> files;
 
   bool get isUnlisted => isTop && !isListed;
 
-  /// Whether the run may create files and blocks here.
+  /// Whether the run may create files here.
   ///
   /// The root follows [full]; a listed top only refreshes; an unlisted top
   /// takes the full upsert once.
   bool isUpsert({required bool full}) => isTop ? !isListed : full;
+}
+
+/// Returns the project root first, then each qualifying repository top, in
+/// code point order.
+List<AgentFileBase> agentFileBasesOf(AgentFileInputs inputs) {
+  final root = _canonicalOf(inputs.projectRoot);
+  final listed = {
+    for (final entry in inputs.agentFileRoots)
+      _canonicalOf(Directory.fromUri(root.uri.resolveUri(Uri(path: '$entry/'))))
+          .path,
+  };
+  return [
+    AgentFileBase(path: '', directory: root, isTop: false, isListed: true),
+    for (final MapEntry(key: path, value: top) in _qualifyingTops(
+      root,
+      inputs.codeRootFolders,
+    ).entries)
+      AgentFileBase(
+        path: path,
+        directory: top,
+        isTop: true,
+        isListed: listed.contains(top.path),
+      ),
+  ];
+}
+
+/// The agent files of one [AgentFileBase].
+final class _Folder {
+  const new({required this.base, required this.files});
+
+  final AgentFileBase base;
+  final List<_AgentFile> files;
+
+  String get path => base.path;
+  bool get isTop => base.isTop;
+  bool get isUnlisted => base.isUnlisted;
+
+  bool isUpsert({required bool full}) => base.isUpsert(full: full);
 
   _Folder withFiles(List<_AgentFile> files) =>
-      _Folder(path: path, isTop: isTop, isListed: isListed, files: files);
+      _Folder(base: base, files: files);
 }
 
 /// The agent files of a run, read once, each real file once.
@@ -627,26 +667,16 @@ final class _Survey {
   /// reach keeps its first name only, so no two writes land on it.
   factory of(AgentFileInputs inputs) {
     final root = _canonicalOf(inputs.projectRoot);
-    final listed = {
-      for (final entry in inputs.agentFileRoots)
-        _canonicalOf(
-          Directory.fromUri(root.uri.resolveUri(Uri(path: '$entry/'))),
-        ).path,
-    };
-    final tops = _qualifyingTops(root, inputs.codeRootFolders);
     final (:folders, :topUpserted) = _eachFileOnce([
-      _Folder(
-        path: '',
-        isTop: false,
-        isListed: true,
-        files: _filesIn(root, '', root: root, cliVersion: inputs.cliVersion),
-      ),
-      for (final MapEntry(key: path, value: top) in tops.entries)
+      for (final base in agentFileBasesOf(inputs))
         _Folder(
-          path: path,
-          isTop: true,
-          isListed: listed.contains(top.path),
-          files: _filesIn(top, path, root: root, cliVersion: inputs.cliVersion),
+          base: base,
+          files: _filesIn(
+            base.directory,
+            base.path,
+            root: root,
+            cliVersion: inputs.cliVersion,
+          ),
         ),
     ]);
     return _Survey(folders, _agentMdOf(root), topUpserted);
