@@ -700,6 +700,24 @@ void main() {
     );
   });
 
+  test(
+    'a covers or FR trace rule stays on the exact architecture id',
+    () async {
+      const built = 'specs/f01_login/EDGE_ARCHITECTURE.md';
+      final report = await _checkLogin(
+        _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+        extra: {
+          '.specstone/templates/edge_architecture.yaml': 'id: edge_architecture\nextends: architecture\npath: specs/f{nn}_{slug}/EDGE_ARCHITECTURE.md\n',
+          'docs/$built': '# Edge architecture\n',
+        },
+        without: {'docs/$loginArchitecture'},
+      );
+      expect(spots(report, FindingKind.architectureMissing), [
+        '$loginFeature:1: architecture_missing',
+      ]);
+    },
+  );
+
   test('the architecture doc, or a record that names no code, gives no architecture_missing', () async {
     final withDoc = await _checkLogin(
       _record(statuses: ['$_fr:implemented'], code: [_loginCode]),

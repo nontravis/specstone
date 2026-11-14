@@ -38,18 +38,19 @@ const _docKey = 'doc';
 /// Returns the `listed_file_missing` and `concerns_target_unresolved`
 /// findings of a typed [doc].
 ///
-/// A `reference` doc lists files that sit beside it. An `architecture` doc
-/// ends each Concerns line with `see <x>`, where `<x>` is a sibling file or a
-/// `##` header of the doc, matched as the doc formatter matches headers.
+/// A `reference` doc lists files that sit beside it. An `architecture` doc, or
+/// one of a type built on it, ends each Concerns line with `see <x>`, where
+/// `<x>` is a sibling file or a `##` header of the doc, matched as the doc
+/// formatter matches headers.
 Iterable<Finding> checkReferenceEntries(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  switch (doc.docTypeId) {
-    case _referenceType:
-      yield* _missingListedFiles(context, doc);
-    case architectureTypeId:
-      yield* _unresolvedConcerns(context, doc);
+  if (context.typeOf(doc)?.buildsOn(architectureTypeId) ?? false) {
+    yield* _unresolvedConcerns(context, doc);
+  }
+  if (doc.docTypeId == _referenceType) {
+    yield* _missingListedFiles(context, doc);
   }
 }
 

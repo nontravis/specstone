@@ -88,12 +88,13 @@ String _partOf(CiteCandidate candidate) {
 }
 
 /// Returns the `see` target of each Concerns line of [content], a doc of
-/// [type], by file line; none unless [type] is the architecture type.
+/// [type], by file line; none unless [type] is or builds on the architecture
+/// type.
 ///
 /// The Concerns section is the held section [type] maps to it, so `check` and
 /// the migrate cite pass skip the same targets.
 Map<int, String> seeTargetsIn(DocContent content, MergedDocType? type) {
-  if (type?.id != architectureTypeId) return const {};
+  if (type == null || !type.buildsOn(architectureTypeId)) return const {};
   final index = heldSectionIndex(content, type, concernsSectionId);
   if (index == null) return const {};
   return {

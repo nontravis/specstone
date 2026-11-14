@@ -547,6 +547,7 @@ final class TemplateResolver {
       description: target.description,
       parent: clearsParent ? null : target.parent,
       extendsId: targetId,
+      extendsChain: List.unmodifiable([targetId, ...target.extendsChain]),
       path: null,
       maxDepth: null,
       isPerTarget: target.isPerTarget,
