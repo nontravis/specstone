@@ -7,6 +7,8 @@ import 'dart:isolate';
 
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/line_facts.dart'
+    show markdownUnparsedWarning;
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -588,6 +590,29 @@ void main() {
         ],
         ['the system shall follow domainlogin'],
       );
+    });
+    test('LP2: a typed doc holding a link and a blockquote nested 5,000 deep '
+        'indexes, its link no cite candidate', () async {
+      const frPath =
+          'prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      final project = await writeLoginProject(
+        extra: {
+          'docs/$frPath':
+              '---\nverify_method: test\n---\n\n# Validate credentials\n\n'
+              '## Statement\nThe system shall check it. See the '
+              '[story](USER_STORY.md).\n\n${'> ' * 5000}x\n',
+        },
+      );
+
+      final (:result, :store) = refresh(project);
+
+      expect(result.fullBuild, isTrue);
+      expect(
+        docAt(store, frPath).warnings,
+        contains(markdownUnparsedWarning(frPath)),
+      );
+      expect(store.loadContent(frPath).lineFacts.citeCandidates, isEmpty);
     });
     test(
       'f04/nfr-p03, s03/inv2: an index at the current layout is not rebuilt',

@@ -17,6 +17,8 @@ import 'package:markdown/markdown.dart'
         LinkReferenceDefinitionSyntax,
         SetextHeaderSyntax,
         UnorderedListSyntax;
+import 'package:specstone_core/src/doc_model/markdown_body.dart'
+    show maxMarkdownDepth;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show
         CellRange,
@@ -140,9 +142,10 @@ const _closeBracket = 0x5D;
 /// before the block ends is remembered, so a later definition in the block
 /// fails at its opener. Each container level re-reads its lines, so the cost is
 /// O(size x nesting depth), as `markdown`'s own. The pass recurses once per
-/// level; `linkPlacesOf` runs `parseMarkdown` first, which refuses a body
-/// nested past `maxMarkdownDepth` (1,000 levels), so the recursion stays
-/// bounded.
+/// level and stops at [maxMarkdownDepth] levels: a container nested deeper
+/// reads as no inline text, so every caller gets a bounded stack. `markdown`
+/// refuses such a body anyway (see `parseMarkdown`), so a body it accepts
+/// reads the same.
 LeafText leafTextOf(String lfBody) {
   final body = lfBody.replaceAll('\r\n', ' \n').replaceAll('\r', '\n');
   final lines = body.split('\n');
@@ -247,6 +250,7 @@ final class _BlockPass {
     this._lines,
     this._starts,
     this._sink, {
+    this.depth = 0,
     this.listParent = false,
     this.setextDisabled = false,
   }) : _delimiters = List.filled(_lines.length, null),
@@ -260,6 +264,9 @@ final class _BlockPass {
   final List<int> _starts;
 
   final _Sink _sink;
+
+  /// The number of containers the lines sit in, 0 for the body's own pass.
+  final int depth;
 
   /// Whether the lines are the child lines of a list item, where an ordered
   /// item of any number can end a paragraph (`ListSyntax.canEndBlock`).
@@ -427,16 +434,20 @@ final class _BlockPass {
     into.add((text: _lines[i].substring(at), start: start + at));
   }
 
-  /// Runs a pass over the child lines of a container.
+  /// Runs a pass over the child lines of a container, or none for a container
+  /// nested deeper than [maxMarkdownDepth], whose lines then hold no inline
+  /// text.
   void _readChildren(
     List<_ChildLine> child, {
     bool listParent = false,
     bool setextDisabled = false,
   }) {
+    if (depth >= maxMarkdownDepth) return;
     _BlockPass(
       [for (final line in child) line.text],
       [for (final line in child) line.start],
       _sink,
+      depth: depth + 1,
       listParent: listParent,
       setextDisabled: setextDisabled,
     ).run();
