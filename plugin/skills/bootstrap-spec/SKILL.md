@@ -72,7 +72,11 @@ in for item 4.
    `(waits for the Owner)`, the last reports name it as one that clears with no write, it is an answered
    `code_uncovered` file, which starts a round only through a write-a-spec pick, or it waits on
    `specstone:bootstrap-prd`, such as a finding on a file that a `prds/` untyped doc it left still names. With none
-   left, stop; first, name once each answered `code_uncovered` file the last `check` still lists, with what it waits
-   on: the code change, the brainstorm, or the approval of its draft, and, in a run that did not name
-   `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit` finding no report's
-   `Waits on the Owner:` line named.
+   left, go to item 6.
+6. Once per run, after the last round and `specstone:bootstrap-prd`'s repeats batch, run `specstone check --repeats`,
+   then dispatch the repeats batch (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md`) as in step 2
+   with `batch: repeats` and each group with an item under `specs/`, if any; work items 1 and 2 on its report. A
+   group it keeps stays listed and never starts a round. Then stop; first, name once each answered `code_uncovered`
+   file the last `check` still lists, with what it waits on: the code change, the brainstorm, or the approval of its
+   draft, and, in a run that did not name `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit`
+   finding no report's `Waits on the Owner:` line named.

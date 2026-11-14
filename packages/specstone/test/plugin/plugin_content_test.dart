@@ -219,6 +219,7 @@ void main() {
   _agentTests();
   _sizeFixTests();
   _batchGuideTests();
+  _repeatsBatchTests();
   _otherPluginSkillTests();
   _planTests();
   _codeParseTests();
@@ -3688,6 +3689,134 @@ void _batchGuideTests() {
         isEmpty,
       );
     }
+  });
+}
+
+/// Each bootstrap skill and the docs tree whose repeat groups it takes
+/// (`agent_plugin/fill_missing_format/fill_check_findings` E27, E29).
+const _repeatsTrees = {'bootstrap-prd': 'prds', 'bootstrap-spec': 'specs'};
+
+/// The shared repeats-batch reference both fill skills point to.
+const _repeats = 'skills/expert-sdd/references/repeats.md';
+const _repeatsPath = '\${CLAUDE_PLUGIN_ROOT}/$_repeats';
+
+/// How the repeats batch's agent merges one group or keeps it
+/// (`agent_plugin/fill_missing_format/fill_check_findings` E26, E28, E29).
+const _repeatMergePoints = [
+  'Per group, judge whether its items state one rule.',
+  "keep the item in the doc that owns the rule's subject",
+  'replace each other copy in a doc your skill takes with a link to that item',
+  "name the owner in each draft's reason.",
+  'keep each item and report the group as kept.',
+];
+
+void _repeatsBatchTests() {
+  test('f08/us05/fr01/e26, e28, e29, e30: repeats.md holds the cite_unlinked '
+      'fix and the repeats batch once, for both fill skills', () {
+    final text = _pluginText(_repeats);
+    final batch = _oneLine(_sectionOf(text, 'A repeats batch'));
+    for (final point in _repeatMergePoints) {
+      expect(batch, contains(point), reason: point);
+    }
+    for (final MapEntry(key: skill, value: tree) in _repeatsTrees.entries) {
+      expect(batch, contains('under `$tree/` for `$skill`'), reason: skill);
+    }
+    expect(
+      _oneLine(_sectionOf(text, 'A `cite_unlinked` finding')),
+      contains(
+        'Rewrite the cite as a link to the one doc or item its text '
+        'means.',
+      ),
+    );
+  });
+
+  for (final MapEntry(key: skill, value: tree) in _repeatsTrees.entries) {
+    test('f08/us05/fr01/e27, e29, e31: $skill runs one check --repeats after '
+        'the last round, right before its one repeats batch, keeps the groups '
+        'with an item under $tree/, and points to repeats.md', () {
+      final text = _pluginText('skills/$skill/SKILL.md');
+      expect(
+        'specstone check --repeats'.allMatches(_bodyOf(text)),
+        hasLength(1),
+      );
+      expect(
+        _sectionOf(text, '1. Gate: the first call'),
+        isNot(contains('--repeats')),
+      );
+      final after = _oneLine(_sectionOf(text, '3. After the reports'));
+      final round = after.indexOf('starts another round at step 2');
+      final listing = after.indexOf('`specstone check --repeats`');
+      final batch = after.indexOf('`batch: repeats`');
+      expect(round, isNonNegative);
+      expect(listing, greaterThan(round));
+      expect(batch, greaterThan(listing));
+      expect(after.indexOf('Then stop;'), greaterThan(batch));
+      expect(after, contains('With none left, go to item 6.'));
+      expect(after, contains('each group with an item under `$tree/`'));
+      expect(
+        after,
+        contains('A group it keeps stays listed and never starts a round.'),
+      );
+      expect(_repeatsPath.allMatches(text), hasLength(1));
+    });
+
+    test('f08/us05/fr01/e26, e30: the $skill procedure points cite_unlinked '
+        'and a repeats batch to repeats.md in one row and copies no step', () {
+      final text = _pluginText('skills/$skill/references/procedure.md');
+      final findings = _sectionOf(text, '2. One finding at a time');
+      expect(
+        findings.split('\n').where((line) => line.contains('`cite_unlinked`')),
+        ['| `cite_unlinked`, a repeats batch | `$_repeatsPath` |'],
+      );
+      for (final point in _repeatMergePoints) {
+        expect(_oneLine(text), isNot(contains(point)), reason: point);
+      }
+      expect(text, isNot(contains('--repeats')), reason: 'E27: main runs it');
+    });
+  }
+
+  test("f08/us05/fr01/e27: bootstrap-spec's repeats batch runs after "
+      "bootstrap-prd's", () {
+    expect(
+      _oneLine(_pluginText('skills/bootstrap-spec/SKILL.md')),
+      contains(
+        '6. Once per run, after the last round and '
+        "`specstone:bootstrap-prd`'s repeats batch,",
+      ),
+    );
+  });
+
+  test('f08/us05/fr01/e26, e28: sdd-engineer takes batch: repeats, loads '
+      'repeats.md for it, and reports each kept group', () {
+    final agent = _pluginText('agents/sdd-engineer.md');
+    expect(
+      _oneLine(_sectionOf(agent, 'Input Contract')),
+      contains('or `batch: repeats` and the repeat groups to merge;'),
+    );
+    expect(
+      _sectionOf(
+        agent,
+        'On-Demand Loads',
+      ).split('\n').where((line) => line.startsWith('| `batch: repeats`')),
+      [
+        predicate<String>(
+          (line) => line.contains('`$_repeatsPath`'),
+          'names $_repeatsPath',
+        ),
+      ],
+    );
+    expect(
+      _oneLine(_sectionOf(agent, 'Workflow')),
+      contains(
+        'A `batch: repeats` follows its On-Demand reference in place of the '
+        'procedure, then Workflow step 5.',
+      ),
+    );
+    final output = _oneLine(_sectionOf(agent, 'Output Format'));
+    expect(
+      output.substring(output.indexOf('- **Bootstrap**')),
+      contains('each repeat group kept;'),
+    );
   });
 }
 

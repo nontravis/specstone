@@ -36,7 +36,8 @@ and changed code or a batch's findings into drafts.
   per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
   `Uncovered:` file.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
-  `item_over_limit` when the Owner named it for the run and a `batch` path holds one; write any doc a fix needs.
+  `item_over_limit` when the Owner named it for the run and a `batch` path holds one; or `batch: repeats` and the
+  repeat groups to merge; write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report,
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
@@ -52,6 +53,7 @@ and changed code or a batch's findings into drafts.
 | `procedure: bootstrap-prd`  | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`  |
 | `procedure: bootstrap-spec` | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md` |
 | a size finding in `batch`   | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`      |
+| `batch: repeats`            | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md`       |
 | `mode: author`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md` |
 | `mode: design`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md` |
 | `mode: audit`               | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`  |
@@ -64,7 +66,8 @@ A failed load: report it and stop; never search.
 2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, or on every code link
    of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
-   each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5.
+   each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
+   `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, design, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added, but leave each
    tagged `(waits for the Owner)`.
@@ -101,8 +104,8 @@ finding.
   each `Uncovered:` file; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an
   approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  each `Uncovered:` file; one `specstone delete …` line; findings outside `batch`; `Waits on the Owner:`, each
-  `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`;
+  each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`;
+  `Waits on the Owner:`, each `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`;
   then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
 ## Scope Boundaries
