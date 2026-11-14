@@ -1,8 +1,8 @@
 Step 1, the gate, ran before you were sent here.
-As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
+As `specstone-sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-Findings under `prds/` go to `specstone:bootstrap-prd`, except the PRD sections step 6 moves. Follow
-`specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once,
+Findings under `prds/` go to `specstone-bootstrap-prd`, except the PRD sections step 6 moves. Follow
+`specstone-expert-sdd` for every write; before the first, run `specstone guide <type> …` once,
 naming every type you write; a type met later gets its own call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
@@ -34,8 +34,8 @@ the Owner only when no text bears on a whole section.
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
-| `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
-| `cite_unlinked`, a repeats batch | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md` |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
+| `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | any other of this skill | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
 ## 3. Point and cover code
@@ -45,7 +45,7 @@ the Owner only when no text bears on a whole section.
 - **`architecture_missing`:** run `specstone new architecture --parent <feature>`, fill it, and list in `covers` the
   code its record entries name.
 - **`code_uncovered`:** read the file and write nothing for it; report it under `Uncovered:` in the form of step 3 of
-  `${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`. On a write-a-spec pick sent to you, with its file:
+  `../../specstone-sync-sdd/references/procedure.md`. On a write-a-spec pick sent to you, with its file:
   add the file or its folder to `covers` on the architecture or topic doc describing it; with none,
   `specstone new topic --slug <slug>`.
 
@@ -75,8 +75,8 @@ retire set.
    content, or drop one nothing replaces.
 3. Name the set in one line, `specstone delete <path> <path> …`, quoting each path with a space.
 
-On a batch, delete nothing: hand that line to `specstone:bootstrap-spec`'s step 3.4.
-Else, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
+On a batch, delete nothing: hand that line to `specstone-bootstrap-spec`'s step 3.4.
+Else, run it through `specstone-expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the tech stack, then ask for approval

@@ -17,7 +17,7 @@ per target; default `.`). From the project root, `--code` and each git pathspec 
 
 For each listed code path but a `tests_unresolved` line's (step 4.4), run
 `specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
-`--target`; read its saved file's parts per `specstone:read-sdd`.
+`--target`; read its saved file's parts per `specstone-read-sdd`.
 
 - **Warning `no doc covers or implements <path>`:** The new side of a rename pair goes to step 4.3. Else read the
   file and write nothing for it; report it under `Uncovered:`: its path, what it does that no spec states, and
@@ -64,7 +64,7 @@ For each listed code path but a `tests_unresolved` line's (step 4.4), run
 ## 5. Spec drafts
 
 On the Owner's write-a-spec or fix-the-spec pick sent to you, a story or FR it needs goes to
-`specstone:brainstorming-sdd`. Else write the draft: `specstone new <type>` (`--target <name>`, the path's code
+`specstone-brainstorming-sdd`. Else write the draft: `specstone new <type>` (`--target <name>`, the path's code
 target, as the type takes it) for a new doc, or `specstone set <doc>#<section key> --base <hash>`
 (hash: the `base` of `specstone get <doc>#<key>`) for a section of an existing one;
 the Owner approves it with `specstone approve`. Write no record code path or `covers:` entry that names this code
@@ -76,5 +76,5 @@ After your last write, run one `specstone approve --dry-run --json`, the source 
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
 shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer fixed, each
-behavior handed to `specstone:brainstorming-sdd`, and each pointer that waits on an approval, with its doc, its code
+behavior handed to `specstone-brainstorming-sdd`, and each pointer that waits on an approval, with its doc, its code
 target, and its code path.

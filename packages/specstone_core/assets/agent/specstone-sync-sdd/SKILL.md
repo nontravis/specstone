@@ -1,6 +1,6 @@
 ---
 name: specstone-sync-sdd
-description: Use when code in a Specstone project changed and its spec docs must catch up, such as after a plan task's commit, when a code file moved or was deleted and a record code path or `covers:` pointer may break, when new code does something no spec states, or when another `specstone:` skill or agent names `specstone:sync-sdd`.
+description: Use when code in a Specstone project changed and its spec docs must catch up, such as after a plan task's commit, when a code file moved or was deleted and a record code path or `covers:` pointer may break, when new code does something no spec states, or when another Specstone skill or agent names `specstone-sync-sdd`.
 ---
 
 # Sync the docs with changed code
@@ -32,18 +32,18 @@ or not. Take nothing from the task: code changed outside a task is in the list t
 With an empty list, tell the Owner no code changed since its docs were compared, and stop with no dispatch and no
 further call.
 
-Else, with the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, `report:`
-`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature name when the Owner gave one. Send no list of paths
-or doc text, and work no step of the procedure yourself. Take `<folder>` the path `specstone folder` prints, run once
-after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file exists. Without the tool, or when the dispatch fails, read `references/procedure.md` beside this
-file (`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follow it.
+Else dispatch `specstone-sdd-engineer` as `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: sync`,
+`report:` `<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature name when the Owner gave one. Send no list
+of paths or doc text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` the path
+`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file
+exists. The procedure for the main session is `references/procedure.md` beside this file.
 
 ## 3. After the report
 
 When you followed the procedure yourself, its report stands in for item 1.
 
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
-2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
+2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation.
 3. Ask the Owner, per point under `Mismatches:`, fix the code or fix the spec. Fix the code writes nothing: the next
    `check` lists the link again. Send a fix-the-spec pick to the same agent while it is live, else to a new one with the
    answers, when the fix lands in a spec doc. Ask the Owner, per file under `Uncovered:`, write a spec or change or
@@ -56,5 +56,5 @@ When you followed the procedure yourself, its report stands in for item 1.
    same `--target`. A waiting match is written whole: the
    fingerprint ends the entry, and a `planned` entry's `implemented` goes to `statuses` through `--field statuses` with
    `bases.fields.statuses`.
-5. Run `specstone:brainstorming-sdd` for each behavior the report hands over and each pick that lands in a story or FR,
-   since the sync writes no PRD doc.
+5. Follow the `specstone-brainstorming-sdd` skill for each behavior the report hands over and each pick that lands in
+   a story or FR, since the sync writes no PRD doc.

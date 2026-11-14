@@ -241,6 +241,7 @@ void main() {
   _dispatchReferenceTests();
   _groundInitUpdateTests();
   _brainstormTests();
+  _syncBootstrapTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -877,15 +878,13 @@ String _bodyOf(String text) => text.replaceFirst(_frontmatter, '');
 
 void _handOffTests() {
   test('f08/us03/fr01, f08/us05/fr01: a hand-off skill opens on check, '
-      'dispatches specstone:sdd-engineer, and names the procedure the agent '
+      'dispatches specstone-sdd-engineer, and names the procedure the agent '
       'reads', () {
     final agent = _pluginText('specstone-sdd-engineer.md');
     for (final skill in _handOffs) {
-      final path =
-          '\${CLAUDE_PLUGIN_ROOT}/skills/$skill/references/procedure.md';
       final text = _pluginText('specstone-$skill/SKILL.md');
-      expect(text, contains('`specstone:sdd-engineer`'), reason: skill);
-      expect(text, contains(path), reason: skill);
+      expect(text, contains('`specstone-sdd-engineer`'), reason: skill);
+      expect(text, contains('`references/procedure.md`'), reason: skill);
       expect(cliCommands(_bodyOf(text)).first, 'check', reason: skill);
       expect(
         agent,
@@ -1627,7 +1626,9 @@ void _agentTests() {
       if (!_isSkillFile(file) || file == 'specstone-read-sdd/SKILL.md') {
         continue;
       }
-      final skill = file.startsWith('specstone-brainstorming-sdd/')
+      final skill =
+          file.startsWith('specstone-brainstorming-sdd/') ||
+              file.startsWith('specstone-sync-sdd/')
           ? '`specstone-read-sdd`'
           : '`specstone:read-sdd`';
       expect(_pluginText(file), contains(skill), reason: file);
@@ -2197,7 +2198,9 @@ void _agentTests() {
       expect(
         skill(),
         contains(
-          'dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` '
+          'dispatch `specstone-sdd-engineer` as '
+          '`../specstone-expert-sdd/references/dispatch.md` gives, with '
+          '`mode: sync`, `report:` '
           '`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature '
           'name when the Owner gave one. Send no list of paths or doc text',
         ),
@@ -2214,7 +2217,7 @@ void _agentTests() {
           '4.4), run `specstone context --code <code root>/<path> --for '
           "implement --out`, which takes its path's target and no "
           "`--target`; read its saved file's parts per "
-          '`specstone:read-sdd`.',
+          '`specstone-read-sdd`.',
         ),
       );
       expect(
@@ -2415,7 +2418,7 @@ void _agentTests() {
         text,
         contains(
           "On the Owner's write-a-spec or fix-the-spec pick sent to you, a "
-          'story or FR it needs goes to `specstone:brainstorming-sdd`.',
+          'story or FR it needs goes to `specstone-brainstorming-sdd`.',
         ),
       );
     });
@@ -2477,9 +2480,9 @@ void _agentTests() {
       expect(
         skill(),
         contains(
-          'Run `specstone:brainstorming-sdd` for each behavior the report '
-          'hands over and each pick that lands in a story or FR, since the '
-          'sync writes no PRD doc.',
+          'Follow the `specstone-brainstorming-sdd` skill for each behavior '
+          'the report hands over and each pick that lands in a story or FR, '
+          'since the sync writes no PRD doc.',
         ),
       );
     });
@@ -2812,7 +2815,7 @@ void _agentTests() {
           contains(
             '- **`code_uncovered`:** read the file and write nothing for it; '
             'report it under `Uncovered:` in the form of step 3 of '
-            r'`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`.',
+            '`../../specstone-sync-sdd/references/procedure.md`.',
           ),
         );
       });
@@ -2864,7 +2867,7 @@ void _agentTests() {
           afterReports(),
           contains(
             'A write-a-spec pick whose behavior needs a new story or FR goes '
-            'to `specstone:brainstorming-sdd`; any other goes with its file '
+            'to `specstone-brainstorming-sdd`; any other goes with its file '
             "to the next round's agent of that batch as `picks:`, which "
             'writes the draft and does not report the file.',
           ),
@@ -3573,9 +3576,12 @@ final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
 /// The one home of the size-fix rule, under the plugin folder.
 const _sizeFix = 'specstone-expert-sdd/references/size-fix.md';
 
-/// [_sizeFix] by the path a dispatched agent reads it from.
-const _sizeFixPath =
-    r'${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md';
+/// [_sizeFix] by the path a bootstrap skill's `SKILL.md` names it by.
+const _sizeFixFromSkill = '../specstone-expert-sdd/references/size-fix.md';
+
+/// [_sizeFix] by the path a bootstrap procedure names it by.
+const _sizeFixFromReference =
+    '../../specstone-expert-sdd/references/size-fix.md';
 
 const _sizeFindings = [
   '`chars_over_limit`',
@@ -3635,7 +3641,10 @@ void _sizeFixTests() {
       final sizeRows = [
         for (final line in text.split('\n'))
           if (line.startsWith('|') &&
-              [..._sizeFindings, '`$_sizeFixPath`'].every(line.contains))
+              [
+                ..._sizeFindings,
+                '`$_sizeFixFromReference`',
+              ].every(line.contains))
             line,
       ];
       expect(sizeRows, hasLength(1), reason: file);
@@ -3771,7 +3780,7 @@ void _sizeFixTests() {
           '3. After the reports',
         ),
       );
-      expect(after, contains('`$_sizeFixPath`'), reason: skill);
+      expect(after, contains('`$_sizeFixFromSkill`'), reason: skill);
       expect(after, contains('in run order'), reason: skill);
     }
     expect(
@@ -3867,8 +3876,13 @@ const _repeatsTrees = {'bootstrap-prd': 'prds', 'bootstrap-spec': 'specs'};
 
 /// The shared repeats-batch reference both fill skills point to.
 const _repeats = 'specstone-expert-sdd/references/repeats.md';
-const _repeatsPath =
-    r'${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md';
+
+/// [_repeats] by the path a bootstrap skill's `SKILL.md` names it by.
+const _repeatsFromSkill = '../specstone-expert-sdd/references/repeats.md';
+
+/// [_repeats] by the path a bootstrap procedure names it by.
+const _repeatsFromReference =
+    '../../specstone-expert-sdd/references/repeats.md';
 
 /// How the repeats batch's agent merges one group or keeps it
 /// (`agent_plugin/fill_missing_format/fill_check_findings` E26, E28, E29).
@@ -3927,7 +3941,7 @@ void _repeatsBatchTests() {
         after,
         contains('A group it keeps stays listed and never starts a round.'),
       );
-      expect(_repeatsPath.allMatches(text), hasLength(1));
+      expect(_repeatsFromSkill.allMatches(text), hasLength(1));
     });
 
     test('f08/us05/fr01/e26, e30: the $skill procedure points cite_unlinked '
@@ -3936,7 +3950,7 @@ void _repeatsBatchTests() {
       final findings = _sectionOf(text, '2. One finding at a time');
       expect(
         findings.split('\n').where((line) => line.contains('`cite_unlinked`')),
-        ['| `cite_unlinked`, a repeats batch | `$_repeatsPath` |'],
+        ['| `cite_unlinked`, a repeats batch | `$_repeatsFromReference` |'],
       );
       for (final point in _repeatMergePoints) {
         expect(_oneLine(text), isNot(contains(point)), reason: point);
@@ -3968,7 +3982,7 @@ void _repeatsBatchTests() {
         ),
       ),
       contains(
-        'merge it first (`specstone:bootstrap-spec` takes one under `specs/`).',
+        'merge it first (`specstone-bootstrap-spec` takes one under `specs/`).',
       ),
     );
   });
@@ -3979,7 +3993,7 @@ void _repeatsBatchTests() {
       _oneLine(_pluginText('specstone-bootstrap-spec/SKILL.md')),
       contains(
         '6. Once per run, after the last round and '
-        "`specstone:bootstrap-prd`'s repeats batch,",
+        "`specstone-bootstrap-prd`'s repeats batch,",
       ),
     );
   });
@@ -4993,6 +5007,109 @@ void _brainstormTests() {
 
     test('each of the six skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_brainstormContent()), isEmpty);
+    });
+  });
+}
+
+const _syncBootstrapFiles = [
+  'specstone-sync-sdd/',
+  'specstone-bootstrap-prd/',
+  'specstone-bootstrap-spec/',
+];
+
+/// The sync and the two bootstrap skills, each a skill file and its
+/// procedure, in the source and in each host's render.
+List<ContentFile> _syncBootstrapContent() => [
+  for (final file in contentFiles())
+    if (_syncBootstrapFiles.any(file.path.contains)) file,
+];
+
+void _syncBootstrapTests() {
+  group('the sync and bootstrap skills', () {
+    const bootstraps = ['bootstrap-prd', 'bootstrap-spec'];
+
+    test('each of the six reaches the source and every host render', () {
+      final paths = _syncBootstrapContent().map((file) => file.path);
+      expect(paths, hasLength(6 + 6 + 6));
+    });
+
+    test("they name no host tool, no CLAUDE_ variable, no other host's skills "
+        'folder, no specstone:<name> skill, and every relative path '
+        'resolves', () {
+      final files = _syncBootstrapContent();
+      expect(hostTiedText(files), isEmpty);
+      expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);
+      expect(skillHeadProblems(files), isEmpty);
+      expect(
+        unresolvedPaths(contentFiles())
+            .where((problem) => _syncBootstrapFiles.any(problem.contains)),
+        isEmpty,
+      );
+    });
+
+    test('each skill takes the dispatch steps from expert-sdd and names its '
+        'procedure', () {
+      for (final skill in ['sync-sdd', ...bootstraps]) {
+        final text = _oneLine(_pluginText('specstone-$skill/SKILL.md'));
+        expect(
+          text,
+          contains('`../specstone-expert-sdd/references/dispatch.md`'),
+          reason: skill,
+        );
+        expect(text, contains('`specstone-sdd-engineer`'), reason: skill);
+        expect(text, contains('`references/procedure.md`'), reason: skill);
+        expect(text, isNot(contains('`Agent` tool')), reason: skill);
+        expect(text, isNot(contains('rung')), reason: skill);
+      }
+    });
+
+    test('each bootstrap skill splits the main-session step in one line: one '
+        'batch after a failed dispatch, no batch with no subagent', () {
+      for (final skill in bootstraps) {
+        final text = _oneLine(_pluginText('specstone-$skill/SKILL.md'));
+        expect(
+          text,
+          contains(
+            'with no subagent at all, over every finding this skill takes; '
+            "after a failed dispatch, over that dispatch's one batch",
+          ),
+          reason: skill,
+        );
+      }
+    });
+
+    test('the bootstrap skills reach the size and repeats files of expert-sdd '
+        'by a path from their own folder', () {
+      for (final skill in bootstraps) {
+        final text = _pluginText('specstone-$skill/SKILL.md');
+        final procedure = _pluginText(
+          'specstone-$skill/references/procedure.md',
+        );
+        for (final file in ['size-fix', 'repeats']) {
+          expect(
+            text,
+            contains('../specstone-expert-sdd/references/$file.md'),
+            reason: '$skill, $file',
+          );
+          expect(
+            procedure,
+            contains('../../specstone-expert-sdd/references/$file.md'),
+            reason: '$skill procedure, $file',
+          );
+        }
+      }
+    });
+
+    test('the spec bootstrap reaches the sync procedure by a path from its '
+        'own folder', () {
+      expect(
+        _pluginText('specstone-bootstrap-spec/references/procedure.md'),
+        contains('`../../specstone-sync-sdd/references/procedure.md`'),
+      );
+    });
+
+    test('each of the six skill files stays within 1,500 est. tokens', () {
+      expect(oversizedSkillFiles(_syncBootstrapContent()), isEmpty);
     });
   });
 }
