@@ -65,9 +65,9 @@ When the index does not show a fact the task needs, search the saved file with t
 ## Count the calls
 
 One target takes three tool calls at most up to the task's first other action, its first code or task-file read,
-edit, or design output: the `context` call and each part read before that action; an `argument_missing` refusal
-counts among them. Loading this skill counts as none. Each further target the task cites takes a call of its own.
-Part reads after that action fall outside the bound.
+edit, or design output: the `context` call and each search or part read before that action; an `argument_missing`
+refusal counts among them. Loading this skill counts as none. Each further target the task cites takes a call of its
+own. Part reads after that action fall outside the bound.
 
 ## Whole sections from the reader
 

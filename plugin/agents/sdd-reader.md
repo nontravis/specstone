@@ -1,7 +1,7 @@
 ---
 name: sdd-reader
 description: (Reader) Read-only Specstone doc specialist; returns the sections a task needs, whole and cited. Use proactively in a Specstone project when a task wants whole doc sections; send the saved bundle file's path as the `context --out` header printed it, or target IDs, plus the `--for` mode and the task.
-tools: Bash, Read
+tools: Bash, Read, Grep
 ---
 
 # Specstone doc reader
@@ -35,8 +35,8 @@ word, each cited by doc and section.
 ## Workflow
 
 1. **Saved file**: when the hand-off names one, read that file with `Read`, in parts as the task needs, and run no
-   `context`; the main session's grounding is then read once. Find a section by searching the file for its `## `
-   header. Go on at step 5.
+   `context`; the main session's grounding is then read once. Find a section by searching the file with `Grep` for
+   its `## ` header. Go on at step 5.
 2. **Pull**: with no saved file, through Bash, make this your first CLI call, on the first target ID:
 
    ```
@@ -78,8 +78,8 @@ One block per section, in bundle order, a blank line between blocks, and nothing
 
 **DO:**
 
-- Read the saved file the hand-off names; with none, run `specstone context` on the given target IDs, and no other
-  command.
+- Read the saved file the hand-off names, or the one your own call names, and search it with `Grep`; with no saved
+  file, run `specstone context` on the given target IDs, and no other command.
 
 **DON'T:**
 

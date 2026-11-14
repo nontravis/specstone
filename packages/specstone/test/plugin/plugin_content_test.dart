@@ -1054,7 +1054,7 @@ final _modeBullet = RegExp(
 
 final _codeSpan = RegExp(r'`([^`\n]+)`');
 
-final _fencedBlock = RegExp(r'^```[^\n]*\n([\s\S]*?)^```', multiLine: true);
+final _fencedBlock = RegExp(r'^ *```[^\n]*\n([\s\S]*?)^ *```', multiLine: true);
 
 final _contextCall = RegExp(r'specstone context\b(.*?)(?=specstone |$)');
 
@@ -1270,6 +1270,37 @@ void _agentTests() {
     );
   });
 
+  test('f08/us01/fr02/e08, f08/us01/fr01/e20: sdd-reader holds the search '
+      'tool its read path names, and stays read-only', () {
+    final reader = _pluginText('agents/sdd-reader.md');
+    final tools = _toolsOf(reader, 'tools');
+    expect(tools, containsAll(['Read', 'Grep']));
+    expect(tools, isNot(anyOf(contains('Write'), contains('Edit'))));
+    expect(_oneLine(reader), contains('searching the file with `Grep`'));
+    expect(
+      _oneLine(_sectionOf(reader, 'Scope Boundaries')),
+      contains('search it with `Grep`'),
+    );
+  });
+
+  test('an indented fence is a code block, so its call is read and the span '
+      'after it keeps its backtick pairs', () {
+    expect(
+      _contextCalls(
+        '1. Pull:\n\n'
+        '   ```\n'
+        '   specstone context a --for query --out\n'
+        '   ```\n\n'
+        '   Add `--summary` only, then '
+        '`specstone context b --for query --out`.\n',
+      ),
+      [
+        ['a', '--for', 'query', '--out'],
+        ['b', '--for', 'query', '--out'],
+      ],
+    );
+  });
+
   test('E14: read-sdd runs a '
       "plan task's read line with its --target as written", () {
     final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
@@ -1338,6 +1369,13 @@ void _agentTests() {
     expect(
       _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
       contains('an `argument_missing` refusal counts among them'),
+    );
+    expect(
+      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      contains(
+        'the `context` call and each search or part read before that '
+        'action',
+      ),
     );
   });
 
