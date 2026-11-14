@@ -60,8 +60,9 @@ final class UnresolvedCite extends LinkCite {
 /// A link whose fragment is an anchor of its target but names no `##`
 /// section and no `###` block the doc can place: an html id, the title, a
 /// heading below `###`, or a heading whose line the scan cannot pair, or an
-/// anchor set that is unknown. Nothing is broken, so no reader reports it
-/// (resolve_doc_links E23); a follow skips it and never prints the doc.
+/// anchor set that is unknown. The anchor cannot be judged as a section or a
+/// block, so a reader skips it: `check` reports no finding for it
+/// (resolve_doc_links E23) and a follow never prints the doc.
 final class OtherAnchorCite extends LinkCite {
   const new();
 }
@@ -153,7 +154,7 @@ final class OtherAnchorTarget extends AnchorTarget {
 /// anchor exists but names neither, or null when it exists in no anchor set.
 ///
 /// An html id, the title, a heading below `###`, and a heading whose line
-/// the scan cannot pair with its slug (so none is guessed at, ruling 2) are
+/// the scan cannot pair with its slug (so none is guessed at) are
 /// other anchors; so is any anchor of a doc whose anchor set is unknown,
 /// which `check` never reports (resolve_doc_links E23).
 AnchorTarget? anchorTargetOf(LineFacts facts, String anchor) {
