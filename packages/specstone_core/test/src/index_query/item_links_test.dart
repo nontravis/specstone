@@ -48,6 +48,7 @@ String _show(LinkCite cite) => switch (cite) {
   ItemCite(:final sectionKey, :final itemId) => 'item $sectionKey $itemId',
   HeadingBlockCite(:final headingLine) => 'block $headingLine',
   UnresolvedCite() => 'unresolved',
+  OtherAnchorCite() => 'other anchor',
 };
 
 /// [target] as a string a test compares by value.
@@ -55,6 +56,7 @@ String? _showTarget(AnchorTarget? target) => switch (target) {
   null => null,
   SectionTarget(:final sectionIndex) => 'section $sectionIndex',
   HeadingBlockTarget(:final headingLine) => 'block $headingLine',
+  OtherAnchorTarget() => 'other',
 };
 
 /// The body lines of [text], numbered from line 20, fence lines and the
@@ -169,22 +171,28 @@ void main() {
       expect(classify('INV-1', 'scenario-6'), 'block 13');
     });
 
-    test('f01/us05/fr05/e13: a fragment that names no heading is '
-        'unresolved, never a doc cite', () {
+    test('f01/us05/fr05/e13: a fragment that matches no anchor of the '
+        'target is unresolved, never a doc cite', () {
       expect(classify('INV-9', 'missing'), 'unresolved');
-      expect(classify('INV-9', 'x'), 'unresolved');
-      expect(classify('INV-9', 't'), 'unresolved');
     });
 
-    test('f01/us05/fr05/e13: a fragment on a doc whose heading lines are '
-        'unknown is unresolved', () {
+    test('topic:doc_model#rules RULE-45: an html id and the title are '
+        'anchors the doc holds, so no pointer is broken', () {
+      expect(classify('INV-9', 'x'), 'other anchor');
+      expect(classify('INV-9', 't'), 'other anchor');
+    });
+
+    test('topic:doc_model#rules RULE-45: a heading whose line the scan '
+        'cannot pair is an anchor the doc holds, and a missing one on that '
+        'doc is still missing', () {
       final setext = _factsOf('# T\n\nSetext\n------\n\n## A\n');
-      expect(classify('INV-1', 'a', on: setext), 'unresolved');
+      expect(classify('INV-1', 'a', on: setext), 'other anchor');
+      expect(classify('INV-1', 'nope', on: setext), 'unresolved');
     });
 
-    test('f01/us05/fr05/e13: a section the caller holds none of is '
-        'unresolved', () {
-      expect(classify('INV-1', 'invariants', at: (_) => null), 'unresolved');
+    test('topic:doc_model#rules RULE-45: a section the caller holds none '
+        'of is no broken pointer', () {
+      expect(classify('INV-1', 'invariants', at: (_) => null), 'other anchor');
     });
   });
 
@@ -203,22 +211,25 @@ void main() {
     });
 
     test('topic:doc_model#rules RULE-13: unknown heading lines give no '
-        'target, never a guess', () {
+        'section or block, never a guess', () {
       final facts = _factsOf('# T\n\n## A\n\nSetext\n---\n\n## B\n');
       expect(facts.headingLines, isNull);
-      expect(anchorTargetOf(facts, 'a'), isNull);
-      expect(anchorTargetOf(facts, 'b'), isNull);
+      expect(_showTarget(anchorTargetOf(facts, 'a')), 'other');
+      expect(_showTarget(anchorTargetOf(facts, 'b')), 'other');
+      expect(anchorTargetOf(facts, 'c'), isNull);
     });
 
-    test('f01/us05/fr05/e13: an anchor of no heading gives no target', () {
+    test('f01/us05/fr05/e13: an anchor the doc holds nowhere gives null', () {
       final facts = _factsOf('# T\n\n## Rules\n');
       expect(anchorTargetOf(facts, 'invariants'), isNull);
     });
 
-    test('f01/us05/fr05/e13: an html id of no heading gives no target', () {
+    test('topic:doc_model#rules RULE-45: an html id and the title give '
+        'the other-anchor target', () {
       final facts = _factsOf('# T\n\n## Rules\n\n<a name="x"></a>\n');
       expect(facts.anchors!.holds('x'), isTrue);
-      expect(anchorTargetOf(facts, 'x'), isNull);
+      expect(_showTarget(anchorTargetOf(facts, 'x')), 'other');
+      expect(_showTarget(anchorTargetOf(facts, 't')), 'other');
     });
   });
 
@@ -363,6 +374,19 @@ void main() {
           '- RULE-1 x\n  ```dart\n  code\n  ```\n- RULE-2 y\n```\nz\n```\n';
       expect(_extent(text, 'RULE-1'), '20-23');
       expect(_extent(text, 'RULE-2'), '24-24');
+    });
+
+    test('f01/us05/fr05/e01: a blank line before an indented fence keeps '
+        'the code in the extent', () {
+      const text = '- RULE-1 x\n\n  ```dart\n  code\n  ```\n\n- RULE-2 y\n';
+      expect(_extent(text, 'RULE-1'), '20-24');
+      expect(_extent(text, 'RULE-2'), '26-26');
+    });
+
+    test('f01/us05/fr05/e01: blank lines before an unindented fence, or '
+        'before the next item, stay out of the extent', () {
+      const text = '- RULE-1 x\n\n```\nz\n```\n- RULE-2 y\n';
+      expect(_extent(text, 'RULE-1'), '20-20');
     });
 
     test('f01/us05/fr05/e02: an item an ID-headed ### heading starts spans '

@@ -50,11 +50,19 @@ final class HeadingBlockCite extends LinkCite {
   final int headingLine;
 }
 
-/// A link with a fragment that names no `##` or `###` heading the doc can
-/// place: a missing anchor, an html id, a heading line the scan cannot
-/// pair (RULE-13). Neither a doc link nor a cite; a reader reports or skips
-/// it and never prints the doc (follow_cited_links E13).
+/// A link whose fragment matches no anchor of its target's known anchor set
+/// (RULE-13): a broken pointer. `check` reports it (`link_anchor_missing`);
+/// a follow skips it and never prints the doc (follow_cited_links E13).
 final class UnresolvedCite extends LinkCite {
+  const new();
+}
+
+/// A link whose fragment is an anchor of its target but names no `##`
+/// section and no `###` block the doc can place: an html id, the title, a
+/// heading below `###`, or a heading whose line the scan cannot pair, or an
+/// anchor set that is unknown. Nothing is broken, so no reader reports it
+/// (resolve_doc_links E23); a follow skips it and never prints the doc.
+final class OtherAnchorCite extends LinkCite {
   const new();
 }
 
@@ -81,11 +89,12 @@ LinkCite classifyLink(
   if (anchor == null || anchor.isEmpty) return const DocCite();
   return switch (target) {
     null => const UnresolvedCite(),
+    OtherAnchorTarget() => const OtherAnchorCite(),
     HeadingBlockTarget(:final headingLine) => HeadingBlockCite(
       headingLine: headingLine,
     ),
     SectionTarget(:final sectionIndex) => switch (sectionAt(sectionIndex)) {
-      null => const UnresolvedCite(),
+      null => const OtherAnchorCite(),
       final section => _sectionCite(link.text, section),
     },
   };
@@ -133,22 +142,29 @@ final class HeadingBlockTarget extends AnchorTarget {
   final int headingLine;
 }
 
+/// The anchor exists in the doc (RULE-13) but names no `##` section and no
+/// `###` block it can place; never a broken pointer.
+final class OtherAnchorTarget extends AnchorTarget {
+  const new();
+}
+
 /// Returns what [anchor] names in [facts]: the `##` section that holds it,
-/// or the `###` heading block it points at, or null.
+/// the `###` heading block it points at, [OtherAnchorTarget] when the
+/// anchor exists but names neither, or null when it exists in no anchor set.
 ///
-/// Null when [facts] holds no anchor set, no heading lines (a heading the
-/// line scan cannot place, so none pairs with its slug), or no `##` or
-/// `###` heading of that anchor — an html id names an anchor (RULE-13) but
-/// no section, and the title heading names the doc, so neither is guessed
-/// at.
+/// An html id, the title, a heading below `###`, and a heading whose line
+/// the scan cannot pair with its slug (so none is guessed at, ruling 2) are
+/// other anchors; so is any anchor of a doc whose anchor set is unknown,
+/// which `check` never reports (resolve_doc_links E23).
 AnchorTarget? anchorTargetOf(LineFacts facts, String anchor) {
   final anchors = facts.anchors;
+  if (anchors == null) return const OtherAnchorTarget();
+  if (!anchors.holds(anchor)) return null;
   final lines = facts.headingLines;
-  if (anchors == null || lines == null) return null;
   final index = anchors.headingSlugs.indexOf(anchor);
-  if (index < 0) return null;
+  if (lines == null || index < 0) return const OtherAnchorTarget();
   final level = anchors.headingLevels[index];
-  if (level < 2 || level > 3) return null;
+  if (level < 2 || level > 3) return const OtherAnchorTarget();
   final line = lines[index];
   if (level == 2 && facts.sectionLines.contains(line)) {
     return SectionTarget(sectionIndex: facts.sectionLines.indexOf(line));
@@ -290,22 +306,26 @@ int _lastLineOf(SectionItem item) =>
   return (first: items[i].line, last: end);
 }
 
-/// Returns [end], moved past each fenced block that follows it directly and
-/// opens indented deeper than [base], before file line [before] (the section
-/// end when null).
+/// Returns [end], moved past each fenced block that follows it, blank lines
+/// between aside, and opens indented deeper than [base], before file line
+/// [before] (the section end when null).
 int _withFencesBefore(List<BodyLine> section, int end, int? before, int base) {
+  bool inRange(int at) =>
+      at < section.length && (before == null || section[at].line < before);
   var last = end;
   var at = section.indexWhere((l) => l.line == end) + 1;
-  while (at < section.length &&
-      (before == null || section[at].line < before) &&
-      section[at].fenced &&
-      _indentOf(section[at].text) > base) {
-    while (at < section.length &&
-        (before == null || section[at].line < before) &&
-        section[at].fenced) {
+  while (true) {
+    var open = at;
+    while (inRange(open) && section[open].text.trim().isEmpty) {
+      open++;
+    }
+    if (!inRange(open) ||
+        !section[open].fenced ||
+        _indentOf(section[open].text) <= base) {
+      return last;
+    }
+    for (at = open; inRange(at) && section[at].fenced; at++) {
       last = section[at].line;
-      at++;
     }
   }
-  return last;
 }
