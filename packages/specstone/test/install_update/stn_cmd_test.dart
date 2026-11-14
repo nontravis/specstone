@@ -215,6 +215,8 @@ void main() {
           'folder',
           'extension',
           'attributes',
+          'restore_title',
+          'cmdline',
         ];
         final userValues = {
           for (final name in workVariables) name.toUpperCase(): 'user-$name',
