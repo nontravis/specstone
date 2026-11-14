@@ -42,7 +42,7 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 | Statement untested   | an FR statement, or a clause of one, that no scenario of its story and no edge case covers   |
 | Rule restated        | a draft stating a rule another doc owns instead of citing it (`specstone:expert-sdd` rule 7) |
 
-- **Rule restated:** name the owner doc and the item; its fix is a citation in the draft.
+- **Rule restated:** name the owner doc and the item; its fix is an item link in the draft.
 - **No design document:** skip the first two rows; every other comparison and `check` still run.
 - **A gap you could fix:** report it and fix nothing. The author fixes it in a fix round, or the Owner decides.
 

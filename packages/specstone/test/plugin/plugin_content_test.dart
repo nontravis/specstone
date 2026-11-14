@@ -1118,22 +1118,54 @@ void _handOffTests() {
         '`references/confirm-links.md`',
       ),
     );
-    expect(_oneLine(_pluginText(_confirmLinks)), contains(_confirmLinkSteps));
+    final links = _oneLine(_pluginText(_confirmLinks));
+    expect(links, contains(_confirmLinkSteps));
+    for (final point in _citedLinkPoints) {
+      expect(links, contains(point), reason: point);
+    }
+    expect(rules, contains('Its links: `references/confirm-links.md`.'));
+    expect(skill, isNot(contains('pins no hash')));
     for (final step in ['bases.fields.confirmed', '--field confirmed']) {
       expect(skill, isNot(contains(step)), reason: step);
     }
   });
+
+  test('f08/us02/fr04/e08, f08/us02/fr04/e09, f08/us02/fr07/e10: no plugin '
+      'file tells an agent to cite a rule by doc name', () {
+    for (final file in _skillAndAgentFiles()) {
+      final text = _oneLine(_pluginText(file));
+      for (final old in _nameCiteForms) {
+        expect(text, isNot(contains(old)), reason: '$file: $old');
+      }
+    }
+  });
 }
 
-/// Each point of `follow_cross_doc_rules`' one-owner clause, E08, and E09, as
-/// the Rules section of expert-sdd words it.
+/// Each point of `follow_cross_doc_rules`' one-owner clause and E08, and of
+/// the `check` findings that read its link, as the Rules section of
+/// expert-sdd words them, cut at line width.
 const _oneOwnerPoints = [
   'A rule has one owner doc.',
-  'Every other doc cites it by name, `<type>:<name>` or',
-  '`<type>:<name>` or `<type>:<name>#<section>` and the item ID inside it',
-  'states nothing of the rule',
-  '`specstone refs <owner>` lists each citing doc',
-  'a citation pins no hash: it never turns `suspect` when the owner changes',
+  'Every other doc cites it by a link to the item that holds it,',
+  '`[<ID>](<path>#<section heading anchor>)`, or by a section or doc link when',
+  'no item holds it, and states nothing of the rule.',
+  '`specstone check` reports an old cite form as `cite_unlinked` and a link to',
+  'an item its section lacks as `link_item_missing`.',
+];
+
+/// The cite rule's E09 points, which `references/confirm-links.md` holds
+/// beside the traced links, as it words them, cut at line width.
+const _citedLinkPoints = [
+  '`specstone refs <owner>` lists each doc that cites it by a link, and',
+  '`specstone context` follows the link,',
+  'but a citation pins no hash: it never turns `suspect` when the owner',
+  'changes, and takes no `confirmed` entry.',
+];
+
+/// The cite-by-name forms that the cite rule's item link replaced.
+const _nameCiteForms = [
+  'cites it by name',
+  '`<type>:<name>#<section>` and the item ID inside it',
 ];
 
 /// The one home of expert-sdd's steps for confirming a traced link.
@@ -3124,8 +3156,8 @@ const _auditReadPoints = [
 const _restatementGapPoints = [
   '| Rule restated | a draft stating a rule another doc owns instead of',
   'citing it (`specstone:expert-sdd` rule 7) |',
-  '**Rule restated:** name the owner doc and the item; its fix is a citation',
-  'in the draft.',
+  '**Rule restated:** name the owner doc and the item; its fix is an item',
+  'link in the draft.',
 ];
 
 /// The `Audited:` lines, E11's lists, and E13's `[behavior]` tag of
