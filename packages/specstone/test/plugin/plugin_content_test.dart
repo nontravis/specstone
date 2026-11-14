@@ -565,8 +565,12 @@ void _leadAndMermaidTests() {
 /// skill's `references/procedure.md`.
 const _handOffs = ['sync-sdd', 'bootstrap-prd', 'bootstrap-spec'];
 
+/// The text of plugin [file] with `\n` line ends, as a Windows checkout's
+/// `\r\n` would otherwise fail every multi-line match.
 String _pluginText(String file) =>
-    File.fromUri(pluginRoot().uri.resolve(file)).readAsStringSync();
+    File.fromUri(pluginRoot().uri.resolve(file))
+        .readAsStringSync()
+        .replaceAll('\r\n', '\n');
 
 final _frontmatter = RegExp(r'^---\r?\n(?:.*\r?\n)*?---\r?\n');
 

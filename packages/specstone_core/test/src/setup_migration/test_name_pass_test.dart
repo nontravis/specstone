@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart' show pathInside;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
@@ -107,7 +108,7 @@ Future<Directory?> _home() async => null;
   final types = <String, MergedDocType>{};
   for (final entity in docsRoot.listSync(recursive: true)) {
     if (entity is! File || !entity.path.endsWith('.md')) continue;
-    final docPath = entity.path.substring(docsRoot.path.length + 1);
+    final docPath = _docPathOf(docsRoot.path, entity.path);
     final match = matcher.match(docPath);
     final type = match is MatchedDocType ? match.docType : null;
     if (type != null) types[docPath] = type;
@@ -142,6 +143,11 @@ Future<Directory?> _home() async => null;
   return (pass: pass, inputs: inputs);
 }
 
+/// Returns the DocPath of [listed], a path a listing of [docsRoot] gave in the
+/// platform's separators; [isWindows] picks the style.
+String _docPathOf(String docsRoot, String listed, {bool? isWindows}) =>
+    pathInside(docsRoot, listed, isWindows: isWindows)!;
+
 String _fileText(TestNamePass pass, String path) =>
     pass.fileRewrites.singleWhere((rewrite) => rewrite.path == path).text;
 
@@ -150,6 +156,33 @@ Object? _testsOf(String text) => frontmatterValuesOf(Doc.parse(text))['tests'];
 String _test(String name) => "void main() {\n  test('$name', () {});\n}\n";
 
 void main() {
+  test('a Windows listing path reads as a slash-separated DocPath', () {
+    expect(
+      _docPathOf(
+        r'C:\p\docs',
+        r'C:\p\docs\prds\features\f01_login\FEATURE.md',
+        isWindows: true,
+      ),
+      'prds/features/f01_login/FEATURE.md',
+    );
+  });
+  test('a nested repository folder on Windows lies under its code root', () {
+    final folder = repositoryFolderOf(
+      r'C:\p\ws',
+      'app/vendor',
+      isWindows: true,
+    );
+
+    expect(folder, r'C:\p\ws\app\vendor');
+    expect(
+      pathInside(
+        r'C:\p\ws\app',
+        '$folder\\test\\dep_test.dart',
+        isWindows: true,
+      ),
+      'vendor/test/dep_test.dart',
+    );
+  });
   _legacyTests();
   group('test-name pass', () {
     test('a label opening a test name moves into the record as one '

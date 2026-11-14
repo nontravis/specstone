@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show pathInside;
+import 'package:specstone_core/src/canonical_path.dart'
+    show pathInside, withNativeSeparators;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/number_label.dart';
@@ -380,9 +381,7 @@ List<({String path, bool isOwnRepository})> _trackedFilesOf(
   final seen = <String>{};
   final files = <({String path, bool isOwnRepository})>[];
   for (final top in [_projectTop, ...agentFileRoots]) {
-    final folder = top == _projectTop
-        ? root
-        : Directory('${root.path}${Platform.pathSeparator}$top');
+    final folder = Directory(repositoryFolderOf(root.path, top));
     for (final relative in _trackedIn(folder, runGit)) {
       final path = _nativePath(folder.path, relative);
       if (seen.add(path)) {
@@ -392,6 +391,14 @@ List<({String path, bool isOwnRepository})> _trackedFilesOf(
   }
   return files;
 }
+
+/// Returns the folder of the repository whose top is [top], `.` for the
+/// project's own or a `/`-separated path from [root], in the platform's
+/// separators as [root] is; [isWindows] picks the style.
+String repositoryFolderOf(String root, String top, {bool? isWindows}) =>
+    top == _projectTop
+    ? root
+    : withNativeSeparators('$root/$top', isWindows: isWindows);
 
 String _nativePath(String folder, String relative) =>
     '$folder${Platform.pathSeparator}'
