@@ -129,7 +129,7 @@ void main() {
       });
     }
 
-    test('f01/us05/fr07: mayLeaveProject lets a path outside the project '
+    test('mayLeaveProject lets a path outside the project '
         'pass and still refuses one under .git', () {
       String? leaving(String relative) => writeRefusalOf(
         '${project.path}/$relative',

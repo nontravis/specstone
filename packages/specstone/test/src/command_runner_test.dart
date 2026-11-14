@@ -73,7 +73,7 @@ void main() {
       expect(out.toString(), contains('upgrade'));
     });
 
-    test("f01/us08/fr01/e11: --help lists folder as `Print the project's "
+    test("--help lists folder as `Print the project's "
         '.specstone folder.`', () async {
       expect(await runner.run(['--help']), 0);
       expect(

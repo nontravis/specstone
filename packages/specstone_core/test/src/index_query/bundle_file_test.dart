@@ -72,7 +72,7 @@ ContextAnswer _answerOf(
 }
 
 void main() {
-  group('f01/us05/fr07: bundleFileName, the Name rule', () {
+  group('bundleFileName, the Name rule', () {
     test('e01: a target and its mode', () {
       expect(
         bundleFileName(
@@ -149,7 +149,7 @@ void main() {
     });
   });
 
-  group('f01/us05/fr07: bundleIndex', () {
+  group('bundleIndex', () {
     test('s20: the header, then each doc and part as <name> (<doc type>) · <first>-<last>, marks after the range', () {
       final answer = ContextAnswer(
         text: 'a\nb\nc\n\nd\ne\n\nf\n\ng\n\nh\n\ni\n',
@@ -332,7 +332,7 @@ void main() {
     });
   });
 
-  group('f01/us05/fr07, F14: answerContext places each doc and part', () {
+  group('answerContext places each doc and part', () {
     void expectPlaced(ContextAnswer answer) {
       final lines = answer.text.split('\n');
       expect(answer.entries, isNotEmpty);

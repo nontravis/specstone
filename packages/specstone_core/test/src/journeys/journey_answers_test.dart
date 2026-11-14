@@ -207,7 +207,7 @@ void main() {
       expect(answer.text, isNot(contains('OLD COPY LINE')));
     });
 
-    test('f10/us02/fr01/e10: a relative link prints from the journey '
+    test('a relative link prints from the journey '
         "folder, as the journey's block holds it", () async {
       final answer = await _paths(
         [_step('1', 1)],

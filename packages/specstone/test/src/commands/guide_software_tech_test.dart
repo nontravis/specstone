@@ -593,8 +593,7 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('template_packs/write_spec_docs_from_software_tech/'
-        'write_spec_writing_guides E16: every software-tech guide says to '
+    test('every software-tech guide says to '
         'cite a rule another doc owns by a link to its item, never restate '
         'it', () async {
       final runner = await runnerFor(_bothPacks);
@@ -605,8 +604,7 @@ void main() {
       }
     });
 
-    test('template_packs/write_spec_docs_from_software_tech/'
-        'write_spec_writing_guides E13: the domain and architecture guides '
+    test('the domain and architecture guides '
         'say a DOMAIN cites its own ARCHITECTURE by a section link', () async {
       final runner = await runnerFor(_bothPacks);
       for (final id in ['domain', 'architecture']) {

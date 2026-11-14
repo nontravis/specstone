@@ -427,7 +427,7 @@ void main() {
       sectionCounts: facts.sectionCounts,
     );
 
-    test('domain:index_query INV-86: a typed doc stores each cite candidate '
+    test('a typed doc stores each cite candidate '
         'at its file line, and the JSON round trip keeps it', () {
       final facts = typedFactsOf(
         '---\nx: 1\n---\n\n# T\n\n`domain:login#invariants` INV-6 and INV-7.\n',
@@ -443,11 +443,11 @@ void main() {
       expect(roundTrip(facts).citeCandidates.single.itemIds, cite.itemIds);
     });
 
-    test('report_old_cite_forms E12: an untyped doc stores no candidate', () {
+    test('an untyped doc stores no candidate', () {
       expect(_factsOf('# T\n\n`domain:login` INV-6\n').citeCandidates, isEmpty);
     });
 
-    test('domain:index_query INV-86: each doc or self link whose text reads '
+    test('each doc or self link whose text reads '
         'as an item ID stores its text and where it sits, and the JSON '
         'round trip keeps them', () {
       const line =
@@ -492,7 +492,7 @@ void main() {
       expect(roundTrip(facts).linkTexts, facts.linkTexts);
     });
 
-    test('topic:doc_model#rules RULE-13: each heading stores its level, and '
+    test('each heading stores its level, and '
         'its file line when every heading is a line of ATX text', () {
       final facts = _factsOf(
         '---\nx: 1\n---\n\n# T\n\n## A\n\n```\n## no\n```\n\n### B\n\n## A\n',
@@ -506,7 +506,7 @@ void main() {
       expect(back.headingLines, [5, 7, 13, 15]);
     });
 
-    test('topic:doc_model#rules RULE-13: a heading the line scan cannot '
+    test('a heading the line scan cannot '
         'place leaves the lines unknown, never a stand-in', () {
       final setext = _factsOf('# T\n\nSetext\n------\n\n## A\n');
 
@@ -517,7 +517,7 @@ void main() {
     });
 
     test(
-      'topic:doc_model#rules RULE-13: a quoted heading that cancels a '
+      'a quoted heading that cancels a '
       '## line inside an HTML block keeps no line, since the slugs differ',
       () {
         final facts = _factsOf('# T\n> ## Note\n\n<!--\n## guide\n-->\n');
@@ -527,7 +527,7 @@ void main() {
       },
     );
 
-    test('topic:doc_model#rules RULE-13: a heading with inline markup is '
+    test('a heading with inline markup is '
         'paired by the slug the parser gives it', () {
       final facts = _factsOf('# T\n> ## Note\n\n<!--\n## `guide`\n-->\n');
 
@@ -535,7 +535,7 @@ void main() {
       expect(facts.headingLines, isNull);
     });
 
-    test('topic:doc_model#rules RULE-13: a repeated heading and one with '
+    test('a repeated heading and one with '
         'inline markup still pair with their lines', () {
       final facts = _factsOf('# T\n\n## A\n\n## A\n\n## `code` _x_\n');
 

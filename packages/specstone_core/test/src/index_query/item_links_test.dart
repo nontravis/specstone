@@ -132,21 +132,21 @@ void main() {
       );
     }
 
-    test('f04/us02/fr09/e01: a link whose whole text is an item ID of the '
+    test('a link whose whole text is an item ID of the '
         'section its anchor names is an item link', () {
       expect(classify('INV-9', 'invariants'), 'item invariants INV-9');
     });
 
-    test('f04/us02/fr09/e06: a link whose text is no item ID of that '
+    test('a link whose text is no item ID of that '
         'section is a section link', () {
       expect(classify('the rules', 'invariants'), 'section invariants');
     });
 
-    test('topic:doc_model#rules RULE-33: a lettered form is no item ID', () {
+    test('a lettered form is no item ID', () {
       expect(classify('INV-9a', 'invariants'), 'section invariants');
     });
 
-    test('f04/us02/fr09/e03: S<N> on an acceptance_criteria section names '
+    test('S<N> on an acceptance_criteria section names '
         'its Scenario block, by number value', () {
       expect(
         classify('S06', 'acceptance-criteria'),
@@ -154,38 +154,38 @@ void main() {
       );
     });
 
-    test('f04/us02/fr09/e06: S<N> on any other section is no scenario', () {
+    test('S<N> on any other section is no scenario', () {
       expect(classify('S6', 'invariants'), 'section invariants');
     });
 
-    test('f01/us05/fr05/e06: a doc link with no fragment or an empty one '
+    test('a doc link with no fragment or an empty one '
         'is a doc cite', () {
       expect(classify('text', null), 'doc');
       expect(classify('text', ''), 'doc');
     });
 
-    test('f01/us05/fr05/e03: a fragment naming a ### heading with no ID '
+    test('a fragment naming a ### heading with no ID '
         'text is that heading block cite', () {
       expect(classify('the block', 'scenario-6'), 'block 13');
     });
 
-    test('f04/us02/fr09/e07: a ### anchor is a heading block even when the '
+    test('a ### anchor is a heading block even when the '
         'text reads as an item ID', () {
       expect(classify('INV-1', 'scenario-6'), 'block 13');
     });
 
-    test('f01/us05/fr05/e13: a fragment that matches no anchor of the '
+    test('a fragment that matches no anchor of the '
         'target is unresolved, never a doc cite', () {
       expect(classify('INV-9', 'missing'), 'unresolved');
     });
 
-    test('topic:doc_model#rules RULE-45: an html id and the title are '
+    test('an html id and the title are '
         'anchors the doc holds, so no pointer is broken', () {
       expect(classify('INV-9', 'x'), 'other anchor');
       expect(classify('INV-9', 't'), 'other anchor');
     });
 
-    test('topic:doc_model#rules RULE-45: a heading whose line the scan '
+    test('a heading whose line the scan '
         'cannot pair is an anchor the doc holds, and a missing one on that '
         'doc is still missing', () {
       final setext = _factsOf('# T\n\nSetext\n------\n\n## A\n');
@@ -193,27 +193,27 @@ void main() {
       expect(classify('INV-1', 'nope', on: setext), 'unresolved');
     });
 
-    test('topic:doc_model#rules RULE-45: a section the caller holds none '
+    test('a section the caller holds none '
         'of is no broken pointer', () {
       expect(classify('INV-1', 'invariants', at: (_) => null), 'other anchor');
     });
   });
 
   group('anchorTargetOf', () {
-    test('f01/us05/fr05/e05: a ## anchor names its section', () {
+    test('a ## anchor names its section', () {
       final facts = _factsOf('# T\n\n## Rules\n\n- RULE-1 one\n\n## More\n');
       expect(_showTarget(anchorTargetOf(facts, 'rules')), 'section 0');
       expect(_showTarget(anchorTargetOf(facts, 'more')), 'section 1');
     });
 
-    test('f01/us05/fr05/e03: a ### anchor names its heading block line', () {
+    test('a ### anchor names its heading block line', () {
       final facts = _factsOf(
         '# T\n\n## Acceptance criteria\n\n### Scenario 6\n\nText.\n',
       );
       expect(_showTarget(anchorTargetOf(facts, 'scenario-6')), 'block 5');
     });
 
-    test('topic:doc_model#rules RULE-13: unknown heading lines give no '
+    test('unknown heading lines give no '
         'section or block, never a guess', () {
       final facts = _factsOf('# T\n\n## A\n\nSetext\n---\n\n## B\n');
       expect(facts.headingLines, isNull);
@@ -222,12 +222,12 @@ void main() {
       expect(anchorTargetOf(facts, 'c'), isNull);
     });
 
-    test('f01/us05/fr05/e13: an anchor the doc holds nowhere gives null', () {
+    test('an anchor the doc holds nowhere gives null', () {
       final facts = _factsOf('# T\n\n## Rules\n');
       expect(anchorTargetOf(facts, 'invariants'), isNull);
     });
 
-    test('topic:doc_model#rules RULE-45: an html id and the title give '
+    test('an html id and the title give '
         'the other-anchor target', () {
       final facts = _factsOf('# T\n\n## Rules\n\n<a name="x"></a>\n');
       expect(facts.anchors!.holds('x'), isTrue);
@@ -253,7 +253,7 @@ void main() {
         '${r.first.cite.itemId}-${r.last.cite.itemId}',
     ];
 
-    test('f01/us05/fr05/e04: two item links to one section joined by '
+    test('two item links to one section joined by '
         '" to " pair into one range', () {
       const line = '[RULE-14](other.md#rules) to [RULE-19](other.md#rules)';
       expect(rangesIn(line, [('RULE-14', 'rules'), ('RULE-19', 'rules')]), [
@@ -261,7 +261,7 @@ void main() {
       ]);
     });
 
-    test('topic:doc_model#rules RULE-47: text other than " to " between '
+    test('text other than " to " between '
         'the links gives no range', () {
       const line = '[RULE-14](other.md#rules) and [RULE-19](other.md#rules)';
       expect(
@@ -270,7 +270,7 @@ void main() {
       );
     });
 
-    test('topic:doc_model#rules RULE-47: links of two sections never pair', () {
+    test('links of two sections never pair', () {
       const line = '[RULE-14](other.md#rules) to [RULE-2](other.md#invariants)';
       expect(
         rangesIn(line, [('RULE-14', 'rules'), ('RULE-2', 'invariants')]),
@@ -278,14 +278,14 @@ void main() {
       );
     });
 
-    test('topic:doc_model#rules RULE-47: a link alone gives no range', () {
+    test('a link alone gives no range', () {
       expect(
         rangesIn('[RULE-14](other.md#rules)', [('RULE-14', 'rules')]),
         isEmpty,
       );
     });
 
-    test('topic:doc_model#rules RULE-47: a middle link ends one range and '
+    test('a middle link ends one range and '
         'starts the next', () {
       const line =
           '[RULE-14](other.md#rules) to [RULE-16](other.md#rules) to '
@@ -300,13 +300,13 @@ void main() {
       );
     });
 
-    test('topic:doc_model#rules RULE-47: a section link with a digit in its '
+    test('a section link with a digit in its '
         'text joins no range', () {
       const line = '[v2](other.md#rules) to [RULE-19](other.md#rules)';
       expect(rangesIn(line, [('v2', 'rules'), ('RULE-19', 'rules')]), isEmpty);
     });
 
-    test('topic:doc_model#rules RULE-47: links on two lines never pair', () {
+    test('links on two lines never pair', () {
       const line = '[RULE-14](other.md#rules) to';
       const second = (
         line: 9,
@@ -333,7 +333,7 @@ void main() {
   });
 
   group('itemExtentOf', () {
-    test('f01/us05/fr05/e01: an item spans its nested items', () {
+    test('an item spans its nested items', () {
       expect(
         _extent(
           '- RULE-1 one\n  - Enforcer\n  - Consistency\n- RULE-2 two\n',
@@ -343,7 +343,7 @@ void main() {
       );
     });
 
-    test('f01/us05/fr05/e01: a bold ID, the form the docs use, is found '
+    test('a bold ID, the form the docs use, is found '
         'with its nested items', () {
       expect(
         _extent(
@@ -358,21 +358,21 @@ void main() {
       );
     });
 
-    test('f01/us05/fr05/e01: the ID is read as the index reads it, so a '
+    test('the ID is read as the index reads it, so a '
         'lettered or longer ID is another item', () {
       const text = '- RULE-1a lettered\n- RULE-12 twelve\n- RULE-1 one\n';
       expect(_extent(text, 'RULE-1'), '22-22');
       expect(_extent(text, 'RULE-12'), '21-21');
     });
 
-    test('f01/us05/fr05/e01: a nested ID item stops before its sibling '
+    test('a nested ID item stops before its sibling '
         'nested items', () {
       const text = '- Group\n  - INV-1 a\n    - note\n  - INV-2 b\n- INV-3 c\n';
       expect(_extent(text, 'INV-1', prefix: 'INV-'), '21-22');
       expect(_extent(text, 'INV-2', prefix: 'INV-'), '23-23');
     });
 
-    test('f01/us05/fr05/e01: an indented fence that closes a list item '
+    test('an indented fence that closes a list item '
         'stays in its extent, an unindented one does not', () {
       const text =
           '- RULE-1 x\n  ```dart\n  code\n  ```\n- RULE-2 y\n```\nz\n```\n';
@@ -380,20 +380,20 @@ void main() {
       expect(_extent(text, 'RULE-2'), '24-24');
     });
 
-    test('f01/us05/fr05/e01: a blank line before an indented fence keeps '
+    test('a blank line before an indented fence keeps '
         'the code in the extent', () {
       const text = '- RULE-1 x\n\n  ```dart\n  code\n  ```\n\n- RULE-2 y\n';
       expect(_extent(text, 'RULE-1'), '20-24');
       expect(_extent(text, 'RULE-2'), '26-26');
     });
 
-    test('f01/us05/fr05/e01: blank lines before an unindented fence, or '
+    test('blank lines before an unindented fence, or '
         'before the next item, stay out of the extent', () {
       const text = '- RULE-1 x\n\n```\nz\n```\n- RULE-2 y\n';
       expect(_extent(text, 'RULE-1'), '20-20');
     });
 
-    test('f01/us05/fr05/e02: an item an ID-headed ### heading starts spans '
+    test('an item an ID-headed ### heading starts spans '
         'its block up to the next heading of its level, blanks off', () {
       expect(
         _extent(
@@ -405,7 +405,7 @@ void main() {
       );
     });
 
-    test('f01/us05/fr05/e02: a bold ID heading is found, and a deeper '
+    test('a bold ID heading is found, and a deeper '
         'heading does not end the block', () {
       expect(
         _extent(
@@ -416,7 +416,7 @@ void main() {
       );
     });
 
-    test('f01/us05/fr05/e02: a quoted heading item ends at the next '
+    test('a quoted heading item ends at the next '
         'heading of its level', () {
       expect(
         _extent('> ### NFR-P01 — Fast\n>\n> text\n\n### Next\n', 'NFR-P01'),
@@ -424,7 +424,7 @@ void main() {
       );
     });
 
-    test('topic:doc_model#rules RULE-46: a Scenario block spans its '
+    test('a Scenario block spans its '
         'block, by number value, on an acceptance_criteria section', () {
       const text = '### Scenario 06\n\n- given\n\n### Scenario 7\n';
       expect(
@@ -433,19 +433,19 @@ void main() {
       );
     });
 
-    test('f04/us02/fr09/e02: an ID the section holds no item of gives no '
+    test('an ID the section holds no item of gives no '
         'extent', () {
       expect(_extent('- RULE-1 one\n', 'RULE-9'), isNull);
     });
 
-    test('topic:doc_model#rules RULE-19: an item that carries no ID gives '
+    test('an item that carries no ID gives '
         'no extent', () {
       expect(_extent('- plain text\n', 'RULE-1'), isNull);
     });
   });
 
   group('headingBlockExtentOf', () {
-    test('f01/us05/fr05/e03: a ### heading with no ID spans its block up '
+    test('a ### heading with no ID spans its block up '
         'to the next heading of its level or above', () {
       final extent = headingBlockExtentOf(
         _body('### Notes\n\ntext\n\n#### Deeper\n\nmore\n\n### Next\n'),
@@ -454,7 +454,7 @@ void main() {
       expect(extent, (first: 20, last: 26));
     });
 
-    test('f01/us05/fr05/e03: a heading inside fenced code ends nothing', () {
+    test('a heading inside fenced code ends nothing', () {
       final extent = headingBlockExtentOf(
         _body('### Notes\n```\n### no\n```\ntail\n'),
         20,
@@ -462,7 +462,7 @@ void main() {
       expect(extent, (first: 20, last: 24));
     });
 
-    test('f01/us05/fr05/e03: a line that is no heading has no block', () {
+    test('a line that is no heading has no block', () {
       expect(headingBlockExtentOf(_body('text\n'), 20), isNull);
       expect(headingBlockExtentOf(_body('text\n'), 99), isNull);
     });

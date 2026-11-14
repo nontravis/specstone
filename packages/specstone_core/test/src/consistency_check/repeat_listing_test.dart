@@ -54,7 +54,7 @@ int _lineOf(Directory project, String docPath, String needle) =>
     1;
 
 void main() {
-  test('f04/us05/fr01/e01, f04/us05/s1: a link, bold, backticks, an item ID, and punctuation normalize away, so two wordings of one rule read alike', () async {
+  test('a link, bold, backticks, an item ID, and punctuation normalize away, so two wordings of one rule read alike', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge(
@@ -80,7 +80,7 @@ void main() {
     );
   });
 
-  test('f04/us05/fr01/e02, f04/us05/s1: two docs that share a clause give one group naming both items, sorted by DocPath then line', () async {
+  test('two docs that share a clause give one group naming both items, sorted by DocPath then line', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge('When the Agent runs it, $_clause for the Agent.'),
@@ -99,7 +99,7 @@ void main() {
     );
   });
 
-  test('f04/us05/fr01/e03, f04/us05/s2: one rule in three docs gives one group of three items', () async {
+  test('one rule in three docs gives one group of three items', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge('When the Agent runs it, $_clause for the Agent.'),
@@ -115,7 +115,7 @@ void main() {
     );
   });
 
-  test('f04/us05/fr01/e04: overlapping 8-word windows the same items share merge into one maximal run', () async {
+  test('overlapping 8-word windows the same items share merge into one maximal run', () async {
     const twelve =
         'one two three four five six seven eight nine ten eleven twelve';
     final project = await writeCheckProject(
@@ -129,7 +129,7 @@ void main() {
     expect(groups.single.run, twelve);
   });
 
-  test('f04/us05/fr01/e04: a run of 7 words is no group', () async {
+  test('a run of 7 words is no group', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge('Alpha opens one two three four five six seven closes.'),
@@ -139,7 +139,7 @@ void main() {
     expect(_groupsOf(project), isEmpty);
   });
 
-  test('f04/us05/fr01/e05: two items of one doc that share a run give no group', () async {
+  test('two items of one doc that share a run give no group', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge(
@@ -150,7 +150,7 @@ void main() {
     expect(_groupsOf(project), isEmpty);
   });
 
-  test('f04/us05/fr01/e06, f04/us05/s3: a Given line, a table row, fenced code, a heading, and an HTML comment are not read', () async {
+  test('a Given line, a table row, fenced code, a heading, and an HTML comment are not read', () async {
     final shapes = <String, String Function(String)>{
       'a Given line': (c) => '- **Given** $c',
       'a When line': (c) => '- **When** $c',
@@ -176,7 +176,7 @@ void main() {
     }
   });
 
-  test('f04/us05/fr01/e06, f04/us05/s3: a run the template text also holds is left out', () async {
+  test('a run the template text also holds is left out', () async {
     const template =
         'The <product> shall <verb> <object> <value ± tolerance> <condition>.';
     final project = await writeCheckProject(
@@ -192,7 +192,7 @@ void main() {
     expect(_groupsOf(project), isEmpty);
   });
 
-  test('f04/us05/fr01/e06, f04/us05/s3: a run the guide text also holds is left out', () async {
+  test('a run the guide text also holds is left out', () async {
     const guide =
         'Use one "shall" and a positive form; rewrite "shall not" as the required behavior.';
     final project = await writeCheckProject(
@@ -208,7 +208,7 @@ void main() {
     expect(_groupsOf(project), isEmpty);
   });
 
-  test('f04/us05/fr01/e12: a pack change that adds the run to a section description drops its group on the same index, from the words the first run stored', () async {
+  test('a pack change that adds the run to a section description drops its group on the same index, from the words the first run stored', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge('When the Agent runs it, $_clause for the Agent.'),
@@ -237,7 +237,7 @@ void main() {
     }
   });
 
-  test('f04/us05/fr01/e03, f04/us05/fr01/e04: a run two docs share whole and a third holds the last part of prints beside the shorter run all three share', () async {
+  test('a run two docs share whole and a third holds the last part of prints beside the shorter run all three share', () async {
     const whole = 'w01 w02 w03 w04 w05 w06 w07 w08 w09 w10 w11 w12 w13 w14';
     const last = 'w05 w06 w07 w08 w09 w10 w11 w12 w13 w14';
     final project = await writeCheckProject(
@@ -257,7 +257,7 @@ void main() {
     });
   });
 
-  test('f04/us05/fr01/e04: a run longer than 8 words that another doc holds in two parts prints as the two parts it holds', () async {
+  test('a run longer than 8 words that another doc holds in two parts prints as the two parts it holds', () async {
     final project = await writeCheckProject(
       extra: {
         ..._edge('Alpha opens k0 k1 k2 k3 k4 k5 k6 k7 k8 k9 closes.'),
@@ -270,7 +270,7 @@ void main() {
     expect(runs, ['k0 k1 k2 k3 k4 k5 k6 k7 k8', 'k1 k2 k3 k4 k5 k6 k7 k8 k9']);
   });
 
-  test('f04/us05/fr01/e03: a run that 14 docs hold gives one group of 14 items beside the longer run 13 of them hold', () async {
+  test('a run that 14 docs hold gives one group of 14 items beside the longer run 13 of them hold', () async {
     final nf = checkProjectFiles()['docs/$loginNf']!.replaceFirst(
       _nfStatement,
       'The system shall hold that $_clause, always.',
@@ -291,20 +291,23 @@ void main() {
     });
   });
 
-  test('f04/us05/fr01/e04: windows another doc holds apart are not merged into one run for it', () async {
-    final project = await writeCheckProject(
-      extra: {
-        ..._edge('Alpha opens p1 p2 p3 p4 p5 p6 p7 p8 p9 closes.'),
-        ..._statement(
-          'Beta begins p1 p2 p3 p4 p5 p6 p7 p8 qq p2 p3 p4 p5 p6 p7 p8 p9 ends.',
-        ),
-      },
-    );
-    final runs = [for (final g in _groupsOf(project)) g.run]..sort();
-    expect(runs, ['p1 p2 p3 p4 p5 p6 p7 p8', 'p2 p3 p4 p5 p6 p7 p8 p9']);
-  });
+  test(
+    'windows another doc holds apart are not merged into one run for it',
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          ..._edge('Alpha opens p1 p2 p3 p4 p5 p6 p7 p8 p9 closes.'),
+          ..._statement(
+            'Beta begins p1 p2 p3 p4 p5 p6 p7 p8 qq p2 p3 p4 p5 p6 p7 p8 p9 ends.',
+          ),
+        },
+      );
+      final runs = [for (final g in _groupsOf(project)) g.run]..sort();
+      expect(runs, ['p1 p2 p3 p4 p5 p6 p7 p8', 'p2 p3 p4 p5 p6 p7 p8 p9']);
+    },
+  );
 
-  test('f04/us05/fr01/e07, f04/us05/s5: a target keeps only the groups that hold an item of its docs, each listing every item', () async {
+  test('a target keeps only the groups that hold an item of its docs, each listing every item', () async {
     const other =
         'two docs agree on the second clause that the first target never reads aloud';
     final project = await writeCheckProject(
@@ -324,31 +327,34 @@ void main() {
     expect([for (final i in kept.single.items) i.docPath], [loginFr, loginNf]);
   });
 
-  test('f04/us05/fr01/e08: docs that share no run give no group', () async {
+  test('docs that share no run give no group', () async {
     expect(_groupsOf(await writeCheckProject()), isEmpty);
   });
 
-  test('f04/us05/fr01/e09: a project template that renames a section header keeps its items in scope', () async {
-    final project = await writeCheckProject(
-      extra: {
-        '.specstone/templates/fr.yaml':
-            'sections:\n  - id: edge_cases\n    header: Corner cases\n',
-        ...edit(loginFr, [
-          ('## Edge cases', '## Corner cases'),
-          (_frEdge, 'When the Agent runs it, $_clause for the Agent.'),
-        ]),
-        ..._invariant('Every run: $_clause, in short.'),
-      },
-    );
-    final groups = _groupsOf(project);
-    expect(groups, hasLength(1));
-    expect(
-      [for (final i in groups.single.items) i.docPath],
-      [loginFr, _domain],
-    );
-  });
+  test(
+    'a project template that renames a section header keeps its items in scope',
+    () async {
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/templates/fr.yaml':
+              'sections:\n  - id: edge_cases\n    header: Corner cases\n',
+          ...edit(loginFr, [
+            ('## Edge cases', '## Corner cases'),
+            (_frEdge, 'When the Agent runs it, $_clause for the Agent.'),
+          ]),
+          ..._invariant('Every run: $_clause, in short.'),
+        },
+      );
+      final groups = _groupsOf(project);
+      expect(groups, hasLength(1));
+      expect(
+        [for (final i in groups.single.items) i.docPath],
+        [loginFr, _domain],
+      );
+    },
+  );
 
-  test('f04/us05/fr01: groups sort by their first item, then by run', () async {
+  test('groups sort by their first item, then by run', () async {
     const first = 'zeta one two three four five six seven eight nine ten';
     const second = 'alpha one two three four five six seven eight nine ten';
     final project = await writeCheckProject(
