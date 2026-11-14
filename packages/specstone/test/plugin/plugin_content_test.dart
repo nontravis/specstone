@@ -1205,7 +1205,39 @@ void _handOffTests() {
           'Owner confirmation',
         ),
       );
-      expect(section, contains('references/approve-mode.md'));
+      final approveItem = section.substring(
+        section.indexOf('- `approve`:'),
+        section.indexOf('- `delete`:'),
+      );
+      expect(approveItem, contains('follow `references/approve-mode.md`'));
+    });
+
+    test("expert-sdd's step 3 runs the --yes command only after the ok, a "
+        'clean draft under auto excepted', () {
+      final section = _oneLine(
+        _sectionOf(
+          _pluginText('skills/expert-sdd/SKILL.md'),
+          'Owner confirmation',
+        ),
+      );
+      expect(
+        section,
+        contains(
+          'Run the `--yes` command, a clean draft under `auto` excepted, only '
+          "after the Owner's `ok`",
+        ),
+      );
+    });
+
+    test('the approve-mode reference asks no ok, passes an unconfirmed '
+        'finding that waits for the owner, and names the upstream change in '
+        'its list', () {
+      final text = _pluginText(_approveMode);
+      expect(_oneLine(text), contains('Ask no `ok`'));
+      final tests = _oneLine(_sectionOf(text, 'Clean-draft tests'));
+      expect(tests, contains('`unconfirmed` with `waitsFor` `owner`'));
+      final list = _oneLine(_sectionOf(text, 'Approved list'));
+      expect(list, contains('name the upstream change it was checked against'));
     });
 
     test('the approve-mode reference runs the dry run, reads approveMode, '
@@ -1284,8 +1316,7 @@ void _handOffTests() {
       final holders = [
         for (final file
             in pluginRoot().listSync(recursive: true).whereType<File>())
-          if (RegExp(r'\$(?:env:)?SPECSTONE_APPROVE_MODE')
-              .hasMatch(file.readAsStringSync()))
+          if (file.readAsStringSync().contains('SPECSTONE_APPROVE_MODE'))
             file.uri.toFilePath(windows: false).substring(root.length),
       ];
       expect(holders, isEmpty);

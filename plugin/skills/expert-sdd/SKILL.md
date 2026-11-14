@@ -55,7 +55,7 @@ alone can miss a root above it.
 own terminal or here in the chat. In the chat:
 
 1. Show what the command does, one item per message, in full:
-   - `approve`: first follow `references/approve-mode.md`; for each draft it leaves to the Owner, run
+   - `approve`: follow `references/approve-mode.md`; for each draft it leaves to the Owner, run
      `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own message: the
      literal `Why:` (in English), one sentence in the conversation's language on why it changed, then its printed
      text, pasted verbatim. Never edit that text. When output is cut, rerun `--dry-run` per draft.
@@ -63,7 +63,7 @@ own terminal or here in the chat. In the chat:
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.
 2. The Owner answers `ok` or says what to fix. Fix it through `specstone set`, then show that item again.
-3. Run the `--yes` command only after the Owner's `ok` for what you showed (the Owner may tell you to answer for
+3. Run the `--yes` command, a clean draft under `auto` excepted, only after the Owner's `ok` for what you showed (the Owner may tell you to answer for
    them). After `ok` on every item of the batch, run one command, passing the hashes shown:
    `specstone approve <type>:<name>@<hash> … --yes` (each draft named, as a name approves only itself),
    `specstone delete <path> … --yes --plan <hash>`, `specstone migrate --yes --plan <hash>`, or
