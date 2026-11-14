@@ -120,7 +120,7 @@ void main() {
     };
 
     group('${shell.name}:', () {
-      test('run_cli_or_yield S1: no other stn runs the specstone beside it, '
+      test('no other stn runs the specstone beside it, '
           'passing argv, PATH, and no guard, exit 0', () async {
         final sb = await createShimSandbox();
         final path = '${sb.bin.path};$system32';
@@ -146,39 +146,36 @@ void main() {
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test(
-        "run_cli_or_yield S1: the exit status is the specstone run's",
-        () async {
-          for (final status in ['3', '-1073741510']) {
-            final sb = await createShimSandbox();
-            final path = '${sb.bin.path};$system32';
-            final extra = {fakeExitVariable: status};
+      test("the exit status is the specstone run's", () async {
+        for (final status in ['3', '-1073741510']) {
+          final sb = await createShimSandbox();
+          final path = '${sb.bin.path};$system32';
+          final extra = {fakeExitVariable: status};
 
-            final viaStn = await sb.typeStn(
-              ['stn check'],
-              shell: shell,
-              path: path,
-              extra: extra,
-            );
-            final viaSpecstone = await sb.typeStn(
-              ['specstone check'],
-              shell: shell,
-              path: path,
-              extra: extra,
-            );
+          final viaStn = await sb.typeStn(
+            ['stn check'],
+            shell: shell,
+            path: path,
+            extra: extra,
+          );
+          final viaSpecstone = await sb.typeStn(
+            ['specstone check'],
+            shell: shell,
+            path: path,
+            extra: extra,
+          );
 
-            expect(
-              viaStn.exitCode,
-              viaSpecstone.exitCode,
-              reason: '$status: ${viaStn.stdout}${viaStn.stderr}',
-            );
-            if (status == '3') expect(viaStn.exitCode, 3);
-            expectTwoEqualRuns(sb, reason: status);
-          }
-        },
-      );
+          expect(
+            viaStn.exitCode,
+            viaSpecstone.exitCode,
+            reason: '$status: ${viaStn.stdout}${viaStn.stderr}',
+          );
+          if (status == '3') expect(viaStn.exitCode, 3);
+          expectTwoEqualRuns(sb, reason: status);
+        }
+      });
 
-      test('run_cli_or_yield S1: arguments arrive as typing specstone gives '
+      test('arguments arrive as typing specstone gives '
           'them', () async {
         for (final (:line, :expected, :delayedExpansion) in _argumentCases(
           shell,
@@ -216,28 +213,25 @@ void main() {
         }
       });
 
-      test(
-        'review focus 3: stn with no arguments gives the target none',
-        () async {
-          final sb = await createShimSandbox();
-          final path = '${sb.bin.path};$system32';
+      test('stn with no arguments gives the target none', () async {
+        final sb = await createShimSandbox();
+        final path = '${sb.bin.path};$system32';
 
-          final r = await sb.typeStn(['stn'], shell: shell, path: path);
+        final r = await sb.typeStn(['stn'], shell: shell, path: path);
 
-          expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
-          expect(sb.logOf('specstone'), [
-            'argv',
-            'stdin',
-            '',
-            'path',
-            path,
-            'guard',
-            'unset',
-          ]);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+        expect(sb.logOf('specstone'), [
+          'argv',
+          'stdin',
+          '',
+          'path',
+          path,
+          'guard',
+          'unset',
+        ]);
+      });
 
-      test('review focus 4: stn.EXE and a quoted full path holding a space '
+      test('stn.EXE and a quoted full path holding a space '
           'drop the whole program name', () async {
         final sb = await createShimSandbox();
         final path = '${sb.bin.path};$system32';
@@ -272,7 +266,7 @@ void main() {
         ]);
       });
 
-      test('run_cli_or_yield E15: piped stdin, stdout redirected to a file, '
+      test('piped stdin, stdout redirected to a file, '
           'and stdout piped reach the target as with specstone', () async {
         const echoed = 'recorded out';
         // A recorder that reads stdin would take the lines cmd is still to
@@ -333,7 +327,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield E15: stderr redirected to a file reaches the '
+      test('stderr redirected to a file reaches the '
           'target as with specstone, apart from stdout', () async {
         const out = 'recorded out';
         const err = 'recorded err';
@@ -363,7 +357,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield E16: a missing specstone.exe prints one stderr '
+      test('a missing specstone.exe prints one stderr '
           'line naming its path and exits 1', () async {
         final sb = await createShimSandbox();
         final target = '${sb.bin.path}\\specstone.exe';
@@ -389,7 +383,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield S3: another stn.exe, then another stn.cmd, on a '
+      test('another stn.exe, then another stn.cmd, on a '
           'later entry runs with the arguments as typed, the unchanged PATH, '
           'and the guard set; the specstone does not run; the exit status is '
           "that stn's", () async {
@@ -425,7 +419,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield S3: another stn.exe on a later entry gets the '
+      test('another stn.exe on a later entry gets the '
           'argument lines as typing that stn.exe by its path gives', () async {
         for (final (:line, :expected, :delayedExpansion) in _argumentCases(
           shell,
@@ -462,7 +456,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield E03: inside one entry, stn.exe comes before '
+      test('inside one entry, stn.exe comes before '
           'stn.cmd, before stn.bat, before stn.com', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'tools'));
@@ -486,7 +480,7 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
-      test('run_cli_or_yield E03, E10: inside one entry, a stn.ps1 loses to '
+      test('inside one entry, a stn.ps1 loses to '
           'stn.exe, stn.cmd, stn.bat, and stn.com; no refusal', () async {
         for (final (extension, exit) in [
           ('exe', 21),
@@ -518,7 +512,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield statement: the target gets the environment the '
+      test('the target gets the environment the '
           'shim got, the loop guard added on a hand-off only', () async {
         for (final extension in [null, 'exe', 'cmd']) {
           final sb = await createShimSandbox();
@@ -566,7 +560,7 @@ void main() {
         }
       });
 
-      test('run_cli_or_yield E01: the guard set runs the specstone beside it '
+      test('the guard set runs the specstone beside it '
           'even with another stn on a later entry', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'tools'));
@@ -584,7 +578,7 @@ void main() {
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test('run_cli_or_yield E02: relative, dot, empty, and tilde entries are '
+      test('relative, dot, empty, and tilde entries are '
           'skipped even when each holds a stn', () async {
         final sb = await createShimSandbox();
         // A stn in `rel`, found only if the walk ran a relative entry from the
@@ -608,7 +602,7 @@ void main() {
         expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
       });
 
-      test('run_cli_or_yield E08: the install folder again with a trailing '
+      test('the install folder again with a trailing '
           r'\ or in upper case is skipped, so a later stn runs and no loop '
           'forms', () async {
         final sb = await createShimSandbox();
@@ -636,7 +630,7 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
-      test('run_cli_or_yield E08: a junction to the install folder, a folder '
+      test('a junction to the install folder, a folder '
           'holding stn.exe and specstone.exe, is skipped, so a later stn runs '
           'and no loop forms', () async {
         final sb = await createShimSandbox();
@@ -655,7 +649,7 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
-      test('run_cli_or_yield E08: a junction to the install folder with no '
+      test('a junction to the install folder with no '
           'specstone.exe beside a stn.exe copy is still skipped by its final '
           'path', () async {
         final sb = await createShimSandbox();
@@ -679,7 +673,7 @@ void main() {
         expect(runs(sb.logOf('other')), 1);
       });
 
-      test('run_cli_or_yield E09: a folder named stn.exe is skipped; a later '
+      test('a folder named stn.exe is skipped; a later '
           'stn.cmd file counts', () async {
         final sb = await createShimSandbox();
         final withDir = dir(under(sb.root, 'one'));
@@ -704,7 +698,7 @@ void main() {
         expect(sb.logOf('other').sublist(0, 2), ['argv', 'check']);
       });
 
-      test('run_cli_or_yield E09: a dangling link named stn.exe is skipped; a '
+      test('a dangling link named stn.exe is skipped; a '
           'later stn.cmd file counts', () async {
         final sb = await createShimSandbox();
         final withLink = dir(under(sb.root, 'one'));
@@ -736,7 +730,7 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
-      test('run_cli_or_yield E10, S5: a stn.ps1 first on the walk prints one '
+      test('a stn.ps1 first on the walk prints one '
           'line naming it and specstone, exits 1, and starts neither the '
           'specstone, PowerShell, nor a later stn', () async {
         final sb = await createShimSandbox();
@@ -768,7 +762,7 @@ void main() {
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test('run_cli_or_yield E11: stn typed twice in one session hands off '
+      test('stn typed twice in one session hands off '
           'both times; between them the session holds no guard', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'tools'));
@@ -799,7 +793,7 @@ void main() {
         expect(sb.logOf('specstone'), isEmpty);
       });
 
-      test('run_cli_or_yield E12: another stn.cmd gets an argument holding & '
+      test('another stn.cmd gets an argument holding & '
           'only inside quotes, and %name% expands, as typing that stn.cmd '
           'first gives', () async {
         final sb = await createShimSandbox();
@@ -830,7 +824,7 @@ void main() {
         ]);
       });
 
-      test('run_cli_or_yield E12: the batch hand-off uses ComSpec, not a '
+      test('the batch hand-off uses ComSpec, not a '
           'cmd.exe on PATH', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'tools'));
@@ -876,7 +870,7 @@ void main() {
         ]);
       });
 
-      test('run_cli_or_yield E06: stn upgrade replaces the running stn.exe and '
+      test('stn upgrade replaces the running stn.exe and '
           "exits with the upgrade's status", () async {
         final sb = await createShimSandbox();
         final shim = File(under(sb.bin, 'stn.exe'));
@@ -911,31 +905,28 @@ void main() {
         expect(r.stderr, isEmpty);
       });
 
-      test(
-        'review focus 1, 3: a spaced PATH entry holds one entry; no argument '
-        'reaches the target as none',
-        () async {
-          final sb = await createShimSandbox();
-          final other = dir(under(sb.root, 'space tools'));
-          sb.otherStn(other.path, exit: 2);
-          final path = '${sb.bin.path};${other.path};$system32';
+      test('a spaced PATH entry holds one entry; no argument '
+          'reaches the target as none', () async {
+        final sb = await createShimSandbox();
+        final other = dir(under(sb.root, 'space tools'));
+        sb.otherStn(other.path, exit: 2);
+        final path = '${sb.bin.path};${other.path};$system32';
 
-          final r = await sb.typeStn(['stn'], shell: shell, path: path);
+        final r = await sb.typeStn(['stn'], shell: shell, path: path);
 
-          expect(r.exitCode, 2, reason: '${r.stdout}${r.stderr}');
-          expect(sb.logOf('other'), [
-            'argv',
-            'stdin',
-            '',
-            'path',
-            path,
-            'guard',
-            '1',
-          ]);
-        },
-      );
+        expect(r.exitCode, 2, reason: '${r.stdout}${r.stderr}');
+        expect(sb.logOf('other'), [
+          'argv',
+          'stdin',
+          '',
+          'path',
+          path,
+          'guard',
+          '1',
+        ]);
+      });
 
-      test('review focus 2: a quoted PATH entry holding a ; is read as the one '
+      test('a quoted PATH entry holding a ; is read as the one '
           'folder inside the quotes', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'semi;colon tools'));
@@ -957,7 +948,7 @@ void main() {
         ]);
       });
 
-      test('review focus 4: stdin piped into stn reaches the target', () async {
+      test('stdin piped into stn reaches the target', () async {
         final sb = await createShimSandbox();
         final other = dir(under(sb.root, 'tools'));
         sb.otherStn(other.path);
@@ -982,23 +973,20 @@ void main() {
         ]);
       });
 
-      test(
-        'review focus 5: a missing absolute entry is skipped with empty stderr',
-        () async {
-          final sb = await createShimSandbox();
-          final missing = under(sb.root, 'no such folder');
+      test('a missing absolute entry is skipped with empty stderr', () async {
+        final sb = await createShimSandbox();
+        final missing = under(sb.root, 'no such folder');
 
-          final r = await sb.typeStn(
-            ['stn check'],
-            shell: shell,
-            path: '${sb.bin.path};$missing;$system32',
-          );
+        final r = await sb.typeStn(
+          ['stn check'],
+          shell: shell,
+          path: '${sb.bin.path};$missing;$system32',
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
-          expect(r.stderr, isEmpty);
-          expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stdout}${r.stderr}');
+        expect(r.stderr, isEmpty);
+        expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
+      });
     });
   }
 
@@ -1030,7 +1018,7 @@ void main() {
     int? readPid(File file) =>
         file.existsSync() ? int.tryParse(file.readAsStringSync().trim()) : null;
 
-    test('run_cli_or_yield E14: killing stn.exe ends the target; the '
+    test('killing stn.exe ends the target; the '
         "target's own child lives on", () async {
       final sb = await createShimSandbox();
       final shim = await sb.startStn(
@@ -1092,7 +1080,7 @@ void main() {
       return '${sb.bin.path}\\stn.exe';
     }
 
-    test('package_archive E05: stn.exe imports no VC++ runtime DLL', () async {
+    test('stn.exe imports no VC++ runtime DLL', () async {
       final bytes = File(await installedExe()).readAsBytesSync();
 
       final text = latin1.decode(bytes).toLowerCase();
@@ -1101,7 +1089,7 @@ void main() {
       expect(text, isNot(contains('api-ms-win-crt-')));
     });
 
-    test('package_archive Verification: FileVersion and ProductVersion of '
+    test('FileVersion and ProductVersion of '
         'stn.exe equal the -Version build.ps1 got', () async {
       final exe = (await installedExe()).replaceAll("'", "''");
 
@@ -1121,7 +1109,7 @@ void main() {
     });
   });
 
-  test('package_archive: build.ps1 refuses a -Version outside '
+  test('build.ps1 refuses a -Version outside '
       'MAJOR.MINOR.PATCH[-pre]', () async {
     final out = await Directory.systemTemp.createTemp('specstone_stn_refuse_');
     addTearDown(() => out.delete(recursive: true));

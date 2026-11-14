@@ -191,7 +191,7 @@ void main() {
       },
     );
 
-    pathTest('f09/us01/fr01, fr02, fr03, f09/us01/s2: an empty home gets the '
+    pathTest('an empty home gets the '
         'CLI, the user PATH entry, and the plugin', () async {
       final sb = await sandboxWithClaude();
 
@@ -215,7 +215,7 @@ void main() {
       ]);
     });
 
-    test('f09/us01/fr01/e03: Windows on ARM64 refuses naming the four '
+    test('Windows on ARM64 refuses naming the four '
         'targets, exit 1', () async {
       final sb = await createScriptSandbox();
 
@@ -232,7 +232,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    test('f09/us01/fr01: a 32-bit PowerShell on 64-bit Windows reads '
+    test('a 32-bit PowerShell on 64-bit Windows reads '
         'PROCESSOR_ARCHITEW6432 first', () async {
       final sb = await createScriptSandbox();
 
@@ -252,7 +252,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    test('f09/us01/fr01: with neither HOME nor USERPROFILE it '
+    test('with neither HOME nor USERPROFILE it '
         'refuses', () async {
       final sb = await sandboxWith();
 
@@ -266,7 +266,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    test('f09/us01/fr02/e03, f09/us01/s6: a damaged zip throws, exit 1, '
+    test('a damaged zip throws, exit 1, '
         'the install unchanged', () async {
       final sb = await sandboxWith(damaged: true);
       sb.installFake();
@@ -284,7 +284,7 @@ void main() {
       expect(sb.snapshot(), before);
     });
 
-    pathTest('f09/us01/fr03/e03, f09/us01/fr04/e01: a second run is already '
+    pathTest('a second run is already '
         'the latest; one PATH item', () async {
       final sb = await sandboxWith();
       final first = await runInstall(sb);
@@ -390,7 +390,7 @@ void main() {
       expect(versionOf(exe.path), specstoneVersion);
     });
 
-    pathTest('f09/us01/fr03/e02, e03: an equal-version run still deletes the '
+    pathTest('an equal-version run still deletes the '
         '.old leftovers', () async {
       final sb = await sandboxWith();
       final first = await runInstall(sb);
@@ -456,9 +456,6 @@ void main() {
     });
 
     group('install by version', () {
-      const chosen =
-          'install_update/machine_install/install_cli_and_plugin/'
-          'install_chosen_version';
       const releases = 'https://github.com/nontravis/specstone/releases';
       const refusalTail =
           ' is not a version of the form MAJOR.MINOR.PATCH[-<pre-release>]; '
@@ -615,8 +612,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
       for (final (shape, label) in versionShapes) {
         pathTest(
-          '$chosen E01 ($label): the named version installs from its own '
-          'release',
+          'the named version installs from its own release ($label)',
           () async {
             final sb = await sandboxServing('1.2.0-beta.1');
 
@@ -642,27 +638,24 @@ if ($env:HARNESS_MODE -eq 'iex') {
         );
       }
 
-      pathTest(
-        '$chosen E01: powershell -File install.ps1 -Version installs the '
-        'named version',
-        () async {
-          final sb = await sandboxServing('1.2.0-beta.1');
+      pathTest('powershell -File install.ps1 -Version installs the '
+          'named version', () async {
+        final sb = await sandboxServing('1.2.0-beta.1');
 
-          final r = await runInstall(sb, args: ['-Version', '1.2.0-beta.1']);
+        final r = await runInstall(sb, args: ['-Version', '1.2.0-beta.1']);
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(
-            flat(r.stdout),
-            contains('specstone 1.2.0-beta.1 installed in ${binDir(sb)}'),
-          );
-          expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.2.0-beta.1');
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          flat(r.stdout),
+          contains('specstone 1.2.0-beta.1 installed in ${binDir(sb)}'),
+        );
+        expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.2.0-beta.1');
+      });
 
       // Every refused form runs in one session; a NUL crosses in the base64
       // text, which an environment value could not carry. `-Version ''` is no
       // version.
-      test('$chosen E02, install_cli_and_plugin S8: every refused form is '
+      test('every refused form is '
           'refused before any download', () async {
         final forms = [
           for (final v in refusedVersions)
@@ -688,7 +681,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       // One plain form and one outside ASCII cross the real process boundary:
       // the second is the one a host encoding could change.
       for (final version in ['v1.2.0', '1.2.0-\u00e9']) {
-        test('$chosen E02, install_cli_and_plugin S8: a process given '
+        test('a process given '
             '${named(version)} refuses before any download', () async {
           final sb = await createScriptSandbox();
           sb.installFake();
@@ -714,8 +707,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ('1.2.0+build.5', '-Version 1.2.0+build.5'),
         ('1.2.0\u0000', '-Version "1.2.0`0"'),
       ];
-      test('$chosen E02 (iex line): every refused form is a throw, the session '
-          'goes on', () async {
+      test('every refused form is a throw, the session goes on '
+          '(iex line)', () async {
         final sb = await createScriptSandbox();
         sb.installFake();
         final before = sb.snapshot();
@@ -735,8 +728,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.snapshot(), before);
       });
 
-      test('$chosen E02 (iex line): a process given a refused form throws and '
-          'the session goes on', () async {
+      test('a process given a refused form throws and the session goes on '
+          '(iex line)', () async {
         final sb = await createScriptSandbox();
         sb.installFake();
         final before = sb.snapshot();
@@ -754,7 +747,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.snapshot(), before);
       });
 
-      test('$chosen E02: a positional argument is the version, so one '
+      test('a positional argument is the version, so one '
           'outside the form is refused', () async {
         final sb = await sandboxWith();
         sb.installFake();
@@ -767,7 +760,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.snapshot(), before);
       });
 
-      pathTest('$chosen E02: a refusal leaves the user PATH and the plugin '
+      pathTest('a refusal leaves the user PATH and the plugin '
           'alone', () async {
         final sb = await sandboxWithClaude();
         final pathBefore = await readUserPath();
@@ -780,7 +773,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('web'), isEmpty);
       });
 
-      test('$chosen: every accepted form passes the form check and fails as a '
+      test('every accepted form passes the form check and fails as a '
           'download', () async {
         final sb = await createScriptSandbox();
 
@@ -811,8 +804,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
       });
 
       for (final (shape, label) in versionShapes) {
-        test('$chosen E03 ($label): a version no release carries fails as '
-            'a failed download, the install unchanged', () async {
+        test('a version no release carries fails as a failed download, '
+            'the install unchanged ($label)', () async {
           final sb = await createScriptSandbox();
           sb.installFake();
           final before = sb.snapshot();
@@ -839,63 +832,50 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ("iex line, -Version ''", _Shape.iex, "-Version ''"),
         (r'-File, -Version $null', _Shape.file, null),
       ]) {
-        pathTest(
-          '$chosen E04 ($label): no version fetches the latest release',
-          () async {
-            final sb = await sandboxServing('0.2.0');
-
-            final r = await runHarness(sb, shape: shape, iexArgs: iexArgs);
-
-            expect(r.exitCode, 0, reason: '${r.stderr}');
-            expect(
-              sb.logOf('web').first,
-              endsWith('$releases/latest/download/$asset'),
-            );
-            expect(versionOf('${binDir(sb)}\\specstone.exe'), '0.2.0');
-          },
-        );
-      }
-
-      pathTest(
-        '$chosen: irm | iex leaves no \$Version in the caller',
-        () async {
+        pathTest('no version fetches the latest release ($label)', () async {
           final sb = await sandboxServing('0.2.0');
 
-          final r = await runHarness(sb, shape: _Shape.pipe);
+          final r = await runHarness(sb, shape: shape, iexArgs: iexArgs);
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(r.stdout, contains('VERSION_DEFINED=False'));
-        },
-      );
-
-      for (final (shape, label) in versionShapes) {
-        pathTest(
-          '$chosen E05 ($label): the version already installed is named and '
-          'nothing is placed',
-          () async {
-            final sb = await sandboxServing('1.2.0-beta.1');
-            sb.installFake(version: '1.2.0-beta.1');
-            final before = sb.snapshot();
-
-            final r = await runHarness(
-              sb,
-              shape: shape,
-              version: '1.2.0-beta.1',
-            );
-
-            expect(r.exitCode, 0, reason: '${r.stderr}');
-            expect(
-              flat(r.stdout),
-              contains('specstone 1.2.0-beta.1 is already installed'),
-            );
-            expect(r.stdout, isNot(contains('installed in')));
-            expect(r.stdout, isNot(contains('latest release')));
-            expect(sb.snapshot(), before);
-          },
-        );
+          expect(
+            sb.logOf('web').first,
+            endsWith('$releases/latest/download/$asset'),
+          );
+          expect(versionOf('${binDir(sb)}\\specstone.exe'), '0.2.0');
+        });
       }
 
-      pathTest('$chosen: a version that differs only in case is another '
+      pathTest(r'irm | iex leaves no $Version in the caller', () async {
+        final sb = await sandboxServing('0.2.0');
+
+        final r = await runHarness(sb, shape: _Shape.pipe);
+
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, contains('VERSION_DEFINED=False'));
+      });
+
+      for (final (shape, label) in versionShapes) {
+        pathTest('the version already installed is named and nothing is placed '
+            '($label)', () async {
+          final sb = await sandboxServing('1.2.0-beta.1');
+          sb.installFake(version: '1.2.0-beta.1');
+          final before = sb.snapshot();
+
+          final r = await runHarness(sb, shape: shape, version: '1.2.0-beta.1');
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(
+            flat(r.stdout),
+            contains('specstone 1.2.0-beta.1 is already installed'),
+          );
+          expect(r.stdout, isNot(contains('installed in')));
+          expect(r.stdout, isNot(contains('latest release')));
+          expect(sb.snapshot(), before);
+        });
+      }
+
+      pathTest('a version that differs only in case is another '
           'version and installs', () async {
         final sb = await sandboxServing('1.0.0-A');
         sb.installFake(version: '1.0.0-a');
@@ -910,7 +890,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(versionOf('${binDir(sb)}\\specstone.exe'), '1.0.0-A');
       });
 
-      pathTest('$chosen: a named version replaces an older CLI', () async {
+      pathTest('a named version replaces an older CLI', () async {
         final sb = await sandboxServing('1.2.0-beta.1');
         sb.installFake();
 
@@ -988,9 +968,6 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
     group('plugin step', () {
       const removeMarketplace = 'plugin marketplace remove specstone';
-      const plugin =
-          'install_update/machine_install/install_cli_and_plugin/'
-          'install_plugin';
       const beta = '1.2.0-beta.1';
       const betaSource = 'nontravis/specstone#v$beta';
       const noClaudeHeader =
@@ -1095,27 +1072,24 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ]);
       });
 
-      pathTest(
-        '$plugin: a user entry of another plugin does not count',
-        () async {
-          final sb = await sandboxWithClaude(
-            marketplaces: marketplaceJson,
-            plugins:
-                '[{"id": "other@specstone", "version": "1.0.0", '
-                '"scope": "user"}, {"id": "specstone@specstone", '
-                '"version": "0.2.0", "scope": "project"}]',
-          );
+      pathTest('a user entry of another plugin does not count', () async {
+        final sb = await sandboxWithClaude(
+          marketplaces: marketplaceJson,
+          plugins:
+              '[{"id": "other@specstone", "version": "1.0.0", '
+              '"scope": "user"}, {"id": "specstone@specstone", '
+              '"version": "0.2.0", "scope": "project"}]',
+        );
 
-          final r = await runInstall(sb);
+        final r = await runInstall(sb);
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(sb.logOf('claude'), [
-            listMarketplaces,
-            listPlugins,
-            installPlugin,
-          ]);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          installPlugin,
+        ]);
+      });
 
       for (final (position, plugins) in <(String, String)>[
         (
@@ -1130,7 +1104,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
               '{"id": "specstone@specstone", "scope": "user"}]',
         ),
       ]) {
-        pathTest('$plugin E02: the user entry $position among several '
+        pathTest('the user entry $position among several '
             'plugins skips the install', () async {
           final sb = await sandboxWithClaude(
             marketplaces: marketplaceJson,
@@ -1164,24 +1138,21 @@ if ($env:HARNESS_MODE -eq 'iex') {
           '{"id": "specstone@specstone", "scope": "User"}',
         ),
       ]) {
-        pathTest(
-          '$plugin E02: $label is no user install; the install runs',
-          () async {
-            final sb = await sandboxWithClaude(
-              marketplaces: marketplaceJson,
-              plugins: '[$entry]',
-            );
+        pathTest('$label is no user install; the install runs', () async {
+          final sb = await sandboxWithClaude(
+            marketplaces: marketplaceJson,
+            plugins: '[$entry]',
+          );
 
-            final r = await runInstall(sb);
+          final r = await runInstall(sb);
 
-            expect(r.exitCode, 0, reason: '${r.stderr}');
-            expect(sb.logOf('claude'), [
-              listMarketplaces,
-              listPlugins,
-              installPlugin,
-            ]);
-          },
-        );
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(sb.logOf('claude'), [
+            listMarketplaces,
+            listPlugins,
+            installPlugin,
+          ]);
+        });
       }
 
       for (final (label, list) in <(String, String)>[
@@ -1217,7 +1188,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
           ('without a version', null, 'nontravis/specstone'),
           ('with a version', beta, betaSource),
         ]) {
-          pathTest('$plugin: $label is no specstone entry; the add runs '
+          pathTest('$label is no specstone entry; the add runs '
               '$suffix, then the install', () async {
             final sb = await sandboxWithClaude(marketplaces: list);
 
@@ -1238,7 +1209,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ('without a version', null, 'nontravis/specstone'),
         ('with a version', beta, betaSource),
       ]) {
-        pathTest('$plugin E10, f09/us01/fr05/e03, f09/us01/s3: no claude '
+        pathTest('no claude '
             'prints the remove, the add, and the install $label; the CLI '
             'stays; exit 0', () async {
           final sb = await sandboxWith();
@@ -1252,7 +1223,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         });
       }
 
-      pathTest('$plugin E01: the official marketplace with no ref needs '
+      pathTest('the official marketplace with no ref needs '
           'nothing without a version', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(),
@@ -1266,7 +1237,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(r.stdout, isNot(contains('re-added')));
       });
 
-      pathTest('$plugin E01: the official marketplace at the wanted ref needs '
+      pathTest('the official marketplace at the wanted ref needs '
           'nothing with a version', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -1279,7 +1250,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest('$plugin E01: the official marketplace at the wanted ref still '
+      pathTest('the official marketplace at the wanted ref still '
           'installs a missing plugin', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -1295,7 +1266,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ]);
       });
 
-      pathTest('$plugin E08, install_cli_and_plugin S7: a pinned marketplace '
+      pathTest('a pinned marketplace '
           'with no version goes back to main', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -1320,7 +1291,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         );
       });
 
-      pathTest('$plugin E08, install_cli_and_plugin S7: an unpinned '
+      pathTest('an unpinned '
           'marketplace with a version moves to the tag', () async {
         final sb = await sandboxWithClaude(marketplaces: officialList());
 
@@ -1342,7 +1313,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         );
       });
 
-      pathTest('$plugin E08: a marketplace at another tag moves to the '
+      pathTest('a marketplace at another tag moves to the '
           'wanted tag', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v1.1.1'),
@@ -1360,7 +1331,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ]);
       });
 
-      pathTest('$plugin E08: a ref holding an escaped NUL is another ref, so '
+      pathTest('a ref holding an escaped NUL is another ref, so '
           'the marketplace moves', () async {
         final sb = await sandboxWithClaude(
           marketplaces:
@@ -1391,7 +1362,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
             '[{"name": "specstone", "source": "github", '
             '"repo": "nontravis/specstone", "ref": $ref}]';
 
-        pathTest('$plugin E01: a ref of $label reads as no ref; nothing '
+        pathTest('a ref of $label reads as no ref; nothing '
             'moves without a version', () async {
           final sb = await sandboxWithClaude(
             marketplaces: list,
@@ -1404,7 +1375,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
           expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
         });
 
-        pathTest('$plugin E08: a ref of $label reads as no ref; the '
+        pathTest('a ref of $label reads as no ref; the '
             'marketplace moves to the tag of a version', () async {
           final sb = await sandboxWithClaude(marketplaces: list);
 
@@ -1421,7 +1392,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         });
       }
 
-      pathTest('$plugin E08: the remove uninstalled the plugin, so the '
+      pathTest('the remove uninstalled the plugin, so the '
           'install runs although the earlier list held it', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -1434,7 +1405,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), contains(installPlugin));
       });
 
-      pathTest('$plugin E09: a failing add after the remove names the add; no '
+      pathTest('a failing add after the remove names the add; no '
           'install; exit 0', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -1459,7 +1430,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(versionOf('${binDir(sb)}\\specstone.exe'), specstoneVersion);
       });
 
-      pathTest('$plugin E09: a failing remove names the remove; no add, no '
+      pathTest('a failing remove names the remove; no add, no '
           'install; exit 0', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -1482,8 +1453,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ]);
       });
 
-      // Each entry is the Owner's own source, never removed: E11 and its
-      // look-alikes (a path holding `}` and `"`, repos that differ by case or
+      // Each entry is the Owner's own source, never removed: each
+      // look-alike (a path holding `}` and `"`, repos that differ by case or
       // by a near-miss name, repo values written as an array or with an
       // escape, a soft hyphen, or a NUL, a directory or git source that
       // names the official repo, a source type with no key to read, urls
@@ -1627,7 +1598,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
             ('with a version', beta, betaSource),
         ]) {
           pathTest(
-            '$plugin E11: $label is never removed $suffix; the '
+            '$label is never removed $suffix; the '
             'commands print; the install runs for a missing plugin',
             () async {
               final sb = await sandboxWithClaude(
@@ -1651,7 +1622,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         }
       }
 
-      pathTest('$plugin E11: another source with the plugin installed runs no '
+      pathTest('another source with the plugin installed runs no '
           'install', () async {
         final sb = await sandboxWithClaude(
           marketplaces: marketplaceList({
@@ -1668,7 +1639,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest('$plugin E11: an official-looking value inside another key '
+      pathTest('an official-looking value inside another key '
           'does not make the entry official', () async {
         final sb = await sandboxWithClaude(
           marketplaces: marketplaceList({
@@ -1686,12 +1657,12 @@ if ($env:HARNESS_MODE -eq 'iex') {
       });
 
       // An escape other than \" and \\ stays as typed, so no escaped value
-      // equals the plain official one (L19).
+      // equals the plain official one.
       for (final (label, repo) in <(String, String)>[
         ('an escaped slash', r'nontravis\/specstone'),
         ('a unicode escape', r'nontravis\u002fspecstone'),
       ]) {
-        pathTest('$plugin E11: $label in a repo stays as typed, so the entry '
+        pathTest('$label in a repo stays as typed, so the entry '
             'is another source', () async {
           final sb = await sandboxWithClaude(
             marketplaces:
@@ -1711,7 +1682,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         });
       }
 
-      pathTest('$plugin E11: an escape in the source also makes the entry '
+      pathTest('an escape in the source also makes the entry '
           'another source, so a version never removes it', () async {
         final sb = await sandboxWithClaude(
           marketplaces:
@@ -1727,13 +1698,38 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest(
-        '$plugin E06: a key named Values does not hide a repeated key',
-        () async {
+      pathTest('a key named Values does not hide a repeated key', () async {
+        final sb = await sandboxWithClaude(
+          marketplaces:
+              '[{"name": "specstone", "source": "github", "Values": 1, '
+              '"repo": "nontravis/specstone", "repo": "x/y"}]',
+        );
+
+        final r = await runInstall(sb);
+
+        expectUnreadable(
+          r,
+          sb,
+          list: listMarketplaces,
+          calls: [listMarketplaces],
+        );
+      });
+
+      // JSON forbids a raw control character inside a string, so the walk
+      // refuses any of them as json_scan does. A lone CR also
+      // splits a line of native output, so it may reach the walk as a line
+      // feed; the reply is refused either way.
+      for (final (label, path) in <(String, String)>[
+        ('an escape character', '/w\u001b[2Jx'),
+        ('a carriage return', '/a\r/b'),
+        ('a tab', '/a\t/b'),
+      ]) {
+        pathTest('a raw $label inside a string stops the step', () async {
           final sb = await sandboxWithClaude(
             marketplaces:
-                '[{"name": "specstone", "source": "github", "Values": 1, '
-                '"repo": "nontravis/specstone", "repo": "x/y"}]',
+                '[{"name": "specstone", "source": "directory", '
+                '"path": "$path"}]',
+            plugins: userPluginJson,
           );
 
           final r = await runInstall(sb);
@@ -1744,44 +1740,13 @@ if ($env:HARNESS_MODE -eq 'iex') {
             list: listMarketplaces,
             calls: [listMarketplaces],
           );
-        },
-      );
-
-      // JSON forbids a raw control character inside a string, so the walk
-      // refuses any of them as json_scan does (L18, L20). A lone CR also
-      // splits a line of native output, so it may reach the walk as a line
-      // feed; the reply is refused either way.
-      for (final (label, path) in <(String, String)>[
-        ('an escape character', '/w\u001b[2Jx'),
-        ('a carriage return', '/a\r/b'),
-        ('a tab', '/a\t/b'),
-      ]) {
-        pathTest(
-          '$plugin E06: a raw $label inside a string stops the step',
-          () async {
-            final sb = await sandboxWithClaude(
-              marketplaces:
-                  '[{"name": "specstone", "source": "directory", '
-                  '"path": "$path"}]',
-              plugins: userPluginJson,
-            );
-
-            final r = await runInstall(sb);
-
-            expectUnreadable(
-              r,
-              sb,
-              list: listMarketplaces,
-              calls: [listMarketplaces],
-            );
-          },
-        );
+        });
       }
 
       // Only an entry's own keys are read: a key deeper in a value, even one
       // written with a quote or a backslash, or one that PowerShell reserves
       // for its own members, never stops the step. Nesting is unbounded.
-      pathTest('$plugin: keys deeper in a marketplace entry do not stop the '
+      pathTest('keys deeper in a marketplace entry do not stop the '
           'step', () async {
         final deep = '${'[' * 150}1${']' * 150}';
         final sb = await sandboxWithClaude(
@@ -1800,7 +1765,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest('$plugin: a key with a quote deeper in a plugin entry does '
+      pathTest('a key with a quote deeper in a plugin entry does '
           'not stop the step', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(),
@@ -1820,7 +1785,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest('$plugin: a brace and a quote inside a plugin string do not '
+      pathTest('a brace and a quote inside a plugin string do not '
           'hide the user entry', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(),
@@ -1840,7 +1805,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      pathTest('$plugin: a name written inside another entry is not '
+      pathTest('a name written inside another entry is not '
           'specstone', () async {
         final sb = await sandboxWithClaude(
           marketplaces: marketplaceList({
@@ -1861,9 +1826,9 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ]);
       });
 
-      // Each reply exits 0 but is not read for sure (L18, L20): the step stops
-      // with E06's failure line, prints the three commands, and runs nothing
-      // after the list.
+      // Each reply exits 0 but is not read for sure: the step stops with the
+      // failure line, prints the three commands, and runs nothing after the
+      // list.
       for (final (label, reply) in <(String, String)>[
         ('text that is not JSON', 'not json at all'),
         ('text before the JSON', 'Loading marketplaces...\n${officialList()}'),
@@ -1939,7 +1904,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
               '"repo": "nontravis/specstone", "ref": "v$beta"',
         ),
       ]) {
-        pathTest('$plugin E06: a marketplace list that is $label stops the '
+        pathTest('a marketplace list that is $label stops the '
             'step; the commands print; exit 0', () async {
           final sb = await sandboxWithClaude(
             marketplaces: reply,
@@ -1958,7 +1923,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         });
       }
 
-      pathTest('$plugin E06: an unreadable marketplace list prints the wanted '
+      pathTest('an unreadable marketplace list prints the wanted '
           'source of a version', () async {
         final sb = await sandboxWithClaude(marketplaces: 'not json at all');
 
@@ -1989,7 +1954,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ),
         ('a list cut short', '[{"id": "specstone@specstone", "scope": "user"'),
       ]) {
-        pathTest('$plugin E06: a plugin list that is $label stops the step; '
+        pathTest('a plugin list that is $label stops the step; '
             'the commands print; exit 0', () async {
           final sb = await sandboxWithClaude(
             marketplaces: officialList(ref: 'v$beta'),
@@ -2007,7 +1972,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         });
       }
 
-      pathTest('$plugin E06: an unreadable plugin list prints the wanted '
+      pathTest('an unreadable plugin list prints the wanted '
           'source of a version', () async {
         final sb = await sandboxWithClaude(
           marketplaces: officialList(ref: 'v$beta'),
@@ -2046,7 +2011,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ('in the middle', [others[0], pinned, others[1]]),
         ('last', [...others, pinned]),
       ]) {
-        pathTest('$plugin E08: the specstone marketplace $position among '
+        pathTest('the specstone marketplace $position among '
             'several is the one moved', () async {
           final sb = await sandboxWithClaude(marketplaces: listOf(entries));
 
@@ -2067,7 +2032,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ('before', true),
         ('after', false),
       ]) {
-        pathTest('$plugin E11: another marketplace on the official repo '
+        pathTest('another marketplace on the official repo '
             '$position a folder specstone does not make it official', () async {
           final folder = {'source': 'directory', 'path': '/work/specstone'};
           final sb = await sandboxWithClaude(
@@ -2087,7 +2052,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         });
       }
 
-      pathTest('$plugin: another name holding the official repo is not '
+      pathTest('another name holding the official repo is not '
           'specstone; the add runs', () async {
         final sb = await sandboxWithClaude(
           marketplaces: listOf([others[0], others[1]]),
@@ -2124,7 +2089,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ('marketplace', listMarketplaces),
         ('plugin', listPlugins),
       ]) {
-        pathTest('$plugin E06, f09/us01/fr05/e04: a failing $label list stops '
+        pathTest('a failing $label list stops '
             'the plugin step; exit 0', () async {
           final sb = await sandboxWithClaude();
 
@@ -2279,7 +2244,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       });
     });
 
-    group('PATH search (G8-R10)', () {
+    group('PATH search', () {
       final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
       final systemEntries =
           '$system\\System32;$system\\System32\\WindowsPowerShell\\v1.0';
@@ -2492,11 +2457,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       expect((r.stdout as String).trim(), endsWith('EAP=Continue'));
     });
 
-    group('name_other_stn_at_install', () {
-      const fr =
-          'install_update/machine_install/run_by_short_name/'
-          'name_other_stn_at_install';
-
+    group('name another stn at install', () {
       final system = Platform.environment['SystemRoot'] ?? r'C:\Windows';
       final systemEntries =
           '$system\\System32;$system\\System32\\WindowsPowerShell\\v1.0';
@@ -2530,7 +2491,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       }
 
       pathTest(
-        '$fr S2, E04: another stn.exe on a later absolute entry prints '
+        'another stn.exe on a later absolute entry prints '
         r'one notice line; bin\stn.exe is installed, no stn.cmd; exit 0',
         () async {
           final sb = await sandboxWithShim();
@@ -2560,7 +2521,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       );
 
       pathTest(
-        '$fr E05: the earliest match is stn.ps1, an earlier stn.ps1 named '
+        'the earliest match is stn.ps1, an earlier stn.ps1 named '
         r'before a later stn.exe; bin\stn.exe installed, no stn.cmd',
         () async {
           final sb = await sandboxWithShim();
@@ -2586,7 +2547,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         },
       );
 
-      pathTest('$fr E02: two other stn name the earlier entry only', () async {
+      pathTest('two other stn name the earlier entry only', () async {
         final sb = await sandboxWithShim();
         final first = otherStn('${sb.root.path}\\first', 'exe');
         final second = otherStn('${sb.root.path}\\second', 'exe');
@@ -2607,7 +2568,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(flat(r.stdout), isNot(contains(second)));
       });
 
-      pathTest('$fr E01: no other stn prints no notice', () async {
+      pathTest('no other stn prints no notice', () async {
         final sb = await sandboxWithShim();
 
         final r = await runInstall(
@@ -2621,25 +2582,22 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(flat(r.stdout), isNot(contains('another stn')));
       });
 
-      pathTest(
-        '$fr E03: a stn on a relative entry only prints no notice',
-        () async {
-          final sb = await sandboxWithShim();
-          otherStn('${sb.root.path}\\rel', 'exe');
+      pathTest('a stn on a relative entry only prints no notice', () async {
+        final sb = await sandboxWithShim();
+        otherStn('${sb.root.path}\\rel', 'exe');
 
-          final r = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, ['rel', '.', '']),
-            },
-          );
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['rel', '.', '']),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(flat(r.stdout), isNot(contains('another stn')));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), isNot(contains('another stn')));
+      });
 
-      pathTest('$fr E07, review focus 2: the install folder with a trailing '
+      pathTest('the install folder with a trailing '
           'backslash, another case, a quoted spelling, or through a junction '
           'prints no notice', () async {
         final sb = await sandboxWithShim();
@@ -2679,7 +2637,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         }
       });
 
-      pathTest('$fr E08: a folder named stn.exe prints no notice', () async {
+      pathTest('a folder named stn.exe prints no notice', () async {
         final sb = await sandboxWithShim();
         Directory('${sb.root.path}\\tools\\stn.exe')
             .createSync(recursive: true);
@@ -2696,7 +2654,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       });
 
       pathTest(
-        '$fr E08: a file named plain stn with no extension prints no notice',
+        'a file named plain stn with no extension prints no notice',
         () async {
           final sb = await sandboxWithShim();
           File('${sb.root.path}\\tools\\stn')
@@ -2716,7 +2674,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       );
 
       pathTest(
-        '$fr E07: a folder holding stn.exe and specstone.exe is skipped as '
+        'a folder holding stn.exe and specstone.exe is skipped as '
         'the shim skips it, so a later stn is named and a lone one is not',
         () async {
           final sb = await sandboxWithShim();
@@ -2747,87 +2705,75 @@ if ($env:HARNESS_MODE -eq 'iex') {
         },
       );
 
-      pathTest(
-        '$fr E07: a folder holding stn.cmd and specstone.exe is no marker, '
-        'so its stn.cmd is named',
-        () async {
-          final sb = await sandboxWithShim();
-          final copy = '${sb.root.path}\\old install';
-          final found = otherStn(copy, 'cmd');
-          File('$copy\\specstone.exe').writeAsStringSync('fake');
+      pathTest('a folder holding stn.cmd and specstone.exe is no marker, '
+          'so its stn.cmd is named', () async {
+        final sb = await sandboxWithShim();
+        final copy = '${sb.root.path}\\old install';
+        final found = otherStn(copy, 'cmd');
+        File('$copy\\specstone.exe').writeAsStringSync('fake');
 
-          final r = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin', copy]),
-            },
-          );
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin', copy]),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(flat(r.stdout), contains(notice(found)));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains(notice(found)));
+      });
 
-      pathTest(
-        '$fr E07: a folder named stn.exe is no marker file, so the stn.cmd '
-        'beside a specstone.exe file is named',
-        () async {
-          final sb = await sandboxWithShim();
-          final copy = '${sb.root.path}\\folder marker';
-          Directory('$copy\\stn.exe').createSync(recursive: true);
-          final found = otherStn(copy, 'cmd');
-          File('$copy\\specstone.exe').writeAsStringSync('fake');
+      pathTest('a folder named stn.exe is no marker file, so the stn.cmd '
+          'beside a specstone.exe file is named', () async {
+        final sb = await sandboxWithShim();
+        final copy = '${sb.root.path}\\folder marker';
+        Directory('$copy\\stn.exe').createSync(recursive: true);
+        final found = otherStn(copy, 'cmd');
+        File('$copy\\specstone.exe').writeAsStringSync('fake');
 
-          final r = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin', copy]),
-            },
-          );
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin', copy]),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(flat(r.stdout), contains(notice(found)));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains(notice(found)));
+      });
 
-      pathTest(
-        'review focus 2: a quoted PATH entry holding a ; is read as the one '
-        'folder inside the quotes',
-        () async {
-          final sb = await sandboxWithShim();
-          final tools = Directory('${sb.root.path}\\tools;a')..createSync();
-          final found = otherStn(tools.path, 'exe');
+      pathTest('a quoted PATH entry holding a ; is read as the one '
+          'folder inside the quotes', () async {
+        final sb = await sandboxWithShim();
+        final tools = Directory('${sb.root.path}\\tools;a')..createSync();
+        final found = otherStn(tools.path, 'exe');
 
-          final r = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, ['"${tools.path}"']),
-            },
-          );
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['"${tools.path}"']),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(flat(r.stdout), contains(notice(found)));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stdout), contains(notice(found)));
+      });
 
-      pathTest(
-        'review focus 5: a missing absolute entry is skipped with nothing '
-        'on stderr',
-        () async {
-          final sb = await sandboxWithShim();
+      pathTest('a missing absolute entry is skipped with nothing '
+          'on stderr', () async {
+        final sb = await sandboxWithShim();
 
-          final r = await runInstall(
-            sb,
-            extra: {
-              'PATH': pathWith(sb, ['${sb.root.path}\\no such folder']),
-            },
-          );
+        final r = await runInstall(
+          sb,
+          extra: {
+            'PATH': pathWith(sb, ['${sb.root.path}\\no such folder']),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(flat(r.stderr), isNot(contains('stn')));
-          expect(flat(r.stdout), isNot(contains('another stn')));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(flat(r.stderr), isNot(contains('stn')));
+        expect(flat(r.stdout), isNot(contains('another stn')));
+      });
 
       pathTest('api install step 5: a run at the installed Version prints the '
           'notice too', () async {
