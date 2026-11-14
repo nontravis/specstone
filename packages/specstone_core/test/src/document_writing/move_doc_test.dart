@@ -19,7 +19,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart'
-    show checkOf, doc, projectDoc, spots, techStack, writeCheckProject;
+    show checkOf, doc, edit, projectDoc, spots, techStack, writeCheckProject;
 import '../../helpers/failing_rename.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -1648,6 +1648,19 @@ void main() {
         'See `signin/email_login` or `feature:signin#problem`, plain '
         'login/email_login, and `login`.\n',
       );
+    });
+
+    test('a rename lists the mentions in the code root when no tech stack code entry narrows it', () async {
+      final root = await writeCheckProject(
+        extra: {
+          ...edit(techStack, [('code:\n  - app/lib/\n', 'code: []\n')]),
+          'app/lib/doc.dart': '/// Lays out `login/email_login`.\n',
+        },
+      );
+      final answer = renameLogin(root);
+      expect(answer.json['mentions'], [
+        {'path': 'app/lib/doc.dart', 'line': 1, 'mention': 'login/email_login'},
+      ]);
     });
 
     test('a rename keeps a Dart file under a code root as it is and lists the comment lines that stop resolving', () async {

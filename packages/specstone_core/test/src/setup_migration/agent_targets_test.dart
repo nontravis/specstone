@@ -526,6 +526,45 @@ void main() {
     });
   });
 
+  group('codeFilesOf with no code entry', () {
+    test('a target whose docs list no code entry lists every file under its '
+        'root, bar the docs and a nested root', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  outer:\n    code_root: .\n'
+            '  inner:\n    code_root: inner\n',
+        'proj/a.dart': '',
+        'proj/lib/b.dart': '',
+        'proj/inner/c.dart': '',
+        'proj/docs/specs/outer/TECH_STACK.md':
+            '---\ncode: []\n---\n# Tech stack\n',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+
+      final files = codeFilesOf(
+        _at(base, 'proj/'),
+        set,
+        targets: const [
+          CodeTarget('outer', codeRoot: '.'),
+          CodeTarget('inner', codeRoot: 'inner'),
+        ],
+      );
+
+      expect(
+        [for (final f in files) '${f.root.path}|${f.path}'],
+        [
+          '${_at(base, 'proj/').path}|a.dart',
+          '${_at(base, 'proj/').path}|lib/b.dart',
+          '${_at(base, 'proj/inner/').path}|c.dart',
+        ],
+      );
+    });
+  });
+
   group('planAgentWrites', () {
     test('$_write E01: an empty root gets AGENT.md and AGENTS.md', () async {
       final base = await _base({'proj/.keep': ''});

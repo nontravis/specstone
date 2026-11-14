@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
@@ -16,7 +15,6 @@ import 'package:specstone_core/src/templates/code_target.dart';
 
 const _codeField = 'code';
 const _separator = '/';
-const _wholeCodeRoot = '.';
 const _byteOrderMark = '﻿';
 
 /// Returns a `doc_cited_in_code` finding for each mention of a doc in the
@@ -47,30 +45,16 @@ List<String> _codeFilesOf(
   CheckContext context,
   ImplementedWork work,
   CodeTarget target,
-) {
-  final codeRoot = context.codeRootOf(target);
-  final entries = _codeEntriesOf(context, work, target);
-  final nested = nestedRootsOf(context.projectRoot, target, context.targets);
-  void warnUnlistable(String folder) => context.warn(
+) => mentionScanFiles(
+  context.codeRootOf(target),
+  _codeEntriesOf(context, work, target),
+  docsRoot: context.docsRoot,
+  nestedRoots: nestedRootsOf(context.projectRoot, target, context.targets),
+  onUnlistable: (folder) => context.warn(
     '$folder: cannot list the folder; files under it are not checked for '
     'doc names',
-  );
-  if (entries.isEmpty) {
-    return filesUnderCodeRoot(
-      codeRoot,
-      _wholeCodeRoot,
-      skipFolders: [...nested, ..._docsRootIn(context, codeRoot)],
-      skipRepositories: true,
-      onUnlistable: warnUnlistable,
-    );
-  }
-  return codeRootFiles(
-    codeRoot,
-    entries,
-    skipFolders: nested,
-    onUnlistable: warnUnlistable,
-  );
-}
+  ),
+);
 
 /// Returns the `code:` entries of the docs of [target].
 Set<String> _codeEntriesOf(
@@ -85,12 +69,6 @@ Set<String> _codeEntriesOf(
           in context.linesOf(doc).entriesOf(_codeField))
         if (value is String) value,
 };
-
-/// Returns the docs root as a folder of [codeRoot], when it lies inside.
-List<String> _docsRootIn(CheckContext context, Directory codeRoot) =>
-    nestedPathsOf(canonicalPath(codeRoot.path), [
-      canonicalPath(context.docsRoot.path),
-    ]);
 
 /// Reads the mentions of docs in code files, against one index.
 final class _DocMentionReader {
