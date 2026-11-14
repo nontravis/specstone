@@ -208,22 +208,93 @@ void main() {
     final matrix =
         (_job(ci, 'test')['strategy'] as YamlMap)['matrix'] as YamlMap;
     expect(matrix['os'], ['ubuntu-latest', 'macos-latest', 'windows-latest']);
+    expect(matrix['suite'], ['core', 'cli']);
+    expect((_job(ci, 'test')['strategy'] as YamlMap)['fail-fast'], isFalse);
+  });
+
+  test('each test step of the test job runs in one suite leg only', () {
+    for (final step in _steps(_job(ci, 'test'))) {
+      final dir = '${step['working-directory'] ?? ''}';
+      final cond = '${step['if'] ?? ''}';
+      if (dir == 'packages/specstone_core') {
+        expect(cond, contains("matrix.suite == 'core'"));
+      }
+      if (dir == 'packages/specstone') {
+        expect(cond, contains("matrix.suite == 'cli'"));
+      }
+    }
+    final timing = _steps(_job(ci, 'test'))
+        .singleWhere((s) => '${s['run']}'.contains('--tags timing'));
+    expect(timing['if'], "matrix.suite == 'cli'");
+    final upload = _steps(
+      _job(ci, 'test'),
+    ).singleWhere((s) => '${s['uses']}'.startsWith('actions/upload-artifact@'));
+    expect('${(upload['with'] as YamlMap)['name']}', contains('matrix.suite'));
+  });
+
+  test('coverage and its upload run on the ubuntu legs only', () {
+    final steps = _steps(_job(ci, 'test'));
+    final gate = steps
+        .where((s) => '${s['run']}'.contains('--fail-under=80'))
+        .toList();
+    expect(gate, hasLength(1));
+    expect(
+      gate.single['if'],
+      "matrix.suite == 'core' && matrix.os == 'ubuntu-latest'",
+    );
+    final corePlain = steps.singleWhere(
+      (s) =>
+          s['if'] == "matrix.suite == 'core' && matrix.os != 'ubuntu-latest'",
+    );
+    expect(
+      '${corePlain['run']}',
+      allOf(
+        startsWith('dart test'),
+        contains('--concurrency=4'),
+        isNot(contains('coverage')),
+      ),
+    );
+    final cliCoverage = steps.singleWhere(
+      (s) => '${s['run']}'.contains('--coverage-path'),
+    );
+    expect(
+      cliCoverage['if'],
+      "matrix.suite == 'cli' && matrix.os == 'ubuntu-latest'",
+    );
+    final upload = steps.singleWhere(
+      (s) => '${s['uses']}'.startsWith('actions/upload-artifact@'),
+    );
+    expect(upload['if'], "matrix.os == 'ubuntu-latest'");
+  });
+
+  test('no leg of the ci test job can pass while its tests fail', () {
+    final job = _job(ci, 'test');
+    expect(job.containsKey('continue-on-error'), isFalse);
+    expect(job.containsKey('if'), isFalse);
+    for (final s in _steps(job)) {
+      expect(s.containsKey('continue-on-error'), isFalse, reason: '$s');
+    }
+    final call = _job(release, 'test');
+    expect(call['uses'], './.github/workflows/ci.yaml');
+    expect(call.containsKey('with'), isFalse);
   });
 
   test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
       'job and stay out of the main Windows step', () {
     final job = _job(ci, 'test-scripts-windows');
     expect(job['runs-on'], 'windows-latest');
-    // 30 while ci.yaml's WORKAROUND (fix item 79) holds; 20 once it goes.
-    expect(job['timeout-minutes'], 30);
+    expect(job['timeout-minutes'], 20);
     expect(_runText(job), contains('dart test --tags ps1'));
     final main = _steps(_job(ci, 'test'));
     final windowsStep = main.singleWhere(
-      (step) => step['if'] == "runner.os == 'Windows'",
+      (step) =>
+          step['if'] ==
+          "matrix.suite == 'cli' && matrix.os == 'windows-latest'",
     );
     expect('${windowsStep['run']}', contains('--exclude-tags timing,ps1'));
     final otherStep = main.singleWhere(
-      (step) => step['if'] == "runner.os != 'Windows'",
+      (step) =>
+          step['if'] == "matrix.suite == 'cli' && matrix.os == 'macos-latest'",
     );
     expect('${otherStep['run']}', isNot(contains('ps1')));
   });
