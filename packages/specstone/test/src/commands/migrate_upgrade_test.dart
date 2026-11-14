@@ -952,7 +952,7 @@ void main() {
       });
 
       test(
-        'E87: a pin between agentFilesSince and the cite rule writes every '
+        'a pin between agentFilesSince and the cite rule writes every '
         'skill and agent file once, in commit 2, and gains no block',
         () async {
           final root = await agentProject({
@@ -982,7 +982,7 @@ void main() {
         },
       );
 
-      test('E89: a hand-edited skill file with every pin equal is the '
+      test('a hand-edited skill file with every pin equal is the '
           'agent-only upgrade, one file listed and rewritten', () async {
         final texts = skillFileTexts();
         final path = texts.keys.first;
@@ -1007,7 +1007,7 @@ void main() {
         );
       });
 
-      test('E90: a group none of whose folders holds a specstone entry starts '
+      test('a group none of whose folders holds a specstone entry starts '
           'no run', () async {
         final root = await agentProject({
           '.claude/skills/own-skill/SKILL.md': 'own\n',
@@ -1019,7 +1019,7 @@ void main() {
         expect(result.out, 'nothing to migrate\n');
       });
 
-      test('E14: the plan hash moves when the bytes of one skill file '
+      test('the plan hash moves when the bytes of one skill file '
           'change', () async {
         final texts = skillFileTexts();
         final path = texts.keys.first;
@@ -1796,7 +1796,7 @@ void main() {
           ),
         );
         expect(dry.out, isNot(contains('renumber ids:')));
-        // The move crosses the cite rule's version, so E87 writes the skill
+        // The move crosses the cite rule's version, so the run writes the skill
         // and agent files alone.
         expect(dry.out, contains('  agent files: $skillFileCount files\n'));
 

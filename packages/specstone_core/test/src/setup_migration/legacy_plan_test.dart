@@ -1007,7 +1007,7 @@ name: NFR
       ]);
     });
 
-    test('E13, E87: commit 2 holds every rendered skill and agent file at the '
+    test('commit 2 holds every rendered skill and agent file at the '
         'root', () async {
       final plan = await _plan(acmeLegacy);
 

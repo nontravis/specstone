@@ -34,7 +34,6 @@ Matcher _pinNewer() => throwsA(
 );
 
 const _findRoot = 'setup_migration/migrate_legacy_docs/find_project_root';
-const _upgradeRoot = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
 Future<Directory> _project(Map<String, String> files) async {
   final base = await writeTree({
@@ -177,22 +176,19 @@ void main() {
       },
     );
 
-    test(
-      '$_upgradeRoot E89: a skill file that differs is an upgrade',
-      () async {
-        final texts = skillFileTexts();
-        final path = texts.keys.first;
-        final root = await _project({
-          '.specstone/config.yaml': shippedPinsConfig(),
-          ...texts,
-          path: '${texts[path]}hand edit\n',
-        });
+    test('a skill file that differs is an upgrade', () async {
+      final texts = skillFileTexts();
+      final path = texts.keys.first;
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...texts,
+        path: '${texts[path]}hand edit\n',
+      });
 
-        expect(_choose(root), RunKind.upgrade);
-      },
-    );
+      expect(_choose(root), RunKind.upgrade);
+    });
 
-    test('$_upgradeRoot E88: an entry missing from a group in use is an '
+    test('an entry missing from a group in use is an '
         'upgrade', () async {
       final texts = skillFileTexts();
       final root = await _project({
@@ -204,20 +200,17 @@ void main() {
       expect(_choose(root), RunKind.upgrade);
     });
 
-    test(
-      '$_upgradeRoot E91: an unshipped specstone entry is an upgrade',
-      () async {
-        final root = await _project({
-          '.specstone/config.yaml': shippedPinsConfig(),
-          ...skillFileTexts(),
-          '.claude/skills/specstone-old/SKILL.md': 'old\n',
-        });
+    test('an unshipped specstone entry is an upgrade', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        '.claude/skills/specstone-old/SKILL.md': 'old\n',
+      });
 
-        expect(_choose(root), RunKind.upgrade);
-      },
-    );
+      expect(_choose(root), RunKind.upgrade);
+    });
 
-    test('$_upgradeRoot E89: every skill and agent file as the CLI writes '
+    test('every skill and agent file as the CLI writes '
         'it is none', () async {
       final root = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),
@@ -227,7 +220,7 @@ void main() {
       expect(_choose(root), RunKind.none);
     });
 
-    test('$_upgradeRoot E90: a group no folder of which holds a specstone '
+    test('a group no folder of which holds a specstone '
         'entry is opted out, none', () async {
       final root = await _project({
         '.specstone/config.yaml': shippedPinsConfig(),

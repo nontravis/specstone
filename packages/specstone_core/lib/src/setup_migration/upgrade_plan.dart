@@ -827,11 +827,11 @@ AgentWritePlan _agentFilesOf(
   );
 }
 
-/// Whether [upgrades] move a prd-core or software-tech pin up from below its
-/// fixed `agentFilesSince` version, not the version this binary carries: the
-/// one trigger of every one-time pass, the label pass among them.
+/// Whether [upgrades] move a prd-core or software-tech pin from below its
+/// fixed `agentFilesSince` version, whatever version the pin moves to: the one
+/// trigger of every one-time pass, the label pass among them.
 bool runsOneTimePasses(List<PackUpgrade> upgrades) =>
-    crossesSince(upgrades, agentFilesSince);
+    upgrades.any((upgrade) => isBelowSince(upgrade, agentFilesSince));
 
 /// Plans the renumber pass over every doc of [works], typed or not.
 RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([

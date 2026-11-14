@@ -2,9 +2,12 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
+import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
+    show runsOneTimePasses;
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
@@ -575,5 +578,19 @@ void main() {
       expect(shipsSkillFiles([upgrade('acme', '1.0.0', '2.0.0')]), isFalse);
       expect(shipsSkillFiles(const []), isFalse);
     });
+  });
+
+  test('a pin moving below a once-only version keeps the one-time passes and '
+      'starts neither the cite pass nor the skill and agent files', () {
+    final upgrade = PackUpgrade(
+      pack: 'prd-core',
+      pin: PackVersion.parse('1.0.0', file: 'test', key: 'prd-core'),
+      target: PackVersion.parse('1.5.0', file: 'test', key: 'prd-core'),
+      steps: const [],
+    );
+
+    expect(runsOneTimePasses([upgrade]), isTrue);
+    expect(runsCitePass([upgrade]), isFalse);
+    expect(shipsSkillFiles([upgrade]), isFalse);
   });
 }
