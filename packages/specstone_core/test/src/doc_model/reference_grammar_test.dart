@@ -346,6 +346,19 @@ void main() {
     });
   });
 
+  group('readLeadingLinkTarget', () {
+    test('reads the target of a link that opens the text', () {
+      expect(
+        readLeadingLinkTarget('[INV-3](../DOMAIN.md#invariants) — why'),
+        '../DOMAIN.md#invariants',
+      );
+    });
+
+    test('text that opens with no link reads as null', () {
+      expect(readLeadingLinkTarget('INV-3 — [x](a.md)'), isNull);
+    });
+  });
+
   group('readLinkLabel', () {
     test('reads S<N>', () {
       final label = readLinkLabel('S1');

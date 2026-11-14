@@ -8,6 +8,7 @@ const _overridesField =
 
 /// The doc types that carry `overrides`, plus the project-wide domain type.
 const overrideTemplates = <String, String>{
+  '.specstone/templates/api.yaml': _overridesField,
   '.specstone/templates/domain.yaml': _overridesField,
   '.specstone/templates/topic.yaml': _overridesField,
   ...projectDomainTemplate,

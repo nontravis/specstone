@@ -406,9 +406,11 @@ Iterable<Finding> checkConfirmedEntries(
           doc,
           FindingKind.confirmedEntryMalformed,
           line: item.line,
-          message:
-              '$text is not a confirmed entry; write '
-              '"<link> <12 lowercase hex characters>"',
+          message: key == _overrideEntriesKey
+              ? '$text is not an overrides entry; write '
+                    '"<doc type>:<name>#<ID> <12 lowercase hex characters>"'
+              : '$text is not a confirmed entry; write '
+                    '"<link> <12 lowercase hex characters>"',
           keys: {'entry': text},
         );
         continue;

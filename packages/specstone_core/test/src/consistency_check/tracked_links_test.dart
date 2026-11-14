@@ -1174,6 +1174,13 @@ void main() {
           FindingKind.confirmedEntryMalformed,
           FindingKind.confirmedEntryMalformed,
         ]);
+        expect(
+          found.first.message,
+          contains(
+            'is not an overrides entry; write '
+            '"<doc type>:<name>#<ID> <12 lowercase hex characters>"',
+          ),
+        );
         expect(found.map((f) => f.keys['entry']), [
           'INV-3 $rootFingerprint',
           rootAddress,
@@ -1218,9 +1225,42 @@ void main() {
       expect(finding.keys['link'], shopAddress);
       expect(
         finding.line,
-        lineOf(partial['docs/$cartDomain']!, '../DOMAIN.md#invariants'),
+        lineOf(partial['docs/$cartDomain']!, 'a cart holds stock, because'),
       );
     });
+
+    test(
+      'an api doc tracks its FR trace row, then its override line',
+      () async {
+        final original = checkProjectFiles()['docs/$loginApi']!;
+        final files = overrideFiles(
+          extra: {
+            'docs/$loginApi': original
+                .replaceFirst(
+                  'confirmed:\n',
+                  'overrides:\n  - $rootEntry\nconfirmed:\n',
+                )
+                .replaceFirst(
+                  'Signs the Agent in.\n',
+                  'Signs the Agent in.\n\n$overrideOfRoot\n',
+                ),
+          },
+        );
+        expect(await findings(files, loginApi), isEmpty);
+        final session = openSession(
+          await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        );
+        addTearDown(session.close);
+        final links = trackedLinksOf(
+          CheckContext(session),
+          session.index.at(loginApi)!,
+        );
+        expect(links.map((l) => (l.label, l.entryKey)), [
+          ('email_login/check_password', 'confirmed'),
+          (rootAddress, 'overrides'),
+        ]);
+      },
+    );
 
     test('reordered lines or entries change no pairing', () async {
       final items = [

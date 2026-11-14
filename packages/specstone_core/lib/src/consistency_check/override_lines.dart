@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show readLeadingLinkTarget;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead;
@@ -21,7 +23,6 @@ const nfTypeId = 'nf';
 const _overridesField = 'overrides';
 const _marker = 'Overrides:';
 const _howSeparator = ' — ';
-final _linkAtStart = RegExp(r'^\[[^\]]*\]\(([^)\s]*)');
 
 /// One `Overrides:` list item of a doc, read.
 final class OverrideLine {
@@ -134,7 +135,7 @@ _Read _readLine(
   final line = item.line;
   final raw = context.linesOf(doc).lines[line - 1];
   final textStart = _textStartOf(raw);
-  final shown = _linkAtStart.firstMatch(raw.substring(textStart))?.group(1);
+  final shown = readLeadingLinkTarget(raw.substring(textStart));
   if (shown == null) {
     return _malformed(context, doc, line, _textAfterMarker(item.head));
   }

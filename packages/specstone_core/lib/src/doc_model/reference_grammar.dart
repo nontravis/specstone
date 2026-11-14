@@ -675,6 +675,13 @@ LinkLabel? readLinkLabel(String text) {
 /// Every reader that matches a `confirmed` entry to its link compares this.
 String linkIdentityOf(String label) => readLinkLabel(label)?.identity ?? label;
 
+final _leadingLinkTarget = RegExp(r'^\[[^\]]*\]\(([^)\s]*)');
+
+/// Returns the target of the markdown link that opens [text], as written, or
+/// null when [text] opens with no link.
+String? readLeadingLinkTarget(String text) =>
+    _leadingLinkTarget.firstMatch(text)?.group(1);
+
 /// Reads [text], whole, as `<doc type>:<name>#<item ID>`; null for any other
 /// text, a lettered or unreadable ID included.
 OverrideLabel? _readOverrideLabel(String text) {
