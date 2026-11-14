@@ -114,6 +114,35 @@ void main() {
     },
   );
 
+  test('a run kept to one doc or target reports the catalog findings of its '
+      'files only', () async {
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$_errorDoc': _error('Login errors', [
+          'bad_password',
+          'bad_password',
+        ]),
+        'docs/$loginFr': _frCase(
+          'an empty password → `bad_password` is refused',
+        ),
+        ..._shop(['doc_not_found', 'doc_not_found']),
+      },
+      unstamped: {'docs/$_errorDoc', 'docs/$loginFr', 'docs/$_shopErrorDoc'},
+    );
+
+    List<String> duplicates(CheckReport report) => [
+      for (final f in report.findings)
+        if (f.kind == FindingKind.errorCodeDuplicate) f.path,
+    ];
+
+    expect(
+      duplicates(checkOf(project)),
+      unorderedEquals([_errorDoc, _shopErrorDoc]),
+    );
+    expect(duplicates(checkOf(project, docPath: _errorDoc)), [_errorDoc]);
+    expect(duplicates(checkOf(project, target: 'login')), [_errorDoc]);
+  });
+
   test('a row no unskipped edge case or scenario of its feature names is '
       'unraised', () async {
     final report = await _check({
