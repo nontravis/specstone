@@ -248,7 +248,11 @@ void main() {
     );
     expect(
       '${corePlain['run']}',
-      allOf(startsWith('dart test'), isNot(contains('coverage'))),
+      allOf(
+        startsWith('dart test'),
+        contains('--concurrency=4'),
+        isNot(contains('coverage')),
+      ),
     );
     final cliCoverage = steps.singleWhere(
       (s) => '${s['run']}'.contains('--coverage-path'),
