@@ -405,7 +405,7 @@ final class DocTypeLayer {
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
-      reference: _parseReference(map, file: file, kind: kind, files: files),
+      reference: parseReferenceList(map, file: file, kind: kind, files: files),
       bundle: _parseBundle(map, file: file),
       generators: _listWrite(map, 'generators', file: file, prefix: ''),
     );
@@ -494,9 +494,9 @@ ListWrite<String>? _parseBundle(YamlMap map, {required String file}) {
 
 /// Reads the `reference` key of [map] as a [ListWrite] of entries.
 ///
-/// A doc-type file sits at the top of its layer folder, so its entries
-/// resolve `file` links against an empty template folder.
-ListWrite<ReferenceEntry>? _parseReference(
+/// Entries resolve `file` links against the layer root, as a doc-type file at
+/// the top of its layer folder does.
+ListWrite<ReferenceEntry>? parseReferenceList(
   YamlMap map, {
   required String file,
   required LayerKind kind,

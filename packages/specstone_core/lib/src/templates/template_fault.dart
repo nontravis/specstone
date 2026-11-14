@@ -35,7 +35,9 @@ enum FaultCode {
   packPinOlder('pack_pin_older', 78),
   packPinNewer('pack_pin_newer', 78),
   prdCoreMissing('prd_core_missing', 78),
-  docTypeUnknown('doc_type_unknown', 64);
+  docTypeUnknown('doc_type_unknown', 64),
+  featurePatternIdMismatch('feature_pattern_id_mismatch', 78),
+  checklistItemDuplicate('checklist_item_duplicate', 78);
 
   new(this.wire, this.exitStatus);
 
