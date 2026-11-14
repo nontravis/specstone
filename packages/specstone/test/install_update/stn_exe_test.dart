@@ -990,15 +990,20 @@ void main() {
       unawaited(shim.stderr.drain<void>());
       final targetPidFile = File('${sb.logs.path}\\specstone.pid');
       final grandchildPidFile = File('${sb.logs.path}\\grandchild.pid');
-      int? grandchild;
+      var targetEnded = false;
       // Registered after the sandbox's own tear-down, so it runs first and
-      // frees the files the processes hold.
+      // frees the files the processes hold. A pid the test saw end may be
+      // reused, so only a pid it did not see end is killed.
       addTearDown(() async {
         shim.kill();
-        for (final pid in [readPid(targetPidFile), grandchild]) {
+        final pids = [
+          if (!targetEnded) readPid(targetPidFile),
+          readPid(grandchildPidFile),
+        ];
+        for (final pid in pids) {
           if (pid != null) Process.killPid(pid);
         }
-        for (final pid in [readPid(targetPidFile), grandchild]) {
+        for (final pid in pids) {
           if (pid != null) await eventually(() => !isRunning(pid));
         }
       });
@@ -1014,13 +1019,14 @@ void main() {
         reason: 'the target and its child write their pids',
       );
       final target = readPid(targetPidFile)!;
-      grandchild = readPid(grandchildPidFile)!;
+      final grandchild = readPid(grandchildPidFile)!;
       expect(isRunning(target), isTrue);
 
       expect(Process.killPid(shim.pid), isTrue);
 
+      targetEnded = await eventually(() => !isRunning(target));
       expect(
-        await eventually(() => !isRunning(target)),
+        targetEnded,
         isTrue,
         reason: 'the target ends within 5 s of stn.exe',
       );
