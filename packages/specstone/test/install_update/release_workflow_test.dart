@@ -232,6 +232,35 @@ void main() {
     expect('${(upload['with'] as YamlMap)['name']}', contains('matrix.suite'));
   });
 
+  test('coverage and its upload run on the ubuntu legs only', () {
+    final steps = _steps(_job(ci, 'test'));
+    final gate = steps
+        .where((s) => '${s['run']}'.contains('--fail-under=80'))
+        .toList();
+    expect(gate, hasLength(1));
+    expect(
+      gate.single['if'],
+      "matrix.suite == 'core' && matrix.os == 'ubuntu-latest'",
+    );
+    final corePlain = steps.singleWhere(
+      (s) =>
+          s['if'] == "matrix.suite == 'core' && matrix.os != 'ubuntu-latest'",
+    );
+    expect(
+      '${corePlain['run']}',
+      allOf(startsWith('dart test'), isNot(contains('coverage'))),
+    );
+    for (final s in steps.where(
+      (s) => '${s['run']}'.contains('--coverage-path'),
+    )) {
+      expect('${s['if']}', contains("matrix.os == 'ubuntu-latest'"));
+    }
+    final upload = steps.singleWhere(
+      (s) => '${s['uses']}'.startsWith('actions/upload-artifact@'),
+    );
+    expect(upload['if'], "matrix.os == 'ubuntu-latest'");
+  });
+
   test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
       'job and stay out of the main Windows step', () {
     final job = _job(ci, 'test-scripts-windows');
@@ -241,11 +270,14 @@ void main() {
     expect(_runText(job), contains('dart test --tags ps1'));
     final main = _steps(_job(ci, 'test'));
     final windowsStep = main.singleWhere(
-      (step) => step['if'] == "matrix.suite == 'cli' && runner.os == 'Windows'",
+      (step) =>
+          step['if'] ==
+          "matrix.suite == 'cli' && matrix.os == 'windows-latest'",
     );
     expect('${windowsStep['run']}', contains('--exclude-tags timing,ps1'));
     final otherStep = main.singleWhere(
-      (step) => step['if'] == "matrix.suite == 'cli' && runner.os != 'Windows'",
+      (step) =>
+          step['if'] == "matrix.suite == 'cli' && matrix.os == 'macos-latest'",
     );
     expect('${otherStep['run']}', isNot(contains('ps1')));
   });
