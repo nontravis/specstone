@@ -327,24 +327,29 @@ void main() {
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
-  test('migrate --dry-run --json prints the plan as one object holding its '
-      'hash and every path list, and nothing else', () async {
-    final root = await gitFixture(acmeLegacy);
-    final hash = await _dryRunPlanHash(root);
-    final before = _bytesUnder(root);
-    final (:runner, :out, :err) = writeRunner(root);
+  test(
+    'migrate --dry-run --json prints the plan as one object holding its '
+    'text, closed by its hash line, and every path list, and nothing else',
+    () async {
+      final root = await gitFixture(acmeLegacy);
+      final hash = await _dryRunPlanHash(root);
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
 
-    expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
+      expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
 
-    final object = jsonDecode(out.toString()) as Map<String, Object?>;
-    expect(object['planHash'], hash);
-    expect(object['plan'], startsWith('legacy migration: '));
-    expect(object['plan'], contains('  format layout: 1 docs\n'));
-    expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
-    expect(object.keys, containsAll(['agentFiles', 'numberLabels', 'steps']));
-    expect(err.toString(), isEmpty);
-    expect(_bytesUnder(root), before);
-  }, skip: hasGit ? null : 'git is not available');
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object, isNot(contains('planHash')));
+      expect(object['plan'], startsWith('legacy migration: '));
+      expect(object['plan'], endsWith('plan $hash\n'));
+      expect(object['plan'], contains('  format layout: 1 docs\n'));
+      expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
+      expect(object.keys, containsAll(['agentFiles', 'numberLabels', 'steps']));
+      expect(err.toString(), isEmpty);
+      expect(_bytesUnder(root), before);
+    },
+    skip: hasGit ? null : 'git is not available',
+  );
 
   test('migrate --yes --plan --json applies the run, prints one object, and '
       'ends its notes with the closing count', () async {
@@ -355,8 +360,8 @@ void main() {
     expect(await runner.run(['migrate', '--yes', '--plan', hash, '--json']), 0);
 
     expect(
-      (jsonDecode(out.toString()) as Map<String, Object?>)['planHash'],
-      hash,
+      (jsonDecode(out.toString()) as Map<String, Object?>)['plan'],
+      startsWith('legacy migration: '),
     );
     expect(
       err.toString().trim().split('\n').last,

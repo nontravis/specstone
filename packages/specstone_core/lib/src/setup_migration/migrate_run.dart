@@ -211,7 +211,7 @@ int _plannedRun(
     _printDryRun(request, planText, plan.inputs, plan.lists);
     return 0;
   }
-  _printPlan(request, planText, plan.inputs, plan.lists);
+  _printPlan(request, planText, plan.lists);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
     MoveJournal.requireHomeFolder(request.homeDirectory, root);
@@ -349,7 +349,7 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
     _printDryRun(request, planText, inputs, const PlanLists());
     return 0;
   }
-  _printPlan(request, planText, inputs, const PlanLists());
+  _printPlan(request, planText, const PlanLists());
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (!request.confirmation.prompts) {
     _requireSeenPlan(request, planText, inputs);
@@ -361,40 +361,30 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
   return 0;
 }
 
-/// Prints the plan: [planText], or under `--json` one object holding it, its
-/// hash over [inputs], and the path [lists] the count lines leave out.
-void _printPlan(
-  MigrateRequest request,
-  String planText,
-  PlanInputs inputs,
-  PlanLists lists,
-) {
+/// Prints the plan: [planText], or under `--json` one object holding it and
+/// the path [lists] the count lines leave out.
+void _printPlan(MigrateRequest request, String planText, PlanLists lists) {
   if (!request.asJson) {
     request.out.write(planText);
     return;
   }
   request.out.writeln(
-    const JsonEncoder.withIndent('  ').convert({
-      'plan': planText,
-      'planHash': planHashOf(planText, inputs),
-      ...lists.toJson(),
-    }),
+    const JsonEncoder.withIndent('  ')
+        .convert({'plan': planText, ...lists.toJson()}),
   );
 }
 
-/// Prints the plan as [_printPlan] does, then, as text, its `plan <hash>`
-/// line and the dry-run closing line.
+/// Prints the plan as [_printPlan] does, closed by its `plan <hash>` line
+/// over [inputs]; as text, the dry-run closing line follows.
 void _printDryRun(
   MigrateRequest request,
   String planText,
   PlanInputs inputs,
   PlanLists lists,
 ) {
-  _printPlan(request, planText, inputs, lists);
-  if (request.asJson) return;
-  request.out
-    ..writeln('plan ${planHashOf(planText, inputs)}')
-    ..writeln('dry run: nothing written');
+  final hashLine = 'plan ${planHashOf(planText, inputs)}\n';
+  _printPlan(request, '$planText$hashLine', lists);
+  if (!request.asJson) request.out.writeln('dry run: nothing written');
 }
 
 /// Says [text] after the plan: on [MigrateRequest.out], or under `--json` on

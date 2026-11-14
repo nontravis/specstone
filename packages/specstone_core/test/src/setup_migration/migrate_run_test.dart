@@ -133,6 +133,12 @@ String _dryRunPlanHash(Directory root) {
   return lines[lines.length - 3].substring('plan '.length);
 }
 
+/// Returns the hash on the `plan <hash>` line of [text].
+String _planHashIn(String text) => text
+    .split('\n')
+    .firstWhere((line) => line.startsWith('plan '))
+    .substring('plan '.length);
+
 int _run(
   Directory root,
   StringBuffer out, {
@@ -284,7 +290,6 @@ void main() {
       final object = jsonDecode(json.toString()) as Map<String, Object?>;
       expect(object.keys, [
         'plan',
-        'planHash',
         'formatLayout',
         'numberLabels',
         'renumberIds',
@@ -293,8 +298,12 @@ void main() {
         'steps',
         'mentions',
       ]);
-      expect(object['planHash'], _dryRunPlanHash(root));
+      expect(object, isNot(contains('planHash')));
       expect(text.toString(), startsWith(object['plan']! as String));
+      expect(
+        (object['plan']! as String).trimRight().split('\n').last,
+        'plan ${_dryRunPlanHash(root)}',
+      );
       expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
       expect(object['agentFiles'], ['.specstone/AGENT.md', 'AGENTS.md']);
       expect(object['numberLabels'], {
@@ -319,9 +328,9 @@ void main() {
         ),
         0,
       );
-      final hash =
-          (jsonDecode(dry.toString()) as Map<String, Object?>)['planHash']!
-              as String;
+      final hash = _planHashIn(
+        (jsonDecode(dry.toString()) as Map<String, Object?>)['plan']! as String,
+      );
       final out = StringBuffer();
       final notes = <String>[];
 
@@ -337,7 +346,7 @@ void main() {
 
       expect(status, 0);
       final object = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(object['planHash'], hash);
+      expect(object['plan'], isNot(contains('plan $hash')));
       expect(object['steps'], [
         {
           'from': '1.0.0',
@@ -359,12 +368,8 @@ void main() {
       final object = jsonDecode(withJson.toString()) as Map<String, Object?>;
 
       expect(
-        object['planHash'],
-        without
-            .toString()
-            .split('\n')
-            .firstWhere((line) => line.startsWith('plan '))
-            .substring('plan '.length),
+        _planHashIn(object['plan']! as String),
+        _planHashIn(without.toString()),
       );
     }, skip: skipGit);
   });
