@@ -520,6 +520,19 @@ void _otherPluginSkillTests() {
     );
   });
 
+  test('$_nameOnly: a backticked specstone:<name> fails in a skill file and '
+      'an agent file, and the hyphenated name passes', () async {
+    final root = await writeTree({
+      'specstone-x/SKILL.md': 'Follow `specstone:read-sdd`.',
+      'specstone-a.md':
+          'Follow `specstone:read-sdd`, not `specstone-read-sdd`.',
+    });
+    expect(otherPluginSkillNames(contentFilesOf(root), shippedDocTypes()), [
+      "specstone-a.md: specstone:read-sdd is another plugin's skill",
+      "specstone-x/SKILL.md: specstone:read-sdd is another plugin's skill",
+    ]);
+  });
+
   test('$_nameOnly: shippedDocTypes holds the doc types the packs define, '
       'project, features, and gnfr among them', () {
     expect(
@@ -4628,6 +4641,17 @@ void _hostRenderTests() {
             '.agents/skills/specstone-z/SKILL.md',
           ),
         ],
+      );
+    });
+
+    test('a project doc path is not read, whatever its first folder', () {
+      expect(
+        problemsOf({
+          'specstone-x/SKILL.md':
+              '${_skillHead('specstone-x', 'Skill.')}See `specs/x/y.md` and '
+              '`docs/a/b.md`.',
+        }),
+        isEmpty,
       );
     });
 

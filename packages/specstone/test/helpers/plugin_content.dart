@@ -13,7 +13,9 @@ final _specstoneCall = RegExp(r'\bspecstone\s+(\S+)');
 final _skillName = RegExp(r'^([a-z0-9-]+):[a-z0-9-]+$');
 final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
 final _claudeVariable = RegExp(r'\$\{CLAUDE_\w*\}?');
-final _relativeMarkdownPath = RegExp(r'^[\w.-]+(?:/[\w.-]+)+\.md$');
+final _relativeMarkdownPath = RegExp(
+  r'^(?:\.\.|\.|references|\.agents|\.claude|specstone-[\w-]+)(?:/[\w.-]+)+\.md$',
+);
 
 const _hostToolNames = {'Skill', 'Agent', 'Write', 'Edit', 'Read'};
 const _claudeSkillsFolder = '.claude/skills/';
@@ -248,8 +250,9 @@ YamlMap? _headOf(ContentFile file) {
 ///
 /// A path is read from the folder of a skill file, or from the project root in
 /// an agent file. A sources folder holds its agents beside its skills, so
-/// only renders are read. A span with no `/`, a placeholder, or a space is no
-/// path.
+/// only renders are read. A span is a path only when its first segment is
+/// `..`, `.`, `references`, `.agents`, `.claude`, or a `specstone-*` folder:
+/// a project doc path such as `specs/x.md` is never read.
 List<String> unresolvedPaths(List<ContentFile> files) {
   final known = {for (final file in files) file.path};
   final problems = <String>{};
