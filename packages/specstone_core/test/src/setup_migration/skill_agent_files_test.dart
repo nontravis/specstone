@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
@@ -274,7 +275,7 @@ void main() {
   });
 
   group('unshipped entries', () {
-    test('move to the trash, file by file', () async {
+    test('move to the trash whole, folder or file', () async {
       final existing = _firstPathIn(AgentFolder.claudeSkills);
       final base = await _base({
         'proj/$existing': _allRendered[existing]!,
@@ -287,10 +288,9 @@ void main() {
       final plan = planSkillAndAgentFiles(_inputs(base), full: false);
 
       expect(plan.trash, [
-        '.claude/skills/specstone-old/SKILL.md',
-        '.claude/skills/specstone-old/references/more.md',
+        '.claude/skills/specstone-old',
         '.claude/agents/specstone-old.md',
-        '.agents/skills/specstone-gone/SKILL.md',
+        '.agents/skills/specstone-gone',
       ]);
       expect(_writtenPaths(plan).any((path) => path.contains('-old')), isFalse);
       _expectDriftsMatchPlan(_inputs(base));
@@ -313,6 +313,21 @@ void main() {
       },
     );
 
+    test('move to the trash when the name holds a hash or a percent', () async {
+      final existing = _firstPathIn(AgentFolder.claudeSkills);
+      final skill = existing.substring(0, existing.lastIndexOf('/'));
+      final base = await _base({
+        ..._under('proj', _renderedIn(AgentFolderGroup.claudeCode.folders)),
+        'proj/$skill/notes#1.md': 'extra\n',
+        'proj/$skill/a%20b.md': 'extra\n',
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.trash, ['$skill/a%20b.md', '$skill/notes#1.md']);
+      expect(plan.skipped, isEmpty);
+    });
+
     test('move to the trash on a full run too', () async {
       final base = await _base({
         'proj/.cursor/agents/specstone-old.md': 'old\n',
@@ -322,6 +337,54 @@ void main() {
 
       expect(plan.trash, ['.cursor/agents/specstone-old.md']);
     });
+  });
+
+  group('two names for one real file', () {
+    test(
+      'plan the file once when one skill folder links to the other',
+      () async {
+        final existing = _firstPathIn(AgentFolder.claudeSkills);
+        final base = await _base({'proj/$existing': 'hand edit\n'});
+        Directory(_at(base, 'proj/.agents').path).createSync();
+        Link(_at(base, 'proj/.agents/skills').path)
+            .createSync(_at(base, 'proj/.claude/skills').path);
+
+        final plan = planSkillAndAgentFiles(_inputs(base), full: true);
+
+        final real = {
+          for (final write in plan.writes)
+            canonicalPath(
+              File.fromUri(_at(base, 'proj/').uri.resolve(write.path)).path,
+            ),
+        };
+        expect(real, hasLength(plan.writes.length));
+        expect(
+          plan.writes.where((write) => write.path.contains('/specstone-init/')),
+          hasLength(1),
+        );
+      },
+      skip: Platform.isWindows ? 'symbolic links need a privilege' : null,
+    );
+
+    test('plan the file once when one entry links to the other copy', () async {
+      final base = await _base({'proj/.claude/skills/keep': ''});
+      final skill = _firstPathIn(AgentFolder.claudeSkills);
+      final entry = skill.substring(0, skill.lastIndexOf('/'));
+      final other = entry.replaceFirst('.claude/', '.agents/');
+      Directory(_at(base, 'proj/.agents/skills').path)
+          .createSync(recursive: true);
+      Link(_at(base, 'proj/$other').path)
+          .createSync(_at(base, 'proj/$entry').path);
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: true);
+
+      final paths = plan.writes.map((write) => write.path);
+      final inEntry = paths.where(
+        (path) => path.startsWith('$entry/') || path.startsWith('$other/'),
+      );
+      expect(inEntry.where((path) => path.startsWith('$entry/')), isNotEmpty);
+      expect(inEntry.where((path) => path.startsWith('$other/')), isEmpty);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
 
   group('a folder top that leaves the project', () {

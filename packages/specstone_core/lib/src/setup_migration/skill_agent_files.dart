@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -31,9 +32,11 @@ typedef SkillFileDrift = ({String path, SkillFileDriftKind kind});
 /// The skill and agent file changes of one run, every path from the project
 /// root with `/` separators.
 ///
-/// `trash` lists each unshipped file to move to the trash, and `skipped` the
-/// warning line for each folder or file the run leaves because its real path
-/// lies outside the project root or under `.git`.
+/// `trash` lists each path to move to the trash: the folder or file of a
+/// `specstone-*` entry the CLI ships nothing of, which moves whole, and each
+/// unshipped file inside an entry it ships. `skipped` holds the warning line
+/// for each folder or file the run leaves because its real path lies outside
+/// the project root or under `.git`.
 typedef SkillFilePlan = ({
   List<AgentWrite> writes,
   List<String> trash,
@@ -97,6 +100,7 @@ final class _Planner {
   final trash = <String>[];
   final skipped = <String>[];
   final writeSet = <String>{};
+  final _planned = <String>{};
 
   void plan(AgentFileBase base, {required bool full}) {
     if (base.isTop) {
@@ -165,6 +169,7 @@ final class _Planner {
         ? utf8.decode(readPlanInput(target), allowMalformed: true)
         : null;
     if (current != null && toLf(current) == file.text) return;
+    if (!_planned.add(canonicalPath(target.path))) return;
     final path = _rootPath(base, file.path);
     final refusal = writeRefusalOf(target.path, projectRoot: _root);
     if (refusal != null) return _skip(skippedLineOf(path, refusal));
@@ -181,18 +186,22 @@ final class _Planner {
   }
 
   void _planTrash(AgentFileBase base, String entry) {
+    final isShipped = _shipped.any(
+      (path) => path == entry || path.startsWith('$entry/'),
+    );
+    if (!isShipped) return _trash(base, entry);
     for (final relative in _filesUnder(base, entry)) {
-      if (_shipped.contains(relative)) continue;
-      final path = _rootPath(base, relative);
-      final refusal = writeRefusalOf(
-        _pathIn(base, relative),
-        projectRoot: _root,
-      );
-      if (refusal == null) {
-        trash.add(path);
-      } else {
-        _skip(skippedLineOf(path, refusal));
-      }
+      if (!_shipped.contains(relative)) _trash(base, relative);
+    }
+  }
+
+  void _trash(AgentFileBase base, String relative) {
+    final path = _rootPath(base, relative);
+    final refusal = writeRefusalOf(_pathIn(base, relative), projectRoot: _root);
+    if (refusal == null) {
+      trash.add(path);
+    } else {
+      _skip(skippedLineOf(path, refusal));
     }
   }
 
@@ -220,8 +229,9 @@ final class _Planner {
     if (!skipped.contains(line)) skipped.add(line);
   }
 
-  String _pathIn(AgentFileBase base, String relative) =>
-      File.fromUri(base.directory.uri.resolve(relative)).path;
+  String _pathIn(AgentFileBase base, String relative) => File.fromUri(
+    base.directory.uri.resolveUri(Uri(pathSegments: relative.split('/'))),
+  ).path;
 
   String _rootPath(AgentFileBase base, String relative) =>
       base.path.isEmpty ? relative : '${base.path}/$relative';
