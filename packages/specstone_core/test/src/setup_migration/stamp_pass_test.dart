@@ -31,6 +31,15 @@ Map<String, PackVersion> get _belowBoth => {
 
 final _approvedHash = RegExp(r'^approved: "[0-9a-f]{12}"$', multiLine: true);
 
+/// The approval hash by the rule of the pins every run here starts from, all
+/// below the statuses pin.
+String _hashOf(String lf, MergedDocType? type) =>
+    approvalHashOf(lf, type, statusesOutside: false);
+
+/// [lf] stamped with [_hashOf].
+String _stamped(String lf, MergedDocType? type) =>
+    withApprovalHash(lf, type, statusesOutside: false);
+
 String _story(String scenarios) =>
     '# B\n\n## Acceptance Criteria\n\n$scenarios\n';
 
@@ -100,7 +109,7 @@ void main() {
       expect(story, matches(_approvedHash));
       expect(
         story,
-        '---\napproved: "${approvalHashOf(story, _typeAt(_storyPath))}"\n---\n'
+        '---\napproved: "${_hashOf(story, _typeAt(_storyPath))}"\n---\n'
         '${_story(_one)}',
       );
       expect(run.applied[_frPath], matches(_approvedHash));
@@ -213,7 +222,7 @@ void main() {
         _frPath: _tracing('  - S1 000000000000\n'),
       };
       final approvedBefore = {
-        _storyPath: withApprovalHash(before[_storyPath]!, _typeAt(_storyPath)),
+        _storyPath: _stamped(before[_storyPath]!, _typeAt(_storyPath)),
         _frPath: before[_frPath]!,
       };
       final after = {
@@ -233,7 +242,7 @@ void main() {
 
       expect(
         run.applied[_storyPath],
-        withApprovalHash(after[_storyPath]!, _typeAt(_storyPath)),
+        _stamped(after[_storyPath]!, _typeAt(_storyPath)),
       );
       expect(run.applied[_frPath], after[_frPath]);
       expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
@@ -361,11 +370,8 @@ void main() {
       final stamped = _run(before, after).applied[_frPath]!;
 
       final type = _typeAt(_frPath);
-      expect(stamped, contains('approved: "${approvalHashOf(stamped, type)}"'));
-      expect(
-        approvalHashOf(stamped, type),
-        isNot(approvalHashOf(after[_frPath]!, type)),
-      );
+      expect(stamped, contains('approved: "${_hashOf(stamped, type)}"'));
+      expect(_hashOf(stamped, type), isNot(_hashOf(after[_frPath]!, type)));
     });
 
     test('an entry naming a block the run lacks is left as written', () {
@@ -398,7 +404,7 @@ void main() {
       );
       const written = '---\nimplements:\n  - app/a.dart\n---\n# B\n';
       const moved = '---\n---\n# B\n';
-      final approved = withApprovalHash(written, held);
+      final approved = _stamped(written, held);
 
       final pass = StampPass.plan(
         [(docPath: _storyPath, lf: approved, type: held)],
@@ -409,10 +415,7 @@ void main() {
 
       final stamped = pass.apply(_storyPath, moved);
       expect(stamped, matches(_approvedHash));
-      expect(
-        stamped,
-        contains('approved: "${approvalHashOf(stamped, dropped)}"'),
-      );
+      expect(stamped, contains('approved: "${_hashOf(stamped, dropped)}"'));
       expect(pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
     });
   });

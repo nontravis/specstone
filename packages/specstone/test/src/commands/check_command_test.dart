@@ -15,6 +15,8 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedStatusesOutside;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
 import '../../helpers/built_cli.dart';
@@ -865,6 +867,7 @@ void main() {
                 .replaceFirst('One box.', 'One box. $sentence'),
           ),
           fixtureDocTypeOf(loginArchitecture),
+          statusesOutside: shippedStatusesOutside,
         );
 
     /// Writes the twin project with the two records; no jaspr record when

@@ -11,6 +11,7 @@ import 'package:specstone_core/src/document_writing/approve_drafts.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
+import 'package:specstone_core/src/index_query/get_docs.dart' show answerGet;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -22,8 +23,10 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart'
     as check
-    show edit, loginStory, writeCheckProject;
+    show edit, loginRecord, loginStory, writeCheckProject;
 import '../../helpers/git_repo.dart';
+import '../../helpers/shipped_pins.dart'
+    show pinStatusesBelow, statusesBelowResolver;
 import '../../helpers/target_fixture.dart'
     show flutterArchitecture, jasprArchitecture, writeTwinProject;
 import '../../helpers/temp_tree.dart';
@@ -37,7 +40,11 @@ String approvedMark(Directory root, String docPath) {
   final lfText = toLf(readDoc(root, docPath));
   final hash = writeIn(
     root,
-    (s) => approvalHashOf(lfText, s.docTypeAt(docPath)),
+    (s) => approvalHashOf(
+      lfText,
+      s.docTypeAt(docPath),
+      statusesOutside: s.project.statusesOutsideApproval,
+    ),
   );
   return 'approved: "$hash"';
 }
@@ -86,7 +93,12 @@ String bodyWithHash(Directory root, String docPath, RegExp shape) =>
     writeIn(root, (s) {
       for (var i = 0; i < 100000; i++) {
         final body = '# Signup\n\n## Problem\n\nUsers create an account $i.\n';
-        if (shape.hasMatch(approvalHashOf(body, s.docTypeAt(docPath)))) {
+        final hash = approvalHashOf(
+          body,
+          s.docTypeAt(docPath),
+          statusesOutside: s.project.statusesOutsideApproval,
+        );
+        if (shape.hasMatch(hash)) {
           return body;
         }
       }
@@ -1134,7 +1146,11 @@ void main() {
       final body = bodyWithHash(root, signupFeature, RegExp(r'^[0-9]{12}$'));
       final hash = writeIn(
         root,
-        (s) => approvalHashOf(body, s.docTypeAt(signupFeature)),
+        (s) => approvalHashOf(
+          body,
+          s.docTypeAt(signupFeature),
+          statusesOutside: s.project.statusesOutsideApproval,
+        ),
       );
       docFile(
         root,
@@ -1459,7 +1475,11 @@ void main() {
           );
           final hash = writeIn(
             root,
-            (s) => approvalHashOf(body, s.docTypeAt(signupFeature)),
+            (s) => approvalHashOf(
+              body,
+              s.docTypeAt(signupFeature),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
           );
           docFile(
             root,
@@ -2124,6 +2144,100 @@ void main() {
         expect(twin.containsKey('statusByTarget'), isFalse);
       },
     );
+  });
+
+  group('a record status and the statuses pin', () {
+    for (final below in [false, true]) {
+      final where = below ? 'below the statuses pin' : 'at the statuses pin';
+      const from = 'email_login/check_password:implemented';
+      const to = 'email_login/check_password:planned';
+      T at<T>(Directory root, T Function(WriteSession session) body) =>
+          writeIn(root, body, templates: below ? statusesBelowResolver : null);
+
+      /// Writes the fixture project with its record a draft, pinned [where],
+      /// and approves the record.
+      Future<Directory> approvedRecord() async {
+        final root = await check.writeCheckProject(
+          extra: check.edit(check.loginRecord, [
+            ('statuses:\n', 'draft: true\nstatuses:\n'),
+          ]),
+        );
+        if (below) pinStatusesBelow(root);
+        at(
+          root,
+          (s) =>
+              approveDrafts(s, readLine: answers(['y']), out: StringBuffer()),
+        );
+        return root;
+      }
+
+      String approvedValue(Directory root) =>
+          RegExp('approved: "([0-9a-f]{12})"')
+              .firstMatch(readDoc(root, check.loginRecord))![1]!;
+
+      bool walksRecord(Directory root) => at(
+        root,
+        (s) => approveDryRun(s).text.contains('`docs/${check.loginRecord}`'),
+      );
+
+      test(
+        '$where, the index stores the hash approve writes, and a statuses set compares by it',
+        () async {
+          final root = await approvedRecord();
+          expect(readDoc(root, check.loginRecord), isNot(contains('draft')));
+          final written = approvedValue(root);
+          at(root, (s) {
+            expect(s.project.statusesOutsideApproval, !below);
+            expect(s.index.at(check.loginRecord)!.approvalHash, written);
+            expect(
+              approvalHashOf(
+                toLf(readDoc(root, check.loginRecord)),
+                s.docTypeAt(check.loginRecord),
+                statusesOutside: !below,
+              ),
+              written,
+            );
+          });
+          expect(walksRecord(root), isFalse);
+
+          final base = at(root, (s) {
+            final docs =
+                answerGet(s.index, [check.loginRecord]).json['docs']! as List;
+            final bases = (docs.single as Map)['bases']! as Map;
+            return (bases['fields']! as Map)['statuses']! as String;
+          });
+          final status = at(
+            root,
+            (s) => answerSet(
+              s,
+              SetRequest.parse(
+                'implementation:login',
+                field: 'statuses',
+                base: base,
+              ),
+              "- 'email_login:implemented'\n- '$to'\n",
+            ),
+          );
+
+          expect(status.json['draft'], below);
+          expect(approvedValue(root), written);
+          expect(walksRecord(root), below);
+        },
+      );
+
+      test(
+        '$where, a status edited by hand ${below ? 'makes the record a draft the walk takes' : 'leaves the record unwalked'}',
+        () async {
+          final root = await approvedRecord();
+          final file = docFile(root, check.loginRecord);
+          final text = file.readAsStringSync();
+          expect(text, contains(from));
+          file.writeAsStringSync(text.replaceFirst(from, to));
+
+          expect(walksRecord(root), below);
+        },
+      );
+    }
   });
 }
 

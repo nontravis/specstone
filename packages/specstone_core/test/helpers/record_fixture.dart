@@ -63,6 +63,7 @@ void stampApproved(Directory root, String docPath) {
     final stamped = withApprovalHash(
       toLf(file.readAsStringSync()),
       session.docTypeAt(docPath),
+      statusesOutside: session.project.statusesOutsideApproval,
     );
     file.writeAsStringSync(stamped);
   });
@@ -76,6 +77,10 @@ bool holdsApproval(Directory root, String docPath) {
     final fields = ApprovalFields.of(Doc.parse(text));
     return !fields.isDraft &&
         fields.approvedValue ==
-            approvalHashOf(text, session.docTypeAt(docPath));
+            approvalHashOf(
+              text,
+              session.docTypeAt(docPath),
+              statusesOutside: session.project.statusesOutsideApproval,
+            );
   });
 }

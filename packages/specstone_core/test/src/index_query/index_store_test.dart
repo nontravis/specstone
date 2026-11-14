@@ -28,6 +28,7 @@ void main() {
     docPath: path,
     bytes: utf8.encode(text),
     match: const NoDocType(),
+    statusesOutside: true,
   );
   File file(Directory r, String p) => File('${r.path}/$p');
 
@@ -482,6 +483,7 @@ void main() {
         docPath: 'n.md',
         bytes: utf8.encode('# N\n\n## A\nfast\n\n## B\nfastly\n'),
         match: MatchedDocType(type),
+        statusesOutside: true,
       );
       store.write(() {
         store
@@ -667,6 +669,7 @@ void main() {
         docPath: path,
         bytes: utf8.encode(text),
         match: MatchedDocType(doc),
+        statusesOutside: true,
       );
       store.write(() {
         store
@@ -791,6 +794,7 @@ void main() {
         docPath: 'specs/jaspr/f01_login/ARCHITECTURE.md',
         bytes: utf8.encode('# A\n'),
         match: MatchedDocType(type, target: 'jaspr'),
+        statusesOutside: true,
       );
       store.write(() {
         store

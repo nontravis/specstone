@@ -31,6 +31,8 @@ final class DocLines {
       docPath: '',
       bytes: utf8.encode(text),
       match: const NoDocType(),
+      // An untyped doc has no approval hash, so neither rule applies.
+      statusesOutside: false,
     ).content,
   );
 

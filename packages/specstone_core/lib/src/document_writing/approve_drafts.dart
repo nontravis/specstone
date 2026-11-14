@@ -339,6 +339,7 @@ final class _RunReads {
         session.project.projectRoot,
         session.projectPathOf(doc.docPath),
         docType: session.index.typeOf(doc),
+        statusesOutside: session.project.statusesOutsideApproval,
       );
       lookups[doc.docPath] = lookup;
       if (lookup case ApprovedCopy(:final text)) {
@@ -487,7 +488,11 @@ bool _approveIfUnchanged(
 void _writeApproval(WriteSession session, IndexedDoc doc, List<int> bytes) {
   final text = utf8.decode(bytes);
   final undrafted = withKeyBlock(toLf(text), 'draft', null);
-  final approved = withApprovalHash(undrafted, session.index.typeOf(doc));
+  final approved = withApprovalHash(
+    undrafted,
+    session.index.typeOf(doc),
+    statusesOutside: session.project.statusesOutsideApproval,
+  );
   session.writeDoc(doc.docPath, approved, LineEnding.of(text));
 }
 

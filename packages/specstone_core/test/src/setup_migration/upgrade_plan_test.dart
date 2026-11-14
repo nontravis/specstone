@@ -41,6 +41,16 @@ import '../../helpers/temp_tree.dart';
 
 const _apply = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 
+/// The approval hash by the rule of the pins an upgrade here starts from,
+/// which the stamp pass hashes by: every record fixture pins the shipped
+/// `software-tech` beside the pack it upgrades.
+String _approvalHashBefore(String lf, MergedDocType? type) =>
+    approvalHashOf(lf, type, statusesOutside: shippedStatusesOutside);
+
+/// [lf] stamped with [_approvalHashBefore].
+String _stampedBefore(String lf, MergedDocType? type) =>
+    withApprovalHash(lf, type, statusesOutside: shippedStatusesOutside);
+
 const _runbookDoc = '''
 ---
 owner: sre
@@ -644,7 +654,7 @@ sections:
       MatchedDocType(:final docType) => docType,
       _ => null,
     };
-    final approved = withApprovalHash(_runbookDoc, type);
+    final approved = _stampedBefore(_runbookDoc, type);
     final fixture = await _fixture(overrides: const {}, docs: {path: approved});
 
     final plan = _plan(fixture);
@@ -656,7 +666,7 @@ sections:
         r'^approved: "(\w+)"$',
         multiLine: true,
       ).firstMatch(written.text)!.group(1),
-      approvalHashOf(written.text, type),
+      _approvalHashBefore(written.text, type),
     );
     final approvedLine = RegExp(
       r'^approved: .*$',
@@ -2184,7 +2194,7 @@ Map<String, Object?> _valuesOf(String text) =>
 /// [lf] stamped with the approval hash it has under the shipped packs as
 /// they stood before the `move_to_record` step: the type still declared
 /// `implements`, a field the hash leaves out.
-String _approvedUnderShipped(String lf, String docTypeId) => withApprovalHash(
+String _approvedUnderShipped(String lf, String docTypeId) => _stampedBefore(
   lf,
   typeBeforeMoves(
     TemplateResolver()
@@ -2490,11 +2500,11 @@ void _moveToRecordTests() {
       final fr = _stampedDocText(plan, _loginFrPath);
       expect(
         _valuesOf(story)['approved'],
-        approvalHashOf(story, _finalType(fixture, 'user_story')),
+        _approvalHashBefore(story, _finalType(fixture, 'user_story')),
       );
       expect(
         _valuesOf(fr)['approved'],
-        approvalHashOf(fr, _finalType(fixture, 'fr')),
+        _approvalHashBefore(fr, _finalType(fixture, 'fr')),
       );
       expect(story, isNot(contains('status:')));
       final record = plan.creates.single.text;
@@ -2527,7 +2537,7 @@ void _moveToRecordTests() {
       final story = _stampedDocText(plan, _loginStoryPath);
       expect(
         _valuesOf(story)['approved'],
-        approvalHashOf(story, _finalType(fixture, 'user_story')),
+        _approvalHashBefore(story, _finalType(fixture, 'user_story')),
       );
     });
 
@@ -2655,7 +2665,7 @@ void _moveToRecordTests() {
         expect(values['approved'], isNot(oldHash));
         expect(
           values['approved'],
-          approvalHashOf(
+          _approvalHashBefore(
             story,
             TemplateResolver()
                 .resolveCarried(
@@ -2791,7 +2801,7 @@ void _moveToRecordTests() {
     test('$_fr E30: an approved record that gains entries is re-stamped, not '
         'drafted', () async {
       final probe = await _recordFixture();
-      final record = withApprovalHash(
+      final record = _stampedBefore(
         recordText(
           statuses: ['email_login:implemented'],
           code: ['email_login:app/lib/login/sign_in.dart:SignIn'],
@@ -2807,7 +2817,7 @@ void _moveToRecordTests() {
       final text = _stampedDocText(plan, _recordPath);
       expect(
         _valuesOf(text)['approved'],
-        approvalHashOf(text, _finalType(fixture, 'implementation')),
+        _approvalHashBefore(text, _finalType(fixture, 'implementation')),
       );
       expect(_valuesOf(text), isNot(contains('draft')));
       expect(_valuesOf(text)['statuses'], hasLength(2));
@@ -3075,11 +3085,11 @@ void _treeMoveTests() {
       );
       final feature = set.lookup('feature');
       final architecture = set.lookup('architecture');
-      final featureText = withApprovalHash(
+      final featureText = _stampedBefore(
         '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
         feature,
       );
-      final archText = withApprovalHash(
+      final archText = _stampedBefore(
         '# Architecture\n\n[f](../../prds/features/f02_feedback/FEATURE.md)\n',
         architecture,
       );
@@ -3097,8 +3107,11 @@ void _treeMoveTests() {
         'prds/features/f02_feedback/FEATURE.md',
       );
       final arch = _stampedDocText(plan, archPath);
-      expect(_valuesOf(feat)['approved'], approvalHashOf(feat, feature));
-      expect(_valuesOf(arch)['approved'], approvalHashOf(arch, architecture));
+      expect(_valuesOf(feat)['approved'], _approvalHashBefore(feat, feature));
+      expect(
+        _valuesOf(arch)['approved'],
+        _approvalHashBefore(arch, architecture),
+      );
       expect(
         _valuesOf(arch)['approved'],
         isNot(_valuesOf(archText)['approved']),

@@ -49,7 +49,8 @@ final class StampPass {
   /// run; a doc whose `confirmed` entries changed in number keeps them.
   ///
   /// [pins] are the pack pins before the run: a doc counts as approved when it
-  /// did not await approval under them.
+  /// did not await approval under them, and both hashes follow their
+  /// [statusesOutsideApproval] rule.
   /// [restampsFingerprints] holds for the one-time run alone. A typed doc
   /// whose frontmatter is not valid YAML, before or after, is skipped and
   /// named on the plan line.
@@ -60,6 +61,7 @@ final class StampPass {
     required bool restampsFingerprints,
   }) {
     final ran = stampsHaveRun(pins);
+    final statusesOutside = statusesOutsideApproval(pins);
     final skipped = <String>[];
     final beforeAt = {for (final doc in before) doc.docPath: doc};
     final world = _World(after);
@@ -72,8 +74,18 @@ final class StampPass {
       final type = doc.type;
       final old = beforeAt[doc.docPath];
       if (type == null || old == null) continue;
-      final beforeHash = comparedApprovalHash(old.lf, old.type);
-      if (beforeHash == null || comparedApprovalHash(doc.lf, type) == null) {
+      final beforeHash = comparedApprovalHash(
+        old.lf,
+        old.type,
+        statusesOutside: statusesOutside,
+      );
+      if (beforeHash == null ||
+          comparedApprovalHash(
+                doc.lf,
+                type,
+                statusesOutside: statusesOutside,
+              ) ==
+              null) {
         skipped.add(doc.docPath);
         continue;
       }
@@ -89,7 +101,7 @@ final class StampPass {
         beforeHash,
         stampsHaveRun: ran,
       )) {
-        lf = withApprovalHash(lf, type);
+        lf = withApprovalHash(lf, type, statusesOutside: statusesOutside);
       }
       if (lf == doc.lf) continue;
       stamped[doc.docPath] = lf;

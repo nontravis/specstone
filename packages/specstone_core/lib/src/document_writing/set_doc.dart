@@ -6,6 +6,8 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show isOutsideApproval;
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -185,6 +187,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   final match = MatchedDocType(docType);
   checkPartText(doc: doc, docType: docType, target: request.target, text: text);
 
+  final statusesOutside = session.project.statusesOutsideApproval;
   return session.locked(() {
     final read = readLocked(session, doc, match).parsed;
     final part = splicePart(
@@ -195,6 +198,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       target: request.target,
       base: request.base,
       text: text,
+      statusesOutside: statusesOutside,
     );
     final written = session.writeDoc(
       doc.docPath,
@@ -206,6 +210,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       docPath: doc.docPath,
       bytes: utf8.encode(written),
       match: match,
+      statusesOutside: statusesOutside,
     );
     final base = _baseAfter(after, request.target, docType);
     return ReadAnswer(
@@ -227,7 +232,8 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// [lfText] is the doc's text with LF line ends as read under the write lock,
 /// [sections] its sections, and [base] the hash of the part the caller read.
 /// `lfText` of the result is the spliced text and `marksDraft` tells whether
-/// the write marks the doc a draft: false only for an `output_ref` field.
+/// the write marks the doc a draft: false only for a field outside the
+/// approval hash by the rule [statusesOutside] names ([isOutsideApproval]).
 /// Touches no disk and takes no lock. Runs [checkPartText] first, then throws
 /// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
 /// part's current text included.
@@ -239,6 +245,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   required SetTarget target,
   required String base,
   required String text,
+  required bool statusesOutside,
 }) {
   checkPartText(doc: doc, docType: docType, target: target, text: text);
   final stdin = toLf(text);
@@ -259,6 +266,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       fieldId: fieldId,
       base: base,
       stdin: stdin,
+      statusesOutside: statusesOutside,
     ),
     TitleTarget() => _spliceTitle(doc, lfText, base, stdin),
     LeadTarget() => _spliceLead(doc, docType, lfText, base, stdin),
@@ -404,6 +412,7 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
   required String fieldId,
   required String base,
   required String stdin,
+  required bool statusesOutside,
 }) {
   final value = _fieldValueOf(stdin);
   final blocks = Doc.parse(lfText).frontmatter ?? const <KeyBlock>[];
@@ -432,7 +441,12 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
     value == null ? null : _blockOf(fieldId, value),
   );
   final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
-  return (lfText: spliced, marksDraft: field?.type != FieldType.outputRef);
+  return (
+    lfText: spliced,
+    marksDraft:
+        field == null ||
+        !isOutsideApproval(field, statusesOutside: statusesOutside),
+  );
 }
 
 /// Checks the YAML value of [stdin] against [field], throwing the fault.
@@ -742,6 +756,7 @@ String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
     docPath: doc.docPath,
     bytes: bytes,
     match: match,
+    statusesOutside: session.project.statusesOutsideApproval,
   );
   return (bytes: bytes, parsed: parsed);
 }

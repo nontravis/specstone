@@ -219,7 +219,12 @@ String _stamped(DocTypeMatcher matcher, String path, String text) {
   return switch (matcher.match(path.substring('docs/'.length))) {
     MatchedDocType(:final docType) => _withEndings(
       text,
-      withApprovalHash(toLf(text), docType),
+      // The matcher resolves the shipped packs, so their rule applies.
+      withApprovalHash(
+        toLf(text),
+        docType,
+        statusesOutside: shippedStatusesOutside,
+      ),
     ),
     _ => text,
   };

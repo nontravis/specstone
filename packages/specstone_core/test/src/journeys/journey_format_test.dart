@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart' show shippedStatusesOutside;
 
 const _story = 'login/email_login';
 const _journeyKey = 'docs/prds/journeys/sign_in/JOURNEY.md';
@@ -187,8 +188,11 @@ void main() {
     String withFront(String text, String frontMatter) =>
         '$frontMatter${text.substring(text.indexOf('# Sign in'))}';
 
-    String approved(String text) =>
-        withApprovalHash(text, fixtureDocTypeOf(journeyDocPath));
+    String approved(String text) => withApprovalHash(
+      text,
+      fixtureDocTypeOf(journeyDocPath),
+      statusesOutside: shippedStatusesOutside,
+    );
 
     test('f04/us04/s9, f04/us04/fr01/e10: format re-pastes an edited '
         'scenario and the journey stays suspect', () async {

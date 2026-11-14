@@ -1582,7 +1582,11 @@ void main() {
         docFile(root, story2).writeAsStringSync(
           writeIn(
             root,
-            (s) => withApprovalHash(withPersona, s.docTypeAt(story2)),
+            (s) => withApprovalHash(
+              withPersona,
+              s.docTypeAt(story2),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
           ),
         );
         expect(staleDocs(root), isEmpty);
@@ -1815,7 +1819,11 @@ void main() {
       docFile(root, loginFeature).writeAsStringSync(
         writeIn(
           root,
-          (s) => withApprovalHash(approvedText, s.docTypeAt(loginFeature)),
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(loginFeature),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
         ),
       );
       final before = approvedHash(root, loginFeature);
@@ -1876,7 +1884,11 @@ void main() {
         docFile(root, shopDomain).writeAsStringSync(
           writeIn(
             root,
-            (s) => withApprovalHash(approvedText, s.docTypeAt(shopDomain)),
+            (s) => withApprovalHash(
+              approvedText,
+              s.docTypeAt(shopDomain),
+              statusesOutside: s.project.statusesOutsideApproval,
+            ),
           ),
         );
         final before = approvedHash(root, shopDomain);
@@ -1922,7 +1934,11 @@ void main() {
       docFile(root, projectDoc).writeAsStringSync(
         writeIn(
           root,
-          (s) => withApprovalHash(approvedText, s.docTypeAt(projectDoc)),
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(projectDoc),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
         ),
       );
       final before = approvedHash(root, projectDoc);
@@ -2359,7 +2375,8 @@ void main() {
         final before = approvedValue(root, flutterLogin);
         rename(root, 'user_story:login/reset_password', 'recover');
         expect(holdsApproval(root, flutterLogin), isTrue);
-        expect(approvedValue(root, flutterLogin), isNot(before));
+        // At the shipped pins the rewritten entries all stay outside the hash.
+        expect(approvedValue(root, flutterLogin), before);
         expect(approvedValue(root, jasprLogin), staleHash);
         expect(holdsApproval(root, jasprLogin), isFalse);
         expect(readDoc(root, flutterLogin), isNot(contains('draft: true')));

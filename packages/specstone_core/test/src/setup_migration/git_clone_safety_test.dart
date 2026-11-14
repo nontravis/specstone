@@ -181,9 +181,12 @@ void main() {
         _refusesAsNoWorkTree(again: 'the command'),
       );
       expect(
-        () => ApprovalHistory(
-          runGit: _guardedOlderGit(),
-        ).lastApproved(evil, 'docs/prds/personas/x/PERSONA.md', docType: null),
+        () => ApprovalHistory(runGit: _guardedOlderGit()).lastApproved(
+          evil,
+          'docs/prds/personas/x/PERSONA.md',
+          docType: null,
+          statusesOutside: true,
+        ),
         _refusesAsNoWorkTree(again: 'the command'),
       );
 

@@ -43,6 +43,7 @@ IndexedDoc _record(String path, String text) => parseIndexedDoc(
     MergedSet(docTypes: [_recordType]),
     targetNames: const ['flutter', 'jaspr'],
   ).match(path),
+  statusesOutside: true,
   codeTarget: 'jaspr',
 ).doc;
 

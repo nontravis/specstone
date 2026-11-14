@@ -17,6 +17,7 @@ import 'package:yaml/yaml.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart' show shippedStatusesOutside;
 import '../../helpers/write_fixture.dart' show readDoc, writeIn;
 
 const _story = 'login/email_login';
@@ -125,6 +126,7 @@ void main() {
         withApprovalHash(
           text.replaceFirst('draft: true\n', ''),
           fixtureDocTypeOf(_journeyDoc),
+          statusesOutside: shippedStatusesOutside,
         ),
       );
       expect(_check(root), isEmpty);

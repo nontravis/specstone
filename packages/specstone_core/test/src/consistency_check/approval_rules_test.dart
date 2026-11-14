@@ -14,6 +14,8 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/shipped_pins.dart'
+    show pinStatusesBelow, shippedStatusesOutside, statusesBelowResolver;
 import '../../helpers/temp_tree.dart';
 
 const _name = 'consistency_check/find_template_breaks/report_stale_approvals';
@@ -76,7 +78,11 @@ Future<CheckReport> _checkBelowPins(Map<String, String> extra) async {
       'must not sign in.',
       'must not sign in $i.',
     );
-    final hash = approvalHashOf(text, docType);
+    final hash = approvalHashOf(
+      text,
+      docType,
+      statusesOutside: shippedStatusesOutside,
+    );
     if (shape.hasMatch(hash)) return (text, hash);
   }
   throw StateError('no text hashes to $shape');
@@ -161,6 +167,47 @@ void main() {
     },
   );
 
+  group('a record status edited by hand after approval', () {
+    const from = 'email_login/check_password:implemented';
+    const to = 'email_login/check_password:planned';
+
+    test('raises no approval_stale at the statuses pin', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: editedAfterApproval(loginRecord, [(from, to)]),
+        ),
+      );
+      expect(_stales(report), isEmpty);
+    });
+
+    test('is one approval_stale below the statuses pin', () async {
+      const key = 'docs/$loginRecord';
+      final stamped = withApprovalHash(
+        checkProjectFiles()[key]!,
+        fixtureDocTypeOf(loginRecord),
+        statusesOutside: false,
+      );
+      final root = await writeCheckProject(
+        extra: {key: stamped.replaceFirst(from, to)},
+      );
+      pinStatusesBelow(root);
+      final session = ReadSession.open(
+        templates: statusesBelowResolver,
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      final CheckReport report;
+      try {
+        report = runCheck(session);
+      } finally {
+        session.close();
+      }
+      final stale = _stales(report).single;
+      expect(stale.path, loginRecord);
+      expect(stale.message, _stale);
+    });
+  });
+
   test(
     '$_name E04: a draft beside an approved: hash its content does not match raises no approval_stale',
     () async {
@@ -233,7 +280,13 @@ void main() {
       final docType = fixtureDocTypeOf(loginFr);
       final report = checkOf(
         await writeCheckProject(
-          extra: {'docs/$loginFr': withApprovalHash(text, docType)},
+          extra: {
+            'docs/$loginFr': withApprovalHash(
+              text,
+              docType,
+              statusesOutside: shippedStatusesOutside,
+            ),
+          },
         ),
       );
       expect(_stales(report), isEmpty);

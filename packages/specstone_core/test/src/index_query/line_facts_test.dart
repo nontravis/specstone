@@ -12,6 +12,7 @@ DocContent _contentOf(String text, {String docPath = 'doc.md'}) =>
       docPath: docPath,
       bytes: utf8.encode(text),
       match: const NoDocType(),
+      statusesOutside: true,
     ).content;
 
 LineFacts _factsOf(String text, {String docPath = 'doc.md'}) =>

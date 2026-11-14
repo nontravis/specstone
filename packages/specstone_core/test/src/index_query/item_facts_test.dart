@@ -32,6 +32,7 @@ void main() {
         docPath: path,
         bytes: bytes ?? utf8.encode(text),
         match: matcher.match(path),
+        statusesOutside: true,
       );
   ItemFacts factsOf(String path, String text) =>
       parse(path, text).content.itemFacts;

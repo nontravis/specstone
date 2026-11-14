@@ -1345,6 +1345,7 @@ void main() {
             ),
           ],
         ),
+        statusesOutside: shippedStatusesOutside,
       );
 
       String planHash(String dryOut) {
@@ -1582,6 +1583,7 @@ void main() {
               homeDirectory: null,
             )
             .lookup(docTypeId),
+        statusesOutside: shippedStatusesOutside,
       );
 
       Future<Directory> project() => gitFixture({
