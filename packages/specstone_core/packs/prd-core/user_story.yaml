@@ -11,6 +11,7 @@ description: |-
   Mark the story ready only when no open question can still change its scope.
   Keep prose at reader altitude: name no class, function, file path, error code, plan, or ruling.
   State the present truth; history lives in git.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/USER_STORY.md
 parent: feature
 fields:

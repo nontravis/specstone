@@ -12,7 +12,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.8.0 with no extends', () {
+    test('prd-core ships at 1.9.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -20,7 +20,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.8.0');
+      expect(manifest.version.toString(), '1.9.0');
       expect(manifest.extendsPack, isNull);
     });
 
@@ -44,7 +44,7 @@ void main() {
             },
             {'prd-core': manifest},
           );
-          expect(upgrades.single.target.toString(), '1.8.0', reason: pin);
+          expect(upgrades.single.target.toString(), '1.9.0', reason: pin);
           expect(upgrades.single.steps, isEmpty, reason: pin);
         }
       },

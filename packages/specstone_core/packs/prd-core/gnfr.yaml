@@ -8,6 +8,7 @@ description: |-
   Keep the trace in the entry's `**Traced from:**` bullet, never in the Statement.
   A project adds a missing category, such as Availability, as a project-layer section that keeps its IDs.
   State the present truth; history lives in git.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: prds/GNFR.md
 bundle: [implement, design]
 sections:

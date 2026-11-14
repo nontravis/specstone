@@ -11,6 +11,7 @@ description: |-
   Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
   Code and tests never name this doc.
   Write one rule per ID: one entry per story and FR, each rule one sentence.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: specs/f{nn}_{slug}/IMPLEMENTATION.md
 parent: feature
 per_target: true
