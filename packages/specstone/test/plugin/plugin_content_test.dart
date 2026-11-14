@@ -1144,6 +1144,28 @@ void _handOffTests() {
     );
   });
 
+  test('E18-E20: '
+      'the audit compares each feature pattern item of a design bundle with '
+      'the docs and reports an item neither covered nor skipped', () {
+    final compare = _oneLine(
+      _sectionOf(
+        _pluginText('skills/brainstorming-sdd/references/audit.md'),
+        '2. Compare',
+      ),
+    );
+    expect(
+      compare,
+      contains(
+        "- **Feature pattern:** for each item of a bundle's pattern part, "
+        'search the doc listing the pattern, its subtree, and its '
+        "feature's spec folder for covering text or a skip line in its "
+        '`out_of_scope`; else report `<type>:<name>#out_of_scope: '
+        '<pattern>/<item> neither covered nor skipped`, `<type>:<name>` '
+        'the listing doc.',
+      ),
+    );
+  });
+
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final root = pluginRoot().uri.toFilePath(windows: false);
