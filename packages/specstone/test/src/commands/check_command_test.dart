@@ -1425,11 +1425,11 @@ void main() {
     const missing = 'the Specstone skill or agent file is missing';
     const unshipped = 'the running CLI does not ship this Specstone file';
 
-    test('f04/us01/fr13/e20: a fresh init project has no finding', () async {
+    test('a fresh init project has no finding', () async {
       expect(await staleLines(await initProject()), isEmpty);
     });
 
-    test('f04/us01/fr13/e20: a hand edit to a Codex agent file is named on '
+    test('a hand edit to a Codex agent file is named on '
         'line 1', () async {
       final root = await initProject();
       File('${root.path}/$codexToml').writeAsStringSync('hand edit\n');
@@ -1439,7 +1439,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr13/e21: a file missing inside a skill folder is named at '
+    test('a file missing inside a skill folder is named at '
         'its path', () async {
       final root = await initProject();
       File('${root.path}/$procedure').deleteSync();
@@ -1449,7 +1449,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr13/e22: a deleted agent file beside filled skills is '
+    test('a deleted agent file beside filled skills is '
         'named', () async {
       final root = await initProject();
       File('${root.path}/$planAgent').deleteSync();
@@ -1459,7 +1459,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr13/e23: both Claude Code folders emptied have no '
+    test('both Claude Code folders emptied have no '
         'finding', () async {
       final root = await initProject();
       for (final folder in ['.claude/skills', '.claude/agents']) {
@@ -1471,7 +1471,7 @@ void main() {
       expect(await staleLines(root), isEmpty);
     });
 
-    test('f04/us01/fr13/e24: an entry the CLI does not ship is named at the '
+    test('an entry the CLI does not ship is named at the '
         'entry', () async {
       final root = await initProject();
       File('${root.path}/.claude/skills/specstone-old/SKILL.md')
@@ -1483,7 +1483,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr13/e08: a check with a target names no skill or agent '
+    test('a check with a target names no skill or agent '
         'file', () async {
       final root = await initProject();
       File('${root.path}/$codexToml').writeAsStringSync('hand edit\n');

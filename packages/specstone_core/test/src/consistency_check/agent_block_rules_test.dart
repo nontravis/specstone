@@ -430,11 +430,11 @@ void main() {
 
     String where(Finding f) => '${f.path}:${f.line}';
 
-    test('$_stale E20: files as the CLI writes them have no finding', () async {
+    test('files as the CLI writes them have no finding', () async {
       expect(await staleSkillFiles({}), isEmpty);
     });
 
-    test('$_stale E20: a hand-edited Codex agent file is one finding on '
+    test('a hand-edited Codex agent file is one finding on '
         'line 1', () async {
       final found = await staleSkillFiles({codexToml: 'hand edit\n'});
 
@@ -448,7 +448,7 @@ void main() {
       );
     });
 
-    test('$_stale E21: a file missing inside a skill folder is one finding at '
+    test('a file missing inside a skill folder is one finding at '
         'its path', () async {
       expect(skillFileTexts(), contains(procedure));
 
@@ -462,7 +462,7 @@ void main() {
       );
     });
 
-    test('$_stale E22: an agent file missing while the skills folder is '
+    test('an agent file missing while the skills folder is '
         'filled is one finding', () async {
       expect(skillFileTexts(), contains(planAgent));
 
@@ -471,7 +471,7 @@ void main() {
       expect(found.map(where), ['$planAgent:1']);
     });
 
-    test('$_stale E23: both Claude Code folders emptied give no finding for '
+    test('both Claude Code folders emptied give no finding for '
         'them', () async {
       final emptied = {
         for (final path in skillFileTexts().keys)
@@ -482,7 +482,7 @@ void main() {
       expect(await staleSkillFiles(emptied), isEmpty);
     });
 
-    test('$_stale E24: an entry the CLI does not ship is one finding at the '
+    test('an entry the CLI does not ship is one finding at the '
         'entry', () async {
       final found = await staleSkillFiles({
         '.claude/skills/specstone-old/SKILL.md': 'old\n',
@@ -496,17 +496,14 @@ void main() {
       );
     });
 
-    test(
-      '$_stale E25: an entry not named for Specstone has no finding',
-      () async {
-        expect(
-          await staleSkillFiles({'.claude/skills/own-skill/SKILL.md': 'own\n'}),
-          isEmpty,
-        );
-      },
-    );
+    test('an entry not named for Specstone has no finding', () async {
+      expect(
+        await staleSkillFiles({'.claude/skills/own-skill/SKILL.md': 'own\n'}),
+        isEmpty,
+      );
+    });
 
-    test('$_stale E08: a check with a target reports no skill or agent '
+    test('a check with a target reports no skill or agent '
         'file', () async {
       expect(
         await staleSkillFiles({codexToml: 'hand edit\n'}, target: 'login'),

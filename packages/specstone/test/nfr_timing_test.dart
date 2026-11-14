@@ -331,7 +331,7 @@ void main() {
     );
   });
 
-  test('NFR-P03: a whole-project specstone check reads every skill and agent '
+  test('a whole-project specstone check reads every skill and agent '
       'file of an init project within 2 s in the fastest of five calls', () {
     final root = Directory.systemTemp.createTempSync('specstone_skills_');
     addTearDown(() => root.deleteSync(recursive: true));
