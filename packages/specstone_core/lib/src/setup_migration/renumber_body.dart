@@ -16,7 +16,7 @@ import 'package:specstone_core/src/setup_migration/renumber_index.dart';
 const _lineFeed = 0x0A;
 const _tracedFromKey = 'traced_from';
 
-/// The prefix of a short scenario ref in prose, `S6a` (W6).
+/// The prefix of a short scenario ref in prose, `S6a`.
 const _shortRefPrefix = 'S';
 final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
@@ -48,7 +48,7 @@ final class RenumberBodyRewrite {
   /// The index in [_lines] of the first line past the frontmatter.
   late final int _firstLine = '\n'.allMatches(_doc.frontmatterText).length;
 
-  /// The one link scan of the body: its prose and its link sources (W4).
+  /// The one link scan of the body: its prose and its link sources.
   late final LinkScan _scan = linkScanOf(_body, firstLine: _firstLine + 1);
 
   /// The href `markdown` gives each link source of the body, null when that
@@ -64,7 +64,7 @@ final class RenumberBodyRewrite {
   };
 
   /// The stories whose short refs `S6a` the doc's prose may hold: the doc
-  /// itself when it is one, and each story its `traced_from` names (W6).
+  /// itself when it is one, and each story its `traced_from` names.
   late final Set<String> _shortRefStories = {
     ?_index.ownStoryOf(_doc.docPath),
     for (final value in _tracedFromValues())
@@ -73,12 +73,12 @@ final class RenumberBodyRewrite {
   }..removeWhere((story) => !_index.renumbersAScenarioOf(story));
 
   /// Whether `markdown` read the body's links, without which no link cites a
-  /// doc (LP2).
+  /// doc.
   bool get linksRead => _hrefs != null;
 
   /// Rewrites each item ID token of the prose that its doc renumbers: the
-  /// doc of the nearest citation before it on its line, else this doc
-  /// (R67), and each short scenario ref of a story in [_shortRefStories].
+  /// doc of the nearest citation before it on its line, else this doc,
+  /// and each short scenario ref of a story in [_shortRefStories].
   /// Returns whether a token of another doc changed.
   bool rewriteTokens() {
     var citesOthers = false;
@@ -139,7 +139,7 @@ final class RenumberBodyRewrite {
   }
 
   /// The prose of body line [bodyLine]: the line with all that is no prose
-  /// blanked (W4).
+  /// blanked.
   String _proseOf(int bodyLine) {
     final start = _lineStarts[bodyLine];
     final end = bodyLine + 1 < _lineStarts.length
@@ -196,7 +196,7 @@ final class RenumberBodyRewrite {
   }
 
   /// The edit of the short scenario ref [token]: the scenario of the first
-  /// [cited] story, else of the doc's own story, that it may name (W6).
+  /// [cited] story, else of the doc's own story, that it may name.
   _Edit? _shortRefEdit(_Token token, List<String>? cited) {
     final stories = cited ?? [?_index.ownStoryOf(_doc.docPath)];
     for (final story in stories) {

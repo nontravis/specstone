@@ -210,13 +210,13 @@ final class CheckContext {
 
   /// Whether [type] declares the field [fieldId].
   ///
-  /// A rule that reads a named field runs only when this holds (INV-2).
+  /// A rule that reads a named field runs only when this holds.
   bool typeHoldsField(MergedDocType? type, String fieldId) =>
       type != null && type.fields.any((field) => field.id == fieldId);
 
   /// Whether the merged doc type [typeId] declares the section [sectionId].
   ///
-  /// A rule that reads a named section runs only when this holds (INV-2).
+  /// A rule that reads a named section runs only when this holds.
   bool typeHoldsSection(String typeId, String sectionId) =>
       _session.project.set.docTypes.any(
         (type) =>
@@ -224,7 +224,7 @@ final class CheckContext {
             type.sections.any((section) => section.id == sectionId),
       );
 
-  /// The first path segment of every doc type `path` (INV-8).
+  /// The first path segment of every doc type `path`.
   late final Set<String> checkedFolders = checkedFoldersOf(
     _session.project.set,
   );
@@ -237,7 +237,7 @@ final class CheckContext {
   bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);
 
   /// The folders, ending in `/`, of the untyped docs that read the nesting
-  /// type's `path` past its `max_depth` (INV-17).
+  /// type's `path` past its `max_depth`.
   late final Set<String> overDeepFolders = {
     for (final doc in index.docs)
       if (depthPastLimitOf(doc) != null) _folderOf(doc.docPath),
@@ -259,7 +259,7 @@ final class CheckContext {
   static String _folderOf(String docPath) =>
       docPath.substring(0, docPath.lastIndexOf('/') + 1);
 
-  /// Whether [doc] takes a parent doc ([parentTypeOf]) and has none (INV-13).
+  /// Whether [doc] takes a parent doc ([parentTypeOf]) and has none.
   bool hasNoParent(IndexedDoc doc) =>
       parentTypeOf(doc, _session.project.set) != null && doc.parentPath == null;
 
@@ -307,8 +307,8 @@ final class CheckContext {
   Set<String> projectHeadingIds() => _projectHeadingIds;
 
   /// Returns the `###` blocks of each held section of [doc] whose template
-  /// sets `prefix_id`, keyed by the ID the grammar reads at the heading
-  /// (RULE-12); a lettered or unreadable ID keys no block.
+  /// sets `prefix_id`, keyed by the ID the grammar reads at the heading;
+  /// a lettered or unreadable ID keys no block.
   Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
     IndexedDoc doc,
   ) sync* {
@@ -411,7 +411,7 @@ const _frTraceSection = 'fr_trace';
 const _statementPrefix = '- **Statement:**';
 
 /// Returns the ID of [prefix] a `###` [heading] opens with; null for any
-/// other heading, a lettered ID, and an unreadable ID (RULE-12).
+/// other heading, a lettered ID, and an unreadable ID.
 String? _itemKeyOf(String heading, String prefix) {
   final text = itemHeadingTextOf(heading);
   final id = text == null ? null : readItemId(text, prefix);

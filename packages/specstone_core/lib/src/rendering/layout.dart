@@ -23,7 +23,7 @@ const _maxHeadingIndent = 3;
 const _maxHeadingLevel = 6;
 const _maxOrderedDigits = 9;
 
-/// Returns [text] with its layout whitespace normalized (rendering INV-32).
+/// Returns [text] with its layout whitespace normalized.
 ///
 /// [text] is LF markdown with no frontmatter. Lines inside a fenced code block
 /// or a closed generated block of [blockKinds] stay as written. With
@@ -220,7 +220,7 @@ List<String> _splitCells(String content) {
   return [...cells, _trim(cell.toString())];
 }
 
-// Dart's trim also strips NBSP and other Unicode spaces; INV-32 allows only
+// Dart's trim also strips NBSP and other Unicode spaces; layout allows only
 // spaces and tabs to change.
 String _trimEnd(String text) {
   final end = _contentEnd(text);

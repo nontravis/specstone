@@ -367,7 +367,7 @@ void checkFieldWrite({
   }
 }
 
-/// The one ComputedField (PD17): a feature's status, computed from stories.
+/// The one ComputedField: a feature's status, computed from stories.
 const _computedStatusType = 'feature';
 
 /// Returns the base hash of the part [target] names in [after].
@@ -492,7 +492,7 @@ String _typeOf(MergedField field) => switch (field.type) {
         : 'one of ${field.enumValues!.join(', ')}',
 };
 
-/// Returns [stdin] as the key block text of [fieldId], per PD6.
+/// Returns [stdin] as the key block text of [fieldId].
 ///
 /// A blank interior line stays blank; a trailing blank line is dropped.
 String _blockOf(String fieldId, String stdin) {

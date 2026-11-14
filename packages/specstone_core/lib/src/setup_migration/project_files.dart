@@ -14,7 +14,7 @@ const _featureFolder = 'prds/features/{slug}/f{nn}_{slug}';
 const _storyFolder = '$_featureFolder/us{nn}_{slug}';
 const _specFolder = 'specs/{slug}/f{nn}_{slug}';
 
-/// The path pattern of each doc type a grouped tree overrides (INV-14).
+/// The path pattern of each doc type a grouped tree overrides.
 const _groupedPaths = {
   'feature': '$_featureFolder/FEATURE.md',
   'user_story': '$_storyFolder/USER_STORY.md',
@@ -29,14 +29,14 @@ const _groupedPaths = {
   'implementation': '$_specFolder/IMPLEMENTATION.md',
 };
 
-/// Singular doc types print and write first in this order (PD16).
+/// Singular doc types print and write first in this order.
 const _draftOrder = ['project', 'features', 'gnfr', 'tech_stack'];
 
 final _idRun = RegExp('[a-z0-9]+');
 final _plainId = RegExp(r'^[a-z][a-z0-9_]*$');
 const _yamlWords = {'true', 'false', 'null'};
 
-/// Returns the `config.yaml` text pinning each of [pins] (INV-15).
+/// Returns the `config.yaml` text pinning each of [pins].
 ///
 /// Writes `packs:`, one pin per line in code point order of the name, then a
 /// `code_root:` line only when [codeRoot] is not `.` or [keepCodeRootKey] is
@@ -125,7 +125,7 @@ String _targetLines(CodeTarget target) {
   );
 }
 
-/// Returns the project-layer `path:` overrides of a grouped tree (INV-14).
+/// Returns the project-layer `path:` overrides of a grouped tree.
 ///
 /// Keys are `.specstone/templates/<id>.yaml`; the group is the first `{slug}`.
 Map<String, String> groupedPathOverrides() => {
@@ -168,7 +168,7 @@ MapEntry<String, String>? gnfrOverride(
 /// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`.
 ///
 /// Ordered project, features, gnfr, tech_stack, then the rest by
-/// DocPath (PD16).
+/// DocPath.
 List<MergedDocType> singularDocTypes(MergedSet set) {
   final singular = [
     for (final docType in set.docTypes)
@@ -181,7 +181,7 @@ List<MergedDocType> singularDocTypes(MergedSet set) {
 ///
 /// Keys are `.specstone/templates/<id>.yaml`; like the project loader it reads
 /// only top-level `<id>.yaml` files, not `pack.yaml`, in code point order of
-/// the name (INV-22). A malformed override throws a `TemplateFault` here, in
+/// the name. A malformed override throws a `TemplateFault` here, in
 /// the plan, not after commit 2.
 List<DocTypeLayer> parseOverrides(Map<String, String> files) {
   const prefix = '$_templatesFolder/';

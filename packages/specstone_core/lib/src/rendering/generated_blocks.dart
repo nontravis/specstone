@@ -156,7 +156,7 @@ List<GeneratedBlock> runGenerators<R>(
 ///
 /// A block rewrites the pair of its kind at its place, or inserts one when
 /// none is there; an inserted pair also writes the layout whitespace around
-/// itself as INV-32 does. Every other byte, a pair outside every block's
+/// itself as layout does. Every other byte, a pair outside every block's
 /// place and a pair of a kind [docType] does not list included, stays as
 /// written. Returns [OpenBlock] when an opening marker of a listed kind has
 /// no end marker.
@@ -244,8 +244,8 @@ List<_Edit> _editFor(
   final inner = _innerLines(block.text);
   final pair = _pairAt(lines, scan, anchor + 1, block.kind);
   if (pair == null) {
-    // The inserted pair carries the layout whitespace around itself
-    // (INV-32), so no later layout pass over the doc is needed: exactly one
+    // The inserted pair carries the layout whitespace around itself,
+    // so no later layout pass over the doc is needed: exactly one
     // blank under a heading anchor, and a hard break the insert severs
     // trimmed. A fenced or in-pair anchor keeps its bytes as written.
     final anchorLine = lines[anchor];

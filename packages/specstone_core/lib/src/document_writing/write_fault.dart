@@ -1,10 +1,10 @@
 import 'package:specstone_core/src/fault.dart';
 
-/// The `field_not_writable` message for the `approved` key (R89).
+/// The `field_not_writable` message for the `approved` key.
 const approvedNotWritableMessage =
     'approved is written only by specstone approve and the hash stamps';
 
-/// A document writing fault code from the `s05_errors.md` catalog.
+/// A document writing fault code.
 ///
 /// Values follow catalog order. [wire] is the snake_case code printed in the
 /// JSON `error.code`; [exitStatus] is the process exit status for the fault.

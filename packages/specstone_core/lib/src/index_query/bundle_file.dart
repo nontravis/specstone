@@ -113,7 +113,7 @@ ReadAnswer answerBundleFile(
 /// Each line lists its sections' first lines while the whole index stays
 /// within 200 lines and 8 KiB, counting its header line and any code target
 /// line; past either bound no line lists a section, and every doc still
-/// prints (INV-16).
+/// prints.
 String bundleIndex(ContextAnswer answer, String shownPath) {
   final target = codeTargetLine(answer.codeTarget);
   final header =

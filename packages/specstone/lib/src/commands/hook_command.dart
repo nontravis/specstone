@@ -23,7 +23,7 @@ class HookCommand extends SpecstoneCommand {
 /// Checks the doc a `PostToolUse` hook reports as edited.
 ///
 /// Reads the hook JSON on stdin and prints the doc's findings as hook output.
-/// It never exits 2, so it blocks no edit (PD5 to PD7).
+/// It never exits 2, so it blocks no edit.
 class PostEditCommand extends SpecstoneCommand {
   static const _expected =
       'hook post-edit expects one JSON object holding tool_input.file_path '

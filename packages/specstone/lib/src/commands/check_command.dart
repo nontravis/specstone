@@ -6,7 +6,7 @@ import 'package:specstone_core/specstone_core.dart';
 ///
 /// It does not go through `runRead`: a check report carries its own exit
 /// status (1 when any finding exists), so the command prints the
-/// [CheckReport] and returns `report.exitStatus` (PD2).
+/// [CheckReport] and returns `report.exitStatus`.
 class CheckCommand extends SpecstoneCommand {
   new() {
     argParser

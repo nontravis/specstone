@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/fault.dart';
 
-/// A setup and migration fault code from the `s05_errors.md` catalog.
+/// A setup and migration fault code.
 ///
 /// [wire] is the snake_case code printed in the error envelope; [exitStatus]
 /// is the process exit status for the fault.

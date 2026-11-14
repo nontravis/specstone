@@ -71,8 +71,8 @@ final class RecordEntry {
       'codePaths: $codePaths, testPaths: $testPaths)';
 }
 
-/// Returns the entries of [record], its fields found on [recordType] by type
-/// (INV-31): the `record_status` field's lines give each item, its status,
+/// Returns the entries of [record], its fields found on [recordType] by type:
+/// the `record_status` field's lines give each item, its status,
 /// and, for `skipped`, its reason; the `item_exact` `output_ref` field's lines
 /// give each item's code paths; the `tests` field's lines give each item's
 /// test paths, their path part alone.
@@ -176,7 +176,7 @@ List<({String item, String code})> recordCodeLinesOf(
   return lines;
 }
 
-/// Returns the `record_status` field of [recordType], found by type (INV-31).
+/// Returns the `record_status` field of [recordType], found by type.
 MergedField? recordStatusFieldOf(MergedDocType recordType) => recordType.fields
     .where((f) => f.type == FieldType.recordStatus)
     .firstOrNull;

@@ -316,8 +316,8 @@ List<String> _unitRootsOf(WriteSession session, IndexedDoc target) {
 ///
 /// A history file, such as a plan, is an untyped doc outside the checked
 /// folders: no write repoints it and no check reads it, so its link dangles.
-/// A mention, a path written in text or a doc-name mention in a code span
-/// (RULE-11), dangles without blocking. Throws [WriteFault] `doc_referenced`
+/// A mention, a path written in text or a doc-name mention in a code span,
+/// dangles without blocking. Throws [WriteFault] `doc_referenced`
 /// when any other doc outside the unit refers to a doc inside it.
 List<String> _checkReferrers(WriteSession session, _DeleteSet unit) {
   final inUnit = {for (final root in unit.roots) ..._filesUnder(session, root)};

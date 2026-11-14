@@ -16,7 +16,7 @@ const _edge = r'[\p{L}\p{N}_]';
 /// A path `path[:Symbol]` is resolved from the code root of the record's own
 /// target when its item is neither `planned` nor `skipped`. A line naming no
 /// item is `check_record_entries`'s, never reported here. A code file is read
-/// only to resolve a Symbol (INV-11).
+/// only to resolve a Symbol.
 Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
   final read = recordDocOf(context, doc);
   if (read == null) return;

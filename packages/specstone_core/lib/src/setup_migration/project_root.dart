@@ -13,7 +13,7 @@ const legacyContextPath = 'docs/prds/d01_context.md';
 /// file, and the folder whose `docs` link led to it.
 ///
 /// The walk is [matchRootUpward], the one [findProjectRoot] takes. A journal
-/// sits beside the linked docs in a linked layout (INV-1), which is the first
+/// sits beside the linked docs in a linked layout, which is the first
 /// candidate. `linkFolder` is null when the root is the folder the walk
 /// stopped at; both are canonical. Throws [RenderFault] `project_not_found`
 /// when no folder up to the file-system root holds one.

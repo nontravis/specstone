@@ -22,8 +22,7 @@ const _childRepositoryRank = 3;
 /// count of cited paths, `cited` the number of entries cited.
 typedef CodeRootChoice = ({String value, int found, int cited});
 
-/// Infers the `code_root` of the legacy project at [root]
-/// (`write_project_files` E11).
+/// Infers the `code_root` of the legacy project at [root].
 ///
 /// A candidate is [root], [linkFolder], each folder above either up to its
 /// repository top, and each direct child folder of [root] that is its own

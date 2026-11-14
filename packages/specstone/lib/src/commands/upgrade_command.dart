@@ -63,7 +63,7 @@ const int _maskRune = 0x3f;
 const String _restartLine =
     'Restart Claude Code to load the new CLI and plugin.';
 
-/// A fault code of `specstone upgrade` from the `s05_errors.md` catalog.
+/// A fault code of `specstone upgrade`.
 ///
 /// [wire] is the snake_case code printed in the error envelope; [exitStatus]
 /// is the process exit status for the fault.

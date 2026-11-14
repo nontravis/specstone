@@ -52,7 +52,7 @@ final class JournalBounds {
 
   /// Whether [path], `/`-separated from the project root, lands inside a root
   /// with no `.git` entry between that root and it, or on one of the agent
-  /// files (R49).
+  /// files.
   ///
   /// The last segment is not followed, since a step moves or replaces a link
   /// as itself. A folder on the way that does not exist yet may hold no `.`
@@ -196,7 +196,7 @@ String? writeRefusalOf(
 
 /// Returns the warning line for [path], a file a run leaves as it is because
 /// [writeRefusalOf] gave [reason]; without one, because its real path lies
-/// outside the project root (R99).
+/// outside the project root.
 String skippedLineOf(String path, [String? reason]) {
   if (reason == _underGit) return '$path lies under .git; left as it is';
   if (reason != null && reason.startsWith(_unresolved)) {

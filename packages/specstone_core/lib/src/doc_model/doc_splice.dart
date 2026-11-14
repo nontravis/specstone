@@ -34,7 +34,7 @@ bool _isBlankChar(int unit) => unit == 0x0A || unit == 0x20 || unit == 0x09;
 /// Returns [text] as a section body: trailing blank lines dropped, one line end
 /// kept; empty when nothing is left.
 ///
-/// Leading blank lines are body and stay (doc model INV-5).
+/// Leading blank lines are body and stay.
 String sectionBodyOf(String text) {
   final kept = withoutTrailingBlankLines(text);
   return kept.isEmpty ? '' : '$kept\n';

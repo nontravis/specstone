@@ -83,7 +83,7 @@ List<String> nestedPathsOf(String own, List<String> roots, {bool? isWindows}) =>
 /// a per-target doc's folder is read in.
 ///
 /// The one rule of twins: a per-target doc sits in its target's folder only
-/// when the project names two or more targets (RULE-20), and a shared doc's
+/// when the project names two or more targets, and a shared doc's
 /// code paths then count for no target.
 List<String> twinNamesOf(List<String> targetNames) =>
     targetNames.length > 1 ? targetNames : const [];

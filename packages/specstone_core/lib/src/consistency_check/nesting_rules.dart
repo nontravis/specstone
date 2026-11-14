@@ -3,10 +3,10 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
-/// The most characters a doc's path from the project root may hold (SF-C5).
+/// The most characters a doc's path from the project root may hold.
 const pathLengthLimit = 200;
 
-/// The fewest chain children a nested nesting-type doc holds (SF-C4).
+/// The fewest chain children a nested nesting-type doc holds.
 const _minimumChildren = 2;
 
 /// Returns the nesting findings of the typed [doc].

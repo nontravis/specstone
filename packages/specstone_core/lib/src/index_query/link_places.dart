@@ -16,7 +16,7 @@ final _linkSyntax = LinkSyntax();
 /// written.
 typedef LinkPlace = ({String target, int line, String shown, String? anchor});
 
-/// A doc link or self link whose text reads as an item ID (doc_model RULE-45):
+/// A doc link or self link whose text reads as an item ID:
 /// the text as written, where the link sits, and what it points at.
 ///
 /// `column` is the 0-based offset of the link's first character in its line

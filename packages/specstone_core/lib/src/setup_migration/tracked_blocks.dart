@@ -6,7 +6,7 @@ import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 /// resolves to them: scenario blocks, gnfr NFR Statements, an FR's
 /// Statement.
 ///
-/// A lettered scenario is read from its line span (P5), since `check` keys
+/// A lettered scenario is read from its line span, since `check` keys
 /// no block for it.
 Map<String, String> trackedBlocksOf(RenumberDoc doc) => {
   if (doc.holdsScenarios) ..._scenarioBlocksOf(doc),

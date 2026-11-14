@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 
 const _approvedId = 'approved';
 
-/// The five fields every doc type carries below its lowest layer (INV-20).
+/// The five fields every doc type carries below its lowest layer.
 const _builtInFields = <MergedField>[
   MergedField(id: 'slug', type: FieldType.string, list: true),
   MergedField(

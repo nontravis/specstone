@@ -8,7 +8,7 @@ import 'package:specstone_core/src/journeys/step_scenarios.dart';
 /// `journey_step_duplicate` findings of [doc].
 ///
 /// Yields nothing unless [doc] is a journey whose type holds the `steps`
-/// section (INV-2). Each finding sits on the line of the key it reports, else
+/// section. Each finding sits on the line of the key it reports, else
 /// on the step heading.
 Iterable<Finding> checkJourneySteps(
   CheckContext context,

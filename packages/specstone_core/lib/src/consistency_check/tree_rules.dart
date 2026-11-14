@@ -12,7 +12,7 @@ const _candidatesMarker = ' candidate parent docs: ';
 const _candidatesEnd = '; it has no parent doc';
 final _unreadableFile = RegExp(r'^(.*[^/]): cannot be read; skipped$');
 
-/// Returns the first path segment of every doc type `path` in [set] (INV-8).
+/// Returns the first path segment of every doc type `path` in [set].
 Set<String> checkedFoldersOf(MergedSet set) => {
   for (final type in set.docTypes)
     if (type.path case final path?) path.split(_pathSeparator).first,
@@ -89,7 +89,7 @@ Iterable<Finding> checkTree(CheckContext context, IndexedDoc doc) sync* {
 /// read.
 ///
 /// Only a file in a checked folder and in [scope] is reported; a folder that
-/// cannot be read stays a warning (PD9).
+/// cannot be read stays a warning.
 Iterable<Finding> unreadableFindings(
   CheckContext context,
   CheckScope scope,
@@ -191,7 +191,7 @@ Map<_SiblingKey, List<IndexedDoc>> _groupSiblings(CheckContext context) {
   return groups;
 }
 
-/// Returns the sibling group of [doc]; null when it joins none (PD10).
+/// Returns the sibling group of [doc]; null when it joins none.
 ///
 /// The folder before the `{nn}` segment scopes the group, so a pattern such
 /// as `prds/features/{slug}/f{nn}_{slug}/FEATURE.md` numbers each group apart.

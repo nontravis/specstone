@@ -79,7 +79,7 @@ final class DocTypeMatcher {
   /// Returns the depth of [docPath] when it reads the nesting type's `path`
   /// with its segment repeated more than `max_depth` times; null otherwise.
   ///
-  /// A per-target nesting type reads one check per target name (RULE-20), so
+  /// A per-target nesting type reads one check per target name, so
   /// its plain pattern checks nothing.
   int? depthPastLimit(String docPath) {
     final nesting = _nesting;

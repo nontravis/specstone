@@ -5,13 +5,13 @@ import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_packs.g.dart';
 
-/// Decodes the base64 [base64Files] constants back to file bytes (F3-D50).
+/// Decodes the base64 [base64Files] constants back to file bytes.
 Map<String, Uint8List> decodeShippedPacks(Map<String, String> base64Files) => {
   for (final MapEntry(:key, :value) in base64Files.entries)
     key: base64Decode(value),
 };
 
-/// Every shipped pack file as raw bytes, keyed `<pack>/<path>` (F3-D18).
+/// Every shipped pack file as raw bytes, keyed `<pack>/<path>`.
 final Map<String, Uint8List> shippedPackFiles = decodeShippedPacks(
   shippedPackFilesBase64,
 );
@@ -19,7 +19,7 @@ final Map<String, Uint8List> shippedPackFiles = decodeShippedPacks(
 /// Maps each shipped pack's name to the version its `pack.yaml` carries.
 ///
 /// Packs are in code point order, versions as `PackVersion.toString()` prints
-/// them. The one source of the shipped pins a fixture writes (PD22).
+/// them. The one source of the shipped pins a fixture writes.
 Map<String, String> shippedPackVersions() {
   final names = {
     for (final key in shippedPackFiles.keys) key.split('/').first,

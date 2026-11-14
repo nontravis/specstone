@@ -46,10 +46,9 @@ final class LoadedPack {
   /// The layer's byte reader.
   final Uint8List Function(String path) _read;
 
-  /// Returns the pack's doc-type layers, keyed by id, in code point order
-  /// (INV-22).
+  /// Returns the pack's doc-type layers, keyed by id, in code point order.
   ///
-  /// Every YAML file is read as bytes through `decodeYamlBytes` (F3-D50).
+  /// Every YAML file is read as bytes through `decodeYamlBytes`.
   /// Throws a [TemplateFault] for any format fault.
   Map<String, DocTypeLayer> parseDocTypes() => {
     for (final path in _docTypeNames(_paths))
@@ -86,8 +85,7 @@ final class _DiskFiles implements LayerFiles {
       File.fromUri(folder.uri.resolve(layerRelativePath)).existsSync();
 }
 
-/// Reads the manifest of the shipped pack [name] from its embedded [files]
-/// (F3-D18).
+/// Reads the manifest of the shipped pack [name] from its embedded [files].
 ///
 /// [files] keys are `<pack>/<path>`; the pack holds the `<pack>/<path>` keys.
 /// Call [LoadedPack.parseDocTypes] later to parse its doc-type files.
@@ -125,7 +123,7 @@ LoadedPack loadPersonalPackManifest(String name, Directory home) {
   );
 }
 
-/// Loads the project templates under [root], in code point order (INV-22).
+/// Loads the project templates under [root], in code point order.
 ///
 /// The template folder is `.specstone/templates`; faults print files relative
 /// to the project root with `/` separators. Only `<id>.yaml` files at the
@@ -176,7 +174,7 @@ Uint8List? _manifestBytes(Directory folder) {
   return readPlanInput(manifest);
 }
 
-/// Returns the doc-type names of [paths] in code point order (INV-22).
+/// Returns the doc-type names of [paths] in code point order.
 List<String> _docTypeNames(Iterable<String> paths) {
   final names = [
     for (final path in paths)

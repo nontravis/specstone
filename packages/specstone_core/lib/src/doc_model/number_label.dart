@@ -69,7 +69,7 @@ final class NumberLabel {
 }
 
 /// The number labels of [line]: each begins where no letter, digit, or `-`
-/// comes before it (R83); `<nn>` placeholders are no label (R81).
+/// comes before it; `<nn>` placeholders are no label.
 ///
 /// This is the one reader of the label boundary. Every other reader of a
 /// label goes through it, [numberLabelsInMarkdown] for a whole text.
@@ -114,7 +114,7 @@ const _spaceUnit = 0x20;
 /// into the whole text.
 ///
 /// Prose and `mermaid` blocks are read; fenced code other than `mermaid`,
-/// code spans, and link destinations are skipped (R82). [legacyIds] reads as
+/// code spans, and link destinations are skipped. [legacyIds] reads as
 /// [numberLabelsIn] reads it.
 List<NumberLabel> numberLabelsInMarkdown(
   String lfText, {

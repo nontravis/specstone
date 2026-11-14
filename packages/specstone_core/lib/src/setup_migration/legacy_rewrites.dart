@@ -302,8 +302,7 @@ String _withCoversKey(String lf) {
 
 /// Returns [lf], the doc that [legacyPath] held before the move, with each
 /// legacy ID and number label that [tree] maps to one doc converted to that
-/// doc's name, and the ones it keeps as `<line>` and label as written
-/// (`rewrite_titles_keys_and_links` E18, E19).
+/// doc's name, and the ones it keeps as `<line>` and label as written.
 ///
 /// A label reads against the place [legacyPath] gives; the lines are those of
 /// [lf].

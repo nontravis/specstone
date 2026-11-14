@@ -164,7 +164,7 @@ int _migrate(MigrateRequest request) {
 /// Runs the bare legacy migration of [root] from its git checks on.
 ///
 /// Prints the plan, then applies it on the Owner's `y`; `init` enters here
-/// when its root holds the legacy context doc (F6-D15). [linkFolder] is the
+/// when its root holds the legacy context doc. [linkFolder] is the
 /// canonical folder whose `docs` link led to [root], or null. Maps git
 /// failures as [runMigrate] does.
 int runLegacyAt(
@@ -241,8 +241,7 @@ int _plannedRun(
 /// [RenderFault], refuses the same way, naming the path or file the failure
 /// gives, else the first input whose read failed, else the plan alone: an
 /// unreadable doc's [RenderFault] carries no file. A [MigrateFault] from the
-/// planner passes unchanged, with its own code as the first plan would: "A new
-/// plan that E06 refuses refuses as E06 says".
+/// planner passes unchanged, with its own code as the first plan would.
 RunPlan _replanMatching(
   MigrateRequest request,
   Directory root,
@@ -303,7 +302,7 @@ void _preflight(
 }
 
 /// Names on [request]'s warnings each agent file [plan] leaves because its
-/// real path lies outside the project root (R99), one line per file.
+/// real path lies outside the project root, one line per file.
 void _nameSkipped(MigrateRequest request, RunPlan plan) {
   plan.agentFiles?.skipped.forEach(request.warn);
 }
@@ -434,7 +433,7 @@ void _requireSeenPlan(
 /// Returns the journal target of the migrate run at [root].
 ///
 /// A run passes its plan's `AgentWritePlan.writeSet` as [agentFiles], which
-/// the journal record keeps, so a replay admits them (R49).
+/// the journal record keeps, so a replay admits them.
 JournalTarget _targetOf(
   Directory root,
   MigrateRequest request,

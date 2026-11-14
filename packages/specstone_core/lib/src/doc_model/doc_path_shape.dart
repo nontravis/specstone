@@ -52,7 +52,7 @@ final class DocPathShape {
   /// The parent count at [depth] is the placeholders in the parent type's
   /// pattern for the same depth; the nesting type above depth 0 counts its
   /// own pattern one depth up. [target], when given, reads the pattern with
-  /// that code target's folder in it (RULE-20), as a per-target doc type's
+  /// that code target's folder in it, as a per-target doc type's
   /// docs sit in it with two or more targets.
   static DocPathShape? of(
     MergedDocType docType,
@@ -213,7 +213,7 @@ final class DocPathShape {
   }
 }
 
-/// Whether [shape] is a spec doc's (dw INV-8): a file with no placeholder of
+/// Whether [shape] is a spec doc's: a file with no placeholder of
 /// its own, so its parent names the folder it sits in.
 bool isSpecDocShape(DocPathShape shape) =>
     shape.ownIsFile && !shape.numbered && !shape.slugged;
@@ -224,8 +224,8 @@ bool isSpecDocShape(DocPathShape shape) =>
 ///
 /// A child counts when its own segment is its last segment and holds no
 /// placeholder (a feature's spec docs). A per-target child's folder is read
-/// once per name of [targetNames], with the target folder where RULE-20 puts
-/// it, and each carries its target; empty [targetNames] leaves it as the plain
+/// once per name of [targetNames], with the target folder in its place,
+/// and each carries its target; empty [targetNames] leaves it as the plain
 /// pattern gives it, with no target.
 Iterable<(MergedDocType, String, String?)> specChildrenOf(
   MergedSet set,
@@ -259,7 +259,7 @@ Iterable<(MergedDocType, String, String?)> specChildrenOf(
 /// sorted. [depth] is the nesting depth of the doc.
 ///
 /// A per-target child's folder is read once per name of [targetNames], with
-/// the target folder where RULE-20 puts it; empty [targetNames] leaves it as
+/// the target folder in its place; empty [targetNames] leaves it as
 /// the plain pattern gives it.
 List<String> specFoldersOf(
   MergedSet set,
