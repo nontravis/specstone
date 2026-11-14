@@ -22,6 +22,33 @@ void main() {
     expect(out.toString(), contains('==> bundle: '));
     expect(out.toString(), endsWith('- login (architecture)\n'));
   });
+  test('context on a story lists the root spec doc in its index', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(
+        extra: {
+          '.specstone/templates/project_domain.yaml':
+              'id: project_domain\n'
+              'description: The domain rules every feature of the project uses.\n'
+              'path: specs/DOMAIN.md\n'
+              'per_target: true\n'
+              'bundle: [implement, design]\n',
+          'docs/specs/DOMAIN.md': '# Project domain\n',
+        },
+      ),
+    );
+    expect(
+      await runner.run(['context', 'login/email_login', '--for', 'implement']),
+      0,
+    );
+    final lines = out.toString().split('\n');
+    expect(lines, contains(startsWith('- project_domain (project_domain)')));
+    expect(
+      lines.where(
+        (l) => l == '==> project_domain (project_domain) · specs/DOMAIN.md <==',
+      ),
+      hasLength(1),
+    );
+  });
   test('f01/us05/fr01/e10: no target, no --for, or another --for value refuses with exit 64', () async {
     final project = await writeReadProject();
     final noTarget = readRunner(project);
