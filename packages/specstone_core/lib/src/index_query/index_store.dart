@@ -44,8 +44,11 @@ const _notWritableMessage =
 /// `target_names`: an index of layout 13 holds neither, so it is rebuilt
 /// instead of read as one with none. Layout 15 counts the doc's non-blank body
 /// lines and a section's non-blank lines, so an index of layout 14, whose
-/// counts cover blank lines and frontmatter, is rebuilt.
-const _layoutVersion = 15;
+/// counts cover blank lines and frontmatter, is rebuilt. Layout 16 stores the
+/// cite candidates, link texts, and heading levels and lines in the line facts
+/// and the `item_words` table, so an index of layout 15 is rebuilt to hold
+/// them.
+const _layoutVersion = 16;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -98,6 +101,14 @@ CREATE TABLE links (
   target TEXT NOT NULL,
   PRIMARY KEY (source, position)
 );
+CREATE TABLE item_words (
+  doc_path TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  item_id TEXT,
+  words TEXT NOT NULL,
+  PRIMARY KEY (doc_path, position)
+);
 CREATE VIRTUAL TABLE doc_search USING fts5(
   text, path UNINDEXED, section_key UNINDEXED, tokenize = 'trigram'
 );
@@ -107,7 +118,14 @@ CREATE VIRTUAL TABLE doc_search USING fts5(
 /// plus a counter below this limit.
 const int _searchRowsPerDoc = 1 << 32;
 
-const _tables = ['meta', 'docs', 'sections', 'links', 'doc_search'];
+const _tables = [
+  'meta',
+  'docs',
+  'sections',
+  'links',
+  'item_words',
+  'doc_search',
+];
 
 /// The stat values of a file that stand in for its content between refreshes.
 ///
@@ -476,6 +494,13 @@ final class IndexStore {
         [doc.docPath, position, target],
       );
     }
+    for (final (position, item) in content.itemWords.indexed) {
+      _db.execute(
+        'INSERT INTO item_words (doc_path, position, line, item_id, words) '
+        'VALUES (?, ?, ?, ?, ?)',
+        [doc.docPath, position, item.line, item.itemId, item.words.join(' ')],
+      );
+    }
   }
 
   /// Removes every row of the doc at [docPath]; an unknown path is a no-op.
@@ -490,7 +515,8 @@ final class IndexStore {
       ])
       ..execute('DELETE FROM docs WHERE doc_path = ?', [docPath])
       ..execute('DELETE FROM sections WHERE doc_path = ?', [docPath])
-      ..execute('DELETE FROM links WHERE source = ?', [docPath]);
+      ..execute('DELETE FROM links WHERE source = ?', [docPath])
+      ..execute('DELETE FROM item_words WHERE doc_path = ?', [docPath]);
   }
 
   /// Stores the parent of each doc and the order of the docs.
@@ -633,6 +659,24 @@ final class IndexStore {
       'SELECT source, target FROM links ORDER BY source, position',
     ))
       (source: row['source'] as String, target: row['target'] as String),
+  ];
+
+  /// Returns the normalized words of every item of a rule-bearing section,
+  /// by docPath and then item order.
+  ///
+  /// Only `check --repeats` reads them, so no other read decodes them.
+  Iterable<({String docPath, int line, String? itemId, List<String> words})>
+  ruleItemWords() => [
+    for (final row in _db.select(
+      'SELECT doc_path, line, item_id, words FROM item_words '
+      'ORDER BY doc_path, position',
+    ))
+      (
+        docPath: row['doc_path'] as String,
+        line: row['line'] as int,
+        itemId: row['item_id'] as String?,
+        words: (row['words'] as String).split(' '),
+      ),
   ];
 
   /// Closes the prepared statements, then the connection.

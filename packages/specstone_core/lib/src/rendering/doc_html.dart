@@ -62,7 +62,7 @@ import 'package:specstone_core/src/rendering/link_rewrite.dart';
   return (html: html, bodyParsed: body != null, anchors: own);
 }
 
-const _noAnchors = DocAnchors(headingSlugs: [], htmlIds: {});
+const _noAnchors = DocAnchors(headingSlugs: [], headingLevels: [], htmlIds: {});
 const _titleTag = 'h1';
 
 /// The body nodes a doc renders, title line left out, its own anchor set, and

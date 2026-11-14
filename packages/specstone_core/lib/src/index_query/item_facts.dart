@@ -6,7 +6,8 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show indexedSectionsOf;
+    show IndexedSection, indexedSectionsOf;
+import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
@@ -106,6 +107,40 @@ ItemFacts itemFactsOf({
         ),
     ],
   );
+}
+
+/// Returns the items of the rule-bearing sections of [doc], a typed doc of
+/// [type] parsed from [lfText], each as [RuleItemWords], in file order.
+///
+/// [sections] are the held sections of [doc] and [lineFacts] its facts, so
+/// each line is a line of the file. Fenced code, a generated block, and an
+/// HTML comment hold no item; see [wordsOfItem] for the items left out.
+List<RuleItemWords> ruleItemWordsOf({
+  required Doc doc,
+  required String lfText,
+  required List<IndexedSection> sections,
+  required LineFacts lineFacts,
+  required MergedDocType type,
+}) {
+  final templates = heldTemplatesOf(sections, type);
+  final isGenerated = generatedLineTest(
+    doc,
+    lfText,
+    type.listedGenerators.toSet(),
+  );
+  return [
+    for (var i = 0; i < sections.length; i++)
+      if (ruleBearingSectionKeys.contains(sections[i].key))
+        for (final item in sectionItemsOf(
+          withCommentsFenced(
+            withGeneratedFenced(
+              sectionBodyLines(sections, lineFacts, i),
+              isGenerated,
+            ),
+          ),
+        ))
+          ?wordsOfItem(item, templates[i]?.prefixId),
+  ];
 }
 
 /// Returns a test of whether a file line of [text] is a marker line or inner

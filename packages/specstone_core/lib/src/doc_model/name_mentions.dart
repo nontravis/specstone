@@ -124,7 +124,9 @@ List<NameMention> _ordered(
 /// The characters, besides whitespace, that end a path written in prose.
 final Set<int> _pathBreaks = {...'`\'"()[]<>{}|,;*~!?='.codeUnits};
 
-bool _endsPath(int code) => code <= 0x20 || _pathBreaks.contains(code);
+/// Whether the code unit [code] ends a doc path or the `#key` after it when
+/// written in prose.
+bool endsDocPath(int code) => code <= 0x20 || _pathBreaks.contains(code);
 
 /// The doc paths written on [line]: each run of path characters that ends in
 /// `.md`, less its `#anchor`, line suffix, and closing mark.
@@ -137,11 +139,11 @@ Iterable<NameMention> _pathsOnLine(String line, int number) sync* {
   ) {
     if (at < readTo) continue;
     var start = at;
-    while (start > 0 && !_endsPath(line.codeUnitAt(start - 1))) {
+    while (start > 0 && !endsDocPath(line.codeUnitAt(start - 1))) {
       start--;
     }
     var end = at + markdownExtension.length;
-    while (end < line.length && !_endsPath(line.codeUnitAt(end))) {
+    while (end < line.length && !endsDocPath(line.codeUnitAt(end))) {
       end++;
     }
     readTo = end;

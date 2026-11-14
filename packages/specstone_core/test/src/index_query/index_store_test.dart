@@ -7,20 +7,24 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/refresh.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
 /// The layout the current build writes; a test that rebuilds the meta row by
 /// hand uses it, so a layout bump moves with the code.
-const _layoutVersionForTest = 15;
+const _layoutVersionForTest = 16;
 
 void main() {
   Future<Directory> root() => writeTree({'.specstone/config.yaml': ''});
@@ -803,6 +807,112 @@ void main() {
         {for (final d in store.loadDocs()) d.docPath: d.target},
         {'specs/jaspr/f01_login/ARCHITECTURE.md': 'jaspr', 'README.md': null},
       );
+    });
+    test('domain:index_query INV-2: an index of layout 15, whose line facts '
+        'hold no cite candidates and which has no item_words table, has no '
+        'stamp, so it is rebuilt', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute('UPDATE meta SET layout = 15');
+      expect(store.readStamp(), isNull);
+    });
+  });
+
+  group('IndexStore rule item words', () {
+    const frPath =
+        'prds/features/f01_login/us01_email_login/'
+        'fr01_validate_credentials.md';
+    const frKey = 'docs/$frPath';
+    const fr =
+        '---\nverify_method: test\n---\n\n# Validate credentials\n\n'
+        '## Statement\n'
+        'The system shall **check** the [email](x.md) and the `password`.\n\n'
+        '## Edge cases\n'
+        '<!-- fill in later -->\n'
+        '1. E01 — A wrong password → refused.\n'
+        '2. Given a stray given line.\n'
+        '3. E03 — The context call: first,\n'
+        '   then second.\n'
+        '\n'
+        '| a | b |\n'
+        '|---|---|\n'
+        '| row cell text | b |\n'
+        '\n'
+        '```\n'
+        'fenced code words\n'
+        '```\n\n'
+        '## Rationale\n'
+        'Not a rule-bearing section.\n';
+
+    IndexStore refreshed(Directory project) {
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final store = IndexStore.open(docs.projectRoot);
+      addTearDown(store.close);
+      refreshIndex(store, docs);
+      return store;
+    }
+
+    List<(int, String?, String)> wordsOf(IndexStore store, String docPath) => [
+      for (final item in store.ruleItemWords())
+        if (item.docPath == docPath)
+          (item.line, item.itemId, item.words.join(' ')),
+    ];
+
+    test(
+      'list_repeat_groups E01, E06: a refresh stores the normalized words '
+      'of the items of the rule-bearing sections, and none of a Given '
+      'line, a table row, fenced code, a comment, or another section',
+      () async {
+        final project = await writeLoginProject(extra: {frKey: fr});
+        final store = refreshed(project);
+
+        expect(wordsOf(store, frPath), [
+          (8, null, 'the system shall check the email and the password'),
+          (12, 'E01', 'a wrong password refused'),
+          (14, 'E03', 'the context call first then second'),
+        ]);
+      },
+    );
+
+    test('list_repeat_groups E01: items worded alike but written with another '
+        'ID, bold, link, or punctuation read the same words', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey: fr,
+          'docs/prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md':
+              '---\nverify_method: test\n---\n\n# Lock after failures\n\n'
+              '## Edge cases\n'
+              '1. **E05** — The [context](x.md) call: FIRST, then second\n',
+        },
+      );
+      final store = refreshed(project);
+
+      final other = wordsOf(
+        store,
+        'prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md',
+      );
+      expect(other.single.$3, 'the context call first then second');
+      expect(other.single.$2, 'E05');
+    });
+
+    test('domain:index_query INV-86: a doc stored again drops its old words, '
+        'and a deleted doc drops them all', () async {
+      final project = await writeLoginProject(extra: {frKey: fr});
+      final store = refreshed(project);
+      expect(wordsOf(store, frPath), isNotEmpty);
+
+      store.write(() => store.deleteDoc(frPath));
+
+      expect(wordsOf(store, frPath), isEmpty);
     });
   });
 }

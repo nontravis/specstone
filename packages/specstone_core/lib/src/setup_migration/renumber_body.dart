@@ -263,7 +263,7 @@ final class RenumberBodyRewrite {
     final citations = <int, List<_Citation>>{};
     final hrefs = _hrefs;
     if (hrefs == null) return citations;
-    for (final (index, (:offset, :line, shown: _, end: _, angle: _))
+    for (final (index, (:offset, :line, shown: _, end: _, angle: _, textEnd: _))
         in _scan.sources.indexed) {
       final href = hrefs[index];
       if (href == null) continue;

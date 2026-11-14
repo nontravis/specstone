@@ -14,13 +14,17 @@ import 'package:specstone_core/src/index_query/link_blocks.dart';
 /// first character and after its last, its file line, and, for an inline or
 /// reference link or image, its destination as written (null for an autolink,
 /// an email autolink, or a GFM bare URL or email), angle brackets dropped, and
-/// whether angle brackets enclose it.
+/// whether angle brackets enclose it, and the body offset of the `]` that ends
+/// its text (null for an autolink, an email autolink, or a GFM bare URL or
+/// email, which have no bracketed text); the text starts after the `[`, or
+/// after the `![` of an image.
 typedef LinkSource = ({
   int offset,
   int end,
   int line,
   String? shown,
   bool angle,
+  int? textEnd,
 });
 
 /// Returns the sources of the links in [lfBody], in source order.
@@ -140,7 +144,8 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
   final sources = <LinkSource>[];
   var line = firstLine;
   var counted = 0;
-  for (final (:offset, :end, :shown, :angle, destination: _) in found) {
+  for (final (:offset, :end, :shown, :angle, :textEnd, destination: _)
+      in found) {
     for (; counted < offset; counted++) {
       if (lfBody.codeUnitAt(counted) == _lineFeed) line++;
     }
@@ -150,19 +155,22 @@ List<LinkSource> _sourcesOf(String lfBody, _Reader reader, int firstLine) {
       line: line,
       shown: shown,
       angle: angle,
+      textEnd: textEnd,
     ));
   }
   return sources;
 }
 
 /// A link or image the reader found: the offsets of its first character and
-/// after its last, its destination, whether angle brackets enclose it, and
+/// after its last, its destination, whether angle brackets enclose it, the
+/// offset of the `]` that ends its text (null with no bracketed text), and
 /// the range of its destination as written when that is one run of the text.
 typedef _Found = ({
   int offset,
   int end,
   String? shown,
   bool angle,
+  int? textEnd,
   BodyRange? destination,
 });
 
@@ -270,6 +278,7 @@ final class _Reader {
       end: end,
       shown: null,
       angle: false,
+      textEnd: null,
       destination: null,
     ));
     return _atom(at, end);
@@ -339,6 +348,7 @@ final class _Reader {
           end: close.end,
           shown: close.shown,
           angle: close.angle,
+          textEnd: i,
           destination: destination,
         ));
         if (close.inline) _atom(i + 1, close.end);

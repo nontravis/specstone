@@ -49,7 +49,7 @@ String _anchorOf(String html, String title) {
   return match!.group(1)!;
 }
 
-const _noAnchors = DocAnchors(headingSlugs: [], htmlIds: {});
+const _noAnchors = DocAnchors(headingSlugs: [], headingLevels: [], htmlIds: {});
 
 /// Returns the anchor sets of `a/b/c.md` (holding [markdown]) and `a/d.md`.
 Map<String, DocAnchors> _docAnchorsOf(String markdown) => {
@@ -280,7 +280,11 @@ void main() {
         docPath: 'a/b/c.md',
         anchors: const {'a/b/c.md': 'doc-1', 'a/d.md': 'doc-2'},
         anchorsAt: (path) => path == 'a/d.md'
-            ? const DocAnchors(headingSlugs: ['target'], htmlIds: {'box'})
+            ? const DocAnchors(
+                headingSlugs: ['target'],
+                headingLevels: [2],
+                htmlIds: {'box'},
+              )
             : null,
       ).html;
 

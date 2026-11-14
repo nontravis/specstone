@@ -1,6 +1,7 @@
 // The test titles and literals are plan values kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -366,10 +367,10 @@ void main() {
       expect(facts.lineCount, greaterThan(0));
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 16);
     });
     test(
-      'domain:index_query INV-2: an index at layout 2 is rebuilt to layout 15',
+      'domain:index_query INV-2: an index at layout 2 is rebuilt to layout 16',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -380,11 +381,11 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 16);
       },
     );
     test(
-      'domain:index_query INV-2: an index at layout 3 is rebuilt to layout 15',
+      'domain:index_query INV-2: an index at layout 3 is rebuilt to layout 16',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -395,12 +396,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 16);
       },
     );
     test(
       'domain:index_query INV-2: an index at layout 4, with no banned-pattern '
-      'matches, is rebuilt to layout 15 with them',
+      'matches, is rebuilt to layout 16 with them',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -412,12 +413,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 16);
         expect(after.select('SELECT banned_matches FROM docs'), hasLength(25));
       },
     );
     test('domain:index_query INV-2: an index at layout 5, its banned-pattern '
-        'matches from the old backtick pairing, is rebuilt to layout 15 with '
+        'matches from the old backtick pairing, is rebuilt to layout 16 with '
         'them recomputed', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -429,7 +430,7 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 16);
       expect(
         after.select(
           "SELECT doc_path FROM docs WHERE banned_matches = 'stale'",
@@ -437,7 +438,7 @@ void main() {
         isEmpty,
       );
     });
-    test('domain:index_query INV-2: an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 15', () async {
+    test('domain:index_query INV-2: an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 16', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -447,11 +448,11 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 16);
     });
     test(
       'consistency_check/find_template_breaks/report_open_tbrs: an index at '
-      'layout 11 is rebuilt to layout 15 with the TBR markers filled',
+      'layout 11 is rebuilt to layout 16 with the TBR markers filled',
       () async {
         final project = await writeLoginProject(
           extra: {'docs/note.md': '# N\n\nTBR \u2014 pick a value.\n'},
@@ -467,11 +468,11 @@ void main() {
         ]);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 16);
       },
     );
     test('domain:index_query INV-2: an index at layout 12, with no item facts, '
-        'is rebuilt in full to layout 15 with them', () async {
+        'is rebuilt in full to layout 16 with them', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -489,9 +490,9 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 16);
     });
-    test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 15', () async {
+    test('domain:index_query INV-2: an index at layout 7, its line facts with no file links, is rebuilt to layout 16', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -508,7 +509,56 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 15);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 16);
+    });
+    test('domain:index_query INV-2, INV-86: a doc stored under layout 15, with '
+        'no cite candidates and no item_words rows, holds both after the '
+        'rebuild', () async {
+      const frPath =
+          'prds/features/f01_login/us01_email_login/'
+          'fr01_validate_credentials.md';
+      final project = await writeLoginProject(
+        extra: {
+          'docs/$frPath':
+              '---\nverify_method: test\n---\n\n# Validate credentials\n\n'
+              '## Statement\nThe system shall follow `domain:login` INV-6.\n',
+        },
+      );
+      final (:result, :store) = refresh(project);
+      expect(result.fullBuild, isTrue);
+      // The previous layout: no candidates in the line facts, no words row.
+      final old = sqlite3.open('${project.path}/$indexFilePath');
+      final stored = jsonDecode(
+        old.select('SELECT line_facts FROM docs WHERE doc_path = ?', [
+              frPath,
+            ]).single['line_facts']
+            as String,
+      ) as Map<String, Object?>;
+      expect((stored['cite_candidates']! as List<Object?>).length, 1);
+      stored.remove('cite_candidates');
+      old
+        ..execute('UPDATE docs SET line_facts = ? WHERE doc_path = ?', [
+          jsonEncode(stored),
+          frPath,
+        ])
+        ..execute('DELETE FROM item_words')
+        ..execute('UPDATE meta SET layout = 15')
+        ..close();
+      store.close();
+
+      final (result: again, store: rebuilt) = refresh(project);
+
+      expect(again.fullBuild, isTrue);
+      final cite = rebuilt.loadContent(frPath).lineFacts.citeCandidates.single;
+      expect(cite.written, 'domain:login');
+      expect(cite.itemIds, ['INV-6']);
+      expect(
+        [
+          for (final item in rebuilt.ruleItemWords())
+            if (item.docPath == frPath) item.words.join(' '),
+        ],
+        ['the system shall follow domainlogin inv6'],
+      );
     });
     test(
       'f04/nfr-p03, s03/inv2: an index at the current layout is not rebuilt',

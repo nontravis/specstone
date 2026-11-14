@@ -16,17 +16,37 @@ final _linkSyntax = LinkSyntax();
 /// written.
 typedef LinkPlace = ({String target, int line, String shown, String? anchor});
 
+/// A doc link or self link whose text reads as an item ID (doc_model RULE-45):
+/// the text as written, where the link sits, and what it points at.
+///
+/// `column` is the 0-based offset of the link's first character in its line
+/// `line`; `endColumn` the offset after its last character in its line
+/// `endLine`, so a reader tests what lies between two links on one line. A
+/// link text reads as an item ID when it holds no whitespace and a digit; the
+/// reader that knows the target section's prefix judges it.
+typedef LinkText = ({
+  int line,
+  int column,
+  int endLine,
+  int endColumn,
+  String text,
+  String target,
+  String? anchor,
+});
+
 /// The links of a doc: the doc links, which resolve to a `.md` doc other than
 /// the doc itself, the file links, every other relative link, the self links,
 /// which name the doc itself, a bare `#anchor` included, and the unreadable
-/// links, whose target the grammar cannot read; and whether the scan and
-/// `markdown` agree on them (see [readersAgree]), without which a move, the
-/// see rule, and the renumber pass read no href of an inline link.
+/// links, whose target the grammar cannot read; the [LinkText] of each doc
+/// link and self link the scan placed; and whether the scan and `markdown`
+/// agree on them (see [readersAgree]), without which a move, the see rule, and
+/// the renumber pass read no href of an inline link.
 typedef LinkPlaces = ({
   List<LinkPlace> docLinks,
   List<LinkPlace> fileLinks,
   List<LinkPlace> selfLinks,
   List<LinkPlace> unreadableLinks,
+  List<LinkText> texts,
   bool readersAgree,
 });
 
@@ -36,6 +56,7 @@ const LinkPlaces noLinks = (
   fileLinks: [],
   selfLinks: [],
   unreadableLinks: [],
+  texts: [],
   readersAgree: true,
 );
 
@@ -68,41 +89,45 @@ LinkPlaces? linkPlacesOf(
   final placed = _placedHrefs(docPath, hrefs);
   final sources = linkSourcesOf(lfBody, firstLine: firstLine);
   final agree = readersAgree(sources, hrefs);
-  final places = agree
+  final located = agree
       ? [
           for (final (:index, :href, :target, kind: _, :anchor) in placed)
             (
-              target: target,
-              line: sources[index].line,
-              shown: sources[index].shown ?? href,
-              anchor: anchor,
+              place: (
+                target: target,
+                line: sources[index].line,
+                shown: sources[index].shown ?? href,
+                anchor: anchor,
+              ),
+              source: sources[index],
             ),
         ]
       : _placedByUse(placed, sources);
+  List<LinkPlace> placesOf(_LinkKind kind) => [
+    for (final (i, (:place, source: _)) in located.indexed)
+      if (placed[i].kind == kind) place,
+  ];
   return (
-    docLinks: [
-      for (final (i, place) in places.indexed)
-        if (placed[i].kind == _LinkKind.doc) place,
-    ],
-    fileLinks: [
-      for (final (i, place) in places.indexed)
-        if (placed[i].kind == _LinkKind.file) place,
-    ],
-    selfLinks: [
-      for (final (i, place) in places.indexed)
-        if (placed[i].kind == _LinkKind.self) place,
-    ],
-    unreadableLinks: [
-      for (final (i, place) in places.indexed)
-        if (placed[i].kind == _LinkKind.unreadable) place,
+    docLinks: placesOf(_LinkKind.doc),
+    fileLinks: placesOf(_LinkKind.file),
+    selfLinks: placesOf(_LinkKind.self),
+    unreadableLinks: placesOf(_LinkKind.unreadable),
+    texts: [
+      for (final (i, (:place, :source)) in located.indexed)
+        if (placed[i].kind == _LinkKind.doc || placed[i].kind == _LinkKind.self)
+          if (source != null) ?_linkTextOf(lfBody, source, place),
     ],
     readersAgree: agree,
   );
 }
 
+/// A place together with the source it was read from, null when the scan
+/// found none for it.
+typedef _Located = ({LinkPlace place, LinkSource? source});
+
 /// Returns the places of [placed], each href taking its nth use among the
 /// destinations of [sources], or line 1 when it has no nth use.
-List<LinkPlace> _placedByUse(
+List<_Located> _placedByUse(
   List<_PlacedHref> placed,
   List<LinkSource> sources,
 ) {
@@ -113,7 +138,7 @@ List<LinkPlace> _placedByUse(
       usesOf.putIfAbsent(_normalize(shown), () => []).add(source);
     }
   }
-  final places = <LinkPlace>[];
+  final places = <_Located>[];
   final taken = <String, int>{};
   for (final (:href, :target, :anchor, index: _, kind: _) in placed) {
     final sameHref = usesOf[href] ?? const <LinkSource>[];
@@ -121,13 +146,56 @@ List<LinkPlace> _placedByUse(
     taken[href] = nth + 1;
     final use = nth < sameHref.length ? sameHref[nth] : null;
     places.add((
-      target: target,
-      line: use?.line ?? 1,
-      shown: use?.shown ?? href,
-      anchor: anchor,
+      place: (
+        target: target,
+        line: use?.line ?? 1,
+        shown: use?.shown ?? href,
+        anchor: anchor,
+      ),
+      source: use,
     ));
   }
   return places;
+}
+
+/// The text of a link whose text holds no whitespace and a digit.
+final _itemIdShapedText = RegExp(r'^\S*\d\S*$');
+
+/// Returns the [LinkText] of [place], which [source] is the use of in
+/// [lfBody], or null for an image, a link with no bracketed text, and a text
+/// that cannot read as an item ID.
+LinkText? _linkTextOf(String lfBody, LinkSource source, LinkPlace place) {
+  final textEnd = source.textEnd;
+  final offset = source.offset;
+  final end = source.end;
+  if (textEnd == null || lfBody.codeUnitAt(offset) == _bang) return null;
+  final text = lfBody.substring(offset + 1, textEnd);
+  if (!_itemIdShapedText.hasMatch(text)) return null;
+  return (
+    line: source.line,
+    column: offset - _lineStartAt(lfBody, offset),
+    endLine: source.line + _lineFeeds(lfBody, offset, end),
+    endColumn: end - _lineStartAt(lfBody, end),
+    text: text,
+    target: place.target,
+    anchor: place.anchor,
+  );
+}
+
+const _bang = 0x21;
+const _lineFeed = 0x0A;
+
+/// Returns the offset of the first character of the line that holds [offset]
+/// in [text], or, when [offset] ends a line, of the line it closes.
+int _lineStartAt(String text, int offset) =>
+    offset == 0 ? 0 : text.lastIndexOf('\n', offset - 1) + 1;
+
+int _lineFeeds(String text, int from, int to) {
+  var count = 0;
+  for (var i = from; i < to; i++) {
+    if (text.codeUnitAt(i) == _lineFeed) count++;
+  }
+  return count;
 }
 
 /// Returns whether [sources] and [hrefs] describe the same links: equal

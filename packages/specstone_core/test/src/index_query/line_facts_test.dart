@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 /// The stored facts of [text], as refresh computes them.
@@ -401,6 +402,115 @@ void main() {
     );
   });
 
+  group('LineFacts cite candidates, link texts, headings', () {
+    const type = MergedDocType(
+      id: 'topic',
+      path: 'specs/topics/{slug}.md',
+      isPerTarget: false,
+      fields: [],
+      sections: [],
+      lint: MergedLint(),
+      files: [],
+    );
+
+    LineFacts typedFactsOf(String text) => parseIndexedDoc(
+      docPath: 'specs/topics/a.md',
+      bytes: utf8.encode(text),
+      match: MatchedDocType(type),
+    ).content.lineFacts;
+
+    LineFacts roundTrip(LineFacts facts) => LineFacts.fromJson(
+      jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>,
+      sectionCounts: facts.sectionCounts,
+    );
+
+    test('domain:index_query INV-86: a typed doc stores each cite candidate '
+        'at its file line, and the JSON round trip keeps it', () {
+      final facts = typedFactsOf(
+        '---\nx: 1\n---\n\n# T\n\n`domain:login#invariants` INV-6 and INV-7.\n',
+      );
+
+      expect(facts.citeCandidates, hasLength(1));
+      final cite = facts.citeCandidates.single;
+      expect(cite.line, 7);
+      expect(cite.written, 'domain:login');
+      expect(cite.sectionKey, 'invariants');
+      expect(cite.itemIds, ['INV-6', 'INV-7']);
+      expect(roundTrip(facts).toJson(), facts.toJson());
+      expect(roundTrip(facts).citeCandidates.single.itemIds, cite.itemIds);
+    });
+
+    test('report_old_cite_forms E12: an untyped doc stores no candidate', () {
+      expect(_factsOf('# T\n\n`domain:login` INV-6\n').citeCandidates, isEmpty);
+    });
+
+    test('domain:index_query INV-86: each doc or self link whose text reads '
+        'as an item ID stores its text and where it sits, and the JSON '
+        'round trip keeps them', () {
+      const line =
+          'See [RULE-14](doc_model.md#rules) to [RULE-19](doc_model.md#rules) '
+          'and [x](y.md) [S1](#s1) ![RULE-2](a.png).';
+      final facts = _factsOf('# T\n\n$line\n');
+
+      final first = line.indexOf('[RULE-14]');
+      final second = line.indexOf('[RULE-19]');
+      expect(facts.linkTexts, [
+        (
+          line: 3,
+          column: first,
+          endLine: 3,
+          endColumn: first + '[RULE-14](doc_model.md#rules)'.length,
+          text: 'RULE-14',
+          target: 'doc_model.md',
+          anchor: 'rules',
+        ),
+        (
+          line: 3,
+          column: second,
+          endLine: 3,
+          endColumn: second + '[RULE-19](doc_model.md#rules)'.length,
+          text: 'RULE-19',
+          target: 'doc_model.md',
+          anchor: 'rules',
+        ),
+        (
+          line: 3,
+          column: line.indexOf('[S1]'),
+          endLine: 3,
+          endColumn: line.indexOf('[S1]') + '[S1](#s1)'.length,
+          text: 'S1',
+          target: 'doc.md',
+          anchor: 's1',
+        ),
+      ]);
+      expect(roundTrip(facts).linkTexts, facts.linkTexts);
+    });
+
+    test('topic:doc_model#rules RULE-13: each heading stores its level, and '
+        'its file line when every heading is a line of ATX text', () {
+      final facts = _factsOf(
+        '---\nx: 1\n---\n\n# T\n\n## A\n\n```\n## no\n```\n\n### B\n\n## A\n',
+      );
+
+      expect(facts.anchors!.headingSlugs, ['t', 'a', 'b', 'a-1']);
+      expect(facts.anchors!.headingLevels, [1, 2, 3, 2]);
+      expect(facts.headingLines, [5, 7, 13, 15]);
+      final back = roundTrip(facts);
+      expect(back.anchors!.headingLevels, [1, 2, 3, 2]);
+      expect(back.headingLines, [5, 7, 13, 15]);
+    });
+
+    test('topic:doc_model#rules RULE-13: a heading the line scan cannot '
+        'place leaves the lines unknown, never a stand-in', () {
+      final setext = _factsOf('# T\n\nSetext\n------\n\n## A\n');
+
+      expect(setext.anchors!.headingLevels, [1, 2, 2]);
+      expect(setext.headingLines, isNull);
+      expect(roundTrip(setext).headingLines, isNull);
+      expect(_factsOf('# T\n\n> ## Quoted\n').headingLines, isNull);
+    });
+  });
+
   group('LineFacts.of counted text', () {
     test('lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
@@ -414,6 +524,7 @@ void main() {
         frontmatterErrorLine: null,
         bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
+        citeCandidates: const [],
         warnings: [],
       );
       expect(facts.sectionLines, [3, 7]);

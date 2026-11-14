@@ -5,10 +5,17 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart';
 /// The anchors of one doc body (doc_model RULE-13).
 final class DocAnchors {
   /// Makes [headingSlugs] and [htmlIds] the doc's anchor set.
-  const new({required this.headingSlugs, required this.htmlIds});
+  const new({
+    required this.headingSlugs,
+    required this.headingLevels,
+    required this.htmlIds,
+  });
 
   /// One slug per heading, in file order, a repeat suffixed `-1`, `-2`.
   final List<String> headingSlugs;
+
+  /// The level, 1 to 6, of each heading of [headingSlugs], in the same order.
+  final List<int> headingLevels;
 
   /// Each body start tag's `id` and each `<a>`'s `name`, footnote ids
   /// excluded.
@@ -21,19 +28,21 @@ final class DocAnchors {
   /// Returns the anchors as JSON values, as `LineFacts.toJson` stores them.
   Map<String, Object> toJson() => {
     'headings': headingSlugs,
+    'levels': headingLevels,
     'ids': htmlIds.toList(),
   };
 }
 
 /// Returns the anchors of [body], the nodes `parseMarkdown` gave.
 DocAnchors anchorsOf(List<Node> body) {
-  final headings = <String>[];
+  final headings = <({int level, String text})>[];
   final htmlIds = <String>{};
   _collect(body, headings: headings, htmlIds: htmlIds);
   return DocAnchors(
     headingSlugs: _suffixed([
-      for (final heading in headings) headingSlugOf(heading),
+      for (final (:text, level: _) in headings) headingSlugOf(text),
     ]),
+    headingLevels: [for (final (:level, text: _) in headings) level],
     htmlIds: htmlIds,
   );
 }
@@ -106,7 +115,7 @@ String _freeSlug(
 // attributes, never as raw text, so they stay out.
 void _collect(
   List<Node> nodes, {
-  required List<String> headings,
+  required List<({int level, String text})> headings,
   required Set<String> htmlIds,
 }) {
   for (final node in nodes) {
@@ -116,7 +125,12 @@ void _collect(
       continue;
     }
     if (node.tag == 'code' || node.tag == 'pre') continue;
-    if (_isHeading(node.tag)) headings.add(_renderedText(node));
+    if (_isHeading(node.tag)) {
+      headings.add((
+        level: node.tag.codeUnitAt(1) - 0x30,
+        text: _renderedText(node),
+      ));
+    }
     final children = node.children;
     if (children != null) {
       _collect(children, headings: headings, htmlIds: htmlIds);
