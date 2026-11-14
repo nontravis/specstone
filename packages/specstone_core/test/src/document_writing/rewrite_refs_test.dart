@@ -96,6 +96,132 @@ void main() {
     );
   });
 
+  group('link texts', () {
+    const renameMoves = <PathMove>[
+      (from: 'prds/features/f01_login/', to: 'prds/features/f01_signin/'),
+    ];
+    const renamed = <(String, String), String>{
+      ('feature', 'login'): 'signin',
+      ('user_story', 'login/email_login'): 'signin/email_login',
+    };
+    const docPath = 'prds/features/f03_other/FEATURE.md';
+
+    String? rewrite(
+      String text, {
+      List<PathMove> moves = renameMoves,
+      Map<(String, String), String> names = renamed,
+    }) => rewriteDocLinks(text, docPath: docPath, moves: moves, renamed: names);
+
+    test('f02/us06/fr02/e14: a link text equal to a renamed doc old Name takes the new Name, its prefix and path following', () {
+      expect(
+        rewrite(
+          '[feature:login](../f01_login/FEATURE.md#problem) and '
+          '[login/email_login](../f01_login/us01_email_login/USER_STORY.md)\n',
+        ),
+        '[feature:signin](../f01_signin/FEATURE.md#problem) and '
+        '[signin/email_login](../f01_signin/us01_email_login/USER_STORY.md)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e14: any other link text and an item link text keep their text, their path following', () {
+      expect(
+        rewrite(
+          '[the login rules](../f01_login/FEATURE.md) and '
+          '[INV-6](../f01_login/DOMAIN.md#invariants)\n',
+        ),
+        '[the login rules](../f01_signin/FEATURE.md) and '
+        '[INV-6](../f01_signin/DOMAIN.md#invariants)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e14: a typed text of a user_story link, as the migrate cite pass writes it, takes the new Name', () {
+      expect(
+        rewrite(
+          '[user_story:login/email_login](../f01_login/us01_email_login/USER_STORY.md#use_case)\n',
+        ),
+        '[user_story:signin/email_login](../f01_signin/us01_email_login/USER_STORY.md#use_case)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e14: a full reference link takes the new Name; a shortcut or collapsed link, whose text is its label, an image description, and a text with a section key keep theirs', () {
+      expect(
+        rewrite(
+          '[login/email_login][r] [login/email_login] [login/email_login][] '
+          '![login/email_login](a.png) [feature:login#problem](x.md)\n\n'
+          '[r]: ../f01_login/FEATURE.md\n'
+          '[login/email_login]: ../f01_login/FEATURE.md\n',
+        ),
+        '[signin/email_login][r] [login/email_login] [login/email_login][] '
+        '![login/email_login](a.png) [feature:login#problem](x.md)\n\n'
+        '[r]: ../f01_signin/FEATURE.md\n'
+        '[login/email_login]: ../f01_signin/FEATURE.md\n',
+      );
+    });
+
+    test('f02/us06/fr02/e14: a text equal to an old Name takes the new Name even when its link target is no moved path', () {
+      expect(
+        rewrite('[login/email_login](https://x.dev/a.md)\n', moves: const []),
+        '[signin/email_login](https://x.dev/a.md)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e14: a bare text that two renamed docs call differently keeps its text', () {
+      expect(
+        rewrite(
+          '[login](x.md)\n',
+          moves: const [],
+          names: const {
+            ('feature', 'login'): 'signin',
+            ('persona', 'login'): 'access',
+          },
+        ),
+        isNull,
+      );
+    });
+
+    test('f02/us07/fr02/e11: a moved story link text takes its new Name, an item link text stays', () {
+      expect(
+        rewriteDocLinks(
+          '[user_story:shop/cart/add_item](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria) '
+          '[AC-1](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria)\n',
+          docPath: 'prds/features/f02_shop/f02_pay/FEATURE.md',
+          moves: const [
+            (
+              from: 'prds/features/f02_shop/f01_cart/us01_add_item/',
+              to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
+            ),
+          ],
+          renamed: const {
+            ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
+          },
+        ),
+        '[user_story:shop/pay/add_item](us03_add_item/USER_STORY.md#acceptance_criteria) '
+        '[AC-1](us03_add_item/USER_STORY.md#acceptance_criteria)\n',
+      );
+    });
+
+    test('f02/us05/fr02/e13: a reorder, which renames no doc, keeps every link text', () {
+      expect(
+        rewriteDocLinks(
+          '[sign_out](../us02_sign_out/USER_STORY.md) [login/sign_out](../us02_sign_out/USER_STORY.md)\n',
+          docPath: 'prds/features/f01_login/us01_email_login/USER_STORY.md',
+          moves: reorderMoves,
+        ),
+        '[sign_out](../us03_sign_out/USER_STORY.md) [login/sign_out](../us03_sign_out/USER_STORY.md)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e14: a link-shaped text in a fenced block or a code span keeps every byte', () {
+      expect(
+        rewrite(
+          '```\n[login/email_login](x.md)\n```\n`[login/email_login](x.md)`\n',
+          moves: const [],
+        ),
+        isNull,
+      );
+    });
+  });
+
   test('f02/us05/fr02, R74: a move replaces only the path a destination is written with and keeps its ? or # part as written', () {
     const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
     const before =
