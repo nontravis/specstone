@@ -20,8 +20,8 @@ const _agentMd =
     'directly.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
-    "drafts wait for Owner's `specstone approve`; clean under `auto` mode, "
-    "main session's.\n"
+    "drafts await Owner's `specstone approve`, or main session's when clean "
+    'under `auto`.\n'
     "- Before writing a doc, read its type's guide with "
     '`specstone guide <type>`; write each item in its shape,\n'
     '  once, short, complete.\n'
