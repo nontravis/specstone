@@ -413,8 +413,12 @@ final class RunPlan {
   }
 
   /// Returns each skill or agent entry the run moves to the trash: its place
-  /// and the place of each file under it, from [projectRoot], and whether it
-  /// lies at a repository top.
+  /// and what a commit stages for it, from [projectRoot], and whether it lies
+  /// at a repository top.
+  ///
+  /// The entry's own place is staged too, as the path of a nested repository
+  /// the project repository tracks as one entry; for any other entry git
+  /// finds nothing at it and skips it.
   ///
   /// The place is the entry itself below its real folder, so a linked folder
   /// above it is resolved and a link entry stays a link.
@@ -428,6 +432,7 @@ final class RunPlan {
         (
           place: _placeOf(entry, projectRoot),
           files: [
+            _placeOf(entry, projectRoot),
             for (final file in plan.trashFilesOf(entry))
               '${_placeOf(entry, projectRoot)}${file.substring(entry.length)}',
           ],

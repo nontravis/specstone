@@ -245,6 +245,35 @@ void main() {
       expect(plan.listed, plan.trashFiles);
     });
 
+    test('a nested repository folder under an entry is never listed', () async {
+      final base = await _base(
+        settled({
+          'proj/.claude/skills/specstone-old/SKILL.md': 'old\n',
+          'proj/.claude/skills/specstone-old/.git/HEAD': 'ref\n',
+          'proj/.claude/skills/specstone-old/.git/objects/ab/cd': 'x\n',
+        }),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, ['.claude/skills/specstone-old']);
+      expect(plan.trashFiles, ['.claude/skills/specstone-old/SKILL.md']);
+      expect(plan.line, 'agent files: 1 files');
+    });
+
+    test(
+      'an entry holding only a repository folder counts as itself',
+      () async {
+        final base = await _base(
+          settled({'proj/.claude/skills/specstone-old/.git/HEAD': 'ref\n'}),
+        );
+
+        final plan = planAgentWrites(_inputs(base), full: false);
+
+        expect(plan.trashFiles, ['.claude/skills/specstone-old']);
+      },
+    );
+
     test('the write set holds the place of each entry it moves', () async {
       final base = await _base(
         settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),

@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show skippedLineOf, writeRefusalOf;
+    show isGitEntry, skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
@@ -544,7 +544,9 @@ String _placeOf(Directory root, String path) {
 /// Returns each file under the entry [path] from [root], by code point, or
 /// [path] itself when it is a file, a link, or a folder holding none.
 ///
-/// A link inside a folder counts as a file, and no link is followed.
+/// A link inside a folder counts as a file, and no link is followed. A `.git`
+/// entry below [path] counts for nothing: a run names no path under one, and
+/// the folder carries it along.
 List<String> _filesUnder(Directory root, String path) {
   final folder = _fileIn(root, path).path;
   if (FileSystemEntity.typeSync(folder, followLinks: false) !=
@@ -552,13 +554,17 @@ List<String> _filesUnder(Directory root, String path) {
     return [path];
   }
   final prefixLength = Directory(folder).uri.path.length;
-  final files = [
-    for (final entity in Directory(
-      folder,
-    ).listSync(recursive: true, followLinks: false))
-      if (entity is! Directory)
-        '$path/${Uri.decodeComponent(entity.uri.path.substring(prefixLength))}',
-  ]..sort(compareCodePoints);
+  final files = <String>[];
+  for (final entity in Directory(
+    folder,
+  ).listSync(recursive: true, followLinks: false)) {
+    if (entity is Directory) continue;
+    final relative = Uri.decodeComponent(
+      entity.uri.path.substring(prefixLength),
+    );
+    if (!relative.split('/').any(isGitEntry)) files.add('$path/$relative');
+  }
+  files.sort(compareCodePoints);
   return files.isEmpty ? [path] : files;
 }
 

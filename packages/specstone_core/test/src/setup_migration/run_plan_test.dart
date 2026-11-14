@@ -541,6 +541,7 @@ void main() {
         final commit = steps.whereType<CommitStep>().single;
         expect(steps.indexOf(move), lessThan(steps.indexOf(commit)));
         expect(commit.paths, [
+          oldSkill,
           '$oldSkill/SKILL.md',
           '$oldSkill/references/more.md',
           specstoneGitignorePath,
@@ -603,6 +604,7 @@ void main() {
           'move $oldSkill -> $trashed/$oldSkill',
         );
         expect(steps.whereType<CommitStep>().single.paths, [
+          oldSkill,
           '$oldSkill/SKILL.md',
           specstoneGitignorePath,
         ]);
