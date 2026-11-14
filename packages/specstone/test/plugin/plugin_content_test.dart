@@ -1274,7 +1274,31 @@ void _agentTests() {
       _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
       contains(
         'the saved file is the docs, as they stand: read it per '
-        '`specstone:read-sdd`, in parts, searching it with `Grep`',
+        '`specstone:read-sdd`, in parts, searching it with `Grep` before any '
+        '`get`.',
+      ),
+    );
+  });
+
+  test('f08/us07/fr02/e31: plan-engineer may run each command its read path '
+      'names, get after the Grep search, and no write command', () {
+    final agent = _pluginText(_planAgent);
+    expect(
+      _toolsOf(agent, 'disallowedTools'),
+      isNot(anyOf(contains('Grep'), contains('Bash'), contains('Read'))),
+    );
+    final scope = _oneLine(_sectionOf(agent, 'Scope Boundaries'));
+    expect(
+      scope,
+      contains(
+        '- Run `specstone context` for the Ground, `specstone get` only after '
+        'searching its saved file with `Grep`, and one `specstone check`,',
+      ),
+    );
+    expect(
+      scope,
+      contains(
+        '- Run `specstone new`, `specstone set`, or `specstone approve`',
       ),
     );
   });

@@ -78,7 +78,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    The first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the
    binary.
    - **0**: the saved file is the docs, as they stand: read it per `specstone:read-sdd`, in parts, searching it with
-     `Grep`; you run no `get`.
+     `Grep` before any `get`.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
      other targets.
@@ -184,8 +184,9 @@ Findings: <items, or none>
 
 **DO:**
 
-- Run `specstone context` for the Ground and one `specstone check`, read through its `approval_stale` lines and its
-  exit code (Workflow step 3), and no other specstone command.
+- Run `specstone context` for the Ground, `specstone get` only after searching its saved file with `Grep`, and one
+  `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), and no other
+  specstone command.
 - Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
 - Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.
