@@ -153,6 +153,10 @@ void main() {
       expect(covers['list'], isTrue);
       expect(covers['required'], isTrue);
       expect(covers['pointer'], 'prefix');
+      expect(
+        covers['description'],
+        contains('may end in one space and its code fingerprint'),
+      );
       expect(_idsOf(json['sections']), [
         'component_diagram',
         'components',
@@ -234,6 +238,14 @@ void main() {
           "relative to the code root of the doc's target "
           '(`.specstone/config.yaml`, else the project root)',
         ),
+      );
+      expect([
+        statuses['description'],
+        implements['description'],
+      ], everyElement(contains('outside the approval hash')));
+      expect(
+        implements['description'],
+        contains('may end in one space and its code fingerprint'),
       );
       final tests = fields.singleWhere((f) => f['id'] == 'tests');
       expect(tests['type'], 'output_ref');
