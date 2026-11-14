@@ -86,6 +86,12 @@ final class _PatternMerge {
   final Map<String, List<WrittenPatternLayer>> _layersById;
   final _merged = <String, FeaturePattern>{};
 
+  late final Map<String, (int, int)> _loadRank = {
+    for (final layers in _layersById.values)
+      for (final (index, written) in layers.indexed)
+        written.layer.file: (written.layer.kind.index, index),
+  };
+
   /// The reference list each merged pattern's layers wrote, null when none
   /// did, so a plain list over an unwritten one stays legal as for doc types.
   final _written = <String, List<ReferenceEntry>?>{};
@@ -166,9 +172,14 @@ final class _PatternMerge {
       .where((l) => l.extendsId != null)
       .lastOrNull;
 
-  /// Throws `extends_cycle` for [cycle]; `file` is the layer that closes it.
+  /// Throws `extends_cycle` for [cycle].
+  ///
+  /// As for doc types, `file` is the upper or later-loaded layer file of the
+  /// cycle and `relatedFiles` hold the rest, lowest first.
   Never _throwCycle(List<String> cycle) {
-    final files = [for (final id in cycle) _extendsWriter(id)!.file];
+    final files = <String>{
+      for (final id in cycle) _extendsWriter(id)!.file,
+    }.toList()..sort(_compareLoad);
     final walkedPath = [...cycle, cycle.first].join(', ');
     throw TemplateFault(
       FaultCode.extendsCycle,
@@ -176,6 +187,16 @@ final class _PatternMerge {
       file: files.last,
       relatedFiles: files.sublist(0, files.length - 1),
     );
+  }
+
+  /// Orders layer files by layer kind, then place in their pattern's layer
+  /// list, then code point order of the file name.
+  int _compareLoad(String a, String b) {
+    final (kindA, indexA) = _loadRank[a]!;
+    final (kindB, indexB) = _loadRank[b]!;
+    if (kindA != kindB) return kindA.compareTo(kindB);
+    if (indexA != indexB) return indexA.compareTo(indexB);
+    return compareCodePoints(a, b);
   }
 
   List<ChecklistItem> _applyItems(

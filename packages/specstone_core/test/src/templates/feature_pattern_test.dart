@@ -412,6 +412,40 @@ items:
       );
     });
 
+    test('a cycle closed by a project layer names that layer as file', () {
+      expect(
+        () => mergeFeaturePatterns({
+          'a': [
+            layerOf('a', '''
+id: a
+description: A.
+items:
+  - id: one
+    text: One.
+'''),
+            projectOf('a', 'id: a\nextends: b\n'),
+          ],
+          'b': [
+            layerOf('b', '''
+id: b
+description: B.
+extends: a
+items:
+  - id: two
+    text: Two.
+'''),
+          ],
+        }),
+        throwsA(
+          fault(
+            FaultCode.extendsCycle,
+            file: '$_project/a.yaml',
+            related: ['$_shipped/b.yaml'],
+          ),
+        ),
+      );
+    });
+
     test('a pattern that extends itself is extends_cycle', () {
       expect(
         () => mergeFeaturePatterns({
