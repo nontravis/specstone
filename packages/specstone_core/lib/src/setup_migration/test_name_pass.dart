@@ -44,11 +44,21 @@ const _separator = '/';
 const _listSeparator = '\x00';
 const _change = 'move test-name ids';
 
-const _declaringCalls = ['test', 'testWidgets', 'group', 'it', 'describe'];
-
 /// The text after a test name's ID that is the separator, longest first; the
 /// text after the separator is the name.
 const _nameSeparators = [': ', ' — ', ' - ', ' '];
+
+/// A call that declares a test or group, matched through the quote that opens
+/// its name: a callee whose last identifier is `test`, `testWidgets`, `group`,
+/// `it`, `describe`, or `context`, or ends in `Test` or, after a word, `_test`
+/// (a wrapper such as `pathTest`), with an optional receiver and member
+/// (`Deno.test.skip`). A longer word that only contains `test` (`contest`,
+/// `latest`), a bare `_test` helper, and a lower-case wrapper (`pathtest`) are
+/// no call.
+final _declaringCall = RegExp(
+  r'(?<![\w$])(?:test|testWidgets|group|it|describe|context|\w*Test|\w+_test)'
+  '(?:\\.\\w+)?\\s*\\(\\s*(?=[\'"])',
+);
 
 final _nameRun = RegExp('^[a-z0-9_]+(?:/[a-z0-9_]+)*');
 final _caseSuffix = RegExp(r'/([es]\d+)(?![A-Za-z0-9_])');
@@ -453,12 +463,6 @@ List<String> _trackedIn(Directory folder, RunGit runGit) {
 Set<int> _nameQuoteOffsets(String lf) => {
   for (final call in _declaringCall.allMatches(lf)) call.end,
 };
-
-/// A call that declares a test or group, matched through the quote that opens
-/// its name; a call after `.` or a letter is another call.
-final _declaringCall = RegExp(
-  '(?<![\\w.\$])(?:${_declaringCalls.join('|')})(?:\\.\\w+)?\\s*\\(\\s*(?=[\'"])',
-);
 
 /// A string literal of one line: the offsets of its text, the text, and the
 /// quote that opens it.

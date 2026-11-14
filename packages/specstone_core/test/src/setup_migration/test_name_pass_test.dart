@@ -398,6 +398,60 @@ void main() {
       expect(pass.recordLines, hasLength(1));
     });
 
+    test('a member, a receiver, and a wrapper call declare a test', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  test.skip('f01/us01/fr01 s', () {});\n"
+              "  Deno.test('f01/us01/fr01 r', () {});\n"
+              "  pathTest('f01/us01/fr01 p', () {});\n"
+              "  context('f01/us01/fr01 c', () {});\n"
+              "  run_test('f01/us01/fr01 u', () {});\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        _fileText(pass, _testPath),
+        "void main() {\n  test.skip('s', () {});\n"
+        "  Deno.test('r', () {});\n  pathTest('p', () {});\n"
+        "  context('c', () {});\n  run_test('u', () {});\n}\n",
+      );
+    });
+
+    test('a longer word that only contains a call name, or a wrapper in '
+        'lower case alone, is no declaring call', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  contest('f01/us01/fr01 a');\n"
+              "  latest('f01/us01/fr01 b');\n"
+              "  pathtest('f01/us01/fr01 c');\n"
+              "  _test('f01/us01/fr01 e');\n"
+              "  submit('f01/us01/fr01 d');\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(pass.planLine, isNull);
+      expect(pass.fileRewrites, isEmpty);
+    });
+
+    test('a raw-string name is not read', () async {
+      final project = await _project(
+        files: {
+          _testPath: "void main() {\n  test(r'f01/us01/fr01 raw', () {});\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(pass.planLine, isNull);
+      expect(pass.fileRewrites, isEmpty);
+    });
+
     test('a name split over adjacent literals, or a call over several '
         'lines, is read at its first literal', () async {
       final project = await _project(
