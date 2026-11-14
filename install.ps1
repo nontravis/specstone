@@ -772,7 +772,7 @@ try {
                     continue
                 }
                 $folder = [IO.Path]::GetFullPath($entry)
-                if ((Test-Path -LiteralPath (Join-Path $folder 'stn.exe')) -and (Test-Path -LiteralPath (Join-Path $folder 'specstone.exe'))) {
+                if ((Test-Path -LiteralPath (Join-Path $folder 'stn.exe') -PathType Leaf) -and (Test-Path -LiteralPath (Join-Path $folder 'specstone.exe') -PathType Leaf)) {
                     continue
                 }
                 # Name the folder as the PATH spells it: GetFullPath may expand 8.3 names.

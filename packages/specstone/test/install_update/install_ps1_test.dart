@@ -2769,6 +2769,28 @@ if ($env:HARNESS_MODE -eq 'iex') {
       );
 
       pathTest(
+        '$fr E07: a folder named stn.exe is no marker file, so the stn.cmd '
+        'beside a specstone.exe file is named',
+        () async {
+          final sb = await sandboxWithShim();
+          final copy = '${sb.root.path}\\folder marker';
+          Directory('$copy\\stn.exe').createSync(recursive: true);
+          final found = otherStn(copy, 'cmd');
+          File('$copy\\specstone.exe').writeAsStringSync('fake');
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin', copy]),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), contains(notice(found)));
+        },
+      );
+
+      pathTest(
         'review focus 2: a quoted PATH entry holding a ; is read as the one '
         'folder inside the quotes',
         () async {
