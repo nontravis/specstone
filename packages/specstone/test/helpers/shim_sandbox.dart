@@ -21,17 +21,21 @@ const readStdinVariable = 'STUB_READ_STDIN';
 /// stdout, one line, when set.
 const writeStdoutVariable = 'STUB_STDOUT';
 
+/// The environment variable whose value a Windows recorder writes to its
+/// stderr, one line, when set.
+const writeStderrVariable = 'STUB_STDERR';
+
 /// The shell a Windows run types `stn` in.
 enum StnShell { cmd, powershell }
 
 /// Creates a [ShimSandbox] under a new temp folder.
 ///
 /// The folder is deleted by `addTearDown`. The sandbox's
-/// `<home>/.specstone/bin/` holds a copy of the repo's shim (`stn`, or
-/// `stn.cmd` on Windows) and a fake `specstone` that records its argv,
-/// stdin, `PATH`, and the guard's value to a log and exits with the status in
-/// `FAKE_EXIT` (0 when unset). On Windows the fake is a compiled
-/// `specstone.exe`, compiled once per run.
+/// `<home>/.specstone/bin/` holds the installed shim (a copy of the repo's
+/// `stn`, or on Windows the `stn.exe` that `build.ps1` builds) and a fake
+/// `specstone` that records its argv, stdin, `PATH`, and the guard's value to
+/// a log and exits with the status in `FAKE_EXIT` (0 when unset). On Windows
+/// the fake is a compiled `specstone.exe`, compiled once per run.
 Future<ShimSandbox> createShimSandbox() async {
   final root = await Directory.systemTemp.createTemp('specstone_shim_');
   addTearDown(() => root.delete(recursive: true));
@@ -343,11 +347,12 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 // The Windows recorder: logs argv, stdin (read only when STUB_READ_STDIN is
 // 1), PATH, and the guard to <STUB_LOG_DIR>\<name>.log, name `specstone` for
 // specstone.exe and `other` for any other file; it writes STUB_STDOUT, when
-// set, to its stdout as one line. Its exit status is the number
-// in `<its path>.exit`, else FAKE_EXIT for specstone, else 0. Each run also
-// writes its whole environment to <name>.env. Given `upgrade`, specstone.exe
-// replaces the stn.cmd beside it with a file twice its length whose every
-// line prints REREAD, prints `upgraded`, then exits.
+// set, to its stdout as one line and STUB_STDERR, when set, to its stderr. Its
+// exit status is the number in `<its path>.exit`, else FAKE_EXIT for
+// specstone, else 0. Each run also writes its whole environment to
+// <name>.env. Given `upgrade`, specstone.exe replaces the stn.cmd beside it
+// with a file twice its length whose every line prints REREAD, prints
+// `upgraded`, then exits.
 const _recorderSource = r'''
 import 'dart:io';
 
@@ -380,6 +385,8 @@ Future<void> main(List<String> args) async {
       .writeAsStringSync('${variables.join('\n')}\n');
   final echo = env['STUB_STDOUT'];
   if (echo != null) stdout.writeln(echo);
+  final complaint = env['STUB_STDERR'];
+  if (complaint != null) stderr.writeln(complaint);
   if (name == 'specstone' && args.isNotEmpty && args.first == 'upgrade') {
     final shim = File('$folder\\stn.cmd');
     final wanted = 2 * shim.lengthSync();

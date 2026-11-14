@@ -181,11 +181,17 @@ void main() {
         },
       );
 
-      test('review focus 4: stn.EXE and a quoted full path drop the whole '
-          'program name', () async {
+      test('review focus 4: stn.EXE and a quoted full path holding a space '
+          'drop the whole program name', () async {
         final sb = await createShimSandbox();
         final path = '${sb.bin.path};$system32';
-        final full = '${sb.bin.path}\\stn.exe';
+        // A folder with a space, so a program name read up to the first space
+        // would leave `y\stn.exe"` in the tail.
+        final spaced = Directory('${sb.root.path}\\x y')..createSync();
+        for (final name in ['stn.exe', 'specstone.exe']) {
+          File('${sb.bin.path}\\$name').copySync('${spaced.path}\\$name');
+        }
+        final full = '${spaced.path}\\stn.exe';
         final (upper, quoted) = switch (shell) {
           StnShell.cmd => ('stn.EXE check', '"$full" "a b"'),
           StnShell.powershell => ('stn.EXE check', "& '$full' 'a b'"),
@@ -268,6 +274,36 @@ void main() {
           final piped = await type(lines.pipe(name));
           expect(piped.exitCode, 0, reason: '$name: ${piped.stderr}');
           expect(nonBlank(piped.stdout), contains(echoed), reason: name);
+        }
+      });
+
+      test('run_cli_or_yield E15: stderr redirected to a file reaches the '
+          'target as with specstone, apart from stdout', () async {
+        const out = 'recorded out';
+        const err = 'recorded err';
+        final sb = await createShimSandbox();
+        final path = '${sb.bin.path};$system32';
+        // PowerShell 5.1 wraps a native command's redirected stderr in error
+        // records, so its case redirects inside a cmd it starts.
+        String redirect(String name) => switch (shell) {
+          StnShell.cmd => '$name get 2> $name.err',
+          StnShell.powershell => 'cmd /d /c "$name get 2> $name.err"',
+        };
+
+        for (final name in ['stn', 'specstone']) {
+          final r = await sb.typeStn(
+            [redirect(name)],
+            shell: shell,
+            path: path,
+            extra: {writeStdoutVariable: out, writeStderrVariable: err},
+          );
+
+          expect(r.exitCode, 0, reason: '$name: ${r.stdout}${r.stderr}');
+          expect(nonBlank(r.stdout), contains(out), reason: name);
+          expect(r.stdout, isNot(contains(err)), reason: name);
+          final written = File('${sb.root.path}\\$name.err');
+          expect(written.existsSync(), isTrue, reason: name);
+          expect(written.readAsStringSync().trim(), err, reason: name);
         }
       });
 
