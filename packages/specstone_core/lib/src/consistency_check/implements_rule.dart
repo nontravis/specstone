@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 
@@ -32,7 +33,13 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
     final item = items[parsed?.item];
     if (parsed == null || item == null) continue;
     if (!_isResolved(context, item, doc.target)) continue;
-    yield* _resolve(context, doc, target, parsed.code, line);
+    yield* _resolve(
+      context,
+      doc,
+      target,
+      CodeLinkEntry(parsed.code).pointer,
+      line,
+    );
   }
 }
 

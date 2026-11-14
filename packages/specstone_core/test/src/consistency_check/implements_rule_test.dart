@@ -304,6 +304,53 @@ void main() {
     },
   );
 
+  test(
+    'a pointer ending in a fingerprint resolves as one without it',
+    () async {
+      final report = _run(
+        await _project(_record(code: ['$point 5d1e0c4b7a92'])),
+      );
+
+      expect(_found(report), isEmpty);
+    },
+  );
+
+  test('an entry key holds the pointer without its fingerprint', () async {
+    final report = _run(
+      await _project(
+        _record(
+          code: [
+            '$_fr:$login:gone 5d1e0c4b7a92',
+            '$_fr:app/lib/x.dart 5d1e0c4b7a92',
+          ],
+        ),
+      ),
+    );
+
+    expect(_found(report).map((f) => f.toJson()['entry']), [
+      '$login:gone',
+      'app/lib/x.dart',
+    ]);
+  });
+
+  test('an upper-case token stays part of the Symbol or the path', () async {
+    final symbol = _run(await _project(_record(code: ['$point 5D1E0C4B7A92'])));
+    expect(_spots(symbol), [
+      '$_recordPath:${_codeLine(1, 0)}: implements_symbol_unresolved',
+    ]);
+    expect(
+      _found(symbol).single.toJson(),
+      containsPair('entry', '$entry 5D1E0C4B7A92'),
+    );
+
+    final path = _run(
+      await _project(_record(code: ['$_fr:$login 5D1E0C4B7A92'])),
+    );
+    expect(_spots(path), [
+      '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
+    ]);
+  });
+
   test('a dotted Symbol resolves only when each segment does', () async {
     final files = {
       'app/lib/auth.dart': 'class AuthService {\n  void signIn() {}\n}\n',
