@@ -208,6 +208,28 @@ void main() {
     final matrix =
         (_job(ci, 'test')['strategy'] as YamlMap)['matrix'] as YamlMap;
     expect(matrix['os'], ['ubuntu-latest', 'macos-latest', 'windows-latest']);
+    expect(matrix['suite'], ['core', 'cli']);
+    expect((_job(ci, 'test')['strategy'] as YamlMap)['fail-fast'], isFalse);
+  });
+
+  test('each test step of the test job runs in one suite leg only', () {
+    for (final step in _steps(_job(ci, 'test'))) {
+      final dir = '${step['working-directory'] ?? ''}';
+      final cond = '${step['if'] ?? ''}';
+      if (dir == 'packages/specstone_core') {
+        expect(cond, contains("matrix.suite == 'core'"));
+      }
+      if (dir == 'packages/specstone') {
+        expect(cond, contains("matrix.suite == 'cli'"));
+      }
+    }
+    final timing = _steps(_job(ci, 'test'))
+        .singleWhere((s) => '${s['run']}'.contains('--tags timing'));
+    expect(timing['if'], "matrix.suite == 'cli'");
+    final upload = _steps(
+      _job(ci, 'test'),
+    ).singleWhere((s) => '${s['uses']}'.startsWith('actions/upload-artifact@'));
+    expect('${(upload['with'] as YamlMap)['name']}', contains('matrix.suite'));
   });
 
   test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
@@ -219,11 +241,11 @@ void main() {
     expect(_runText(job), contains('dart test --tags ps1'));
     final main = _steps(_job(ci, 'test'));
     final windowsStep = main.singleWhere(
-      (step) => step['if'] == "runner.os == 'Windows'",
+      (step) => step['if'] == "matrix.suite == 'cli' && runner.os == 'Windows'",
     );
     expect('${windowsStep['run']}', contains('--exclude-tags timing,ps1'));
     final otherStep = main.singleWhere(
-      (step) => step['if'] == "runner.os != 'Windows'",
+      (step) => step['if'] == "matrix.suite == 'cli' && runner.os != 'Windows'",
     );
     expect('${otherStep['run']}', isNot(contains('ps1')));
   });
