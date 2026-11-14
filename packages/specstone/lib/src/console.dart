@@ -16,6 +16,9 @@ abstract interface class Console {
   /// Whether the user asked for no colour (`NO_COLOR` set and not empty).
   bool get noColor;
 
+  /// The raw value of `SPECSTONE_APPROVE_MODE`, or null when unset.
+  String? get approveModeVariable;
+
   /// Reads stdin to its end as UTF-8 text.
   Future<String> readAll();
 
@@ -45,6 +48,10 @@ final class SystemConsole implements Console {
 
   @override
   bool get noColor => (Platform.environment['NO_COLOR'] ?? '').isNotEmpty;
+
+  @override
+  String? get approveModeVariable =>
+      Platform.environment['SPECSTONE_APPROVE_MODE'];
 
   /// Reads stdin to its end as UTF-8 text.
   ///

@@ -89,6 +89,7 @@ class ApproveCommand extends WriteCommand {
           context: context,
           color: color,
           codeTarget: targetOf(args),
+          approveModeVariable: asJson ? console.approveModeVariable : null,
         ),
         asJson: asJson,
       );

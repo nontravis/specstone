@@ -367,9 +367,54 @@ void main() {
           'drafts': <Object>[],
           'count': 0,
           'warnings': <Object>[],
+          'approveMode': 'ask',
         });
       },
     );
+    test('--dry-run --json names the mode the console gives', () async {
+      final (:runner, :out, :err) = writeRunner(
+        await writeWriteProject(),
+        console: FakeConsole(approveModeVariable: 'auto'),
+      );
+
+      expect(await runner.run(['approve', 'login', '--dry-run', '--json']), 0);
+
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['approveMode'], 'auto');
+      expect(json['warnings'], isEmpty);
+    });
+    test(
+      '--dry-run --json with a near-miss value prints ask and its warning',
+      () async {
+        final (:runner, :out, :err) = writeRunner(
+          await writeWriteProject(),
+          console: FakeConsole(approveModeVariable: 'AUTO'),
+        );
+
+        expect(
+          await runner.run(['approve', 'login', '--dry-run', '--json']),
+          0,
+        );
+
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        expect(json['approveMode'], 'ask');
+        expect(json['warnings'], [
+          'SPECSTONE_APPROVE_MODE=AUTO is neither ask nor auto; ask is used',
+        ]);
+      },
+    );
+    test('the plain --dry-run view neither warns nor names the mode', () async {
+      final (:runner, :out, :err) = writeRunner(
+        await writeWriteProject(),
+        console: FakeConsole(approveModeVariable: 'yes'),
+      );
+
+      expect(await runner.run(['approve', 'login', '--dry-run']), 0);
+
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), isNot(contains('approveMode')));
+      expect(out.toString(), isNot(contains('SPECSTONE_APPROVE_MODE')));
+    });
     test("roots awaiting the Owner's record refuse with exit 73 and the JSON error on stderr, and print no JSON", () async {
       final base = await writeTree({
         for (final MapEntry(:key, :value) in writeProject.entries)
@@ -644,6 +689,19 @@ void main() {
 
     String editedStory(String text) =>
         text.replaceFirst('Sign out.\n', 'Sign out of every device.\n');
+
+    test('the process environment sets the mode', () async {
+      final root = await writeWriteProject();
+      final shown = await Process.run(
+        binary,
+        ['approve', 'login', '--dry-run', '--json'],
+        workingDirectory: root.path,
+        environment: {'SPECSTONE_APPROVE_MODE': 'auto'},
+      );
+      expect(shown.exitCode, 0, reason: '${shown.stderr}');
+      final json = jsonDecode(shown.stdout as String) as Map<String, Object?>;
+      expect(json['approveMode'], 'auto');
+    });
 
     test('an approved story edited in an editor is walked, its view showing the edit', () async {
       final root = await writeWriteProject();

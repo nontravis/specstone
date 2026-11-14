@@ -77,7 +77,8 @@ void approveDrafts(
 /// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks
 /// for [names] and [codeTarget]. The text is their views joined by a blank
 /// line, else `no draft waits for approval`; the JSON is `drafts` (see
-/// [draftViewJson]) and their `count`, `{"drafts": [], "count": 0}` for none.
+/// [draftViewJson]) and their `count`, empty and 0 for none, and the
+/// `approveMode` that [approveModeVariable] names, `ask` unless it is `auto`.
 /// It takes no lock, and with no draft waiting it reads no doc of the tree.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
 /// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
@@ -91,12 +92,15 @@ ReadAnswer approveDryRun(
   bool color = false,
   ApprovalHistory? history,
   String? codeTarget,
+  String? approveModeVariable,
 }) {
+  final (:mode, :warnings) = _approveModeOf(approveModeVariable);
   final drafts = _shownDraftsUnder(session, names, codeTarget);
   if (drafts.isEmpty) {
-    return const ReadAnswer(
+    return ReadAnswer(
       text: _nothingWaits,
-      json: {'drafts': <Object>[], 'count': 0},
+      json: {'drafts': <Object>[], 'count': 0, 'approveMode': mode},
+      warnings: warnings,
     );
   }
   _requireTrusted(session, drafts);
@@ -119,8 +123,26 @@ ReadAnswer approveDryRun(
     json: {
       'drafts': [for (final view in views) draftViewJson(view)],
       'count': views.length,
+      'approveMode': mode,
     },
+    warnings: warnings,
   );
+}
+
+const _approveModeVariableName = 'SPECSTONE_APPROVE_MODE';
+
+({String mode, List<String> warnings}) _approveModeOf(String? value) {
+  switch (value) {
+    case null || '' || 'ask':
+      return (mode: 'ask', warnings: const []);
+    case 'auto':
+      return (mode: 'auto', warnings: const []);
+    default:
+      final warning =
+          '$_approveModeVariableName=$value is neither ask nor auto; '
+          'ask is used';
+      return (mode: 'ask', warnings: [warning]);
+  }
 }
 
 /// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
