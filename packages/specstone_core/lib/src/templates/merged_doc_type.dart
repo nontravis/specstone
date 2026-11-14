@@ -487,6 +487,7 @@ final class MergedLint {
     'allowedWords': ?allowedWords,
     'bannedPatterns': ?bannedPatterns?.map((p) => p.toJson()).toList(),
     'requiredFieldGroups': ?requiredFieldGroups,
+    'titleNoNumber': ?titleNoNumber,
   };
 }
 

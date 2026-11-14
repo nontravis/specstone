@@ -228,6 +228,20 @@ void main() {
       expect((set['lint']! as Map<String, Object?>)['maxItemChars'], 900);
     });
 
+    test('toJson prints titleNoNumber only when a layer sets it', () {
+      final unset = _merge(_featureLayer).toJson();
+      expect(
+        (unset['lint']! as Map<String, Object?>).containsKey('titleNoNumber'),
+        isFalse,
+      );
+
+      final set = _merge(
+        _featureLayer,
+        'lint: {title_no_number: true}',
+      ).toJson();
+      expect((set['lint']! as Map<String, Object?>)['titleNoNumber'], isTrue);
+    });
+
     test('the merged schema matches the s02 example', () {
       final json = _merge(
         _featureLayer,
