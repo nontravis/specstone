@@ -1546,6 +1546,96 @@ void _agentTests() {
         ),
       );
     });
+
+    String skill() => _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
+
+    test('the sync skill runs the check as its gate and takes its work list '
+        "from the check's code findings or from a named feature", () {
+      expect(
+        skill(),
+        contains(
+          "The work list is the gate's `code_suspect`, `code_unconfirmed`, "
+          '`implements_path_unresolved`, `implements_symbol_unresolved`, '
+          '`covers_path_missing`, `code_uncovered`, and `tests_unresolved` '
+          'findings, never a `tests_missing` one.',
+        ),
+      );
+      expect(
+        skill(),
+        contains(
+          'When the Owner names a feature, it is every code link of that '
+          'feature that takes a state, findings or not.',
+        ),
+      );
+    });
+
+    test('the sync skill stops with no dispatch on an empty work list and '
+        'hands the engineer no list of paths', () {
+      expect(
+        skill(),
+        contains(
+          'With an empty list, tell the Owner no code changed since its docs '
+          'were compared, and stop with no dispatch and no further call.',
+        ),
+      );
+      expect(
+        skill(),
+        contains(
+          'dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a '
+          'file `mktemp` makes outside the repository, and the feature name '
+          'when the Owner gave one. Send no list of paths or doc text',
+        ),
+      );
+    });
+
+    test('the sync procedure finds the covering docs of each listed code path '
+        "but a tests_unresolved line's, and compares a changed folder on the "
+        'files changed since its stamp', () {
+      expect(
+        procedure(),
+        contains(
+          "For each listed code path but a `tests_unresolved` line's (step "
+          '4), run: ``` specstone context --code <path> --for implement ```',
+        ),
+      );
+      expect(
+        procedure(),
+        contains(
+          "a `code_suspect` folder's files changed under it since its stamp: "
+          "`git log -1 --format=%H -S '<recorded>' -- docs/<DocPath>` gives "
+          '`<base>`, then `git diff --name-only <base> -- <prefix>` and '
+          '`git ls-files --others --exclude-standard -- <prefix>`; with no '
+          'such commit, or on a `code_unconfirmed` folder, every file under '
+          'the prefix',
+        ),
+      );
+    });
+
+    test('the sync procedure takes its work list from the gate check and '
+        'neither sync file takes a list of changed paths or a base commit', () {
+      expect(
+        procedure(),
+        contains(
+          'Your gate `check` gives it, whoever wrote the code: each '
+          '`code_suspect`, `code_unconfirmed`, `implements_path_unresolved`, '
+          '`implements_symbol_unresolved`, `covers_path_missing`, '
+          '`code_uncovered`, and `tests_unresolved` finding, never a '
+          '`tests_missing` one.',
+        ),
+      );
+      for (final text in [skill(), procedure()]) {
+        for (final input in [
+          'changed paths',
+          'base commit',
+          'base branch',
+          'merge-base',
+          'task lists',
+          'start commit',
+        ]) {
+          expect(text, isNot(contains(input)), reason: input);
+        }
+      }
+    });
   });
 
   group('Agent sets up a new project with no code', () {

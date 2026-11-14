@@ -1,24 +1,28 @@
 Step 1, the gate, already ran in the skill or agent that sent you here.
 As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-`specstone check` tests only that code pointers resolve, never what a function now does. So start from the
-paths the task changed, not from findings. Follow `specstone:expert-sdd` for every doc you write.
+`specstone check` finds code changed since its docs were compared, never what that code now does: compare it
+yourself (step 4). Follow `specstone:expert-sdd` for every doc you write.
 
 **Code target** (two or more `targets:`): a changed path's target is the `code target:`
 line, or the `codeTarget` key under `--json`, of its `context --code` call, covered or not, and a deleted path's is the
 finding DocPath's, so ask the Owner nothing; each `get`, `set`, and `new` of a per-target doc carries `--target <name>`,
 or addresses the doc by its DocPath.
 
-## 2. Collect the changed paths
+## 2. Take the work list
 
-1. Take the files the task lists as touched.
-2. No list: run `git diff --name-only <base>`, `<base>` being the task's start commit or
-   `git merge-base HEAD <base branch>`; uncommitted work adds `git ls-files --others --exclude-standard`.
-3. Drop each path under `docs/` in the project root, the folder holding `.specstone/`: this sync starts from code.
+Your gate `check` gives it, whoever wrote the code: each `code_suspect`, `code_unconfirmed`,
+`implements_path_unresolved`, `implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, and
+`tests_unresolved` finding, never a `tests_missing` one. Take no list of paths from the task, and never ask whether a
+plan wrote the code.
+
+A feature named: take instead every code link of it that takes a state, findings or not, a waiting code target's left
+out. `specstone context <feature> --for implement` prints its record's `implements` and its specs' `covers:` entries.
+Each link keeps its state.
 
 ## 3. Find the covering docs
 
-For each path, run:
+For each listed code path but a `tests_unresolved` line's (step 4), run:
 
 ```
 specstone context --code <path> --for implement
@@ -26,16 +30,19 @@ specstone context --code <path> --for implement
 
 It takes its path's code target, prints it, and carries no `--target`.
 
-- **Warning `no doc covers or implements <path>`:** no spec covers it. When `git diff --name-status -M <base>` lists the path as the new side of
-  an `R` (rename) pair, the file moved: go to step 4.3. Any other such path is new code: go to step 5.
+- **Warning `no doc covers or implements <path>`:** no spec covers it. A `code_uncovered` path: go to step 5.
 - **0, no such warning:** the printed specs and requirements cover it. Go to step 4.
-- **64, `code_path_not_found`:** the task deleted the file, so `context` has nothing for it. `specstone check` lists
+- **64, `code_path_not_found`:** the file moved or is gone, so `context` has nothing for it. `specstone check` lists
   the record entries that still name it; step 4.3 fixes them.
 - **Any other non-zero exit:** report the CLI's error and stop.
 
 ## 4. Update the covering docs
 
-1. Compare each section and field of each covering doc with the changed code; leave a matching doc alone.
+1. Compare each section and field of each covering doc with the code of each link; leave a matching doc alone. A
+   link's code is its file; a `code_suspect` folder's files changed under it since its stamp:
+   `git log -1 --format=%H -S '<recorded>' -- docs/<DocPath>` gives `<base>`, then `git diff --name-only <base> --
+   <prefix>` and `git ls-files --others --exclude-standard -- <prefix>`; with no such commit, or on a
+   `code_unconfirmed` folder, every file under the prefix.
 2. Rewrite each stale section or field (`<doc>`: `<type>:<name>`). Take a section's base hash from the
    naming line of `specstone get <doc>#<section key>`, a field's from `bases.fields.<id>` in
    `specstone get <doc> --json`. Pipe the new text to `specstone set <doc>#<section key> --base <hash>` (a
@@ -79,11 +86,3 @@ Your drafts are the docs your own list names, those whose text you wrote: list t
 dropped and new sentence counts; name each other draft it lists, never counted; one of yours it shows as no draft is a
 finding. Then list each pointer fixed, each behavior handed to `specstone:brainstorming-sdd`, and each pointer that
 waits on an approval, with its doc, its code target, and its code path.
-
-## Red flags
-
-| Thought                                           | Do instead                                                  |
-|---------------------------------------------------|-------------------------------------------------------------|
-| "`check` is clean, so the docs match the code."   | Compare each covering doc with the changed code (step 4.1). |
-| "The moved file is new code; draft a spec."       | Point the old entry at the new path (step 4.3).             |
-| "Add the code path entry now; approve later."     | The pointer waits for the Owner's approval (step 5).        |

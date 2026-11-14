@@ -16,16 +16,24 @@ specstone check
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **0 or 1:** the project is on the new format, even from a subfolder, since the CLI looks for
-  `.specstone/config.yaml` here and in each folder above. Keep the findings as the baseline.
+  `.specstone/config.yaml` here and in each folder above. Its findings give the work list (step 2).
 - **Any other exit:** report the CLI's error and stop.
 
 Never look for `.specstone/` yourself first: a look at the working directory misses a project root above it, and
 costs a call the gate already makes.
 
-## 2. Hand off
+## 2. Work list, then hand off
 
-With the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a file `mktemp` makes outside the
-repository, and the changed paths the task lists, or the base commit when it lists none. Send no doc text, and work no
+The work list is the gate's `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
+`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, and `tests_unresolved` findings, never a
+`tests_missing` one. When the Owner names a feature, it is every code link of that feature that takes a state, findings
+or not. Take nothing from the task: code changed outside a task is in the list too.
+
+With an empty list, tell the Owner no code changed since its docs were compared, and stop with no dispatch and no
+further call.
+
+Else, with the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a file `mktemp` makes
+outside the repository, and the feature name when the Owner gave one. Send no list of paths or doc text, and work no
 step of the procedure yourself. Without the tool, or when the dispatch fails, read `references/procedure.md` beside this
 file (`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follow it.
 
