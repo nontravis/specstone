@@ -16,12 +16,13 @@ typedef RepeatGroup = ({String run, List<RepeatItem> items});
 /// Returns the repeat groups of the rule-bearing items the index stores
 /// (`consistency_check/list_repeated_text/list_repeat_groups`).
 ///
-/// Windows of [minRepeatRunWords] words, and of one word more, are hashed into
-/// two maps from window to items; no two items are compared one by one. A run
-/// is listed with every item that holds it whole, when no word extends it for
-/// all of those items, so a longer run fewer items hold prints beside the
-/// shorter run more items hold. A run the merged pack's template or guide text
-/// holds is left out, judged on each call, so a pack change needs no reindex.
+/// Each window of [minRepeatRunWords] words maps to the places (item, word
+/// offset) that hold it; a run grows from such a map one word at a time over
+/// those places, so the work is linear in the places it reads. A run is listed
+/// with every item that holds it whole, when no word extends it for all of
+/// those items, so a longer run fewer items hold prints beside the shorter
+/// run more items hold. A run the merged pack's template or guide text holds
+/// is left out, judged on each call, so a pack change needs no reindex.
 /// [scope] keeps each group that holds an item of one of its docs, and drops
 /// the items of another code target's docs.
 List<RepeatGroup> listRepeats(ReadSession session, CheckScope scope) {
@@ -31,162 +32,171 @@ List<RepeatGroup> listRepeats(ReadSession session, CheckScope scope) {
       if (scope.inTargets(item.docPath) && names.containsKey(item.docPath))
         item,
   ];
-  final paths = [for (final item in items) item.docPath];
-  final windows = [for (final item in items) _windowsOf(item.words)];
-  final longer = [
-    for (final item in items) _windowsOf(item.words, minRepeatRunWords + 1),
-  ];
-  final held = _Held(
-    paths: paths,
-    shared: _holdersOf(windows, paths, keepOneDoc: false),
-    chained: _holdersOf(longer, paths, keepOneDoc: true),
-    windows: windows,
-    longer: longer,
+  final finder = _RunFinder(
+    [for (final item in items) item.words],
+    [for (final item in items) item.docPath],
   );
   final template = _templateWindows(session);
   final groups = <String, RepeatGroup>{};
-  for (var at = 0; at < items.length; at++) {
-    for (final run in _runsOf(at, items[at].words, held)) {
-      if (run.windows.every(template.contains)) continue;
-      final holders = run.holders;
-      if (!holders.any((i) => scope.contains(items[i].docPath))) continue;
-      groups.putIfAbsent(
-        '${run.text}\u0000${holders.join(',')}',
-        () => (
-          run: run.text,
-          items: _sortedItems([
-            for (final i in holders)
-              (
-                docPath: items[i].docPath,
-                name: names[items[i].docPath] ?? items[i].docPath,
-                line: items[i].line,
-                item: items[i].itemId,
-              ),
-          ]),
-        ),
-      );
-    }
+  for (final run in finder.runs()) {
+    if (_windowsOf(run.words).every(template.contains)) continue;
+    if (!run.items.any((i) => scope.contains(items[i].docPath))) continue;
+    final text = run.words.join(' ');
+    groups.putIfAbsent(
+      '$text\u0000${run.items.join(',')}',
+      () => (
+        run: text,
+        items: _sortedItems([
+          for (final i in run.items)
+            (
+              docPath: items[i].docPath,
+              name: names[items[i].docPath] ?? items[i].docPath,
+              line: items[i].line,
+              item: items[i].itemId,
+            ),
+        ]),
+      ),
+    );
   }
   return groups.values.toList()..sort(_compareGroups);
 }
 
-List<String> _windowsOf(List<String> words, [int size = minRepeatRunWords]) => [
-  for (var p = 0; p + size <= words.length; p++)
-    words.sublist(p, p + size).join(' '),
+List<String> _windowsOf(List<String> words) => [
+  for (var p = 0; p + minRepeatRunWords <= words.length; p++)
+    words.sublist(p, p + minRepeatRunWords).join(' '),
 ];
 
-/// Maps each window of [grams] to the items that hold it, in item order; with
-/// [keepOneDoc] false, a window that items of one doc alone hold is left out.
-Map<String, List<int>> _holdersOf(
-  List<List<String>> grams,
-  List<String> paths, {
-  required bool keepOneDoc,
-}) {
-  final held = <String, List<int>>{};
-  for (var at = 0; at < grams.length; at++) {
-    for (final gram in grams[at]) {
-      final holders = held.putIfAbsent(gram, () => []);
-      if (holders.isEmpty || holders.last != at) holders.add(at);
-    }
-  }
-  if (!keepOneDoc) {
-    held.removeWhere(
-      (_, holders) => holders.every((i) => paths[i] == paths[holders.first]),
-    );
-  }
-  return held;
-}
+typedef _Run = ({List<String> words, List<int> items});
 
-typedef _Run = ({String text, List<String> windows, List<int> holders});
-
-/// The windows of every item, and which items hold each.
-final class _Held {
-  const new({
-    required this.paths,
-    required this.shared,
-    required this.chained,
-    required this.windows,
-    required this.longer,
-  });
-
-  /// The DocPath of each item.
-  final List<String> paths;
-
-  /// The items that hold each window items of two or more docs hold.
-  final Map<String, List<int>> shared;
-
-  /// The items that hold each window of one word more: two windows that follow
-  /// each other in an item follow each other in another only when it holds
-  /// the longer window.
-  final Map<String, List<int>> chained;
-
-  /// The windows of each item, in word order.
-  final List<List<String>> windows;
-
-  /// The longer windows of each item, in word order.
-  final List<List<String>> longer;
-
-  /// Returns the items that hold the longer window [gram].
-  List<int> holdersOfLonger(String gram) =>
-      chained[gram] ?? (throw StateError('no item holds its own window'));
-
-  /// Whether [items] hold text of two or more docs.
-  bool spansDocs(List<int> items) =>
-      items.isNotEmpty && items.any((i) => paths[i] != paths[items.first]);
-}
-
-/// Returns the runs that [held]'s item [at] starts, [at] being the first item
-/// that holds each run, so no run is listed twice.
+/// Finds the maximal runs of the words of many items.
 ///
-/// A run is every word an item holds whole in common with other docs' items,
-/// listed with all items that hold it, when no word extends it, before or
-/// after, for all of those items.
-List<_Run> _runsOf(int at, List<String> words, _Held held) {
-  final windows = held.windows[at];
-  final longer = held.longer[at];
-  final runs = <_Run>[];
-  for (var i = 0; i < windows.length; i++) {
-    final all = held.shared[windows[i]];
-    if (all == null) continue;
-    var group = all;
-    final before = i == 0 ? null : held.holdersOfLonger(longer[i - 1]);
-    bool extendsLeft(List<int> items) =>
-        before != null && _within(items, before).length == items.length;
-    if (!held.spansDocs(group) || extendsLeft(group)) continue;
-    var j = i;
-    while (true) {
-      final next = j + 1 < windows.length
-          ? _within(group, held.holdersOfLonger(longer[j]))
-          : const <int>[];
-      if (next.length != group.length) {
-        if (group.first == at && held.spansDocs(group) && !extendsLeft(group)) {
-          runs.add((
-            text: words.sublist(i, j + minRepeatRunWords).join(' '),
-            windows: windows.sublist(i, j + 1),
-            holders: group,
-          ));
-        }
-        if (!held.spansDocs(next)) break;
-        group = next;
-      }
-      j++;
-    }
-  }
-  return runs;
-}
+/// A place is one int, the item index above [_offsetBits] and the word offset
+/// of a run's first word below.
+final class _RunFinder {
+  const new(this._words, this._paths);
 
-/// Returns the values both sorted lists hold.
-List<int> _within(List<int> sorted, List<int> other) {
-  final common = <int>[];
-  var at = 0;
-  for (final value in sorted) {
-    while (at < other.length && other[at] < value) {
-      at++;
+  final List<List<String>> _words;
+  final List<String> _paths;
+
+  static const _offsetBits = 24;
+  static const int _offsetMask = (1 << _offsetBits) - 1;
+
+  int _itemOf(int place) => place >> _offsetBits;
+
+  int _offsetOf(int place) => place & _offsetMask;
+
+  /// Returns each run that two or more docs hold, once, with the items that
+  /// hold it whole.
+  Iterable<_Run> runs() sync* {
+    final held = <String, List<int>>{};
+    for (var item = 0; item < _words.length; item++) {
+      final words = _words[item];
+      for (var at = 0; at + minRepeatRunWords <= words.length; at++) {
+        held
+            .putIfAbsent(
+              words.sublist(at, at + minRepeatRunWords).join(' '),
+              () => [],
+            )
+            .add(item << _offsetBits | at);
+      }
     }
-    if (at == other.length) break;
-    if (other[at] == value) common.add(value);
+    for (final places in held.values) {
+      if (_spansDocs(places) && !_sharePrevious(places)) yield* _grow(places);
+    }
   }
-  return common;
+
+  Iterable<_Run> _grow(List<int> start) sync* {
+    final pending = [(places: start, length: minRepeatRunWords)];
+    while (pending.isNotEmpty) {
+      final (:places, length: startLength) = pending.removeLast();
+      var length = startLength;
+      while (_allFollowedBySameWord(places, length)) {
+        length++;
+      }
+      final next = <String, List<int>>{};
+      for (final place in places) {
+        final words = _words[_itemOf(place)];
+        final end = _offsetOf(place) + length;
+        if (end < words.length) {
+          next.putIfAbsent(words[end], () => []).add(place);
+        }
+      }
+      final items = _itemsOf(places);
+      final extendsRight = next.values.any(
+        (bucket) => _itemsOf(bucket).length == items.length,
+      );
+      if (!extendsRight && _spansDocs(places) && !_extendsLeft(places)) {
+        final first = places.first;
+        yield (
+          words: _words[_itemOf(first)].sublist(
+            _offsetOf(first),
+            _offsetOf(first) + length,
+          ),
+          items: items,
+        );
+      }
+      for (final bucket in next.values) {
+        if (_spansDocs(bucket)) {
+          pending.add((places: bucket, length: length + 1));
+        }
+      }
+    }
+  }
+
+  /// Whether one same word follows the first [length] words at every place,
+  /// so the run grows for all of them.
+  bool _allFollowedBySameWord(List<int> places, int length) {
+    String? following;
+    for (final place in places) {
+      final words = _words[_itemOf(place)];
+      final end = _offsetOf(place) + length;
+      if (end >= words.length) return false;
+      if (following != null && following != words[end]) return false;
+      following = words[end];
+    }
+    return true;
+  }
+
+  /// Whether every place is preceded by one same word.
+  bool _sharePrevious(List<int> places) {
+    String? previous;
+    for (final place in places) {
+      final offset = _offsetOf(place);
+      if (offset == 0) return false;
+      final word = _words[_itemOf(place)][offset - 1];
+      if (previous != null && previous != word) return false;
+      previous = word;
+    }
+    return true;
+  }
+
+  /// Whether one word precedes the run in every item that holds it.
+  bool _extendsLeft(List<int> places) {
+    Set<String>? common;
+    var at = 0;
+    while (at < places.length) {
+      final item = _itemOf(places[at]);
+      final before = <String>{};
+      for (; at < places.length && _itemOf(places[at]) == item; at++) {
+        final offset = _offsetOf(places[at]);
+        if (offset > 0) before.add(_words[item][offset - 1]);
+      }
+      common = common == null ? before : (common..retainAll(before));
+      if (common.isEmpty) return false;
+    }
+    return common != null;
+  }
+
+  List<int> _itemsOf(List<int> places) => [
+    for (var at = 0; at < places.length; at++)
+      if (at == 0 || _itemOf(places[at]) != _itemOf(places[at - 1]))
+        _itemOf(places[at]),
+  ];
+
+  bool _spansDocs(List<int> places) {
+    final first = _paths[_itemOf(places.first)];
+    return places.any((place) => _paths[_itemOf(place)] != first);
+  }
 }
 
 /// Returns the windows of every doc type's template and guide text, worded as

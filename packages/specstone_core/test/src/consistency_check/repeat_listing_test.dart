@@ -257,6 +257,40 @@ void main() {
     });
   });
 
+  test('f04/us05/fr01/e04: a run longer than 8 words that another doc holds in two parts prints as the two parts it holds', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ..._edge('Alpha opens k0 k1 k2 k3 k4 k5 k6 k7 k8 k9 closes.'),
+        ..._statement(
+          'Beta begins k0 k1 k2 k3 k4 k5 k6 k7 k8 xx k1 k2 k3 k4 k5 k6 k7 k8 k9 ends.',
+        ),
+      },
+    );
+    final runs = [for (final g in _groupsOf(project)) g.run]..sort();
+    expect(runs, ['k0 k1 k2 k3 k4 k5 k6 k7 k8', 'k1 k2 k3 k4 k5 k6 k7 k8 k9']);
+  });
+
+  test('f04/us05/fr01/e03, nfr-p03: a run that 14 docs hold gives one group of 14 items beside the longer run 13 of them hold', () async {
+    final nf = checkProjectFiles()['docs/$loginNf']!.replaceFirst(
+      _nfStatement,
+      'The system shall hold that $_clause, always.',
+    );
+    final project = await writeCheckProject(
+      extra: {
+        ..._edge('When the Agent runs it, $_clause for the Agent.'),
+        'docs/$loginNf': nf,
+        for (var n = 2; n <= 13; n++)
+          'docs/prds/features/f01_login/us01_email_login/nf${n.toString().padLeft(2, '0')}_t$n.md':
+              nf.replaceAll('Sign-in time', 'Sign-in time $n'),
+      },
+    );
+    final held = {for (final g in _groupsOf(project)) g.run: g.items.length};
+    expect(held, {
+      _clause: 14,
+      'the system shall hold that $_clause always': 13,
+    });
+  });
+
   test('f04/us05/fr01/e04: windows another doc holds apart are not merged into one run for it', () async {
     final project = await writeCheckProject(
       extra: {
