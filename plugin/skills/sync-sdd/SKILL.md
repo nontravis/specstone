@@ -52,6 +52,8 @@ When you followed the procedure yourself, its report stands in for item 1.
    `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the target the report
    gives for that pointer, when the project has two or more, the hash from
    `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <doc> --json` for the same doc, with the
-   same `--target`.
+   same `--target`. A waiting match is written whole: the
+   fingerprint ends the entry, and a `planned` entry's `implemented` goes to `statuses` through `--field statuses` with
+   `bases.fields.statuses`.
 5. Run `specstone:brainstorming-sdd` for each behavior the report hands over and each pick that lands in a story or FR,
    since the sync writes no PRD doc.

@@ -1413,8 +1413,8 @@ void _agentTests() {
         "**Code target** (two or more `targets:`): a changed path's target "
         'is the `code target:` line, or the '
         '`codeTarget` key under `--json`, of its `context --code` call, '
-        "covered or not, and a deleted path's is the finding DocPath's, so "
-        'ask the Owner nothing; each `get`, `set`, and `new` of a per-target '
+        "covered or not, and a deleted path's is the finding DocPath's; each "
+        '`get`, `set`, and `new` of a per-target '
         'doc carries `--target <name>`, or addresses the doc by its DocPath.';
     const recordWrite =
         '`specstone set implementation:<feature> --field implements '
@@ -1658,7 +1658,7 @@ void _agentTests() {
       expect(
         text,
         contains(
-          "A named feature's `clean` link takes no fingerprint, only a "
+          "a named feature's `clean` link takes no fingerprint, only a "
           "`planned` entry's `implemented`:",
         ),
       );
@@ -1674,12 +1674,57 @@ void _agentTests() {
 
     test('the sync procedure writes nothing for a link while a covering doc '
         'is a pending draft and lists a match as a waiting pointer', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          'A pending draft among the covering docs holds every write of a '
+          "match and of a `planned` entry's fingerprint: list a match as a "
+          'waiting pointer, written whole once the Owner approves '
+          '(fingerprint, and on a `planned` entry `implemented`).',
+        ),
+      );
+      expect(
+        text.indexOf('A pending draft among the covering docs holds'),
+        lessThan(text.indexOf('**Match:**')),
+        reason: 'the wait applies before the outcome bullets',
+      );
+    });
+
+    test('the sync skill writes a waiting match whole once its draft is '
+        "approved, a planned entry's implemented status included", () {
+      expect(
+        skill(),
+        contains(
+          'A waiting match is written whole: the fingerprint ends the entry, '
+          "and a `planned` entry's `implemented` goes to `statuses` through "
+          '`--field statuses` with `bases.fields.statuses`.',
+        ),
+      );
+    });
+
+    test('the sync procedure sends the new side of a rename pair to the '
+        'pointer fix before it reports a warning path as uncovered', () {
       expect(
         procedure(),
         contains(
-          '**A pending draft among the covering docs:** nothing for the '
-          'link; a match is a waiting pointer.',
+          "The new side of a rename pair (step 4.3's git commands) goes to "
+          'step 4.3. Else read the file and write nothing for it;',
         ),
+      );
+    });
+
+    test('the sync procedure keeps each command code span on one line and '
+        'loops the check only until no pointer finding of those docs is '
+        'left', () {
+      for (final line in _pluginText(
+        'skills/sync-sdd/references/procedure.md',
+      ).split('\n')) {
+        expect('`'.allMatches(line).length.isEven, isTrue, reason: line);
+      }
+      expect(
+        procedure(),
+        contains('until no such finding of those docs is left:'),
       );
     });
 
@@ -1789,9 +1834,9 @@ void _agentTests() {
       expect(
         text,
         contains(
-          '`code_uncovered` path. Read the file and write nothing for it; '
-          'report it under `Uncovered:`: its path, what it does that no spec '
-          'states, and whether that needs a new story or FR.',
+          'Else read the file and write nothing for it; report it under '
+          '`Uncovered:`: its path, what it does that no spec states, and '
+          'whether that needs a new story or FR.',
         ),
       );
       expect(
@@ -1818,10 +1863,9 @@ void _agentTests() {
       expect(
         text,
         contains(
-          'the Owner approves it with `specstone approve`, through '
-          "`specstone:expert-sdd`'s confirmation. Write no record code path "
-          'or `covers:` entry that names this code until the Owner approves '
-          'the draft.',
+          'the Owner approves it with `specstone approve`. Write no record '
+          'code path or `covers:` entry that names this code until the Owner '
+          'approves the draft.',
         ),
       );
     });
