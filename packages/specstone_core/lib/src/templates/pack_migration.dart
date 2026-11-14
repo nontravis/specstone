@@ -121,6 +121,18 @@ final class MoveToRecord extends MigrationStep {
   String get kind => 'move_to_record';
 }
 
+/// A `stamp_code_fingerprints` step: `migrate` writes the current code
+/// fingerprint on each code link it picks; the step takes no keys.
+final class StampCodeFingerprints extends MigrationStep {
+  const new();
+
+  @override
+  bool touches(String docTypeId) => false;
+
+  @override
+  String get kind => 'stamp_code_fingerprints';
+}
+
 /// Parses a `migrations:` [node] of a `pack.yaml` read from [file].
 ///
 /// A null node gives no entries; entries keep file order. A bad `from:` is
@@ -221,6 +233,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'move_to_record' => _parseMoveToRecord(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'stamp_code_fingerprints' => _parseStampCodeFingerprints(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -359,6 +377,22 @@ MoveToRecord _parseMoveToRecord(
     fields: listOf('fields'),
     to: requireValue<String>(map, 'to', file: file, prefix: prefix),
   );
+}
+
+StampCodeFingerprints _parseStampCodeFingerprints(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  checkKeys(
+    map,
+    const <String>{},
+    file: file,
+    format: 'stamp_code_fingerprints step',
+    prefix: 'migrations[$i].steps[$j].stamp_code_fingerprints.',
+  );
+  return const StampCodeFingerprints();
 }
 
 /// A `move_file` `to` pattern must hold the `from` placeholders in the same

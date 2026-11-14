@@ -216,6 +216,7 @@ RunPlan _upgradeRunOf(
           step: step,
           lf: lf,
         ),
+        StampCodeFingerprints() => lf,
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -229,6 +230,7 @@ RunPlan _upgradeRunOf(
                 false,
           MoveFile() => false,
           MoveToRecord() => false,
+          StampCodeFingerprints() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -242,6 +244,7 @@ RunPlan _upgradeRunOf(
                   '$_resolveCollision',
             MoveFile() => '',
             MoveToRecord() => '',
+            StampCodeFingerprints() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -653,6 +656,7 @@ List<_OverrideFile> _renamedOverrides(
         ),
         MoveFile() => file.lf,
         MoveToRecord() => file.lf,
+        StampCodeFingerprints() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -1020,6 +1024,7 @@ String _describe(MigrationStep step) => switch (step) {
   MoveToRecord() =>
     '${step.kind} ${step.docTypes.join(', ')} ${step.fields.join(', ')} '
         '-> ${step.to}',
+  StampCodeFingerprints() => step.kind,
 };
 
 /// Returns the doc paths in code point order, then the override paths in the
