@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId;
 import 'package:specstone_core/src/index_query/code_root_files.dart';
@@ -87,6 +88,24 @@ final class ImplementedWork {
   }
   return (any: any, features: features);
 }
+
+/// Whether the check reads the code a record entry names, [pointer] being its
+/// `path[:Symbol]` from [codeRoot].
+///
+/// An entry of a `skipped` item reads nothing. Any other entry is read once a
+/// stat finds a regular file at its path, a `planned` entry's file included.
+bool readsEntryCode(Directory codeRoot, RecordStatus status, String pointer) =>
+    status != RecordStatus.skipped &&
+    ImplementsEntry(pointer).namesFileFrom(codeRoot);
+
+/// Whether the check reads the code a `covers:` entry names, [pointer] being
+/// its path from [codeRoot] and [endsWait] whether its target holds the work
+/// that ends the wait ([ImplementedWork.endsWaitOf]).
+bool readsCoversCode(
+  Directory codeRoot,
+  String pointer, {
+  required bool endsWait,
+}) => endsWait && namesFileOrFolderFrom(codeRoot, pointer);
 
 /// Returns the `covers_path_missing` and `code_root_missing` findings of a
 /// typed [doc].
