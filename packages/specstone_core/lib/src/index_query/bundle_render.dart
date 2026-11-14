@@ -1,8 +1,11 @@
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_follow.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
+import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 const _summaryNextStep =
@@ -40,6 +43,12 @@ String _partBlock(AppendedPart part) {
       '${part.text}';
 }
 
+/// Returns the `citedBy` key of a doc object, empty when [items] holds no line
+/// (`index_query/get_task_bundle/show_cited_by`).
+Map<String, Object> _citedByKey(List<CitedItem> items) => {
+  if (items.isNotEmpty) 'citedBy': citedByJson(items),
+};
+
 /// Returns the JSON keys that mark [part], after its `text` or `tokens`.
 Map<String, Object> _partKeys(AppendedPart part) => {
   if (part.summary) 'summary': true,
@@ -73,10 +82,18 @@ ReadAnswer answerContext(
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
   bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
-  final docBlocks = [
+  final citedBy = bundle.mode == BundleMode.design ? citedByIndex(index) : null;
+  final docPrints = [
     for (final doc in ordered)
-      _docBlock(index, doc, bundle.mode, summary: inSummary(doc)),
+      _docBlock(
+        index,
+        doc,
+        bundle.mode,
+        summary: inSummary(doc),
+        citedBy: citedBy,
+      ),
   ];
+  final docBlocks = [for (final print in docPrints) print.block];
   final mapBlocks = [
     for (final top in _byTreeOrder(index, bundle.mapTops))
       _mapBlock(index, index.at(top)!, bundle.codeTarget),
@@ -85,7 +102,7 @@ ReadAnswer answerContext(
     for (final top in _byTreeOrder(index, bundle.nameListTops))
       _namesBlock(index, index.at(top)!, bundle.codeTarget),
   ];
-  final parts = followLinks(index, bundle);
+  final parts = followLinks(index, bundle, citedBy: citedBy);
   final partBlocks = [for (final part in parts) _partBlock(part)];
   final shown = [
     ...docBlocks,
@@ -136,12 +153,14 @@ ReadAnswer answerContext(
           'tokens': tokenSizeOf(block),
           'text': _blockBody(block),
           if (inSummary(ordered[doc])) 'summary': true,
+          ..._citedByKey(docPrints[doc].cited),
         },
       for (final (i, part) in parts.indexed)
         {
           ..._partDocJson(part, partBlocks[i]),
           if (!part.pathOnly) 'text': _blockBody(partBlocks[i]),
           ..._partKeys(part),
+          ..._citedByKey(part.cited),
         },
     ],
     ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
@@ -226,18 +245,22 @@ ReadAnswer _overBudget(
 
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
-/// joined by one blank line (Plan decision 21, INV-14).
-String _docBlock(
+/// joined by one blank line (Plan decision 21, INV-14), with the lines
+/// [citedBy] holds for its items printed after them.
+({String block, List<CitedItem> cited}) _docBlock(
   DocIndex index,
   IndexedDoc doc,
   BundleMode mode, {
   required bool summary,
+  required CitedByIndex? citedBy,
 }) {
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
   if (summary) {
-    return '${namingLine(doc, summary: true)}\n'
+    final block =
+        '${namingLine(doc, summary: true)}\n'
         '${summaryBodyOf(doc, content, docType, mode)}';
+    return (block: block, cited: const []);
   }
   final parts = <String>[];
   if (mode != BundleMode.query) {
@@ -246,10 +269,23 @@ String _docBlock(
     final head = removeHtmlComments(content.head);
     if (head.trim().isNotEmpty) parts.add(head.trimRight());
   }
+  final cited = <CitedItem>[];
+  final held = citedSectionsOf(content, docType);
   for (final section in keptSectionsOf(content, docType, mode)) {
-    parts.add(sectionBlockOf(section));
+    final at = content.sections.indexOf(section);
+    final items = citedBy == null
+        ? const <CitedItem>[]
+        : citedItemsIn(citedBy, doc, content, held[at], at);
+    cited.addAll(items);
+    parts.add(
+      sectionBlockOf(
+        section,
+        bodyLine: content.lineFacts.sectionLines[at] + 1,
+        after: citedLinesAfter(items),
+      ),
+    );
   }
-  return '${namingLine(doc)}\n${parts.join('\n\n')}';
+  return (block: '${namingLine(doc)}\n${parts.join('\n\n')}', cited: cited);
 }
 
 /// Returns the map block of [top]: its subtree, one line per doc with its

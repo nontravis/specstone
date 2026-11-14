@@ -1,9 +1,8 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show ItemId, acceptanceSectionId, readItemId, scenarioIdPrefix;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
+import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -28,6 +27,7 @@ final class AppendedPart {
     this.itemId,
     this.heading,
     this.summary = false,
+    this.cited = const [],
     required this.text,
   });
 
@@ -60,6 +60,10 @@ final class AppendedPart {
   /// Whether the part is the doc in summary (INV-25).
   final bool summary;
 
+  /// The items of the part whose cited-by lines [text] holds, in print order;
+  /// empty outside a design bundle.
+  final List<CitedItem> cited;
+
   /// What prints after the part's naming line: an item's own lines, a
   /// section whole, a summary doc's title and summary sections, or nothing
   /// for a path.
@@ -79,9 +83,16 @@ final class AppendedPart {
 /// already prints whole, a doc `--no-project` dropped, and a link `check`
 /// reports as broken add nothing; a link into another code target's doc is
 /// followed.
-List<AppendedPart> followLinks(DocIndex index, Bundle bundle) {
+///
+/// Given [citedBy], each part holds its items' cited-by lines right after
+/// them (`index_query/get_task_bundle/show_cited_by`).
+List<AppendedPart> followLinks(
+  DocIndex index,
+  Bundle bundle, {
+  CitedByIndex? citedBy,
+}) {
   if (bundle.mode == BundleMode.query) return const [];
-  final walk = _Walk(index, bundle);
+  final walk = _Walk(index, bundle, citedBy);
   for (final doc in bundle.printOrder(index)) {
     walk.addPrinted(doc, summary: bundle.summaryOnly.contains(doc.docPath));
   }
@@ -112,10 +123,11 @@ typedef _Printed = ({_DocView view, List<LineRange> ranges});
 
 /// One breadth-first walk over the links of a bundle and its parts.
 final class _Walk {
-  new(this.index, this.bundle);
+  new(this.index, this.bundle, this.citedBy);
 
   final DocIndex index;
   final Bundle bundle;
+  final CitedByIndex? citedBy;
   final _whole = <String>{};
   final _summarized = <String>{};
   final _paths = <String>{};
@@ -296,14 +308,37 @@ final class _Walk {
   void _appendSection(_DocView view, int at, String sectionKey) {
     final range = view.sectionRange(at);
     if (_prints(view, range)) return;
+    final cited = _citedIn(view, at);
     _add(
       AppendedPart(
         doc: view.doc,
         sectionKey: sectionKey,
-        text: sectionBlockOf(view.content.sections[at]),
+        cited: cited,
+        text: sectionBlockOf(
+          view.content.sections[at],
+          bodyLine: view.facts.sectionLines[at] + 1,
+          after: citedLinesAfter(cited),
+        ),
       ),
       view,
       [range],
+    );
+  }
+
+  /// Returns the items of the section [at] of [view]'s doc inside [within],
+  /// the whole section when null, that other docs cite; none outside a
+  /// design bundle.
+  List<CitedItem> _citedIn(_DocView view, int at, {LineRange? within}) {
+    final cited = citedBy;
+    final section = view.citedSectionAt(at);
+    if (cited == null || section == null) return const [];
+    return citedItemsIn(
+      cited,
+      view.doc,
+      view.content,
+      section,
+      at,
+      within: within,
     );
   }
 
@@ -318,7 +353,14 @@ final class _Walk {
       isAcceptanceCriteria: section.isAcceptanceCriteria,
     );
     if (extent == null) return;
-    _appendLines(view, body, extent, sectionKey: sectionKey, itemId: itemId);
+    _appendLines(
+      view,
+      body,
+      extent,
+      at: at,
+      sectionKey: sectionKey,
+      itemId: itemId,
+    );
   }
 
   /// Appends the `###` block at [headingLine], named by its item ID when it
@@ -335,6 +377,7 @@ final class _Walk {
       view,
       body,
       extent,
+      at: at,
       sectionKey: section.key,
       itemId: itemId,
       heading: itemId == null ? anchor : null,
@@ -348,19 +391,9 @@ final class _Walk {
     final at = cited.sectionIndex;
     final section = at == null ? null : cited.view.citedSectionAt(at);
     if (at == null || section == null) return;
-    final prefix = section.isAcceptanceCriteria
-        ? scenarioIdPrefix
-        : section.prefixId;
-    final first = _numberOf(range.first.cite.itemId, prefix);
-    final last = _numberOf(range.last.cite.itemId, prefix);
-    if (first == null || last == null) return;
-    final (low, high) = first <= last ? (first, last) : (last, first);
-    for (final item in cited.view.content.itemFacts.sectionItems[at]) {
-      final id = item.id;
-      final number = id == null ? null : _numberOf(id, prefix);
-      if (id != null && number != null && low <= number && number <= high) {
-        _appendItem(cited.view, at, section.key, id);
-      }
+    final items = cited.view.content.itemFacts.sectionItems[at];
+    for (final id in itemIdsInRange(range, section, items)) {
+      _appendItem(cited.view, at, section.key, id);
     }
   }
 
@@ -368,6 +401,7 @@ final class _Walk {
     _DocView view,
     List<BodyLine> body,
     LineRange extent, {
+    required int at,
     required String sectionKey,
     required String? itemId,
     String? heading,
@@ -377,13 +411,19 @@ final class _Walk {
       for (final line in body)
         if (extent.first <= line.line && line.line <= extent.last) line.text,
     ];
+    final cited = _citedIn(view, at, within: extent);
     _add(
       AppendedPart(
         doc: view.doc,
         sectionKey: sectionKey,
         itemId: itemId,
         heading: heading,
-        text: removeHtmlComments(lines.join('\n')).trimRight(),
+        cited: cited,
+        text: printedBodyOf(
+          lines.join('\n'),
+          firstLine: extent.first,
+          after: citedLinesAfter(cited),
+        ),
       ),
       view,
       [extent],
@@ -408,26 +448,18 @@ final class _Walk {
   }
 }
 
-/// Returns the number of the item ID [id] of [prefix], or null when [id] is
-/// no such ID.
-BigInt? _numberOf(String id, String? prefix) {
-  if (prefix == null) return null;
-  final read = readItemId(id, prefix);
-  return read is ItemId && read.written == id ? read.number : null;
-}
-
 // MARK: - Doc view
 
-/// One doc as the walk reads it: its stored content, its held sections'
-/// templates, and its links in line order.
+/// One doc as the walk reads it: its stored content, its held sections as
+/// [classifyLink] reads them, and its links in line order.
 final class _DocView {
   new(this.doc, this.content, this.type)
-    : templates = heldTemplatesOf(content.sections, type);
+    : _sections = citedSectionsOf(content, type);
 
   final IndexedDoc doc;
   final DocContent content;
   final MergedDocType? type;
-  final List<MergedSection?> templates;
+  final List<CitedSection> _sections;
 
   late final List<_Link> links = _linksOf(content.lineFacts);
 
@@ -437,15 +469,8 @@ final class _DocView {
 
   /// Returns the section at [at] as [classifyLink] reads it, or null when the
   /// doc holds no section there.
-  CitedSection? citedSectionAt(int at) {
-    if (at >= content.sections.length) return null;
-    final template = templates[at];
-    return (
-      key: template?.id ?? content.sections[at].key,
-      prefixId: template?.prefixId,
-      isAcceptanceCriteria: template?.id == acceptanceSectionId,
-    );
-  }
+  CitedSection? citedSectionAt(int at) =>
+      at < _sections.length ? _sections[at] : null;
 
   List<BodyLine> bodyLinesOf(int at) =>
       sectionBodyLines(content.sections, facts, at);

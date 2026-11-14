@@ -1,13 +1,22 @@
-import 'package:specstone_core/src/doc_model/body_line.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show ItemId, ScenarioRef, itemKeyOf, readItemId, readScenarioRef;
+    show
+        ItemId,
+        ScenarioRef,
+        acceptanceSectionId,
+        itemKeyOf,
+        readItemId,
+        readScenarioRef,
+        scenarioIdPrefix;
+import 'package:specstone_core/src/index_query/held_sections.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show itemKeyOfHead;
+    show ItemFact, itemKeyOfHead;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// What a link cites (doc_model RULE-45): the whole doc, one `##` section,
 /// one item of a section, the block of a `###` heading, or nothing the doc
@@ -99,6 +108,20 @@ LinkCite classifyLink(
       final section => _sectionCite(link.text, section),
     },
   };
+}
+
+/// Returns each held section of [content] as [classifyLink] reads it, in
+/// the doc's section order; [type] gives each section's template.
+List<CitedSection> citedSectionsOf(DocContent content, MergedDocType? type) {
+  final templates = heldTemplatesOf(content.sections, type);
+  return [
+    for (final (at, section) in content.sections.indexed)
+      (
+        key: templates[at]?.id ?? section.key,
+        prefixId: templates[at]?.prefixId,
+        isAcceptanceCriteria: templates[at]?.id == acceptanceSectionId,
+      ),
+  ];
 }
 
 LinkCite _sectionCite(String text, CitedSection section) {
@@ -213,6 +236,37 @@ List<ItemRange> itemRangesOn(
     }
   }
   return ranges;
+}
+
+/// Returns the IDs of the items [range] spans in [items], the stored items of
+/// its [section]: the first and last item and each item whose ID has their
+/// prefix and a number between theirs, in section order (RULE-47).
+List<String> itemIdsInRange(
+  ItemRange range,
+  CitedSection section,
+  List<ItemFact> items,
+) {
+  final prefix = section.isAcceptanceCriteria
+      ? scenarioIdPrefix
+      : section.prefixId;
+  final first = _numberOf(range.first.cite.itemId, prefix);
+  final last = _numberOf(range.last.cite.itemId, prefix);
+  if (first == null || last == null) return const [];
+  final (low, high) = first <= last ? (first, last) : (last, first);
+  return [
+    for (final item in items)
+      if (item.id case final id?)
+        if (_numberOf(id, prefix) case final number?)
+          if (low <= number && number <= high) id,
+  ];
+}
+
+/// Returns the number of the item ID [id] of [prefix], or null when [id] is
+/// no such ID.
+BigInt? _numberOf(String id, String? prefix) {
+  if (prefix == null) return null;
+  final read = readItemId(id, prefix);
+  return read is ItemId && read.written == id ? read.number : null;
 }
 
 /// The first and last body line of the item [itemId] of [section], spanning

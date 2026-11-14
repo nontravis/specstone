@@ -168,6 +168,16 @@ void main() {
     );
   });
 
+  test('NFR-P01, f01/us05/fr06/e09: specstone context --for design, with its '
+      'cited-by lines, answers within 500 ms in the fastest of five calls', () {
+    const call = ['context', 'feature_1/story_1', '--for', 'design'];
+    timed(call); // warm-up: the index is current after it
+    expect(
+      bestOf(timingRuns, () => timed(call), label: 'design context calls'),
+      lessThanOrEqualTo(const Duration(milliseconds: 500)),
+    );
+  });
+
   test('NFR-P03, f04/us01/fr01/e01: a whole-project specstone check, with a '
       'current index, finishes within 2 s in the fastest of five calls', () {
     const call = ['check'];

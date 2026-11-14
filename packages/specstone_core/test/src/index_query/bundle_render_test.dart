@@ -631,6 +631,127 @@ void main() {
       expect(block['heading'], 'a-note');
     });
   });
+  group('cited by', () {
+    const specs = '../../../../specs';
+    const fr =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const frName = 'login/email_login/validate_credentials';
+    const inv14 = '[INV-14]($specs/f02_signup/DOMAIN.md#invariants)';
+    const e01 = '1. E01 — A wrong password → refused, by $inv14.';
+    const guideLine =
+        'See [E02](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#edge-cases).';
+    String frWith(String statement) =>
+        '---\nverify_method: test\n---\n\n# Validate credentials\n\n'
+        '## Statement\n$statement\n\n## Edge cases\n<!-- fill in later -->\n'
+        '$e01\n2. E02 — A locked account → refused.\n';
+    Future<DocIndex> citedIndex([
+      String statement = 'The system shall check the email.',
+      Map<String, String> extra = const {},
+    ]) => indexWith({
+      fr: frWith(statement),
+      'docs/specs/f02_signup/DOMAIN.md':
+          '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+          '- **INV-14** Locks after five failures.\n',
+      'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$guideLine\n',
+      ...extra,
+    });
+    ReadAnswer design(DocIndex i, {int? budget}) => ctxIn(
+      i,
+      'login/email_login/validate_credentials',
+      BundleMode.design,
+      budget: budget,
+    );
+    List<Map<String, Object?>> docsOf(ReadAnswer a) =>
+        (a.json['docs']! as List).cast<Map<String, Object?>>();
+
+    test('f01/us05/fr06/e01: a picked item prints its cited-by line right after it, past a removed comment', () async {
+      final a = design(await citedIndex());
+      expect(
+        a.text,
+        contains(
+          '## Edge cases\n\n$e01\n2. E02 — A locked account → refused.\n'
+          '  · cited by guide (topic) —: $guideLine\n',
+        ),
+      );
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+    });
+    test('f01/us05/fr06/e01: an appended item prints its cited-by line, with the citing item', () async {
+      final a = design(await citedIndex());
+      expect(
+        a.text,
+        contains(
+          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
+          '- **INV-14** Locks after five failures.\n'
+          '  · cited by $frName (fr) E01: $e01\n',
+        ),
+      );
+    });
+    test('f01/us05/fr06/e06: an implement or query bundle prints no cited-by line and no citedBy key', () async {
+      final i = await citedIndex();
+      for (final mode in [BundleMode.implement, BundleMode.query]) {
+        final a = ctxIn(i, 'login/email_login/validate_credentials', mode);
+        expect(a.text, isNot(contains('cited by')), reason: mode.wire);
+        expect(
+          docsOf(a).where((d) => d.containsKey('citedBy')),
+          isEmpty,
+          reason: mode.wire,
+        );
+      }
+    });
+    test('f01/us05/fr06/e04: an item of a doc that joins through bundle: prints no cited-by line', () async {
+      final a = design(
+        await citedIndex('Cites [PV-01](../../../PROJECT.md#project-vision).', {
+          'docs/prds/PROJECT.md': '---\nowner: Owner\n---\n\n# Project context\n\n## Project vision\n### PV-01 — One system\nText.\n',
+        }),
+      );
+      expect(a.text, contains('### PV-01 — One system'));
+      expect(a.text, isNot(contains('PV-01 — One system\nText.\n  · cited')));
+      expect(a.text, isNot(contains('cited by $frName (fr) —: Cites')));
+    });
+    test('f01/us05/fr06: under --json a doc object gains citedBy, one object per line, after its other keys', () async {
+      final a = design(await citedIndex());
+      final docs = docsOf(a);
+      final picked = docs.firstWhere((d) => d['name'] == frName);
+      expect(picked.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'text',
+        'citedBy',
+      ]);
+      expect(picked['citedBy'], [
+        {
+          'item': 'E02',
+          'name': 'guide',
+          'docType': 'topic',
+          'byItem': null,
+          'line': guideLine,
+        },
+      ]);
+      final part = docs.firstWhere((d) => d['item'] == 'INV-14');
+      expect(part.keys.last, 'citedBy');
+      expect(part['citedBy'], [
+        {
+          'item': 'INV-14',
+          'name': frName,
+          'docType': 'fr',
+          'byItem': 'E01',
+          'line': e01,
+        },
+      ]);
+      expect(
+        docs.where((d) => d['name'] == 'login' && d['docType'] == 'feature'),
+        everyElement(isNot(contains('citedBy'))),
+      );
+    });
+    test('f01/us05/fr06/e07: the lines count toward the budget', () async {
+      final i = await citedIndex();
+      final tokens = design(i).json['tokens']! as int;
+      expect(design(i, budget: tokens).exitStatus, 0);
+      expect(design(i, budget: tokens - 1).exitStatus, 1);
+    });
+  });
   group('budget', () {
     test('f01/us05/s5, f01/us05/fr03, f01/us05/fr03/e01, f01/us05/fr03/e03: over budget prints sizes and the next step, no doc text, exit 1', () async {
       final tokens =

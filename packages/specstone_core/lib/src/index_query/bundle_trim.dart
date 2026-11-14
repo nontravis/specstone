@@ -41,8 +41,16 @@ List<IndexedSection> summarySectionsOf(
 
 /// Returns [section] as a bundle prints it: its header line, then its body
 /// with HTML comments removed, trimmed at its end.
-String sectionBlockOf(IndexedSection section) =>
-    '${section.headerLine}\n${removeHtmlComments(section.body).trimRight()}';
+///
+/// [bodyLine] is the file line of the body's first line, and [after] gives
+/// the lines to print after a file line (see [printedBodyOf]).
+String sectionBlockOf(
+  IndexedSection section, {
+  int bodyLine = 1,
+  Map<int, List<String>> after = const {},
+}) =>
+    '${section.headerLine}\n'
+    '${printedBodyOf(section.body, firstLine: bodyLine, after: after)}';
 
 /// Returns the sections [content] keeps for [mode], in its doc type's section
 /// order, a section the type does not define after them in file order
@@ -94,9 +102,68 @@ bool _naChecked(String body) {
 /// A comment runs to the first `-->` whatever it holds, so a backtick or a
 /// fence line inside a comment never hides it.
 String removeHtmlComments(String text) {
-  final code = _codeRanges(text);
   final kept = StringBuffer();
   var from = 0;
+  for (final (:start, :end) in _commentRangesOf(text)) {
+    kept.write(text.substring(from, start));
+    from = end;
+  }
+  return (kept..write(text.substring(from))).toString();
+}
+
+/// Returns [text], whose first line is file line [firstLine], as a bundle
+/// prints a body: HTML comments removed, trimmed at its end, and each of
+/// [after]'s lines right after its file line (INV-85).
+///
+/// A file line inside a removed comment, or past the trimmed end, takes its
+/// lines at the nearest kept offset, so none is dropped.
+String printedBodyOf(
+  String text, {
+  int firstLine = 1,
+  Map<int, List<String>> after = const {},
+}) {
+  final printed = removeHtmlComments(text).trimRight();
+  if (after.isEmpty) return printed;
+  final comments = _commentRangesOf(text);
+  final lineEnds = _lineEndsOf(text);
+  final out = StringBuffer();
+  var from = 0;
+  for (final line in after.keys.toList()..sort()) {
+    final end = lineEnds[(line - firstLine).clamp(0, lineEnds.length - 1)];
+    final offset = _keptOffset(end, comments).clamp(from, printed.length);
+    out
+      ..write(printed.substring(from, offset))
+      ..write('\n${after[line]!.join('\n')}');
+    from = offset;
+  }
+  return (out..write(printed.substring(from))).toString();
+}
+
+/// Returns the offset where each line of [text] ends, in line order.
+List<int> _lineEndsOf(String text) {
+  final ends = <int>[];
+  for (var at = text.indexOf('\n'); at >= 0; at = text.indexOf('\n', at + 1)) {
+    ends.add(at);
+  }
+  return ends..add(text.length);
+}
+
+/// Returns where [offset] of the original text falls once [comments] are
+/// removed.
+int _keptOffset(int offset, List<({int start, int end})> comments) {
+  var removed = 0;
+  for (final (:start, :end) in comments) {
+    if (start >= offset) break;
+    removed += (end < offset ? end : offset) - start;
+  }
+  return offset - removed;
+}
+
+/// Returns the offsets of each HTML comment of [text] that
+/// [removeHtmlComments] removes, in order.
+List<({int start, int end})> _commentRangesOf(String text) {
+  final code = _codeRanges(text);
+  final ranges = <({int start, int end})>[];
   var search = 0;
   while (true) {
     final comment = _htmlComment.allMatches(text, search).firstOrNull;
@@ -105,10 +172,10 @@ String removeHtmlComments(String text) {
       search = comment.start + 1;
       continue;
     }
-    kept.write(text.substring(from, comment.start));
-    from = search = comment.end;
+    ranges.add((start: comment.start, end: comment.end));
+    search = comment.end;
   }
-  return (kept..write(text.substring(from))).toString();
+  return ranges;
 }
 
 /// Returns the offsets of each fenced line and each inline code span of [text].
