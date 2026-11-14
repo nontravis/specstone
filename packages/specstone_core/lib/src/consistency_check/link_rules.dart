@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
+    show isSkipSpan, skipLinesOf;
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
@@ -114,7 +116,9 @@ _NameSets _readNameSets(DocIndex index) {
 /// The mention's section key is never read.
 Iterable<Finding> _unresolvedNames(CheckContext context, IndexedDoc doc) sync* {
   final sets = _nameSets(context.index);
+  final skips = skipLinesOf(context, doc);
   for (final mention in context.contentOf(doc).lineFacts.nameMentions) {
+    if (isSkipSpan(skips, mention.line, mention.text)) continue;
     final address = mention.address;
     final named = sets.docsNamed[address.docPart] ?? const <IndexedDoc>[];
     if (_reachable(context, doc, named).isNotEmpty) continue;
