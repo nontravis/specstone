@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
+import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
@@ -10,14 +11,29 @@ import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
+import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show PointerKind;
+    show PointerKind, RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// One code link of a doc whose code the check reads.
-typedef _CodeLink = ({int line, String pointer, String path, String? recorded});
+// MARK: - Types
+
+/// One code link of a doc whose code the check reads: its field id, its line,
+/// the entry as written, and, for a record entry, the story or FR it names
+/// (relative to its feature) with that item's status in the record's target,
+/// both null for a `covers:` entry.
+typedef CodeLink = ({
+  String field,
+  int line,
+  String value,
+  String? item,
+  RecordStatus? status,
+  String pointer,
+  String path,
+  String? recorded,
+});
 
 /// What a code link's code reads as against its recorded fingerprint.
 sealed class _CodeLinkState {
@@ -38,6 +54,8 @@ final class _Unconfirmed extends _CodeLinkState {
   const new();
 }
 
+// MARK: - Rule
+
 /// Returns the `code_suspect` and `code_unconfirmed` findings of the code
 /// links of [doc].
 ///
@@ -56,12 +74,28 @@ Iterable<Finding> checkCodeLinks(
   final target = work.targetOf(doc);
   final type = context.typeOf(doc);
   if (target == null || type == null) return;
-  final links = [
-    ..._entryLinks(context, doc, target),
-    ..._coversLinks(context, work, doc, target, type),
-  ];
+  final links = codeLinksOf(
+    context.index.statusTree,
+    work,
+    doc,
+    type: type,
+    target: target,
+    codeRoot: context.codeRootOf(target),
+    linesOf: () => context.linesOf(doc),
+  );
   for (final link in links) {
-    final current = _currentFingerprint(context, target, link.path);
+    final current = currentCodeFingerprint(
+      context.projectRoot,
+      target,
+      link.path,
+      codeRoot: context.codeRootOf(target),
+      targets: context.targets,
+      bytesOf: (file) => context.codeBytesOf(target, file),
+      onUnlistable: (folder) => context.warn(
+        '$folder: cannot list the folder; files under it are not checked '
+        'for covers',
+      ),
+    );
     if (current == null) continue;
     final finding = switch (_stateOf(link.recorded, current)) {
       _Unconfirmed() => context.finding(
@@ -102,27 +136,52 @@ _CodeLinkState _stateOf(String? recorded, String current) => switch (recorded) {
   _ => _Suspect(recorded),
 };
 
+// MARK: - Link selection
+
+/// Returns the code links of [doc], of [type] in [target], whose code the
+/// check reads: a record's `implements` entries and every `covers:` entry.
+///
+/// The one selection `check` and the migrate stamp both read. [codeRoot] is
+/// [target]'s code root; [linesOf] gives [doc]'s lines, read only when [doc]
+/// holds a code-link field.
+Iterable<CodeLink> codeLinksOf(
+  StatusTree tree,
+  ImplementedWork work,
+  IndexedDoc doc, {
+  required MergedDocType type,
+  required CodeTarget target,
+  required Directory codeRoot,
+  required DocLines Function() linesOf,
+}) sync* {
+  yield* _entryLinks(tree, doc, codeRoot, linesOf);
+  yield* _coversLinks(work, doc, target, type, codeRoot, linesOf);
+}
+
 /// Returns the `implements` entries of a record [doc] whose file is read.
-Iterable<_CodeLink> _entryLinks(
-  CheckContext context,
+Iterable<CodeLink> _entryLinks(
+  StatusTree tree,
   IndexedDoc doc,
-  CodeTarget target,
+  Directory codeRoot,
+  DocLines Function() linesOf,
 ) sync* {
-  final read = recordDocOf(context, doc);
+  final read = recordDocIn(tree, doc, linesOf);
   final fieldId = read == null ? null : recordCodeFieldOf(read.type)?.id;
   if (read == null || fieldId == null) return;
-  final items = recordItemsOf(read.feature, context.index.childrenOf);
-  final codeRoot = context.codeRootOf(target);
+  final items = recordItemsOf(read.feature, tree.childrenOf);
   for (final (:value, :line, text: _) in read.lines.entriesOf(fieldId)) {
     if (value is! String) continue;
     final parsed = recordCodeLineOf(value);
     final item = items[parsed?.item];
     if (parsed == null || item == null) continue;
     final entry = CodeLinkEntry(parsed.code);
-    final status = context.index.itemStatus(item, codeTarget: doc.target);
+    final status = tree.itemStatus(item, codeTarget: doc.target);
     if (!readsEntryCode(codeRoot, status, entry.pointer)) continue;
     yield (
+      field: fieldId,
       line: line,
+      value: value,
+      item: parsed.item,
+      status: status,
       pointer: entry.pointer,
       path: ImplementsEntry(entry.pointer).path,
       recorded: entry.fingerprint,
@@ -132,28 +191,34 @@ Iterable<_CodeLink> _entryLinks(
 
 /// Returns the `covers:` entries of [doc], a prefix field of [type], that
 /// the check reads.
-Iterable<_CodeLink> _coversLinks(
-  CheckContext context,
+Iterable<CodeLink> _coversLinks(
   ImplementedWork work,
   IndexedDoc doc,
   CodeTarget target,
   MergedDocType type,
+  Directory codeRoot,
+  DocLines Function() linesOf,
 ) sync* {
-  final codeRoot = context.codeRootOf(target);
+  final fields = [
+    for (final field in type.fields)
+      if (isCodeLinkField(field) && field.pointer == PointerKind.prefix) field,
+  ];
+  if (fields.isEmpty) return;
   final endsWait = work.endsWaitOf(doc, target);
-  for (final field in type.fields) {
-    if (!isCodeLinkField(field) || field.pointer != PointerKind.prefix) {
-      continue;
-    }
-    for (final (:value, :line, text: _)
-        in context.linesOf(doc).entriesOf(field.id)) {
+  final lines = linesOf();
+  for (final field in fields) {
+    for (final (:value, :line, text: _) in lines.entriesOf(field.id)) {
       if (value is! String) continue;
       final entry = CodeLinkEntry(value);
       if (!readsCoversCode(codeRoot, entry.pointer, endsWait: endsWait)) {
         continue;
       }
       yield (
+        field: field.id,
         line: line,
+        value: value,
+        item: null,
+        status: null,
         pointer: entry.pointer,
         path: entry.pointer,
         recorded: entry.fingerprint,
@@ -162,46 +227,48 @@ Iterable<_CodeLink> _coversLinks(
   }
 }
 
-/// Returns the current fingerprint of the file or folder at [path], null when
-/// a file it reads cannot be read.
+// MARK: - Fingerprint
+
+/// Returns the current fingerprint of the file or folder at [path] of
+/// [target], null when a file it reads cannot be read or a folder cannot be
+/// listed.
 ///
-/// A folder's files are all read, so each unreadable one states its warning.
-String? _currentFingerprint(
-  CheckContext context,
+/// The one read `check` and the migrate stamp both hash by.
+/// - [codeRoot]: [target]'s code root.
+/// - [targets]: every target of the project, so a nested root stays out.
+/// - [bytesOf]: the bytes of a file from [codeRoot], null when unreadable.
+/// - [onUnlistable]: told each folder that cannot be listed.
+String? currentCodeFingerprint(
+  Directory projectRoot,
   CodeTarget target,
-  String path,
-) {
+  String path, {
+  required Directory codeRoot,
+  required List<CodeTarget> targets,
+  required List<int>? Function(String file) bytesOf,
+  required void Function(String folder) onUnlistable,
+}) {
   final normal = normalCodeEntry(path);
   final isFile =
-      FileSystemEntity.typeSync('${context.codeRootOf(target).path}/$normal') ==
+      FileSystemEntity.typeSync('${codeRoot.path}/$normal') ==
       FileSystemEntityType.file;
-  if (!isFile) return _folderFingerprint(context, target, path);
-  final bytes = context.codeBytesOf(target, normal);
-  return bytes == null ? null : fileCodeFingerprint(bytes);
-}
-
-String? _folderFingerprint(
-  CheckContext context,
-  CodeTarget target,
-  String path,
-) {
+  if (isFile) {
+    final bytes = bytesOf(normal);
+    return bytes == null ? null : fileCodeFingerprint(bytes);
+  }
   var isReadable = true;
-  final files = <({String path, String fingerprint})>[];
   final listed = codeLinkFiles(
-    context.projectRoot,
+    projectRoot,
     target,
     path,
-    targets: context.targets,
+    targets: targets,
     onUnlistable: (folder) {
       isReadable = false;
-      context.warn(
-        '$folder: cannot list the folder; files under it are not checked '
-        'for covers',
-      );
+      onUnlistable(folder);
     },
   );
+  final files = <({String path, String fingerprint})>[];
   for (final file in listed) {
-    final bytes = context.codeBytesOf(target, file);
+    final bytes = bytesOf(file);
     if (bytes == null) {
       isReadable = false;
     } else {

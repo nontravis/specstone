@@ -7,6 +7,7 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId;
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/status_tree.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -18,16 +19,32 @@ const _coversField = 'covers';
 const _codeField = 'code';
 const _separator = '/';
 
-/// The code targets of one check run and the implemented work each holds.
+/// The code targets of one run and the implemented work each holds.
 ///
 /// A target's `covers` entries and `code` roots resolve once the target holds
 /// an `implemented` story or FR (INV-19); this reads that once per target, so
 /// each rule stays one pass over the docs.
 final class ImplementedWork {
-  new(this._context, this.targets)
-    : _work = {for (final target in targets) target: _workOf(_context, target)};
+  /// Reads the work of [targets] from the index of a check run.
+  new(CheckContext context, List<CodeTarget> targets)
+    : this.of(
+        context.index.statusTree,
+        allTargets: context.targets,
+        targets: targets,
+      );
 
-  final CheckContext _context;
+  /// Reads the work of [targets] from [tree], [allTargets] being every code
+  /// target of the project, in config order.
+  new of(
+    StatusTree tree, {
+    required List<CodeTarget> allTargets,
+    required this.targets,
+  }) : _tree = tree,
+       _allTargets = allTargets,
+       _work = {for (final target in targets) target: _workOf(tree, target)};
+
+  final StatusTree _tree;
+  final List<CodeTarget> _allTargets;
 
   /// The targets the run's code rules cover.
   final List<CodeTarget> targets;
@@ -40,7 +57,7 @@ final class ImplementedWork {
   /// A per-target doc belongs to the target it names; any other doc to the
   /// project's one target, and to none when the project has several.
   CodeTarget? targetOf(IndexedDoc doc) {
-    final all = _context.targets;
+    final all = _allTargets;
     final owner = switch (doc.target) {
       final name? => all.where((target) => target.name == name).firstOrNull,
       null => all.length == 1 ? all.single : null,
@@ -55,7 +72,7 @@ final class ImplementedWork {
   bool endsWaitOf(IndexedDoc doc, CodeTarget target) {
     final work = _work[target]!;
     final feature = doc.docTypeId == architectureTypeId
-        ? _context.index.parentOf(doc)
+        ? _tree.parentOf(doc)
         : null;
     return switch (feature) {
       IndexedDoc(docTypeId: featureType) => work.features.contains(
@@ -68,21 +85,17 @@ final class ImplementedWork {
 
 /// Returns whether [target] holds an implemented story or FR, and the name
 /// of each feature that holds one in its subtree.
-({bool any, Set<String> features}) _workOf(
-  CheckContext context,
-  CodeTarget target,
-) {
-  final index = context.index;
+({bool any, Set<String> features}) _workOf(StatusTree tree, CodeTarget target) {
   final features = <String>{};
   var any = false;
-  for (final doc in index.docs) {
+  for (final doc in tree.docs) {
     if (doc.docTypeId != storyType && doc.docTypeId != frType) continue;
-    if (index.statusOf(doc, codeTarget: target.name) !=
+    if (tree.statusOf(doc, codeTarget: target.name) !=
         RecordStatus.implemented.wire) {
       continue;
     }
     any = true;
-    for (var up = index.parentOf(doc); up != null; up = index.parentOf(up)) {
+    for (var up = tree.parentOf(doc); up != null; up = tree.parentOf(up)) {
       if (up.docTypeId == featureType) features.add(up.name);
     }
   }
