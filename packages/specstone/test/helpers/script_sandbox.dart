@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
+import 'built_stn.dart';
 import 'package_root.dart';
 
 /// Returns the code repo root, two levels above the specstone package.
@@ -328,8 +329,7 @@ final class ScriptSandbox {
       final bin = '${stage.path}${_separator}bin';
       if (_windows) {
         _compileFakeCliSync(version, '$bin${_separator}specstone.exe');
-        File('${repoRoot().path}/packages/specstone/bin/stn.cmd')
-            .copySync('$bin${_separator}stn.cmd');
+        File('$bin${_separator}stn.exe').writeAsBytesSync(await buildStnExe());
       } else {
         final binary = File('$bin${_separator}specstone')
           ..createSync(recursive: true)

@@ -760,8 +760,8 @@ try {
     }
 
     # Prints one line naming the first `stn` on the cut $env:Path other than
-    # in $BinFolder, as bin\stn.cmd walks it (run_cli_or_yield E03, E08-E10):
-    # an entry that reads as $BinFolder, or holds stn.cmd and specstone.exe,
+    # in $BinFolder, as bin\stn.exe walks it (run_cli_or_yield E03, E08-E10):
+    # an entry that reads as $BinFolder, or holds stn.exe and specstone.exe,
     # is skipped; a `stn` is a file named stn.exe, .cmd, .bat, .com, or .ps1,
     # tried in that order. The notice never changes the run's exit status.
     function Write-OtherStnNotice([string]$BinFolder) {
@@ -772,7 +772,7 @@ try {
                     continue
                 }
                 $folder = [IO.Path]::GetFullPath($entry)
-                if ((Test-Path -LiteralPath (Join-Path $folder 'stn.cmd')) -and (Test-Path -LiteralPath (Join-Path $folder 'specstone.exe'))) {
+                if ((Test-Path -LiteralPath (Join-Path $folder 'stn.exe')) -and (Test-Path -LiteralPath (Join-Path $folder 'specstone.exe'))) {
                     continue
                 }
                 # Name the folder as the PATH spells it: GetFullPath may expand 8.3 names.

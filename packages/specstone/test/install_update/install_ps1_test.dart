@@ -2521,7 +2521,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       // The version the fake archive's specstone.exe prints.
       const shimArchiveVersion = '0.2.0';
 
-      // The fake archive stages the repo's stn.cmd beside specstone.exe; the
+      // The fake archive stages the compiled stn.exe beside specstone.exe; the
       // built bundle holds no shim.
       Future<ScriptSandbox> sandboxWithShim() async {
         final sb = await createScriptSandbox();
@@ -2529,35 +2529,39 @@ if ($env:HARNESS_MODE -eq 'iex') {
         return sb;
       }
 
-      pathTest('$fr S2, E04: another stn.exe on a later absolute entry prints '
-          r'one notice line; bin\stn.cmd is installed; exit 0', () async {
-        final sb = await sandboxWithShim();
-        final tools = Directory('${sb.root.path}\\space tools')..createSync();
-        final found = otherStn(tools.path, 'exe');
+      pathTest(
+        '$fr S2, E04: another stn.exe on a later absolute entry prints '
+        r'one notice line; bin\stn.exe is installed, no stn.cmd; exit 0',
+        () async {
+          final sb = await sandboxWithShim();
+          final tools = Directory('${sb.root.path}\\space tools')..createSync();
+          final found = otherStn(tools.path, 'exe');
 
-        final r = await runInstall(
-          sb,
-          extra: {
-            'PATH': pathWith(sb, [
-              '${sb.home.path}\\.specstone\\bin',
-              tools.path,
-            ]),
-          },
-        );
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, [
+                '${sb.home.path}\\.specstone\\bin',
+                tools.path,
+              ]),
+            },
+          );
 
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(flat(r.stdout), contains(notice(found)));
-        expect(
-          'another stn'.allMatches(flat(r.stdout)).length,
-          1,
-          reason: '${r.stdout}',
-        );
-        expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isTrue);
-      });
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), contains(notice(found)));
+          expect(
+            'another stn'.allMatches(flat(r.stdout)).length,
+            1,
+            reason: '${r.stdout}',
+          );
+          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
+          expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isFalse);
+        },
+      );
 
       pathTest(
         '$fr E05: the earliest match is stn.ps1, an earlier stn.ps1 named '
-        r'before a later stn.exe; bin\stn.cmd installed',
+        r'before a later stn.exe; bin\stn.exe installed, no stn.cmd',
         () async {
           final sb = await sandboxWithShim();
           final earlier = otherStn('${sb.root.path}\\earlier', 'ps1');
@@ -2577,7 +2581,8 @@ if ($env:HARNESS_MODE -eq 'iex') {
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(flat(r.stdout), contains(notice(earlier)));
           expect(flat(r.stdout), isNot(contains(later)));
-          expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isTrue);
+          expect(File('${binDir(sb)}\\stn.exe').existsSync(), isTrue);
+          expect(File('${binDir(sb)}\\stn.cmd').existsSync(), isFalse);
         },
       );
 
@@ -2711,12 +2716,12 @@ if ($env:HARNESS_MODE -eq 'iex') {
       );
 
       pathTest(
-        '$fr E07: a folder holding stn.cmd and specstone.exe is skipped as '
+        '$fr E07: a folder holding stn.exe and specstone.exe is skipped as '
         'the shim skips it, so a later stn is named and a lone one is not',
         () async {
           final sb = await sandboxWithShim();
           final copy = '${sb.root.path}\\other install';
-          otherStn(copy, 'cmd');
+          otherStn(copy, 'exe');
           File('$copy\\specstone.exe').writeAsStringSync('fake');
           final later = otherStn('${sb.root.path}\\later', 'exe');
           final bin = '${sb.home.path}\\.specstone\\bin';
@@ -2739,6 +2744,27 @@ if ($env:HARNESS_MODE -eq 'iex') {
           expect(withLater.exitCode, 0, reason: '${withLater.stderr}');
           expect(flat(withLater.stdout), contains(notice(later)));
           expect(flat(withLater.stdout), isNot(contains(copy)));
+        },
+      );
+
+      pathTest(
+        '$fr E07: a folder holding stn.cmd and specstone.exe is no marker, '
+        'so its stn.cmd is named',
+        () async {
+          final sb = await sandboxWithShim();
+          final copy = '${sb.root.path}\\old install';
+          final found = otherStn(copy, 'cmd');
+          File('$copy\\specstone.exe').writeAsStringSync('fake');
+
+          final r = await runInstall(
+            sb,
+            extra: {
+              'PATH': pathWith(sb, ['${sb.home.path}\\.specstone\\bin', copy]),
+            },
+          );
+
+          expect(r.exitCode, 0, reason: '${r.stderr}');
+          expect(flat(r.stdout), contains(notice(found)));
         },
       );
 
