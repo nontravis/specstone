@@ -37,21 +37,12 @@ Uint8List readPlanInput(File file) {
   return bytes;
 }
 
-/// Records whether git tracks [path], a `/`-separated path from the project
-/// root, when a [PlanInputs.collect] runs.
-///
-/// A path answered twice keeps its first answer.
-void recordTrackedAnswer(String path, {required bool isTracked}) {
-  _activeRecorder?._recordTracked(path, isTracked: isTracked);
-}
-
 List<PlanInputs> get _activeRecorders =>
     Zone.current[_recorderKey] as List<PlanInputs>? ?? const [];
 
 PlanInputs? get _activeRecorder => _activeRecorders.lastOrNull;
 
-/// What a plan used: each file it read with the hash of its bytes, and each
-/// path it asked git about with the answer.
+/// What a plan used: each file it read with the hash of its bytes.
 ///
 /// The reads sit in layers that non-planner callers share, so a read records
 /// through [readPlanInput] into the recorder the running `Zone` holds, with no
@@ -65,7 +56,6 @@ final class PlanInputs {
 
   final List<String> _rootPaths;
   final _hashes = <String, String>{};
-  final _tracked = <String, bool>{};
   String? _firstUnreadable;
 
   /// Runs [plan] with this recorder active and returns its result.
@@ -87,15 +77,11 @@ final class PlanInputs {
   String? get firstUnreadable => _firstUnreadable;
 
   /// One `<path> <sha256 hex>` line per recorded file in code point order of
-  /// path, then one `<path> tracked|untracked` line per path asked of git in
-  /// the same order.
+  /// path.
   String get lines {
     final buffer = StringBuffer();
     for (final path in _sorted(_hashes.keys)) {
       buffer.write('$path ${_hashes[path]}\n');
-    }
-    for (final path in _sorted(_tracked.keys)) {
-      buffer.write('$path ${_tracked[path]! ? 'tracked' : 'untracked'}\n');
     }
     return buffer.toString();
   }
@@ -122,10 +108,6 @@ final class PlanInputs {
 
   void _recordUnreadable(File file) {
     _firstUnreadable ??= _keyOf(file.absolute.path);
-  }
-
-  void _recordTracked(String path, {required bool isTracked}) {
-    _tracked.putIfAbsent(path, () => isTracked);
   }
 
   String _keyOf(String absolute) => pathFromRoots(absolute, _rootPaths);

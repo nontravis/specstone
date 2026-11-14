@@ -24,6 +24,11 @@ class MigrateCommand extends SpecstoneCommand {
         help:
             'With --yes: the plan line --dry-run printed; a changed plan '
             'refuses.',
+      )
+      ..addFlag(
+        'json',
+        negatable: false,
+        help: 'Print the plan as one JSON object.',
       );
   }
 
@@ -36,7 +41,7 @@ class MigrateCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone migrate [--dry-run | --yes --plan <hash>]';
+      'specstone migrate [--dry-run | --yes --plan <hash>] [--json]';
 
   @override
   Future<int> run() async {
@@ -68,6 +73,8 @@ class MigrateCommand extends SpecstoneCommand {
           ),
           readLine: console.readLine,
           out: runner.out,
+          asJson: args.flag('json'),
+          warn: runner.err.writeln,
           planHash: planHash,
         ),
       );

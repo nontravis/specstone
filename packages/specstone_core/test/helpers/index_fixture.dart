@@ -65,7 +65,7 @@ final loginProject = <String, String>{
       '## Statement\nThe system shall store it.\n',
   'docs/specs/f02_signup/ARCHITECTURE.md':
       '---\ncovers:\n  - app/lib/src/signup/\n---\n\n# Sign-up architecture\n\n'
-      '## Components\n- Form\n',
+      '## Components\n| Component | Responsibility |\n|---|---|\n| Form | Takes the email |\n',
   'docs/specs/topics/auth_tokens.md':
       '---\ncovers:\n  - app/lib/src/tokens/\n---\n\n# Auth tokens\n\n## Purpose\n'
       'Hold tokens.\n',

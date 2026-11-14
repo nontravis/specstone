@@ -23,7 +23,12 @@ const _recordType = MergedDocType(
       list: true,
       pointer: PointerKind.itemExact,
     ),
-    MergedField(id: 'tests', type: FieldType.outputRef, list: true),
+    MergedField(
+      id: 'tests',
+      type: FieldType.outputRef,
+      list: true,
+      pointer: PointerKind.itemTest,
+    ),
   ],
   sections: [],
   lint: MergedLint(),
@@ -302,6 +307,45 @@ void main() {
       expect(text, contains("  - ':skipped:no web view on the web'\n"));
     });
 
+    test('a renamed or dropped item takes its tests lines with it', () {
+      const withTests =
+          '---\n'
+          'tests:\n'
+          '  - show_toast:test/toast_test.dart:shows a toast\n'
+          '  - show_toast/queue_toasts:test/queue_test.dart\n'
+          '  - lib_only\n'
+          '---\n\n# R\n';
+
+      final renamed = rewriteRecordItems(
+        withTests,
+        _recordType,
+        (item) => item == 'show_toast' ? 'toast' : item,
+      );
+      final dropped = rewriteRecordItems(
+        withTests,
+        _recordType,
+        (item) => item == 'show_toast/queue_toasts' ? null : item,
+      );
+
+      expect(
+        renamed,
+        '---\n'
+        'tests:\n'
+        "  - 'toast:test/toast_test.dart:shows a toast'\n"
+        "  - 'show_toast/queue_toasts:test/queue_test.dart'\n"
+        "  - 'lib_only'\n"
+        '---\n\n# R\n',
+      );
+      expect(
+        dropped,
+        '---\n'
+        'tests:\n'
+        "  - 'show_toast:test/toast_test.dart:shows a toast'\n"
+        "  - 'lib_only'\n"
+        '---\n\n# R\n',
+      );
+    });
+
     test('the empty item of a feature skip reaches the callback', () {
       final seen = <String>[];
       rewriteRecordItems(record, _recordType, (item) {
@@ -436,13 +480,18 @@ void main() {
       final text = addRecordLines(
         '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
         _recordType,
-        (statuses: ['k/a:implemented'], code: ['k/a:lib/a.dart:A']),
+        (
+          statuses: ['k/a:implemented'],
+          code: ['k/a:lib/a.dart:A'],
+          tests: ['k/a:test/a_test.dart:holds'],
+        ),
       );
 
       expect(
         text,
         "---\nstatuses:\n  - 'c:planned'\n  - 'k/a:implemented'\n"
-        "implements:\n  - 'k/a:lib/a.dart:A'\n---\n\n# R\n",
+        "implements:\n  - 'k/a:lib/a.dart:A'\n"
+        "tests:\n  - 'k/a:test/a_test.dart:holds'\n---\n\n# R\n",
       );
     });
 
@@ -450,7 +499,7 @@ void main() {
       final text = addRecordLines(
         '---\ndraft: true\nstatuses:\n---\n\n# R\n',
         _recordType,
-        (statuses: ['k/a:implemented'], code: const []),
+        (statuses: ['k/a:implemented'], code: const [], tests: const []),
       );
 
       expect(
@@ -464,6 +513,7 @@ void main() {
         addRecordLines(record, _recordType, (
           statuses: const [],
           code: const [],
+          tests: const [],
         )),
         isNull,
       );
@@ -488,6 +538,7 @@ void main() {
         () => addRecordLines(broken, _recordType, (
           statuses: const [],
           code: const ['k/a:lib/a.dart'],
+          tests: const [],
         )),
         unreadable,
       );
@@ -498,6 +549,7 @@ void main() {
         addRecordLines(broken, _recordType, (
           statuses: const ['k/a:planned'],
           code: const [],
+          tests: const [],
         )),
         contains("  - 'k/a:planned'\n"),
       );

@@ -35,10 +35,12 @@ final class _Arrival {
   final String? target;
   final statuses = <String>[];
   final code = <String>[];
+  final tests = <String>[];
 
   void take(RecordLines lines) {
     statuses.addAll(lines.statuses);
     code.addAll(lines.code);
+    tests.addAll(lines.tests);
   }
 }
 
@@ -122,7 +124,9 @@ final class _Planner {
               : null;
         }),
       );
-      if (lines.statuses.isEmpty && lines.code.isEmpty) continue;
+      if (lines.statuses.isEmpty && lines.code.isEmpty && lines.tests.isEmpty) {
+        continue;
+      }
       final key = (path, record.target);
       _arrivals
           .putIfAbsent(key, () => _Arrival(landing, record.target))
@@ -136,7 +140,11 @@ final class _Planner {
   /// The session's index is a snapshot, so a record path it lacks is read on
   /// disk: a record there takes the lines as an indexed one does.
   CreateStep? _land(_Arrival arrival) {
-    final lines = (statuses: arrival.statuses, code: arrival.code);
+    final lines = (
+      statuses: arrival.statuses,
+      code: arrival.code,
+      tests: arrival.tests,
+    );
     final held = _index
         .ofTypeNamed(recordType.id, arrival.feature.name)
         .where((record) => record.target == arrival.target)

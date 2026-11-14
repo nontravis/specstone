@@ -86,7 +86,7 @@ ItemFacts itemFactsOf({
       : LineFacts.structureOf(lfText: countedText, doc: counted);
   final held = indexedSectionsOf(counted, type);
   final templates = heldTemplatesOf(held, type);
-  final isGenerated = _generatedLineTest(
+  final isGenerated = generatedLineTest(
     counted,
     countedText,
     type?.listedGenerators.toSet() ?? const {},
@@ -98,7 +98,7 @@ ItemFacts itemFactsOf({
     sectionItems: [
       for (var i = 0; i < doc.sections.length; i++)
         _itemFactsIn(
-          _withGeneratedFenced(
+          withGeneratedFenced(
             sectionBodyLines(held, lines, laid?.twinOf[i] ?? i),
             isGenerated,
           ),
@@ -113,7 +113,7 @@ ItemFacts itemFactsOf({
 ///
 /// The block finder `format` protects blocks with; no generator runs, so the
 /// lines are those on disk.
-bool Function(int line) _generatedLineTest(
+bool Function(int line) generatedLineTest(
   Doc doc,
   String text,
   Set<String> kinds,
@@ -129,7 +129,7 @@ bool Function(int line) _generatedLineTest(
 
 /// Returns [body] with each line [isGenerated] marks fenced, so it is no item
 /// and still a line of its section.
-List<BodyLine> _withGeneratedFenced(
+List<BodyLine> withGeneratedFenced(
   List<BodyLine> body,
   bool Function(int line) isGenerated,
 ) => [

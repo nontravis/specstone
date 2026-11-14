@@ -6,8 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show MoveStep, WriteStep, textHashOf;
-import 'package:specstone_core/src/git_process.dart' show RunGit;
+    show MoveStep;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show frontmatterValuesOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -33,6 +32,7 @@ import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show withApprovalHashes;
+import '../../helpers/git_repo.dart' show commitAll, git;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart'
     show oneTargetConfig, recordLayer, recordText, twinConfig;
@@ -124,6 +124,7 @@ void main() {
   _moveToRecordTests();
   _treeMoveTests();
   _planInputTests();
+  _testNameTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -679,16 +680,23 @@ sections:
       plan.toText(),
       'pack upgrade: acme 1.0.0 -> 1.2.0\n'
       'commit 2, rewrites:\n'
-      '  from 1.0.0: rename_section runbook steps -> procedure: '
-      'prds/runbooks/deploy/RUNBOOK.md, .specstone/templates/runbook.yaml\n'
-      '  from 1.1.0: rename_field runbook owner -> on_call: '
-      'prds/runbooks/deploy/RUNBOOK.md\n'
+      '  from 1.0.0: rename_section runbook steps -> procedure: 2 docs\n'
+      '  from 1.1.0: rename_field runbook owner -> on_call: 1 docs\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
+    final steps = plan.lists.steps;
+    expect(steps.map((line) => line.from), ['1.0.0', '1.1.0']);
+    expect(steps.map((line) => line.step), [
+      'rename_section runbook steps -> procedure',
+      'rename_field runbook owner -> on_call',
+    ]);
+    expect(steps.map((line) => line.paths), [
+      ['prds/runbooks/deploy/RUNBOOK.md', '.specstone/templates/runbook.yaml'],
+      ['prds/runbooks/deploy/RUNBOOK.md'],
+    ]);
     expect(plan.moves, isEmpty);
     expect(plan.commit1Message, 'move docs to their new pack paths');
     expect(plan.commit2Message, 'upgrade pack pins');
-    expect(plan.closingLine, isNull);
     expect(plan.left, isEmpty);
   });
 
@@ -754,10 +762,7 @@ sections:
     );
     expect(
       plan.toText(),
-      contains(
-        'from 1.1.0: rename_field runbook owner -> on_call: '
-        'prds/runbooks/deploy/RUNBOOK.md, .specstone/templates/runbook.yaml\n',
-      ),
+      contains('from 1.1.0: rename_field runbook owner -> on_call: 2 docs\n'),
     );
   });
 
@@ -871,7 +876,7 @@ sections:
       ]);
       expect(
         plan.toText(),
-        contains('rename_section runbook steps -> procedure: no doc changes\n'),
+        contains('rename_section runbook steps -> procedure: 0 docs\n'),
       );
     },
   );
@@ -959,10 +964,199 @@ sections:
       '  prds/runbooks/deploy/RUNBOOK.md -> ops/runbooks/deploy/RUNBOOK.md\n'
       'commit 2, rewrites:\n'
       '  from 1.0.0: move_file runbook prds/runbooks/{slug}/RUNBOOK.md -> '
-      'ops/runbooks/{slug}/RUNBOOK.md: ops/runbooks/deploy/RUNBOOK.md\n'
+      'ops/runbooks/{slug}/RUNBOOK.md: 1 docs\n'
       '  prds/notes.md: 1 link, 1 mention\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
+  });
+
+  group('mentions line', () {
+    const packYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "ops/runbooks/{slug}/RUNBOOK.md"}
+''';
+    const type = '''
+id: runbook
+description: A runbook.
+path: ops/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+    const techStack = '---\ncode:\n  - lib/\n---\n# Tech stack\n';
+    const docs = {
+      'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+      'prds/notes.md': '# Notes\n',
+      'specs/TECH_STACK.md': techStack,
+    };
+
+    Future<({Directory project, Directory home})> fixtureWith(
+      Map<String, String> files,
+    ) => _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      docs: docs,
+      overrides: files,
+    );
+
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a path '
+        'mention in an agent file and one in a code file that a move stops '
+        'resolving print one count line after the agent files line, and the '
+        'files stay as they are', () async {
+      const claude = 'Read prds/runbooks/deploy/RUNBOOK.md first.\n';
+      const code = 'void f() {}\n// See prds/runbooks/deploy/RUNBOOK.md\n';
+      final fixture = await fixtureWith({
+        'CLAUDE.md': claude,
+        'lib/a.dart': code,
+      });
+
+      final plan = _plan(fixture);
+
+      expect(
+        plan.toText(),
+        endsWith('  mentions: 2\n  .specstone/config.yaml: acme 1.2.0\n'),
+      );
+      expect(plan.lists.mentions, [
+        (
+          path: 'CLAUDE.md',
+          line: 1,
+          mention: 'prds/runbooks/deploy/RUNBOOK.md',
+        ),
+        (
+          path: 'lib/a.dart',
+          line: 2,
+          mention: 'prds/runbooks/deploy/RUNBOOK.md',
+        ),
+      ]);
+      expect(
+        File('${fixture.project.path}/CLAUDE.md').readAsStringSync(),
+        claude,
+      );
+      expect(
+        File('${fixture.project.path}/lib/a.dart').readAsStringSync(),
+        code,
+      );
+      expect(plan.inputs.lines, contains('lib/a.dart '));
+    });
+
+    test(
+      'a doc a move_file step moves still narrows the code files by its code '
+      'entries',
+      () async {
+        const movedType = '''
+id: runbook
+description: A runbook.
+path: ops/runbooks/{slug}/RUNBOOK.md
+fields:
+  - id: code
+    type: string
+    list: true
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+        const mention = '// See prds/runbooks/deploy/RUNBOOK.md\n';
+        final fixture = await _fixture(
+          packYaml: packYaml,
+          runbookType: movedType,
+          docs: const {
+            'prds/runbooks/deploy/RUNBOOK.md':
+                '---\ncode:\n  - lib/\n---\n# Deploy\n\n## Steps\n\nx\n',
+          },
+          overrides: const {'lib/a.dart': mention, 'src/b.dart': mention},
+        );
+
+        final plan = _plan(fixture);
+
+        expect(plan.lists.mentions, [
+          (
+            path: 'lib/a.dart',
+            line: 1,
+            mention: 'prds/runbooks/deploy/RUNBOOK.md',
+          ),
+        ]);
+      },
+    );
+
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a mention '
+        'of a doc no move touches prints no count line', () async {
+      final fixture = await fixtureWith({
+        'CLAUDE.md': 'Read prds/notes.md first.\n',
+        'lib/a.dart': '// See prds/notes.md\n',
+      });
+
+      final plan = _plan(fixture);
+
+      expect(plan.toText(), isNot(contains('mentions:')));
+      expect(plan.lists.mentions, isEmpty);
+    });
+
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a run '
+        'with no move reads no code file and prints no count line', () async {
+      final plan = _plan(
+        await _fixture(
+          overrides: const {
+            'CLAUDE.md': 'Read prds/runbooks/deploy/RUNBOOK.md first.\n',
+          },
+        ),
+      );
+
+      expect(plan.moves, isEmpty);
+      expect(plan.toText(), isNot(contains('mentions:')));
+      expect(plan.lists.mentions, isEmpty);
+    });
+
+    test('INV-4: the plan hash changes when a code file mention changes, '
+        'though the printed count stays', () async {
+      final first = _plan(
+        await fixtureWith({
+          'lib/a.dart': '// See prds/runbooks/deploy/RUNBOOK.md\n',
+        }),
+      );
+      final second = _plan(
+        await fixtureWith({
+          'lib/a.dart': '// Read prds/runbooks/deploy/RUNBOOK.md\n',
+        }),
+      );
+
+      expect(first.toText(), second.toText());
+      expect(
+        planHashOf(first.toText(), first.inputs),
+        isNot(planHashOf(second.toText(), second.inputs)),
+      );
+    });
+  });
+
+  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins verification: '
+      'no plan line joins several paths', () async {
+    final plan = _planAt(await _belowSinceTree(_e18Docs()));
+
+    final counted = RegExp(
+      r'^  (format layout: \d+ docs'
+      r'|number labels: \d+ rewrites in \d+ files; left: \d+'
+      r'|renumber ids: \d+ IDs in \d+ docs(; not fully rewritten: \d+)?'
+      r'|stamps: \d+ approval hashes, \d+ fingerprints(; skipped: \d+)?'
+      r'|agent files: \d+ files'
+      r'|mentions: \d+'
+      r'|from \S+: .+: \d+ docs)$',
+    );
+    final passLines = plan
+        .toText()
+        .split('\n')
+        .where(
+          (line) => RegExp(
+            '^  (format layout:|number labels:|renumber ids:|stamps:'
+            '|agent files:|mentions:|from )',
+          ).hasMatch(line),
+        );
+
+    expect(passLines, isNotEmpty);
+    for (final line in passLines) {
+      expect(line, matches(counted));
+    }
   });
 
   test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: pins equal '
@@ -984,8 +1178,9 @@ sections:
       plan.toText(),
       'pack upgrade: pins unchanged, layout only\n'
       'commit 2, rewrites:\n'
-      '  format layout: prds/GNFR.md, prds/PROJECT.md\n',
+      '  format layout: 2 docs\n',
     );
+    expect(plan.lists.formatLayout, ['prds/GNFR.md', 'prds/PROJECT.md']);
     expect(plan.commit2Message, 'lay docs out as format writes them');
     expect(plan.moves, isEmpty);
     expect(plan.rewrites.map((rewrite) => rewrite.path), [
@@ -1033,8 +1228,7 @@ sections:
     expect(
       plan.toText(),
       contains(
-        '  format layout: prds/features/f01_a/FEATURE.md, '
-        'prds/runbooks/deploy/RUNBOOK.md\n'
+        '  format layout: 2 docs\n'
         '  .specstone/config.yaml: acme 1.2.0\n',
       ),
     );
@@ -1058,9 +1252,10 @@ sections:
       plan.toText(),
       'pack upgrade: acme 1.0.0 -> 1.2.0\n'
       'commit 2, rewrites:\n'
-      '  format layout: prds/features/f01_a/FEATURE.md\n'
+      '  format layout: 1 docs\n'
       '  .specstone/config.yaml: acme 1.2.0\n',
     );
+    expect(plan.lists.formatLayout, ['prds/features/f01_a/FEATURE.md']);
     expect(plan.commit2Message, 'upgrade pack pins');
   });
 }
@@ -1097,10 +1292,8 @@ void _agentFilesTests() {
       ]);
       expect(agents.rootWrites.last.text, startsWith('# Owner rules\n'));
       expect(agents.rootWrites.last.text, contains(_begin));
-      expect(
-        plan.toText(),
-        contains('agent files: .specstone/AGENT.md, CLAUDE.md'),
-      );
+      expect(plan.toText(), contains('agent files: 2 files\n'));
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md', 'CLAUDE.md']);
     });
 
     test('$_fr E14: software-tech moving up from 1.3.0 with prd-core already '
@@ -1117,7 +1310,7 @@ void _agentFilesTests() {
         '.specstone/AGENT.md',
         'CLAUDE.md',
       ]);
-      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.5.0'));
+      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.6.0'));
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
@@ -1168,7 +1361,7 @@ void _agentFilesTests() {
 
       final text = plan.toText();
       final stepAt = text.indexOf('from 1.1.0: rename_field');
-      final agentsAt = text.indexOf('agent files: code/AGENTS.md');
+      final agentsAt = text.indexOf('agent files: 1 files');
       final pinAt = text.indexOf('.specstone/config.yaml: acme 1.2.0');
       expect(stepAt, greaterThan(0), reason: 'the steps print');
       expect(agentsAt, greaterThan(stepAt), reason: 'agent files after steps');
@@ -1189,8 +1382,9 @@ void _agentFilesTests() {
         plan.toText(),
         'pack upgrade: pins unchanged, agent files only\n'
         'commit 2, rewrites:\n'
-        '  agent files: CLAUDE.md\n',
+        '  agent files: 1 files\n',
       );
+      expect(plan.lists.agentFiles, ['CLAUDE.md']);
       expect(plan.commit2Message, 'refresh the Specstone agent files');
       expect(plan.rewrites, isEmpty);
       expect(plan.moves, isEmpty);
@@ -1211,8 +1405,8 @@ void _agentFilesTests() {
         plan.toText(),
         'pack upgrade: pins unchanged, layout and agent files\n'
         'commit 2, rewrites:\n'
-        '  format layout: prds/GNFR.md\n'
-        '  agent files: CLAUDE.md\n',
+        '  format layout: 1 docs\n'
+        '  agent files: 1 files\n',
       );
       expect(
         plan.commit2Message,
@@ -1235,7 +1429,8 @@ void _agentFilesTests() {
       final agents = plan.agentFiles!;
       expect(agents.topWrites.map((write) => write.path), ['code/AGENTS.md']);
       expect(agents.addedRoots, ['code']);
-      expect(plan.toText(), contains('  agent files: code/AGENTS.md\n'));
+      expect(plan.toText(), contains('  agent files: 1 files\n'));
+      expect(plan.lists.agentFiles, ['code/AGENTS.md']);
       expect(
         _rewriteAt(plan, '.specstone/config.yaml').text,
         '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
@@ -1409,12 +1604,17 @@ void _renumberTests() {
       final plan = _planAt(await _belowSinceTree(_e18Docs()));
 
       final text = plan.toText();
-      const line =
-          '  renumber ids: $_storyPath Scenario 6a -> Scenario 9, '
-          '$_topicPath RULE-7a -> RULE-31; references: '
-          'prds/features/f01_a/us01_b/fr01_c.md, '
-          'prds/features/f01_a/us01_b/fr02_g.md, specs/f01_a/DOMAIN.md\n';
+      const line = '  renumber ids: 2 IDs in 5 docs\n';
       expect(text, contains(line));
+      expect(plan.lists.renumberIds, [
+        '$_storyPath Scenario 6a -> Scenario 9',
+        '$_topicPath RULE-7a -> RULE-31',
+        _storyPath,
+        'prds/features/f01_a/us01_b/fr01_c.md',
+        'prds/features/f01_a/us01_b/fr02_g.md',
+        'specs/f01_a/DOMAIN.md',
+        _topicPath,
+      ]);
       expect(text.indexOf(line), lessThan(text.indexOf('  format layout: ')));
       expect(text.indexOf(line), lessThan(text.indexOf('  agent files: ')));
       expect(
@@ -1456,10 +1656,8 @@ void _renumberTests() {
         _docText(plan, notesPath),
         '# Notes\n\n${link}9--edge-lettered).\n',
       );
-      expect(
-        plan.toText(),
-        contains('fr02_g.md, $notesPath, specs/f01_a/DOMAIN.md\n'),
-      );
+      expect(plan.toText(), contains('  renumber ids: 2 IDs in 6 docs\n'));
+      expect(plan.lists.renumberIds, contains(notesPath));
     });
 
     test('$_fr E18: a confirmed entry already suspect keeps its fingerprint '
@@ -1509,13 +1707,12 @@ void _renumberTests() {
 
       final plan = _planAt(await _belowSinceTree({_storyPath: story}));
 
-      expect(
-        plan.toText(),
-        contains(
-          '  renumber ids: $_storyPath Scenario 6a -> Scenario 8, '
-          '$_storyPath Scenario 6b -> Scenario 9\n',
-        ),
-      );
+      expect(plan.toText(), contains('  renumber ids: 2 IDs in 1 docs\n'));
+      expect(plan.lists.renumberIds, [
+        '$_storyPath Scenario 6a -> Scenario 8',
+        '$_storyPath Scenario 6b -> Scenario 9',
+        _storyPath,
+      ]);
       expect(
         _docText(plan, _storyPath),
         allOf(
@@ -1564,10 +1761,11 @@ migrations:
         homeDirectory: home,
       );
 
-      expect(
-        plan.toText(),
-        contains('  renumber ids: $_storyPath Scenario 1a -> Scenario 2\n'),
-      );
+      expect(plan.toText(), contains('  renumber ids: 1 IDs in 1 docs\n'));
+      expect(plan.lists.renumberIds, [
+        '$_storyPath Scenario 1a -> Scenario 2',
+        _storyPath,
+      ]);
       expect(
         _docText(plan, _storyPath),
         contains(
@@ -1639,18 +1837,10 @@ const _labelFeature = 'prds/features/f01_a/FEATURE.md';
 const _labelFr = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _techStackPath = 'specs/TECH_STACK.md';
 
-/// A fake `git` that lists [tracked] for `ls-files` and records its calls.
-RunGit _tracking(Set<String> tracked, [List<List<String>>? calls]) =>
-    (arguments, {required workingDirectory, environment}) {
-      calls?.add([workingDirectory, ...arguments]);
-      return ProcessResult(0, 0, tracked.map((path) => '$path\x00').join(), '');
-    };
-
-RunPlan _planWith(Directory project, [RunGit? runGit]) => planUpgradeRun(
+RunPlan _planWith(Directory project) => planUpgradeRun(
   _canonical(project),
   templates: TemplateResolver(),
   homeDirectory: null,
-  runGit: runGit ?? _tracking({}),
 );
 
 Future<Directory> _labelTree(
@@ -1676,6 +1866,7 @@ void _labelTests() {
         '.specstone/config.yaml': _belowSince,
         for (final MapEntry(:key, :value) in _e18Docs().entries)
           'docs/$key': value,
+        'docs/$_labelFeature': '# A\n',
         'docs/specs/topics/labelled.md':
             '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and FR-09.\n',
       });
@@ -1692,11 +1883,9 @@ void _labelTests() {
       final labels = lines.indexWhere((l) => l.startsWith('  number labels:'));
       expect(renumber, isNonNegative);
       expect(labels, greaterThan(renumber));
-      expect(
-        lines[labels],
-        '  number labels: specs/topics/labelled.md; left: '
-        'specs/topics/labelled.md:9 FR-09',
-      );
+      expect(lines[labels], '  number labels: 1 rewrites in 1 files; left: 1');
+      expect(plan.lists.numberLabelsRewritten, ['specs/topics/labelled.md']);
+      expect(plan.lists.numberLabelsLeft, ['specs/topics/labelled.md:9 FR-09']);
       expect(lines[labels + 1], startsWith('  '));
       expect(
         lines.indexWhere((l) => l.startsWith('  .specstone/config.yaml:')),
@@ -1735,115 +1924,6 @@ void _labelTests() {
       },
     );
 
-    test('$_fr E26: a tracked file under the code roots converts, a partial '
-        'label in it stays listed, and line ending and mark stay', () async {
-      final project = await _labelTree(
-        {},
-        code: {
-          'lib/a.dart': '\uFEFF// See F-01 US-01 and FR-01\r\nint a = 0;\r\n',
-        },
-      );
-      final calls = <List<String>>[];
-
-      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-      final rewrite = plan.rewrites.singleWhere((r) => r.path == 'lib/a.dart');
-      expect(rewrite.text, '\uFEFF// See `a/b` and FR-01\r\nint a = 0;\r\n');
-      expect(
-        plan.toText(),
-        contains('  number labels: lib/a.dart; left: lib/a.dart:1 FR-01\n'),
-      );
-      expect(calls.single.first, _canonical(project).path);
-      expect(calls.single, containsAll(['ls-files', '-z']));
-    });
-
-    test(
-      '$_fr E27: a file git does not track keeps every label, listed',
-      () async {
-        final project = await _labelTree(
-          {},
-          code: {'vendor/b.dart': '// F-01 US-01\n'},
-        );
-
-        final plan = _planWith(project);
-
-        expect(
-          plan.rewrites.map((r) => r.path),
-          isNot(contains('vendor/b.dart')),
-        );
-        expect(
-          plan.toText(),
-          contains('  number labels: ; left: vendor/b.dart:1 F-01 US-01\n'),
-        );
-      },
-    );
-
-    test('$_fr E26: a code file with mixed line ends keeps every byte but '
-        'the converted label', () async {
-      final project = await _labelTree(
-        {},
-        code: {'lib/m.dart': '\uFEFF// A F-01 US-01\n// B F-01\r\nint a;\r\n'},
-      );
-
-      final plan = _planWith(project, _tracking({'lib/m.dart'}));
-
-      expect(
-        plan.rewrites.singleWhere((r) => r.path == 'lib/m.dart').text,
-        '\uFEFF// A `a/b`\n// B `feature:a`\r\nint a;\r\n',
-      );
-    });
-
-    test('$_fr E26: with two targets each code root is walked for labels, '
-        'and a file under a nested target root converts once', () async {
-      const techStack = '---\ncode:\n  - ./\n---\n# Tech stack\n';
-      final project = await writeTree({
-        '.specstone/config.yaml':
-            '${_belowSince}targets:\n'
-            '  outer:\n    code_root: ws\n'
-            '  inner:\n    code_root: ws/inner\n'
-            '  apart:\n    code_root: other\n',
-        'docs/$_labelFeature': '# A\n',
-        'docs/prds/features/f01_a/us01_b/USER_STORY.md': '# B\n',
-        'docs/$_labelFr': '# C\n',
-        'docs/specs/outer/TECH_STACK.md': techStack,
-        'docs/specs/inner/TECH_STACK.md': techStack,
-        'docs/specs/apart/TECH_STACK.md': techStack,
-        'ws/a.dart': '// F-01 US-01\n',
-        'ws/inner/b.dart': '// F-01 US-01\n',
-        'other/c.dart': '// F-01 US-01\n',
-      });
-
-      final plan = _planWith(
-        project,
-        _tracking({'ws/a.dart', 'ws/inner/b.dart', 'other/c.dart'}),
-      );
-
-      expect(
-        plan.rewrites.where((r) => r.path.endsWith('.dart')).map((r) => r.path),
-        ['other/c.dart', 'ws/a.dart', 'ws/inner/b.dart'],
-      );
-    });
-
-    test('$_fr E27: a code entry that leaves the code root lists no file, so '
-        'none reaches git or the plan, and an in-repo file converts', () async {
-      final project = await _labelTree({}, code: {'lib/a.dart': '// F-01\n'});
-      final outside = Directory('${project.path}_outside')..createSync();
-      addTearDown(() => outside.deleteSync(recursive: true));
-      final name = outside.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
-      File('${outside.path}/x.dart').writeAsStringSync('// F-01 US-01\n');
-      File('${project.path}/docs/$_techStackPath').writeAsStringSync(
-        '---\ncode:\n  - lib/\n  - ../$name/\n---\n# Tech stack\n',
-      );
-      final calls = <List<String>>[];
-
-      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-      expect(plan.rewrites.map((r) => r.path), contains('lib/a.dart'));
-      expect(plan.toText(), contains('  number labels: lib/a.dart\n'));
-      expect(plan.toText(), isNot(contains('x.dart')));
-      expect(calls.single.where((a) => a.startsWith('..')), isEmpty);
-    });
-
     test("$_fr E27: with code_root .. and code ./ the project's own docs "
         'are docs, never code files left with labels', () async {
       final base = await writeTree({
@@ -1863,46 +1943,6 @@ void _labelTests() {
       expect(_docText(plan, 'notes/plan.md'), contains('`a/b`'));
     });
 
-    test('$_fr E27: a code entry that is not a relative / path lists no file '
-        'and does not blank what git tracks', () async {
-      final project = await _labelTree({}, code: {'lib/a.dart': '// F-01\n'});
-      File('${project.path}/docs/$_techStackPath').writeAsStringSync(
-        '---\ncode:\n  - lib/\n  - ..\\shared\\\n  - C:/x/\n---\n# Tech stack\n',
-      );
-      final calls = <List<String>>[];
-
-      final plan = _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-      expect(plan.rewrites.map((r) => r.path), contains('lib/a.dart'));
-      expect(calls.single.skip(1), ['ls-files', '-z']);
-    });
-
-    test('$_fr E26: an agent file the label pass converts gets one write '
-        'that holds the conversion and the Specstone block', () async {
-      final project = await _labelTree(
-        {},
-        code: {'AGENTS.md': 'Current work: F-01 US-01\n'},
-      );
-      File('${project.path}/docs/$_techStackPath')
-          .writeAsStringSync('---\ncode:\n  - ./\n---\n# Tech stack\n');
-
-      final plan = _planWith(project, _tracking({'AGENTS.md'}));
-
-      expect(plan.rewrites.map((r) => r.path), isNot(contains('AGENTS.md')));
-      final write = plan.agentFiles!.rootWrites.singleWhere(
-        (w) => w.path == 'AGENTS.md',
-      );
-      expect(write.text, startsWith('Current work: `a/b`\n'));
-      expect(write.text, contains('<!-- BEGIN specstone v'));
-      expect(write.before, textHashOf('Current work: F-01 US-01\n'));
-      expect(plan.toText(), contains('  number labels: AGENTS.md'));
-      final steps = plan.journalSteps(base: 'HEAD', projectRoot: project);
-      expect(
-        steps.whereType<WriteStep>().where((s) => s.path == 'AGENTS.md'),
-        hasLength(1),
-      );
-    });
-
     test('$_fr E26: a left label is cited at its line in the text the run '
         'writes, after the stamp adds its line', () async {
       final project = await _labelTree({
@@ -1916,42 +1956,8 @@ void _labelTests() {
           written.split('\n').indexWhere((l) => l.contains('FR-07')) + 1;
       expect(written, contains('approved: "'));
       expect(line, greaterThan(6));
-      expect(plan.toText(), contains('specs/topics/t.md:$line FR-07'));
+      expect(plan.lists.numberLabelsLeft, ['specs/topics/t.md:$line FR-07']);
     });
-
-    test('$_fr E26: a binary code file is skipped', () async {
-      final project = await _labelTree({});
-      File('${project.path}/lib/bin.dart').createSync(recursive: true);
-      File('${project.path}/lib/bin.dart').writeAsBytesSync([
-        0x2F,
-        0x2F,
-        0x20,
-        0x46,
-        0x2D,
-        0x30,
-        0x31,
-        0xC3,
-        0x28,
-        0x0A,
-      ]);
-
-      final plan = _planWith(project, _tracking({'lib/bin.dart'}));
-
-      expect(plan.toText(), isNot(contains('number labels:')));
-      expect(plan.rewrites.map((r) => r.path), isNot(contains('lib/bin.dart')));
-    });
-
-    test(
-      '$_fr E26: git is asked only when a code file holds a label',
-      () async {
-        final project = await _labelTree({}, code: {'lib/a.dart': 'int a;\n'});
-        final calls = <List<String>>[];
-
-        _planWith(project, _tracking({'lib/a.dart'}, calls));
-
-        expect(calls, isEmpty);
-      },
-    );
   });
 }
 
@@ -1989,6 +1995,22 @@ void _stampTests() {
       );
 
       expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('$_fr E74: a doc left unstamped for its frontmatter is counted after '
+        'skipped and listed in code point order', () async {
+      final plan = _planAt(
+        await _belowSinceTree({
+          _storyPath: '---\ndraft: true\n: bad: [\n---\n# B\n',
+          frPath: '---\ndraft: true\n: bad: [\n---\n# C\n',
+        }),
+      );
+
+      expect(
+        plan.toText(),
+        contains('  stamps: 0 approval hashes, 0 fingerprints; skipped: 2\n'),
+      );
+      expect(plan.lists.stampsSkipped, [_storyPath, frPath]);
     });
 
     test('$_fr E30: no later upgrade stamps', () async {
@@ -2091,70 +2113,22 @@ void _planInputTests() {
       );
     });
 
-    test('$_fr INV-4: an edit to a code file the label pass reads changes '
-        'the hash, and its tracked answer joins as one more line', () async {
+    test('a labelled file under the code roots is never read, so an edit to '
+        'it leaves the plan and the hash as they were', () async {
       final project = await _labelTree(
         {},
         code: {'lib/a.dart': '// See F-01 US-01\n'},
       );
-      final tracked = _tracking({'lib/a.dart'});
+      final before = _planWith(project);
 
-      await expectEditMoves(
-        '${project.path}/lib/a.dart',
-        '// more\n',
-        plan: () => _planWith(project, tracked),
-        recordedAs: 'lib/a.dart ',
-      );
-      expect(
-        _planWith(project, tracked).inputs.lines,
-        contains('lib/a.dart tracked\n'),
-      );
-    });
+      File('${project.path}/lib/a.dart')
+          .writeAsStringSync('// F-01\n// more\n');
+      final after = _planWith(project);
 
-    test('$_fr INV-4: a tracked file the label pass never asked about leaves '
-        'the hash', () async {
-      final project = await _labelTree(
-        {},
-        code: {'lib/a.dart': '// See F-01 US-01\n'},
-      );
-
-      final before = _planWith(project, _tracking({'lib/a.dart'}));
-      final after = _planWith(
-        project,
-        _tracking({'lib/a.dart', 'notes.txt', 'src/b.dart'}),
-      );
-
+      expect(after.rewrites.map((r) => r.path), isNot(contains('lib/a.dart')));
+      expect(after.inputs.lines, isNot(contains('lib/a.dart')));
+      expect(after.toText(), isNot(contains('lib/a.dart')));
       expect(_hashOf(after), _hashOf(before));
-      expect(after.inputs.lines, isNot(contains('notes.txt')));
-    });
-
-    test('$_fr INV-4: a labelled file git does not track enters as '
-        'untracked', () async {
-      final project = await _labelTree(
-        {},
-        code: {'lib/a.dart': '// See F-01 US-01\n'},
-      );
-
-      expect(
-        _planWith(project, _tracking({})).inputs.lines,
-        contains('lib/a.dart untracked\n'),
-      );
-    });
-
-    test('$_fr INV-4: the plan hash starts no git', () async {
-      final fixture = await _fixture();
-      final calls = <List<String>>[];
-      final plan = planUpgradeRun(
-        fixture.project,
-        templates: TemplateResolver(),
-        homeDirectory: fixture.home,
-        runGit: _tracking({}, calls),
-      );
-      calls.clear();
-
-      _hashOf(plan);
-
-      expect(calls, isEmpty);
     });
   });
 }
@@ -2296,7 +2270,7 @@ void _moveToRecordTests() {
       );
 
       expect(plan.creates, isEmpty);
-      expect(plan.toText(), contains('-> implementation: no doc changes\n'));
+      expect(plan.toText(), contains('-> implementation: 0 docs\n'));
     });
 
     test('$_fr E34: a record that holds the story with the same values keeps '
@@ -2591,7 +2565,7 @@ void _moveToRecordTests() {
       ]);
     });
 
-    group('$_fr, the shipped software-tech 1.5.0 pack', () {
+    group('$_fr, the shipped software-tech 1.6.0 pack', () {
       Future<Directory> shippedProject({
         Map<String, String> extra = const {},
       }) => writeTree({
@@ -2604,7 +2578,7 @@ void _moveToRecordTests() {
       });
 
       test(
-        'E39: the move from 1.4.0 to 1.5.0 runs no one-time pass, the '
+        'E39: the move from 1.4.0 to 1.6.0 runs no one-time pass, the '
         'move_to_record step alone beside the passes every upgrade runs',
         () async {
           final project = await shippedProject(
@@ -2614,7 +2588,7 @@ void _moveToRecordTests() {
           final plan = _planAt(project);
 
           final text = plan.toText();
-          expect(text, contains('software-tech 1.4.0 -> 1.5.0'));
+          expect(text, contains('software-tech 1.4.0 -> 1.6.0'));
           expect(
             text,
             contains(
@@ -3284,6 +3258,251 @@ sections:
           'docs/specs/flutter/f01_login/IMPLEMENTATION.md',
         ]);
       });
+    });
+  });
+}
+
+// MARK: - Test-name pass
+
+const _testFile = 'app/test/auth_test.dart';
+const _testRecordPath = 'specs/f01_login/IMPLEMENTATION.md';
+
+String _testSource(String name) =>
+    "void main() {\n  test('$name', () {});\n}\n";
+
+const Map<String, String> _plainLoginDocs = {
+  _featurePath: '# Login\n',
+  _loginStoryPath: '# Email login\n',
+  _loginFrPath: '# Validate credentials\n',
+};
+
+/// A committed git project: [docs] under `docs/` and [files] beside them.
+Future<Directory> _testNameProject({
+  String pins = _belowSince,
+  Map<String, String> docs = _plainLoginDocs,
+  Map<String, String> files = const {},
+}) async {
+  final project = await writeTree({
+    '.specstone/config.yaml': '${pins}code_root: app\n',
+    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+    ...files,
+  });
+  final root = _canonical(project);
+  expect(git(root, ['init', '-q']).exitCode, 0);
+  commitAll(root, 'base');
+  return root;
+}
+
+RunPlan _planTestNames(Directory project) =>
+    planUpgradeRun(project, templates: TemplateResolver(), homeDirectory: null);
+
+void _testNameTests() {
+  group('test-name pass', () {
+    test('the upgrade writes the line into a new draft record, '
+        'strips the name, and prints the tests line', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('f01/us01/fr01 rejects a wrong key')},
+      );
+
+      final plan = _planTestNames(project);
+
+      expect(
+        plan.toText(),
+        contains(
+          '  tests: 1 lines in 1 records; names: 1 rewritten in 1 files; '
+          'left: 0\n',
+        ),
+      );
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_testRecordPath',
+      );
+      expect(record.note, ' (draft)');
+      expect(_valuesOf(record.text)['tests'], [
+        'email_login/validate_credentials:test/auth_test.dart',
+      ]);
+      expect(
+        plan.toText(),
+        contains('commit 2, creates:\n  $_testRecordPath (draft)\n'),
+      );
+      expect(
+        _rewriteAt(plan, _testFile).text,
+        _testSource('rejects a wrong key'),
+      );
+      expect(plan.lists.toJson()['tests'], {
+        'written': [
+          '$_testRecordPath email_login/validate_credentials:test/auth_test.dart',
+        ],
+        'rewritten': hasLength(1),
+        'left': isEmpty,
+      });
+    });
+
+    test('a run that finds no test name holds an empty tests object', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('rejects a wrong key')},
+      );
+
+      final plan = _planTestNames(project);
+
+      expect(plan.lists.toJson()['tests'], {
+        'written': <Object?>[],
+        'rewritten': <Object?>[],
+        'left': <Object?>[],
+      });
+    });
+
+    test('the tests line follows the number labels line and comes '
+        'before the stamps line', () async {
+      final project = await _testNameProject(
+        docs: {
+          ..._plainLoginDocs,
+          'specs/topics/labelled.md':
+              '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01.\n',
+        },
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final text = _planTestNames(project).toText();
+
+      final labels = text.indexOf('  number labels:');
+      final tests = text.indexOf('  tests:');
+      final stamps = text.indexOf('  stamps:');
+      expect(labels, isNonNegative);
+      expect(tests, greaterThan(labels));
+      expect(stamps, greaterThan(tests));
+    });
+
+    test('the pass runs after the step that writes a record, so the '
+        'step and the pass write one record', () async {
+      final project = await _testNameProject(
+        pins:
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        docs: {..._loginDocs, _loginStoryPath: _implementedStory},
+        files: {_testFile: _testSource('login/email_login: signs in')},
+      );
+
+      final plan = _planTestNames(project);
+
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_testRecordPath',
+      );
+      final values = _valuesOf(record.text);
+      expect(values['statuses'], [
+        'email_login:implemented',
+        'email_login/validate_credentials:planned',
+      ]);
+      expect(values['tests'], ['email_login:test/auth_test.dart']);
+    });
+
+    test('a run that finds no test name prints no tests line and '
+        'writes no record', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('rejects a wrong key')},
+      );
+
+      final plan = _planTestNames(project);
+
+      expect(plan.toText(), isNot(contains('tests:')));
+      expect(plan.creates, isEmpty);
+    });
+
+    test('an upgrade past the release runs no pass', () async {
+      final project = await _testNameProject(
+        pins: shippedPinsConfig(),
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final plan = _planTestNames(project);
+
+      expect(plan.toText(), isNot(contains('tests:')));
+      expect(plan.lists.toJson(), isNot(contains('tests')));
+    });
+
+    test('the plan hash binds each test file the pass reads', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final before = _planTestNames(project);
+      File(
+        '${project.path}/$_testFile',
+      ).writeAsStringSync("${_testSource('f01/us01/fr01 rejects')}// edited\n");
+      final after = _planTestNames(project);
+
+      expect(before.inputs.lines, contains('$_testFile '));
+      expect(_hashOf(after), isNot(_hashOf(before)));
+    });
+
+    test('a tracked file that gains a test name moves the plan hash', () async {
+      final project = await _testNameProject(
+        files: {
+          _testFile: _testSource('f01/us01/fr01 rejects'),
+          'app/test/other_test.dart': _testSource('rejects'),
+        },
+      );
+
+      final before = _planTestNames(project);
+      File('${project.path}/app/test/other_test.dart')
+          .writeAsStringSync(_testSource('f01/us01/fr01 also rejects'));
+      final after = _planTestNames(project);
+
+      expect(_hashOf(after), isNot(_hashOf(before)));
+    });
+
+    test(
+      'a new tracked file holding no test name leaves the plan hash',
+      () async {
+        final project = await _testNameProject(
+          files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+        );
+
+        final before = _planTestNames(project);
+        File('${project.path}/app/notes.txt').writeAsStringSync('notes\n');
+        commitAll(project, 'notes');
+        final after = _planTestNames(project);
+
+        expect(_hashOf(after), _hashOf(before));
+      },
+    );
+
+    test('a file git does not track is never read', () async {
+      final project = await _testNameProject();
+      File('${project.path}/app/test/new_test.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(_testSource('f01/us01/fr01 rejects'));
+
+      final plan = _planTestNames(project);
+
+      expect(plan.inputs.lines, isNot(contains('new_test.dart')));
+      expect(plan.toText(), isNot(contains('tests:')));
+    });
+
+    test('the text counts equal the lists the JSON plan holds, a '
+        'string that is no test call included', () async {
+      final project = await _testNameProject(
+        files: {
+          _testFile:
+              "void main() {\n  test('f01/us01/fr01 a', () {});\n"
+              "  print('login/email_login started');\n"
+              "  print('f09/us09/fr09 old');\n}\n",
+        },
+      );
+
+      final plan = _planTestNames(project);
+
+      final json = plan.lists.tests!;
+      final rewritten = json['rewritten']! as List<Object?>;
+      expect(rewritten, hasLength(2));
+      expect(json['left'], isEmpty);
+      expect(
+        plan.toText(),
+        contains(
+          '  tests: 2 lines in 1 records; '
+          'names: ${rewritten.length} rewritten in 1 files; '
+          'left: 1\n',
+        ),
+      );
     });
   });
 }

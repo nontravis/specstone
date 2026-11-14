@@ -53,6 +53,13 @@ sections:
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
     summary: true
     lint:
+      max_sentences:
+        - count: 1
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: Use one "shall" and a positive form'
+          in: text
       banned_words:
         - flexible
         - easy
@@ -111,17 +118,26 @@ sections:
         A[<step>] --> B{<decision>}
         B -- <branch> --> C[<outcome>]
       ```
+    lint:
+      diagram: {}
   - id: edge_cases
     header: Edge cases
     prefix_id: E
     required: true
     description: |-
-      Write each as `E01 — <trigger> → <response>`, numbered in order.
+      Write each as `E01 — <trigger> → <response>`.
       For an error case (failure, bad input, low performance, operator error), state how the product will detect, report,
       handle, and recover from it.
       For a non-error edge case, state its outcome only.
     template: |-
       1. E01 — <trigger> → <response>
+    lint:
+      names_codes: true
+      banned_patterns:
+        - id: edge_case_arrow
+          pattern: '^(?:\d+\.|[-*]) (?!.*→)'
+          message: 'edge case has no →; guide line: E01 — <trigger> → <response>'
+          in: all
   - id: rationale
     header: Rationale
     required: true
@@ -137,9 +153,12 @@ sections:
     description: |-
       Give the pass criteria: the observable condition that shows the requirement holds, kept apart from the statement.
       Give the level at which it is proven, such as unit, integration, or end to end.
+      Write a long Verification as one `- **Pass criteria:**` line with one nested bullet per condition.
+      Name no test file here; each target's record names the tests that prove the FR.
       Never write results here; evidence belongs to the verification matrix.
     template: |-
       - **Pass criteria:** <what shows the requirement holds>
+        - <one condition, when the criteria are long>
       - **Level:** <level>
   - id: tbr
     header: TBR
@@ -153,6 +172,9 @@ sections:
       - **Close action:** <what resolves it>
       - **Who:** <name>
       - **By when:** <date or milestone>
+    lint:
+      banned_words:
+        - TBD
 lint:
   banned_patterns:
     - id: doc_citation

@@ -526,6 +526,45 @@ void main() {
     });
   });
 
+  group('codeFilesOf with no code entry', () {
+    test('a target whose docs list no code entry lists every file under its '
+        'root, bar the docs and a nested root', () async {
+      final base = await _base({
+        'proj/.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  outer:\n    code_root: .\n'
+            '  inner:\n    code_root: inner\n',
+        'proj/a.dart': '',
+        'proj/lib/b.dart': '',
+        'proj/inner/c.dart': '',
+        'proj/docs/specs/outer/TECH_STACK.md':
+            '---\ncode: []\n---\n# Tech stack\n',
+      });
+      final set = TemplateResolver().resolve(
+        workingDirectory: _at(base, 'proj/'),
+        homeDirectory: null,
+      );
+
+      final files = codeFilesOf(
+        _at(base, 'proj/'),
+        set,
+        targets: const [
+          CodeTarget('outer', codeRoot: '.'),
+          CodeTarget('inner', codeRoot: 'inner'),
+        ],
+      );
+
+      expect(
+        [for (final f in files) '${f.root.path}|${f.path}'],
+        [
+          '${_at(base, 'proj/').path}|a.dart',
+          '${_at(base, 'proj/').path}|lib/b.dart',
+          '${_at(base, 'proj/inner/').path}|c.dart',
+        ],
+      );
+    });
+  });
+
   group('planAgentWrites', () {
     test('$_write E01: an empty root gets AGENT.md and AGENTS.md', () async {
       final base = await _base({'proj/.keep': ''});
@@ -539,7 +578,18 @@ void main() {
       expect(_writeAt(plan, 'AGENTS.md').isAtTop, isFalse);
       expect(plan.topWrites, isEmpty);
       expect(plan.agentFileRoots, isEmpty);
-      expect(plan.line, 'agent files: .specstone/AGENT.md, AGENTS.md');
+      expect(plan.line, 'agent files: 2 files');
+      expect(plan.paths, [_agentMd, 'AGENTS.md']);
+    });
+
+    test('$_write E08: a plan with no write prints no line and lists no '
+        'path', () async {
+      final base = await _base({'proj/.keep': ''});
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.line, isEmpty);
+      expect(plan.paths, isEmpty);
     });
 
     test('$_write E02: a block is appended and the Owner text stays', () async {
@@ -547,7 +597,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner text\n${_imports('')}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner text\n\n${_imports('')}');
       expect(_writeAt(plan, 'CLAUDE.md').isNew, isFalse);
       expect(_paths(plan), isNot(contains('AGENTS.md')));
     });
@@ -731,7 +781,7 @@ void main() {
 
       expect(
         _writeAt(plan, 'CLAUDE.md').text,
-        '﻿$crlf${_imports('').replaceAll('\n', '\r\n')}',
+        '﻿$crlf\r\n${_imports('').replaceAll('\n', '\r\n')}',
       );
     });
 
@@ -741,7 +791,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_writeAt(plan, 'CLAUDE.md').text, '$fenced${_imports('')}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, '$fenced\n${_imports('')}');
     });
 
     test('$_write E05: a malformed file refuses the plan, naming every '
@@ -859,7 +909,7 @@ void main() {
 
       expect(_paths(plan), [_agentMd, 'AGENTS.md', 'other/CLAUDE.md']);
       final write = _writeAt(plan, 'other/CLAUDE.md');
-      expect(write.text, 'Owner\n${_imports('../')}');
+      expect(write.text, 'Owner\n\n${_imports('../')}');
       expect(write.isAtTop, isTrue);
       expect(plan.agentFileRoots, ['other']);
     });
@@ -1101,7 +1151,7 @@ void main() {
       final plan = planAgentWrites(_inputs(base), full: true);
 
       expect(_paths(plan), [_agentMd, 'CLAUDE.md']);
-      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner\n${_inline()}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner\n\n${_inline()}');
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('review focus: a symbolic-link instruction file plans a write from '
@@ -1116,7 +1166,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n${_imports('')}');
+      expect(_writeAt(plan, 'CLAUDE.md').text, 'Shared\n\n${_imports('')}');
       expect(_paths(plan), isNot(contains('AGENTS.md')));
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
@@ -1226,7 +1276,7 @@ void main() {
         );
 
         expect(_paths(plan), ['AGENTS.md']);
-        expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n${_inline()}');
+        expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n\n${_inline()}');
         expect(plan.addedRoots, ['other']);
       });
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);

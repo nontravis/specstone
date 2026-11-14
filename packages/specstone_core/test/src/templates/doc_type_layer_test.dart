@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -616,6 +617,262 @@ lint:
       final layer = _parse('sections: [{id: goal}]\n');
       expect(layer.bundle, isNull);
       expect(layer.sections.single.query, isNull);
+    });
+
+    test('an output_ref pointer of item_test is accepted and names the '
+        'item_test kind', () {
+      final layer = _parse(
+        'fields: [{id: tests, type: output_ref, pointer: item_test}]',
+      );
+      expect(layer.fields.single.pointer, 'item_test');
+      expect(
+        PointerKind.byWire('item_test', file: _file, prefix: ''),
+        PointerKind.itemTest,
+      );
+      expect(PointerKind.itemTest.wire, 'item_test');
+    });
+
+    test('an output_ref pointer of item_tests is unknown_value', () {
+      expect(
+        () => _parse(
+          'fields: [{id: tests, type: output_ref, pointer: item_tests}]',
+        ),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields.tests.pointer')),
+      );
+    });
+  });
+
+  group('DocTypeLayer.parse guide-rule keys', () {
+    SectionLint lintOf(String lint) =>
+        _parse('sections: [{id: goal, header: G, lint: $lint}]')
+            .sections
+            .single
+            .lint!;
+
+    TypeMatcher<TemplateFault> sectionFault(FaultCode code, String key) =>
+        _fault(code, key: 'sections.goal.lint.$key');
+
+    void expectSectionFault(String lint, FaultCode code, String key) {
+      expect(() => lintOf(lint), throwsA(sectionFault(code, key)));
+    }
+
+    test('catalog reads its column', () {
+      expect(lintOf('{catalog: {column: Code}}').catalog?.column, 'Code');
+    });
+
+    test('a catalog with no column is missing_key', () {
+      expectSectionFault(
+        '{catalog: {}}',
+        FaultCode.missingKey,
+        'catalog.column',
+      );
+    });
+
+    test('a catalog key other than column is unknown_key', () {
+      expectSectionFault(
+        '{catalog: {column: Code, width: 3}}',
+        FaultCode.unknownKey,
+        'catalog.width',
+      );
+    });
+
+    test('names_codes reads a boolean and refuses another value', () {
+      expect(lintOf('{names_codes: true}').namesCodes, isTrue);
+      expect(lintOf('{max_chars: 3}').namesCodes, isNull);
+      expectSectionFault(
+        '{names_codes: yes please}',
+        FaultCode.unknownValue,
+        'names_codes',
+      );
+    });
+
+    test('item_fields reads a plain list of fields with optional values', () {
+      final write = lintOf(
+        '{item_fields: [{field: Enforcer, values: [a, b]}, '
+        '{field: Consistency}]}',
+      ).itemFields;
+      final items = (write! as PlainList<ItemFieldLint>).items;
+      expect(items.map((i) => i.field), ['Enforcer', 'Consistency']);
+      expect(items.first.values, ['a', 'b']);
+      expect(items.last.values, isNull);
+    });
+
+    test('item_fields reads add and remove as a change', () {
+      final write = lintOf(
+        '{item_fields: {add: [{field: Enforcer}], remove: [Consistency]}}',
+      ).itemFields;
+      final change = write! as ListChange<ItemFieldLint>;
+      expect(change.add.single.field, 'Enforcer');
+      expect(change.remove, ['Consistency']);
+    });
+
+    test('an item_fields entry with no field is missing_key', () {
+      expectSectionFault(
+        '{item_fields: [{values: [a]}]}',
+        FaultCode.missingKey,
+        'item_fields[0].field',
+      );
+      expectSectionFault(
+        '{item_fields: {add: [{values: [a]}]}}',
+        FaultCode.missingKey,
+        'item_fields.add[0].field',
+      );
+    });
+
+    test('an item_fields entry key other than field and values is '
+        'unknown_key', () {
+      expectSectionFault(
+        '{item_fields: [{field: A, kind: b}]}',
+        FaultCode.unknownKey,
+        'item_fields[0].kind',
+      );
+    });
+
+    test('required_when reads section, field, and value', () {
+      final rule = lintOf(
+        '{required_when: {section: scope, field: Kind, value: api}}',
+      ).requiredWhen!;
+      expect((rule.section, rule.field, rule.value), ('scope', 'Kind', 'api'));
+    });
+
+    test('a required_when missing one of its three keys is missing_key', () {
+      for (final key in ['section', 'field', 'value']) {
+        final all = {'section': 's', 'field': 'f', 'value': 'v'}..remove(key);
+        final body = all.entries.map((e) => '${e.key}: ${e.value}').join(', ');
+        expectSectionFault(
+          '{required_when: {$body}}',
+          FaultCode.missingKey,
+          'required_when.$key',
+        );
+      }
+    });
+
+    test('diagram reads its booleans and banned labels', () {
+      final diagram = lintOf(
+        '{diagram: {title: true, edge_labels: true, banned_labels: [x, y]}}',
+      ).diagram!;
+      expect(diagram.title, isTrue);
+      expect(diagram.edgeLabels, isTrue);
+      expect(diagram.bannedLabels, ['x', 'y']);
+    });
+
+    test('a diagram with no key set reads all three as off', () {
+      final diagram = lintOf('{diagram: {}}').diagram!;
+      expect(diagram.title, isFalse);
+      expect(diagram.edgeLabels, isFalse);
+      expect(diagram.bannedLabels, isEmpty);
+    });
+
+    test('a diagram key other than title, edge_labels, and banned_labels is '
+        'unknown_key', () {
+      expectSectionFault(
+        '{diagram: {title: true, colour: red}}',
+        FaultCode.unknownKey,
+        'diagram.colour',
+      );
+    });
+
+    test('max_sentences reads count with optional line_prefix and column', () {
+      final limits = lintOf(
+        '{max_sentences: [{count: 1, line_prefix: "- **Why:**"}, '
+        '{count: 2, column: Notes}, {count: 3}]}',
+      ).maxSentences!;
+      expect(limits.map((l) => l.count), [1, 2, 3]);
+      expect(limits.map((l) => l.linePrefix), ['- **Why:**', null, null]);
+      expect(limits.map((l) => l.column), [null, 'Notes', null]);
+    });
+
+    test('a max_sentences entry with no count is missing_key', () {
+      expectSectionFault(
+        '{max_sentences: [{column: Notes}]}',
+        FaultCode.missingKey,
+        'max_sentences[0].count',
+      );
+    });
+
+    test('item_count reads min, max, per_subsection, and prefixes', () {
+      final count = lintOf(
+        '{item_count: {min: 1, max: 5, per_subsection: true, '
+        'prefixes: [{line_prefix: "- **Why:**", count: 1}]}}',
+      ).itemCount!;
+      expect((count.min, count.max, count.perSubsection), (1, 5, true));
+      expect(count.prefixes.single.linePrefix, '- **Why:**');
+      expect(count.prefixes.single.count, 1);
+    });
+
+    test('an item_count with no key set has no bounds and no prefixes', () {
+      final count = lintOf('{item_count: {}}').itemCount!;
+      expect(count.min, isNull);
+      expect(count.max, isNull);
+      expect(count.perSubsection, isFalse);
+      expect(count.prefixes, isEmpty);
+    });
+
+    test('an item_count whose min exceeds its max is unknown_value', () {
+      expectSectionFault(
+        '{item_count: {min: 4, max: 3}}',
+        FaultCode.unknownValue,
+        'item_count.min',
+      );
+      expect(lintOf('{item_count: {min: 3, max: 3}}').itemCount?.min, 3);
+    });
+
+    test(
+      'an item_count prefix with no line_prefix or count is missing_key',
+      () {
+        expectSectionFault(
+          '{item_count: {prefixes: [{count: 1}]}}',
+          FaultCode.missingKey,
+          'item_count.prefixes[0].line_prefix',
+        );
+        expectSectionFault(
+          '{item_count: {prefixes: [{line_prefix: "-"}]}}',
+          FaultCode.missingKey,
+          'item_count.prefixes[0].count',
+        );
+      },
+    );
+
+    test('min_lines reads a whole number and refuses another value', () {
+      expect(lintOf('{min_lines: 2}').minLines, 2);
+      expectSectionFault(
+        '{min_lines: three}',
+        FaultCode.unknownValue,
+        'min_lines',
+      );
+      expectSectionFault(
+        '{min_lines: 2.5}',
+        FaultCode.unknownValue,
+        'min_lines',
+      );
+    });
+
+    test('title_no_number reads a doc-level boolean and refuses another '
+        'value', () {
+      expect(_parse('lint: {title_no_number: true}').lint?.titleNoNumber, true);
+      expect(_parse('lint: {max_chars: 3}').lint?.titleNoNumber, isNull);
+      expect(
+        () => _parse('lint: {title_no_number: yes please}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.title_no_number')),
+      );
+    });
+
+    test('title_no_number in a section lint is unknown_key', () {
+      expectSectionFault(
+        '{title_no_number: true}',
+        FaultCode.unknownKey,
+        'title_no_number',
+      );
+    });
+
+    test('a section guide-rule key in the doc-level lint is unknown_key', () {
+      for (final key in ['catalog', 'min_lines', 'diagram']) {
+        expect(
+          () => _parse('lint: {$key: {}}'),
+          throwsA(_fault(FaultCode.unknownKey, key: 'lint.$key')),
+          reason: key,
+        );
+      }
     });
   });
 

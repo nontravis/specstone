@@ -56,17 +56,15 @@ Map<String, MergedDocType> _typesOf(Iterable<String> paths) => {
 LabelPass _passOf(
   String citing,
   String text, {
-  List<({String path, String text})> code = const [],
-  List<({String path, String text})> untracked = const [],
+  Map<String, String> extra = const {},
 }) {
-  final docs = {..._baseDocs(), citing: text};
+  final docs = {..._baseDocs(), ...extra, citing: text};
   return LabelPass.plan(
     [
       for (final MapEntry(:key, :value) in docs.entries)
         (docPath: key, lf: value),
     ],
-    code,
-    untrackedCodeFiles: untracked,
+    set: _set,
     docTypes: _typesOf(docs.keys),
   );
 }
@@ -74,10 +72,14 @@ LabelPass _passOf(
 String _convert(String citing, String text) =>
     _passOf(citing, text).apply(citing, text);
 
-LabelTree _tree() => LabelTree.of([
-  for (final MapEntry(:key, :value) in _baseDocs().entries)
-    (docPath: key, lf: value),
-], docTypes: _typesOf(_baseDocs().keys));
+LabelTree _tree() => LabelTree.of(
+  [
+    for (final MapEntry(:key, :value) in _baseDocs().entries)
+      (docPath: key, lf: value),
+  ],
+  set: _set,
+  docTypes: _typesOf(_baseDocs().keys),
+);
 
 void main() {
   test('$_fr E26: a label among many features finds its one doc by lookup', () {
@@ -96,10 +98,15 @@ void main() {
       (docPath: _topic, lf: '# R\n\nSee F-299 US-01 and F-301 US-01.\n'),
     ];
 
-    final pass = LabelPass.plan(docs, const []);
+    final pass = LabelPass.plan(
+      docs,
+      set: _set,
+      docTypes: _typesOf([for (final doc in docs) doc.docPath]),
+    );
 
     expect(pass.apply(_topic, docs.last.lf), contains('See `f299/s` and'));
-    expect(pass.planLine, contains('left: $_topic:3 F-301 US-01'));
+    expect(pass.planLine, 'number labels: 1 rewrites in 1 files; left: 1');
+    expect(pass.left, ['$_topic:3 F-301 US-01']);
   });
 
   group('$_fr E26 LabelTree.resolve', () {
@@ -264,17 +271,20 @@ void main() {
       );
     });
 
-    test('a spec doc is named from its doc type, not its file stem', () {
+    test('a spec doc is named from its doc type and its feature', () {
+      final docs = {_feature: '# Alpha\n', _api: '# D\n- **INV-5** x\n'};
       final tree = LabelTree.of(
-        [(docPath: _domain, lf: '# D\n- **INV-5** x\n')],
-        docTypes: {
-          _domain: _typesOf([_api])[_api]!,
-        },
+        [
+          for (final MapEntry(:key, :value) in docs.entries)
+            (docPath: key, lf: value),
+        ],
+        set: _set,
+        docTypes: _typesOf(docs.keys),
       );
       final label = numberLabelsIn('F-01 INV-5').single;
 
-      expect(tree.nameOf(_domain), 'api:alpha');
-      expect(tree.resolve(label, citingDocPath: _topic), _domain);
+      expect(tree.nameOf(_api), 'api:alpha');
+      expect(tree.resolve(label, citingDocPath: _topic), _api);
     });
 
     test('a label inside a code span stays as written and is not counted', () {
@@ -343,17 +353,26 @@ void main() {
         pass.apply(_api, 'x\nFR-01 and US-01 FR-01.\n\nF-09 y\n'),
         'x\nFR-01 and `alpha/beta/gamma`.\n\nF-09 y\n',
       );
-      expect(
-        pass.planLine,
-        'number labels: $_api; left: $_api:2 FR-01, $_api:4 F-09',
-      );
+      expect(pass.planLine, 'number labels: 1 rewrites in 1 files; left: 2');
+      expect(pass.paths, [_api]);
+      expect(pass.left, ['$_api:2 FR-01', '$_api:4 F-09']);
     });
 
     test('a partial label in a topic doc stays and is listed', () {
       final pass = _passOf(_topic, 'FR-01\n');
 
       expect(pass.apply(_topic, 'FR-01\n'), 'FR-01\n');
-      expect(pass.planLine, 'number labels: ; left: $_topic:1 FR-01');
+      expect(pass.planLine, 'number labels: 0 rewrites in 0 files; left: 1');
+      expect(pass.paths, isEmpty);
+      expect(pass.left, ['$_topic:1 FR-01']);
+    });
+
+    test('a tree with no label gives no plan line and no path', () {
+      final pass = _passOf(_topic, 'Nothing to convert.\n');
+
+      expect(pass.planLine, isNull);
+      expect(pass.paths, isEmpty);
+      expect(pass.left, isEmpty);
     });
 
     test('a label in a fenced block other than mermaid is no label', () {
@@ -367,105 +386,61 @@ void main() {
     });
   });
 
-  group('$_fr E26 files under the code roots', () {
-    test('a comment line gets a code span, a string gets the name alone', () {
-      const text =
-          '// see F-01 US-01 and US-01 FR-01\n'
-          '  // F-01 INV-5\n'
-          "test('F-01 US-01: name', () {});\n"
-          "const t = 'US-01 FR-01';\n"
-          'int a = 0; // F-01 here\n'
-          '// cite `F-01` there\n';
-      final pass = _passOf(
-        _topic,
-        'plain\n',
-        code: [(path: 'lib/a.dart', text: text)],
-      );
+  group('a doc is placed by its parent chain in the index', () {
+    // Sub-features two and three levels under feature 1, a story and two FRs
+    // under the deepest, and a spec doc under the middle one.
+    const sub = 'prds/features/f01_alpha/f03_sub/FEATURE.md';
+    const deep = 'prds/features/f01_alpha/f03_sub/f04_deep/FEATURE.md';
+    const deepStory =
+        'prds/features/f01_alpha/f03_sub/f04_deep/us01_sty/USER_STORY.md';
+    const deepFr1 =
+        'prds/features/f01_alpha/f03_sub/f04_deep/us01_sty/fr01_one.md';
+    const deepFr2 =
+        'prds/features/f01_alpha/f03_sub/f04_deep/us01_sty/fr02_two.md';
+    const subStory = 'prds/features/f01_alpha/f03_sub/us01_mid/USER_STORY.md';
+    const subApi = 'specs/f01_alpha/f03_sub/API.md';
+    final nested = {
+      sub: '# Sub\n',
+      deep: '# Deep\n',
+      deepStory: '# Sty\n',
+      deepFr1: _edgeCases,
+      deepFr2: _edgeCases.replaceAll('E01', 'E02'),
+      subStory: '# Mid\n',
+      subApi: '# Api\n\n- **INV-7** Seven.\n',
+    };
 
-      expect(pass.codeFiles, {
-        'lib/a.dart':
-            '// see `alpha/beta` and US-01 FR-01\n'
-            '  // `domain:alpha` INV-5\n'
-            "test('alpha/beta: name', () {});\n"
-            "const t = 'US-01 FR-01';\n"
-            'int a = 0; // feature:alpha here\n'
-            '// cite `feature:alpha` there\n',
-      });
+    String convertNested(String citing, String text) =>
+        _passOf(citing, text, extra: nested).apply(citing, text);
+
+    test(
+      'a partial label in an FR two sub-features deep reads its own story',
+      () {
+        expect(
+          convertNested(deepFr1, 'Next is FR-02.\n'),
+          'Next is `alpha/sub/deep/sty/two`.\n',
+        );
+      },
+    );
+
+    test(
+      'a full label names a story under a sub-feature by its own number',
+      () {
+        expect(
+          convertNested(_topic, 'See F-04 US-01 and F-03 US-01.\n'),
+          'See `alpha/sub/deep/sty` and `alpha/sub/mid`.\n',
+        );
+      },
+    );
+
+    test('a spec doc under a nested feature reads that sub-feature', () {
       expect(
-        pass.planLine,
-        'number labels: lib/a.dart; left: lib/a.dart:1 US-01 FR-01, '
-        'lib/a.dart:4 US-01 FR-01',
+        convertNested(subApi, 'See US-01 here.\n\n- **INV-7** Seven.\n'),
+        'See `alpha/sub/mid` here.\n\n- **INV-7** Seven.\n',
       );
-    });
-
-    test('a line end the file wrote stays, a lone line keeps its CR', () {
-      final pass = _passOf(
-        _topic,
-        'plain\n',
-        code: [(path: 'lib/m.dart', text: '// F-01\r\n// F-01 US-01\nx\r\n')],
-      );
-
-      expect(pass.codeFiles, {
-        'lib/m.dart': '// `feature:alpha`\r\n// `alpha/beta`\nx\r\n',
-      });
-    });
-
-    test('a markdown file is read as a doc, the name in a code span', () {
-      final pass = _passOf(
-        _topic,
-        'plain\n',
-        code: [(path: 'notes.md', text: '---\nx: F-01\n---\nSee F-01 here.\n')],
-      );
-
-      expect(pass.codeFiles, {
-        'notes.md': '---\nx: F-01\n---\nSee `feature:alpha` here.\n',
-      });
-    });
-
-    test('a file the project git does not track keeps every label, listed', () {
-      final pass = _passOf(
-        _topic,
-        'plain\n',
-        untracked: [(path: 'vendor/b.dart', text: '// F-01 US-01\n')],
-      );
-
-      expect(pass.codeFiles, isEmpty);
       expect(
-        pass.planLine,
-        'number labels: ; left: vendor/b.dart:1 F-01 US-01',
+        convertNested(_topic, 'See F-03 INV-7.\n'),
+        'See `api:alpha/sub` INV-7.\n',
       );
-    });
-
-    test('a file of any extension is read line by line', () {
-      final pass = _passOf(
-        _topic,
-        'plain\n',
-        code: [(path: 'data.json', text: '{"a": "F-01"}\n')],
-      );
-
-      expect(pass.codeFiles, {'data.json': '{"a": "feature:alpha"}\n'});
-    });
-
-    test('holdsNumberLabel reads a file as the pass does', () {
-      expect(holdsNumberLabel('a.dart', '// F-01\n'), isTrue);
-      expect(holdsNumberLabel('a.dart', 'x = "F-01";\n'), isTrue);
-      expect(holdsNumberLabel('a.md', 'F-01\n'), isTrue);
-      expect(holdsNumberLabel('a.dart', 'UTF-8 and US-ASCII\n'), isFalse);
-    });
-  });
-
-  group('$_fr E26 plan line order', () {
-    test('docs come before code files, each in code point order', () {
-      final pass = _passOf(
-        _topic,
-        'F-01\n',
-        code: [
-          (path: 'z.dart', text: '// F-01\n'),
-          (path: 'a.dart', text: '// F-01\n'),
-        ],
-      );
-
-      expect(pass.planLine, 'number labels: $_topic, a.dart, z.dart');
     });
   });
 
@@ -485,7 +460,7 @@ void main() {
           for (final MapEntry(:key, :value) in docs.entries)
             (docPath: key, lf: value),
         ],
-        const [],
+        set: _set,
         docTypes: _typesOf(docs.keys),
       );
     }
@@ -532,13 +507,16 @@ void main() {
         built.apply(_api, api('### `alpha two` — US-02 FR-04\n')),
         api('### `alpha two` — US-02 FR-04\n'),
       );
-      expect(built.planLine, 'number labels: ; left: $_api:15 US-02 FR-04');
+      expect(built.planLine, 'number labels: 0 rewrites in 0 files; left: 1');
+      expect(built.left, ['$_api:15 US-02 FR-04']);
     });
 
-    test('the plan line names each heading the step converts', () {
+    test('the plan line counts each heading the step converts, its paths '
+        'name the doc and the heading', () {
       final built = pass('### `alpha run` — US-01 FR-01\n');
 
-      expect(built.planLine, 'number labels: $_api, $_api:15 `alpha run`');
+      expect(built.planLine, 'number labels: 1 rewrites in 1 files; left: 0');
+      expect(built.paths, [_api, '$_api:15 `alpha run`']);
     });
 
     test('a link to a converted heading takes the new slug, in any doc', () {
@@ -580,7 +558,8 @@ void main() {
       final text = built.apply(_api, api(headings));
 
       expect(text, endsWith('### `alpha two` — US-02 FR-04\n\nBody.\n'));
-      expect(built.planLine, endsWith('; left: $_api:21 US-02 FR-04'));
+      expect(built.planLine, 'number labels: 3 rewrites in 1 files; left: 1');
+      expect(built.left, ['$_api:21 US-02 FR-04']);
     });
 
     test('a bare Concerns see of an architecture doc takes the new slug', () {
@@ -607,7 +586,7 @@ void main() {
           for (final MapEntry(:key, :value) in docs.entries)
             (docPath: key, lf: value),
         ],
-        const [],
+        set: _set,
         docTypes: {..._typesOf(docs.keys), path: type},
       );
 

@@ -8,6 +8,7 @@ const _visionSection = 'vision';
 const _visionEntryPrefix = '### ';
 final _headingLine = RegExp('^#{1,6} ');
 final _quoteLine = RegExp('^> [A-Za-z-]+: ');
+final _digit = RegExp(r'\p{Nd}', unicode: true);
 
 /// Returns the title, section, and size findings of a typed [doc]; an untyped
 /// doc has none.
@@ -24,6 +25,7 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
       message: 'the doc has no # title',
     );
   }
+  yield* _titleNumberFinding(context, doc, type.lint.titleNoNumber ?? false);
   for (final section in type.sections) {
     if (section.required && context.heldSection(doc, section.id) == null) {
       yield context.finding(
@@ -113,6 +115,34 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
       yield* _visionQuoteFindings(context, doc, context.bodyLinesOf(doc, i));
     }
   }
+}
+
+Iterable<Finding> _titleNumberFinding(
+  CheckContext context,
+  IndexedDoc doc,
+  bool titleNoNumber,
+) sync* {
+  final title = doc.title;
+  if (!titleNoNumber || title == null || !_digit.hasMatch(title)) return;
+  yield context.finding(
+    doc,
+    FindingKind.titleNumbered,
+    line: _titleLineOf(context, doc),
+    message: 'the title holds a digit',
+  );
+}
+
+/// Returns the file line of the first `# ` line below the frontmatter.
+int _titleLineOf(CheckContext context, IndexedDoc doc) {
+  final lines = context.linesOf(doc);
+  final frontmatter = context.contentOf(doc).frontmatterText ?? '';
+  final skip = frontmatter.isEmpty
+      ? 0
+      : frontmatter.split('\n').length - (frontmatter.endsWith('\n') ? 1 : 0);
+  for (var i = skip; i < lines.lines.length; i++) {
+    if (lines.lines[i].startsWith('# ') && !lines.isFenced(i + 1)) return i + 1;
+  }
+  return 1;
 }
 
 Iterable<Finding> _itemFindings(

@@ -27,7 +27,7 @@ sections:
     header: FR trace
     required: true
     description: |-
-      Write a table with the columns FR and Operation; write one row per operation.
+      Write a table with the columns FR and Operation, one row per FR: an operation that proves two FRs takes two rows.
       Write the `operationId` or the command in Operation; it is the pointer, a name and never a copy.
       Give every row a block in Operations, and every block a row.
       Name each FR by its path below this API's feature: `<story slug>/<fr slug>`, such as `email_login/validate_credentials`,
@@ -41,6 +41,12 @@ sections:
       Write Errors as the codes with a pointer to the error doc, and Auth as a scope or `none`.
       Write Idempotent on every mutating operation: `yes` with the key, or `no`.
       Write no Why line; the reason a legacy Why line gives goes to the `Rationale` of the FR the operation traces.
+    lint:
+      banned_patterns:
+        - id: operation_heading
+          pattern: '^### `[^`]+`\s*\S'
+          message: 'operation heading has text after its code span; guide line: alone with no FR label'
+          in: all
   - id: compatibility
     header: Compatibility
     description: |-

@@ -9,6 +9,7 @@ import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/record_edit.dart';
+import 'package:specstone_core/src/document_writing/stale_mentions.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
@@ -43,8 +44,9 @@ typedef _DeletePlan = ({_UnitFiles files, List<RecordEdit> records});
 /// the prompt waits, the list shows again. Under `--yes` the unit goes with
 /// no prompt, as after a `y`, but only while its files and those records hash
 /// to [planHash], the plan line of the dry run the Owner saw
-/// ([answerDeleteDryRun]); no git runs. Emptied folders go up to the docs
-/// root.
+/// ([answerDeleteDryRun]). Emptied folders go up to the docs root. Each
+/// mention of a removed doc in a code file or an agent file is listed after the
+/// removed paths, and no such file is written.
 ///
 /// Each record, in every code target, outside the unit that holds an entry of
 /// a story or FR of it loses that entry and becomes a draft, through the same
@@ -80,7 +82,7 @@ ReadAnswer answerDelete(
         'specstone delete --dry-run again, show it, and ask for a new ok',
       );
     }
-    final guarded = _holdsGuardedDoc(shown.files);
+    final guarded = _guardedDocsOf(shown.files).isNotEmpty;
     if (guarded) {
       confirmation.refuseIfMissing(
         '${unit.subject} holds guarded docs; only the Owner deletes them,',
@@ -105,23 +107,35 @@ ReadAnswer answerDelete(
     final removed = session.locked(() {
       final current = _planOf(session, roots);
       if (!_samePlan(current, shown)) return null;
+      final mentions = _mentionsOf(session, current);
       MoveJournal(_stepsFor(session, roots, current))
           .run(session.journalTarget);
-      return current.files.keys.toList();
+      return (files: current.files.keys.toList(), mentions: mentions);
     });
-    if (removed != null) return _answerFor(removed, warnings: dangling);
+    if (removed != null) {
+      return _answerFor(
+        removed.files,
+        mentions: removed.mentions,
+        warnings: dangling,
+      );
+    }
   }
 }
 
-/// Lists every file a delete of [targets] would remove, each record it
-/// rewrites, and its plan line.
+/// Lists every file a delete of [targets] would remove, each guarded one
+/// marked, each record it rewrites, and its plan line.
 ///
 /// The list is the one the terminal prompt shows before its `y`, and nothing
-/// is removed. The text is the files, one `rewrites <DocPath>: <entry>, …` line
-/// per record, the `plan <hash>` line, and `dry run: nothing removed`; the
-/// JSON holds `files`, `records` (each with its `path` and `entries`), and
-/// `plan`. Warns of each link left to dangle, and throws, as [answerDelete]
-/// does before its prompt. It starts no git.
+/// is removed. The text is the files, each guarded one's line ended with
+/// ` (guarded)`, one `rewrites <DocPath>: <entry>, …` line per record, one
+/// `mentions <path>:<line> <mention>` line per mention of a removed doc in a
+/// code file or an agent file, the `guarded: <n> docs` count line when any
+/// file is guarded, the `plan <hash>` line, and
+/// `dry run: nothing removed`; the JSON holds `files`, `guarded` (the guarded
+/// files' paths), `records` (each with its `path` and `entries`), `mentions`,
+/// and `plan`. The plan hash covers the paths and their content hashes alone,
+/// so the marks change no hash. Warns of each link left to dangle, and
+/// throws, as [answerDelete] does before its prompt.
 ReadAnswer answerDeleteDryRun(
   WriteSession session,
   List<String> targets, {
@@ -132,16 +146,23 @@ ReadAnswer answerDeleteDryRun(
   final plan = _planOf(session, unit.roots);
   final files = plan.files.keys.toList();
   final hash = _planHashOf(plan);
+  final mentions = _mentionsOf(session, plan);
+  final guarded = _guardedDocsOf(plan.files);
+  final guardedSet = guarded.toSet();
   return ReadAnswer(
     text:
-        '${_listOf(files)}${_rewritesOf(plan)}'
+        '${_listOf(files, guardedSet)}${_rewritesOf(plan)}'
+        '${_mentionLinesOf(mentions)}'
+        '${_guardedLineOf(guarded)}'
         'plan $hash\ndry run: nothing removed\n',
     json: {
       'files': files,
+      'guarded': guarded,
       'records': [
         for (final record in plan.records)
           {'path': record.docPath, 'entries': record.entries},
       ],
+      'mentions': mentionsJsonOf(mentions),
       'plan': hash,
     },
     warnings: dangling,
@@ -172,14 +193,31 @@ String _textHashOf(List<int> bytes) {
   }
 }
 
-String _listOf(Iterable<String> docPaths) =>
-    docPaths.map((docPath) => '$docPath\n').join();
+String _listOf(Iterable<String> docPaths, Set<String> guarded) => [
+  for (final docPath in docPaths)
+    if (guarded.contains(docPath)) '$docPath (guarded)\n' else '$docPath\n',
+].join();
+
+/// The `guarded:` count line, or nothing when [guarded] is empty.
+String _guardedLineOf(List<String> guarded) => guarded.isEmpty
+    ? ''
+    : "guarded: ${guarded.length} docs; the delete needs the Owner's ok\n";
 
 /// Returns one `rewrites <DocPath>: <entry>, …` line per record of [plan].
 String _rewritesOf(_DeletePlan plan) => [
   for (final record in plan.records)
     'rewrites ${record.docPath}: ${record.entries.join(', ')}\n',
 ].join();
+
+/// Returns the mentions in code files and agent files of the docs [plan]
+/// removes.
+List<StaleMention> _mentionsOf(WriteSession session, _DeletePlan plan) =>
+    staleMentions(session, [
+      for (final docPath in plan.files.keys) (from: docPath, to: removedPath),
+    ], namesChange: true);
+
+String _mentionLinesOf(List<StaleMention> mentions) =>
+    mentions.map(mentionLineOf).join();
 
 /// The resolved targets of a delete call, in the order given.
 class _DeleteSet(
@@ -444,21 +482,25 @@ _UnitFiles _readUnit(WriteSession session, List<String> roots) {
   return files;
 }
 
-/// Whether a `.md` file of [files] is guarded (INV-7).
+/// The `.md` files of [files] that are guarded, sorted by DocPath.
 ///
 /// Bytes that are not UTF-8 cannot show a draft, so they count as guarded.
-bool _holdsGuardedDoc(_UnitFiles files) {
-  for (final MapEntry(:key, :value) in files.entries) {
-    if (!key.endsWith('.md')) continue;
+List<String> _guardedDocsOf(_UnitFiles files) {
+  final guarded = <String>[];
+  for (final MapEntry(key: docPath, value: bytes) in files.entries) {
+    if (!docPath.endsWith('.md')) continue;
     final String text;
     try {
-      text = utf8.decode(value);
+      text = utf8.decode(bytes);
     } on FormatException {
-      return true;
+      guarded.add(docPath);
+      continue;
     }
-    if (isGuarded(ApprovalFields.of(Doc.parse(toLf(text))))) return true;
+    if (isGuarded(ApprovalFields.of(Doc.parse(toLf(text))))) {
+      guarded.add(docPath);
+    }
   }
-  return false;
+  return guarded..sort();
 }
 
 bool _samePlan(_DeletePlan a, _DeletePlan b) =>
@@ -510,9 +552,12 @@ List<JournalStep> _stepsFor(
 
 ReadAnswer _answerFor(
   List<String> removed, {
+  List<StaleMention> mentions = const [],
   List<String> warnings = const [],
 }) => ReadAnswer(
-  text: [for (final docPath in removed) '$docPath\n'].join(),
-  json: {'removed': removed},
+  text:
+      '${[for (final docPath in removed) '$docPath\n'].join()}'
+      '${_mentionLinesOf(mentions)}',
+  json: {'removed': removed, 'mentions': mentionsJsonOf(mentions)},
   warnings: warnings,
 );

@@ -156,6 +156,7 @@ void main() {
       expect(_idsOf(json['sections']), [
         'component_diagram',
         'components',
+        'component_details',
         'interaction',
         'deployment',
         'rollout',
@@ -217,6 +218,7 @@ void main() {
         'reference',
         'statuses',
         'implements',
+        'tests',
       ]);
       final statuses = fields.singleWhere((f) => f['id'] == 'statuses');
       expect(statuses['type'], 'record_status');
@@ -231,6 +233,20 @@ void main() {
         contains(
           "relative to the code root of the doc's target "
           '(`.specstone/config.yaml`, else the project root)',
+        ),
+      );
+      final tests = fields.singleWhere((f) => f['id'] == 'tests');
+      expect(tests['type'], 'output_ref');
+      expect(tests['list'], isTrue);
+      expect(tests['pointer'], 'item_test');
+      expect(
+        tests['description'],
+        allOf(
+          contains('`<item>:<test file path>[:<test or group name>]`'),
+          contains(
+            "relative to the code root of the doc's target "
+            '(`.specstone/config.yaml`, else the project root)',
+          ),
         ),
       );
       expect(json['sections'], isEmpty);
@@ -292,8 +308,8 @@ void main() {
         'auth': 'about 150 to 200 lines',
         'topic': 'about 150 to 200 lines',
         'implementation':
-            'one line per entry in `statuses` and one per code path in '
-            '`implements`, under the 400-line cap',
+            'one line per entry in `statuses`, one per code path in '
+            '`implements`, and one per test file in `tests`',
       };
       final runner = await runnerFor(_bothPacks);
       for (final MapEntry(key: id, value: target) in targets.entries) {
@@ -354,6 +370,83 @@ void main() {
       expect(guide, isNot(contains('## ')));
     });
 
+    test('guide implementation names the tests field and the frontmatter '
+        'lines the 400-line cap leaves to the character cap', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'implementation']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'The 400-line cap does not count these frontmatter lines, so the '
+            '60,000-character cap bounds them',
+          ),
+          contains(
+            '`tests` names one `<item>:<test file path>` line per item and '
+            'test file that proves it',
+          ),
+          contains('written as a quoted YAML string when the name holds'),
+          contains('Code and tests never name this doc.'),
+        ),
+      );
+    });
+
+    test('guide architecture prints Component details right after '
+        'Components and asks for a table and one sentence per row', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'architecture']), 0);
+      final guide = out.toString();
+      final components = guide.indexOf('## Components\n\n');
+      final details = guide.indexOf('## Component details\n\n');
+      final interaction = guide.indexOf('## Interaction\n\n');
+      expect(components, greaterThan(0));
+      expect(details, greaterThan(components));
+      expect(interaction, greaterThan(details));
+      expect(
+        guide,
+        allOf(
+          contains(
+            'its Responsibility one sentence: every diagram box is a row, '
+            'and every row a box.',
+          ),
+          contains(
+            'Write no line but a table line; put the detail of a component '
+            'in Component details.',
+          ),
+          contains(
+            'Write one `### <Component>` subsection per such component, '
+            "headed with the row's Component cell.",
+          ),
+        ),
+      );
+    });
+
+    test('guide api asks for one FR trace row per FR and guide error asks for '
+        'a general Triggered by', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'api']), 0);
+      expect(
+        out.toString(),
+        contains(
+          'one row per FR: an operation that proves two FRs takes two rows.',
+        ),
+      );
+      expect(out.toString(), isNot(contains('one row per operation')));
+      out.clear();
+      expect(await runner.run(['guide', 'error']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'Write Triggered by as the general condition that raises the code '
+            'in that feature, such as a flag out of range.',
+          ),
+          contains('List no raising site there.'),
+          isNot(contains('FR edge ID')),
+        ),
+      );
+    });
+
     test('f03/us07/fr02/e15: the architecture and tech stack guides name '
         "the target's record as the holder of status and code paths, and "
         "covers and code as the target's own code", () async {
@@ -385,6 +478,7 @@ void main() {
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
       final lint = json['lint']! as Map<String, Object?>;
       expect(lint['maxLines'], 400);
+      expect(lint['maxChars'], 60000);
       expect(lint.containsKey('maxItemChars'), isFalse);
       expect(lint.containsKey('bannedWords'), isFalse);
       final reference = (json['reference']! as List<Object?>)

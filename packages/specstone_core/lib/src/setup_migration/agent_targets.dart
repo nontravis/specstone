@@ -7,8 +7,10 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
+import 'package:specstone_core/src/document_writing/moved_paths.dart'
+    show PathMove;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
-    show codeRootFiles;
+    show mentionScanFiles;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -127,22 +129,26 @@ List<Directory> codeFoldersOf(
 /// of the target that lists it.
 ///
 /// A target lists the files under the `code:` entries of its own docs, read
-/// from its own root; a file under the root of another target nested in its
+/// from its own root, or every file under its root when its docs list none
+/// (`mentionScanFiles`); a file under the root of another target nested in its
 /// own belongs to that target. A shared doc's entries count for no target when
-/// [targets] holds two or more. Roots and entries are read as
-/// `filesUnderCodeRoot` reads them.
+/// [targets] holds two or more. A doc [moves] moves is read where the move
+/// puts it.
 List<({Directory root, String path})> codeFilesOf(
   Directory projectRoot,
   MergedSet set, {
   required List<CodeTarget> targets,
+  List<PathMove> moves = const [],
 }) {
-  final entriesOf = _entriesByTarget(projectRoot, set, targets);
+  final entriesOf = _entriesByTarget(projectRoot, set, targets, moves);
+  final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   return [
     for (final target in targets)
-      for (final path in codeRootFiles(
+      for (final path in mentionScanFiles(
         codeRootFolderOf(projectRoot, target),
         entriesOf[target] ?? const {},
-        skipFolders: nestedRootsOf(projectRoot, target, targets),
+        docsRoot: docsRoot,
+        nestedRoots: nestedRootsOf(projectRoot, target, targets),
       ))
         (root: codeRootFolderOf(projectRoot, target), path: path),
   ];
@@ -153,13 +159,15 @@ List<({Directory root, String path})> codeFilesOf(
 Map<CodeTarget, Set<String>> _entriesByTarget(
   Directory projectRoot,
   MergedSet set,
-  List<CodeTarget> targets,
-) {
+  List<CodeTarget> targets, [
+  List<PathMove> moves = const [],
+]) {
   final entriesOf = <CodeTarget, Set<String>>{};
   for (final (:target, :entry) in _codeEntriesOf(
     projectRoot,
     set,
     targetNames: targetNamesOf(targets),
+    moves: moves,
   )) {
     final owner = _ownerOf(targets, target);
     if (owner != null) entriesOf.putIfAbsent(owner, () => {}).add(entry);
@@ -182,11 +190,12 @@ CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
 ///
 /// A per-target doc still at its one-target path is read where the tree move
 /// puts it ([treeMovesOf]), so the run that moves it already counts its
-/// entries for the first target.
+/// entries for the first target; a doc [moves] moves is read at its new path.
 Iterable<({String? target, String entry})> _codeEntriesOf(
   Directory projectRoot,
   MergedSet set, {
   required List<String> targetNames,
+  List<PathMove> moves = const [],
 }) sync* {
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   if (!docsRoot.existsSync()) return;
@@ -201,6 +210,7 @@ Iterable<({String? target, String entry})> _codeEntriesOf(
   final landing = {
     for (final move in treeMovesOf(docPaths, set, targetNames: targetNames))
       move.from: move.to,
+    for (final move in moves) move.from: move.to,
   };
   for (final docPath in docPaths) {
     final match = matcher.match(landing[docPath] ?? docPath);
@@ -370,12 +380,16 @@ final class AgentWritePlan {
   /// (R99).
   final List<String> skipped;
 
+  /// The path from the project root of each file the run writes, the root's
+  /// first.
+  List<String> get paths => [
+    for (final write in [...rootWrites, ...topWrites]) write.path,
+  ];
+
   /// The plan's `agent files:` line, empty when no file is written.
   String get line {
-    final paths = [
-      for (final write in [...rootWrites, ...topWrites]) write.path,
-    ];
-    return paths.isEmpty ? '' : '$_agentsLinePrefix${paths.join(', ')}';
+    final count = paths.length;
+    return count == 0 ? '' : '$_agentsLinePrefix$count files';
   }
 
   /// Whether the run writes no file and lists no new top.

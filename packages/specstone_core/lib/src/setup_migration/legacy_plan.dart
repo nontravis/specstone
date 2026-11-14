@@ -15,8 +15,12 @@ import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/document_writing/stale_mentions.dart'
+    show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/index_store.dart'
     show specstoneGitignoreLines;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show IndexedDoc;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
@@ -35,6 +39,7 @@ import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
+import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
@@ -61,14 +66,12 @@ const _appliesToField = 'applies_to';
 const _coversField = 'covers';
 const _toRecord = 'to record';
 const _recordEdit = 'add record entries';
+const _testsEdit = 'add test lines';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
 const legacyCommit2Message =
     'rewrite titles, keys, and links; add project configuration';
-
-/// What an applied or resumed migration prints after its commit lines.
-const legacyClosingLine = 'run specstone check to list what is left to fill';
 
 final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 
@@ -169,20 +172,6 @@ RunPlan _legacyRunOf(
   for (final work in titled.works) {
     work.newPath = landing[work.newPath] ?? work.newPath;
   }
-  final taken = takenAfterMoves(root, moves);
-  final rewrites = _rewritesOf(
-    titled.works,
-    projectSet: projectSet,
-    moves: moves,
-    features: features,
-    targetNames: targetNames,
-    recordSteps: _recordStepsOf(
-      templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
-    ),
-    exists: (path) => _existsIn(docsRoot, path),
-    isTaken: (docPath) => taken('$_docsFolder$docPath'),
-  );
-
   final inferred = keepsCodeRoots
       ? null
       : inferCodeRoot(
@@ -196,12 +185,42 @@ RunPlan _legacyRunOf(
         );
   final codeRoot = inferred?.value ?? existing?.codeRoot ?? '.';
   final codeRootNote = _codeRootNoteOf(inferred);
+  final taken = takenAfterMoves(root, moves);
+  final targets = inferred == null && existing != null
+      ? existing.targets
+      : [CodeTarget(null, codeRoot: codeRoot)];
+  final rewrites = _rewritesOf(
+    titled.works,
+    projectSet: projectSet,
+    moves: moves,
+    features: features,
+    targetNames: targetNames,
+    recordSteps: _recordStepsOf(
+      templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
+    ),
+    exists: (path) => _existsIn(docsRoot, path),
+    isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    testNames: projectSet.recordDocType != null
+        ? (
+            root: Directory(root.resolveSymbolicLinksSync()),
+            targets: targets,
+            agentFileRoots: existing?.agentFileRoots ?? const [],
+          )
+        : null,
+  );
+
   final agentFiles = _agentFilesOf(
     root,
-    targets: inferred == null && existing != null
-        ? existing.targets
-        : [CodeTarget(null, codeRoot: codeRoot)],
+    targets: targets,
     agentFileRoots: existing?.agentFileRoots ?? const [],
+  );
+  final mentions = _staleMentionsOf(
+    root,
+    set: projectSet,
+    targets: existing?.targets ?? [CodeTarget(null, codeRoot: codeRoot)],
+    agentFileRoots: existing?.agentFileRoots ?? const [],
+    docPaths: docPaths,
+    moves: moves,
   );
   final configRewrite = existing == null
       ? null
@@ -214,19 +233,29 @@ RunPlan _legacyRunOf(
           agentFileRoots: agentFiles.agentFileRoots,
         );
 
-  return RunPlan(
+  final plan = RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...rewrites.planned, ?configRewrite],
+    rewrites: [...rewrites.planned, ...rewrites.testFiles, ?configRewrite],
     rewriteLines: [
       for (final rewrite in rewrites.planned)
         if (rewrite.changes.isNotEmpty) _rewriteLineOf(rewrite),
       ?rewrites.labelsLine,
+      ?rewrites.testsLine,
       ?formatLayoutLine(rewrites.layoutOnly),
       ?rewrites.stampsLine,
+      ?mentionsLine(mentions),
       if (configRewrite != null) _rewriteLineOf(configRewrite),
     ],
+    lists: PlanLists(
+      formatLayout: [...rewrites.layoutOnly]..sort(compareCodePoints),
+      numberLabelsRewritten: rewrites.labelsRewritten,
+      numberLabelsLeft: rewrites.labelsLeft,
+      agentFiles: agentFiles.paths,
+      mentions: mentions,
+      tests: rewrites.tests?.json,
+    ),
     creates: [
       if (existing == null)
         PlannedCreate(
@@ -249,8 +278,46 @@ RunPlan _legacyRunOf(
     commit1Message: _commit1Message,
     commit2Message: legacyCommit2Message,
     inputs: inputs,
-    closingLine: legacyClosingLine,
     agentFiles: agentFiles,
+  );
+  return plan;
+}
+
+/// Returns the mentions in code and agent files that the run's [moves] stop
+/// resolving.
+///
+/// The scan opens no index, so the plan writes nothing; the docs are the ones
+/// the plan read, before the moves.
+List<StaleMention> _staleMentionsOf(
+  Directory root, {
+  required MergedSet set,
+  required List<CodeTarget> targets,
+  required List<String> agentFileRoots,
+  required List<String> docPaths,
+  required List<PathMove> moves,
+}) {
+  if (moves.isEmpty) return const [];
+  final projectRoot = Directory(root.resolveSymbolicLinksSync());
+  return staleMentionsIn(
+    MentionScope(
+      projectRoot: projectRoot,
+      docsRoot: Directory.fromUri(projectRoot.uri.resolve(_docsFolder)),
+      set: set,
+      targets: targets,
+      agentFileRoots: agentFileRoots,
+      docMoves: moves,
+      docs: [
+        for (final docPath in docPaths)
+          IndexedDoc(
+            docPath: docPath,
+            name: docPath,
+            frontmatter: const {},
+            tokens: 0,
+          ),
+      ],
+    ),
+    moves,
+    namesChange: false,
   );
 }
 
@@ -312,14 +379,28 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 /// is their layout.
 ///
 /// `labelsLine` and `stampsLine` are the upgrade's `number labels:` and
-/// `stamps:` plan lines, null when the run has nothing to say; `records` are
-/// the draft records the run creates, in path order.
+/// `stamps:` plan lines, null when the run has nothing to say, and
+/// `labelsRewritten` and `labelsLeft` the lists the first counts; `records`
+/// are the draft records the run creates, in path order.
 typedef _Rewrites = ({
   List<PlannedRewrite> planned,
+  List<PlannedRewrite> testFiles,
   List<String> layoutOnly,
   List<PlannedCreate> records,
   String? labelsLine,
+  String? testsLine,
+  TestNamePass? tests,
+  List<String> labelsRewritten,
+  List<String> labelsLeft,
   String? stampsLine,
+});
+
+/// What the test-name pass reads of a legacy run: the project root, the code
+/// targets, and the tops of the other repositories.
+typedef _TestNameScope = ({
+  Directory root,
+  List<CodeTarget> targets,
+  List<String> agentFileRoots,
 });
 
 /// One markdown doc on its way to commit 2.
@@ -345,6 +426,9 @@ final class _Work {
 
   /// Whether a legacy ID or number label of the doc became a name.
   bool hasNamedLabels = false;
+
+  /// How many legacy IDs and number labels of the doc became a name.
+  int labelRewrites = 0;
   final List<String> changes = [];
   String note = '';
 
@@ -465,6 +549,7 @@ _Rewrites _rewritesOf(
   required List<MoveToRecord> recordSteps,
   required bool Function(String path) exists,
   required bool Function(String docPath) isTaken,
+  required _TestNameScope? testNames,
 }) {
   final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
   var fingerprintEntries = 0;
@@ -485,7 +570,7 @@ _Rewrites _rewritesOf(
   }
 
   final tree = _convertLabels(works, typeOf, features);
-  final records = _moveToRecords(
+  final moved = _moveToRecords(
     works,
     matchOf,
     set: projectSet,
@@ -493,6 +578,18 @@ _Rewrites _rewritesOf(
     firstTarget: twinNamesOf(targetNames).firstOrNull,
     isTaken: isTaken,
   );
+  final tests = testNames == null
+      ? null
+      : _testNamesOf(
+          testNames,
+          works,
+          matchOf,
+          tree: tree,
+          set: projectSet,
+          recordCreates: moved,
+          isTaken: isTaken,
+        );
+  final records = tests?.recordsOver(moved) ?? moved;
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
@@ -518,6 +615,11 @@ _Rewrites _rewritesOf(
   ];
   final byPath = [...works]
     ..sort((a, b) => compareCodePoints(a.newPath, b.newPath));
+  final labelsRewritten = [
+    for (final work in byPath)
+      if (work.hasNamedLabels) work.newPath,
+  ];
+  final labelsLeft = _keptLabelsOf(tree, byPath);
   return (
     planned: [
       for (final work in written)
@@ -529,6 +631,7 @@ _Rewrites _rewritesOf(
           note: work.note,
         ),
     ],
+    testFiles: tests?.fileRewrites ?? const [],
     layoutOnly: [
       for (final work in written)
         if (work.changes.isEmpty &&
@@ -537,13 +640,15 @@ _Rewrites _rewritesOf(
           work.newPath,
     ],
     records: records,
+    testsLine: tests?.planLine,
+    tests: tests,
     labelsLine: numberLabelsPlanLine(
-      converted: [
-        for (final work in byPath)
-          if (work.hasNamedLabels) work.newPath,
-      ],
-      kept: _keptLabelsOf(tree, byPath),
+      rewrites: works.fold(0, (sum, work) => sum + work.labelRewrites),
+      files: labelsRewritten.length,
+      left: labelsLeft.length,
     ),
+    labelsRewritten: labelsRewritten,
+    labelsLeft: labelsLeft,
     stampsLine: stampsPlanLine(
       written
           .where(
@@ -627,6 +732,48 @@ List<PlannedCreate> _moveToRecords(
   return recordCreatesOf(placement);
 }
 
+/// Plans the test-name pass over [works] as the label conversion and the
+/// record moves left them, and writes the lines it adds into the records of
+/// the tree; [recordCreates] are the records the run already creates.
+///
+/// A name's label resolves through [tree], from no doc, so a partial label
+/// names nothing.
+TestNamePass _testNamesOf(
+  _TestNameScope scope,
+  List<_Work> works,
+  MatchedDocType? Function(_Work work) matchOf, {
+  required LabelTree tree,
+  required MergedSet set,
+  required List<PlannedCreate> recordCreates,
+  required bool Function(String docPath) isTaken,
+}) {
+  final pass = TestNamePass.plan(
+    root: scope.root,
+    set: set,
+    targets: scope.targets,
+    agentFileRoots: scope.agentFileRoots,
+    docs: [
+      for (final work in works)
+        (
+          plannedPath: work.newPath,
+          type: matchOf(work)?.docType,
+          target: matchOf(work)?.target,
+          lf: work.lf,
+        ),
+    ],
+    resolveLabel: (label) => tree.resolve(label, citingDocPath: ''),
+    isTaken: isTaken,
+    pendingCreates: recordCreates,
+  );
+  for (final work in works) {
+    final edited = pass.recordEdits[work.newPath];
+    if (edited == null) continue;
+    work.lf = edited;
+    work.changes.add(_testsEdit);
+  }
+  return pass;
+}
+
 /// Returns the `move_to_record` steps of the carried packs' migrations, the
 /// ones the upgrade runs, so both runs move one field set.
 List<MoveToRecord> _recordStepsOf(Map<String, PackManifest> manifests) => [
@@ -674,19 +821,21 @@ LabelTree _convertLabels(
   final before = [
     for (final work in works) (docPath: work.legacyPath, lf: work.lf),
   ];
+  final conversions = {
+    for (final work in works)
+      work.legacyPath: convertLegacyLabels(
+        tree,
+        legacyPath: work.legacyPath,
+        lf: work.lf,
+      ),
+  };
   final texts = withLabelAnchorsMoved(
     before,
-    {
-      for (final work in works)
-        work.legacyPath: convertLegacyLabels(
-          tree,
-          legacyPath: work.legacyPath,
-          lf: work.lf,
-        ).lf,
-    },
+    {for (final MapEntry(:key, :value) in conversions.entries) key: value.lf},
     {for (final work in works) work.legacyPath: ?typeOf(work)},
   );
   for (final work in works) {
+    work.labelRewrites = conversions[work.legacyPath]!.rewrites;
     final text = texts[work.legacyPath];
     if (text == null) continue;
     work

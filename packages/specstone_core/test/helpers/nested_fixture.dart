@@ -118,8 +118,11 @@ Map<String, String> nestedFiles() => {
   'docs/$cartDomain': _domain('Cart'),
   'docs/$shopArchitecture':
       '---\ncovers:\n  - app/lib/\n---\n\n# Shop architecture\n\n'
-      '## Component diagram\nOne box.\n\n## Components\n- Shop\n\n'
-      '## Concerns\n- Errors: see Components\n- Rollout: N/A — one release\n',
+      '## Component diagram\nOne box.\n\n## Components\n'
+      '| Component | Responsibility |\n|---|---|\n| Shop | Sells items |\n\n'
+      '## Concerns\n- Integration: N/A — no outside call\n- Errors: see Components\n'
+      '- Auth: N/A — one local user\n- Lifecycle: N/A — no states\n- Events: N/A — no events\n'
+      '- Rollout: N/A — one release\n- Observability: N/A — no telemetry\n',
   'docs/$shopApi':
       '---\nconfirmed:\n  - cart/add_item/check_stock ${fingerprintFor(checkStockStatement)}\n---\n\n'
       '# Shop API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'

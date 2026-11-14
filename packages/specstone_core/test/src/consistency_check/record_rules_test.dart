@@ -33,7 +33,11 @@ const _recordLayer =
     '  - id: implements\n'
     '    type: output_ref\n'
     '    list: true\n'
-    '    pointer: item_exact\n';
+    '    pointer: item_exact\n'
+    '  - id: tests\n'
+    '    type: output_ref\n'
+    '    list: true\n'
+    '    pointer: item_test\n';
 
 const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
 const _shopRecord = 'specs/f02_shop/IMPLEMENTATION.md';
@@ -51,13 +55,14 @@ const _fr = 'email_login/check_password';
 String _record({
   List<String> statuses = const [],
   List<String> code = const [],
+  List<String> tests = const [],
   String front = '',
 }) {
   String list(String key, List<String> lines) => lines.isEmpty
       ? ''
       : "$key:\n${[for (final l in lines) "  - '$l'\n"].join()}";
   return '---\n$front${list('statuses', statuses)}${list('implements', code)}'
-      '---\n\n# Record\n';
+      '${list('tests', tests)}---\n\n# Record\n';
 }
 
 /// The file line of the [i]th `statuses` item, from 0, under no `front`.
@@ -66,6 +71,15 @@ int _statusLine(int i) => 3 + i;
 /// The file line of the [j]th `implements` item after [statusCount] statuses.
 int _codeLine(int statusCount, int j) =>
     (statusCount == 0 ? 3 : 4 + statusCount) + j;
+
+/// The file line of the [j]th `tests` item after [statusCount] statuses and
+/// [codeCount] `implements` lines.
+int _testLine(int statusCount, int codeCount, int j) =>
+    2 +
+    (statusCount == 0 ? 0 : 1 + statusCount) +
+    (codeCount == 0 ? 0 : 1 + codeCount) +
+    1 +
+    j;
 
 Map<String, String> _oneTarget(String path, String record) => {
   '.specstone/templates/implementation.yaml': _recordLayer,
@@ -394,6 +408,91 @@ void main() {
       '${_codeLine(1, 0)} feature_status_written',
     ]);
   });
+
+  test('a tests line takes the implements branch: on a skipped item '
+      'skip_with_code, under a skip entry_under_skip', () async {
+    final skipped = await _check(
+      _record(
+        statuses: ['$_story:skipped:no toast host'],
+        tests: ['$_story:test/a_test.dart', '$_story:test/b_test.dart'],
+      ),
+    );
+    final under = await _check(
+      _record(
+        statuses: [':skipped:no web view'],
+        tests: ['$_story:test/a_test.dart'],
+      ),
+    );
+
+    expect(_found(skipped), [
+      '${_testLine(1, 0, 0)} skip_with_code',
+      '${_testLine(1, 0, 1)} skip_with_code',
+    ]);
+    expect(
+      _only(
+        await _check(
+          _record(
+            statuses: ['$_story:skipped:no toast host'],
+            tests: ['$_story:test/a_test.dart'],
+          ),
+        ),
+        FindingKind.skipWithCode,
+      ).toJson(),
+      containsPair('entry', _story),
+    );
+    expect(_found(under), ['${_testLine(1, 0, 0)} entry_under_skip']);
+    expect(
+      _only(under, FindingKind.entryUnderSkip).toJson(),
+      allOf(containsPair('entry', _story), containsPair('skip', 'login')),
+    );
+  });
+
+  test('a tests line naming the feature itself is feature_status_written; '
+      'under its own skip, skip_with_code', () async {
+    final written = await _check(_record(tests: [':test/a_test.dart']));
+    final skipped = await _check(
+      _record(statuses: [':skipped:no web view'], tests: [':test/a_test.dart']),
+    );
+
+    expect(_found(written), ['${_testLine(0, 0, 0)} feature_status_written']);
+    expect(_found(skipped), ['${_testLine(1, 0, 0)} skip_with_code']);
+  });
+
+  test('a tests line naming no story or FR, or no item, is '
+      'record_entry_unresolved', () async {
+    final report = await _check(
+      _record(
+        tests: ['$_story/pin_toast:test/a_test.dart', 'test/b_test.dart'],
+      ),
+    );
+
+    expect(_found(report), [
+      '${_testLine(0, 0, 0)} record_entry_unresolved',
+      '${_testLine(0, 0, 1)} record_entry_unresolved',
+    ]);
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.recordEntryUnresolved) f.keys['entry'],
+      ],
+      ['$_story/pin_toast', 'test/b_test.dart'],
+    );
+  });
+
+  test(
+    'a tests line of an item that holds no fault gives no finding',
+    () async {
+      final report = await _check(
+        _record(
+          statuses: ['$_fr:implemented'],
+          code: ['$_fr:lib/a.dart'],
+          tests: ['$_fr:test/a_test.dart:shows a toast'],
+        ),
+      );
+
+      expect(_found(report), isEmpty);
+    },
+  );
 
   test('f04/us03/fr05: a line that names no item is unresolved, once, even '
       'when it holds the only fault', () async {

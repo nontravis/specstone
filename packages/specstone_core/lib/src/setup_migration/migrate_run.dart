@@ -1,10 +1,13 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
+import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
@@ -31,6 +34,7 @@ final class MigrateRequest {
     required this.confirmation,
     required this.readLine,
     required this.out,
+    this.asJson = false,
     this.planHash,
     this.runGit = runMigrateGit,
     this.warn = warnOnStderr,
@@ -56,6 +60,10 @@ final class MigrateRequest {
 
   /// Where the plan and the result print.
   final StringSink out;
+
+  /// Whether the plan prints as one JSON object on [out]; the prompt, the
+  /// commit lines, and the closing line then go to [warn].
+  final bool asJson;
 
   /// The hash on the `plan <hash>` line of the dry run the Owner saw; under
   /// `--yes` the run applies only a plan with this hash.
@@ -200,14 +208,14 @@ int _plannedRun(
   _nameSkipped(request, plan);
   final planText = plan.toText();
   if (request.dryRun) {
-    _printDryRun(request, planText, plan.inputs);
+    _printDryRun(request, planText, plan.inputs, plan.lists);
     return 0;
   }
-  request.out.write(planText);
+  _printPlan(request, planText, plan.lists);
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (request.confirmation.prompts) {
     MoveJournal.requireHomeFolder(request.homeDirectory, root);
-    request.out.write('apply? [y/N] ');
+    _say(request, 'apply? [y/N] ', endsLine: false);
     final answer = request.readLine()?.trim();
     if (answer != 'y') return 0;
   } else {
@@ -221,8 +229,7 @@ int _plannedRun(
     _targetOf(root, request, trust, agentFiles: applied.agentFiles?.writeSet),
   );
   _printCommits(request, root, steps.whereType<CommitStep>().toList());
-  final closingLine = applied.closingLine;
-  if (closingLine != null) request.out.writeln(closingLine);
+  _printClosingLine(request, root);
   return 0;
 }
 
@@ -311,7 +318,6 @@ RunPlan _planOf(
         root,
         templates: request.templates,
         homeDirectory: request.homeDirectory,
-        runGit: request.runGit,
       )
     : planLegacyRun(
         root,
@@ -340,10 +346,10 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
     return listing.toString();
   });
   if (request.dryRun) {
-    _printDryRun(request, planText, inputs);
+    _printDryRun(request, planText, inputs, const PlanLists());
     return 0;
   }
-  final out = request.out..write(planText);
+  _printPlan(request, planText, const PlanLists());
   request.confirmation.refuseIfMissing(_applyRefusal);
   if (!request.confirmation.prompts) {
     _requireSeenPlan(request, planText, inputs);
@@ -351,19 +357,61 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
   final commits = MoveJournal.read(target)!.whereType<CommitStep>().toList();
   MoveJournal.replay(target);
   _printCommits(request, root, commits);
-  if (commits.last.message == legacyCommit2Message) {
-    out.writeln(legacyClosingLine);
-  }
+  _printClosingLine(request, root);
   return 0;
 }
 
-/// Prints [planText], its `plan <hash>` line over [inputs], and the dry-run
-/// closing line.
-void _printDryRun(MigrateRequest request, String planText, PlanInputs inputs) {
-  request.out
-    ..write(planText)
-    ..writeln('plan ${planHashOf(planText, inputs)}')
-    ..writeln('dry run: nothing written');
+/// Prints the plan: [planText], or under `--json` one object holding it and
+/// the path [lists] the count lines leave out.
+void _printPlan(MigrateRequest request, String planText, PlanLists lists) {
+  if (!request.asJson) {
+    request.out.write(planText);
+    return;
+  }
+  request.out.writeln(
+    const JsonEncoder.withIndent('  ')
+        .convert({'plan': planText, ...lists.toJson()}),
+  );
+}
+
+/// Prints the plan as [_printPlan] does, closed by its `plan <hash>` line
+/// over [inputs]; as text, the dry-run closing line follows.
+void _printDryRun(
+  MigrateRequest request,
+  String planText,
+  PlanInputs inputs,
+  PlanLists lists,
+) {
+  final hashLine = 'plan ${planHashOf(planText, inputs)}\n';
+  _printPlan(request, '$planText$hashLine', lists);
+  if (!request.asJson) request.out.writeln('dry run: nothing written');
+}
+
+/// Says [text] after the plan: on [MigrateRequest.out], or under `--json` on
+/// its warnings, so the object stays alone on `out`.
+void _say(MigrateRequest request, String text, {bool endsLine = true}) {
+  if (request.asJson) {
+    request.warn(text.trimRight());
+  } else if (endsLine) {
+    request.out.writeln(text);
+  } else {
+    request.out.write(text);
+  }
+}
+
+/// Says how many findings a whole-project `check` reports at [root] after the
+/// last commit.
+void _printClosingLine(MigrateRequest request, Directory root) {
+  final findings = ReadSession.run(
+    (session) => runCheck(session).findings.length,
+    templates: request.templates,
+    workingDirectory: root,
+    homeDirectory: request.homeDirectory,
+  );
+  _say(
+    request,
+    'check: $findings findings left; run specstone check to see them',
+  );
 }
 
 /// Refuses a `--yes` run whose plan is not the one the Owner saw.
@@ -417,6 +465,6 @@ void _printCommits(
   for (final (:sha, :subject, :message) in commits) {
     final index = steps.indexWhere((step) => step.carriedBy(message));
     if (index < 0) continue;
-    request.out.writeln('commit ${firstNumber + index} $sha: $subject');
+    _say(request, 'commit ${firstNumber + index} $sha: $subject');
   }
 }

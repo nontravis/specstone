@@ -2,10 +2,11 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId;
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
-import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show isCommentLine, markdownExtension;
+import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
-import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/parents.dart'
+    show resolveParents;
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
     show legacyFolderIdOf;
@@ -14,6 +15,7 @@ import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 
 // MARK: - Constants
 
@@ -30,7 +32,6 @@ final _frFile = RegExp(r'^fr(\d+)_([a-z0-9_]+)\.md$');
 
 const _featureFile = 'FEATURE.md';
 const _storyFile = 'USER_STORY.md';
-const _featureTypeId = 'feature';
 const _apiTypeId = 'api';
 
 // MARK: - Types
@@ -54,13 +55,30 @@ typedef _LineEdit = ({int line, int column, int length, String text});
 typedef _Converted = ({List<_LineEdit> edits, List<_Kept> kept});
 
 /// A doc after the heading step and the label conversion, the operation
-/// headings it converted, and the labels it keeps.
-typedef _DocResult = ({String lf, List<_Kept> headings, List<_Kept> kept});
+/// headings it converted, the labels it replaced, and the labels it keeps.
+typedef _DocResult = ({
+  String lf,
+  List<_Kept> headings,
+  int labels,
+  List<_Kept> kept,
+});
+
+/// A doc text with its labels converted, how many it replaced, and the
+/// labels it keeps.
+typedef LabelConversion = ({
+  String lf,
+  int rewrites,
+  List<({int line, String label})> kept,
+});
 
 enum _DocKind { feature, story, fr, spec }
 
-/// The place a doc path gives: its feature and story, and what is left of
-/// the path.
+/// The feature a doc sits under, by number and name, and its story's number
+/// when it sits under one.
+typedef _Place = ({int feature, String featureName, int? story});
+
+/// The place a legacy doc path gives: its feature and story, and what is left
+/// of the path.
 typedef _Located = ({
   int feature,
   String featureSlug,
@@ -70,7 +88,7 @@ typedef _Located = ({
   bool isSpec,
 });
 
-/// No feature and no story: a code file, or a doc outside any feature.
+/// No feature and no story: a doc outside any feature.
 const _Base _noPlace = (feature: null, story: null);
 
 // MARK: - LabelTree
@@ -78,19 +96,17 @@ const _Base _noPlace = (feature: null, story: null);
 /// The docs and files a label resolves against: DocPaths with their order
 /// numbers, and the item IDs each doc holds.
 final class LabelTree {
-  /// Reads the numbered docs of [docs], DocPath and LF text, each once.
+  /// Reads the numbered docs of [docs], DocPath and LF text, as the index does.
   ///
-  /// A doc is numbered when its path is a feature, user story, or FR doc of
-  /// `prds/features/`, or a spec doc of `specs/f<nn>_<slug>/` whose merged
-  /// type [docTypes] holds by DocPath; a spec doc is named from that type.
+  /// [docTypes] holds the merged type of each typed doc by DocPath. A doc's
+  /// feature and story are the nearest `feature` and `user_story` up its
+  /// parent chain in [set], at any depth, numbered by their own path segment.
+  /// A feature, user story, FR, or spec doc under a feature is numbered.
   new of(
     Iterable<({String docPath, String lf})> docs, {
-    Map<String, MergedDocType> docTypes = const {},
-  }) : _docs = [
-         for (final (:docPath, :lf) in docs)
-           ?_TreeDoc.parse(docPath, lf, docTypes[docPath]),
-       ],
-       _placeOf = _locate;
+    required MergedSet set,
+    required Map<String, MergedDocType> docTypes,
+  }) : this._fromIndex(_readIndex(docs, set, docTypes));
 
   /// Reads the docs of a legacy tree at the final path the move list gives
   /// each, as [LabelTree.of] reads them.
@@ -107,16 +123,19 @@ final class LabelTree {
     Map<String, String> featurePaths = const {},
   }) : _docs = [
          for (final (:docPath, :legacyPath, :lf) in docs)
-           ?_TreeDoc.parse(
+           ?_TreeDoc.parseLegacy(
              docPath,
              lf,
              docTypes[docPath],
            )?.withLegacyFolder(_legacyFolderOf(legacyPath)),
        ],
-       _placeOf = ((path) => _locate(_atFeaturePath(path, featurePaths)));
+       _placeOf = ((path) =>
+           _legacyPlaceOf(_atFeaturePath(path, featurePaths)));
+
+  new _fromIndex(_Index index) : _docs = index.docs, _placeOf = index.placeOf;
 
   final List<_TreeDoc> _docs;
-  final _Located? Function(String docPath) _placeOf;
+  final _Place? Function(String docPath) _placeOf;
   final _declarations = <String, RegExp>{};
 
   // Each label is a lookup, not a scan of every doc, so the pass grows with
@@ -175,10 +194,10 @@ final class LabelTree {
   /// cell of the `api` doc at [apiDocPath], names; null for a cell that
   /// names none.
   ({int story, int fr})? frNamedBy(String apiDocPath, String cell) {
-    final located = _locate(apiDocPath);
-    if (located == null) return null;
-    final name = '${located.featureSlug}/$cell';
-    for (final doc in _byFeature[located.feature] ?? const <_TreeDoc>[]) {
+    final place = _placeOf(apiDocPath);
+    if (place == null) return null;
+    final name = '${place.featureName}/$cell';
+    for (final doc in _byFeature[place.feature] ?? const <_TreeDoc>[]) {
       if (doc.kind == _DocKind.fr && doc.name == name) {
         return (story: doc.story!, fr: doc.fr!);
       }
@@ -281,15 +300,27 @@ _Parts _partsOf(NumberLabel label, _Base base) {
   return (feature: base.feature, story: base.story, fr: label.fr);
 }
 
-_Base _baseOf(_Located? located) {
-  return located == null
+_Base _baseOf(_Place? place) {
+  return place == null
       ? _noPlace
-      : (feature: located.feature, story: located.story);
+      : (feature: place.feature, story: place.story);
 }
 
-/// Reads the feature and story a doc path sits under, or null for a path
-/// under neither `prds/features/` nor `specs/`.
-_Located? _locate(String docPath) {
+/// The place of a legacy doc path, read by the legacy tree's fixed layout.
+_Place? _legacyPlaceOf(String docPath) {
+  final located = _locateLegacy(docPath);
+  return located == null
+      ? null
+      : (
+          feature: located.feature,
+          featureName: located.featureSlug,
+          story: located.story,
+        );
+}
+
+/// Reads the feature and story a legacy doc path sits under, or null for a
+/// path under neither `prds/features/` nor `specs/`.
+_Located? _locateLegacy(String docPath) {
   final segments = docPath.split('/');
   final isSpec = segments.length == 3 && segments.first == 'specs';
   final isPrd =
@@ -318,6 +349,132 @@ _Located? _locate(String docPath) {
   );
 }
 
+// MARK: - Index
+
+/// The numbered docs of a run and the place of each typed doc.
+typedef _Index = ({
+  List<_TreeDoc> docs,
+  _Place? Function(String docPath) placeOf,
+});
+
+/// The `{nn}` and `{slug}` of a doc's own path segment, and whether the doc is
+/// a spec doc: a file with no placeholder of its own.
+typedef _Own = ({int? number, String? slug, bool isSpec});
+
+/// Reads each typed doc of [docs] as the index does: its place from its type
+/// and parent chain in [set], never from the shape of its path.
+_Index _readIndex(
+  Iterable<({String docPath, String lf})> docs,
+  MergedSet set,
+  Map<String, MergedDocType> docTypes,
+) {
+  final typed = [
+    for (final (:docPath, :lf) in docs)
+      if (docTypes[docPath] case final type?)
+        (docPath: docPath, lf: lf, type: type),
+  ];
+  final indexed = {
+    for (final (:docPath, lf: _, :type) in typed)
+      docPath: _indexedOf(docPath, type),
+  };
+  final parents = resolveParents(indexed.values, set).parents;
+  final owns = {
+    for (final (:docPath, lf: _, :type) in typed)
+      docPath: _ownOf(set, type, docPath),
+  };
+  final places = {
+    for (final doc in indexed.values)
+      doc.docPath: _placeIn(doc, indexed, parents, owns),
+  };
+  return (
+    docs: [
+      for (final (:docPath, :lf, :type) in typed)
+        ?_indexedDoc(
+          docPath,
+          lf,
+          type,
+          indexed[docPath]!.name,
+          places[docPath],
+          owns[docPath],
+        ),
+    ],
+    placeOf: (docPath) => places[docPath],
+  );
+}
+
+IndexedDoc _indexedOf(String docPath, MergedDocType type) => IndexedDoc(
+  docPath: docPath,
+  docTypeId: type.id,
+  name: docNameOf(docPath, type),
+  frontmatter: const {},
+  tokens: 0,
+);
+
+/// The place of [doc]: the nearest `feature` up its parent chain, [doc]
+/// included, and the nearest `user_story`; null when no numbered feature is
+/// above it.
+_Place? _placeIn(
+  IndexedDoc doc,
+  Map<String, IndexedDoc> indexed,
+  Map<String, String> parents,
+  Map<String, _Own?> owns,
+) {
+  int? story;
+  for (IndexedDoc? at = doc; at != null; at = indexed[parents[at.docPath]]) {
+    final number = owns[at.docPath]?.number;
+    if (at.docTypeId == storyType) story ??= number;
+    if (at.docTypeId == featureType) {
+      return number == null
+          ? null
+          : (feature: number, featureName: at.name, story: story);
+    }
+  }
+  return null;
+}
+
+/// The own-segment values of the doc at [docPath], or null when no path of
+/// [type] matches it.
+_Own? _ownOf(MergedSet set, MergedDocType type, String docPath) {
+  final shape = DocPathShape.ofDoc(type, set, docPath);
+  if (shape == null) return null;
+  final own = shape.matchOwn(docPath.split('/')[shape.ownIndex]);
+  return own == null
+      ? null
+      : (number: own.number, slug: own.slug, isSpec: isSpecDocShape(shape));
+}
+
+/// The numbered doc at [docPath], or null for a doc the pass does not number:
+/// a feature, user story, FR, or spec doc under a feature.
+_TreeDoc? _indexedDoc(
+  String docPath,
+  String lf,
+  MergedDocType type,
+  String indexName,
+  _Place? place,
+  _Own? own,
+) {
+  if (place == null || own == null) return null;
+  final kind = switch (type.id) {
+    featureType => _DocKind.feature,
+    storyType => _DocKind.story,
+    frType => _DocKind.fr,
+    _ when own.isSpec => _DocKind.spec,
+    _ => null,
+  };
+  if (kind == null || (kind == _DocKind.fr && own.number == null)) return null;
+  final isTyped = kind == _DocKind.feature || kind == _DocKind.spec;
+  return _TreeDoc._(
+    path: docPath,
+    lf: lf,
+    kind: kind,
+    feature: place.feature,
+    story: place.story,
+    fr: kind == _DocKind.fr ? own.number : null,
+    name: isTyped ? '${type.id}:$indexName' : indexName,
+    slug: own.slug ?? place.featureName,
+  );
+}
+
 /// One numbered doc: its place in the tree and the name that cites it.
 final class _TreeDoc {
   new _({
@@ -332,8 +489,8 @@ final class _TreeDoc {
     this.legacyFolder,
   });
 
-  static _TreeDoc? parse(String docPath, String lf, MergedDocType? type) {
-    final located = _locate(docPath);
+  static _TreeDoc? parseLegacy(String docPath, String lf, MergedDocType? type) {
+    final located = _locateLegacy(docPath);
     if (located == null || located.rest.length != 1) return null;
     final file = located.rest.single;
     final featureSlug = located.featureSlug;
@@ -366,7 +523,7 @@ final class _TreeDoc {
       return file == _featureFile
           ? doc(
               kind: _DocKind.feature,
-              name: '$_featureTypeId:$featureSlug',
+              name: '$featureType:$featureSlug',
               slug: featureSlug,
             )
           : null;
@@ -425,28 +582,22 @@ final class _TreeDoc {
 ///
 /// A converted label becomes the doc name in a code span, the name alone
 /// inside a code span that holds it and inside a `mermaid` block. A file under
-/// the `code:` roots has no story or feature, so only a full label or a
-/// folder path that names its feature resolves there. Every byte outside a
-/// converted label stays.
+/// the `code:` roots is never read. Every byte outside a converted label stays.
 final class LabelPass {
-  new _(this._tree, this._docTexts, this.codeFiles, this._files);
+  new _(this._tree, this._docTexts, this._files);
 
   /// Plans the pass over every doc of the run, DocPath and LF text after the
-  /// earlier passes, and the files under the `code:` roots.
+  /// earlier passes.
   ///
-  /// [trackedCodeFiles] are the ProjectPaths and decoded text, line ends as
-  /// written, of the files the
-  /// project's git tracks; their labels convert. A label in an
-  /// [untrackedCodeFiles] file stays and is listed. [docTypes] holds the
-  /// merged type of each typed doc by DocPath; an `architecture` doc's bare
-  /// `see` anchors move only with it.
+  /// [docTypes] holds the merged type of each typed doc by DocPath, and [set]
+  /// the types they merge into, which place each doc; an `architecture` doc's
+  /// bare `see` anchors move only with it.
   static LabelPass plan(
-    List<({String docPath, String lf})> docs,
-    List<({String path, String text})> trackedCodeFiles, {
-    List<({String path, String text})> untrackedCodeFiles = const [],
-    Map<String, MergedDocType> docTypes = const {},
+    List<({String docPath, String lf})> docs, {
+    required MergedSet set,
+    required Map<String, MergedDocType> docTypes,
   }) {
-    final tree = LabelTree.of(docs, docTypes: docTypes);
+    final tree = LabelTree.of(docs, set: set, docTypes: docTypes);
     final sorted = _sortedBy(docs, (doc) => doc.docPath);
     final results = {
       for (final (:docPath, :lf) in sorted)
@@ -461,70 +612,58 @@ final class LabelPass {
           path: docPath,
           converted: docTexts.containsKey(docPath),
           headings: results[docPath]!.headings,
+          labels: results[docPath]!.labels,
           kept: results[docPath]!.kept,
         ),
     ];
-    final codeFiles = <String, String>{};
-    final codeResolve = _codeResolverOf(tree);
-    final code = [
-      for (final file in trackedCodeFiles) (file: file, isTracked: true),
-      for (final file in untrackedCodeFiles) (file: file, isTracked: false),
-    ]..sort((a, b) => compareCodePoints(a.file.path, b.file.path));
-    for (final (:file, :isTracked) in code) {
-      final (:edits, :kept) = _codeFileEdits(
-        file.path,
-        file.text,
-        isTracked ? codeResolve : _keepsEvery,
-      );
-      if (edits.isNotEmpty) {
-        codeFiles[file.path] = _applyLineEdits(file.text, edits);
-      }
-      files.add((
-        path: file.path,
-        converted: edits.isNotEmpty,
-        headings: const [],
-        kept: kept,
-      ));
-    }
-    return LabelPass._(tree, docTexts, codeFiles, files);
+    return LabelPass._(tree, docTexts, files);
   }
 
   final LabelTree _tree;
   final Map<String, String> _docTexts;
   final List<_FileResult> _files;
 
-  /// The text of each code file the pass changes, line ends as written, by
-  /// ProjectPath.
-  final Map<String, String> codeFiles;
-
   /// Returns the text of the doc at [path] with its labels converted, [lf]
   /// when it has none to convert.
   String apply(String path, String lf) => _docTexts[path] ?? lf;
 
-  /// The `number labels:` plan line: each doc and file the pass rewrites, then
-  /// after `; left:` each label it keeps as `<path>:<line> <label>`; null for
-  /// a tree with no label.
-  String? get planLine => planLineOn(const {});
+  /// The `number labels:` plan line, `<n> rewrites in <m> files; left: <k>`,
+  /// or null for a tree with no label.
+  ///
+  /// `<n>` counts the labels the pass replaces and the operation headings it
+  /// cuts, `<m>` the files it rewrites, `<k>` the labels it keeps.
+  String? get planLine => numberLabelsPlanLine(
+    rewrites: _files.fold(
+      0,
+      (sum, file) => sum + file.labels + file.headings.length,
+    ),
+    files: _files.where((file) => file.converted).length,
+    left: _files.fold(0, (sum, file) => sum + file.kept.length),
+  );
 
-  /// The [planLine] with the lines of each doc in [written], its LF text as
+  /// Each file the pass rewrites, then, in the file's place, each operation
+  /// heading it cuts as `<path>:<line> <operation>`, in tree order.
+  List<String> get paths => pathsOn(const {});
+
+  /// The [paths] with the lines of each doc in [written], its LF text as
   /// the run writes it after every later step, counted on that text, so each
   /// cited line is the line of the file `check` reads.
-  String? planLineOn(Map<String, String> written) {
-    final files = [for (final file in _files) _onWritten(file, written)];
-    return numberLabelsPlanLine(
-      converted: [
-        for (final file in files) ...[
-          if (file.converted) file.path,
-          for (final (:line, :label) in file.headings)
-            '${file.path}:$line $label',
-        ],
-      ],
-      kept: [
-        for (final file in files)
-          for (final (:line, :label) in file.kept) '${file.path}:$line $label',
-      ],
-    );
-  }
+  List<String> pathsOn(Map<String, String> written) => [
+    for (final file in _files.map((file) => _onWritten(file, written))) ...[
+      if (file.converted) file.path,
+      for (final (:line, :label) in file.headings) '${file.path}:$line $label',
+    ],
+  ];
+
+  /// Each label the pass keeps as `<path>:<line> <label>`, in tree order.
+  List<String> get left => leftOn(const {});
+
+  /// The [left] with the lines of each doc in [written], as [pathsOn] counts
+  /// them.
+  List<String> leftOn(Map<String, String> written) => [
+    for (final file in _files.map((file) => _onWritten(file, written)))
+      for (final (:line, :label) in file.kept) '${file.path}:$line $label',
+  ];
 
   /// Returns [file] with its lines counted on its [written] text.
   ///
@@ -546,6 +685,7 @@ final class LabelPass {
             label: heading.label,
           ),
       ],
+      labels: file.labels,
       kept: _convertDoc(_tree, file.path, text).kept,
     );
   }
@@ -566,30 +706,27 @@ int _sameLineIn(List<String> from, List<String> to, int line) {
   return line;
 }
 
-/// The `number labels:` plan line: the [converted] entries, then after
-/// `; left:` the [kept] ones; null when both are empty.
+/// The `number labels:` plan line for [rewrites] replaced labels and cut
+/// headings in [files] files, with [left] labels kept; null when all three
+/// are zero.
 String? numberLabelsPlanLine({
-  required Iterable<String> converted,
-  required Iterable<String> kept,
+  required int rewrites,
+  required int files,
+  required int left,
 }) {
-  if (converted.isEmpty && kept.isEmpty) return null;
-  return '$_planLabel${converted.join(', ')}'
-      '${kept.isEmpty ? '' : '$_leftLabel${kept.join(', ')}'}';
+  if (rewrites == 0 && files == 0 && left == 0) return null;
+  return '$_planLabel$rewrites rewrites in $files files$_leftLabel$left';
 }
 
-/// A file the pass read, whether it changed it, the operation headings it
-/// converted, and the labels it kept.
+/// A doc the pass read, whether it changed it, the operation headings it
+/// converted, how many labels it replaced, and the labels it kept.
 typedef _FileResult = ({
   String path,
   bool converted,
   List<_Kept> headings,
+  int labels,
   List<_Kept> kept,
 });
-
-/// Whether the code file at [path], whose text is [text], holds a number label
-/// the pass reads: a doc's reading for markdown, any line's for another file.
-bool holdsNumberLabel(String path, String text) =>
-    _codeFileEdits(path, text, _keepsEvery).kept.isNotEmpty;
 
 List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
     [...items]..sort((a, b) => compareCodePoints(key(a), key(b)));
@@ -623,6 +760,7 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
       for (final (:line, :operation) in step.converted)
         (line: line, label: operation),
     ],
+    labels: converted.rewrites,
     kept: converted.kept,
   );
 }
@@ -680,37 +818,27 @@ Map<String, String> _slugMovesOf(String before, String after) {
   };
 }
 
-// MARK: - Resolvers
-
-String? _keepsEvery(NumberLabel label, NumberLabel? before) => null;
-
-/// Resolves in a code file: no place, and no list reading (E26, E27).
-_Resolve _codeResolverOf(LabelTree tree) => (label, _) {
-  final target = tree._resolveFrom(label, _noPlace, null);
-  return target == null ? null : tree.nameOf(target);
-};
-
 // MARK: - Markdown
 
 /// Returns [lf], a doc or a markdown file, with the labels [resolve] names
-/// converted, and the labels it keeps.
+/// converted, how many it converted, and the labels it keeps.
 ///
 /// [resolve] gives the name of the one doc a label names, or null; its second
 /// argument is the label that puts one just before in a list.
 /// With [legacyIds] the legacy IDs of a pre-`f<nn>` tree read as labels.
-({String lf, List<({int line, String label})> kept}) convertLabelsIn(
+LabelConversion convertLabelsIn(
   String lf,
   String? Function(NumberLabel label, NumberLabel? before) resolve, {
   bool legacyIds = false,
 }) => _convertMarkdown(lf, resolve, legacyIds: legacyIds);
 
-({String lf, List<_Kept> kept}) _convertMarkdown(
+LabelConversion _convertMarkdown(
   String lf,
   _Resolve resolve, {
   bool legacyIds = false,
 }) {
   final (:edits, :kept) = _markdownEdits(lf, resolve, legacyIds: legacyIds);
-  return (lf: _applyLineEdits(lf, edits), kept: kept);
+  return (lf: _applyLineEdits(lf, edits), rewrites: edits.length, kept: kept);
 }
 
 /// Returns the edits that convert the labels [resolve] names in [lf], a doc or
@@ -824,51 +952,6 @@ NumberLabel _carry(NumberLabel label, NumberLabel? before) {
     itemId: label.itemId,
     isPartOfPath: label.isPartOfPath,
   );
-}
-
-// MARK: - Code files
-
-/// Returns the edits that convert the labels [resolve] names in the code file
-/// at [path], whose text is [text], and the labels it keeps.
-///
-/// A markdown file is read as a doc. In any other file every line is read:
-/// the name goes in a code span in a comment line, and alone elsewhere, as in
-/// a string such as a test name, and inside a code span that holds the label.
-/// Offsets are lines and columns, so `\r` at a line end is never touched.
-_Converted _codeFileEdits(String path, String text, _Resolve resolve) {
-  final extension = _extensionOf(path);
-  if (extension == markdownExtension) {
-    return _markdownEdits(toLf(text), resolve);
-  }
-  final edits = <_LineEdit>[];
-  final kept = <_Kept>[];
-  for (final (index, line) in text.split('\n').indexed) {
-    final labels = numberLabelsIn(line);
-    if (labels.isEmpty) continue;
-    final spans = codeSpansOf(line);
-    final isComment = isCommentLine(line, extension);
-    for (final label in labels) {
-      final name = resolve(label, null);
-      if (name == null) {
-        kept.add((line: index + 1, label: label.written));
-        continue;
-      }
-      final isSpanned = _insideSpan(spans, label.start, label.end);
-      edits.add((
-        line: index,
-        column: label.start,
-        length: label.end - label.start,
-        text: isComment && !isSpanned ? '`$name`' : name,
-      ));
-    }
-  }
-  return (edits: edits, kept: kept);
-}
-
-String _extensionOf(String path) {
-  final name = path.substring(path.lastIndexOf('/') + 1);
-  final dot = name.lastIndexOf('.');
-  return dot < 0 ? '' : name.substring(dot);
 }
 
 // MARK: - Text

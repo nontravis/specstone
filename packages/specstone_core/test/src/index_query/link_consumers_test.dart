@@ -315,12 +315,13 @@ void main() {
       );
     });
 
-    test('the renumber pass keeps it as written and names it on its plan '
+    test('the renumber pass keeps it as written and counts it on its plan '
         'line', () {
       final pass = _passOver(domain);
 
       expect(pass.apply(_domainPath, domain), domain);
-      expect(pass.planLine, endsWith('; not fully rewritten: $_domainPath'));
+      expect(pass.planLine, endsWith('; not fully rewritten: 1'));
+      expect(pass.paths, contains(_domainPath));
     });
   });
 }

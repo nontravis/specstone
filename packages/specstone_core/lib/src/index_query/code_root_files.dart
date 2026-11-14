@@ -1,12 +1,16 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/code_target.dart'
+    show nestedPathsOf;
 import 'package:specstone_core/src/templates/project_config.dart'
     show isPortableCodeEntry;
 
 const _separator = '/';
 const _dotName = '.';
 const _dotSegment = '.';
+const _wholeCodeRoot = '.';
 const _parentSegment = '..';
 
 /// Returns [entry], a `code:` or `covers:` entry, in the one form every
@@ -71,17 +75,60 @@ List<String> filesUnderCodeRoot(
 }
 
 /// Returns the files under every one of [entries], each once, sorted by code
-/// point (see [filesUnderCodeRoot], which takes [skipFolders]).
+/// point (see [filesUnderCodeRoot], which takes [skipFolders] and
+/// [onUnlistable]).
 List<String> codeRootFiles(
   Directory codeRoot,
   Iterable<String> entries, {
   List<String> skipFolders = const [],
+  void Function(String folder)? onUnlistable,
 }) {
   final files = <String>{
     for (final entry in entries)
-      ...filesUnderCodeRoot(codeRoot, entry, skipFolders: skipFolders),
+      ...filesUnderCodeRoot(
+        codeRoot,
+        entry,
+        skipFolders: skipFolders,
+        onUnlistable: onUnlistable,
+      ),
   };
   return files.toList()..sort(compareCodePoints);
+}
+
+/// Returns the files a doc-name scan reads under [codeRoot], as paths from it
+/// sorted by code point: the files under the `code:` [entries], or every file
+/// under the root when [entries] is empty.
+///
+/// The whole-root listing leaves out the folders of [nestedRoots], the docs
+/// root when it lies inside [codeRoot], and any checkout of its own below the
+/// root; a listing of [entries] leaves out [nestedRoots] only. A folder that
+/// cannot be listed goes to [onUnlistable]. The one lister of the code files
+/// `check` and the rename, move, delete, and migrate mention scans read.
+List<String> mentionScanFiles(
+  Directory codeRoot,
+  Set<String> entries, {
+  required Directory docsRoot,
+  List<String> nestedRoots = const [],
+  void Function(String folder)? onUnlistable,
+}) {
+  if (entries.isNotEmpty) {
+    return codeRootFiles(
+      codeRoot,
+      entries,
+      skipFolders: nestedRoots,
+      onUnlistable: onUnlistable,
+    );
+  }
+  final docsFolders = nestedPathsOf(canonicalPath(codeRoot.path), [
+    canonicalPath(docsRoot.path),
+  ]);
+  return filesUnderCodeRoot(
+    codeRoot,
+    _wholeCodeRoot,
+    skipFolders: [...nestedRoots, ...docsFolders],
+    skipRepositories: true,
+    onUnlistable: onUnlistable,
+  );
 }
 
 /// Returns the code file [codePath], a path [filesUnderCodeRoot] lists from

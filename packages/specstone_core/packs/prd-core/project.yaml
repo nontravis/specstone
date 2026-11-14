@@ -44,6 +44,23 @@ sections:
       - **Why:** <one sentence>
       - **Problem:** <one sentence>
       - **Audience:** <one sentence>
+    lint:
+      max_sentences:
+        - count: 1
+          line_prefix: "- **Why:**"
+        - count: 1
+          line_prefix: "- **Problem:**"
+        - count: 1
+          line_prefix: "- **Audience:**"
+      banned_patterns:
+        - id: quote_words
+          pattern: '^> \S+: +(?:\S+ +){15}\S+'
+          message: 'quote over 15 words; guide line: keep each sentence to 15 words or fewer'
+          in: all
+        - id: quote_language
+          pattern: '^> (?![a-z]{2}:)[^\s:]*:'
+          message: 'quote language is no two-letter lowercase code; guide line: Use an ISO 639-1 code'
+          in: all
   - id: goals
     header: Project goals
     prefix_id: PG-
@@ -56,6 +73,12 @@ sections:
       **Statement:** <goal statement>
       **Metric:** <numeric target with unit>
       **By:** <date or milestone>
+    lint:
+      banned_patterns:
+        - id: metric_number
+          pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\d)'
+          message: 'Metric line holds no number; guide line: a numeric metric with unit'
+          in: all
   - id: roles
     header: Role
     required: true

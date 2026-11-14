@@ -102,7 +102,7 @@ void main() {
         contains(
           'Expected one target, got 2.\n\n'
           'Usage: specstone rename <doc address> --to <slug> '
-          '[--target <name>] [--json]\n',
+          '[--dry-run] [--target <name>] [--json]\n',
         ),
       );
     },
@@ -191,23 +191,24 @@ void main() {
     expect(out.toString(), contains('rewrote $fr11\n'));
   });
 
-  test('document_writing/rename_doc/rewrite_name_references: rename rewrites a doc-name mention in a code comment and prints the code file among the rewrote lines', () async {
-    final root = await writeCheckProject(
-      extra: {
-        'app/lib/doc.dart': '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n',
-      },
-    );
+  test('rename keeps a code file as it is and prints its mention after the '
+      'rewrote lines', () async {
+    const code =
+        '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n';
+    final root = await writeCheckProject(extra: {'app/lib/doc.dart': code});
     final (:runner, :out, :err) = writeRunner(root);
     expect(await runner.run(['rename', 'feature:login', '--to', 'signin']), 0);
     expect(err.toString(), isEmpty);
-    expect(out.toString(), contains('rewrote app/lib/doc.dart\n'));
+    expect(out.toString(), isNot(contains('rewrote app/lib/doc.dart')));
     expect(
-      File('${root.path}/app/lib/doc.dart').readAsStringSync(),
-      '/// Lays out `signin/email_login`.\nfinal a = "login/email_login";\n',
+      out.toString(),
+      endsWith('mentions app/lib/doc.dart:1 login/email_login\n'),
     );
+    expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
   });
 
-  test('document_writing/rename_doc/rewrite_name_references: rename --json lists the code file among rewritten', () async {
+  test('rename --json lists the code file mention and not the file among '
+      'rewritten', () async {
     final root = await writeCheckProject(
       extra: {'app/lib/doc.dart': '// `login/email_login`\n'},
     );
@@ -216,10 +217,11 @@ void main() {
       await runner.run(['rename', 'feature:login', '--to', 'signin', '--json']),
       0,
     );
-    expect(
-      (jsonDecode(out.toString()) as Map)['rewritten'],
-      contains('app/lib/doc.dart'),
-    );
+    final json = jsonDecode(out.toString()) as Map;
+    expect(json['rewritten'], isNot(contains('app/lib/doc.dart')));
+    expect(json['mentions'], [
+      {'path': 'app/lib/doc.dart', 'line': 1, 'mention': 'login/email_login'},
+    ]);
   });
 
   group('with two code targets', () {
@@ -300,6 +302,118 @@ void main() {
         err.toString(),
         '--target dart: the code targets are flutter, jaspr\n',
       );
+    });
+  });
+
+  group('--dry-run', () {
+    const f = 'prds/features/f01_login';
+
+    test('prints the moves and rewrites, then says nothing moved, and moves '
+        'nothing', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        startsWith(
+          'moves $f/us03_reset_password/ to $f/us03_recover_account/\n',
+        ),
+      );
+      expect(out.toString(), endsWith('dry run: nothing moved\n'));
+      expect(out.toString(), isNot(contains('rewrote')));
+      expect(out.toString(), isNot(contains('plan ')));
+      expect(docFile(root, story3).existsSync(), isTrue);
+      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
+    });
+
+    test('lists a Name mention in a code file and keeps the file', () async {
+      const code = '// Adds `user_story:login/reset_password#use_case`.\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/specs/TECH_STACK.md':
+              '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n'
+              '## Stack\n\n| Slot | Choice |\n|---|---|\n'
+              '| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',
+          'app/lib/reset.dart': code,
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+          '--dry-run',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(
+        out.toString(),
+        endsWith(
+          'mentions app/lib/reset.dart:1 '
+          'user_story:login/reset_password#use_case\n'
+          'dry run: nothing moved\n',
+        ),
+      );
+      expect(File('${root.path}/app/lib/reset.dart').readAsStringSync(), code);
+    });
+
+    test('--json prints moved, rewritten, mentions, and dryRun true', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+          '--dry-run',
+          '--json',
+        ]),
+        0,
+      );
+      final answer = jsonDecode(out.toString()) as Map;
+      expect(answer.keys, containsAll(['moved', 'rewritten', 'mentions']));
+      expect(answer['dryRun'], isTrue);
+    });
+
+    test('refuses a slug a sibling carries with the status and message the '
+        'rename gives', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      final apply = await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'sign_out',
+      ]);
+      final applyErr = err.toString();
+      final (runner: dryRunner, out: dryOut, err: dryErr) = writeRunner(
+        await writeWriteProject(),
+      );
+      expect(
+        await dryRunner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'sign_out',
+          '--dry-run',
+        ]),
+        apply,
+      );
+      expect(apply, 64);
+      expect(dryOut.toString(), isEmpty);
+      expect(dryErr.toString(), applyErr);
     });
   });
 }

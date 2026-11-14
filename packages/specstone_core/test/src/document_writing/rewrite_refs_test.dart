@@ -1061,17 +1061,18 @@ void main() {
       },
     );
 
-    test('document_writing/rename_doc/rewrite_name_references E04: a code file step is listed by its project path with its rewritten text, never stamped', () async {
-      root = await withCode('// `login/email_login`\n');
-      final step = plan(
-        noMoves,
-        renamed: rename,
-      ).singleWhere((s) => s.path == entry);
-      expect(step.text, '// `signin/email_login`\n');
-    });
+    test(
+      'plans no step for a code file that holds a mention of a renamed doc',
+      () async {
+        root = await withCode('// `login/email_login`\n');
+        expect(
+          plan(noMoves, renamed: rename).map((s) => s.path),
+          isNot(contains(entry)),
+        );
+      },
+    );
 
-    test('document_writing/rename_doc/rewrite_name_references E04: with two targets each code root is walked, and a file under a nested target root gets one step', () async {
-      const mention = '// `login/email_login`\n';
+    test('plans no step for a code file under any target root', () async {
       const techStack =
           '---\ncode:\n  - ./\n---\n\n# Tech stack\n\n## Stack\n\n'
           '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
@@ -1087,33 +1088,15 @@ void main() {
           'docs/specs/outer/TECH_STACK.md': techStack,
           'docs/specs/inner/TECH_STACK.md': techStack,
           'docs/specs/apart/TECH_STACK.md': techStack,
-          'ws/a.dart': mention,
-          'ws/inner/b.dart': mention,
-          'other/c.dart': mention,
+          'ws/a.dart': '// `login/email_login`\n',
+          'ws/inner/b.dart': '// `login/email_login`\n',
+          'other/c.dart': '// `login/email_login`\n',
         },
       );
 
-      final steps = plan(noMoves, renamed: rename);
-
       expect(
-        steps
-            .where((s) => s.path.endsWith('.dart'))
-            .map((s) => (s.path, s.text)),
-        [
-          ('other/c.dart', '// `signin/email_login`\n'),
-          ('ws/a.dart', '// `signin/email_login`\n'),
-          ('ws/inner/b.dart', '// `signin/email_login`\n'),
-        ],
-      );
-    });
-
-    test('document_writing/rename_doc/rewrite_name_references E04: a code file with no mention of a renamed doc gets no step, and no rename reads no code file', () async {
-      root = await withCode('// `login/email_login`\n');
-      expect(plan(noMoves).map((s) => s.path), isNot(contains(entry)));
-      root = await withCode('// `other/name`\n');
-      expect(
-        plan(noMoves, renamed: rename).map((s) => s.path),
-        isNot(contains(entry)),
+        plan(noMoves, renamed: rename).where((s) => s.path.endsWith('.dart')),
+        isEmpty,
       );
     });
   });

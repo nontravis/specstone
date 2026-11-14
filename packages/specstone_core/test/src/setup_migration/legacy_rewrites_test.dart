@@ -677,7 +677,7 @@ name: login
       },
     );
 
-    ({String lf, List<({int line, String label})> kept}) convert(
+    ({String lf, int rewrites, List<({int line, String label})> kept}) convert(
       String lf, {
       String citedFrom = '$base/FEATURE.md',
     }) => convertLegacyLabels(tree, legacyPath: citedFrom, lf: lf);

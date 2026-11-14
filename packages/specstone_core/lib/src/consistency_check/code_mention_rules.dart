@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
@@ -16,7 +15,6 @@ import 'package:specstone_core/src/templates/code_target.dart';
 
 const _codeField = 'code';
 const _separator = '/';
-const _wholeCodeRoot = '.';
 const _byteOrderMark = '﻿';
 
 /// Returns a `doc_cited_in_code` finding for each mention of a doc in the
@@ -47,29 +45,16 @@ List<String> _codeFilesOf(
   CheckContext context,
   ImplementedWork work,
   CodeTarget target,
-) {
-  final codeRoot = context.codeRootOf(target);
-  final entries = _codeEntriesOf(context, work, target);
-  final nested = nestedRootsOf(context.projectRoot, target, context.targets);
-  if (entries.isEmpty) {
-    return filesUnderCodeRoot(
-      codeRoot,
-      _wholeCodeRoot,
-      skipFolders: [...nested, ..._docsRootIn(context, codeRoot)],
-      skipRepositories: true,
-      onUnlistable: (folder) => context.warn(
-        '$folder: cannot list the folder; files under it are not checked for '
-        'doc names',
-      ),
-    );
-  }
-  // The coverage rule lists these roots and warns about a folder it cannot
-  // list, so this walk adds no second warning.
-  return {
-    for (final entry in entries)
-      ...filesUnderCodeRoot(codeRoot, entry, skipFolders: nested),
-  }.toList();
-}
+) => mentionScanFiles(
+  context.codeRootOf(target),
+  _codeEntriesOf(context, work, target),
+  docsRoot: context.docsRoot,
+  nestedRoots: nestedRootsOf(context.projectRoot, target, context.targets),
+  onUnlistable: (folder) => context.warn(
+    '$folder: cannot list the folder; files under it are not checked for '
+    'doc names',
+  ),
+);
 
 /// Returns the `code:` entries of the docs of [target].
 Set<String> _codeEntriesOf(
@@ -84,12 +69,6 @@ Set<String> _codeEntriesOf(
           in context.linesOf(doc).entriesOf(_codeField))
         if (value is String) value,
 };
-
-/// Returns the docs root as a folder of [codeRoot], when it lies inside.
-List<String> _docsRootIn(CheckContext context, Directory codeRoot) =>
-    nestedPathsOf(canonicalPath(codeRoot.path), [
-      canonicalPath(context.docsRoot.path),
-    ]);
 
 /// Reads the mentions of docs in code files, against one index.
 final class _DocMentionReader {
@@ -113,11 +92,8 @@ final class _DocMentionReader {
     final text = _readText(target, codePath, projectPath);
     if (text == null) return;
     final lf = toLf(text);
-    for (final mention in nameMentionsInFile(lf, extension)) {
-      if (_isCited(mention, bare: false)) yield _finding(projectPath, mention);
-    }
-    for (final mention in bareNameMentionsInFile(lf, extension)) {
-      if (_isCited(mention, bare: true)) yield _finding(projectPath, mention);
+    for (final mention in docMentionsInFile(lf, extension)) {
+      if (_isCited(mention)) yield _finding(projectPath, mention);
     }
   }
 
@@ -153,10 +129,11 @@ final class _DocMentionReader {
 
   /// Whether [mention] names a doc: a path read from the docs root or the
   /// project root, or a Name some doc carries.
-  bool _isCited(NameMention mention, {required bool bare}) {
+  bool _isCited(NameMention mention) {
     final address = mention.address;
-    if (bare || address.isReferenceWithoutLookup) return _namesDoc(address);
-    return _docAtPath(mention.text) != null;
+    return address.isName
+        ? _namesDoc(address)
+        : _docAtPath(mention.text) != null;
   }
 
   bool _namesDoc(DocAddress address) => switch (address.typeId) {

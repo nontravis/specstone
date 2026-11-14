@@ -64,6 +64,15 @@ sections:
       The <product> shall <verb> <object> <value ± tolerance> <condition>.
     summary: true
     lint:
+      banned_patterns:
+        - id: second_shall
+          pattern: '\bshall\b.*\bshall\b'
+          message: 'a second "shall"; guide line: one "shall" and a quantified value'
+          in: text
+        - id: statement_number
+          pattern: '^(?!.*\d)\S.*\bshall\b'
+          message: 'statement holds no number; guide line: one "shall" and a quantified value'
+          in: all
       banned_words:
         - flexible
         - easy

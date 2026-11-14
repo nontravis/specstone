@@ -336,6 +336,10 @@ void main() {
               '| `signIn` |\n',
               '| `signIn` |\n| email_login/lock_account | `lock` |\n',
             ),
+            (
+              '### signIn\n\nSigns the Agent in.',
+              '### signIn\n\nSigns the Agent in.\n\n### `lock`\n\nLocks it.',
+            ),
           ]),
           ...fr(
             checkPasswordStatement,
