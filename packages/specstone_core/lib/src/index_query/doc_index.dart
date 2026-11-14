@@ -443,6 +443,11 @@ final class DocIndex {
   /// Returns the text and structure of [doc].
   DocContent contentOf(IndexedDoc doc) => _store.loadContent(doc.docPath);
 
+  /// Returns the normalized words of every item of a rule-bearing section,
+  /// by docPath and then item order.
+  Iterable<({String docPath, int line, String? itemId, List<String> words})>
+  ruleItemWords() => _store.ruleItemWords();
+
   /// Returns the rows of the full-text index that match [matchExpression].
   List<SearchRow> search(String matchExpression) =>
       _store.search(matchExpression);

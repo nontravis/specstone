@@ -1045,4 +1045,131 @@ void main() {
       expect(text.out.toString(), '0 findings\n');
     });
   });
+
+  group('--repeats', () {
+    const clause =
+        'a bundle over the budget prints no doc text and exits with status zero';
+    const frEdge = 'An empty password → refused.';
+    const nfStatement = 'The system shall sign in within 1 s.';
+
+    Future<Directory> repeating() => writeCheckProject(
+      extra: {
+        ...doc(
+          loginFr,
+          frEdge,
+          'When the Agent runs it → it shows $clause for the Agent.',
+        ),
+        ...doc(
+          loginNf,
+          nfStatement,
+          'The system shall hold, with $clause, within 1 s.',
+        ),
+      },
+    );
+
+    Future<ProcessResult> spawn(Directory project, List<String> args) =>
+        Process.run(binary, ['check', ...args], workingDirectory: project.path);
+
+    int lineOf(Directory project, String docPath, String needle) =>
+        File('${project.path}/docs/$docPath')
+            .readAsLinesSync()
+            .indexWhere((line) => line.contains(needle)) +
+        1;
+
+    test('f04/us05/s1, f04/us05/fr01: --repeats prints the group, one line per item, then the count line, and exits 0', () async {
+      final project = await repeating();
+      final result = await spawn(project, ['--repeats']);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stdout,
+        'repeat: "$clause"\n'
+        '$loginFr:${lineOf(project, loginFr, 'E01')}: login/email_login/check_password E01\n'
+        '$loginNf:${lineOf(project, loginNf, 'The system shall hold')}: login/email_login/sign_in_time —\n'
+        '1 repeat group\n',
+      );
+    });
+
+    test('f04/us05/fr01: --json prints the repeats and the count', () async {
+      final project = await repeating();
+      final result = await spawn(project, ['--repeats', '--json']);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(jsonDecode(result.stdout as String), {
+        'repeats': [
+          {
+            'run': clause,
+            'items': [
+              {
+                'docPath': loginFr,
+                'name': 'login/email_login/check_password',
+                'line': lineOf(project, loginFr, 'E01'),
+                'item': 'E01',
+              },
+              {
+                'docPath': loginNf,
+                'name': 'login/email_login/sign_in_time',
+                'line': lineOf(project, loginNf, 'The system shall hold'),
+                'item': null,
+              },
+            ],
+          },
+        ],
+        'count': 1,
+      });
+    });
+
+    test(
+      'f04/us05/fr01/e08: no repeat prints 0 repeat groups and exits 0',
+      () async {
+        final result = await spawn(await writeCheckProject(), ['--repeats']);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect(result.stdout, '0 repeat groups\n');
+      },
+    );
+
+    test('f04/us05/s4, f04/us05/fr01/e10: a plain check prints no repeat group and no finding for the repeat', () async {
+      final result = await spawn(await repeating(), []);
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect(result.stdout, '0 findings\n');
+    });
+
+    test(
+      'f04/us05/fr01/e10: --repeats prints no finding of the other rules',
+      () async {
+        final project = await writeCheckProject(
+          extra: frWith('verify_method: maybe'),
+        );
+        final result = await spawn(project, ['--repeats']);
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect(result.stdout, '0 repeat groups\n');
+      },
+    );
+
+    test('f04/us05/s5, f04/us05/fr01/e07: a target keeps only the groups that hold an item of its docs', () async {
+      final project = await repeating();
+      final kept = await spawn(project, [
+        '--repeats',
+        'login/email_login/check_password',
+      ]);
+      expect(kept.exitCode, 0, reason: '${kept.stdout}\n${kept.stderr}');
+      expect(kept.stdout, startsWith('repeat: "$clause"\n'));
+      final none = await spawn(project, ['--repeats', 'tech_stack']);
+      expect(none.exitCode, 0, reason: '${none.stdout}\n${none.stderr}');
+      expect(none.stdout, '0 repeat groups\n');
+    });
+
+    test('f04/us05/s6, f04/us05/fr01/e11: outside a project it exits 78 and prints no project was found', () async {
+      final result = await spawn(await writeTree({}), ['--repeats']);
+      expect(result.exitCode, 78);
+      expect(result.stderr, startsWith('no Specstone project'));
+      expect(result.stdout, isEmpty);
+    });
+  });
 }

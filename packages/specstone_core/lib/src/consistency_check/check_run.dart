@@ -23,6 +23,7 @@ import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
 import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/record_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
+import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/shape_count_rules.dart';
 import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
@@ -52,11 +53,7 @@ CheckReport runCheck(
   }
   final context = CheckContext(session);
   final index = context.index;
-  final scope = switch ((target, docPath)) {
-    (final name?, _) => CheckScope.of(context, name, codeTarget: codeTarget),
-    (_, final path?) => CheckScope.doc(context, path, codeTarget: codeTarget),
-    _ => CheckScope.project(context, codeTarget: codeTarget),
-  };
+  final scope = _scopeOf(context, target, docPath, codeTarget);
   final work = ImplementedWork(context, scope.targets);
   final findings = <Finding>[];
   for (final doc in index.docs) {
@@ -123,6 +120,34 @@ CheckReport runCheck(
     ..addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
+
+/// Lists the repeat groups of the project, or of [target]'s docs, and no
+/// finding (`consistency_check/list_repeated_text/list_repeat_groups`).
+///
+/// [codeTarget] names the one code target the run keeps; null keeps every
+/// target. Throws as [runCheck] does for a [target] or [codeTarget] it cannot
+/// resolve.
+RepeatReport runRepeats(
+  ReadSession session, {
+  String? target,
+  String? codeTarget,
+}) => RepeatReport(
+  listRepeats(
+    session,
+    _scopeOf(CheckContext(session), target, null, codeTarget),
+  ),
+);
+
+CheckScope _scopeOf(
+  CheckContext context,
+  String? target,
+  String? docPath,
+  String? codeTarget,
+) => switch ((target, docPath)) {
+  (final name?, _) => CheckScope.of(context, name, codeTarget: codeTarget),
+  (_, final path?) => CheckScope.doc(context, path, codeTarget: codeTarget),
+  _ => CheckScope.project(context, codeTarget: codeTarget),
+};
 
 /// Returns the names of [scope]'s code targets, the unnamed target as the
 /// empty string.

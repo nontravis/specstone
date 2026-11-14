@@ -221,6 +221,23 @@ void main() {
     );
   });
 
+  test('NFR-P03, f04/us05/fr01/e12: a whole-project specstone check --repeats, '
+      'with a current index, finishes within 2 s in the fastest of five '
+      'calls', () {
+    const call = ['check', '--repeats'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 0, reason: '${first.stderr}');
+    expect(first.stdout.toString(), matches(RegExp(r'\d+ repeat groups?\n$')));
+    expect(
+      bestOf(timingRuns, () => timed(call), label: 'check --repeats calls'),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
   test('a whole-project specstone check that reads 1,000 more code files '
       'full of comment lines still finishes within 2 s', () {
     const fileCount = 1000;
