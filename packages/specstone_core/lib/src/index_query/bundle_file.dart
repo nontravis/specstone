@@ -107,21 +107,24 @@ ReadAnswer answerBundleFile(
 // MARK: - Index
 
 /// Returns the stdout index of [answer]'s bundle saved at [shownPath]: the
-/// header line, then one line per doc and appended part with its line range.
+/// code target line when it has one, the header line, then one line per doc
+/// and appended part with its line range.
 ///
 /// Each line lists its sections' first lines while the whole index stays
-/// within 200 lines and 8 KiB, its header included; past either bound no
-/// line lists a section, and every doc still prints (INV-16).
+/// within 200 lines and 8 KiB, its code target line and header included; past
+/// either bound no line lists a section, and every doc still prints (INV-16).
 String bundleIndex(ContextAnswer answer, String shownPath) {
+  final target = codeTargetLine(answer.codeTarget);
   final header =
-      '==> bundle: ${_docCountOf(answer)} docs, ${answer.tokens} tokens, '
+      '$target==> bundle: ${_docCountOf(answer)} docs, '
+      '${answer.tokens} tokens, '
       '${_lineCountOf(answer.text)} lines · $shownPath <==\n';
   final full = [
     header,
     for (final entry in answer.entries) _indexLine(entry, withSections: true),
   ].join();
   final fits =
-      answer.entries.length + 1 <= _indexLineCap &&
+      _lineCountOf(full) <= _indexLineCap &&
       utf8.encode(full).length <= _indexByteCap;
   if (fits) return full;
   return [
@@ -131,9 +134,11 @@ String bundleIndex(ContextAnswer answer, String shownPath) {
 }
 
 /// Returns `--out`'s `--json` object for [answer]'s bundle saved at
-/// [shownPath]; each doc lists its sections whatever the index's size.
+/// [shownPath], with its `codeTarget` when it has one; each doc lists its
+/// sections whatever the index's size.
 Map<String, Object> bundleIndexJson(ContextAnswer answer, String shownPath) => {
   'out': shownPath,
+  'codeTarget': ?answer.codeTarget,
   'tokens': answer.tokens,
   'lines': _lineCountOf(answer.text),
   'docs': [

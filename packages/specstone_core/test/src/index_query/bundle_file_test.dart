@@ -237,6 +237,22 @@ void main() {
         '- prds/notes.txt · 14-14 · cited\n',
       );
     });
+    test('e10: a code target prints its line before the header, and --json holds codeTarget', () {
+      final base = _answerOf(1);
+      final answer = ContextAnswer(
+        text: base.text,
+        json: base.json,
+        entries: base.entries,
+        tokens: base.tokens,
+        codeTarget: 'jaspr',
+      );
+      final index = bundleIndex(answer, '/p');
+      expect(index, startsWith('==> code target: jaspr <==\n==> bundle: '));
+      expect(bundleIndexJson(answer, '/p')['codeTarget'], 'jaspr');
+      expect(bundleIndex(base, '/p'), startsWith('==> bundle: '));
+      expect(bundleIndexJson(base, '/p').containsKey('codeTarget'), isFalse);
+    });
+
     test('e05: an index of 200 lines keeps its sections', () {
       final index = bundleIndex(_answerOf(199), '/p');
       expect(const LineSplitter().convert(index), hasLength(200));

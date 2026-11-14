@@ -1875,7 +1875,7 @@ void _agentTests() {
     const targetLine =
         "**Code target** (two or more `targets:`): a changed path's target "
         'is the `code target:` line, or the '
-        '`codeTarget` key under `--json`, of its `context --code` call, '
+        '`codeTarget` key under `--json`, of its `context --code --out` call, '
         "covered or not, and a deleted path's is the finding DocPath's; each "
         '`get`, `set`, and `new` of a per-target '
         'doc carries `--target <name>`, or addresses the doc by its DocPath.';
@@ -1902,9 +1902,7 @@ void _agentTests() {
       expect(procedure(), contains(targetLine));
       expect(
         procedure(),
-        contains(
-          "which takes its path's code target and carries no `--target`",
-        ),
+        contains("which takes its path's target and no `--target`"),
       );
     });
 
@@ -2057,8 +2055,8 @@ void _agentTests() {
         contains(
           "For each listed code path but a `tests_unresolved` line's (step "
           '4.4), run `specstone context --code <code root>/<path> --for '
-          "implement --out`, which takes its path's code target and carries "
-          "no `--target`; read its saved file's parts per "
+          "implement --out`, which takes its path's target and no "
+          "`--target`; read its saved file's parts per "
           '`specstone:read-sdd`.',
         ),
       );

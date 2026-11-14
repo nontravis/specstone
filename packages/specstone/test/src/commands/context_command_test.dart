@@ -510,6 +510,61 @@ void main() {
       expect(answer['codeTarget'], 'jaspr');
     });
 
+    test('f01/us05/fr07/e10: --code --out with two targets prints the code '
+        'target line first on stdout, and the file keeps it first', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final args = [
+        'context',
+        '--code',
+        'jaspr_lib/lib/toast.dart',
+        '--for',
+        'implement',
+        '--out',
+      ];
+      final text = readRunner(project);
+      expect(await text.runner.run(args), 0, reason: text.err.toString());
+      final lines = text.out.toString().split('\n');
+      expect(lines[0], '==> code target: jaspr <==');
+      expect(lines[1], startsWith('==> bundle: '));
+      expect(lines[2], startsWith('- '));
+      final file = File(
+        '${project.path}/.specstone/bundles/'
+        'code-jaspr_lib-lib-toast.dart.implement.txt',
+      );
+      expect(
+        file.readAsStringSync(),
+        startsWith('==> code target: jaspr <==\n'),
+      );
+      final json = readRunner(project);
+      expect(await json.runner.run([...args, '--json']), 0);
+      final answer = jsonDecode(json.out.toString()) as Map<String, Object?>;
+      expect(answer['codeTarget'], 'jaspr');
+      expect(answer['out'], isA<String>());
+    });
+
+    test('f01/us05/fr07/e10: --code --out with one target prints no code '
+        'target', () async {
+      final project = await writeReadProject(extra: {'app/lib/main.dart': ''});
+      final args = [
+        'context',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'implement',
+        '--out',
+      ];
+      final text = readRunner(project);
+      expect(await text.runner.run(args), 0);
+      expect(text.out.toString(), startsWith('==> bundle: '));
+      expect(text.out.toString(), isNot(contains('code target')));
+      final json = readRunner(project);
+      expect(await json.runner.run([...args, '--json']), 0);
+      final answer = jsonDecode(json.out.toString()) as Map<String, Object?>;
+      expect(answer.containsKey('codeTarget'), isFalse);
+    });
+
     test('--code with one target prints no code target', () async {
       final project = await writeReadProject(extra: {'app/lib/main.dart': ''});
       final text = readRunner(project);

@@ -1,5 +1,5 @@
 **Code target** (two or more `targets:`): a changed path's target is the `code target:` line, or the `codeTarget` key
-under `--json`, of its `context --code` call, covered or not, and a deleted path's is the finding DocPath's; each
+under `--json`, of its `context --code --out` call, covered or not, and a deleted path's is the finding DocPath's; each
 `get`, `set`, and `new` of a per-target doc carries `--target <name>`, or addresses the doc by its DocPath. Compare
 and fix only that target's record and `covers:` entries.
 
@@ -16,8 +16,8 @@ A finding's `path` is relative to its target's code root (`code_root:` in `.spec
 per target; default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's (step 4.4), run
-`specstone context --code <code root>/<path> --for implement --out`, which takes its path's code target and carries
-no `--target`; read its saved file's parts per `specstone:read-sdd`.
+`specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
+`--target`; read its saved file's parts per `specstone:read-sdd`.
 
 - **Warning `no doc covers or implements <path>`:** The new side of a rename pair goes to step 4.3. Else read the
   file and write nothing for it; report it under `Uncovered:`: its path, what it does that no spec states, and

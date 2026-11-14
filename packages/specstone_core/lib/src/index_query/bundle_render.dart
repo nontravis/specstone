@@ -41,6 +41,7 @@ final class ContextAnswer extends ReadAnswer {
     super.exitStatus,
     required this.entries,
     required this.tokens,
+    this.codeTarget,
   });
 
   /// Each doc and appended part [text] prints, in print order; empty when
@@ -49,6 +50,10 @@ final class ContextAnswer extends ReadAnswer {
 
   /// The bundle's est. token size, as its closing line gives it.
   final int tokens;
+
+  /// The code target [text] names first, for a `--code` call in a project
+  /// with two or more; null otherwise.
+  final String? codeTarget;
 }
 
 String _overBudgetLine(String listName, int tokens) =>
@@ -99,7 +104,7 @@ Map<String, Object> _partKeys(AppendedPart part) => {
 
 /// Returns the header line that names the code target a `--code` path lies
 /// in, or '' when there is none to name (one target).
-String _codeTargetLine(String? name) =>
+String codeTargetLine(String? name) =>
     name == null ? '' : '==> code target: $name <==\n';
 
 /// Renders [bundle]'s docs as one `context` answer.
@@ -201,7 +206,7 @@ ContextAnswer answerContext(
       ),
   ];
   final text =
-      '${_codeTargetLine(named)}'
+      '${codeTargetLine(named)}'
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
       '${list.join()}'
@@ -239,6 +244,7 @@ ContextAnswer answerContext(
     warnings: [...bundle.warnings],
     entries: entries,
     tokens: tokens,
+    codeTarget: named,
   );
 }
 
@@ -321,7 +327,7 @@ ContextAnswer _overBudget(
       _overBudgetLine(_partListName(part), tokenSizeOf(partBlocks[i])),
   ];
   final text =
-      '${_codeTargetLine(codeTarget)}'
+      '${codeTargetLine(codeTarget)}'
       'The bundle holds $tokens est. tokens, over the budget of $budget; '
       'no doc text is printed.\n'
       'Docs it would hold:\n'
@@ -355,6 +361,7 @@ ContextAnswer _overBudget(
     exitStatus: 1,
     entries: const [],
     tokens: tokens,
+    codeTarget: codeTarget,
   );
 }
 
