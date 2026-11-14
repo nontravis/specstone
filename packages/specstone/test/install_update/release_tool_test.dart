@@ -8,15 +8,6 @@ import 'package:test/test.dart';
 
 import '../helpers/release_repo.dart';
 
-const _check =
-    'install_update/version_match/release_new_version/check_before_release';
-const _bump =
-    'install_update/version_match/release_new_version/bump_and_push_tag';
-const _land =
-    'install_update/version_match/release_new_version/merge_after_publish';
-const _rerun =
-    'install_update/version_match/release_new_version/'
-    'rerun_from_release_branch';
 const fetchLine =
     'fetch origin; check origin/main and local develop before moving any ref';
 const fastForwardLine =
@@ -59,7 +50,7 @@ void main() {
     expect(await repo.state(), before);
   }
 
-  test('f09/us04/fr01, f09/us04/s3: --dry-run prints the steps and changes '
+  test('--dry-run prints the steps and changes '
       'nothing', () async {
     final r = await repo.release(['0.2.0', '--dry-run']);
 
@@ -81,7 +72,7 @@ void main() {
     expect(await repo.state(), before);
   });
 
-  test('$_check E09: a pre-release --dry-run prints the first-run steps and '
+  test('a pre-release --dry-run prints the first-run steps and '
       'the three develop-only landing lines', () async {
     final r = await repo.release(['0.2.0-beta.1', '--dry-run']);
 
@@ -101,7 +92,7 @@ void main() {
     expect(await repo.state(), before);
   });
 
-  test('f09/us04/fr01/e01, f09/us04/s5: a version not above the current one '
+  test('a version not above the current one '
       'refuses', () async {
     final r = await repo.release(['0.1.0']);
 
@@ -120,7 +111,7 @@ void main() {
   // so one plain case and one carrying a control character cross the process
   // boundary here.
   for (final bad in ['v1.2.0', '1.2.0\n']) {
-    test('$_check E01: ${jsonEncode(bad)} refuses naming the form and the '
+    test('${jsonEncode(bad)} refuses naming the form and the '
         'current version', () async {
       final r = await repo.release([bad]);
 
@@ -131,7 +122,7 @@ void main() {
     });
   }
 
-  test('$_check E07: a pre-release above the current version passes '
+  test('a pre-release above the current version passes '
       '--dry-run and changes nothing', () async {
     final r = await repo.release(['0.2.0-beta.1', '--dry-run']);
 
@@ -139,7 +130,7 @@ void main() {
     expect(await repo.state(), before);
   });
 
-  test('$_check E08: the next version of a pre-release is above it in the '
+  test('the next version of a pre-release is above it in the '
       'Version order', () async {
     final pre = await createReleaseRepo(version: '0.2.0-beta.1');
     final preBefore = await pre.state();
@@ -158,7 +149,7 @@ void main() {
     expect(await pre.state(), preBefore);
   });
 
-  test('f09/us04/fr01: versions compare field by field', () async {
+  test('versions compare field by field', () async {
     final other = await createReleaseRepo(
       version: '0.9.0',
       files: {
@@ -172,7 +163,7 @@ void main() {
     expect(r.exitCode, 0, reason: '${r.stderr}');
   });
 
-  test('f09/us04/fr01, f09/us04/s6: an unclean tree refuses', () async {
+  test('an unclean tree refuses', () async {
     await File('${repo.work.path}/stray.txt').writeAsString('x');
     before = await repo.state();
 
@@ -181,7 +172,7 @@ void main() {
     await expectRefusal(r, ['not clean']);
   });
 
-  test('f09/us04/fr01/e02: develop ahead of origin/develop refuses', () async {
+  test('develop ahead of origin/develop refuses', () async {
     await repo.commitFile('local.txt', 'x', 'local');
     before = await repo.state();
 
@@ -190,7 +181,7 @@ void main() {
     await expectRefusal(r, ['origin/develop']);
   });
 
-  test('f09/us04/fr01/e02: develop behind origin/develop refuses; local '
+  test('develop behind origin/develop refuses; local '
       'develop does not move', () async {
     await repo.pushFromOtherClone('develop');
     before = await repo.state();
@@ -208,23 +199,20 @@ void main() {
     ('in_progress', 'in_progress'),
     ('failure', 'failure'),
   ]) {
-    test('f09/us04/fr01/e03: a ci run $ci refuses naming its state', () async {
+    test('a ci run $ci refuses naming its state', () async {
       final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI': ci});
 
       await expectRefusal(r, [state]);
     });
   }
 
-  test(
-    'f09/us04/fr01/e04: gh not logged in refuses naming gh auth login',
-    () async {
-      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_AUTH': 'none'});
+  test('gh not logged in refuses naming gh auth login', () async {
+    final r = await repo.release(['0.2.0'], gh: {'GH_STUB_AUTH': 'none'});
 
-      await expectRefusal(r, ['gh auth login']);
-    },
-  );
+    await expectRefusal(r, ['gh auth login']);
+  });
 
-  test('f09/us04/fr01/e05: another branch refuses naming develop', () async {
+  test('another branch refuses naming develop', () async {
     await repo.git(['checkout', '-q', 'main']);
     before = await repo.state();
 
@@ -233,7 +221,7 @@ void main() {
     await expectRefusal(r, ['develop']);
   });
 
-  test('f09/us04/fr01/e06: tag v0.2.0 on origin refuses', () async {
+  test('tag v0.2.0 on origin refuses', () async {
     await repo.git(['tag', 'v0.2.0']);
     await repo.git(['push', '-q', 'origin', 'v0.2.0']);
     await repo.git(['tag', '-d', 'v0.2.0']);
@@ -244,7 +232,7 @@ void main() {
     await expectRefusal(r, ['v0.2.0', 'origin']);
   });
 
-  test('f09/us04/fr01: a local tag v0.2.0 refuses', () async {
+  test('a local tag v0.2.0 refuses', () async {
     await repo.git(['tag', 'v0.2.0']);
     before = await repo.state();
 
@@ -253,28 +241,25 @@ void main() {
     await expectRefusal(r, ['v0.2.0', 'locally']);
   });
 
-  test(
-    'f09/us04/fr01: a missing, extra, or unknown argument prints the usage',
-    () async {
-      for (final args in [
-        <String>[],
-        ['0.2.0', '0.3.0'],
-        ['0.2.0', '--force'],
-        ['--dry-run'],
-      ]) {
-        final r = await repo.release(args);
+  test('a missing, extra, or unknown argument prints the usage', () async {
+    for (final args in [
+      <String>[],
+      ['0.2.0', '0.3.0'],
+      ['0.2.0', '--force'],
+      ['--dry-run'],
+    ]) {
+      final r = await repo.release(args);
 
-        expect(r.exitCode, 1, reason: args.join(' '));
-        expect(
-          r.stderr,
-          'release: usage: dart run tool/release.dart X.Y.Z [--dry-run]\n',
-        );
-      }
-      expect(await repo.state(), before);
-    },
-  );
+      expect(r.exitCode, 1, reason: args.join(' '));
+      expect(
+        r.stderr,
+        'release: usage: dart run tool/release.dart X.Y.Z [--dry-run]\n',
+      );
+    }
+    expect(await repo.state(), before);
+  });
 
-  test('f09/us04/fr01: the CI check reads the develop head', () async {
+  test('the CI check reads the develop head', () async {
     final sha = await repo.git(['rev-parse', 'develop']);
 
     await repo.release(['0.2.0', '--dry-run']);
@@ -368,7 +353,7 @@ void main() {
       'Resolve it, then run dart run tool/release.dart 0.2.0-beta.1 again '
       'from release/0.2.0-beta.1';
 
-  test('f09/us04/fr02, f09/us04/fr03, f09/us04/s1: the tag ships first; main '
+  test('the tag ships first; main '
       'and develop move after the Release', () async {
     final r = await repo.release(['0.2.0']);
 
@@ -415,7 +400,7 @@ void main() {
     expect(await repo.git(['branch', '--show-current']), 'develop');
   });
 
-  test('$_bump E01, INV-1: a pre-release tags a commit that changes the four '
+  test('a pre-release tags a commit that changes the four '
       'files and leaves the root pubspec alone', () async {
     final r = await repo.release(['0.2.0-beta.1']);
 
@@ -444,7 +429,7 @@ void main() {
     );
   });
 
-  test('f09/us04/fr02/e01, f09/us04/s8: a spot left behind refuses before the '
+  test('a spot left behind refuses before the '
       'commit and undoes the bump', () async {
     repo = await createReleaseRepo(
       files: {
@@ -461,7 +446,7 @@ void main() {
     expect(await repo.git(['tag', '--list']), isEmpty);
   });
 
-  test('f09/us04/fr02/e02: a bump dart pub get rejects is undone the same '
+  test('a bump dart pub get rejects is undone the same '
       'way', () async {
     repo = await createReleaseRepo(
       files: {
@@ -496,7 +481,7 @@ dependencies:
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
   });
 
-  test('f09/us04/fr02/e03: a rejected tag push keeps the branch and tag for a '
+  test('a rejected tag push keeps the branch and tag for a '
       'run again', () async {
     await rejectPushes('refs/tags/*');
     final refs = await repo.originRefs();
@@ -510,7 +495,7 @@ dependencies:
     expect(await repo.originRefs(), refs);
   });
 
-  test('f09/us04/fr03/e01, f09/us04/s7: a failed release run leaves main and '
+  test('a failed release run leaves main and '
       'develop untouched', () async {
     final refs = await repo.originRefs();
 
@@ -536,7 +521,7 @@ dependencies:
     expect(repo.ghCalls().where((c) => c.startsWith('release view')), isEmpty);
   });
 
-  test('f09/us04/fr03/e04, f09/us04/s9: a develop moved during the wait is '
+  test('a develop moved during the wait is '
       'merged and pushed', () async {
     final r = await repo.release(
       ['0.2.0'],
@@ -561,7 +546,7 @@ dependencies:
     expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
   });
 
-  test('f09/us04/fr03/e02, f09/us04/s10: a main moved during the wait moves '
+  test('a main moved during the wait moves '
       'no ref and pushes nothing', () async {
     final main = await sha('main');
     final develop = await sha('develop');
@@ -587,7 +572,7 @@ dependencies:
     expect(await repo.git(['branch', '--list', 'release/0.2.0']), isNotEmpty);
   });
 
-  test('f09/us04/fr03/e05: local develop ahead of origin/develop moves no ref '
+  test('local develop ahead of origin/develop moves no ref '
       'and pushes nothing', () async {
     final main = await sha('main');
     final refs = await repo.originRefs();
@@ -615,7 +600,7 @@ dependencies:
     expect(after['refs/heads/develop'], refs['refs/heads/develop']);
   });
 
-  test('f09/us04/fr03/e03: a rejected atomic push leaves both sides as they '
+  test('a rejected atomic push leaves both sides as they '
       'were', () async {
     await rejectPushes('refs/heads/main');
     final main = await sha('main');
@@ -637,7 +622,7 @@ dependencies:
     expect(await repo.git(['status', '--porcelain']), isEmpty);
   });
 
-  test('f09/us04/fr03: main moved and develop ahead at once reports the main '
+  test('main moved and develop ahead at once reports the main '
       'check only', () async {
     final r = await repo.release(
       ['0.2.0'],
@@ -653,7 +638,7 @@ dependencies:
     expect(r.stderr, isNot(contains('develop holds commits')));
   });
 
-  test('release_new_version S11, $_land E07: a pre-release lands develop '
+  test('a pre-release lands develop '
       'alone and never writes main', () async {
     final main = await sha('main');
     final originMain = (await repo.originRefs())['refs/heads/main'];
@@ -679,7 +664,7 @@ dependencies:
     expect(await hasCheckedOutMain(repo), isFalse);
   });
 
-  test('$_land E07: an origin/main that moved during the wait does not stop '
+  test('an origin/main that moved during the wait does not stop '
       'a pre-release', () async {
     final main = await sha('main');
 
@@ -704,7 +689,7 @@ dependencies:
     expect(await hasCheckedOutMain(repo), isFalse);
   });
 
-  test('$_land E08: a rejected push of develop resets local develop and '
+  test('a rejected push of develop resets local develop and '
       'keeps the release branch', () async {
     await rejectPushes('refs/heads/develop');
     final main = await sha('main');
@@ -734,7 +719,7 @@ dependencies:
     expect(await hasCheckedOutMain(repo), isFalse);
   });
 
-  test('$_land E08: a run again after the refused push lands develop '
+  test('a run again after the refused push lands develop '
       'alone', () async {
     await rejectPushes('refs/heads/develop');
     final main = await sha('main');
@@ -769,7 +754,7 @@ dependencies:
     return lastFullRelease;
   }
 
-  test('$_land E09: a full release from a develop holding a pre-release '
+  test('a full release from a develop holding a pre-release '
       'moves main from the last full release and develop in the atomic '
       'push', () async {
     final lastFullRelease = await landBeta();
@@ -793,7 +778,7 @@ dependencies:
     expect(await hasCheckedOutMain(repo), isTrue);
   });
 
-  test('$_check E09: a full --dry-run over a develop holding a pre-release '
+  test('a full --dry-run over a develop holding a pre-release '
       'prints the full-release landing lines', () async {
     await landBeta();
     final landed = await repo.state();
@@ -818,7 +803,7 @@ dependencies:
     expect(await repo.state(), landed);
   });
 
-  test('$_land E05: local develop ahead of origin/develop refuses a '
+  test('local develop ahead of origin/develop refuses a '
       'pre-release too', () async {
     final main = await sha('main');
     final refs = await repo.originRefs();
@@ -856,7 +841,7 @@ dependencies:
   });
 
   group('first-run checks', () {
-    test('f09/us04/fr01: a modified tracked file keeps its porcelain status '
+    test('a modified tracked file keeps its porcelain status '
         'column', () async {
       await File('${repo.work.path}/plugin/.claude-plugin/plugin.json')
           .writeAsString('{"version": "0.1.0"}\n');
@@ -867,19 +852,19 @@ dependencies:
       await expectRefusal(r, ['\n M plugin/.claude-plugin/plugin.json']);
     });
 
-    test('f09/us04/fr01: an empty ci run list refuses', () async {
+    test('an empty ci run list refuses', () async {
       final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI': 'empty'});
 
       await expectRefusal(r, ['ci run']);
     });
 
-    test('f09/us04/fr01: gh output that is not JSON refuses', () async {
+    test('gh output that is not JSON refuses', () async {
       final r = await repo.release(['0.2.0'], gh: {'GH_STUB_CI': 'garbage'});
 
       await expectRefusal(r, ['no JSON']);
     });
 
-    test('f09/us04/fr01: gh missing from PATH refuses naming gh', () async {
+    test('gh missing from PATH refuses naming gh', () async {
       final bin = Directory('${repo.root.path}/only_git')..createSync();
       final which = await Process.run('which', ['git']);
       Link('${bin.path}/git').createSync((which.stdout as String).trim());
@@ -889,7 +874,7 @@ dependencies:
       await expectRefusal(r, ['gh is not available']);
     });
 
-    test('f09/us04/fr01: a gh failure other than not logged in quotes its '
+    test('a gh failure other than not logged in quotes its '
         'first stderr line and does not name gh auth login', () async {
       final r = await repo.release(['0.2.0'], gh: {'GH_STUB_AUTH': 'broken'});
 
@@ -897,7 +882,7 @@ dependencies:
       expect(r.stderr, isNot(contains('gh auth login')));
     });
 
-    test('f09/us04/fr01: checks run in the order of the contract', () async {
+    test('checks run in the order of the contract', () async {
       // Each case holds two failures; the earlier check in the contract wins.
       await File('${repo.work.path}/stray.txt').writeAsString('x');
       before = await repo.state();
@@ -913,7 +898,7 @@ dependencies:
       await expectRefusal(r, ['MAJOR.MINOR.PATCH']);
     });
 
-    test('f09/us04/fr01: a run from a subfolder finds the repo root', () async {
+    test('a run from a subfolder finds the repo root', () async {
       final r = await Process.run(
         Platform.resolvedExecutable,
         ['run', '../../tool/release.dart', '0.2.0', '--dry-run'],
@@ -929,21 +914,18 @@ dependencies:
   });
 
   group('hardening', () {
-    test(
-      'f09/us04/fr02: a missing spot file refuses before anything is cut',
-      () async {
-        await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
-        await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
-        await repo.git(['push', '-q', 'origin', 'develop']);
-        before = await repo.state();
+    test('a missing spot file refuses before anything is cut', () async {
+      await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
+      await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
+      await repo.git(['push', '-q', 'origin', 'develop']);
+      before = await repo.state();
 
-        final r = await repo.release(['0.2.0']);
+      final r = await repo.release(['0.2.0']);
 
-        await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
-      },
-    );
+      await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
+    });
 
-    test('$_check: a pre-release specstoneVersion literal is the current '
+    test('a pre-release specstoneVersion literal is the current '
         'version', () async {
       repo = await createReleaseRepo(
         files: {
@@ -959,7 +941,7 @@ dependencies:
       expect(await repo.state(), before);
     });
 
-    test('$_check: a specstoneVersion literal outside the form is no '
+    test('a specstoneVersion literal outside the form is no '
         'version', () async {
       repo = await createReleaseRepo(
         files: {
@@ -974,7 +956,7 @@ dependencies:
       await expectRefusal(r, ['holds no specstoneVersion constant']);
     });
 
-    test('$_check: a specstoneVersion literal with a NUL after the version is '
+    test('a specstoneVersion literal with a NUL after the version is '
         'no version', () async {
       repo = await createReleaseRepo(
         files: {
@@ -989,7 +971,7 @@ dependencies:
       await expectRefusal(r, ['holds no specstoneVersion constant']);
     });
 
-    test('f09/us04/fr01: origin/main holding commits develop lacks refuses '
+    test('origin/main holding commits develop lacks refuses '
         'naming them', () async {
       await repo.pushFromOtherClone('main');
       final other = (await repo.originRefs())['refs/heads/main']!;
@@ -1003,22 +985,19 @@ dependencies:
       ]);
     });
 
-    test(
-      'f09/us04/fr02: a run that is not listed yet is polled again',
-      () async {
-        final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN_LATE': '1'});
+    test('a run that is not listed yet is polled again', () async {
+      final r = await repo.release(['0.2.0'], gh: {'GH_STUB_RUN_LATE': '1'});
 
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(
-          repo.ghCalls().where(
-            (c) => c.startsWith('api repos/{owner}/{repo}/actions/runs'),
-          ),
-          hasLength(2),
-        );
-      },
-    );
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(
+        repo.ghCalls().where(
+          (c) => c.startsWith('api repos/{owner}/{repo}/actions/runs'),
+        ),
+        hasLength(2),
+      );
+    });
 
-    test('f09/us04/fr02: the wait names the run it watches', () async {
+    test('the wait names the run it watches', () async {
       final r = await repo.release(['0.2.0']);
 
       expect(
@@ -1031,7 +1010,7 @@ dependencies:
     });
 
     for (final view in ['broken', 'cancelled', 'garbage']) {
-      test('f09/us04/fr03: a failed gh run watch whose run is not read as '
+      test('a failed gh run watch whose run is not read as '
           'failed ($view) exits 1 and moves nothing', () async {
         final refs = await repo.originRefs();
 
@@ -1053,7 +1032,7 @@ dependencies:
       });
     }
 
-    test('f09/us04/fr03: a failing gh run watch falls back to polling the run '
+    test('a failing gh run watch falls back to polling the run '
         'and lands once it succeeds', () async {
       final r = await repo.release(
         ['0.2.0'],
@@ -1073,7 +1052,7 @@ dependencies:
       expect(refs['refs/heads/main'], refs['refs/tags/v0.2.0']);
     });
 
-    test('f09/us04/fr02: --dry-run refuses a missing spot too', () async {
+    test('--dry-run refuses a missing spot too', () async {
       await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
       await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
       await repo.git(['push', '-q', 'origin', 'develop']);
@@ -1084,7 +1063,7 @@ dependencies:
       await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
     });
 
-    test('f09/us04/fr03: a failed branch cleanup after the landing exits 0 '
+    test('a failed branch cleanup after the landing exits 0 '
         'and says so', () async {
       final hook = File('${repo.origin.path}/hooks/pre-receive');
       await hook.writeAsString(
@@ -1129,7 +1108,7 @@ dependencies:
       tagBefore = (await repo.originRefs())['refs/tags/v0.2.0']!;
     });
 
-    test('f09/us04/fr04, f09/us04/s4: the tag moves to the fix and the '
+    test('the tag moves to the fix and the '
         'release lands', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       final fix = await sha('HEAD');
@@ -1151,7 +1130,7 @@ dependencies:
       );
     });
 
-    test('f09/us04/fr04/e01, f09/us04/fr03/e06, INV-5: a run again with the '
+    test('a run again with the '
         'Release published only lands', () async {
       final firstCalls = repo.ghCalls().length;
 
@@ -1174,7 +1153,7 @@ dependencies:
       expect(await repo.git(['branch', '--list', 'release/0.2.0']), isEmpty);
     });
 
-    test('f09/us04/fr04: a run of the tag still in progress is awaited, and '
+    test('a run of the tag still in progress is awaited, and '
         'the tag stays', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       final firstCalls = repo.ghCalls().length;
@@ -1201,7 +1180,7 @@ dependencies:
       );
     });
 
-    test('f09/us04/fr04: a run in progress on the tag at HEAD is awaited '
+    test('a run in progress on the tag at HEAD is awaited '
         'with no note about later commits', () async {
       final r = await repo.release(
         ['0.2.0'],
@@ -1213,7 +1192,7 @@ dependencies:
       expect((await repo.originRefs())['refs/heads/main'], tagBefore);
     });
 
-    test('f09/us04/fr04: a local tag unlike the one on origin refuses before '
+    test('a local tag unlike the one on origin refuses before '
         'any ref moves', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       await repo.git(['tag', '-f', 'v0.2.0', 'HEAD']);
@@ -1231,7 +1210,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: --dry-run with a run in progress prints the wait '
+    test('--dry-run with a run in progress prints the wait '
         'and the landing', () async {
       final mid = await repo.state();
 
@@ -1253,7 +1232,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: a tag already at HEAD whose run failed refuses '
+    test('a tag already at HEAD whose run failed refuses '
         'early', () async {
       final mid = await repo.state();
 
@@ -1273,7 +1252,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: a refused push of the release branch says how to run '
+    test('a refused push of the release branch says how to run '
         'again once', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       await rejectPushes('refs/heads/release/*');
@@ -1291,7 +1270,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04/e05: the fixed tag failing again leaves main and '
+    test('the fixed tag failing again leaves main and '
         'develop untouched', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       final fix = await sha('HEAD');
@@ -1307,7 +1286,7 @@ dependencies:
       expect(after['refs/heads/develop'], refs['refs/heads/develop']);
     });
 
-    test('f09/us04/fr03/e05: local develop ahead of origin/develop moves no '
+    test('local develop ahead of origin/develop moves no '
         'ref and pushes nothing', () async {
       await repo.git(['switch', 'develop']);
       await repo.commitFile('local.txt', 'x\n', 'local: not pushed');
@@ -1331,25 +1310,22 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test(
-      'f09/us04/fr04/e02: spots holding another version refuse naming it',
-      () async {
-        await repo.commitFile(
-          'plugin/.claude-plugin/plugin.json',
-          '{\n  "name": "specstone",\n  "version": "0.2.1"\n}\n',
-          'chore: wrong version',
-        );
-        final mid = await repo.state();
+    test('spots holding another version refuse naming it', () async {
+      await repo.commitFile(
+        'plugin/.claude-plugin/plugin.json',
+        '{\n  "name": "specstone",\n  "version": "0.2.1"\n}\n',
+        'chore: wrong version',
+      );
+      final mid = await repo.state();
 
-        final r = await repo.release(['0.2.0']);
+      final r = await repo.release(['0.2.0']);
 
-        expect(r.exitCode, 1);
-        expect(r.stderr, contains('0.2.1'));
-        expect(await repo.state(), mid);
-      },
-    );
+      expect(r.exitCode, 1);
+      expect(r.stderr, contains('0.2.1'));
+      expect(await repo.state(), mid);
+    });
 
-    test('f09/us04/fr04/e03: another version than the branch refuses naming '
+    test('another version than the branch refuses naming '
         'the branch version', () async {
       final mid = await repo.state();
 
@@ -1362,7 +1338,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: an unclean tree refuses', () async {
+    test('an unclean tree refuses', () async {
       File('${repo.work.path}/stray.txt').writeAsStringSync('x\n');
       final mid = await repo.state();
 
@@ -1373,7 +1349,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: gh not logged in refuses', () async {
+    test('gh not logged in refuses', () async {
       final mid = await repo.state();
 
       final r = await repo.release(['0.2.0'], gh: {'GH_STUB_AUTH': 'none'});
@@ -1383,7 +1359,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: a gh that fails reading the Release does not move '
+    test('a gh that fails reading the Release does not move '
         'the tag', () async {
       final mid = await repo.state();
 
@@ -1397,7 +1373,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04/e04: develop moved since the first run is no '
+    test('develop moved since the first run is no '
         'refusal', () async {
       final other = await repo.pushFromOtherClone('develop');
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
@@ -1422,7 +1398,7 @@ dependencies:
       );
     });
 
-    test('f09/us04/fr04: --dry-run prints the run-again steps and changes '
+    test('--dry-run prints the run-again steps and changes '
         'nothing', () async {
       final mid = await repo.state();
 
@@ -1443,7 +1419,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('f09/us04/fr04: --dry-run with the Release published prints the '
+    test('--dry-run with the Release published prints the '
         'landing only', () async {
       final mid = await repo.state();
 
@@ -1465,7 +1441,7 @@ dependencies:
     });
   });
 
-  group('$_rerun: a pre-release', () {
+  group('a pre-release', () {
     setUp(() async {
       final first = await repo.release(
         ['0.2.0-beta.1'],
@@ -1474,7 +1450,7 @@ dependencies:
       expect(first.exitCode, 1);
     });
 
-    test('$_rerun: a run again with the Release published lands develop '
+    test('a run again with the Release published lands develop '
         'alone', () async {
       final main = await sha('main');
       final originMain = (await repo.originRefs())['refs/heads/main'];
@@ -1497,7 +1473,7 @@ dependencies:
       expect(await hasCheckedOutMain(repo), isFalse);
     });
 
-    test('$_rerun: a fix pushed with release/0.2.0-beta.1 lands develop '
+    test('a fix pushed with release/0.2.0-beta.1 lands develop '
         'alone and deletes the branch on origin', () async {
       await repo.commitFile('fix.txt', 'fixed\n', 'fix: the release');
       final fix = await sha('HEAD');
@@ -1518,7 +1494,7 @@ dependencies:
       expect(await hasCheckedOutMain(repo), isFalse);
     });
 
-    test('$_rerun: a landing that pushed develop and kept the branch '
+    test('a landing that pushed develop and kept the branch '
         'resumes and deletes the branch', () async {
       await repo.git(['push', '-q', 'origin', 'release/0.2.0-beta.1']);
       await repo.git(['switch', 'develop']);
@@ -1543,7 +1519,7 @@ dependencies:
       expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
     });
 
-    test('$_rerun: --dry-run with the Release published prints the three '
+    test('--dry-run with the Release published prints the three '
         'develop-only landing lines', () async {
       final mid = await repo.state();
 
@@ -1557,7 +1533,7 @@ dependencies:
       expect(await repo.state(), mid);
     });
 
-    test('$_rerun: --dry-run without the Release prints the tag move, the '
+    test('--dry-run without the Release prints the tag move, the '
         'wait, and the develop-only landing', () async {
       final mid = await repo.state();
 

@@ -49,11 +49,8 @@ final Map<String, String> _moduleOf = {
 const _core = 'Microsoft.PowerShell.Core';
 
 void main() {
-  for (final (name, story) in [
-    ('install.ps1', 'us01'),
-    ('uninstall.ps1', 'us03'),
-  ]) {
-    group('f09/$story: $name', () {
+  for (final name in ['install.ps1', 'uninstall.ps1']) {
+    group(name, () {
       final lines = File('${repoRoot().path}/$name').readAsLinesSync();
       final code = [
         for (final line in lines)

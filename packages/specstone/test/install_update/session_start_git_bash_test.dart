@@ -40,8 +40,7 @@ void main() {
   String gitUsrBin() => '${File(bash!).parent.parent.path}\\usr\\bin';
 
   for (final MapEntry(key: label, value: spell) in _rootSpellings.entries) {
-    test('install_update/warn_at_session_start/register_session_start_hook '
-        'E10: Git Bash reads the appended line and resolves specstone.exe '
+    test('Git Bash reads the appended line and resolves specstone.exe '
         'with $label', () async {
       final sb = await createScriptSandbox();
       final pluginDir = writePlugin(sb);
