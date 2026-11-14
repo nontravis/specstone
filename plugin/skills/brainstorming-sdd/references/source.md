@@ -51,8 +51,9 @@ type's writing guide says it needs; a gap goes to the Owner.
    question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's
    unit; invent nothing.
 6. **The copy and the brief.** Write both after every `context` call. For a link, an issue, or the conversation,
-   write its text, or the conversation's source items, word for word to a `mktemp` file outside the repository; the
-   copy is no source. Add two lines to the brief:
+   write its text, or the conversation's source items, word for word to
+   `<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints, named as
+   the skill's step 3 names the brief; the copy is no source. Add two lines to the brief:
    - **Source:** the file's path, the link, or "the current conversation" and its date; never the copy's path.
    - **Re-read:** the source itself for a file path, else the copy.
 

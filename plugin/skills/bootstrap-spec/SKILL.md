@@ -33,8 +33,10 @@ the Owner answered in this run. In the first round the rest batch always runs, e
 target's tech stack doc, the doc the procedure's step 6 fills; no feature batch fills it. In a later round it runs only
 when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specstone:sdd-engineer` per batch with
 `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, `picks:` each write-a-spec pick of step 3
-for the batch's files, and `report:`, one file `mktemp` makes per batch outside the repository; batches may run at
-once. Send no doc text, and work no step of the procedure yourself.
+for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch;
+batches may run at once. Send no doc text, and work no step of the procedure yourself. Take `<folder>` the path
+`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file
+exists.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.

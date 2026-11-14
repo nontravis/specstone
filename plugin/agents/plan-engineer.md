@@ -35,7 +35,8 @@ touches, the trade-off behind each choice, and its test.
   (Workflow step 8).
 - **`answers`** (optional): the Owner's answers on `NOT PLANNED` rows, spec gaps, and open questions. Run every step
   again on them: the Ground shows each doc as it now stands.
-- **`report`** (optional): the file for the whole report, outside the repository; absent, make one with `mktemp`.
+- **`report`** (optional): the file for the whole report, `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`; absent,
+  name your own there (Output Format).
 - **Missing `targets`**: write the report with the gap under `Open questions:`, and stop.
 - **Doc text in the prompt**: no source; the Ground's calls print each doc as it stands now.
 
@@ -154,6 +155,10 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 
 ## Output Format
 
+With no `report`, run `specstone folder` once, after the Ground's calls or at a stop before them, `<folder>` the path
+`specstone folder` prints, and name your own `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
+characters, picked again while that file exists; every round reuses it.
+
 `Read` the `report` file before each `Write` to it, in every round, not only the first: `Write` refuses a file it has
 not read, and a missing file's `Read` error is no stop. Write the report, the block below, with `Write` to that file.
 Then reply `Report: <path>` and, under it, the same block, the relay block.
@@ -185,8 +190,8 @@ Findings: <items, or none>
 **DO:**
 
 - Run `specstone context` for the Ground, `specstone get` only after searching its saved file with `Grep`, and one
-  `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), and no other
-  specstone command.
+  `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), `specstone folder`
+  once with no `report` (Output Format), and no other specstone command.
 - Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
 - Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.

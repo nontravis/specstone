@@ -56,12 +56,14 @@ document holds no open question; approval of an approach is not approval of the 
 
 ## 3. Write the document: design mode
 
-Each `specstone:sdd-engineer` dispatch in steps 3 and 4 passes `report:`, a `mktemp` file outside the repository;
-show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
+After step 1's calls, take `<folder>` the path `specstone folder` prints, run once. Each `specstone:sdd-engineer`
+dispatch in steps 3 and 4 passes `report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
+characters, picked again while that file exists; show the Owner each reply's `Report:` line, then its
+relay block word for word, before your own notes.
 
 Write the Owner's approved answers (the decisions, the rulings in the Owner's words, the approach picked, the open
-questions) to another such file once every answer is in. Dispatch `mode: design` once, with that brief's path and the
-document's: the brainstorm skill's own design path, else
+questions) to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in. Dispatch
+`mode: design` once, with that brief's path and the document's: the brainstorm skill's own design path, else
 `docs/designs/<YYYY-MM-DD>-<topic>-design.md`.
 
 Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.

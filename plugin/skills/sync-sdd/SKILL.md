@@ -32,9 +32,10 @@ or not. Take nothing from the task: code changed outside a task is in the list t
 With an empty list, tell the Owner no code changed since its docs were compared, and stop with no dispatch and no
 further call.
 
-Else, with the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a file `mktemp` makes
-outside the repository, and the feature name when the Owner gave one. Send no list of paths or doc text, and work no
-step of the procedure yourself. Without the tool, or when the dispatch fails, read `references/procedure.md` beside this
+Else, with the `Agent` tool, dispatch `specstone:sdd-engineer` with `mode: sync`, `report:`
+`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature name when the Owner gave one. Send no list of paths
+or doc text, and work no step of the procedure yourself. Take `<folder>` the path `specstone folder` prints, run once
+after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file exists. Without the tool, or when the dispatch fails, read `references/procedure.md` beside this
 file (`${CLAUDE_PLUGIN_ROOT}/skills/sync-sdd/references/procedure.md`) and follow it.
 
 ## 3. After the report

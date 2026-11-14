@@ -28,9 +28,10 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
   `specstone set <type>:<name>#<key> --base <hash>`.
 - **Field**: base from `bases.fields.<id>` of `specstone get <type>:<name> --json`; pipe the value to
   `specstone set <type>:<name> --field <id> --base <hash>`.
-- **Several docs in one step**: run `specstone get <names> > <file>`, `<file>` a `mktemp` file outside the
-  repository; edit its blocks with `Edit`, each naming line kept; then run `specstone set --batch <file>`. A block
-  printed ` · unchanged` wrote nothing and adds no draft.
+- **Several docs in one step**: run `specstone get <names> > <file>`, `<file>`
+  `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, `<folder>` the path `specstone folder` prints; edit its
+  blocks with `Edit`, each naming line kept; then run `specstone set --batch <file>`. A block printed ` · unchanged`
+  wrote nothing and adds no draft.
 - **A refused batch** writes nothing, but exit 73
   leaves docs half written until a write command ends its journal: run one, or `get` again, first.
   Per fault, then run it again:

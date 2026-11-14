@@ -222,6 +222,138 @@ void main() {
   _otherPluginSkillTests();
   _planTests();
   _codeParseTests();
+  _agentFileTests();
+}
+
+/// Each plugin file that names a file for an agent's run, and the
+/// AgentFileName forms it names under `<folder>/reports/`
+/// (`domain:agent_plugin` INV-10, INV-19, INV-26).
+const _agentFileNames = {
+  'agents/plan-engineer.md': ['plan-engineer.plan.<XXXXXX>.md'],
+  'agents/sdd-engineer.md': [
+    'sdd-engineer.<mode>.<XXXXXX>.md',
+    'sdd-engineer.<mode>.batch.<XXXXXX>.txt',
+  ],
+  'skills/bootstrap-prd/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
+  'skills/bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
+  'skills/brainstorming-sdd/SKILL.md': [
+    'sdd-engineer.<mode>.<XXXXXX>.md',
+    'sdd-engineer.design.brief.<XXXXXX>.md',
+  ],
+  'skills/brainstorming-sdd/references/author.md': [
+    'sdd-engineer.author.batch.<XXXXXX>.txt',
+  ],
+  'skills/brainstorming-sdd/references/source.md': [
+    'sdd-engineer.design.source.<XXXXXX>.md',
+  ],
+  'skills/plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
+  'skills/sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
+};
+
+const _reportsFolder = '<folder>/reports/';
+
+/// A code span naming an agent file by its AgentFileName under
+/// [_reportsFolder].
+final _agentFileSpan = RegExp(
+  r'^<folder>/reports/(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
+  r'(?:(?:brief|batch|source)\.)?<XXXXXX>\.(?:md|txt)$',
+);
+
+final _contextRun = RegExp(r'specstone context\s+\S');
+
+/// The `context` call of a plan task's read line, which plan-sdd names for
+/// the task's implementer and never runs itself.
+const _implementerReadLine = 'specstone context <target> --for implement --out';
+
+final _folderRun = RegExp(r'specstone folder\b');
+
+/// Each inline code span of [markdown] outside its fenced blocks, a span
+/// wrapped over lines read whole, with its offset in [markdown].
+List<({int offset, String code})> _inlineSpans(String markdown) {
+  final blanked = markdown
+      .replaceAllMapped(_fencedBlock, (block) => ' ' * block[0]!.length)
+      .replaceAll('\n', ' ');
+  return [
+    for (final span in _codeSpan.allMatches(blanked))
+      (offset: span.start, code: span.group(1)!),
+  ];
+}
+
+/// The offset in [markdown] of each fenced block and inline code span that
+/// holds [call], sorted.
+List<int> _callOffsets(String markdown, RegExp call) => [
+  for (final block in _fencedBlock.allMatches(markdown))
+    if (call.hasMatch(block.group(1)!)) block.start,
+  for (final span in _inlineSpans(markdown))
+    if (call.hasMatch(span.code)) span.offset,
+]..sort();
+
+void _agentFileTests() {
+  test('domain:agent_plugin INV-10, INV-19, INV-26: no plugin file names '
+      'mktemp or a file outside the repository', () {
+    final root = pluginRoot().uri.toFilePath(windows: false);
+    final problems = <String>[];
+    for (final file
+        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+      final path = file.uri.toFilePath(windows: false).substring(root.length);
+      final text = _oneLine(file.readAsStringSync());
+      for (final banned in ['mktemp', 'outside the repository']) {
+        if (text.contains(banned)) problems.add('$path: $banned');
+      }
+    }
+    expect(problems, isEmpty);
+  });
+
+  test('f08/us02/fr01, f08/us02/fr02/e24, f08/us02/fr06/e05, '
+      'f08/us02/fr07/e05, f08/us03/fr01, f08/us05/fr01, f08/us07/fr01/e18, '
+      'f08/us07/fr02/e12, f08/us08/fr01, f08/us08/fr02, domain:agent_plugin '
+      'INV-10, INV-19, INV-26: each agent file a plugin file names starts '
+      'from the specstone folder output, by its AgentFileName', () {
+    final named = <String, List<String>>{};
+    final problems = <String>[];
+    for (final file in _skillAndAgentFiles()) {
+      for (final span in _inlineSpans(_pluginText(file))) {
+        if (!span.code.contains('reports/')) continue;
+        if (_agentFileSpan.hasMatch(span.code)) {
+          named
+              .putIfAbsent(file, () => [])
+              .add(span.code.substring(_reportsFolder.length));
+        } else {
+          problems.add('$file: ${span.code}');
+        }
+      }
+    }
+    expect(problems, isEmpty);
+    expect(named.keys, unorderedEquals(_agentFileNames.keys));
+    for (final MapEntry(key: file, value: names) in _agentFileNames.entries) {
+      expect(named[file], containsAll(names), reason: file);
+      expect(
+        _oneLine(_pluginText(file)),
+        contains('`<folder>` the path `specstone folder` prints'),
+        reason: file,
+      );
+    }
+  });
+
+  test('domain:agent_plugin INV-26: each file that names an agent file runs '
+      'specstone folder after its context calls', () {
+    final problems = <String>[];
+    for (final file in _agentFileNames.keys) {
+      var text = _pluginText(file);
+      if (file == _planSkill) {
+        expect(text, contains(_implementerReadLine));
+        text = text.replaceAll(_implementerReadLine, 'its read line');
+      }
+      final folder = _callOffsets(text, _folderRun);
+      final context = _callOffsets(text, _contextRun);
+      if (folder.isEmpty) {
+        problems.add('$file: no specstone folder');
+      } else if (context.isNotEmpty && folder.first < context.last) {
+        problems.add('$file: specstone folder before a context call');
+      }
+    }
+    expect(problems, isEmpty);
+  });
 }
 
 const _nameOnly = 'agent_plugin/ground_a_task/name_only_existing_commands';
@@ -619,11 +751,12 @@ void _handOffTests() {
   });
 
   test('f08/us02/fr01, f08/us03/fr01, f08/us05/fr01: each dispatching skill '
-      'passes a mktemp report file and shows the reply word for word', () {
+      'passes a report file under the reports folder and shows the reply '
+      'word for word', () {
     for (final skill in [..._handOffs, 'brainstorming-sdd']) {
       final text = _pluginText('skills/$skill/SKILL.md');
       expect(text, contains('`report:`'), reason: skill);
-      expect(text, contains('`mktemp`'), reason: skill);
+      expect(text, contains('`$_reportsFolder'), reason: skill);
       expect(text, contains('`Report:` line'), reason: skill);
       expect(
         text,
@@ -635,7 +768,7 @@ void _handOffTests() {
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
       expect(
         _pluginText('skills/$skill/SKILL.md'),
-        contains('one file `mktemp` makes per batch'),
+        contains('a new name per batch'),
         reason: skill,
       );
       expect(
@@ -667,7 +800,10 @@ void _handOffTests() {
     final agent = _pluginText('agents/sdd-engineer.md');
     final input = _sectionOf(agent, 'Input Contract');
     expect(input, contains('**`report`**'));
-    expect(input, contains('`mktemp`'));
+    expect(
+      input,
+      contains('`${_reportsFolder}sdd-engineer.<mode>.<XXXXXX>.md`'),
+    );
     expect(input, contains('write `OPEN QUESTIONS:`'));
     final output = _sectionOf(agent, 'Output Format');
     expect(output, contains('`Report: <path>`'));
@@ -1828,9 +1964,9 @@ void _agentTests() {
       expect(
         skill(),
         contains(
-          'dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` a '
-          'file `mktemp` makes outside the repository, and the feature name '
-          'when the Owner gave one. Send no list of paths or doc text',
+          'dispatch `specstone:sdd-engineer` with `mode: sync`, `report:` '
+          '`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature '
+          'name when the Owner gave one. Send no list of paths or doc text',
         ),
       );
     });
@@ -2778,7 +2914,7 @@ void _agentTests() {
       '`specstone:bootstrap-prd`',
       '`specstone:bootstrap-spec`',
       '`specstone:read-sdd`',
-      'mktemp',
+      '`<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`',
       'Source map',
       'not taken',
       'open question',
@@ -3142,7 +3278,8 @@ const _authorBatchPoints = [
   '**Guide**: before your first write, run `specstone guide <type> …` once,',
   'naming every type you write.',
   '**Several docs in one step**: run `specstone get <names> > <file>`,',
-  '`<file>` a `mktemp` file outside the repository; edit its blocks with',
+  '`<file>` `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`,',
+  '`<folder>` the path `specstone folder` prints; edit its blocks with',
   '`Edit`, each naming line kept; then run `specstone set --batch <file>`.',
   'A block printed ` · unchanged` wrote nothing and adds no draft.',
   '**A refused batch** writes nothing, but exit 73',
@@ -3178,12 +3315,12 @@ const _laterPassInputs = [
   "round or pass added; in a fix round, the audit's `Findings:` lines too.",
 ];
 
-/// The one shell redirect sdd-engineer may run (`domain:agent_plugin` INV-10),
+/// The one shell redirect sdd-engineer may run (`domain:agent_plugin` INV-19),
 /// as its Scope Boundaries word it.
 const _batchFileRedirect =
-    'and a batch file: made by `specstone get … > <file>`, `<file>` outside '
-    'the repository, the one shell redirect you run, and passed to '
-    '`specstone set --batch <file>`.';
+    'and a batch file: made by `specstone get … > <file>`, `<file>` '
+    '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell '
+    'redirect you run, and passed to `specstone set --batch <file>`.';
 
 /// A code span that redirects output into a file.
 final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
@@ -3560,14 +3697,14 @@ void _planTests() {
   });
 
   test('$_runPlanSkill E05, E07, verification: plan-sdd dispatches '
-      'specstone:plan-engineer with a mktemp report: file, shows the Report: '
-      "line, follows the agent file itself, loads the Owner's pick with "
-      'Skill, and names no plan mode', () {
+      'specstone:plan-engineer with a report: file under the reports folder, '
+      'shows the Report: line, follows the agent file itself, loads the '
+      "Owner's pick with Skill, and names no plan mode", () {
     final text = _oneLine(_pluginText(_planSkill));
     for (final point in [
       'specstone:plan-engineer',
       '`report:`',
-      '`mktemp`',
+      '`<folder>/reports/plan-engineer.plan.<XXXXXX>.md`',
       '`Report:`',
       '`Skill`',
       _planAgentPath,

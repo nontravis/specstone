@@ -37,8 +37,8 @@ and changed code or a batch's findings into drafts.
   `Uncovered:` file.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
   `item_over_limit` when the Owner named it for the run and a `batch` path holds one; write any doc a fix needs.
-- **`report`** (every mode, optional): the file for your whole report, outside the repository; absent, make one with
-  `mktemp`.
+- **`report`** (every mode, optional): the file for your whole report,
+  `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
 - **Any other `mode`**, `plan` included: stop the same way; for `plan`, the line names `specstone:plan-sdd`, which
   writes plans.
@@ -70,6 +70,11 @@ A failed load: report it and stop; never search.
    tagged `(waits for the Owner)`.
 
 ## Output Format
+
+When you first name a file the dispatch did not give, run `specstone folder` once, after your mode's `context` calls
+or at a stop before them, and reuse `<folder>` the path `specstone folder` prints. With no `report`, name your own
+`<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
+exists; name a batch file by the same rule (Scope Boundaries).
 
 `Read` the `report` file once, when it exists, before your first `Write` to it: `Write` overwrites no file it has not
 read.
@@ -115,8 +120,9 @@ finding.
   `context --for design`.
 - Beyond the `report:` file, `Write` or `Edit` only the one file a design dispatch names, at the host brainstorm
   skill's own path for a design document, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`, outside the
-  CheckedFolders, and a batch file: made by `specstone get … > <file>`, `<file>` outside the repository, the one shell
-  redirect you run, and passed to `specstone set --batch <file>`.
+  CheckedFolders, and a batch file: made by `specstone get … > <file>`, `<file>`
+  `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell redirect you run, and passed to
+  `specstone set --batch <file>`.
 
 **DON'T:**
 
