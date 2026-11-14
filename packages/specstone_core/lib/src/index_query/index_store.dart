@@ -47,8 +47,9 @@ const _notWritableMessage =
 /// counts cover blank lines and frontmatter, is rebuilt. Layout 16 stores the
 /// cite candidates, link texts, and heading levels and lines in the line facts
 /// and the `item_words` table, so an index of layout 15 is rebuilt to hold
-/// them.
-const _layoutVersion = 16;
+/// them. Layout 17 stores each link text's destination as written, so an
+/// index of layout 16, whose link texts hold none, is rebuilt.
+const _layoutVersion = 17;
 
 const _schema = '''
 CREATE TABLE meta (

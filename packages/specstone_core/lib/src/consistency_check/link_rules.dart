@@ -12,7 +12,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show ItemCite, SectionTarget, anchorTargetOf, classifyLink;
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -274,30 +273,16 @@ Iterable<Finding> _missingItems(CheckContext context, IndexedDoc doc) sync* {
     )) {
       continue;
     }
-    final shown = _shownOf(facts, link);
     yield context.finding(
       doc,
       FindingKind.linkItemMissing,
       line: link.line,
       message:
-          'link target $shown names item ${link.text}, which section '
+          'link target ${link.shown} names item ${link.text}, which section '
           '${cite.sectionKey} of ${target.docPath} does not hold',
-      keys: {'target': shown, 'item': link.text},
+      keys: {'target': link.shown, 'item': link.text},
     );
   }
-}
-
-/// Returns the destination of [link] as written: the `shown` of the link
-/// place that sits on its line with its target and anchor.
-String _shownOf(LineFacts facts, LinkText link) {
-  for (final place in [...facts.links, ...facts.selfLinks]) {
-    if (place.line == link.line &&
-        place.target == link.target &&
-        place.anchor == link.anchor) {
-      return place.shown;
-    }
-  }
-  return '${link.target}#${link.anchor}';
 }
 
 /// Yields a finding per link of [doc] to [doc] itself with no `#`; a `#`

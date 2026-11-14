@@ -23,7 +23,8 @@ typedef LinkPlace = ({String target, int line, String shown, String? anchor});
 /// `line`; `endColumn` the offset after its last character in its line
 /// `endLine`, so a reader tests what lies between two links on one line. A
 /// link text reads as an item ID when it holds no whitespace and a digit; the
-/// reader that knows the target section's prefix judges it.
+/// reader that knows the target section's prefix judges it. `shown` is the
+/// link's destination as written, the `shown` of its [LinkPlace].
 typedef LinkText = ({
   int line,
   int column,
@@ -32,6 +33,7 @@ typedef LinkText = ({
   String text,
   String target,
   String? anchor,
+  String shown,
 });
 
 /// The links of a doc: the doc links, which resolve to a `.md` doc other than
@@ -179,6 +181,7 @@ LinkText? _linkTextOf(String lfBody, LinkSource source, LinkPlace place) {
     text: text,
     target: place.target,
     anchor: place.anchor,
+    shown: place.shown,
   );
 }
 

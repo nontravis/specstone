@@ -822,6 +822,19 @@ void main() {
     });
   });
 
+  test('domain:index_query INV-2: an index of layout 16 has no stamp, so '
+      'it is rebuilt', () async {
+    final r = await root();
+    final store = IndexStore.open(r);
+    addTearDown(store.close);
+    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+    store.write(() => store.reset(stamp));
+    final raw = sqlite3.open(file(r, indexFilePath).path);
+    addTearDown(raw.close);
+    raw.execute('UPDATE meta SET layout = 16');
+    expect(store.readStamp(), isNull);
+  });
+
   group('IndexStore rule item words', () {
     const frPath =
         'prds/features/f01_login/us01_email_login/'

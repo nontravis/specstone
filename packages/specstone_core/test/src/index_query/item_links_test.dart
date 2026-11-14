@@ -24,6 +24,7 @@ LinkText _link(String text, String? anchor) => (
   text: text,
   target: 'other.md',
   anchor: anchor,
+  shown: 'other.md#$anchor',
 );
 
 /// The link of [text] to [anchor] as written in [line], as the scan places
@@ -38,6 +39,7 @@ LinkText _linkIn(String line, String text, String anchor) {
     text: text,
     target: 'other.md',
     anchor: anchor,
+    shown: 'other.md#$anchor',
   );
 }
 
@@ -313,6 +315,7 @@ void main() {
         text: 'RULE-19',
         target: 'other.md',
         anchor: 'rules',
+        shown: 'other.md#rules',
       );
       final ranges = itemRangesOn(line, [
         (

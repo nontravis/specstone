@@ -354,7 +354,16 @@ final class LineFacts {
     'unreadable_links': _placesToJson(unreadableLinks),
     'link_texts': [
       for (final t in linkTexts)
-        [t.line, t.column, t.endLine, t.endColumn, t.text, t.target, t.anchor],
+        [
+          t.line,
+          t.column,
+          t.endLine,
+          t.endColumn,
+          t.text,
+          t.target,
+          t.anchor,
+          t.shown,
+        ],
     ],
     'name_mentions': [
       for (final m in nameMentions) [m.line, m.column, m.text],
@@ -421,6 +430,7 @@ List<LinkText> _linkTextsOfJson(Object json) => [
       text: t[4]! as String,
       target: t[5]! as String,
       anchor: t[6] as String?,
+      shown: t[7]! as String,
     ),
 ];
 

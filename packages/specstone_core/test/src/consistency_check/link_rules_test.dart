@@ -1230,12 +1230,31 @@ void main() {
       final findings = itemFindingsOf(
         await writeCheckProject(
           extra: {
-            ...featureLinking('[NFR-P09](../../d09_broken.md#performance).'),
-            'docs/prds/d09_broken.md': '# Broken\n\n[a]:<b\\',
+            ...featureLinking('[NFR-P09]($gnfrPerformance).'),
+            ...edit(gnfrDoc, [
+              ('## Performance', '[a]:<b\\\n\n## Performance'),
+            ]),
           },
         ),
       );
       expect(findings, isEmpty);
+    });
+
+    test('f04/us02/fr09/e02: two spellings of one destination on a line each keep their own target', () async {
+      const plain = '../../GNFR.md#performance';
+      const dotted = './../../GNFR.md#performance';
+      final findings = itemFindingsOf(
+        await writeCheckProject(
+          extra: featureLinking('[NFR-P08]($plain) and [NFR-P09]($dotted).'),
+        ),
+      );
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'target': plain, 'item': 'NFR-P08'},
+          {'target': dotted, 'item': 'NFR-P09'},
+        ],
+      );
     });
 
     test('f04/us02/fr09/e06: a text that is no item ID of the section prefix is a section link', () async {

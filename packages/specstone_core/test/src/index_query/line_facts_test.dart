@@ -463,6 +463,7 @@ void main() {
           text: 'RULE-14',
           target: 'doc_model.md',
           anchor: 'rules',
+          shown: 'doc_model.md#rules',
         ),
         (
           line: 3,
@@ -472,6 +473,7 @@ void main() {
           text: 'RULE-19',
           target: 'doc_model.md',
           anchor: 'rules',
+          shown: 'doc_model.md#rules',
         ),
         (
           line: 3,
@@ -481,6 +483,7 @@ void main() {
           text: 'S1',
           target: 'doc.md',
           anchor: 's1',
+          shown: '#s1',
         ),
       ]);
       expect(roundTrip(facts).linkTexts, facts.linkTexts);
