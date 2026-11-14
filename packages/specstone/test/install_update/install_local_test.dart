@@ -715,6 +715,31 @@ fi''');
     );
   });
 
+  test(
+    '$_fr E14: a commit holding shim/windows places only stn in bin',
+    () async {
+      final shimDir = '${repo.work.path}/packages/specstone/shim/windows';
+      Directory(shimDir).createSync(recursive: true);
+      File('$shimDir/stn.c').writeAsStringSync('/* placeholder */\n');
+      File('$shimDir/build.ps1').writeAsStringSync('# placeholder\n');
+      File('$shimDir/stn.exe').writeAsStringSync('placeholder\n');
+      commitAll(repo.work, 'add the Windows shim sources');
+
+      final result = await repo.run(tool);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final bin = '${installDir()}/bin';
+      final stn = File('$bin/stn');
+      expect(stn.existsSync(), isTrue);
+      expect(stn.statSync().mode & 0x49, 0x49);
+      final names = [
+        for (final entry in Directory(bin).listSync())
+          entry.path.substring(bin.length + 1),
+      ];
+      expect(names, unorderedEquals(['specstone', 'stn']));
+    },
+  );
+
   test('$_fr E05: a shim copy that fails keeps snapshot()', () async {
     failOn('cp', '.bin.new/stn');
 
