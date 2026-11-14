@@ -84,3 +84,39 @@ List<({PackVersion from, MigrationStep step})> _stepsBetween(
       for (final step in migration.steps) (from: migration.from, step: step),
   ];
 }
+
+/// The pack whose release names tests in the records.
+const testNamePack = 'software-tech';
+
+/// The [testNamePack] version from which a record holds `tests` lines, so the
+/// upgrade that reaches it moves each test name's ID into them.
+final PackVersion testNamePassSince = PackVersion.parse(
+  '1.6.0',
+  file: 'migration_chain.dart',
+  key: testNamePack,
+);
+
+/// Whether [upgrades] move the [testNamePack] pin from below [since] to [since]
+/// or later: the one trigger of the test-name pass.
+///
+/// [since] defaults to [testNamePassSince].
+bool runsTestNamePass(List<PackUpgrade> upgrades, {PackVersion? since}) {
+  final floor = since ?? testNamePassSince;
+  return upgrades.any(
+    (upgrade) =>
+        upgrade.pack == testNamePack &&
+        upgrade.pin.compareTo(floor) < 0 &&
+        upgrade.target.compareTo(floor) >= 0,
+  );
+}
+
+/// Whether a legacy run, which pins each carried pack at its available
+/// version from no pin at all, chains through the test-name pass: the pin it
+/// writes for [testNamePack] is [since] or later.
+bool legacyRunsTestNamePass(
+  Map<String, PackVersion> pins, {
+  PackVersion? since,
+}) {
+  final pin = pins[testNamePack];
+  return pin != null && pin.compareTo(since ?? testNamePassSince) >= 0;
+}

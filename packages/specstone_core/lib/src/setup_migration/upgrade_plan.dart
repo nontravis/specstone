@@ -27,6 +27,7 @@ import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
+import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
@@ -43,6 +44,8 @@ import 'package:yaml/yaml.dart';
 
 export 'package:specstone_core/src/setup_migration/run_plan.dart'
     show UpgradeStepLine;
+export 'package:specstone_core/src/setup_migration/test_name_pass.dart'
+    show TestNamePass;
 
 const _docsFolder = 'docs/';
 const _commit1Message = 'move docs to their new pack paths';
@@ -61,6 +64,7 @@ const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
+const _testsChange = 'add test lines';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -71,7 +75,8 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// two or more are listed, the pack's moves, the section and field renames in
 /// the docs and the overrides, the link and path mention rewrites, the
 /// renumber pass, the label pass, the values a `move_to_record` step moves
-/// into the records it adds to or creates, each typed doc laid out as
+/// into the records it adds to or creates, the test-name pass, each typed doc
+/// laid out as
 /// `format` lays it out, the agent files step, and the new pins. With every
 /// pin equal the plan holds the layout pass, the agent files step, and the
 /// tree move alone. Writes nothing. Throws `MigrateFault` `override_dangling`,
@@ -81,29 +86,54 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// `agent_block_malformed`, and a `TemplateFault` before it returns, so a
 /// refused run prints nothing. When [runsOneTimePasses] holds, the renumber
 /// and label passes run and the agent files step is the full upsert;
-/// otherwise the step refreshes what exists. [homeDirectory] is the personal
-/// pack home, or null. The plan's `inputs` hold every file it read.
+/// otherwise the step refreshes what exists. When [runsTestNamePass] holds and
+/// the merged set holds the record doc type, the test-name pass runs too.
+/// [homeDirectory] is the personal pack home, or null. The plan's `inputs`
+/// hold every file it read.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  PackVersion? testNamesSince,
+}) => planUpgrade(
+  root,
+  templates: templates,
+  homeDirectory: homeDirectory,
+  testNamesSince: testNamesSince,
+).plan;
+
+/// Plans the upgrade of [root] as [planUpgradeRun] does and returns the
+/// test-name pass beside the plan: its lists are what the JSON plan prints
+/// under `tests`, and null when the run holds no such pass.
+///
+/// [testNamesSince] is the `software-tech` version the pass runs from, the
+/// version that names tests in the records by default.
+({RunPlan plan, TestNamePass? tests}) planUpgrade(
+  Directory root, {
+  required TemplateResolver templates,
+  required Directory? homeDirectory,
+  PackVersion? testNamesSince,
 }) {
   final inputs = PlanInputs(root);
-  return inputs.collect(
+  final planned = inputs.collect(
     () => _upgradeRunOf(
       root,
       templates: templates,
       homeDirectory: homeDirectory,
+      testNamesSince: testNamesSince,
       inputs: inputs,
     ),
-  )..refuseTakenCreates(root);
+  );
+  planned.plan.refuseTakenCreates(root);
+  return planned;
 }
 
 /// Plans the upgrade of [root] while [inputs] records each file read.
-RunPlan _upgradeRunOf(
+({RunPlan plan, TestNamePass? tests}) _upgradeRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
+  required PackVersion? testNamesSince,
   required PlanInputs inputs,
 }) {
   final config = ProjectConfig.read(root);
@@ -315,14 +345,36 @@ RunPlan _upgradeRunOf(
           docTypes: {for (final work in works) work.plannedPath: ?work.docType},
         )
       : null;
+  final converted = <String>[];
+  for (final (index, work) in works.indexed) {
+    final lf = renumbered[index];
+    final text = labels?.apply(work.plannedPath, lf) ?? lf;
+    if (text != lf) work.changes.add(_labelChange);
+    converted.add(text);
+  }
+  final tests =
+      runsTestNamePass(upgrades, since: testNamesSince) &&
+          finalSet.recordDocType != null
+      ? _testNamesOf(
+          root,
+          config,
+          set: finalSet,
+          works: works,
+          texts: converted,
+          recordCreates: recordCreates,
+          isTaken: (docPath) => taken('$_docsFolder$docPath'),
+        )
+      : null;
   final laidOutPaths = <String>[];
   final laidOut = <String>[];
   for (final (index, work) in works.indexed) {
-    var lf = renumbered[index];
-    final converted = labels?.apply(work.plannedPath, lf) ?? lf;
-    if (converted != lf) work.changes.add(_labelChange);
-    lf = layOutDoc(converted, work.docType);
-    if (lf != converted) laidOutPaths.add(work.plannedPath);
+    var text = converted[index];
+    if (tests?.recordEdits[work.plannedPath] case final edited?) {
+      text = edited;
+      work.changes.add(_testsChange);
+    }
+    final lf = layOutDoc(text, work.docType);
+    if (lf != text) laidOutPaths.add(work.plannedPath);
     laidOut.add(lf);
   }
   final stamps = StampPass.plan(
@@ -426,12 +478,20 @@ RunPlan _upgradeRunOf(
           header: 'pack upgrade: ${upgraded.join(', ')}',
           commit2Message: _commit2Message,
         );
-  return RunPlan(
+  final plan = RunPlan(
     header: header,
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...docRewrites, ...overrideRewrites, ?configRewrite],
-    creates: [...overrideCreates, ...recordCreates],
+    rewrites: [
+      ...docRewrites,
+      ...?tests?.fileRewrites,
+      ...overrideRewrites,
+      ?configRewrite,
+    ],
+    creates: [
+      ...overrideCreates,
+      ...(tests?.recordsOver(recordCreates) ?? recordCreates),
+    ],
     left: const [],
     commit1Message: _commit1Message,
     commit2Message: commit2Message,
@@ -441,6 +501,7 @@ RunPlan _upgradeRunOf(
       ...linkLines,
       ?renumber?.planLine,
       ?labels?.planLine,
+      ?tests?.planLine,
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
@@ -458,6 +519,46 @@ RunPlan _upgradeRunOf(
       steps: stepLines,
       mentions: mentions,
     ),
+  );
+  return (plan: plan, tests: tests);
+}
+
+/// Plans the test-name pass over the typed [works] as the earlier passes left
+/// them in [texts], and the [recordCreates] a step of the run already makes.
+TestNamePass _testNamesOf(
+  Directory root,
+  ProjectConfig config, {
+  required MergedSet set,
+  required List<_DocWork> works,
+  required List<String> texts,
+  required List<PlannedCreate> recordCreates,
+  required bool Function(String docPath) isTaken,
+}) {
+  final tree = LabelTree.of(
+    [
+      for (final (index, work) in works.indexed)
+        (docPath: work.plannedPath, lf: texts[index]),
+    ],
+    set: set,
+    docTypes: {for (final work in works) work.plannedPath: ?work.docType},
+  );
+  return TestNamePass.plan(
+    root: Directory(root.resolveSymbolicLinksSync()),
+    set: set,
+    targets: config.targets,
+    agentFileRoots: config.agentFileRoots,
+    docs: [
+      for (final (index, work) in works.indexed)
+        (
+          plannedPath: work.plannedPath,
+          type: work.docType,
+          target: work.target,
+          lf: texts[index],
+        ),
+    ],
+    resolveLabel: (label) => tree.resolve(label, citingDocPath: ''),
+    isTaken: isTaken,
+    pendingCreates: recordCreates,
   );
 }
 

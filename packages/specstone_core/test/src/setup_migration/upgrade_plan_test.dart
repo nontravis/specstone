@@ -32,6 +32,7 @@ import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show withApprovalHashes;
+import '../../helpers/git_repo.dart' show commitAll, git;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart'
     show oneTargetConfig, recordLayer, recordText, twinConfig;
@@ -123,6 +124,7 @@ void main() {
   _moveToRecordTests();
   _treeMoveTests();
   _planInputTests();
+  _testNameTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -3219,6 +3221,234 @@ sections:
           'docs/specs/flutter/f01_login/IMPLEMENTATION.md',
         ]);
       });
+    });
+  });
+}
+
+// MARK: - Test-name pass
+
+/// A release before the shipped `software-tech`, so the pass runs on a
+/// pin below it while no shipped pack carries the release that names tests.
+final PackVersion _testNamesSince = PackVersion.parse(
+  '1.5.0',
+  file: 'upgrade_plan_test.dart',
+  key: 'software-tech',
+);
+
+const _testFile = 'app/test/auth_test.dart';
+const _testRecordPath = 'specs/f01_login/IMPLEMENTATION.md';
+
+String _testSource(String name) =>
+    "void main() {\n  test('$name', () {});\n}\n";
+
+const Map<String, String> _plainLoginDocs = {
+  _featurePath: '# Login\n',
+  _loginStoryPath: '# Email login\n',
+  _loginFrPath: '# Validate credentials\n',
+};
+
+/// A committed git project: [docs] under `docs/` and [files] beside them.
+Future<Directory> _testNameProject({
+  String pins = _belowSince,
+  Map<String, String> docs = _plainLoginDocs,
+  Map<String, String> files = const {},
+}) async {
+  final project = await writeTree({
+    '.specstone/config.yaml': '${pins}code_root: app\n',
+    for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+    ...files,
+  });
+  final root = _canonical(project);
+  expect(git(root, ['init', '-q']).exitCode, 0);
+  commitAll(root, 'base');
+  return root;
+}
+
+({RunPlan plan, TestNamePass? tests}) _planTestNames(
+  Directory project, {
+  PackVersion? since,
+}) => planUpgrade(
+  project,
+  templates: TemplateResolver(),
+  homeDirectory: null,
+  testNamesSince: since ?? _testNamesSince,
+);
+
+void _testNameTests() {
+  group('test-name pass', () {
+    test('the upgrade writes the line into a new draft record, '
+        'strips the name, and prints the tests line', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('f01/us01/fr01 rejects a wrong key')},
+      );
+
+      final (:plan, :tests) = _planTestNames(project);
+
+      expect(
+        plan.toText(),
+        contains(
+          '  tests: 1 lines in 1 records; names: 1 rewritten in 1 files; '
+          'left: 0\n',
+        ),
+      );
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_testRecordPath',
+      );
+      expect(record.note, ' (draft)');
+      expect(_valuesOf(record.text)['tests'], [
+        'email_login/validate_credentials:test/auth_test.dart',
+      ]);
+      expect(
+        plan.toText(),
+        contains('commit 2, creates:\n  $_testRecordPath (draft)\n'),
+      );
+      expect(
+        _rewriteAt(plan, _testFile).text,
+        _testSource('rejects a wrong key'),
+      );
+      expect(tests!.rewrittenFiles, [_testFile]);
+    });
+
+    test('the tests line follows the number labels line and comes '
+        'before the stamps line', () async {
+      final project = await _testNameProject(
+        docs: {
+          ..._plainLoginDocs,
+          'specs/topics/labelled.md':
+              '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01.\n',
+        },
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final text = _planTestNames(project).plan.toText();
+
+      final labels = text.indexOf('  number labels:');
+      final tests = text.indexOf('  tests:');
+      final stamps = text.indexOf('  stamps:');
+      expect(labels, isNonNegative);
+      expect(tests, greaterThan(labels));
+      expect(stamps, greaterThan(tests));
+    });
+
+    test('the pass runs after the step that writes a record, so the '
+        'step and the pass write one record', () async {
+      final project = await _testNameProject(
+        pins:
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        docs: {..._loginDocs, _loginStoryPath: _implementedStory},
+        files: {_testFile: _testSource('login/email_login: signs in')},
+      );
+
+      final plan = _planTestNames(project).plan;
+
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_testRecordPath',
+      );
+      final values = _valuesOf(record.text);
+      expect(values['statuses'], [
+        'email_login:implemented',
+        'email_login/validate_credentials:planned',
+      ]);
+      expect(values['tests'], ['email_login:test/auth_test.dart']);
+    });
+
+    test('a run that finds no test name prints no tests line and '
+        'writes no record', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('rejects a wrong key')},
+      );
+
+      final (:plan, :tests) = _planTestNames(project);
+
+      expect(plan.toText(), isNot(contains('tests:')));
+      expect(plan.creates, isEmpty);
+      expect(tests!.planLine, isNull);
+    });
+
+    test('a pin below the release but an available version below it '
+        'too, runs no pass', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final plan = planUpgradeRun(
+        project,
+        templates: TemplateResolver(),
+        homeDirectory: null,
+      );
+
+      expect(plan.toText(), isNot(contains('tests:')));
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.path),
+        isNot(contains(_testFile)),
+      );
+    });
+
+    test('an upgrade past the release runs no pass', () async {
+      final project = await _testNameProject(
+        pins: shippedPinsConfig(),
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final plan = _planTestNames(project).plan;
+
+      expect(plan.toText(), isNot(contains('tests:')));
+    });
+
+    test('the plan hash binds each test file the pass reads', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final before = _planTestNames(project).plan;
+      File(
+        '${project.path}/$_testFile',
+      ).writeAsStringSync("${_testSource('f01/us01/fr01 rejects')}// edited\n");
+      final after = _planTestNames(project).plan;
+
+      expect(before.inputs.lines, contains('$_testFile '));
+      expect(_hashOf(after), isNot(_hashOf(before)));
+    });
+
+    test('a file git does not track is never read', () async {
+      final project = await _testNameProject();
+      File('${project.path}/app/test/new_test.dart')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(_testSource('f01/us01/fr01 rejects'));
+
+      final plan = _planTestNames(project).plan;
+
+      expect(plan.inputs.lines, isNot(contains('new_test.dart')));
+      expect(plan.toText(), isNot(contains('tests:')));
+    });
+
+    test('the text counts equal the lists the JSON plan holds, a '
+        'string that is no test call included', () async {
+      final project = await _testNameProject(
+        files: {
+          _testFile:
+              "void main() {\n  test('f01/us01/fr01 a', () {});\n"
+              "  print('login/email_login started');\n"
+              "  print('f09/us09/fr09 old');\n}\n",
+        },
+      );
+
+      final (:plan, :tests) = _planTestNames(project);
+
+      final json = tests!.json;
+      final rewritten = json['rewritten']! as List<Object?>;
+      expect(rewritten, hasLength(2));
+      expect(tests.left, 1);
+      expect(json['left'], isEmpty);
+      expect(
+        plan.toText(),
+        contains(
+          '  tests: 2 lines in 1 records; '
+          'names: ${rewritten.length} rewritten in 1 files; '
+          'left: ${tests.left}\n',
+        ),
+      );
     });
   });
 }

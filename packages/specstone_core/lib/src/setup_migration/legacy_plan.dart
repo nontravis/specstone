@@ -29,12 +29,15 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
+import 'package:specstone_core/src/setup_migration/migration_chain.dart'
+    show legacyRunsTestNamePass;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
+import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
@@ -61,6 +64,7 @@ const _appliesToField = 'applies_to';
 const _coversField = 'covers';
 const _toRecord = 'to record';
 const _recordEdit = 'add record entries';
+const _testsEdit = 'add test lines';
 const _commit1Message = 'move legacy docs to their new paths';
 
 /// The message of a legacy migration's second commit.
@@ -87,30 +91,55 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// - [homeDirectory]: the personal pack home, or null.
 /// - [linkFolder]: the canonical folder whose `docs` link led to [root], or
 ///   null.
+/// - [testNamesSince]: the `software-tech` version whose carried pin makes the
+///   run chain through the test-name pass; by default the version that names
+///   tests in the records.
 RunPlan planLegacyRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
   Directory? linkFolder,
+  PackVersion? testNamesSince,
+}) => planLegacy(
+  root,
+  templates: templates,
+  homeDirectory: homeDirectory,
+  linkFolder: linkFolder,
+  testNamesSince: testNamesSince,
+).plan;
+
+/// Plans the legacy migration of [root] as [planLegacyRun] does and returns
+/// the test-name pass beside the plan: its lists are what the JSON plan prints
+/// under `tests`, and null when the run chains through no such pass.
+({RunPlan plan, TestNamePass? tests}) planLegacy(
+  Directory root, {
+  required TemplateResolver templates,
+  required Directory? homeDirectory,
+  Directory? linkFolder,
+  PackVersion? testNamesSince,
 }) {
   final inputs = PlanInputs(root);
-  return inputs.collect(
+  final planned = inputs.collect(
     () => _legacyRunOf(
       root,
       templates: templates,
       homeDirectory: homeDirectory,
       linkFolder: linkFolder,
+      testNamesSince: testNamesSince,
       inputs: inputs,
     ),
-  )..refuseTakenCreates(root);
+  );
+  planned.plan.refuseTakenCreates(root);
+  return planned;
 }
 
 /// Plans the legacy run of [root] while [inputs] records each file read.
-RunPlan _legacyRunOf(
+({RunPlan plan, TestNamePass? tests}) _legacyRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
   required Directory? linkFolder,
+  required PackVersion? testNamesSince,
   required PlanInputs inputs,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
@@ -169,20 +198,6 @@ RunPlan _legacyRunOf(
   for (final work in titled.works) {
     work.newPath = landing[work.newPath] ?? work.newPath;
   }
-  final taken = takenAfterMoves(root, moves);
-  final rewrites = _rewritesOf(
-    titled.works,
-    projectSet: projectSet,
-    moves: moves,
-    features: features,
-    targetNames: targetNames,
-    recordSteps: _recordStepsOf(
-      templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
-    ),
-    exists: (path) => _existsIn(docsRoot, path),
-    isTaken: (docPath) => taken('$_docsFolder$docPath'),
-  );
-
   final inferred = keepsCodeRoots
       ? null
       : inferCodeRoot(
@@ -196,11 +211,35 @@ RunPlan _legacyRunOf(
         );
   final codeRoot = inferred?.value ?? existing?.codeRoot ?? '.';
   final codeRootNote = _codeRootNoteOf(inferred);
+  final taken = takenAfterMoves(root, moves);
+  final targets = inferred == null && existing != null
+      ? existing.targets
+      : [CodeTarget(null, codeRoot: codeRoot)];
+  final rewrites = _rewritesOf(
+    titled.works,
+    projectSet: projectSet,
+    moves: moves,
+    features: features,
+    targetNames: targetNames,
+    recordSteps: _recordStepsOf(
+      templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
+    ),
+    exists: (path) => _existsIn(docsRoot, path),
+    isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    testNames:
+        legacyRunsTestNamePass(pins, since: testNamesSince) &&
+            projectSet.recordDocType != null
+        ? (
+            root: Directory(root.resolveSymbolicLinksSync()),
+            targets: targets,
+            agentFileRoots: existing?.agentFileRoots ?? const [],
+          )
+        : null,
+  );
+
   final agentFiles = _agentFilesOf(
     root,
-    targets: inferred == null && existing != null
-        ? existing.targets
-        : [CodeTarget(null, codeRoot: codeRoot)],
+    targets: targets,
     agentFileRoots: existing?.agentFileRoots ?? const [],
   );
   final configRewrite = existing == null
@@ -214,15 +253,16 @@ RunPlan _legacyRunOf(
           agentFileRoots: agentFiles.agentFileRoots,
         );
 
-  return RunPlan(
+  final plan = RunPlan(
     header: 'legacy migration: ${root.path} ($legacyContextPath)',
     moves: moves,
     prunes: prunesOf(moves),
-    rewrites: [...rewrites.planned, ?configRewrite],
+    rewrites: [...rewrites.planned, ...rewrites.testFiles, ?configRewrite],
     rewriteLines: [
       for (final rewrite in rewrites.planned)
         if (rewrite.changes.isNotEmpty) _rewriteLineOf(rewrite),
       ?rewrites.labelsLine,
+      ?rewrites.testsLine,
       ?formatLayoutLine(rewrites.layoutOnly),
       ?rewrites.stampsLine,
       if (configRewrite != null) _rewriteLineOf(configRewrite),
@@ -258,6 +298,7 @@ RunPlan _legacyRunOf(
     closingLine: legacyClosingLine,
     agentFiles: agentFiles,
   );
+  return (plan: plan, tests: rewrites.tests);
 }
 
 /// Plans the agent files of the legacy run: the full upsert at the root and at
@@ -323,12 +364,23 @@ typedef _Titled = ({List<_Work> works, List<String> gnfrSections});
 /// are the draft records the run creates, in path order.
 typedef _Rewrites = ({
   List<PlannedRewrite> planned,
+  List<PlannedRewrite> testFiles,
   List<String> layoutOnly,
   List<PlannedCreate> records,
   String? labelsLine,
+  String? testsLine,
+  TestNamePass? tests,
   List<String> labelsRewritten,
   List<String> labelsLeft,
   String? stampsLine,
+});
+
+/// What the test-name pass reads of a legacy run: the project root, the code
+/// targets, and the tops of the other repositories.
+typedef _TestNameScope = ({
+  Directory root,
+  List<CodeTarget> targets,
+  List<String> agentFileRoots,
 });
 
 /// One markdown doc on its way to commit 2.
@@ -477,6 +529,7 @@ _Rewrites _rewritesOf(
   required List<MoveToRecord> recordSteps,
   required bool Function(String path) exists,
   required bool Function(String docPath) isTaken,
+  required _TestNameScope? testNames,
 }) {
   final matcher = DocTypeMatcher(projectSet, targetNames: targetNames);
   var fingerprintEntries = 0;
@@ -497,7 +550,7 @@ _Rewrites _rewritesOf(
   }
 
   final tree = _convertLabels(works, typeOf, features);
-  final records = _moveToRecords(
+  final moved = _moveToRecords(
     works,
     matchOf,
     set: projectSet,
@@ -505,6 +558,18 @@ _Rewrites _rewritesOf(
     firstTarget: twinNamesOf(targetNames).firstOrNull,
     isTaken: isTaken,
   );
+  final tests = testNames == null
+      ? null
+      : _testNamesOf(
+          testNames,
+          works,
+          matchOf,
+          tree: tree,
+          set: projectSet,
+          recordCreates: moved,
+          isTaken: isTaken,
+        );
+  final records = tests?.recordsOver(moved) ?? moved;
   final textOf = {for (final work in works) work.legacyPath: work};
   for (final work in works) {
     if (work.awaitsFingerprints) continue;
@@ -546,6 +611,7 @@ _Rewrites _rewritesOf(
           note: work.note,
         ),
     ],
+    testFiles: tests?.fileRewrites ?? const [],
     layoutOnly: [
       for (final work in written)
         if (work.changes.isEmpty &&
@@ -554,6 +620,8 @@ _Rewrites _rewritesOf(
           work.newPath,
     ],
     records: records,
+    testsLine: tests?.planLine,
+    tests: tests,
     labelsLine: numberLabelsPlanLine(
       rewrites: works.fold(0, (sum, work) => sum + work.labelRewrites),
       files: labelsRewritten.length,
@@ -642,6 +710,48 @@ List<PlannedCreate> _moveToRecords(
     work.changes.add(_recordEdit);
   }
   return recordCreatesOf(placement);
+}
+
+/// Plans the test-name pass over [works] as the label conversion and the
+/// record moves left them, and writes the lines it adds into the records of
+/// the tree; [recordCreates] are the records the run already creates.
+///
+/// A name's label resolves through [tree], from no doc, so a partial label
+/// names nothing.
+TestNamePass _testNamesOf(
+  _TestNameScope scope,
+  List<_Work> works,
+  MatchedDocType? Function(_Work work) matchOf, {
+  required LabelTree tree,
+  required MergedSet set,
+  required List<PlannedCreate> recordCreates,
+  required bool Function(String docPath) isTaken,
+}) {
+  final pass = TestNamePass.plan(
+    root: scope.root,
+    set: set,
+    targets: scope.targets,
+    agentFileRoots: scope.agentFileRoots,
+    docs: [
+      for (final work in works)
+        (
+          plannedPath: work.newPath,
+          type: matchOf(work)?.docType,
+          target: matchOf(work)?.target,
+          lf: work.lf,
+        ),
+    ],
+    resolveLabel: (label) => tree.resolve(label, citingDocPath: ''),
+    isTaken: isTaken,
+    pendingCreates: recordCreates,
+  );
+  for (final work in works) {
+    final edited = pass.recordEdits[work.newPath];
+    if (edited == null) continue;
+    work.lf = edited;
+    work.changes.add(_testsEdit);
+  }
+  return pass;
 }
 
 /// Returns the `move_to_record` steps of the carried packs' migrations, the
