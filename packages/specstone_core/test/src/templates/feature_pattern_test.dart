@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
@@ -34,10 +35,25 @@ WrittenPatternLayer layerOf(
 WrittenPatternLayer projectOf(String id, String yaml) =>
     layerOf(id, yaml, dir: _project, pack: null, kind: LayerKind.project);
 
+/// Merges [layers], loading shipped files, then personal, then project ones,
+/// in map order within a kind, unless [loadIndex] says otherwise.
+List<FeaturePattern> merge(
+  Map<String, List<WrittenPatternLayer>> layers, {
+  LoadIndex? loadIndex,
+}) {
+  final written = [for (final list in layers.values) ...list]
+    ..sort((a, b) => a.layer.kind.index.compareTo(b.layer.kind.index));
+  return mergeFeaturePatterns(
+    layers,
+    loadIndex:
+        loadIndex ?? {for (final (i, w) in written.indexed) w.layer.file: i},
+  );
+}
+
 FeaturePattern mergeOne(
   String id,
   Map<String, List<WrittenPatternLayer>> layers,
-) => mergeFeaturePatterns(layers).singleWhere((p) => p.id == id);
+) => merge(layers).singleWhere((p) => p.id == id);
 
 String authYaml({String? extra}) => '''
 id: auth
@@ -150,7 +166,7 @@ items:
 
     test('disabled on an id the base lacks is override_id_not_found', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'auth': [
             layerOf('auth', authYaml()),
             projectOf('auth', '''
@@ -192,7 +208,7 @@ items:
 
     test('a defining layer with no description is missing_key', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'auth': [
             projectOf('auth', '''
 id: auth
@@ -214,7 +230,7 @@ items:
 
     test('a defining layer with no items is missing_key', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'auth': [
             projectOf('auth', '''
 id: auth
@@ -332,7 +348,7 @@ items:
     });
 
     test('the order of the map does not decide which pattern merges first', () {
-      final patterns = mergeFeaturePatterns({
+      final patterns = merge({
         'signup': [signup],
         'auth': [layerOf('auth', authYaml())],
       });
@@ -375,7 +391,7 @@ items:
 
     test('a cycle is extends_cycle naming the files', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'a': [
             layerOf('a', '''
 id: a
@@ -414,7 +430,7 @@ items:
 
     test('a cycle closed by a project layer names that layer as file', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'a': [
             layerOf('a', '''
 id: a
@@ -446,9 +462,50 @@ items:
       );
     });
 
+    test('a cycle names the later-loaded file, not the later pack name', () {
+      final software = layerOf('a', '''
+id: a
+description: A.
+extends: b
+items:
+  - id: one
+    text: One.
+''', dir: 'packs/software/patterns');
+      final app = layerOf(
+        'b',
+        '''
+id: b
+description: B.
+extends: a
+items:
+  - id: two
+    text: Two.
+''',
+        dir: 'packs/app/patterns',
+        pack: 'app',
+      );
+
+      expect(
+        () => merge(
+          {
+            'a': [software],
+            'b': [app],
+          },
+          loadIndex: {software.layer.file: 0, app.layer.file: 1},
+        ),
+        throwsA(
+          fault(
+            FaultCode.extendsCycle,
+            file: 'packs/app/patterns/b.yaml',
+            related: ['packs/software/patterns/a.yaml'],
+          ),
+        ),
+      );
+    });
+
     test('a pattern that extends itself is extends_cycle', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'a': [
             layerOf('a', '''
 id: a
@@ -466,7 +523,7 @@ items:
 
     test('an extends target no layer defines is extends_target_unknown', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'signup': [signup],
         }),
         throwsA(
@@ -524,7 +581,7 @@ reference:
 
     test('removing a title the base lacks is reference_title_not_found', () {
       expect(
-        () => mergeFeaturePatterns({
+        () => merge({
           'auth': [
             layerOf('auth', defining),
             projectOf('auth', '''
@@ -549,7 +606,7 @@ reference:
       'a plain list over a lower list is list_override_needs_add_remove',
       () {
         expect(
-          () => mergeFeaturePatterns({
+          () => merge({
             'auth': [
               layerOf('auth', defining),
               projectOf('auth', '''

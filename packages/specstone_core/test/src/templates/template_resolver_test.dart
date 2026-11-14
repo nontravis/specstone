@@ -2412,7 +2412,7 @@ items:
 id: crud
 reference:
   - title: Notes
-    file: patterns/README.md
+    file: README.md
 ''',
         },
         shippedFiles: withCrud()

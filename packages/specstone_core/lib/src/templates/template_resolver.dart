@@ -295,7 +295,10 @@ final class TemplateResolver {
     );
     return MergedSet(
       docTypes: docTypes.values.toList(),
-      featurePatterns: mergeFeaturePatterns(patternLayers),
+      featurePatterns: mergeFeaturePatterns(
+        patternLayers,
+        loadIndex: _patternLoadIndex(patterns, projectPatterns),
+      ),
     );
   }
 
@@ -610,6 +613,20 @@ final class TemplateResolver {
   /// pack's file, `relatedFiles` the other's, and the message names the id.
   /// A project pattern over a pack-defined id is an override, never a
   /// duplicate.
+  /// The load index of every pattern file: pack layers in load order, then
+  /// [projectLayers], the sequence `_featurePatternLayers` walks.
+  LoadIndex _patternLoadIndex(
+    List<_ParsedPatterns> packs,
+    List<FeaturePatternLayer> projectLayers,
+  ) {
+    final files = [
+      for (final (pack: _, :layers) in packs)
+        for (final layer in layers.values) layer.file,
+      for (final layer in projectLayers) layer.file,
+    ];
+    return {for (final (index, file) in files.indexed) file: index};
+  }
+
   Map<String, List<WrittenPatternLayer>> _featurePatternLayers(
     List<_ParsedPatterns> packs,
     List<FeaturePatternLayer> projectLayers,

@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
+import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
@@ -76,6 +77,9 @@ final class FeaturePattern {
 
 /// Merges every feature pattern of [layersById], layers lowest first.
 ///
+/// [loadIndex] ranks the layer files an `extends_cycle` fault names, as the
+/// doc-type merge ranks its own.
+///
 /// The first layer of an id defines it and must write `description` and
 /// `items`. An entry whose item id the base holds replaces its text, or drops
 /// the item with `disabled: true`; a new id adds the item last. A pattern
@@ -87,9 +91,10 @@ final class FeaturePattern {
 /// `extends_cycle`, `extends_target_unknown`, and the list faults of
 /// `reference`.
 List<FeaturePattern> mergeFeaturePatterns(
-  Map<String, List<WrittenPatternLayer>> layersById,
-) {
-  final merge = _PatternMerge(layersById);
+  Map<String, List<WrittenPatternLayer>> layersById, {
+  required LoadIndex loadIndex,
+}) {
+  final merge = _PatternMerge(layersById, loadIndex);
   return [
     for (final id in layersById.keys.toList()..sort(compareCodePoints))
       merge.of(id, const []),
@@ -97,16 +102,11 @@ List<FeaturePattern> mergeFeaturePatterns(
 }
 
 final class _PatternMerge {
-  new(this._layersById);
+  new(this._layersById, this._loadIndex);
 
   final Map<String, List<WrittenPatternLayer>> _layersById;
+  final LoadIndex _loadIndex;
   final _merged = <String, FeaturePattern>{};
-
-  late final Map<String, (int, int)> _loadRank = {
-    for (final layers in _layersById.values)
-      for (final (index, written) in layers.indexed)
-        written.layer.file: (written.layer.kind.index, index),
-  };
 
   /// The reference list each merged pattern's layers wrote, null when none
   /// did, so a plain list over an unwritten one stays legal as for doc types.
@@ -188,31 +188,19 @@ final class _PatternMerge {
       .where((l) => l.extendsId != null)
       .lastOrNull;
 
-  /// Throws `extends_cycle` for [cycle].
-  ///
-  /// As for doc types, `file` is the upper or later-loaded layer file of the
-  /// cycle and `relatedFiles` hold the rest, lowest first.
+  /// Throws `extends_cycle` for [cycle], naming files as the doc-type fault
+  /// does: `file` the later-loaded layer file, `relatedFiles` the rest.
   Never _throwCycle(List<String> cycle) {
-    final files = <String>{
+    final (:file, :related) = rankFaultFiles([
       for (final id in cycle) _extendsWriter(id)!.file,
-    }.toList()..sort(_compareLoad);
+    ], _loadIndex);
     final walkedPath = [...cycle, cycle.first].join(', ');
     throw TemplateFault(
       FaultCode.extendsCycle,
       'extends chain returns to its start: $walkedPath',
-      file: files.last,
-      relatedFiles: files.sublist(0, files.length - 1),
+      file: file,
+      relatedFiles: related,
     );
-  }
-
-  /// Orders layer files by layer kind, then place in their pattern's layer
-  /// list, then code point order of the file name.
-  int _compareLoad(String a, String b) {
-    final (kindA, indexA) = _loadRank[a]!;
-    final (kindB, indexB) = _loadRank[b]!;
-    if (kindA != kindB) return kindA.compareTo(kindB);
-    if (indexA != indexB) return indexA.compareTo(indexB);
-    return compareCodePoints(a, b);
   }
 
   List<ChecklistItem> _applyItems(

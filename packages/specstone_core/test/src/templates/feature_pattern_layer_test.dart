@@ -20,7 +20,7 @@ FeaturePatternLayer parsePattern(
   String yaml, {
   String patternId = 'auth',
   LayerKind kind = LayerKind.project,
-  Set<String> files = const {'notes.md'},
+  Set<String> files = const {'patterns/notes.md'},
 }) => FeaturePatternLayer.parse(
   yaml,
   file: _file,
@@ -230,19 +230,30 @@ reference:
       );
     });
 
-    test(
-      'resolves a file source against the layer root as a doc type does',
-      () {
-        final layer = parsePattern('''
+    test('resolves a file source against the patterns folder', () {
+      final layer = parsePattern('''
 id: auth
 reference:
   - {title: T, file: notes.md}
 ''');
 
-        final reference = layer.reference! as PlainList<ReferenceEntry>;
-        expect(reference.items.single.file, 'notes.md');
-      },
-    );
+      final reference = layer.reference! as PlainList<ReferenceEntry>;
+      expect(reference.items.single.file, 'patterns/notes.md');
+    });
+
+    test('refuses a file source that leaves the patterns folder', () {
+      expect(
+        () => parsePattern(
+          '''
+id: auth
+reference:
+  - {title: T, file: ../x.md}
+''',
+          files: {'x.md'},
+        ),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
 
     test('refuses a file source the layer does not hold', () {
       expect(

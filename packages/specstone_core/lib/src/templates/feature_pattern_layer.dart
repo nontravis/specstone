@@ -72,7 +72,13 @@ final class FeaturePatternLayer {
       description: optionalValue<String>(map, 'description', file: file),
       extendsId: optionalValue<String>(map, 'extends', file: file),
       items: _parseItems(map, file: file),
-      reference: parseReferenceList(map, file: file, kind: kind, files: files),
+      reference: parseReferenceList(
+        map,
+        file: file,
+        kind: kind,
+        files: files,
+        templateFolder: 'patterns',
+      ),
     );
   }
 
