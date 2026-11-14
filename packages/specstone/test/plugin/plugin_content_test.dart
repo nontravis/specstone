@@ -3081,17 +3081,23 @@ void _agentTests() {
     );
   });
 
-  test('E02, '
-      'sf-r3: sdd-engineer runs approve only with --dry-run, and no delete, '
+  test('sdd-engineer runs approve only with --dry-run, and no delete, '
       'rename, reorder, or move', () {
     expect(
       _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Scope Boundaries'),
       contains(
         "**DON'T:**\n\n- Run `specstone approve` without `--dry-run` "
-        "(approving is the Owner's), `delete`, `rename`, `reorder`, or "
-        '`move`.\n',
+        '(the main session that dispatched you approves, never you), '
+        '`delete`, `rename`, `reorder`, or `move`.\n',
       ),
     );
+  });
+
+  test("sdd-engineer's role names the main session, not the Owner, as the "
+      'one that gets its drafts approved', () {
+    final role = _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Role');
+    expect(role, isNot(contains('the Owner approves your drafts')));
+    expect(role, contains('main session'));
   });
 
   test('sdd-reader takes --summary '
