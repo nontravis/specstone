@@ -23,9 +23,6 @@ word, each cited by doc and section.
 
 - **Saved file** (this or target IDs): the path of a bundle file the main session's `context --out` call saved,
   exactly as its header printed it. Use it as given; join no folder to it.
-- **Project-root path** (any other path the hand-off gives from the project root): run `specstone folder` once and join
-  the path to the parent of the folder it prints, since the host's file read may take absolute paths alone. A path
-  already absolute stays as given.
 - **Target IDs** (with no saved file): one or more doc names, such as a story and its FR IDs. Each may come marked
   `--summary`; a feature so marked prints every story in summary.
 - **`--for` value** (required): `query`, `implement`, or `design`, as the main session used it; `<mode>` below.
@@ -82,7 +79,7 @@ One block per section, in bundle order, a blank line between blocks, and nothing
 **DO:**
 
 - Read the saved file the hand-off names, or the one your own call names, and search it with `Grep`; with no saved
-  file, run `specstone context` on the given target IDs, and `specstone folder` once for a project-root path.
+  file, run `specstone context` on the given target IDs, and no other command.
 
 **DON'T:**
 

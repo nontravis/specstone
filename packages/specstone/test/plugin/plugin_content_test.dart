@@ -4827,17 +4827,12 @@ void _groundInitUpdateTests() {
       expect(skill, isNot(contains('rung')));
     });
 
-    test('sdd-reader makes each project-root path absolute from the folder '
-        'specstone folder prints', () {
+    test('sdd-reader runs no specstone folder and takes the saved-file path as '
+        'given', () {
       final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
-      expect(
-        reader,
-        contains(
-          'run `specstone folder` once and join the path to the parent of '
-          'the folder it prints',
-        ),
-      );
-      expect(reader, contains('A path already absolute stays as given.'));
+      expect(reader, isNot(contains('specstone folder')));
+      expect(reader, contains('Use it as given; join no folder to it.'));
+      expect(reader, contains('and no other command.'));
     });
 
     test("sdd-reader reads through the host's file read and stays read-only "
