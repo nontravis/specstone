@@ -559,9 +559,8 @@ void _assetLayoutTests() {
   final skillFolders = assets.whereType<Directory>().where(
     (folder) => _baseNameOf(folder).startsWith('specstone-'),
   );
-  final agentFiles = assets.whereType<File>().where(
-    (file) => RegExp(r'/specstone-[^/]+\.md$').hasMatch(file.path),
-  );
+  final agentFiles = agentSourceFiles(agentAssetsRoot())
+      .where((file) => !_isSkillFile(shippedPathOf(file)));
 
   test('the plugin folder holds no skills folder and no agents folder', () {
     for (final folder in const ['skills', 'agents']) {
