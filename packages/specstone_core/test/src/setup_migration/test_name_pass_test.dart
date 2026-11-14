@@ -166,6 +166,23 @@ void main() {
       'prds/features/f01_login/FEATURE.md',
     );
   });
+  test('a nested repository folder on Windows lies under its code root', () {
+    final folder = repositoryFolderOf(
+      r'C:\p\ws',
+      'app/vendor',
+      isWindows: true,
+    );
+
+    expect(folder, r'C:\p\ws\app\vendor');
+    expect(
+      pathInside(
+        r'C:\p\ws\app',
+        '$folder\\test\\dep_test.dart',
+        isWindows: true,
+      ),
+      'vendor/test/dep_test.dart',
+    );
+  });
   _legacyTests();
   group('test-name pass', () {
     test('a label opening a test name moves into the record as one '
