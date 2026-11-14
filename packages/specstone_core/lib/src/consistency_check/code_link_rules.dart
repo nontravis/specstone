@@ -34,8 +34,15 @@ final class _Suspect extends _CodeLinkState {
   final String recorded;
 }
 
-/// Returns the `code_suspect` finding of each code link of [doc] whose code
-/// changed since its fingerprint was recorded.
+final class _Unconfirmed extends _CodeLinkState {
+  const new();
+}
+
+/// Returns the `code_suspect` and `code_unconfirmed` findings of the code
+/// links of [doc].
+///
+/// A link takes one state per run: `code_suspect` when its code changed since
+/// its fingerprint was recorded, `code_unconfirmed` when it records none.
 ///
 /// A record's `implements` entries and every `covers:` entry are read. A
 /// state comes from the code and the entry alone, whatever the doc's draft
@@ -57,6 +64,17 @@ Iterable<Finding> checkCodeLinks(
     final current = _currentFingerprint(context, target, link.path);
     if (current == null) continue;
     final finding = switch (_stateOf(link.recorded, current)) {
+      _Unconfirmed() => context.finding(
+        doc,
+        FindingKind.codeUnconfirmed,
+        line: link.line,
+        message: '${link.path} records no fingerprint',
+        keys: {
+          'entry': link.pointer,
+          'path': link.path,
+          'fingerprint': current,
+        },
+      ),
       _Suspect(:final recorded) => context.finding(
         doc,
         FindingKind.codeSuspect,
@@ -70,20 +88,19 @@ Iterable<Finding> checkCodeLinks(
           'fingerprint': current,
         },
       ),
-      _Clean() || null => null,
+      _Clean() => null,
     };
     if (finding != null) yield finding;
   }
 }
 
 /// Returns the state of a link that records [recorded] over code that now
-/// fingerprints as [current]; null when it records none.
-_CodeLinkState? _stateOf(String? recorded, String current) =>
-    switch (recorded) {
-      null => null,
-      _ when recorded == current => const _Clean(),
-      _ => _Suspect(recorded),
-    };
+/// fingerprints as [current].
+_CodeLinkState _stateOf(String? recorded, String current) => switch (recorded) {
+  null => const _Unconfirmed(),
+  _ when recorded == current => const _Clean(),
+  _ => _Suspect(recorded),
+};
 
 /// Returns the `implements` entries of a record [doc] whose file is read.
 Iterable<_CodeLink> _entryLinks(

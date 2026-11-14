@@ -1,17 +1,21 @@
 // The file contents are plan literals kept as written.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -143,17 +147,89 @@ Map<String, String> checkProjectFiles() => {
 ///
 /// A key in [extra] replaces or adds a file; a path in [without] drops one.
 /// Every typed doc carries the approval hash of its text, but a key in
-/// [unstamped], which holds a file as written.
+/// [unstamped], which holds a file as written. Every code link of a doc
+/// records the fingerprint of the code it names, so the fixture reads as
+/// compared, but a key in [unfingerprinted] keeps its code links as written.
 Future<Directory> writeCheckProject({
   Map<String, String> extra = const {},
   Set<String> without = const {},
   Set<String> unstamped = const {},
+  Set<String> unfingerprinted = const {},
 }) => writeTree(
-  withApprovalHashes({
-    for (final entry in {...checkProjectFiles(), ...extra}.entries)
-      if (!without.contains(entry.key)) entry.key: entry.value,
-  }, unstamped: unstamped),
+  withApprovalHashes(
+    withCodeFingerprints({
+      for (final entry in {...checkProjectFiles(), ...extra}.entries)
+        if (!without.contains(entry.key)) entry.key: entry.value,
+    }, unfingerprinted: unfingerprinted),
+    unstamped: unstamped,
+  ),
 );
+
+/// Returns [files] with the fingerprint of the code each `implements` and
+/// `covers` entry names recorded after it, for a doc not in [unfingerprinted].
+///
+/// An entry that records one, or names no file or folder of [files], stays as
+/// written. The code is every file outside `docs/` and `.specstone/`.
+Map<String, String> withCodeFingerprints(
+  Map<String, String> files, {
+  Set<String> unfingerprinted = const {},
+}) {
+  final code = {
+    for (final MapEntry(:key, :value) in files.entries)
+      if (!key.startsWith('docs/') && !key.startsWith('.specstone/'))
+        key: fileCodeFingerprint(utf8.encode(value)),
+  };
+  return {
+    for (final MapEntry(:key, :value) in files.entries)
+      key: key.startsWith('docs/') && !unfingerprinted.contains(key)
+          ? _withCodeFingerprints(value, code)
+          : value,
+  };
+}
+
+final _codeLinkLine = RegExp(r"^(  - )('?)(.+?)\2$");
+
+String _withCodeFingerprints(String text, Map<String, String> code) {
+  if (!text.startsWith('---\n')) return text;
+  var field = '';
+  final lines = text.split('\n');
+  for (var i = 1; i < lines.length && lines[i] != '---'; i++) {
+    final key = RegExp(r'^(\w+):$').firstMatch(lines[i])?.group(1);
+    if (key != null) field = key;
+    final link = _codeLinkLine.firstMatch(lines[i]);
+    if (link == null || (field != 'implements' && field != 'covers')) continue;
+    final [indent, quote, value] = [link[1]!, link[2]!, link[3]!];
+    final stamped = field == 'covers'
+        ? _stampedEntry(value, code)
+        : _stampedRecordEntry(value, code);
+    lines[i] = '$indent$quote$stamped$quote';
+  }
+  return lines.join('\n');
+}
+
+String _stampedRecordEntry(String value, Map<String, String> code) {
+  final parsed = recordCodeLineOf(value);
+  if (parsed == null) return value;
+  final path = parsed.code.split(':').first;
+  return '${parsed.item}:${_stampedEntry(parsed.code, code, path: path)}';
+}
+
+String _stampedEntry(String entry, Map<String, String> code, {String? path}) {
+  if (CodeLinkEntry(entry).fingerprint != null) return entry;
+  final target = path ?? entry;
+  final fingerprint = target.endsWith('/')
+      ? _folderFingerprint(target, code)
+      : code[target];
+  return fingerprint == null ? entry : codeLinkEntryOf(entry, fingerprint);
+}
+
+String? _folderFingerprint(String folder, Map<String, String> code) {
+  final names = code.keys.where((k) => k.startsWith(folder)).toList()..sort();
+  if (names.isEmpty) return null;
+  return folderCodeFingerprint([
+    for (final name in names) (path: name, fingerprint: code[name]!),
+  ]);
+}
 
 /// Returns [files] with `approved: "<hash>"` on every typed doc that carries
 /// neither `draft` nor `approved:`, so the fixture reads as approved.

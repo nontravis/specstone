@@ -142,9 +142,15 @@ void main() {
     expect(spots(report), [
       '$techStack:4: code_uncovered',
       '$techStack:4: code_uncovered',
+      '$loginArchitecture:4: code_unconfirmed',
+      '$loginRecord:7: code_unconfirmed',
+      '$loginRecord:8: code_unconfirmed',
     ]);
     expect(
-      [for (final f in report.findings) f.toJson()['path']],
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.codeUncovered) f.toJson()['path'],
+      ],
       ['app/lib/login.dart', 'app/lib/x.dart'],
     );
   });

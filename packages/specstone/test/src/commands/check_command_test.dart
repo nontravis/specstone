@@ -302,18 +302,24 @@ void main() {
       utf8.encode(checkProjectFiles()['app/lib/login.dart']!),
     );
 
-    Future<Directory> project() => writeCheckProject(
-      extra: doc(
-        loginRecord,
-        "check_password:$entry'",
-        "check_password:$entry $recorded'",
-      ),
-    );
+    // The record's other entry records its fingerprint, so the entry named
+    // by [suffix] is the project's one code finding.
+    Future<Directory> project([String suffix = ' $recorded']) =>
+        writeCheckProject(
+          extra: edit(loginRecord, [
+            (
+              "email_login:app/lib/login.dart:SignInPage'",
+              "email_login:app/lib/login.dart:SignInPage $current'",
+            ),
+            ("check_password:$entry'", "check_password:$entry$suffix'"),
+          ]),
+          unfingerprinted: {'docs/$loginRecord'},
+        );
 
-    int lineOf(Directory dir) =>
+    int lineOf(Directory dir, [String suffix = ' $recorded']) =>
         File('${dir.path}/docs/$loginRecord')
             .readAsLinesSync()
-            .indexWhere((l) => l.contains('$entry $recorded')) +
+            .indexWhere((l) => l.contains('$entry$suffix')) +
         1;
 
     test('text prints the finding line, then the current fingerprint '
@@ -360,6 +366,56 @@ void main() {
       expect(finding['fingerprint'], current);
       expect(finding['message'], isNot(contains(current)));
     });
+
+    test('with no fingerprint prints the finding line, then the current '
+        'fingerprint indented 4 spaces, then the count', () async {
+      final dir = await project('');
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check']), 1);
+      expect(
+        out.toString(),
+        '$loginRecord:${lineOf(dir, '')}: code_unconfirmed: app/lib/login.dart records no fingerprint\n'
+        '    fingerprint $current\n'
+        '1 finding\n',
+      );
+    });
+
+    test('with no fingerprint holds the entry, path, and current fingerprint '
+        'after waitsFor, and none in the message', () async {
+      final dir = await project('');
+      final (:runner, :out, :err) = readRunner(dir);
+
+      expect(await runner.run(['check', '--json']), 1);
+      final finding =
+          ((jsonDecode(out.toString()) as Map)['findings']! as List).single
+              as Map<String, Object?>;
+      expect(finding['kind'], 'code_unconfirmed');
+      expect(finding['docPath'], loginRecord);
+      expect(finding['line'], lineOf(dir, ''));
+      expect(finding['message'], 'app/lib/login.dart records no fingerprint');
+      expect(finding.keys.skipWhile((key) => key != 'waitsFor'), [
+        'waitsFor',
+        'entry',
+        'path',
+        'fingerprint',
+      ]);
+      expect(finding['waitsFor'], 'agent');
+      expect(finding['entry'], entry);
+      expect(finding['path'], 'app/lib/login.dart');
+      expect(finding['fingerprint'], current);
+      expect(finding['message'], isNot(contains(current)));
+    });
+
+    test(
+      'with no fingerprint counts toward no doc of list --suspect',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project(''));
+
+        expect(await runner.run(['list', 'fr', '--suspect']), 0);
+        expect(out.toString(), isEmpty);
+      },
+    );
   });
 
   test('E12: an owner '

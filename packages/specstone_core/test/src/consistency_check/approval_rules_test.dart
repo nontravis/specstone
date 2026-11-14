@@ -35,11 +35,13 @@ List<Finding> _stales(CheckReport report) => [
 
 /// Checks the fixture project pinned below both approval pins.
 Future<CheckReport> _checkBelowPins(Map<String, String> extra) async {
-  final root = await writeTree({
-    ...checkProjectFiles(),
-    '.specstone/config.yaml': _belowPins,
-    ...extra,
-  });
+  final root = await writeTree(
+    withCodeFingerprints({
+      ...checkProjectFiles(),
+      '.specstone/config.yaml': _belowPins,
+      ...extra,
+    }),
+  );
   final files = {...shippedPackFiles};
   for (final MapEntry(:key, :value) in {
     'prd-core': '1.6.0',

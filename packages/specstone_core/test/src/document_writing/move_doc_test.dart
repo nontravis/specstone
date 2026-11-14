@@ -2489,6 +2489,11 @@ void main() {
       Set<String> without = const {},
     }) => writeNestedProject(
       without: without,
+      unfingerprinted: {
+        'docs/$cartFlutter',
+        'docs/$cartJaspr',
+        'docs/$payJaspr',
+      },
       extra: {
         '.specstone/config.yaml': twinConfig(),
         '.specstone/templates/implementation.yaml': recordLayer,

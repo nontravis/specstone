@@ -120,6 +120,7 @@ enum FindingKind {
   confirmedEntryMalformed('confirmed_entry_malformed'),
   confirmedEntryStale('confirmed_entry_stale'),
   codeSuspect('code_suspect'),
+  codeUnconfirmed('code_unconfirmed'),
   formatDrift('format_drift'),
   agentBlockStale('agent_block_stale'),
   tbrOpen('tbr_open'),
@@ -193,7 +194,8 @@ final class Finding {
   /// A `suspect` or `unconfirmed` finding with a `text` key goes on with each
   /// line of the upstream block and then `fingerprint <hash>`, each indented
   /// 4 spaces, so a reader cut short of the block's end never reaches the
-  /// fingerprint. A `code_suspect` finding goes on with that line alone.
+  /// fingerprint. A `code_suspect` or `code_unconfirmed` finding goes on with
+  /// that line alone.
   List<String> get textLines => [
     if (waitsFor == WaitsFor.owner) '$textLine$_ownerTag' else textLine,
     ..._upstreamBlockLines,
@@ -216,7 +218,8 @@ final class Finding {
   }
 
   Iterable<String> get _codeFingerprintLines sync* {
-    if (kind == FindingKind.codeSuspect) {
+    if (kind == FindingKind.codeSuspect ||
+        kind == FindingKind.codeUnconfirmed) {
       yield '${_blockIndent}fingerprint ${keys['fingerprint']}';
     }
   }
