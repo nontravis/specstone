@@ -270,7 +270,7 @@ void main() {
     expect(runs, ['k0 k1 k2 k3 k4 k5 k6 k7 k8', 'k1 k2 k3 k4 k5 k6 k7 k8 k9']);
   });
 
-  test('f04/us05/fr01/e03, nfr-p03: a run that 14 docs hold gives one group of 14 items beside the longer run 13 of them hold', () async {
+  test('f04/us05/fr01/e03: a run that 14 docs hold gives one group of 14 items beside the longer run 13 of them hold', () async {
     final nf = checkProjectFiles()['docs/$loginNf']!.replaceFirst(
       _nfStatement,
       'The system shall hold that $_clause, always.',
