@@ -448,6 +448,23 @@ void main() {
       expect(answer.warnings, isEmpty);
     });
 
+    test('a story and an FR entry holding a code fingerprint '
+        'print the pointer alone', () async {
+      final answer = await _code(
+        [_step('2', 2)],
+        extra: _oneTarget(['$storyCode 5d1e0c4b7a92', '$frCode 0a1b2c3d4e5f']),
+      );
+
+      expect(
+        answer.text,
+        endsWith(
+          '${_stepLine('2', 2)}\n$storyEntry'
+          '  $frName (fr)\n'
+          '  - implements: app/lib/login.dart:checkPassword\n',
+        ),
+      );
+    });
+
     test('f10/us03/s3, f10/us03/fr01/e05: get feature:login --code is '
         'argument_invalid', () async {
       await expectLater(
@@ -608,6 +625,31 @@ void main() {
           );
         },
       );
+
+      test('entries holding a code fingerprint print each target line '
+          'with the pointer alone', () async {
+        final answer = await _code(
+          [_step('2', 2)],
+          extra: _twoTargets(
+            flutter: ['$storyCode 5d1e0c4b7a92', '$frCode 0a1b2c3d4e5f'],
+            jaspr: [
+              'email_login:jaspr_lib/web_login.dart:WebLogin 9f8e7d6c5b4a',
+            ],
+          ),
+        );
+
+        expect(
+          answer.text,
+          endsWith(
+            '${_stepLine('2', 2)}\n'
+            '  $_story (user_story)\n'
+            '  - flutter: app/lib/login.dart:SignInPage\n'
+            '  - jaspr: jaspr_lib/web_login.dart:WebLogin\n'
+            '  $frName (fr)\n'
+            '  - flutter: app/lib/login.dart:checkPassword\n',
+          ),
+        );
+      });
 
       test('--target jaspr keeps the one target, printed '
           'with no target name', () async {
