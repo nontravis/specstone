@@ -492,9 +492,8 @@ Iterable<Finding> checkImplementedStatus(
   }
 }
 
-/// Whether [item] is an FR whose `verify_method` is `test`.
+/// Whether [item]'s `verify_method` is `test`.
 bool _isVerifiedByTest(IndexedDoc item) =>
-    item.docTypeId == frType &&
     item.valuesOf(_verifyMethodKey).contains(_testMethod);
 
 const _verifyMethodKey = 'verify_method';
