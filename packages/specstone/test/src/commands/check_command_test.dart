@@ -1379,4 +1379,108 @@ void main() {
       },
     );
   });
+
+  group('user_story:consistency_check/find_broken_pointers S28, S29', () {
+    const outOfScope = '## Out-of-scope\n\n- Social sign-in — not planned\n';
+
+    Future<Directory> featureWith(String pattern, String skip) =>
+        writeCheckProject(
+          extra: {
+            '.specstone/templates/feature.yaml':
+                'fields:\n  - id: patterns\n    type: string\n    list: true\n',
+            ...edit(loginFeature, [
+              (
+                'goals:\n  - PG-01\n',
+                'goals:\n  - PG-01\npatterns:\n  - $pattern\n',
+              ),
+              (outOfScope, '$outOfScope$skip\n'),
+            ]),
+          },
+        );
+
+    int lineOf(Directory project, String needle) =>
+        File('${project.path}/docs/$loginFeature')
+            .readAsLinesSync()
+            .indexWhere((line) => line.contains(needle)) +
+        1;
+
+    Future<(ProcessResult, ProcessResult)> run(Directory project) async => (
+      await Process.run(binary, ['check'], workingDirectory: project.path),
+      await Process.run(binary, [
+        'check',
+        '--json',
+      ], workingDirectory: project.path),
+    );
+
+    test('S28: a feature naming a pattern one letter short of a shipped one is one finding at the value, in text and --json', () async {
+      final project = await featureWith('cruds', '- `crud/paged_list` — kept');
+      final line = lineOf(project, '- cruds');
+      const message = 'patterns value cruds names no feature pattern';
+
+      final (text, json) = await run(project);
+
+      expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+      expect(
+        text.stdout,
+        '$loginFeature:$line: feature_pattern_missing: $message\n1 finding\n',
+      );
+      expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
+      expect((jsonDecode(json.stdout as String) as Map)['findings'], [
+        {
+          'kind': 'feature_pattern_missing',
+          'docPath': loginFeature,
+          'name': 'login',
+          'line': line,
+          'message': message,
+          'waitsFor': 'agent',
+          'pattern': 'cruds',
+        },
+      ]);
+    });
+
+    test('S29: a skipped item its pattern does not hold is one finding at the bullet naming the pattern and the item; a held one gives none', () async {
+      final project = await featureWith(
+        'crud',
+        '- `crud/paged_lis` — kept\n- `crud/paged_list` — kept',
+      );
+      final line = lineOf(project, 'crud/paged_lis`');
+      const message =
+          'skip line names item paged_lis, which feature pattern crud does not hold';
+
+      final (text, json) = await run(project);
+
+      expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+      expect(
+        text.stdout,
+        '$loginFeature:$line: feature_pattern_item_missing: $message\n'
+        '1 finding\n',
+      );
+      expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
+      expect((jsonDecode(json.stdout as String) as Map)['findings'], [
+        {
+          'kind': 'feature_pattern_item_missing',
+          'docPath': loginFeature,
+          'name': 'login',
+          'line': line,
+          'message': message,
+          'waitsFor': 'agent',
+          'pattern': 'crud',
+          'item': 'paged_lis',
+        },
+      ]);
+    });
+
+    test(
+      'S29: a held skipped item alone gives no finding and exits 0',
+      () async {
+        final project = await featureWith('crud', '- `crud/paged_list` — kept');
+
+        final (text, json) = await run(project);
+
+        expect(text.exitCode, 0, reason: '${text.stdout}\n${text.stderr}');
+        expect(text.stdout, '0 findings\n');
+        expect(json.exitCode, 0);
+      },
+    );
+  });
 }
