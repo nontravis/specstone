@@ -452,6 +452,7 @@ void main() {
     expect(status, 0);
     expect(warnings, [
       '../other/AGENTS.md reaches outside the project root; left as it is',
+      '../other reaches outside the project root; left as it is',
     ]);
     expect(lines, isNot(contains(contains('other'))));
     expect(File('${base.path}/other/AGENTS.md').readAsStringSync(), 'Owner\n');

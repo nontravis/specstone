@@ -114,11 +114,14 @@ final class _Planner {
   final _planned = <String>{};
 
   void plan(AgentFileBase base, {required bool full}) {
-    // A top the run may not write takes no skill or agent file, and its
-    // instruction files are named already.
-    if (base.isTop &&
-        writeRefusalOf(base.directory.path, projectRoot: _root) != null) {
-      return;
+    if (base.isTop) {
+      final refusal = writeRefusalOf(base.directory.path, projectRoot: _root);
+      if (refusal != null) {
+        if (base.isUpsert(full: full)) {
+          _skip(skippedLineOf(base.path, refusal));
+        }
+        return;
+      }
     }
     for (final group in AgentFolderGroup.values) {
       _planGroup(base, group, full: full);

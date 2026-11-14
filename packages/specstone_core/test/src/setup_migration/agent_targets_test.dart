@@ -1304,6 +1304,7 @@ void main() {
       expect(_paths(plan), [_agentMd, 'AGENTS.md', ...skillPaths()]);
       expect(plan.skipped, [
         '../other/CLAUDE.md reaches outside the project root; left as it is',
+        '../other reaches outside the project root; left as it is',
       ]);
       expect(plan.agentFileRoots, isEmpty);
       expect(plan.addedRoots, isEmpty);

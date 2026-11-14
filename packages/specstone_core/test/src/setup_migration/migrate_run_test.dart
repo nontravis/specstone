@@ -1495,16 +1495,18 @@ sections:
         final dryWarnings = <String>[];
         final out = StringBuffer();
         final warnings = <String>[];
-        const skipLine =
-            '../mono/AGENTS.md reaches outside the project root; left as it is';
+        const skipLines = [
+          '../mono/AGENTS.md reaches outside the project root; left as it is',
+          '../mono reaches outside the project root; left as it is',
+        ];
 
         expect(_run(project, dryOut, dryRun: true, warnings: dryWarnings), 0);
         expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
 
         expect(dryOut.toString(), isNot(contains('mono')));
         expect(out.toString(), isNot(contains('mono/AGENTS.md')));
-        expect(dryWarnings, [skipLine]);
-        expect(warnings, [skipLine]);
+        expect(dryWarnings, skipLines);
+        expect(warnings, skipLines);
         expect(topFile.existsSync(), isFalse);
         expect(
           File('${project.path}/.specstone/config.yaml').readAsStringSync(),
@@ -1561,6 +1563,7 @@ sections:
       expect(MoveJournal.pending(project), isFalse);
       expect(warnings, [
         '../app/AGENTS.md reaches outside the project root; left as it is',
+        '../app reaches outside the project root; left as it is',
       ]);
       expect(File('${app.path}/AGENTS.md').existsSync(), isFalse);
       expect(
@@ -1596,6 +1599,7 @@ sections:
           expect(status, 0);
           expect(warnings, [
             'AGENTS.md reaches outside the project root; left as it is',
+            '../app reaches outside the project root; left as it is',
           ]);
           expect(File('${base.path}/app/AGENTS.md').readAsStringSync(), before);
           expect(

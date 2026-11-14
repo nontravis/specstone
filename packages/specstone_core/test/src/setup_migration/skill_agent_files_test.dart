@@ -480,7 +480,9 @@ void main() {
       );
 
       expect(_writtenPaths(plan), _allRendered.keys.toSet());
-      expect(plan.skipped, isEmpty);
+      expect(plan.skipped, [
+        '../other reaches outside the project root; left as it is',
+      ]);
     });
   });
 
