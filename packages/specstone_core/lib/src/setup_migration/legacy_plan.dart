@@ -33,8 +33,6 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
-import 'package:specstone_core/src/setup_migration/migration_chain.dart'
-    show legacyRunsTestNamePass;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
@@ -92,55 +90,30 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// - [homeDirectory]: the personal pack home, or null.
 /// - [linkFolder]: the canonical folder whose `docs` link led to [root], or
 ///   null.
-/// - [testNamesSince]: the `software-tech` version whose carried pin makes the
-///   run chain through the test-name pass; by default the version that names
-///   tests in the records.
 RunPlan planLegacyRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
   Directory? linkFolder,
-  PackVersion? testNamesSince,
-}) => planLegacy(
-  root,
-  templates: templates,
-  homeDirectory: homeDirectory,
-  linkFolder: linkFolder,
-  testNamesSince: testNamesSince,
-).plan;
-
-/// Plans the legacy migration of [root] as [planLegacyRun] does and returns
-/// the test-name pass beside the plan: its lists are what the JSON plan prints
-/// under `tests`, and null when the run chains through no such pass.
-({RunPlan plan, TestNamePass? tests}) planLegacy(
-  Directory root, {
-  required TemplateResolver templates,
-  required Directory? homeDirectory,
-  Directory? linkFolder,
-  PackVersion? testNamesSince,
 }) {
   final inputs = PlanInputs(root);
-  final planned = inputs.collect(
+  return inputs.collect(
     () => _legacyRunOf(
       root,
       templates: templates,
       homeDirectory: homeDirectory,
       linkFolder: linkFolder,
-      testNamesSince: testNamesSince,
       inputs: inputs,
     ),
-  );
-  planned.plan.refuseTakenCreates(root);
-  return planned;
+  )..refuseTakenCreates(root);
 }
 
 /// Plans the legacy run of [root] while [inputs] records each file read.
-({RunPlan plan, TestNamePass? tests}) _legacyRunOf(
+RunPlan _legacyRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
   required Directory? linkFolder,
-  required PackVersion? testNamesSince,
   required PlanInputs inputs,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
@@ -227,9 +200,7 @@ RunPlan planLegacyRun(
     ),
     exists: (path) => _existsIn(docsRoot, path),
     isTaken: (docPath) => taken('$_docsFolder$docPath'),
-    testNames:
-        legacyRunsTestNamePass(pins, since: testNamesSince) &&
-            projectSet.recordDocType != null
+    testNames: projectSet.recordDocType != null
         ? (
             root: Directory(root.resolveSymbolicLinksSync()),
             targets: targets,
@@ -309,7 +280,7 @@ RunPlan planLegacyRun(
     inputs: inputs,
     agentFiles: agentFiles,
   );
-  return (plan: plan, tests: rewrites.tests);
+  return plan;
 }
 
 /// Returns the mentions in code and agent files that the run's [moves] stop

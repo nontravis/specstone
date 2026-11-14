@@ -44,8 +44,6 @@ import 'package:yaml/yaml.dart';
 
 export 'package:specstone_core/src/setup_migration/run_plan.dart'
     show UpgradeStepLine;
-export 'package:specstone_core/src/setup_migration/test_name_pass.dart'
-    show TestNamePass;
 
 const _docsFolder = 'docs/';
 const _commit1Message = 'move docs to their new pack paths';
@@ -94,46 +92,23 @@ RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
-  PackVersion? testNamesSince,
-}) => planUpgrade(
-  root,
-  templates: templates,
-  homeDirectory: homeDirectory,
-  testNamesSince: testNamesSince,
-).plan;
-
-/// Plans the upgrade of [root] as [planUpgradeRun] does and returns the
-/// test-name pass beside the plan: its lists are what the JSON plan prints
-/// under `tests`, and null when the run holds no such pass.
-///
-/// [testNamesSince] is the `software-tech` version the pass runs from, the
-/// version that names tests in the records by default.
-({RunPlan plan, TestNamePass? tests}) planUpgrade(
-  Directory root, {
-  required TemplateResolver templates,
-  required Directory? homeDirectory,
-  PackVersion? testNamesSince,
 }) {
   final inputs = PlanInputs(root);
-  final planned = inputs.collect(
+  return inputs.collect(
     () => _upgradeRunOf(
       root,
       templates: templates,
       homeDirectory: homeDirectory,
-      testNamesSince: testNamesSince,
       inputs: inputs,
     ),
-  );
-  planned.plan.refuseTakenCreates(root);
-  return planned;
+  )..refuseTakenCreates(root);
 }
 
 /// Plans the upgrade of [root] while [inputs] records each file read.
-({RunPlan plan, TestNamePass? tests}) _upgradeRunOf(
+RunPlan _upgradeRunOf(
   Directory root, {
   required TemplateResolver templates,
   required Directory? homeDirectory,
-  required PackVersion? testNamesSince,
   required PlanInputs inputs,
 }) {
   final config = ProjectConfig.read(root);
@@ -352,9 +327,7 @@ RunPlan planUpgradeRun(
     if (text != lf) work.changes.add(_labelChange);
     converted.add(text);
   }
-  final tests =
-      runsTestNamePass(upgrades, since: testNamesSince) &&
-          finalSet.recordDocType != null
+  final tests = runsTestNamePass(upgrades) && finalSet.recordDocType != null
       ? _testNamesOf(
           root,
           config,
@@ -521,7 +494,7 @@ RunPlan planUpgradeRun(
       tests: tests?.json,
     ),
   );
-  return (plan: plan, tests: tests);
+  return plan;
 }
 
 /// Plans the test-name pass over the typed [works] as the earlier passes left

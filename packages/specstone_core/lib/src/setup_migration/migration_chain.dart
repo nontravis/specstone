@@ -96,27 +96,12 @@ final PackVersion testNamePassSince = PackVersion.parse(
   key: testNamePack,
 );
 
-/// Whether [upgrades] move the [testNamePack] pin from below [since] to [since]
-/// or later: the one trigger of the test-name pass.
-///
-/// [since] defaults to [testNamePassSince].
-bool runsTestNamePass(List<PackUpgrade> upgrades, {PackVersion? since}) {
-  final floor = since ?? testNamePassSince;
-  return upgrades.any(
-    (upgrade) =>
-        upgrade.pack == testNamePack &&
-        upgrade.pin.compareTo(floor) < 0 &&
-        upgrade.target.compareTo(floor) >= 0,
-  );
-}
-
-/// Whether a legacy run, which pins each carried pack at its available
-/// version from no pin at all, chains through the test-name pass: the pin it
-/// writes for [testNamePack] is [since] or later.
-bool legacyRunsTestNamePass(
-  Map<String, PackVersion> pins, {
-  PackVersion? since,
-}) {
-  final pin = pins[testNamePack];
-  return pin != null && pin.compareTo(since ?? testNamePassSince) >= 0;
-}
+/// Whether [upgrades] move the [testNamePack] pin from below
+/// [testNamePassSince] to it or later: the one trigger of the test-name pass
+/// on an upgrade.
+bool runsTestNamePass(List<PackUpgrade> upgrades) => upgrades.any(
+  (upgrade) =>
+      upgrade.pack == testNamePack &&
+      upgrade.pin.compareTo(testNamePassSince) < 0 &&
+      upgrade.target.compareTo(testNamePassSince) >= 0,
+);

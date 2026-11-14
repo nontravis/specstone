@@ -8,12 +8,11 @@ import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart'
     show LabelTree;
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
-    show planLegacy, planLegacyRun;
+    show planLegacyRun;
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate;
 import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -434,6 +433,46 @@ void main() {
       ]);
     });
 
+    test('a held line keeps its text, a new one takes the single-quoted '
+        'style', () async {
+      final project = await _project(
+        docs: {
+          ..._loginDocs,
+          _recordPath:
+              '---\ntests:\n    - "email_login:test/other_test.dart"\n'
+              '    - email_login:test/plain_test.dart\n---\n\n# Record\n',
+        },
+        files: {_testPath: _test('f01/us01/fr01 rejects')},
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        pass.recordEdits[_recordPath],
+        '---\ntests:\n    - "email_login:test/other_test.dart"\n'
+        '    - email_login:test/plain_test.dart\n'
+        "    - 'email_login/validate_credentials:test/auth_test.dart'\n"
+        '---\n\n# Record\n',
+      );
+    });
+
+    test('a held flow list is written again as a block list', () async {
+      final project = await _project(
+        docs: {
+          ..._loginDocs,
+          _recordPath: '---\ntests: [email_login:test/other_test.dart]\n---\n\n# Record\n',
+        },
+        files: {_testPath: _test('f01/us01/fr01 rejects')},
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(_testsOf(pass.recordEdits[_recordPath]!), [
+        'email_login:test/other_test.dart',
+        'email_login/validate_credentials:test/auth_test.dart',
+      ]);
+    });
+
     test('a line the record already holds is not written again', () async {
       final project = await _project(
         docs: {
@@ -592,20 +631,8 @@ void main() {
 Map<String, Object?> _valuesOf(String text) =>
     frontmatterValuesOf(Doc.parse(text));
 
-final PackVersion _farRelease = PackVersion.parse(
-  '99.0.0',
-  file: 'test_name_pass_test.dart',
-  key: 'software-tech',
-);
-
 void _legacyTests() {
   group('test-name pass in a legacy run', () {
-    final since = PackVersion.parse(
-      '1.5.0',
-      file: 'test_name_pass_test.dart',
-      key: 'software-tech',
-    );
-
     Future<Directory> legacyProject(Map<String, String> files) async {
       final tree = await writeTree({...acmeLegacy, ...files});
       final root = Directory(tree.resolveSymbolicLinksSync());
@@ -620,14 +647,19 @@ void _legacyTests() {
         'test/auth_test.dart': _test('f01/us01/fr01 rejects a wrong password'),
       });
 
-      final (:plan, :tests) = planLegacy(
+      final plan = planLegacyRun(
         root,
         templates: TemplateResolver(),
         homeDirectory: null,
-        testNamesSince: since,
       );
 
-      expect(tests!.json['rewritten'], hasLength(1));
+      expect(plan.lists.toJson()['tests'], {
+        'written': [
+          '$_recordPath email_login/validate_credentials:test/auth_test.dart',
+        ],
+        'rewritten': hasLength(1),
+        'left': isEmpty,
+      });
       expect(
         plan.toText(),
         contains(
@@ -659,53 +691,9 @@ void _legacyTests() {
         root,
         templates: TemplateResolver(),
         homeDirectory: null,
-        testNamesSince: since,
       );
 
       expect(plan.toText(), isNot(contains('tests:')));
-    });
-
-    test('a legacy plan holds the pass object under tests, and none when the '
-        'pass does not run', () async {
-      final root = await legacyProject({
-        'test/auth_test.dart': _test('f01/us01/fr01 rejects'),
-      });
-
-      final ran = planLegacy(
-        root,
-        templates: TemplateResolver(),
-        homeDirectory: null,
-        testNamesSince: since,
-      );
-      final skipped = planLegacyRun(
-        root,
-        templates: TemplateResolver(),
-        homeDirectory: null,
-        testNamesSince: _farRelease,
-      );
-
-      expect(ran.plan.lists.toJson()['tests'], ran.tests!.json);
-      expect(skipped.lists.toJson(), isNot(contains('tests')));
-    });
-
-    test('a legacy run whose pins stay below the release that names tests '
-        'runs no pass', () async {
-      final root = await legacyProject({
-        'test/auth_test.dart': _test('f01/us01/fr01 rejects'),
-      });
-
-      final plan = planLegacyRun(
-        root,
-        templates: TemplateResolver(),
-        homeDirectory: null,
-        testNamesSince: _farRelease,
-      );
-
-      expect(plan.toText(), isNot(contains('tests:')));
-      expect(
-        plan.rewrites.map((rewrite) => rewrite.path),
-        isNot(contains('test/auth_test.dart')),
-      );
     });
   });
 }

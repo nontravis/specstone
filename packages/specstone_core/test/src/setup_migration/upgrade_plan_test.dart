@@ -3226,14 +3226,6 @@ sections:
 
 // MARK: - Test-name pass
 
-/// A release before the shipped `software-tech`, so the pass runs on a
-/// pin below it while no shipped pack carries the release that names tests.
-final PackVersion _testNamesSince = PackVersion.parse(
-  '1.5.0',
-  file: 'upgrade_plan_test.dart',
-  key: 'software-tech',
-);
-
 const _testFile = 'app/test/auth_test.dart';
 const _testRecordPath = 'specs/f01_login/IMPLEMENTATION.md';
 
@@ -3263,15 +3255,8 @@ Future<Directory> _testNameProject({
   return root;
 }
 
-({RunPlan plan, TestNamePass? tests}) _planTestNames(
-  Directory project, {
-  PackVersion? since,
-}) => planUpgrade(
-  project,
-  templates: TemplateResolver(),
-  homeDirectory: null,
-  testNamesSince: since ?? _testNamesSince,
-);
+RunPlan _planTestNames(Directory project) =>
+    planUpgradeRun(project, templates: TemplateResolver(), homeDirectory: null);
 
 void _testNameTests() {
   group('test-name pass', () {
@@ -3281,7 +3266,7 @@ void _testNameTests() {
         files: {_testFile: _testSource('f01/us01/fr01 rejects a wrong key')},
       );
 
-      final (:plan, :tests) = _planTestNames(project);
+      final plan = _planTestNames(project);
 
       expect(
         plan.toText(),
@@ -3305,8 +3290,13 @@ void _testNameTests() {
         _rewriteAt(plan, _testFile).text,
         _testSource('rejects a wrong key'),
       );
-      expect(tests!.rewrittenFiles, [_testFile]);
-      expect(plan.lists.toJson()['tests'], tests.json);
+      expect(plan.lists.toJson()['tests'], {
+        'written': [
+          '$_testRecordPath email_login/validate_credentials:test/auth_test.dart',
+        ],
+        'rewritten': hasLength(1),
+        'left': isEmpty,
+      });
     });
 
     test('a run that finds no test name holds an empty tests object', () async {
@@ -3314,7 +3304,7 @@ void _testNameTests() {
         files: {_testFile: _testSource('rejects a wrong key')},
       );
 
-      final plan = _planTestNames(project).plan;
+      final plan = _planTestNames(project);
 
       expect(plan.lists.toJson()['tests'], {
         'written': <Object?>[],
@@ -3334,7 +3324,7 @@ void _testNameTests() {
         files: {_testFile: _testSource('f01/us01/fr01 rejects')},
       );
 
-      final text = _planTestNames(project).plan.toText();
+      final text = _planTestNames(project).toText();
 
       final labels = text.indexOf('  number labels:');
       final tests = text.indexOf('  tests:');
@@ -3354,7 +3344,7 @@ void _testNameTests() {
         files: {_testFile: _testSource('login/email_login: signs in')},
       );
 
-      final plan = _planTestNames(project).plan;
+      final plan = _planTestNames(project);
 
       final record = plan.creates.singleWhere(
         (create) => create.path == 'docs/$_testRecordPath',
@@ -3373,35 +3363,10 @@ void _testNameTests() {
         files: {_testFile: _testSource('rejects a wrong key')},
       );
 
-      final (:plan, :tests) = _planTestNames(project);
+      final plan = _planTestNames(project);
 
       expect(plan.toText(), isNot(contains('tests:')));
       expect(plan.creates, isEmpty);
-      expect(tests!.planLine, isNull);
-    });
-
-    test('an available version below the release runs no pass', () async {
-      final project = await _testNameProject(
-        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
-      );
-
-      final plan = planUpgradeRun(
-        project,
-        templates: TemplateResolver(),
-        homeDirectory: null,
-        testNamesSince: PackVersion.parse(
-          '99.0.0',
-          file: 'upgrade_plan_test.dart',
-          key: 'software-tech',
-        ),
-      );
-
-      expect(plan.toText(), isNot(contains('tests:')));
-      expect(plan.lists.toJson(), isNot(contains('tests')));
-      expect(
-        plan.rewrites.map((rewrite) => rewrite.path),
-        isNot(contains(_testFile)),
-      );
     });
 
     test('an upgrade past the release runs no pass', () async {
@@ -3410,7 +3375,7 @@ void _testNameTests() {
         files: {_testFile: _testSource('f01/us01/fr01 rejects')},
       );
 
-      final plan = _planTestNames(project).plan;
+      final plan = _planTestNames(project);
 
       expect(plan.toText(), isNot(contains('tests:')));
       expect(plan.lists.toJson(), isNot(contains('tests')));
@@ -3421,15 +3386,47 @@ void _testNameTests() {
         files: {_testFile: _testSource('f01/us01/fr01 rejects')},
       );
 
-      final before = _planTestNames(project).plan;
+      final before = _planTestNames(project);
       File(
         '${project.path}/$_testFile',
       ).writeAsStringSync("${_testSource('f01/us01/fr01 rejects')}// edited\n");
-      final after = _planTestNames(project).plan;
+      final after = _planTestNames(project);
 
       expect(before.inputs.lines, contains('$_testFile '));
       expect(_hashOf(after), isNot(_hashOf(before)));
     });
+
+    test('a tracked file that gains a test name moves the plan hash', () async {
+      final project = await _testNameProject(
+        files: {
+          _testFile: _testSource('f01/us01/fr01 rejects'),
+          'app/test/other_test.dart': _testSource('rejects'),
+        },
+      );
+
+      final before = _planTestNames(project);
+      File('${project.path}/app/test/other_test.dart')
+          .writeAsStringSync(_testSource('f01/us01/fr01 also rejects'));
+      final after = _planTestNames(project);
+
+      expect(_hashOf(after), isNot(_hashOf(before)));
+    });
+
+    test(
+      'a new tracked file holding no test name leaves the plan hash',
+      () async {
+        final project = await _testNameProject(
+          files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+        );
+
+        final before = _planTestNames(project);
+        File('${project.path}/app/notes.txt').writeAsStringSync('notes\n');
+        commitAll(project, 'notes');
+        final after = _planTestNames(project);
+
+        expect(_hashOf(after), _hashOf(before));
+      },
+    );
 
     test('a file git does not track is never read', () async {
       final project = await _testNameProject();
@@ -3437,7 +3434,7 @@ void _testNameTests() {
         ..parent.createSync(recursive: true)
         ..writeAsStringSync(_testSource('f01/us01/fr01 rejects'));
 
-      final plan = _planTestNames(project).plan;
+      final plan = _planTestNames(project);
 
       expect(plan.inputs.lines, isNot(contains('new_test.dart')));
       expect(plan.toText(), isNot(contains('tests:')));
@@ -3454,19 +3451,18 @@ void _testNameTests() {
         },
       );
 
-      final (:plan, :tests) = _planTestNames(project);
+      final plan = _planTestNames(project);
 
-      final json = tests!.json;
+      final json = plan.lists.tests!;
       final rewritten = json['rewritten']! as List<Object?>;
       expect(rewritten, hasLength(2));
-      expect(tests.left, 1);
       expect(json['left'], isEmpty);
       expect(
         plan.toText(),
         contains(
           '  tests: 2 lines in 1 records; '
           'names: ${rewritten.length} rewritten in 1 files; '
-          'left: ${tests.left}\n',
+          'left: 1\n',
         ),
       );
     });
