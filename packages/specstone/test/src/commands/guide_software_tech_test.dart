@@ -641,16 +641,14 @@ void main() {
       expect(out.toString(), isEmpty);
     });
 
-    test('template_packs/follow_feature_pattern/ship_feature_patterns E01: '
-        'guide --pattern lists exactly the ten shipped ids', () async {
+    test('guide --pattern lists exactly the ten shipped ids', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', '--pattern']), 0);
       expect(out.toString(), _tenPatternIds.map((id) => '$id\n').join());
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/follow_feature_pattern/ship_feature_patterns E06: '
-        'guide --pattern <id> prints 5 to 15 item lines of one sentence '
+    test('guide --pattern <id> prints 5 to 15 item lines of one sentence '
         'each', () async {
       final runner = await runnerFor(_bothPacks);
       for (final id in _tenPatternIds) {

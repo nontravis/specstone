@@ -11,10 +11,11 @@ only rewrites one section or field of an existing doc, and adds no story or FR, 
 
 ## 1. Ground: the first call
 
-Make this call, the gate, your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
-change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
-with `--summary` to add a story, and the project doc to add a feature. Keep `--out` bare and last, and pass no
-`--budget`, with or without the `Agent` tool. Pass no `--target`: a design read spans every code target.
+Make this call, the gate, your first CLI call, before any other command or file read.
+Target the smallest doc that holds the whole change, one call per target: the story for a change inside one story,
+the feature for one across stories, the feature with `--summary` to add a story, and the project doc to add a feature.
+Keep `--out` bare and last, and pass no `--budget`, with or without the `Agent` tool.
+Pass no `--target`: a design read spans every code target.
 
 ```
 specstone context <target> --for design --out

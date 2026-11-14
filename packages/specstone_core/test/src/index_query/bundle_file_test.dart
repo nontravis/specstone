@@ -379,7 +379,7 @@ void main() {
       tokens: 9,
     );
 
-    test('fr07: a part gets `- <id> (feature pattern) · <first>-<last>` with no section, where it prints', () {
+    test('a part gets `- <id> (feature pattern) · <first>-<last>` with no section, where it prints', () {
       expect(
         bundleIndex(answerOf('design'), '/p/b.txt'),
         '==> bundle: 2 docs, 9 tokens, 8 lines · /p/b.txt <==\n'
@@ -389,7 +389,7 @@ void main() {
       );
     });
     test(
-      'fr07: a part stays one line without sections when the index drops them',
+      'a part stays one line without sections when the index drops them',
       () {
         final base = answerOf('design');
         final padding = _answerOf(200);
@@ -404,7 +404,7 @@ void main() {
         expect(index, isNot(contains('statement')));
       },
     );
-    test('fr07 e10: in a design reply --json lists docs without parts, then featurePatterns as {id, doc, lines}', () {
+    test('in a design reply --json lists docs without parts, then featurePatterns as {id, doc, lines}', () {
       final json = bundleIndexJson(answerOf('design'), '/p/b.txt');
       expect(json.keys.toList(), [
         'out',
@@ -425,20 +425,17 @@ void main() {
         },
       ]);
     });
-    test(
-      'fr07 e10: a design reply where no part joins gives featurePatterns: []',
-      () {
-        final base = _answerOf(1);
-        final answer = ContextAnswer(
-          text: base.text,
-          json: const {'for': 'design'},
-          entries: base.entries,
-          tokens: base.tokens,
-        );
-        expect(bundleIndexJson(answer, '/p')['featurePatterns'], isEmpty);
-      },
-    );
-    test('fr07: outside design --json has no featurePatterns key', () {
+    test('a design reply where no part joins gives featurePatterns: []', () {
+      final base = _answerOf(1);
+      final answer = ContextAnswer(
+        text: base.text,
+        json: const {'for': 'design'},
+        entries: base.entries,
+        tokens: base.tokens,
+      );
+      expect(bundleIndexJson(answer, '/p')['featurePatterns'], isEmpty);
+    });
+    test('outside design --json has no featurePatterns key', () {
       for (final mode in ['implement', 'query']) {
         final json = bundleIndexJson(answerOf(mode), '/p/b.txt');
         expect(json, isNot(contains('featurePatterns')));

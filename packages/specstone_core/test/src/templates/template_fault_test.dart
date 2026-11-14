@@ -41,12 +41,12 @@ void main() {
   ];
 
   group('FaultCode', () {
-    test('s05 catalog: wire codes equal the 35 catalog codes in order', () {
+    test('wire codes equal the 35 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
       expect(FaultCode.values, hasLength(35));
     });
 
-    test('s05 catalog: only the two unknown-id codes exit 64, the rest 78', () {
+    test('only the two unknown-id codes exit 64, the rest 78', () {
       const usage = {FaultCode.docTypeUnknown, FaultCode.featurePatternUnknown};
       for (final code in FaultCode.values) {
         expect(

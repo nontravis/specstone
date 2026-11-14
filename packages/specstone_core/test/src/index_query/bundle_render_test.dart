@@ -974,7 +974,9 @@ void main() {
           'reference:\n  - title: Handbook\n    url: https://example.com/handbook\n',
       '.specstone/templates/patterns/link_notes.yaml':
           'id: link_notes\ndescription: Notes.\nitems:\n'
-          '  - id: see\n    text: See [components](../../specs/f02_signup/ARCHITECTURE.md#components).\n',
+          '  - id: see\n    text: See [components](../../../specs/f02_signup/ARCHITECTURE.md#components).\n',
+      'docs/specs/f02_signup/ARCHITECTURE.md':
+          '# Sign-up architecture\n\n## Components\nThe parts.\n',
     });
     ContextAnswer designOf(
       DocIndex i, {
@@ -1013,7 +1015,7 @@ void main() {
         RegExp(r'==> bundle: (\d+) docs').firstMatch(plain.text)!.group(1),
       );
     });
-    test('e05: --no-project and --summary keep the parts', () async {
+    test('--no-project and --summary keep the parts', () async {
       final i = await patterned();
 
       expect(designOf(i, noProject: true).text, contains(partText));
@@ -1022,7 +1024,7 @@ void main() {
         contains(partText),
       );
     });
-    test('e06: the parts count toward the size, and an over-budget reply lists each with its size', () async {
+    test('the parts count toward the size, and an over-budget reply lists each with its size', () async {
       final i = await patterned();
       final whole = designOf(i);
       final without = designOf(await indexWith());
@@ -1046,7 +1048,7 @@ void main() {
       expect(listed.first.containsKey('items'), isFalse);
     });
     test(
-      'e08: a link in a part adds no appended part and no cited-by line',
+      'a link in a part adds no appended part and no cited-by line',
       () async {
         final a = designOf(await patterned());
 
@@ -1060,7 +1062,7 @@ void main() {
         expect(block.trimRight().split('\n').length, 3);
       },
     );
-    test('e09: an implement or query bundle prints no part and its JSON no featurePatterns key', () async {
+    test('an implement or query bundle prints no part and its JSON no featurePatterns key', () async {
       final i = await patterned();
       for (final mode in [BundleMode.implement, BundleMode.query]) {
         final a = designOf(i, mode: mode);
@@ -1074,7 +1076,7 @@ void main() {
       }
     });
     test(
-      'e10: a design bundle where no part joins carries featurePatterns: []',
+      'a design bundle where no part joins carries featurePatterns: []',
       () async {
         final none = designOf(await indexWith());
         final unknown = designOf(await patterned(patterns: '[nothing]'));

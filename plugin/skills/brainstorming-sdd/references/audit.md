@@ -3,7 +3,7 @@
 file: no doc, no other file, no fix. As the agent, ask the Owner nothing: each gap goes into your report.
 
 `specstone check` reads each doc's form, not what it means. Read the docs as a reader who did not write them, and
-report what the author's own coverage table cannot show.
+report what the author's coverage table cannot show.
 
 ## 1. Read
 

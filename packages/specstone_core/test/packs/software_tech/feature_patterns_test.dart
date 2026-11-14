@@ -370,7 +370,7 @@ void main() {
       }
     });
 
-    test('E03: signup merges the items of auth, then its own', () {
+    test('signup merges the items of auth, then its own', () {
       final auth = set.featurePattern('auth')!;
       final signup = set.featurePattern('signup')!;
       final own = [for (final item in _itemsOf('signup')) item['id']];
@@ -384,18 +384,15 @@ void main() {
       );
     });
 
-    test(
-      'E02: a project that lists only prd-core loads none of the ten',
-      () async {
-        final project = await writeTree({
-          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-        });
-        final resolved = TemplateResolver().resolve(
-          workingDirectory: project,
-          homeDirectory: await writeTree({}),
-        );
-        expect(resolved.featurePatterns, isEmpty);
-      },
-    );
+    test('a project that lists only prd-core loads none of the ten', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+      });
+      final resolved = TemplateResolver().resolve(
+        workingDirectory: project,
+        homeDirectory: await writeTree({}),
+      );
+      expect(resolved.featurePatterns, isEmpty);
+    });
   });
 }

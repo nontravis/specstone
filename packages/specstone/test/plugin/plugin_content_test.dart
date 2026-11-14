@@ -1127,8 +1127,7 @@ void _handOffTests() {
     }
   });
 
-  test('E14: '
-      'the Rules section of expert-sdd has a new feature pick its patterns '
+  test('the Rules section of expert-sdd has a new feature pick its patterns '
       'with guide --pattern and cover each checklist item or name it in the '
       "feature's Out-of-scope", () {
     final rules = _oneLine(
