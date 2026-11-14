@@ -1360,6 +1360,26 @@ void _agentTests() {
     );
   });
 
+  test('design mode links every design a doc still states: the design '
+      "references row names no link count and takes the guide's row", () {
+    final design = _oneLine(
+      _pluginText('skills/brainstorming-sdd/references/design.md'),
+    );
+    expect(
+      design,
+      isNot(matches(RegExp(r'\b(?:one|two|three|four|five|\d+) links\b'))),
+      reason: 'a link count evicts a design a doc still states',
+    );
+    expect(design, isNot(contains('this replaces')));
+    expect(
+      design,
+      contains(
+        'a link to this document, kept or dropped as the `Design references` '
+        'row of `specstone guide architecture` says.',
+      ),
+    );
+  });
+
   test('E20: design '
       'mode grounds with no --target and names a code target on each '
       'per-target row', () {
