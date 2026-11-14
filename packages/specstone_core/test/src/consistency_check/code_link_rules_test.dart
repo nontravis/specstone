@@ -8,6 +8,7 @@ import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -221,6 +222,29 @@ void main() {
       ], hasLength(3));
     });
 
+    test('written with a ./ prefix shares its one read with the Symbol '
+        'rule', () async {
+      final session = openSession(
+        await _project(
+          _record(
+            code: ['$_fr:./$_pointer $_stale', '$_fr:$_login:SignInPage'],
+          ),
+        ),
+      );
+      addTearDown(session.close);
+      final context = CheckContext(session);
+      final record = session.index.at(_recordPath)!;
+
+      checkImplements(context, record).toList();
+      checkCodeLinks(
+        context,
+        ImplementedWork(context, context.targets),
+        record,
+      ).toList();
+
+      expect(context.codeFilesRead, 1);
+    });
+
     test('of a skipped item reads nothing', () async {
       final (:context, :findings) = _checked(
         await _project(
@@ -414,7 +438,7 @@ void main() {
 
     test(
       'over a folder with an unreadable file takes no state and states '
-      "one warning for that file, and the doc's other entries take theirs",
+      "its warning, and the doc's other entries take theirs",
       skip: unreadablePathSkipReason(),
       () async {
         final project = await writeCheckProject(
@@ -430,10 +454,10 @@ void main() {
         final report = _run(project);
 
         expect([for (final f in _suspects(report)) f.keys['path']], [_login]);
-        expect(
-          report.warnings.where((w) => w.contains('locked/x.dart')).first,
+        expect(report.warnings.where((w) => w.contains('locked/x.dart')), [
           'app/lib/locked/x.dart: $_unreadable',
-        );
+          'app/lib/locked/x.dart: cannot read the file; doc names in it are not checked',
+        ]);
       },
     );
 

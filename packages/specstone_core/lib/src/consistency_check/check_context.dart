@@ -10,6 +10,8 @@ import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/code_root_files.dart'
+    show normalCodeEntry;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -34,6 +36,7 @@ final class CheckContext {
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
   final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
+  final Set<(CodeTarget, String)> _unreadableStated = {};
   final List<String> _codeWarnings = [];
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -92,20 +95,35 @@ final class CheckContext {
   }
 
   /// Returns the bytes of the code file at [path] in [target], read once per
-  /// run.
+  /// run, and states the warning of a file that cannot be read.
   ///
   /// [path] is relative to [target]'s code root. Returns null for a file that
-  /// cannot be read, and adds one warning for it.
+  /// cannot be read; its warning is stated once per run, whoever reads it.
   List<int>? codeBytesOf(CodeTarget target, String path) {
-    final key = (target, path);
+    final bytes = readCodeBytes(target, path);
+    final normal = normalCodeEntry(path);
+    if (bytes == null && _unreadableStated.add((target, normal))) {
+      _codeWarnings.add(
+        '$normal: cannot read the file; '
+        'implements Symbols in it are not checked',
+      );
+    }
+    return bytes;
+  }
+
+  /// Returns the bytes of the code file at [path] in [target], read once per
+  /// run, or null when it cannot be read; the caller states its own warning.
+  ///
+  /// [path] is relative to [target]'s code root; `./a.dart` and `a.dart` are
+  /// one file.
+  List<int>? readCodeBytes(CodeTarget target, String path) {
+    final key = (target, normalCodeEntry(path));
     if (_codeBytes.containsKey(key)) return _codeBytes[key];
     List<int>? bytes;
     try {
-      bytes = File('${codeRootOf(target).path}/$path').readAsBytesSync();
+      bytes = File('${codeRootOf(target).path}/${key.$2}').readAsBytesSync();
     } on FileSystemException {
-      _codeWarnings.add(
-        '$path: cannot read the file; implements Symbols in it are not checked',
-      );
+      bytes = null;
     }
     return _codeBytes[key] = bytes;
   }

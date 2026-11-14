@@ -1,8 +1,13 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
+import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
+import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
+import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:test/test.dart';
 
@@ -31,6 +36,44 @@ Map<String, String> get _noCodeRoots => {
 
 void main() {
   group('docNamesInCode', () {
+    test(
+      'reads a file the Symbol rule read before it from that read',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final project = await writeCheckProject();
+        final session = openSession(project);
+        addTearDown(session.close);
+        final context = CheckContext(session);
+        checkImplements(context, session.index.at(loginRecord)!).toList();
+        final path = '${project.path}/app/lib/login.dart';
+        Process.runSync('chmod', ['000', path]);
+        addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+        docNamesInCode(
+          context,
+          ImplementedWork(context, context.targets),
+        ).toList();
+
+        expect(context.unstatedWarnings, isEmpty);
+        expect(context.codeFilesRead, 1);
+      },
+    );
+
+    test('a file an implements entry, a code link, and the scan all read is '
+        'read once', () async {
+      final session = openSession(await writeCheckProject());
+      addTearDown(session.close);
+      final context = CheckContext(session);
+      final work = ImplementedWork(context, context.targets);
+      final record = session.index.at(loginRecord)!;
+
+      checkImplements(context, record).toList();
+      checkCodeLinks(context, work, record).toList();
+      docNamesInCode(context, work).toList();
+
+      expect(context.codeFilesRead, 1);
+    });
+
     test('a comment line naming a doc gives one finding at its line', () async {
       final report = checkOf(
         await writeCheckProject(

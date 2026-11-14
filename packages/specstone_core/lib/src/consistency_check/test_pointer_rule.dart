@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
@@ -93,15 +92,14 @@ final class _TestTexts {
   String? textOf(CheckContext context, CodeTarget target, String path) {
     final key = (target, path);
     if (_texts.containsKey(key)) return _texts[key];
+    final bytes = context.readCodeBytes(target, path);
     String? text;
-    try {
-      text = const Utf8Decoder(allowMalformed: true).convert(
-        File('${context.codeRootOf(target).path}/$path').readAsBytesSync(),
-      );
-    } on FileSystemException {
+    if (bytes == null) {
       context.warn(
         '$path: cannot read the file; tests names in it are not checked',
       );
+    } else {
+      text = const Utf8Decoder(allowMalformed: true).convert(bytes);
     }
     return _texts[key] = text;
   }
