@@ -110,7 +110,7 @@ void main() {
       expect(pathBefore, contains(binDir(sb)));
     });
 
-    pathTest('f09/us03/fr01: a removal that fails for a reason other than a '
+    pathTest('a removal that fails for a reason other than a '
         'lock leaves that folder; the rest goes, exit 1', () async {
       final sb = await installedSandbox();
       final lib = Directory(libDir(sb));
@@ -149,7 +149,7 @@ void main() {
       expect(lines.last, pluginLine);
     });
 
-    pathTest('f09/us03/fr01: the PATH item is found in another case and with '
+    pathTest('the PATH item is found in another case and with '
         'a trailing backslash', () async {
       final sb = await installedSandbox();
       await writeUserPath((
@@ -163,7 +163,7 @@ void main() {
       expect((await readUserPath())?.value, otherItems);
     });
 
-    pathTest('f09/us03/fr01: an ExpandString Path keeps its kind and its '
+    pathTest('an ExpandString Path keeps its kind and its '
         '%VAR% items', () async {
       final sb = await installedSandbox();
       await writeUserPath((
@@ -196,7 +196,7 @@ void main() {
       expect((await readUserPath())?.value, otherItems);
     });
 
-    pathTest('f09/us03/fr02/e01: claude on the PATH is never run', () async {
+    pathTest('claude on the PATH is never run', () async {
       final sb = await installedSandbox();
       sb.stub('claude', r'>> "%STUB_LOG_DIR%\claude.log" echo %*');
 
@@ -228,7 +228,7 @@ void main() {
       },
     );
 
-    pathTest("f09/us03/fr01: irm | iex leaves the session's "
+    pathTest("irm | iex leaves the session's "
         'ErrorActionPreference as it was', () async {
       final sb = await createScriptSandbox();
       final script = '${repoRoot().path}\\uninstall.ps1';

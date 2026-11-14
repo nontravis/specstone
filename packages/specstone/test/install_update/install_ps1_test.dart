@@ -301,7 +301,7 @@ void main() {
       expect(await userPathCount(binDir(sb)), 1);
     });
 
-    pathTest('f09/us01/fr04/e01: an entry spelled in another case with a '
+    pathTest('an entry spelled in another case with a '
         'trailing backslash counts as there', () async {
       final sb = await sandboxWith();
       final folder = binDir(sb);
@@ -318,7 +318,7 @@ void main() {
       expect(r.stdout, isNot(contains('to the user PATH')));
     });
 
-    pathTest('f09/us01/fr04: a user Path holding %USERPROFILE% keeps that '
+    pathTest('a user Path holding %USERPROFILE% keeps that '
         'literal entry and its ExpandString kind', () async {
       final sb = await sandboxWith();
       await writeUserPath((
@@ -335,7 +335,7 @@ void main() {
       expect(await userPathCount(binDir(sb)), 1);
     });
 
-    pathTest('f09/us01/fr04: a %USERPROFILE% spelling of the folder counts '
+    pathTest('a %USERPROFILE% spelling of the folder counts '
         'as there', () async {
       final sb = await sandboxWith();
       const spelled = r'%USERPROFILE%\.specstone\bin';
@@ -351,7 +351,7 @@ void main() {
       expect((await readUserPath())?.value, 'C:\\Windows;$spelled');
     });
 
-    pathTest('f09/us01/fr04: an empty user Path gets the entry', () async {
+    pathTest('an empty user Path gets the entry', () async {
       final sb = await sandboxWith();
       await writeUserPath((value: '', kind: 'String'));
 
@@ -361,7 +361,7 @@ void main() {
       expect((await readUserPath())?.value, binDir(sb));
     });
 
-    pathTest('f09/us01/fr03/e02: a running old specstone.exe is renamed to '
+    pathTest('a running old specstone.exe is renamed to '
         '.old; the next run deletes it', () async {
       final sb = await sandboxWith();
       final exe = File('${binDir(sb)}\\specstone.exe');
@@ -412,7 +412,7 @@ void main() {
       expect(versionOf('$install\\bin\\specstone.exe'), specstoneVersion);
     });
 
-    pathTest('f09/us01/fr03/e02: a still-locked .old stays, and the run '
+    pathTest('a still-locked .old stays, and the run '
         'succeeds', () async {
       final sb = await sandboxWith();
       final old = File('${binDir(sb)}\\specstone.exe.old');
@@ -432,7 +432,7 @@ void main() {
       expect(old.existsSync(), isFalse);
     });
 
-    pathTest('f09/us01/fr03/e02: a file whose .old name a locked leftover '
+    pathTest('a file whose .old name a locked leftover '
         'holds is renamed to the next free .old name', () async {
       final sb = await sandboxWith();
       final exe = File('${binDir(sb)}\\specstone.exe');
@@ -925,7 +925,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       });
     });
 
-    pathTest('f09/us01/fr02/e01: a download that fails stops with the install '
+    pathTest('a download that fails stops with the install '
         'unchanged, exit 1', () async {
       final sb = await createScriptSandbox();
       sb.installFake();
@@ -943,7 +943,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       expect(sb.snapshot(), before);
     });
 
-    pathTest('f09/us01/fr02/e02: no SHA256SUMS line is a checksum failure, '
+    pathTest('no SHA256SUMS line is a checksum failure, '
         'exit 1', () async {
       final sb = await sandboxWith(withSumsLine: false);
 
@@ -959,7 +959,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       expect(sb.snapshot(), isEmpty);
     });
 
-    pathTest('f09/us01/fr02: a downloaded binary that does not run is named, '
+    pathTest('a downloaded binary that does not run is named, '
         'install unchanged', () async {
       final sb = await createScriptSandbox();
       final broken = Directory('${sb.root.path}\\broken')
@@ -1058,23 +1058,20 @@ if ($env:HARNESS_MODE -eq 'iex') {
         expect(sb.logOf('claude'), calls);
       }
 
-      pathTest(
-        'f09/us01/fr05/e01: an added marketplace skips the add',
-        () async {
-          final sb = await sandboxWithClaude(marketplaces: marketplaceJson);
+      pathTest('an added marketplace skips the add', () async {
+        final sb = await sandboxWithClaude(marketplaces: marketplaceJson);
 
-          final r = await runInstall(sb);
+        final r = await runInstall(sb);
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(sb.logOf('claude'), [
-            listMarketplaces,
-            listPlugins,
-            installPlugin,
-          ]);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [
+          listMarketplaces,
+          listPlugins,
+          installPlugin,
+        ]);
+      });
 
-      pathTest('f09/us01/fr05/e02: a user-scope specstone@specstone skips the '
+      pathTest('a user-scope specstone@specstone skips the '
           'install; another scope does not', () async {
         final user = await sandboxWithClaude(
           marketplaces: marketplaceJson,
@@ -2107,7 +2104,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
         ]);
       });
 
-      pathTest('f09/us01/fr05/e04: a failing claude plugin install names its '
+      pathTest('a failing claude plugin install names its '
           'first stderr line; exit 0', () async {
         final sb = await sandboxWithClaude();
 
@@ -2467,7 +2464,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       });
     });
 
-    pathTest("f09/us01/fr01: irm | iex leaves the session's "
+    pathTest("irm | iex leaves the session's "
         'ErrorActionPreference and module auto-loading as they were', () async {
       final sb = await sandboxWith();
       final script = '${repoRoot().path}\\install.ps1';
