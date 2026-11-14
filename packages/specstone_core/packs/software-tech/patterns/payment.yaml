@@ -1,0 +1,48 @@
+id: payment
+description: Charge, confirm, refund, and provider events.
+items:
+  - id: server_side_totals
+    text: The server recalculates prices, discounts, and totals from trusted data and ignores amounts the client sends.
+  - id: verify_with_provider
+    text: An order is fulfilled only after the server confirms with the provider that the payment matches its amount, currency, and order.
+  - id: event_signature
+    text: Every provider event is checked for a valid signature before the system acts on it.
+  - id: duplicate_events
+    text: A provider event that arrives twice is processed once, using a record of the event ids already handled.
+  - id: event_order
+    text: Event handling never depends on arrival order, and a late event is checked against the current payment state.
+  - id: quick_acknowledge
+    text: The event endpoint answers at once and does slow work afterward, since the provider retries events it sees unanswered.
+  - id: idempotency_key
+    text: Each charge request carries an idempotency key, so a retry after a network error never charges twice.
+  - id: resume_checkout
+    text: An interrupted checkout resumes the same payment attempt instead of starting a new one.
+  - id: partial_refunds
+    text: A payment can be refunded in full or in parts, and the refunds never total more than the charge.
+  - id: failed_refunds
+    text: A refund that fails after it was issued is caught from provider events and settled another way.
+  - id: card_data_scope
+    text: Card data stays with the provider, since storing, processing, or sending it brings the system into PCI DSS scope.
+  - id: no_sensitive_auth_data
+    text: Card security codes and PIN data are never kept after authorization, even when encrypted.
+  - id: confirm_transaction_details
+    text: Approving a sensitive transaction shows the user its key details, such as the amount and the payee, before they confirm.
+  - id: one_time_authorization
+    text: Each transaction approval code works once, for that one transaction, within a short time.
+  - id: step_order
+    text: Payment steps run in their set order, and a change to the transaction data after approval resets the approval.
+reference:
+  - title: OWASP Third Party Payment Gateway Integration Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Third_Party_Payment_Gateway_Integration_Cheat_Sheet.html
+  - title: OWASP Transaction Authorization Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Transaction_Authorization_Cheat_Sheet.html
+  - title: Stripe Payment Intents
+    url: https://docs.stripe.com/payments/payment-intents
+  - title: Stripe Webhooks
+    url: https://docs.stripe.com/webhooks
+  - title: Stripe Idempotent requests
+    url: https://docs.stripe.com/api/idempotent_requests
+  - title: Stripe Refunds
+    url: https://docs.stripe.com/refunds
+  - title: PCI DSS
+    url: https://www.pcisecuritystandards.org/standards/pci-dss/

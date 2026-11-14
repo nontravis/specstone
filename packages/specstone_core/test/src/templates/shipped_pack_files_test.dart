@@ -91,7 +91,11 @@ void main() {
     test('S4, E08: the pack writes no layer over a prd-core doc type, so a '
         'story and an FR carry no code-pointer field', () {
       final files = shippedPackFiles.keys
-          .where((k) => k.startsWith('software-tech/'))
+          .where(
+            (k) =>
+                k.startsWith('software-tech/') &&
+                !k.startsWith('software-tech/patterns/'),
+          )
           .toList();
       expect(
         files,

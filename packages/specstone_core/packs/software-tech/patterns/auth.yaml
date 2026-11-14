@@ -1,0 +1,45 @@
+id: auth
+description: Sign in, sign out, session, lockout, and recovery.
+items:
+  - id: sign_in_no_enumeration
+    text: A failed sign-in gives the same message, status, and timing for an unknown account, a wrong password, and a locked account.
+  - id: failed_attempt_limit
+    text: Repeated failed sign-ins on one account are slowed or locked out, counted per account rather than per source address.
+  - id: lockout_abuse
+    text: A lockout cannot be used to shut other users out, and a locked-out user can still regain access through recovery.
+  - id: second_factor
+    text: Sign-in offers a second factor and requires one wherever the account's risk level calls for it.
+  - id: new_session_on_sign_in
+    text: Each sign-in, including a repeat sign-in, issues a new session token and ends the one used before.
+  - id: session_timeout
+    text: A session ends on the server after a set idle time and after a set absolute lifetime, whichever comes first.
+  - id: sign_out
+    text: Sign-out is reachable from every signed-in page and invalidates the session on the server so its token stops working.
+  - id: view_and_end_sessions
+    text: The user can see active sessions and end any or all of them after confirming with at least one factor.
+  - id: end_sessions_after_credential_change
+    text: After a password reset or a change to any sign-in factor, the user can end every other active session.
+  - id: reset_no_enumeration
+    text: A password reset request gives the same reply in the same time whether or not the account exists.
+  - id: reset_token
+    text: A reset link or code is random, long enough to resist guessing, tied to one account, single use, and short lived.
+  - id: reset_rate_limit
+    text: Reset requests are rate limited per account so nobody can flood a user's inbox or phone.
+  - id: reset_keeps_second_factor
+    text: A password reset never bypasses a second factor the account has turned on.
+  - id: reset_notice
+    text: A completed reset or recovery notifies the user, with no password in the notice and a way to report it.
+  - id: no_knowledge_questions
+    text: Neither sign-in nor recovery relies on security questions or password hints.
+reference:
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/v5.0.0
+    locator: V6 Authentication; V7 Session Management (V7.4 Session Termination)
+  - title: OWASP Authentication Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
+  - title: OWASP Session Management Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html
+  - title: OWASP Forgot Password Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html
+  - title: NIST SP 800-63B
+    url: https://pages.nist.gov/800-63-4/sp800-63b.html
