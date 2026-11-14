@@ -96,6 +96,12 @@ Bundle pickCodeBundle(
     }
   }
   bundle.join(index, noProject: noProject);
+  if (mode == BundleMode.design) {
+    bundle.patternListerPaths.addAll([
+      ...bundle.docPaths,
+      ...bundle.joinedPaths,
+    ]);
+  }
   return bundle;
 }
 

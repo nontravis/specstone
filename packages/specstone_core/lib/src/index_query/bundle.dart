@@ -66,6 +66,10 @@ final class Bundle {
   Set<String> get summaryOnly =>
       summaryPaths.difference(docPaths).difference(joinedPaths);
 
+  /// The docs a design bundle may print feature pattern parts after, by
+  /// DocPath: the chain of each target, or with `--code` every doc it holds.
+  final Set<String> patternListerPaths = {};
+
   /// The tops whose query map prints.
   final Set<String> mapTops = {};
 
@@ -96,6 +100,7 @@ final class Bundle {
         mapTops.add(top.docPath);
       case BundleMode.design:
         _addDesign(index, effective, top);
+        _addAll(patternListerPaths, index.chainOf(effective));
       case BundleMode.implement:
         _addImplement(index, effective, top);
     }

@@ -3,6 +3,7 @@ import 'package:specstone_core/src/index_query/bundle_follow.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/feature_pattern_parts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
@@ -20,13 +21,16 @@ const _overBudgetSummaryNextStep =
 /// One doc or appended part a bundle text prints, with the lines it spans
 /// there, counted from 1: its naming line `first` to its `last` line, and
 /// the header line of each `##` section it prints whole. A cited part names
-/// the `##` section that holds it and its item ID, when it has them.
+/// the `##` section that holds it and its item ID, when it has them. A
+/// feature pattern part's `doc` is the doc that lists it and its
+/// `featurePattern` the pattern id; null for any other entry.
 typedef BundleEntry = ({
   IndexedDoc doc,
   bool summary,
   bool cited,
   String? sectionKey,
   String? itemId,
+  String? featurePattern,
   int first,
   int last,
   List<({String key, int first})> sections,
@@ -137,6 +141,15 @@ ContextAnswer answerContext(
       ),
   ];
   final docBlocks = [for (final print in docPrints) print.block];
+  final patternParts = featurePatternParts(index, bundle, ordered);
+  final patternBlocks = [
+    for (final part in patternParts) featurePatternBlock(part),
+  ];
+  final slots = _slotsOf(ordered, patternParts);
+  final slotBlocks = [
+    for (final (:doc, :part) in slots)
+      if (doc == null) patternBlocks[part!] else docBlocks[doc],
+  ];
   final mapBlocks = [
     for (final top in _byTreeOrder(index, bundle.mapTops))
       _mapBlock(index, index.at(top)!, bundle.codeTarget),
@@ -148,7 +161,7 @@ ContextAnswer answerContext(
   final parts = followLinks(index, bundle, citedBy: citedBy);
   final partBlocks = [for (final part in parts) _partBlock(part)];
   final shown = [
-    ...docBlocks,
+    ...slotBlocks,
     ...mapBlocks,
     ...namesBlocks,
     ...partBlocks,
@@ -161,6 +174,9 @@ ContextAnswer answerContext(
       docBlocks,
       summaryOnly,
       bundle,
+      slots: slots,
+      patternParts: patternParts,
+      patternBlocks: patternBlocks,
       parts: parts,
       partBlocks: partBlocks,
       label: label,
@@ -171,27 +187,41 @@ ContextAnswer answerContext(
     );
   }
   final list = [
-    for (final doc in ordered) '- ${_listName(doc, inSummary(doc))}\n',
+    for (final (:doc, :part) in slots)
+      if (doc == null)
+        '- ${featurePatternListName(patternParts[part!])}\n'
+      else
+        '- ${_listName(ordered[doc], inSummary(ordered[doc]))}\n',
     for (final part in parts) '- ${_partListName(part)}\n',
   ];
   final listsSummary =
       summaryOnly.isNotEmpty || parts.any((part) => part.summary);
   final starts = _blockStarts([
-    ...docBlocks,
+    ...slotBlocks,
     ...mapBlocks,
     ...namesBlocks,
     ...partBlocks,
   ], firstLine: named == null ? 1 : 2);
-  final partsFrom = docBlocks.length + mapBlocks.length + namesBlocks.length;
+  final partsFrom = slotBlocks.length + mapBlocks.length + namesBlocks.length;
   final entries = <BundleEntry>[
-    for (final (i, doc) in ordered.indexed)
-      _entry(
-        doc,
-        docBlocks[i],
-        docPrints[i].sections,
-        first: starts[i],
-        summary: inSummary(doc),
-      ),
+    for (final (k, (:doc, :part)) in slots.indexed)
+      if (doc == null)
+        _entry(
+          patternParts[part!].lister,
+          slotBlocks[k],
+          const [],
+          first: starts[k],
+          summary: false,
+          featurePattern: patternParts[part].pattern.id,
+        )
+      else
+        _entry(
+          ordered[doc],
+          slotBlocks[k],
+          docPrints[doc].sections,
+          first: starts[k],
+          summary: inSummary(ordered[doc]),
+        ),
     for (final (i, part) in parts.indexed)
       _entry(
         part.doc,
@@ -235,6 +265,10 @@ ContextAnswer answerContext(
           ..._citedByKey(part.cited, citedBy),
         },
     ],
+    if (bundle.mode == BundleMode.design)
+      'featurePatterns': [
+        for (final part in patternParts) featurePatternJson(part),
+      ],
     ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
     ..._namesJson(index, bundle.nameListTops, bundle.codeTarget),
   };
@@ -260,11 +294,34 @@ List<int> _blockStarts(List<String> blocks, {required int firstLine}) {
   return starts;
 }
 
+/// One block of the doc side of a bundle text: the index of a picked doc in
+/// the print order, or of a feature pattern part, never both.
+typedef _Slot = ({int? doc, int? part});
+
+/// Returns the blocks of [ordered] with each of [patternParts] right after
+/// its lister, both in print order.
+List<_Slot> _slotsOf(
+  List<IndexedDoc> ordered,
+  List<FeaturePatternPart> patternParts,
+) {
+  final slots = <_Slot>[];
+  var next = 0;
+  for (final (i, doc) in ordered.indexed) {
+    slots.add((doc: i, part: null));
+    while (next < patternParts.length &&
+        patternParts[next].lister.docPath == doc.docPath) {
+      slots.add((doc: null, part: next++));
+    }
+  }
+  return slots;
+}
+
 /// Returns the entry of a doc or part whose printed [block] starts on line
 /// [first], its [sections] counted from that line.
 ///
 /// - [cited]: an appended part's section key and item ID; null for a picked
 ///   doc.
+/// - [featurePattern]: the pattern id of a feature pattern part's entry.
 BundleEntry _entry(
   IndexedDoc doc,
   String block,
@@ -272,12 +329,14 @@ BundleEntry _entry(
   required int first,
   required bool summary,
   ({String? sectionKey, String? itemId})? cited,
+  String? featurePattern,
 }) => (
   doc: doc,
   summary: summary,
   cited: cited != null,
   sectionKey: cited?.sectionKey,
   itemId: cited?.itemId,
+  featurePattern: featurePattern,
   first: first,
   last: first + lineCountOf(block) - 1,
   sections: [
@@ -305,6 +364,9 @@ ContextAnswer _overBudget(
   List<String> docBlocks,
   Set<String> summaryOnly,
   Bundle bundle, {
+  required List<_Slot> slots,
+  required List<FeaturePatternPart> patternParts,
+  required List<String> patternBlocks,
   required List<AppendedPart> parts,
   required List<String> partBlocks,
   required String label,
@@ -318,11 +380,17 @@ ContextAnswer _overBudget(
       : _overBudgetNextStep;
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
-    for (final (i, doc) in ordered.indexed)
-      _overBudgetLine(
-        _listName(doc, summaryOnly.contains(doc.docPath)),
-        sizes[i],
-      ),
+    for (final (:doc, :part) in slots)
+      if (doc == null)
+        _overBudgetLine(
+          featurePatternListName(patternParts[part!]),
+          tokenSizeOf(patternBlocks[part]),
+        )
+      else
+        _overBudgetLine(
+          _listName(ordered[doc], summaryOnly.contains(ordered[doc].docPath)),
+          sizes[doc],
+        ),
     for (final (i, part) in parts.indexed)
       _overBudgetLine(_partListName(part), tokenSizeOf(partBlocks[i])),
   ];
@@ -352,6 +420,15 @@ ContextAnswer _overBudget(
       for (final (i, part) in parts.indexed)
         {..._partDocJson(part, partBlocks[i]), ..._partKeys(part)},
     ],
+    if (bundle.mode == BundleMode.design)
+      'featurePatterns': [
+        for (final (i, part) in patternParts.indexed)
+          {
+            'id': part.pattern.id,
+            'doc': featurePatternDocAddress(part),
+            'tokens': tokenSizeOf(patternBlocks[i]),
+          },
+      ],
     'next': next,
   };
   return ContextAnswer(

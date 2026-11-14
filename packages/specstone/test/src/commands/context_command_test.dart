@@ -1345,4 +1345,126 @@ void main() {
       );
     });
   });
+
+  group('feature pattern parts', () {
+    const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
+    Map<String, String> patterned(String patterns) => {
+      '.specstone/templates/feature.yaml':
+          'fields:\n  - id: patterns\n    type: string\n    list: true\n',
+      featurePath:
+          '---\nvision:\n  - PV-01\npatterns: $patterns\n---\n\n# Login\n\n## Problem\nUsers sign in.\n',
+      '.specstone/templates/patterns/sign_in_checks.yaml':
+          'id: sign_in_checks\ndescription: Sign-in checklist.\nitems:\n'
+          '  - id: lockout\n    text: Name the lockout rule.\n'
+          'reference:\n  - title: Handbook\n    url: https://example.com/handbook\n',
+      '.specstone/templates/patterns/record_checks.yaml':
+          'id: record_checks\ndescription: Record checklist.\nitems:\n'
+          '  - id: create\n    text: Name the create path.\n',
+    };
+    Future<({int code, String out})> run(
+      Map<String, String> extra,
+      List<String> args,
+    ) async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(extra: extra),
+      );
+      final code = await runner.run(['context', ...args]);
+      return (code: code, out: out.toString());
+    }
+
+    test('f01/us05/s25: a design bundle holds each checklist the feature names right after it, in the order it names them', () async {
+      final r = await run(patterned('[sign_in_checks, record_checks]'), [
+        'login/email_login',
+        '--for',
+        'design',
+      ]);
+
+      expect(r.code, 0);
+      final text = r.out;
+      final feature = text.indexOf('==> login (feature) · ');
+      final first = text.indexOf(
+        '==> sign_in_checks (feature pattern) · login <==\nSign-in checklist.\n'
+        '- **lockout** Name the lockout rule.\nPattern sources:\n- Handbook: https://example.com/handbook\n',
+      );
+      final second = text.indexOf(
+        '==> record_checks (feature pattern) · login <==\nRecord checklist.\n- **create** Name the create path.\n',
+      );
+      final story = text.indexOf('==> login/email_login (user_story) · ');
+      expect([feature, first, second, story], everyElement(isNonNegative));
+      expect(feature, lessThan(first));
+      expect(first, lessThan(second));
+      expect(second, lessThan(story));
+    });
+    test(
+      'f01/us05/s25: a bundle for implementing holds no checklist',
+      () async {
+        final r = await run(patterned('[sign_in_checks]'), [
+          'login/email_login',
+          '--for',
+          'implement',
+        ]);
+
+        expect(r.code, 0);
+        expect(r.out, isNot(contains('(feature pattern)')));
+      },
+    );
+    test('f01/us05/fr08/e10: --json carries featurePatterns in each design reply and in no other mode', () async {
+      final extra = patterned('[sign_in_checks]');
+      final design = await run(extra, [
+        'login/email_login',
+        '--for',
+        'design',
+        '--json',
+      ]);
+      final implement = await run(extra, [
+        'login/email_login',
+        '--for',
+        'implement',
+        '--json',
+      ]);
+      final query = await run(extra, [
+        'login/email_login',
+        '--for',
+        'query',
+        '--json',
+      ]);
+
+      expect((jsonDecode(design.out) as Map)['featurePatterns'], [
+        {
+          'id': 'sign_in_checks',
+          'doc': 'feature:login',
+          'description': 'Sign-in checklist.',
+          'items': [
+            {'id': 'lockout', 'text': 'Name the lockout rule.'},
+          ],
+          'reference': [
+            {'title': 'Handbook', 'url': 'https://example.com/handbook'},
+          ],
+        },
+      ]);
+      expect(
+        jsonDecode(implement.out) as Map,
+        isNot(contains('featurePatterns')),
+      );
+      expect(jsonDecode(query.out) as Map, isNot(contains('featurePatterns')));
+    });
+    test('f01/us05/fr08/e10: a design bundle where no part joins gives featurePatterns: []', () async {
+      final none = await run(const {}, [
+        'login/email_login',
+        '--for',
+        'design',
+        '--json',
+      ]);
+      final unknown = await run(patterned('[nothing]'), [
+        'login/email_login',
+        '--for',
+        'design',
+        '--json',
+      ]);
+
+      expect((jsonDecode(none.out) as Map)['featurePatterns'], isEmpty);
+      expect((jsonDecode(unknown.out) as Map)['featurePatterns'], isEmpty);
+      expect(none.out, contains('"featurePatterns":'));
+    });
+  });
 }
