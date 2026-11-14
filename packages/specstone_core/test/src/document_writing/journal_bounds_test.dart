@@ -20,19 +20,23 @@ final String? _linksUnavailable = Platform.isWindows
     ? 'a link needs a privilege on Windows'
     : null;
 
-// WORKAROUND: a folder a churning isolate deletes and makes again can answer
-// the NTFS deleted-file alias or an empty path on every walk inside the
-// resolve budget, so it is refused when the budget ends; remove when the
-// 1.2.1 fix of the Windows mid-resolve race lands.
-final String? _churnRaceOnWindows = Platform.isWindows
-    ? 'the Windows mid-resolve race can outlast the resolve budget'
-    : null;
-
 /// What Windows answered on CI for a file deleted while it was resolved.
 const _deletedAlias = r'C:\$Extend\$Deleted\002200000014DCAD7A7FE315';
 
 /// How many refused rounds a churn failure lists.
 const _refusalsShown = 5;
+
+/// What a resolve answered on CI for a name deleted while it was resolved:
+/// ENOENT on Linux, the deleted-file alias or an empty path on Windows.
+final _churnAnswers = <(String, String Function(String))>[
+  (
+    'a not-found failure',
+    (asked) =>
+        throw FileSystemException('', asked, const OSError('not found', 2)),
+  ),
+  ('an NTFS deleted-file answer', (_) => _deletedAlias),
+  ('an empty answer', (_) => ''),
+];
 
 /// Returns every entry under [root] as text: a file by its bytes, a link by
 /// its target, a folder by its name; nothing is followed.
@@ -205,7 +209,7 @@ void main() {
               '$refused of $rounds judgments refused; the resolves of the '
               'first: ${firstRefusals.join('; ')}',
         );
-      }, skip: _churnRaceOnWindows);
+      });
     },
   );
 
@@ -277,14 +281,33 @@ void main() {
       expect(bounds.holds('side-folder/x.md'), isTrue);
     });
 
-    test('an NTFS deleted-file answer for a folder that stays refuses', () {
+    for (final (kind, answer) in _churnAnswers) {
+      test('$kind at every walk for a folder deleted and made again each time '
+          'counts it under its parent', () {
+        String churnThenAnswer(String asked) {
+          if (asked != folder) return realPathOnDisk(asked);
+          Directory(asked)
+            ..deleteSync(recursive: true)
+            ..createSync();
+          return answer(asked);
+        }
+
+        final bounds = JournalBounds(root, [real], resolve: churnThenAnswer);
+
+        expect(bounds.holds('side-folder/x.md'), isTrue);
+      });
+    }
+
+    test('an NTFS deleted-file answer for a link that stays refuses', () {
+      final link = '${root.path}${Platform.pathSeparator}side-link';
+      Link(link).createSync(folder);
       String answerAlias(String asked) =>
-          asked == folder ? _deletedAlias : realPathOnDisk(asked);
+          asked == link ? _deletedAlias : realPathOnDisk(asked);
 
       final bounds = JournalBounds(root, [real], resolve: answerAlias);
 
-      expect(bounds.holds('side-folder/x.md'), isFalse);
-    });
+      expect(bounds.holds('side-link/x.md'), isFalse);
+    }, skip: _linksUnavailable);
   });
 
   group('$_finish E08: a refused replay changes nothing', () {

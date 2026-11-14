@@ -3,7 +3,7 @@ import 'dart:io';
 final String _separator = Platform.pathSeparator;
 
 /// The most steps one path may take before it counts as a loop: dangling
-/// links followed and names that vanished mid-resolve share this budget.
+/// links followed and links whose resolve failed share this budget.
 const _maxLinkHops = 40;
 
 /// Returns [path] with every `/` changed to `\` on Windows, else unchanged.
@@ -56,7 +56,8 @@ bool _hasDrive(String path) =>
 /// among the missing names is applied, because nothing missing can be a
 /// symbolic link. A link whose target does not exist is followed to where the
 /// target would be made, since a write through it creates the target. A name
-/// that vanishes while it is resolved counts as missing.
+/// that is no link and fails to resolve, such as one deleted meanwhile, is
+/// placed under its parent, where it lies whether gone or made again.
 ///
 /// Links that loop, or a chain of dangling links longer than the OS follows,
 /// stay as named, so a write through them fails at the disk. With [strict]
@@ -81,10 +82,11 @@ String canonicalPath(
     withNativeSeparators(File(path).absolute.path),
   );
   String resolved;
-  for (var hops = 0; ; hops++) {
+  var hops = 0;
+  while (true) {
     while (FileSystemEntity.typeSync(existing, followLinks: false) ==
         FileSystemEntityType.notFound) {
-      missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
+      missing.add(_nameOf(existing));
       // An absolute path always reaches the file-system root, which exists.
       existing = parentOf(existing);
     }
@@ -94,21 +96,29 @@ String canonicalPath(
         break;
       } on FileSystemException {
         // A name deleted since the check, such as a SQLite side file another
-        // connection closed, fails or answers for the deleted file; whatever
-        // the code, only a fresh walk tells gone from made again.
-        if (hops >= _maxLinkHops) rethrow;
+        // connection closed, fails or answers for the deleted file. A name
+        // that is no link lies where its parent puts it, gone or made again,
+        // so it is judged from its parent; asking it again can meet the same
+        // churn every time. Only a link needs its own answer.
+        final parent = parentOf(existing);
+        if (!FileSystemEntity.isLinkSync(existing) && parent != existing) {
+          missing.add(_nameOf(existing));
+          existing = parent;
+          continue;
+        }
+        if (hops++ >= _maxLinkHops) rethrow;
         continue;
       }
     }
     // A link that exists as itself but leads nowhere yet.
-    if (hops >= _maxLinkHops) {
+    if (hops++ >= _maxLinkHops) {
       if (strict) {
         throw FileSystemException(
           'too many levels of symbolic links',
           existing,
         );
       }
-      missing.add(existing.substring(existing.lastIndexOf(_separator) + 1));
+      missing.add(_nameOf(existing));
       existing = parentOf(existing);
       continue;
     }
@@ -142,6 +152,8 @@ String canonicalPath(
   return resolved;
 }
 
+String _nameOf(String path) => path.substring(path.lastIndexOf(_separator) + 1);
+
 /// Returns the real path of [path] as the disk resolves it.
 String realPathOnDisk(String path) => File(path).resolveSymbolicLinksSync();
 
@@ -154,8 +166,8 @@ String linkTargetOnDisk(String path) => Link(path).targetSync();
 /// Windows answers a name deleted meanwhile, while a handle to it is still
 /// open, with a place in the NTFS folder of deleted files
 /// (`C:\$Extend\$Deleted\...`) or with an empty path. Either answer throws a
-/// [FileSystemException], as a failed resolve does, so a caller walks the
-/// path again and reads the name as it stands now: gone, or made again.
+/// [FileSystemException], as a failed resolve does, so a caller never takes
+/// it for the real path.
 String resolveExisting(String path, String Function(String path) resolve) {
   final real = resolve(path);
   if (real.isNotEmpty && !_isNtfsDeletedFile(real)) return real;
