@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -56,6 +57,22 @@ final class LoadedPack {
         decodeYamlBytes(_read(path), file: '$displayFolder/$path'),
         file: '$displayFolder/$path',
         docTypeId: path.substring(0, path.length - '.yaml'.length),
+        kind: kind,
+        files: _files,
+      ),
+  };
+
+  /// Returns the pack's feature pattern layers, keyed by id, in code point
+  /// order.
+  ///
+  /// Only `patterns/<id>.yaml` files are patterns. Throws a [TemplateFault]
+  /// for any format fault.
+  Map<String, FeaturePatternLayer> parseFeaturePatterns() => {
+    for (final path in _featurePatternNames(_paths))
+      _patternId(path): _parsePatternFile(
+        path,
+        displayFolder: displayFolder,
+        bytes: _read(path),
         kind: kind,
         files: _files,
       ),
@@ -117,7 +134,7 @@ LoadedPack loadPersonalPackManifest(String name, Directory home) {
     manifest: _packManifest(displayFolder, _manifestBytes(folder)),
     kind: LayerKind.personal,
     displayFolder: displayFolder,
-    paths: _topLevelPaths(folder).toList(),
+    paths: [..._topLevelPaths(folder), ..._patternPaths(folder)],
     files: _DiskFiles(folder),
     read: (path) => readPlanInput(File.fromUri(folder.uri.resolve(path))),
   );
@@ -146,6 +163,61 @@ List<DocTypeLayer> loadProjectTemplates(Directory root) {
         files: _DiskFiles(folder),
       ),
   ];
+}
+
+/// Loads the project feature patterns under [root], in code point order.
+///
+/// The files are `.specstone/templates/patterns/<id>.yaml`; faults print them
+/// relative to the project root with `/` separators. Throws a
+/// [TemplateFault] for any format fault.
+List<FeaturePatternLayer> loadProjectFeaturePatterns(Directory root) {
+  const displayFolder = '.specstone/templates';
+  final folder = Directory.fromUri(root.uri.resolve(displayFolder));
+  return [
+    for (final path in _featurePatternNames(_patternPaths(folder)))
+      _parsePatternFile(
+        path,
+        displayFolder: displayFolder,
+        bytes: readPlanInput(File.fromUri(folder.uri.resolve(path))),
+        kind: LayerKind.project,
+        files: _DiskFiles(folder),
+      ),
+  ];
+}
+
+/// Parses the feature pattern file at [path], relative to its layer folder.
+FeaturePatternLayer _parsePatternFile(
+  String path, {
+  required String displayFolder,
+  required Uint8List bytes,
+  required LayerKind kind,
+  required LayerFiles files,
+}) {
+  final file = '$displayFolder/$path';
+  return FeaturePatternLayer.parse(
+    decodeYamlBytes(bytes, file: file),
+    file: file,
+    patternId: _patternId(path),
+    kind: kind,
+    files: files,
+  );
+}
+
+/// Returns the pattern id of [path], `patterns/<id>.yaml`.
+String _patternId(String path) =>
+    path.substring('patterns/'.length, path.length - '.yaml'.length);
+
+/// Returns the feature pattern file names of [paths] in code point order.
+List<String> _featurePatternNames(Iterable<String> paths) => [
+  for (final path in paths)
+    if (isFeaturePatternFileName(path)) path,
+]..sort(compareCodePoints);
+
+/// Returns the files directly under `patterns/` of [folder] as
+/// `patterns/<name>`, or none when the folder is missing.
+Set<String> _patternPaths(Directory folder) {
+  final patterns = Directory.fromUri(folder.uri.resolve('patterns/'));
+  return {for (final path in _topLevelPaths(patterns)) 'patterns/$path'};
 }
 
 /// Parses the pack manifest from its [bytes], null when the file is absent.

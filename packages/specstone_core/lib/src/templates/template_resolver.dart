@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
+import 'package:specstone_core/src/templates/feature_pattern.dart';
+import 'package:specstone_core/src/templates/feature_pattern_layer.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -20,8 +22,9 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 ///
 /// The load runs in stages: the config; every listed pack's manifest read and
 /// its pin, name, and version checked, packs by name in code point order; the
-/// packs ordered by their `extends` chains; each pack's doc-type files parsed
-/// in pack load order; the project templates; the merge. The first fault in
+/// packs ordered by their `extends` chains; each pack's doc-type files, then
+/// its feature pattern files, parsed in pack load order; the project
+/// templates, then the project feature patterns; the merge. The first fault in
 /// that order is the one fault raised (one fault per run), so no chain fault
 /// or doc-type file fault surfaces before every manifest check passes.
 final class TemplateResolver {
@@ -54,15 +57,18 @@ final class TemplateResolver {
         ? _everyShippedPack()
         : _listedPacks(config!, homeDirectory);
     final ordered = orderPacks(packs, configFile: projectConfigPath);
-    final parsed = [
-      for (final pack in ordered) (pack: pack, layers: pack.parseDocTypes()),
-    ];
+    final (:docTypes, :patterns) = _parsePacks(ordered);
     final projectLayers = root == null
         ? <DocTypeLayer>[]
         : loadProjectTemplates(root);
+    final projectPatterns = root == null
+        ? <FeaturePatternLayer>[]
+        : loadProjectFeaturePatterns(root);
     return _merge(
-      parsed,
+      docTypes,
       projectLayers,
+      patterns: patterns,
+      projectPatterns: projectPatterns,
       targetNames: config?.targetNames ?? const [],
     );
   }
@@ -106,15 +112,28 @@ final class TemplateResolver {
   }) {
     final loaded = _availablePacks(packNames, homeDirectory);
     final ordered = orderPacks(loaded, configFile: projectConfigPath);
-    final parsed = [
-      for (final pack in ordered) (pack: pack, layers: pack.parseDocTypes()),
-    ];
+    final (:docTypes, :patterns) = _parsePacks(ordered);
     return (
-      set: _merge(parsed, projectLayers),
+      set: _merge(docTypes, projectLayers, patterns: patterns),
       pins: {
         for (final pack in loaded) pack.manifest.name: pack.manifest.version,
       },
     );
+  }
+
+  /// Parses the doc-type files and then the feature pattern files of each pack
+  /// of [ordered], pack by pack, so one pack's pattern fault never precedes
+  /// its own doc-type fault.
+  ({List<ParsedPack> docTypes, List<_ParsedPatterns> patterns}) _parsePacks(
+    List<LoadedPack> ordered,
+  ) {
+    final docTypes = <ParsedPack>[];
+    final patterns = <_ParsedPatterns>[];
+    for (final pack in ordered) {
+      docTypes.add((pack: pack, layers: pack.parseDocTypes()));
+      patterns.add((pack: pack, layers: pack.parseFeaturePatterns()));
+    }
+    return (docTypes: docTypes, patterns: patterns);
   }
 
   /// Loads the packs [names] at their available versions, by name in code
@@ -246,14 +265,19 @@ final class TemplateResolver {
   /// the defining layer may write `extends`. The merged set is
   /// checked as one set after every merge, with [targetNames] gating a
   /// `targets:` config on the record doc type. The one [LoadIndex]
-  /// built here ranks every file a fault names.
+  /// built here ranks every file a fault names. The feature patterns merge
+  /// last, from the layers `_featurePatternLayers` collects: pack layers in
+  /// load order, then [projectPatterns].
   MergedSet _merge(
     List<ParsedPack> packs,
     List<DocTypeLayer> projectLayers, {
+    required List<_ParsedPatterns> patterns,
+    List<FeaturePatternLayer> projectPatterns = const [],
     List<String> targetNames = const [],
   }) {
     const merger = DocTypeMerger();
     final layerLists = _docTypeLayers(packs, projectLayers);
+    final patternLayers = _featurePatternLayers(patterns, projectPatterns);
     final loadOrder = [
       for (final (pack: _, :layers) in packs) ...layers.values,
       ...projectLayers,
@@ -269,7 +293,10 @@ final class TemplateResolver {
       loadIndex: loadIndex,
       targetNames: targetNames,
     );
-    return MergedSet(docTypes: docTypes.values.toList());
+    return MergedSet(
+      docTypes: docTypes.values.toList(),
+      featurePatterns: mergeFeaturePatterns(patternLayers),
+    );
   }
 
   /// Throws `unknown_value` for the first `move_to_record` step whose `to`
@@ -574,7 +601,56 @@ final class TemplateResolver {
     }
     return lists;
   }
+
+  /// The ordered layers each feature pattern id folds, lowest first.
+  ///
+  /// Pack layers come in `orderPacks` order, then the project layer, whose
+  /// `pack` is null. Two packs defining one id where neither reaches the
+  /// other are `feature_pattern_duplicate`: `file` holds the upper or later
+  /// pack's file, `relatedFiles` the other's, and the message names the id.
+  /// A project pattern over a pack-defined id is an override, never a
+  /// duplicate.
+  Map<String, List<WrittenPatternLayer>> _featurePatternLayers(
+    List<_ParsedPatterns> packs,
+    List<FeaturePatternLayer> projectLayers,
+  ) {
+    final lists = <String, List<WrittenPatternLayer>>{};
+    final byName = {
+      for (final (:pack, layers: _) in packs) pack.manifest.name: pack,
+    };
+    final extendsOf = extendsMapOf(byName.values);
+    for (final (:pack, :layers) in packs) {
+      for (final MapEntry(key: id, value: layer) in layers.entries) {
+        final list = lists.putIfAbsent(id, () => []);
+        // No project layer sits in `list` here: they append after this loop.
+        for (final (pack: priorName!, layer: prior) in list) {
+          final priorPack = byName[priorName]!;
+          final upper = reaches(pack, priorPack, extendsOf: extendsOf);
+          final lower = reaches(priorPack, pack, extendsOf: extendsOf);
+          if (!upper && !lower) {
+            throw TemplateFault(
+              FaultCode.featurePatternDuplicate,
+              'two loaded packs define one feature pattern id: $id',
+              file: layer.file,
+              relatedFiles: [prior.file],
+            );
+          }
+        }
+        list.add((pack: pack.manifest.name, layer: layer));
+      }
+    }
+    for (final layer in projectLayers) {
+      lists.putIfAbsent(layer.id, () => []).add((pack: null, layer: layer));
+    }
+    return lists;
+  }
 }
+
+/// One pack with the feature pattern layers its folder parsed, by id.
+typedef _ParsedPatterns = ({
+  LoadedPack pack,
+  Map<String, FeaturePatternLayer> layers,
+});
 
 /// Returns the `pack_pin_newer` fault for pack [name] pinned at [pin] while
 /// this Specstone carries [carried].

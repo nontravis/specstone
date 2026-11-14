@@ -35,13 +35,14 @@ void main() {
     'prd_core_missing',
     'doc_type_unknown',
     'feature_pattern_id_mismatch',
+    'feature_pattern_duplicate',
     'checklist_item_duplicate',
   ];
 
   group('FaultCode', () {
-    test('s05 catalog: wire codes equal the 33 catalog codes in order', () {
+    test('s05 catalog: wire codes equal the 34 catalog codes in order', () {
       expect(FaultCode.values.map((c) => c.wire), catalog);
-      expect(FaultCode.values, hasLength(33));
+      expect(FaultCode.values, hasLength(34));
     });
 
     test('s05 catalog: only docTypeUnknown exits 64, the rest 78', () {

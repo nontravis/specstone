@@ -37,6 +37,7 @@ enum FaultCode {
   prdCoreMissing('prd_core_missing', 78),
   docTypeUnknown('doc_type_unknown', 64),
   featurePatternIdMismatch('feature_pattern_id_mismatch', 78),
+  featurePatternDuplicate('feature_pattern_duplicate', 78),
   checklistItemDuplicate('checklist_item_duplicate', 78);
 
   new(this.wire, this.exitStatus);

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/generator_kinds.dart';
 import 'package:specstone_core/src/templates/layer.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -2228,6 +2229,268 @@ path: adr/{slug}.md
       expect(
         layered.lookup('feature')!.path,
         'prds/features/{slug}/f{nn}_{slug}/FEATURE.md',
+      );
+    });
+  });
+
+  group('TemplateResolver feature patterns', () {
+    const crud = '''
+id: crud
+description: Create, read, update, and delete one record
+items:
+  - id: create
+    text: Create one record
+  - id: delete
+    text: Delete one record
+''';
+    const allPacks =
+        'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n  nont-x: 1.0.0\n';
+    const nontX = 'name: nont-x\nversion: 1.0.0\nextends: software-tech\n';
+
+    Map<String, Uint8List> withCrud() =>
+        shipped()..['software-tech/patterns/crud.yaml'] = _bytes(crud);
+
+    Future<MergedSet> resolveTree({
+      required Map<String, String> project,
+      Map<String, String> home = const {},
+      Map<String, Uint8List>? shippedFiles,
+    }) async {
+      final projectDir = await writeTree(project);
+      final homeDir = await writeTree(home);
+      return TemplateResolver(shippedFiles: shippedFiles ?? withCrud())
+          .resolve(workingDirectory: projectDir, homeDirectory: homeDir);
+    }
+
+    test('a shipped, a personal, and a project layer merge in that order, '
+        'ids matching', () async {
+      final merged = await resolveTree(
+        project: {
+          _configPath: allPacks,
+          '.specstone/templates/patterns/crud.yaml': '''
+id: crud
+items:
+  - id: create
+    disabled: true
+  - id: export
+    text: Export all records
+''',
+        },
+        home: {
+          '.specstone/packs/nont-x/pack.yaml': nontX,
+          '.specstone/packs/nont-x/patterns/crud.yaml': '''
+id: crud
+items:
+  - id: delete
+    text: Delete one record, softly
+  - id: audit
+    text: Log each change
+''',
+        },
+      );
+
+      final pattern = merged.featurePattern('crud')!;
+      expect(pattern.pack, 'software-tech');
+      expect(
+        pattern.description,
+        'Create, read, update, and delete one record',
+      );
+      expect(
+        [for (final item in pattern.items) (item.id, item.text)],
+        [
+          ('delete', 'Delete one record, softly'),
+          ('audit', 'Log each change'),
+          ('export', 'Export all records'),
+        ],
+      );
+    });
+
+    test('an id no lower layer defines is a new pattern of the defining '
+        'layer', () async {
+      final merged = await resolveTree(
+        project: {
+          _configPath:
+              'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n'
+              '  nont-y: 1.0.0\n',
+          '.specstone/templates/patterns/export.yaml': '''
+id: export
+description: Export records
+items:
+  - id: format
+    text: Name the export format
+''',
+        },
+        home: {
+          '.specstone/packs/nont-y/pack.yaml': 'name: nont-y\nversion: 1.0.0\n',
+          '.specstone/packs/nont-y/patterns/cart.yaml': '''
+id: cart
+description: Shopping cart
+items:
+  - id: add
+    text: Add an item
+''',
+        },
+      );
+
+      expect(merged.featurePatterns.map((p) => p.id), [
+        'cart',
+        'crud',
+        'export',
+      ]);
+      expect(merged.featurePattern('export')!.pack, isNull);
+      expect(merged.featurePattern('cart')!.pack, 'nont-y');
+      expect(merged.featurePattern('crud')!.pack, 'software-tech');
+    });
+
+    test('two packs defining one pattern id with no extends between them '
+        'are feature_pattern_duplicate', () {
+      expect(
+        resolveTree(
+          project: {_configPath: allPacks},
+          home: {
+            '.specstone/packs/nont-x/pack.yaml':
+                'name: nont-x\nversion: 1.0.0\n',
+            '.specstone/packs/nont-x/patterns/crud.yaml': crud,
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.featurePatternDuplicate)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-x/patterns/crud.yaml',
+              )
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                'packs/software-tech/patterns/crud.yaml',
+              ])
+              .having((f) => f.message, 'message', contains('crud')),
+        ),
+      );
+    });
+
+    test('a pack extending another through a chain of listed packs layers '
+        'its pattern over it', () async {
+      final merged = await resolveTree(
+        project: {
+          _configPath:
+              'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n'
+              '  nont-a: 1.0.0\n  nont-b: 1.0.0\n',
+        },
+        home: {
+          '.specstone/packs/nont-b/pack.yaml':
+              'name: nont-b\nversion: 1.0.0\nextends: software-tech\n',
+          '.specstone/packs/nont-b/patterns/crud.yaml':
+              'id: crud\nitems:\n  - id: from_b\n    text: B item\n',
+          '.specstone/packs/nont-a/pack.yaml':
+              'name: nont-a\nversion: 1.0.0\nextends: nont-b\n',
+          '.specstone/packs/nont-a/patterns/crud.yaml':
+              'id: crud\nitems:\n  - id: from_a\n    text: A item\n',
+        },
+      );
+
+      expect(merged.featurePattern('crud')!.items.map((i) => i.id), [
+        'create',
+        'delete',
+        'from_b',
+        'from_a',
+      ]);
+    });
+
+    test('a file in a patterns subfolder or not ending .yaml is no pattern '
+        'and stays a reference file target', () async {
+      final merged = await resolveTree(
+        project: {
+          _configPath: allPacks,
+          '.specstone/templates/patterns/sub/y.yaml': 'bogus: x\n',
+          '.specstone/templates/patterns/notes.txt': 'notes\n',
+        },
+        home: {
+          '.specstone/packs/nont-x/pack.yaml': nontX,
+          '.specstone/packs/nont-x/patterns/sub/crud.yaml': 'bogus: x\n',
+          '.specstone/packs/nont-x/patterns/README.md': 'readme\n',
+          '.specstone/packs/nont-x/patterns/crud.yaml': '''
+id: crud
+reference:
+  - title: Notes
+    file: patterns/README.md
+''',
+        },
+        shippedFiles: withCrud()
+          ..['software-tech/patterns/deep/x.yaml'] = _bytes('bogus: x\n')
+          ..['software-tech/patterns/notes.txt'] = _bytes('notes\n'),
+      );
+
+      expect(merged.featurePatterns.map((p) => p.id), ['crud']);
+      expect(
+        merged.featurePattern('crud')!.reference.single.file,
+        'patterns/README.md',
+      );
+      expect(merged.docTypes.map((d) => d.id), ['architecture', 'feature']);
+    });
+
+    test('a project pinned at the carried pack version reads that '
+        "version's patterns", () async {
+      final merged = await resolveTree(
+        project: {
+          _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n',
+        },
+      );
+      expect(merged.featurePattern('crud'), isNotNull);
+
+      expect(
+        resolveTree(
+          project: {
+            _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 0.9.0\n',
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.packPinOlder,
+          ),
+        ),
+      );
+    });
+
+    test('a project listing only prd-core and holding no pattern file '
+        'loads no pattern', () async {
+      final merged = await resolveTree(
+        project: {_configPath: 'packs:\n  prd-core: 1.1.0\n'},
+      );
+
+      expect(merged.featurePatterns, isEmpty);
+      expect(merged.featurePattern('crud'), isNull);
+    });
+
+    test('a personal pattern file with CRLF line ends and a BOM loads as '
+        'the LF file does', () async {
+      const lf = '''
+id: crud
+items:
+  - id: audit
+    text: Log each change
+''';
+      final project = {_configPath: allPacks};
+      final lfSet = await resolveTree(
+        project: project,
+        home: {
+          '.specstone/packs/nont-x/pack.yaml': nontX,
+          '.specstone/packs/nont-x/patterns/crud.yaml': lf,
+        },
+      );
+      final crlfSet = await resolveTree(
+        project: project,
+        home: {
+          '.specstone/packs/nont-x/pack.yaml': nontX,
+          '.specstone/packs/nont-x/patterns/crud.yaml':
+              '﻿${lf.replaceAll('\n', '\r\n')}',
+        },
+      );
+
+      expect(
+        crlfSet.featurePattern('crud')!.toJson(),
+        lfSet.featurePattern('crud')!.toJson(),
       );
     });
   });

@@ -2,16 +2,28 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 
-/// The merged doc types of one resolve, sorted by id in code point order.
+/// The merged doc types and feature patterns of one resolve, each sorted by id
+/// in code point order.
 final class MergedSet {
-  new({required List<MergedDocType> docTypes})
-    : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes)));
+  new({
+    required List<MergedDocType> docTypes,
+    List<FeaturePattern> featurePatterns = const [],
+  }) : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes))),
+       featurePatterns = List.unmodifiable(
+         List<FeaturePattern>.of(featurePatterns)
+           ..sort((a, b) => compareCodePoints(a.id, b.id)),
+       );
 
   /// The merged doc types, sorted by id; the caller's list is untouched.
   final List<MergedDocType> docTypes;
+
+  /// The merged feature patterns, sorted by id; the caller's list is
+  /// untouched.
+  final List<FeaturePattern> featurePatterns;
 
   /// The doc type that writes `max_depth`, 0 included; null when none does.
   MergedDocType? get nestingType => nestingTypeOf(docTypes);
@@ -31,6 +43,14 @@ final class MergedSet {
   MergedDocType? lookup(String id) {
     for (final docType in docTypes) {
       if (docType.id == id) return docType;
+    }
+    return null;
+  }
+
+  /// Returns the feature pattern [id], or null when the set holds none.
+  FeaturePattern? featurePattern(String id) {
+    for (final pattern in featurePatterns) {
+      if (pattern.id == id) return pattern;
     }
     return null;
   }

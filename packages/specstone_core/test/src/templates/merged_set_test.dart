@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -19,6 +20,15 @@ MergedDocType _docType(String id, {String? pack, String? description}) =>
       files: const [],
     );
 
+FeaturePattern _pattern(String id) => FeaturePattern(
+  id: id,
+  pack: null,
+  extendsId: null,
+  description: 'A pattern',
+  items: const [],
+  reference: const [],
+);
+
 void main() {
   group('MergedSet', () {
     test('sorts doc types by id and freezes the list', () {
@@ -36,6 +46,33 @@ void main() {
 
       expect(merged.lookup('feature')!.id, 'feature');
       expect(merged.lookup('runbook'), isNull);
+    });
+
+    test('holds no feature pattern when none is given', () {
+      final merged = MergedSet(docTypes: const []);
+
+      expect(merged.featurePatterns, isEmpty);
+      expect(merged.featurePattern('crud'), isNull);
+    });
+
+    test('sorts feature patterns by id, freezes the list, and finds one by '
+        'id', () {
+      final given = [_pattern('export'), _pattern('auth'), _pattern('crud')];
+
+      final merged = MergedSet(docTypes: const [], featurePatterns: given);
+
+      expect(merged.featurePatterns.map((p) => p.id), [
+        'auth',
+        'crud',
+        'export',
+      ]);
+      expect(given.map((p) => p.id), ['export', 'auth', 'crud']);
+      expect(
+        () => merged.featurePatterns.add(_pattern('x')),
+        throwsUnsupportedError,
+      );
+      expect(merged.featurePattern('crud')!.id, 'crud');
+      expect(merged.featurePattern('nope'), isNull);
     });
 
     test('f03/us01/s2, f03/us01/fr01: listText prints one id per line', () {
