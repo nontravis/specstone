@@ -162,10 +162,10 @@ final class _Planner {
     AgentFolderGroup group, {
     required bool isUpsert,
   }) {
-    final notFolders = <String>[];
+    final refusals = <String>[];
     final listed = {
       for (final folder in group.folders)
-        if (_isUsable(base, folder, notFolders)) folder: _namesIn(base, folder),
+        if (_isUsable(base, folder, refusals)) folder: _namesIn(base, folder),
     };
     final entries = {
       for (final MapEntry(key: folder, value: names) in listed.entries)
@@ -176,7 +176,7 @@ final class _Planner {
     };
     final isInUse = entries.values.any((names) => names.isNotEmpty);
     if (!isInUse && !isUpsert) return;
-    notFolders.forEach(_skip);
+    refusals.forEach(_skip);
     for (final file in _rendered) {
       final names = listed[file.folder];
       if (names != null) _planFile(base, file, names);
@@ -198,22 +198,22 @@ final class _Planner {
   }
 
   /// Whether [folder] and its top are folders, or missing, where a run may
-  /// write; a refusal is named once, and a top that is no folder is added to
-  /// [notFolders] for the caller to name when its group takes part.
+  /// write; the line that names a refusal or a top that is no folder is added
+  /// to [refusals] for the caller to record when its group takes part.
   bool _isUsable(
     AgentFileBase base,
     AgentFolder folder,
-    List<String> notFolders,
+    List<String> refusals,
   ) {
     for (final relative in [folder.path.split('/').first, folder.path]) {
       final path = _pathIn(base, relative);
       final refusal = writeRefusalOf(path, projectRoot: _root);
       if (refusal != null) {
-        _skip(skippedLineOf(_rootPath(base, relative), refusal));
+        refusals.add(skippedLineOf(_rootPath(base, relative), refusal));
         return false;
       }
       if (_isNoFolder(path)) {
-        notFolders.add(
+        refusals.add(
           '${_rootPath(base, relative)} is not a folder; '
           'left as it is',
         );
@@ -307,7 +307,7 @@ final class _Planner {
   void _trash(AgentFileBase base, String relative) {
     final path = _rootPath(base, relative);
     final real = _pathIn(base, relative);
-    if (_planned.contains(canonicalPath(real))) return;
+    if (_planned.contains(_placedPath(real))) return;
     final refusal = writeRefusalOf(real, projectRoot: _root);
     if (refusal == null) {
       trash.add(path);
@@ -315,6 +315,15 @@ final class _Planner {
     } else {
       _skip(skippedLineOf(path, refusal));
     }
+  }
+
+  /// Where [path] lies: its folder resolved, its own name kept, so a link at
+  /// [path] counts as itself and not as the file it leads to.
+  String _placedPath(String path) {
+    final separator = Platform.pathSeparator;
+    final cut = path.lastIndexOf(separator);
+    final folder = canonicalPath(path.substring(0, cut));
+    return '$folder$separator${path.substring(cut + 1)}';
   }
 
   /// The files of [entry], from [base], by code point; a link to a folder is

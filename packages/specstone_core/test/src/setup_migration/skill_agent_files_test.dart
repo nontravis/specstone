@@ -599,6 +599,60 @@ void main() {
     });
   });
 
+  group('a folder that leaves the project and its group is not in use', () {
+    test('stays silent while another group is written', () async {
+      final existing = _firstPathIn(AgentFolder.agentsSkills);
+      final base = await _base({
+        'outside/keep.txt': 'x\n',
+        'proj/$existing': 'hand edit\n',
+      });
+      Link(_at(base, 'proj/.claude').path)
+          .createSync(_at(base, 'outside').path);
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.writes, isNotEmpty);
+      expect(plan.skipped, isEmpty);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('is named when another folder of its group is in use', () async {
+      final agent = _firstPathIn(AgentFolder.claudeAgents);
+      final base = await _base({
+        'outside/keep.txt': 'x\n',
+        'proj/$agent': 'hand edit\n',
+      });
+      Link(_at(base, 'proj/.claude/skills').path)
+          .createSync(_at(base, 'outside').path);
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.skipped, hasLength(1));
+      expect(plan.skipped.single, startsWith('.claude/skills '));
+      expect(plan.skipped.single, contains('outside the project root'));
+      expect(plan.writes, isNotEmpty);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+  });
+
+  group('an unshipped entry that links to a file the run claims', () {
+    test('is trashed and named as drift, and the claimed file stays', () async {
+      final claimed = _firstPathIn(AgentFolder.claudeAgents);
+      final name = claimed.substring(claimed.lastIndexOf('/') + 1);
+      final unshipped = '.codex/agents/$name';
+      expect(_rendered.map((file) => file.path), isNot(contains(unshipped)));
+      final base = await _base(_under('proj', _allRendered));
+      Link(_at(base, 'proj/$unshipped').path)
+          .createSync(_at(base, 'proj/$claimed').path);
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.trash, [unshipped]);
+      expect(plan.writes, isEmpty);
+      expect(skillAndAgentFileDrifts(_inputs(base)), [
+        (path: unshipped, kind: SkillFileDriftKind.unshipped),
+      ]);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+  });
+
   group('an entry that differs from a shipped name in case only', () {
     test('is a twin only when the disk folds case', () {
       expect(
@@ -627,13 +681,20 @@ void main() {
       final shipped = _firstPathIn(AgentFolder.claudeSkills);
       final entry = shipped.split('/')[2];
       final twin = 'S${entry.substring(1)}';
+      // A shipped file of another skill keeps the group in use, so the plan
+      // reaches the twin's entry on a disk that tells the two names apart.
+      final inUse = _rendered.firstWhere(
+        (file) =>
+            file.folder == AgentFolder.claudeSkills && file.entry != entry,
+      );
       final base = await _base({
         'proj/.claude/skills/$twin/SKILL.md': 'mine\n',
+        'proj/${inUse.path}': inUse.text,
       });
       final foldsCase = Directory(_at(base, 'proj/.claude/skills/$entry').path)
           .existsSync();
 
-      final plan = planSkillAndAgentFiles(_inputs(base), full: true);
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
       final writesToEntry = plan.writes.where(
         (write) => write.path.startsWith('.claude/skills/$entry/'),
       );
