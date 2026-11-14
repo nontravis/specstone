@@ -125,30 +125,47 @@ void main() {
         'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
     });
-    test('f01/us01/fr04/e13, s03/inv22: a layout-version rebuild appends bundles/ and reports/ and keeps the Owner lines in their order', () async {
-      const older = 'trash/\n# mine\n*.tmp\nindex.sqlite*\nbuild/\n';
-      final project = await writeLoginProject();
-      final docs = DocsProject.open(
-        templates: TemplateResolver(),
-        workingDirectory: project,
-        homeDirectory: null,
-      );
-      IndexStore.open(docs.projectRoot).close();
-      sqlite3.open('${project.path}/$indexFilePath')
-        ..execute('UPDATE meta SET layout = ${indexLayoutVersion - 1}')
-        ..close();
-      file(project, '.specstone/.gitignore').writeAsStringSync(older);
+    for (final (tag, staleMeta) in [
+      (
+        'f01/us01/fr04/e13, s03/inv22: a layout-version rebuild',
+        'layout = ${indexLayoutVersion - 1}',
+      ),
+      (
+        'f01/us01/fr04/e13, f01/us01/s14: a binary-version rebuild',
+        "binary_version = 'older'",
+      ),
+    ]) {
+      test(
+        '$tag appends bundles/ and reports/ and keeps the Owner lines in their order',
+        () async {
+          const older = 'trash/\n# mine\n*.tmp\nindex.sqlite*\nbuild/\n';
+          final project = await writeLoginProject();
+          final docs = DocsProject.open(
+            templates: TemplateResolver(),
+            workingDirectory: project,
+            homeDirectory: null,
+          );
+          final first = IndexStore.open(docs.projectRoot);
+          expect(refreshIndex(first, docs).fullBuild, isTrue);
+          first.close();
+          final raw = sqlite3.open('${project.path}/$indexFilePath')
+            ..execute('UPDATE meta SET $staleMeta');
+          expect(raw.updatedRows, 1);
+          raw.close();
+          file(project, '.specstone/.gitignore').writeAsStringSync(older);
 
-      final store = IndexStore.open(docs.projectRoot);
-      addTearDown(store.close);
-      final result = refreshIndex(store, docs);
+          final store = IndexStore.open(docs.projectRoot);
+          addTearDown(store.close);
+          final result = refreshIndex(store, docs);
 
-      expect(result.fullBuild, isTrue);
-      expect(
-        file(project, '.specstone/.gitignore').readAsStringSync(),
-        '${older}bundles/\nreports/\n',
+          expect(result.fullBuild, isTrue);
+          expect(
+            file(project, '.specstone/.gitignore').readAsStringSync(),
+            '${older}bundles/\nreports/\n',
+          );
+        },
       );
-    });
+    }
     test('f01/us01/fr04/e13, s03/inv22: a rebuild for a changed stamp checks the five lines', () async {
       final r = await root();
       final store = IndexStore.open(r);

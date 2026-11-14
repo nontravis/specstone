@@ -8,6 +8,8 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart'
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
+import 'package:specstone_core/src/index_query/index_store.dart'
+    show specstoneGitignoreLines;
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
     show agentMdText;
 import 'package:specstone_core/src/setup_migration/record_placement.dart'
@@ -27,6 +29,8 @@ import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
 
 const _gitignore = '.specstone/.gitignore';
+final _ignoreFile = '${specstoneGitignoreLines.join('\n')}\n';
+const _threeLineIgnoreFile = 'index.sqlite*\nbuild/\ntrash/\n';
 const _overridePath = '.specstone/templates/runbook.yaml';
 const _runbookPath = 'docs/prds/runbooks/deploy/RUNBOOK.md';
 
@@ -140,7 +144,7 @@ Future<Directory> _project({
   },
 }) => gitFixture({
   '.specstone/config.yaml': _config(pin),
-  _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+  _gitignore: _ignoreFile,
   ...files,
 });
 
@@ -233,6 +237,45 @@ void main() {
       expect(_read(root, '.specstone/config.yaml'), _config('1.2.0'));
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
+
+    test(
+      'f01/us01/fr04/e13, f06/us02: a project holding the three older ignore '
+      'lines ends migrate with a clean tree and the five lines committed',
+      () async {
+        final home = await _home(migrations: '');
+        final root = await _project(
+          files: {_runbookPath: _runbookDoc, _gitignore: _threeLineIgnoreFile},
+        );
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(_read(root, _gitignore), _ignoreFile);
+        expect(_gitOut(root, ['show', 'HEAD:$_gitignore']), _ignoreFile);
+      },
+    );
+
+    test(
+      'f01/us01/fr04/e13, f06/us02: a layout-only run over the three older '
+      'ignore lines ends with a clean tree and the five lines committed',
+      () async {
+        final home = await _home(migrations: '');
+        final root = await _project(
+          pin: '1.2.0',
+          files: {
+            _runbookPath: _runbookDoc.replaceFirst('Run it.', 'Run it.  '),
+            _gitignore: _threeLineIgnoreFile,
+          },
+        );
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        expect(_gitOut(root, ['show', 'HEAD:$_gitignore']), _ignoreFile);
+      },
+    );
 
     test('a docs-root file named with # is read as a file name, not a URI '
         'fragment', () async {
@@ -762,7 +805,7 @@ void main() {
         String config,
       ) => gitFixture({
         '.specstone/config.yaml': config,
-        _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        _gitignore: _ignoreFile,
         '.gitignore': 'code/\n',
         ...files,
       });
@@ -957,7 +1000,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          _gitignore: _ignoreFile,
           topicPath: topic,
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
           storyPath:
@@ -1095,7 +1138,7 @@ void main() {
         final before = await findings(
           await gitFixture({
             '.specstone/config.yaml': shippedPinsConfig(),
-            _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+            _gitignore: _ignoreFile,
             ...docs,
           }),
           home,
@@ -1103,7 +1146,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          _gitignore: _ignoreFile,
           ...docs,
         });
 
@@ -1143,7 +1186,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          _gitignore: _ignoreFile,
           'docs/specs/TECH_STACK.md':
               '---\ncode:\n  - lib/\n---\n# Tech stack\n',
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
@@ -1217,7 +1260,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          _gitignore: _ignoreFile,
           'docs/prds/features/f01_a/FEATURE.md': '# A\n',
           domainPath: domain,
         });
@@ -1270,7 +1313,7 @@ void main() {
         final root = await gitFixture({
           '.specstone/config.yaml':
               'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n',
-          _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+          _gitignore: _ignoreFile,
           ...docs,
         });
 
@@ -1491,7 +1534,7 @@ void main() {
         '.specstone/config.yaml':
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
             '  software-tech: 1.4.0\n',
-        _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        _gitignore: _ignoreFile,
         featurePath: '# Login\n',
         storyPath: storyText,
         frPath: '---\nstatus: planned\n---\n# Validate credentials\n',
@@ -1586,7 +1629,7 @@ void main() {
 
       Future<Directory> project() => gitFixture({
         '.specstone/config.yaml': twinConfig(),
-        _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        _gitignore: _ignoreFile,
         featurePath: approvedAs(
           'feature',
           '# Feedback\n\n[a](../../../specs/f02_feedback/ARCHITECTURE.md)\n',
@@ -1692,7 +1735,7 @@ void main() {
                 'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
                 '  software-tech: 1.4.0\ncode_root: app\n'
                 'agent_file_roots:\n  - app/vendor\n',
-            _gitignore: 'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+            _gitignore: _ignoreFile,
             '.gitignore': 'app/vendor/\n',
             featurePath: '# Login\n',
             storyPath: '# Email login\n',
