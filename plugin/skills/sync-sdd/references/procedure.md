@@ -16,7 +16,8 @@ A finding's `path` is relative to its target's code root (`code_root:` in `.spec
 per target; default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's (step 4.4), run
-`specstone context --code <code root>/<path> --for implement`. It takes its path's code target, prints it, and carries no
+`specstone context --code <code root>/<path> --for implement`.
+It takes its path's code target, prints it, and carries no
 `--target`.
 
 - **Warning `no doc covers or implements <path>`:** The new side of a rename pair (step 4.3's
@@ -65,7 +66,8 @@ For each listed code path but a `tests_unresolved` line's (step 4.4), run
 
 On the Owner's write-a-spec or fix-the-spec pick sent to you, a story or FR it needs goes to
 `specstone:brainstorming-sdd`. Else write the draft: `specstone new <type>` (`--target <name>`, the path's code
-target, as the type takes it) for a new doc, or `specstone set <doc>#<section key> --base <hash>` (hash: the `base` of `specstone get <doc>#<key>`) for a section of an existing one;
+target, as the type takes it) for a new doc, or `specstone set <doc>#<section key> --base <hash>`
+(hash: the `base` of `specstone get <doc>#<key>`) for a section of an existing one;
 the Owner approves it with `specstone approve`. Write no record code path or `covers:` entry that names this code
 until the Owner approves the draft. Then add it at once by step 4.3, on the path's target's record.
 

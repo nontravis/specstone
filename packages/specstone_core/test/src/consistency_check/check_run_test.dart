@@ -40,6 +40,18 @@ void main() {
     },
   );
 
+  test('two rules stating the same warning text print it once, in the order '
+      'of first appearance', () async {
+    final session = openSession(await writeCheckProject());
+    addTearDown(session.close);
+    final context = CheckContext(session)
+      ..warn('b: first')
+      ..warn('a: second')
+      ..warn('b: first');
+
+    expect(context.unstatedWarnings, ['b: first', 'a: second']);
+  });
+
   test('f04/us01/fr01/e02, cc-s03/inv12: check login keeps the feature and the docs under it', () async {
     final project = await writeCheckProject(
       extra: {

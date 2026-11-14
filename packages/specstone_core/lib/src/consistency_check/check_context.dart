@@ -36,8 +36,7 @@ final class CheckContext {
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
   final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
-  final Set<(CodeTarget, String)> _unreadableStated = {};
-  final List<String> _codeWarnings = [];
+  final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
   final Map<String, RegExp> _bannedPatterns = {};
@@ -101,10 +100,9 @@ final class CheckContext {
   /// cannot be read; its warning is stated once per run, whoever reads it.
   List<int>? codeBytesOf(CodeTarget target, String path) {
     final bytes = readCodeBytes(target, path);
-    final normal = normalCodeEntry(path);
-    if (bytes == null && _unreadableStated.add((target, normal))) {
-      _codeWarnings.add(
-        '$normal: cannot read the file; '
+    if (bytes == null) {
+      warn(
+        '${normalCodeEntry(path)}: cannot read the file; '
         'implements Symbols in it are not checked',
       );
     }
@@ -128,7 +126,8 @@ final class CheckContext {
     return _codeBytes[key] = bytes;
   }
 
-  /// Adds [warning], which no finding states.
+  /// Adds [warning], which no finding states; a text already added is kept
+  /// once, at its first place.
   void warn(String warning) => _codeWarnings.add(warning);
 
   /// How many code files this run has read.

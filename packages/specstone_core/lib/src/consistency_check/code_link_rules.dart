@@ -91,7 +91,10 @@ Iterable<Finding> checkCodeLinks(
       codeRoot: context.codeRootOf(target),
       targets: context.targets,
       bytesOf: (file) => context.codeBytesOf(target, file),
-      onUnlistable: (folder) => warnUnlistableFolder(context, folder),
+      onUnlistable: (folder) => context.warn(
+        '$folder: cannot list the folder; files under it are not checked for '
+        'covers or fingerprints',
+      ),
     );
     if (current == null) continue;
     final finding = switch (_stateOf(link.recorded, current)) {
