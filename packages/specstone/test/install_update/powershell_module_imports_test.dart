@@ -99,6 +99,13 @@ void main() {
         expect(imported, unorderedEquals(needed));
       });
 
+      test('finds a program by its own PATH walk, never by Get-Command', () {
+        // Get-Command searches every module folder for a name it does not
+        // find, about 20 s in a Windows PowerShell 5.1 with a cold module
+        // analysis cache, module autoloading off or not.
+        expect(called, isNot(contains('Get-Command')));
+      });
+
       test('imports them before its first function', () {
         final import = lines.indexWhere(
           (line) => line.trimLeft().startsWith('Import-Module -Name '),
