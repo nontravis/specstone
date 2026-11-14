@@ -6,8 +6,8 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 # Brainstorm a change into an approved design
 
 A change this skill takes reaches the PRD and spec only after the Owner approves its design document. A change that
-only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: use
-`specstone:update-sdd` instead.
+only rewrites one section or field of an existing doc, adding no story or FR, is a small edit: use
+`specstone:update-sdd`.
 
 ## 1. Ground: the first call
 
@@ -75,10 +75,10 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 
 1. After approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
-   list as its targets.
+   list as targets.
 3. Run fix rounds on its `Findings:` lines per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
-4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
-   until then, per `specstone:expert-sdd`.
+4. Show each author reply and the last audit's relay block; approve the drafts through
+   `specstone:expert-sdd`'s Owner confirmation, testing both under `auto`.
 
 ## 5. Hand the approved drafts to the plan skill
 

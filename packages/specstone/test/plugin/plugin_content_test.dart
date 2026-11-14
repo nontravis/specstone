@@ -1376,6 +1376,29 @@ void _handOffTests() {
         expect(text, isNot(contains('approveMode')), reason: skill);
       }
     });
+
+    final draftsStep = _sectionOf(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      '4. Write the drafts, then audit them',
+    );
+
+    test("brainstorming-sdd hands the last audit's relay block and the author "
+        'replies to Owner confirmation', () {
+      final step = _oneLine(draftsStep);
+      expect(step, contains('relay block'));
+      expect(step, contains('Owner confirmation'));
+    });
+
+    test("brainstorming-sdd's approval step names the auto mode", () {
+      expect(draftsStep, contains('`auto`'));
+    });
+
+    test("the audit's Waits on the Owner bullet names no sole approver", () {
+      final audit = _oneLine(
+        _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      );
+      expect(audit, isNot(contains('only the Owner clears')));
+    });
   });
 }
 

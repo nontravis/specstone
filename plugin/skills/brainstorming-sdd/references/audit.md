@@ -26,8 +26,7 @@ report what the author's coverage table cannot show.
    `specstone list user_story --draft`, `specstone list fr --draft`, and `specstone list nf --draft`: the drafts
    among the targets are what this change wrote.
 5. **Check**: run `specstone check <target>` once per target, not over the whole project, and keep each finding as
-   printed. A finding whose `waitsFor` is `owner`, its line ending `(waits for the Owner)`, is no gap: only the
-   Owner clears it.
+   printed. A finding whose `waitsFor` is `owner`, its line ending `(waits for the Owner)`, is no gap.
 
 ## 2. Compare
 
@@ -74,7 +73,7 @@ Outside the drafts:
   `Findings:` line with `[behavior]` when its fix brings a new state, input, output, edge case, error, or reader of a rule the design does not state; a line whose fix only corrects text
   against the design stays untagged.
 - **`Waits on the Owner:`**: each `check` finding whose `waitsFor` is `owner`, its line ending
-  `(waits for the Owner)`; only the Owner clears it.
+  `(waits for the Owner)`; `specstone:expert-sdd`'s Owner confirmation clears it.
 - **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft, such as a baseline finding on
   an approved doc under a target, or a decision the author reported not landed; each target that is no draft, and
   each name dropped from the `get` call; and each whole draft story or FR that is invented, marked as a deletion for
