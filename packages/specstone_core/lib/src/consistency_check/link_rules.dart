@@ -3,11 +3,16 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show acceptanceSectionId;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathsWrittenIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show ItemCite, SectionTarget, anchorTargetOf, classifyLink;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -47,6 +52,7 @@ Iterable<Finding> checkDocLinks(CheckContext context, IndexedDoc doc) sync* {
   yield* _unresolvedNames(context, doc);
   yield* _unresolvedLinks(context, doc);
   yield* _missingAnchors(context, doc);
+  yield* _missingItems(context, doc);
   yield* _selfLinks(context, doc);
   yield* _malformedLinks(context, doc);
   yield* _missingFileLinks(context, doc);
@@ -232,6 +238,66 @@ Iterable<Finding> _missingAnchors(CheckContext context, IndexedDoc doc) sync* {
       keys: {'target': place.shown, 'anchor': anchor},
     );
   }
+}
+
+/// Yields a finding per item link of [doc] whose `##` section of its target
+/// holds no item with the cited ID (RULE-45).
+///
+/// [classifyLink] alone judges each link. Only a link whose anchor resolves
+/// to a `##` section can be an item link, so a missing anchor and an unknown
+/// anchor set give no finding here. The items are the stored ItemFacts, so
+/// no doc text is read.
+Iterable<Finding> _missingItems(CheckContext context, IndexedDoc doc) sync* {
+  final facts = context.contentOf(doc).lineFacts;
+  for (final link in facts.linkTexts) {
+    final anchor = link.anchor;
+    final target = context.index.at(link.target);
+    if (anchor == null || anchor.isEmpty || target == null) continue;
+    final content = context.contentOf(target);
+    final anchorTarget = anchorTargetOf(content.lineFacts, anchor);
+    if (anchorTarget is! SectionTarget) continue;
+    final at = anchorTarget.sectionIndex;
+    if (at >= content.sections.length) continue;
+    final template = context.templateSectionAt(target, at);
+    final cite = classifyLink(
+      link,
+      target: anchorTarget,
+      sectionAt: (_) => (
+        key: template?.id ?? content.sections[at].key,
+        prefixId: template?.prefixId,
+        isAcceptanceCriteria: template?.id == acceptanceSectionId,
+      ),
+    );
+    if (cite is! ItemCite) continue;
+    if (content.itemFacts.sectionItems[at].any(
+      (item) => item.id == cite.itemId,
+    )) {
+      continue;
+    }
+    final shown = _shownOf(facts, link);
+    yield context.finding(
+      doc,
+      FindingKind.linkItemMissing,
+      line: link.line,
+      message:
+          'link target $shown names item ${link.text}, which section '
+          '${cite.sectionKey} of ${target.docPath} does not hold',
+      keys: {'target': shown, 'item': link.text},
+    );
+  }
+}
+
+/// Returns the destination of [link] as written: the `shown` of the link
+/// place that sits on its line with its target and anchor.
+String _shownOf(LineFacts facts, LinkText link) {
+  for (final place in [...facts.links, ...facts.selfLinks]) {
+    if (place.line == link.line &&
+        place.target == link.target &&
+        place.anchor == link.anchor) {
+      return place.shown;
+    }
+  }
+  return '${link.target}#${link.anchor}';
 }
 
 /// Yields a finding per link of [doc] to [doc] itself with no `#`; a `#`

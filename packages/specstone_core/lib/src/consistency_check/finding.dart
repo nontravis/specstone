@@ -78,6 +78,7 @@ enum FindingKind {
   docRefSelf('doc_ref_self'),
   linkUnresolved('link_unresolved'),
   linkAnchorMissing('link_anchor_missing'),
+  linkItemMissing('link_item_missing'),
   linkSelf('link_self'),
   referenceMalformed('reference_malformed'),
   linkTargetMissing('link_target_missing'),
