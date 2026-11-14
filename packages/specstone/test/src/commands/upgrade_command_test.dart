@@ -243,8 +243,12 @@ void main() {
       );
       final ran = fileIn('logs', 'ran');
       final claudeLog = fileIn('logs', 'claude.log');
+      // Imported by name, Set-Content's module loads at once; found by
+      // command lookup, it costs a Windows PowerShell 5.1 with a cold module
+      // analysis cache about 20 s.
       final script = asWindows || windows
-          ? "Set-Content -Path '$ran' -Value \$PSCommandPath\n"
+          ? 'Import-Module -Name Microsoft.PowerShell.Management\n'
+                "Set-Content -Path '$ran' -Value \$PSCommandPath\n"
                 'exit $scriptExit\n'
           : "printf '%s\\n' \"\$0\" > '$ran'\nexit $scriptExit\n";
       scriptUrl = base.resolve(
@@ -954,7 +958,8 @@ void main() =>
       );
       final seen = fileIn('logs', 'seen');
       final script = windows
-          ? 'if (Test-Path Env:SPECSTONE_VERSION) '
+          ? 'Import-Module -Name Microsoft.PowerShell.Management\n'
+                'if (Test-Path Env:SPECSTONE_VERSION) '
                 "{ Set-Content -Path '$seen' -Value \$env:SPECSTONE_VERSION } "
                 "else { Set-Content -Path '$seen' -Value unset }\n"
           : "printf '%s\\n' \"\${SPECSTONE_VERSION-unset}\" > '$seen'\n";
