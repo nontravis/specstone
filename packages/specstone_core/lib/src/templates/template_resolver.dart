@@ -605,14 +605,6 @@ final class TemplateResolver {
     return lists;
   }
 
-  /// The ordered layers each feature pattern id folds, lowest first.
-  ///
-  /// Pack layers come in `orderPacks` order, then the project layer, whose
-  /// `pack` is null. Two packs defining one id where neither reaches the
-  /// other are `feature_pattern_duplicate`: `file` holds the upper or later
-  /// pack's file, `relatedFiles` the other's, and the message names the id.
-  /// A project pattern over a pack-defined id is an override, never a
-  /// duplicate.
   /// The load index of every pattern file: pack layers in load order, then
   /// [projectLayers], the sequence `_featurePatternLayers` walks.
   LoadIndex _patternLoadIndex(
@@ -627,6 +619,14 @@ final class TemplateResolver {
     return {for (final (index, file) in files.indexed) file: index};
   }
 
+  /// The ordered layers each feature pattern id folds, lowest first.
+  ///
+  /// Pack layers come in `orderPacks` order, then the project layer, whose
+  /// `pack` is null. Two packs defining one id where neither reaches the
+  /// other are `feature_pattern_duplicate`: `file` holds the upper or later
+  /// pack's file, `relatedFiles` the other's, and the message names the id.
+  /// A project pattern over a pack-defined id is an override, never a
+  /// duplicate.
   Map<String, List<WrittenPatternLayer>> _featurePatternLayers(
     List<_ParsedPatterns> packs,
     List<FeaturePatternLayer> projectLayers,
