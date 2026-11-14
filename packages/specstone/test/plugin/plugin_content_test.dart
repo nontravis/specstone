@@ -901,7 +901,7 @@ void _handOffTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/confirm_gated_commands_with_the_owner: '
+  test("Run an Owner-gated command only after the Owner's ok: "
       'the Rules and Owner confirmation sections of expert-sdd gate the '
       'delete of a guarded doc', () {
     final skill = _pluginText('skills/expert-sdd/SKILL.md');
@@ -917,7 +917,7 @@ void _handOffTests() {
     }
   });
 
-  test('agent_plugin/write_prd_and_spec/confirm_gated_commands_with_the_owner: '
+  test("Run an Owner-gated command only after the Owner's ok: "
       'the Owner confirmation section of expert-sdd leaves specstone trust to '
       "the Owner's own terminal", () {
     final section = _oneLine(

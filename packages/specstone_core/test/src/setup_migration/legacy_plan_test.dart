@@ -1512,7 +1512,7 @@ name: NFR
     });
   });
 
-  group('setup_migration/migrate_legacy_docs/show_plan_and_apply_on_yes', () {
+  group("Show the plan and apply it on the Owner's yes", () {
     test('E07: each typed doc the run leaves carries the hash of its final '
         'text and no draft key; a created draft keeps draft: true', () async {
       final plan = await _plan(acmeLegacy);
