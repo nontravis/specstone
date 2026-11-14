@@ -621,11 +621,12 @@ void main() {
         final junction = makeJunction(sb);
         // With the marker pair broken, only the final path tells the junction
         // from another tool's stn.exe: a compare that misses it runs
-        // `junction\stn.exe`, which finds no specstone.exe and exits 1.
+        // `junction\stn.exe`, which finds no specstone.exe and exits 1. The
+        // shim starts by its real path, so its own folder is not the junction.
         File(under(sb.bin, 'specstone.exe')).deleteSync();
 
         final r = await sb.typeStn(
-          ['stn x'],
+          [byPath(under(sb.bin, 'stn.exe'), 'x')],
           shell: shell,
           path: '$junction;${other.path};$system32',
         );
@@ -658,6 +659,38 @@ void main() {
         expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
         expect(later.exitCode, 9, reason: '${later.stderr}');
         expect(sb.logOf('other').sublist(0, 2), ['argv', 'check']);
+      });
+
+      test('run_cli_or_yield E09: a dangling link named stn.exe is skipped; a '
+          'later stn.cmd file counts', () async {
+        final sb = await createShimSandbox();
+        final withLink = dir(under(sb.root, 'one'));
+        final made = Process.runSync('cmd', [
+          '/d',
+          '/c',
+          'mklink',
+          under(withLink, 'stn.exe'),
+          under(sb.root, 'no such file.exe'),
+        ]);
+        if (made.exitCode != 0) {
+          markTestSkipped(
+            'a file symlink needs admin rights or Developer Mode: '
+            '${made.stdout}${made.stderr}',
+          );
+          return;
+        }
+        final real = dir(under(sb.root, 'two'));
+        sb.otherStn(real.path, exit: 9);
+
+        final r = await sb.typeStn(
+          ['stn check'],
+          shell: shell,
+          path: '${sb.bin.path};${withLink.path};${real.path};$system32',
+        );
+
+        expect(r.exitCode, 9, reason: '${r.stdout}${r.stderr}');
+        expect(sb.logOf('other').sublist(0, 2), ['argv', 'check']);
+        expect(sb.logOf('specstone'), isEmpty);
       });
 
       test('run_cli_or_yield E10, S5: a stn.ps1 first on the walk prints one '
@@ -769,15 +802,23 @@ void main() {
           File(under(Directory(folder), 'cmd.exe')).writeAsBytesSync(recorder);
         }
 
-        final r = await sb.typeStn(
-          ['stn check'],
-          shell: shell,
-          path: '${sb.bin.path};${other.path};${planted.path};$system32',
-          extra: {'NoDefaultCurrentDirectoryInExePath': '1'},
-        );
+        // A relative ComSpec is no cmd.exe to start: the shim falls back to
+        // the one under SystemRoot.
+        for (final comSpec in [null, 'cmd.exe']) {
+          final r = await sb.typeStn(
+            ['stn check'],
+            shell: shell,
+            path: '${sb.bin.path};${other.path};${planted.path};$system32',
+            extra: {
+              'NoDefaultCurrentDirectoryInExePath': '1',
+              'ComSpec': ?comSpec,
+            },
+          );
 
-        expect(r.exitCode, 8, reason: '${r.stdout}${r.stderr}');
+          expect(r.exitCode, 8, reason: '$comSpec: ${r.stdout}${r.stderr}');
+        }
         expect(argvOfRuns(sb.logOf('other')), [
+          ['check'],
           ['check'],
         ]);
       });

@@ -267,14 +267,31 @@ static DWORD start_and_wait(const wchar_t *program, const wchar_t *tail, BOOL th
     return status;
 }
 
-/* Returns whether the path names a file, not a folder; a link counts by what it
- * is, and a path that cannot be read is none. */
+/* Returns whether the path names a file, not a folder; a link counts by the
+ * file it leads to, so a dangling link or a link to a folder is none, and a path
+ * that cannot be read is none. */
 static BOOL is_file(const wchar_t *path)
 {
     DWORD attributes = GetFileAttributesW(path);
+    HANDLE handle;
+    BY_HANDLE_FILE_INFORMATION information;
+    BOOL result;
 
-    return attributes != INVALID_FILE_ATTRIBUTES
-           && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    if (attributes == INVALID_FILE_ATTRIBUTES || (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
+        return FALSE;
+    }
+    if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0) {
+        return TRUE;
+    }
+    handle = CreateFileW(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                         NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (handle == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    result = GetFileInformationByHandle(handle, &information)
+             && (information.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+    CloseHandle(handle);
+    return result;
 }
 
 /* Writes folder, a separator when it has none, and name into out; returns
