@@ -186,7 +186,7 @@ void main() {
     expect(records, hasLength(52)); // one record per feature
     final entry = RegExp(r"^  - '[^']+:implemented'$", multiLine: true);
     final path = RegExp(
-      r"^  - '[^']+:src/feature_\d+/story_\d/req_\d\.dart:Req\d'$",
+      r"^  - '[^']+:src/feature_\d+/story_\d/req_\d\.dart:Req\d [0-9a-f]{12}'$",
       multiLine: true,
     );
     for (final record in records) {
@@ -208,6 +208,8 @@ void main() {
       'record_entry_unresolved',
       'record_entry_duplicate',
       'code_uncovered',
+      'code_suspect',
+      'code_unconfirmed',
     ]) {
       expect(out, isNot(contains(kind)), reason: kind);
     }
