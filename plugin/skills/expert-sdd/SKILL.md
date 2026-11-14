@@ -12,33 +12,33 @@ Rules for any skill that writes or confirms a doc.
 1. Run `specstone check` before any other command.
 2. Exit 78 with `project_not_found`: tell the Owner the project is still on the old format; `specstone migrate` moves
    it, or they can keep using the old skills. Then stop: run nothing else, and neither read nor write a doc.
-3. Exit 0 or 1: the project is on the new format, even from a subfolder. Keep any findings as the baseline and go on.
+3. Exit 0 or 1: the project is on the new format, even from a subfolder. Keep any findings as the baseline.
 4. Any other non-zero exit: report the CLI's error to the Owner and stop.
 
-That call is the gate. Never look for `.specstone/` first: a look at the working directory
-alone misses a project root above it.
+Never look for `.specstone/` first: the working directory
+alone can miss a root above it.
 
 ## Rules
 
 1. **Docs lead, code follows.** Output ⊆ spec ⊆ PRD: code does nothing its spec omits, and a spec holds nothing its
-   PRD omits. Code behavior that no spec covers gets a spec draft first, before any more code changes.
+   PRD omits. Code behavior no spec covers gets a spec draft before more code changes.
 2. **Write through the CLI.** Create a doc with `specstone new` and change one with `specstone set`. Never write or
-   edit a doc file by hand, through a file tool or a shell command. Each write leaves its doc a draft, a pointer
+   edit a doc file through a file tool or a shell command. Each write leaves its doc a draft, a pointer
    write (`implements`, `covers`) excepted: never remove `draft: true`. Run `specstone approve` only with `--dry-run`,
    or with `--yes` as Owner confirmation below says; it binds `approve`, `delete` of a guarded doc, `migrate`, and
    `init` on a legacy tree alike.
 3. **Guide first.** Before you write a doc of a type, run `specstone guide <type>` for its sections and
-   `specstone guide <type> --json` for its fields, even for a type you wrote in an earlier task. One call naming
-   several types counts for each type it names, so a batch never repeats it per write. A project may customize its
-   templates; the CLI prints the guide it has now, and this skill keeps none.
+   `specstone guide <type> --json` for its fields, even for a type you wrote before. One call naming
+   several types counts for each type it names, so a batch never repeats it per write. The CLI prints the project's
+   current guide; this skill keeps none.
 4. **Confirm traced links.** When you write an FR, an nf, or an API row, follow `references/confirm-links.md`.
 5. **Size in one order.** Over a size limit: layout, then a sub-feature split the Owner approves, then text moved to
    its home; never cut meaning. Cite a size only as `specstone structure <doc>` or `specstone check` prints it.
    Steps: `references/size-fix.md`.
 6. **Check after edits.** After your last edit, run `specstone check`, or `specstone check <target>` once per doc you
    touched, and fix each finding your edits added to the baseline; leave each whose `waitsFor` is `owner`, its line
-   ending `(waits for the Owner)`. The post-edit hook does not replace this run: it checks one doc, and a shell
-   rewrite triggers no hook.
+   ending `(waits for the Owner)`. The post-edit hook does not replace this run: it checks one doc and misses a shell
+   rewrite.
 7. **Cite, never restate.** A rule has one owner doc. Every other doc cites it by a link to the item that holds it,
    `[<ID>](<path>#<section heading anchor>)`, or by a section or doc link when no item holds it, and states nothing
    of the rule. `specstone check` reports an old cite form as `cite_unlinked` and a link to an item its section lacks
@@ -46,6 +46,8 @@ alone misses a project root above it.
 8. **Code target.** With two or more code targets, `new`, `get`, `set` (a `confirmed` write included),
    `structure <doc>`, and `refs <owner>` take the `--target` of the surface that loads this skill, never an Owner
    question; `approve` and `delete` take none.
+9. **Feature patterns.** For a new feature, pick its patterns with `specstone guide --pattern`; cover each checklist
+   item or name it in the feature's Out-of-scope as a skip line.
 
 ## Owner confirmation
 
@@ -55,8 +57,8 @@ own terminal or here in the chat. In the chat:
 1. Show what the command does, one item per message, in full:
    - `approve`: run `specstone approve <type>:<name> … --dry-run`, then send each draft it prints in its own
      message: first the literal `Why:` (in English), then one sentence in the language of the conversation on why
-     the draft changed; then the draft's printed text, pasted verbatim. Never write, shorten, or reformat that text
-     yourself. When the tool output is cut, run `--dry-run` again per draft, so every draft is pasted whole.
+     the draft changed; then the draft's printed text, pasted verbatim. Never edit that text. When output is cut,
+     rerun `--dry-run` per draft so each is pasted whole.
    - `delete`: the list and `plan <hash>` line `specstone delete <path> … --dry-run` prints, and why each goes.
    - `migrate`, or `init` on a legacy tree: the plan `specstone migrate --dry-run` prints, with its `plan <hash>`
      line.

@@ -1127,6 +1127,23 @@ void _handOffTests() {
     }
   });
 
+  test('E14: '
+      'the Rules section of expert-sdd has a new feature pick its patterns '
+      'with guide --pattern and cover each checklist item or name it in the '
+      "feature's Out-of-scope", () {
+    final rules = _oneLine(
+      _sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules'),
+    );
+    expect(
+      rules,
+      contains(
+        'For a new feature, pick its patterns with `specstone guide '
+        "--pattern`; cover each checklist item or name it in the feature's "
+        'Out-of-scope as a skip line.',
+      ),
+    );
+  });
+
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final root = pluginRoot().uri.toFilePath(windows: false);
