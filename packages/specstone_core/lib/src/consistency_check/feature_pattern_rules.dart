@@ -45,8 +45,7 @@ bool isSkipSpan(Map<int, SkipLine> skips, int line, String written) =>
     skips[line]?.span == written;
 
 /// Yields a finding per `patterns:` value of [doc] that names no merged
-/// feature pattern, and per skip line whose item that pattern does not hold
-/// (consistency_check `resolve_feature_patterns`).
+/// feature pattern, and per skip line whose item that pattern does not hold.
 Iterable<Finding> checkFeaturePatterns(
   CheckContext context,
   IndexedDoc doc,

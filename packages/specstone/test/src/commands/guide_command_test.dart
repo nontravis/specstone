@@ -698,7 +698,7 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test('E01: a project pattern joins the shipped ids and carries no pack '
+    test('a project pattern joins the shipped ids and carries no pack '
         'under --json', () async {
       final runner = await runnerIn(
         await projectWith({
@@ -742,7 +742,7 @@ items:
       expect(err.toString(), isEmpty);
     });
 
-    test('E02: a project file over a shipped pattern lists it once and keeps '
+    test('a project file over a shipped pattern lists it once and keeps '
         'its pack', () async {
       final runner = await runnerIn(
         await projectWith({
@@ -768,7 +768,7 @@ items:
       expect(crud['description'], 'Project CRUD.');
     });
 
-    test('E03: a broken pattern file exits 78 with stdout empty', () async {
+    test('a broken pattern file exits 78 with stdout empty', () async {
       final runner = await runnerIn(
         await projectWith({
           '.specstone/templates/patterns/crud.yaml': 'id: [\n',
@@ -801,7 +801,7 @@ items:
       expect(err.toString(), isEmpty);
     });
 
-    test('E01: an unknown id exits 64 with the message alone on stderr and '
+    test('an unknown id exits 64 with the message alone on stderr and '
         'stdout empty', () async {
       final runner = await runnerIn(await projectWith());
 
@@ -813,7 +813,7 @@ items:
       );
     });
 
-    test('E01: several unknown ids among known ones are all named in the '
+    test('several unknown ids among known ones are all named in the '
         'plural form', () async {
       final runner = await runnerIn(await projectWith());
 
@@ -828,7 +828,7 @@ items:
       );
     });
 
-    test('E01: an unknown id with --json prints the error envelope on '
+    test('an unknown id with --json prints the error envelope on '
         'stderr, pretty-printed, with no file or key', () async {
       final runner = await runnerIn(await projectWith());
 
@@ -845,20 +845,17 @@ items:
       );
     });
 
-    test(
-      'E01: several unknown ids with --json name each in one message',
-      () async {
-        final error = await errorOf(['guide', '--pattern', 'a', 'b', '--json']);
+    test('several unknown ids with --json name each in one message', () async {
+      final error = await errorOf(['guide', '--pattern', 'a', 'b', '--json']);
 
-        expect(error['code'], 'feature_pattern_unknown');
-        expect(
-          error['message'],
-          'Could not find feature patterns named "a", "b".',
-        );
-      },
-    );
+      expect(error['code'], 'feature_pattern_unknown');
+      expect(
+        error['message'],
+        'Could not find feature patterns named "a", "b".',
+      );
+    });
 
-    test('E02: --pattern reads the pattern and no flag reads the doc type '
+    test('--pattern reads the pattern and no flag reads the doc type '
         'of the same id', () async {
       final runner = await runnerIn(
         await projectWith({
@@ -875,7 +872,7 @@ items:
       expect(out.toString(), 'The auth doc type.\n');
     });
 
-    test('E03: a doc type id is no pattern id under --pattern', () async {
+    test('a doc type id is no pattern id under --pattern', () async {
       final runner = await runnerIn(await projectWith());
 
       expect(await runner.run(['guide', '--pattern', 'feature']), 64);
@@ -886,7 +883,7 @@ items:
       );
     });
 
-    test('E04: a repeated id prints its body once, with no ==> line', () async {
+    test('a repeated id prints its body once, with no ==> line', () async {
       final runner = await runnerIn(await projectWith());
 
       expect(await runner.run(['guide', '--pattern', 'crud']), 0);
@@ -899,7 +896,7 @@ items:
     });
 
     test(
-      'E05: a pattern that extends another prints the base items first',
+      'a pattern that extends another prints the base items first',
       () async {
         final runner = await runnerIn(await projectWith());
 
@@ -914,7 +911,7 @@ items:
       },
     );
 
-    test('E06: an item a project layer disables is not printed', () async {
+    test('an item a project layer disables is not printed', () async {
       final runner = await runnerIn(
         await projectWith({
           '.specstone/templates/patterns/auth.yaml': '''
@@ -933,14 +930,14 @@ items:
       );
     });
 
-    test('E07: a pattern with no reference prints no sources line', () async {
+    test('a pattern with no reference prints no sources line', () async {
       final runner = await runnerIn(await projectWith());
 
       expect(await runner.run(['guide', '--pattern', 'auth']), 0);
       expect(out.toString(), isNot(contains('Pattern sources:')));
     });
 
-    test('E08: two or more distinct ids print under ==> lines in argument '
+    test('two or more distinct ids print under ==> lines in argument '
         'order, a repeat once', () async {
       final runner = await runnerIn(await projectWith());
 

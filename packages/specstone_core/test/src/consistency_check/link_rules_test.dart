@@ -853,7 +853,7 @@ void main() {
       },
     );
 
-    test('E36: a skip line of a listed pattern is no doc-name mention, even '
+    test('a skip line of a listed pattern is no doc-name mention, even '
         'when a feature of the pattern name exists', () async {
       final findings = mentionsOf(
         await skipProject(skips: ['- `crud/paged_list` — one page is enough']),
@@ -861,7 +861,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('E07: the same span in a feature that does not list the pattern is '
+    test('the same span in a feature that does not list the pattern is '
         'read as any doc-name mention', () async {
       final project = await skipProject(
         patterns: const [],
@@ -902,7 +902,13 @@ void main() {
           ],
         ),
       );
-      expect(findings, hasLength(2));
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'name': 'crud/paged_list'},
+          {'name': 'crud/paged_list'},
+        ],
+      );
     });
 
     test('S14: an '
