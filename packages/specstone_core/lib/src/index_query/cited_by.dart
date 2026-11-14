@@ -24,34 +24,34 @@ typedef CitedItem = ({String item, int after, List<CitedBy> by});
 ///
 /// One line per item link from a typed doc other than the item's own, an item
 /// range giving one to each item it spans, in tree order of the citing docs
-/// and then line order; two links to one item on one line give one. An item
-/// of a doc whose type's `bundle:` list holds `design` has none, since that
-/// doc prints in every design bundle. [classifyLink] reads each link, so it
-/// is an item link here exactly when `check` and the follow read it as one.
+/// and then line order. An item of a doc whose type's `bundle:` list holds
+/// `design` has none, since that doc prints in every design bundle.
+/// [classifyLink] reads each link, so it is an item link here exactly when
+/// `check` and the follow read it as one.
 CitedByIndex citedByIndex(DocIndex index) {
   final docs = <String, _Doc>{};
-  _Doc? read(IndexedDoc doc) => doc.isTyped
-      ? docs[doc.docPath] ??= _Doc(doc, index.contentOf(doc), index.typeOf(doc))
-      : null;
+  _Doc? read(IndexedDoc doc) {
+    final typeId = doc.docTypeId;
+    if (typeId == null) return null;
+    return docs[doc.docPath] ??= _Doc(
+      doc,
+      typeId,
+      index.contentOf(doc),
+      index.typeOf(doc),
+    );
+  }
+
   final cited = <({String docPath, String itemId}), List<CitedBy>>{};
-  final seen = <(String, String, String, int)>{};
   for (final source in index.docs) {
     final reader = read(source);
     if (reader == null) continue;
     for (final line in reader.linkLines) {
-      for (final (:doc, :itemId, :link) in _itemLinksOn(
-        index,
-        reader,
-        line,
-        read,
-      )) {
-        final key = (docPath: doc, itemId: itemId);
-        if (!seen.add((doc, itemId, source.docPath, link.line))) continue;
-        (cited[key] ??= []).add((
+      for (final (:doc, :itemId) in _itemLinksOn(index, reader, line, read)) {
+        (cited[(docPath: doc, itemId: itemId)] ??= []).add((
           name: source.name,
-          docType: source.docTypeId!,
-          byItem: reader.itemHolding(link.line),
-          line: reader.lineText(link.line).trim(),
+          docType: reader.docTypeId,
+          byItem: reader.itemHolding(line),
+          line: reader.lineText(line).trim(),
         ));
       }
     }
@@ -106,11 +106,17 @@ List<CitedItem> citedItemsIn(
   ];
 }
 
-/// Returns the lines of [items] by the file line each prints after.
-Map<int, List<String>> citedLinesAfter(List<CitedItem> items) => {
-  for (final item in items)
-    item.after: [for (final by in item.by) citedByLineOf(by)],
-};
+/// Returns the lines of [items] by the file line each prints after; items
+/// that end on one line, nested, keep every line in [items] order.
+Map<int, List<String>> citedLinesAfter(List<CitedItem> items) {
+  final after = <int, List<String>>{};
+  for (final item in items) {
+    (after[item.after] ??= []).addAll([
+      for (final by in item.by) citedByLineOf(by),
+    ]);
+  }
+  return after;
+}
 
 /// Returns [items] as the `citedBy` objects of `--json`, one per line.
 List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
@@ -125,11 +131,14 @@ List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
       },
 ];
 
-/// A link of one line that names the item `itemId` of the doc `doc`.
-typedef _ItemLink = ({String doc, String itemId, LinkText link});
+/// An item a link of one line names: the item `itemId` of the doc `doc`.
+typedef _ItemLink = ({String doc, String itemId});
 
 /// Returns each item the item links of file [line] of [reader] name, a range
-/// naming each item it spans, in source order.
+/// naming each item it spans once, in source order.
+///
+/// A range's last link adds nothing of its own, since the range names its
+/// item; every other link adds its own, even when two name one item.
 List<_ItemLink> _itemLinksOn(
   DocIndex index,
   _Doc reader,
@@ -152,21 +161,28 @@ List<_ItemLink> _itemLinksOn(
       at: to is SectionTarget ? to.sectionIndex : null,
     ));
   }
-  final rangeFrom = {
-    for (final range in itemRangesOn(reader.lineText(line), [
-      for (final (:link, :cite, target: _, at: _) in classified)
-        (link: link, cite: cite),
-    ]))
-      range.first.link: range,
-  };
-  return [
-    for (final (:link, :cite, :target, :at) in classified)
-      if (cite is ItemCite &&
-          target.doc.docPath != reader.doc.docPath &&
-          !_joinsDesign(target.type))
-        for (final id in _idsOf(rangeFrom[link], cite, target, at))
-          (doc: target.doc.docPath, itemId: id, link: link),
-  ];
+  final ranges = itemRangesOn(reader.lineText(line), [
+    for (final (:link, :cite, target: _, at: _) in classified)
+      (link: link, cite: cite),
+  ]);
+  final rangeFrom = {for (final range in ranges) range.first.link: range};
+  final rangeEnds = {for (final range in ranges) range.last.link};
+  final spanned = <_ItemLink>{};
+  final found = <_ItemLink>[];
+  for (final (:link, :cite, :target, :at) in classified) {
+    if (cite is! ItemCite ||
+        target.doc.docPath == reader.doc.docPath ||
+        _joinsDesign(target.type)) {
+      continue;
+    }
+    final range = rangeFrom[link];
+    if (range == null && rangeEnds.contains(link)) continue;
+    for (final id in _idsOf(range, cite, target, at)) {
+      final item = (doc: target.doc.docPath, itemId: id);
+      if (range == null || spanned.add(item)) found.add(item);
+    }
+  }
+  return found;
 }
 
 List<String> _idsOf(ItemRange? range, ItemCite cite, _Doc target, int? at) {
@@ -186,10 +202,11 @@ bool _joinsDesign(MergedDocType? type) =>
 /// One typed doc as the lines read it: its stored content, its held sections
 /// as [classifyLink] reads them, and its text by line.
 final class _Doc {
-  new(this.doc, this.content, this.type)
+  new(this.doc, this.docTypeId, this.content, this.type)
     : _sections = citedSectionsOf(content, type);
 
   final IndexedDoc doc;
+  final String docTypeId;
   final DocContent content;
   final MergedDocType? type;
   final List<CitedSection> _sections;

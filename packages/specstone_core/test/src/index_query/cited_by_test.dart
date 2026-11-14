@@ -132,14 +132,44 @@ void main() {
     ]);
   });
 
-  test(
-    'f01/us05/fr06/e07: two links to one item on one line give one line',
-    () async {
-      const line = 'Both $_inv14 and $_inv14.';
-      final cited = _of(_citedBy(await _index(line)), _domain, 'INV-14');
-      expect(cited, hasLength(1));
-    },
-  );
+  test('f01/us05/fr06/e07: two links to one item on one line give one line each, none dropped', () async {
+    const line = 'Both $_inv14 and $_inv14.';
+    final cited = _of(_citedBy(await _index(line)), _domain, 'INV-14');
+    expect(cited.map((c) => c.line), [line, line]);
+  });
+
+  test('f01/us05/fr06/e03, e07: items a range chain spans each get one line from it', () async {
+    const line =
+        'See [RULE-1](ranges.md#rules) to [RULE-3](ranges.md#rules) to [RULE-5](ranges.md#rules).';
+    final index = await _index(
+      'Check it.',
+      extra: {'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n'},
+    );
+    final cited = _citedBy(index);
+    for (final id in ['RULE-1', 'RULE-2', 'RULE-3', 'RULE-4', 'RULE-5']) {
+      expect(
+        _of(cited, 'specs/topics/ranges.md', id),
+        hasLength(1),
+        reason: id,
+      );
+    }
+  });
+
+  test('f01/us05/fr06/e07: nested items that end on one line keep every line, inner first', () {
+    const outer = (
+      item: 'INV-14',
+      after: 7,
+      by: [(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
+    );
+    const inner = (
+      item: 'INV-15',
+      after: 7,
+      by: [(name: 'b', docType: 'fr', byItem: 'E01', line: 'inner')],
+    );
+    expect(citedLinesAfter([inner, outer]), {
+      7: ['  · cited by b (fr) E01: inner', '  · cited by a (fr) —: outer'],
+    });
+  });
 
   test('f01/us05/fr06/e08: a doc link or a section link names no item and gives no line', () async {
     final cited = _citedBy(

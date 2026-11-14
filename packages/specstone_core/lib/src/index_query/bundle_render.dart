@@ -43,11 +43,11 @@ String _partBlock(AppendedPart part) {
       '${part.text}';
 }
 
-/// Returns the `citedBy` key of a doc object, empty when [items] holds no line
+/// Returns the `citedBy` key of a doc object, an empty list when [items] holds
+/// no line; none outside a design bundle, which has no [citedBy]
 /// (`index_query/get_task_bundle/show_cited_by`).
-Map<String, Object> _citedByKey(List<CitedItem> items) => {
-  if (items.isNotEmpty) 'citedBy': citedByJson(items),
-};
+Map<String, Object> _citedByKey(List<CitedItem> items, CitedByIndex? citedBy) =>
+    {if (citedBy != null) 'citedBy': citedByJson(items)};
 
 /// Returns the JSON keys that mark [part], after its `text` or `tokens`.
 Map<String, Object> _partKeys(AppendedPart part) => {
@@ -153,14 +153,14 @@ ReadAnswer answerContext(
           'tokens': tokenSizeOf(block),
           'text': _blockBody(block),
           if (inSummary(ordered[doc])) 'summary': true,
-          ..._citedByKey(docPrints[doc].cited),
+          ..._citedByKey(docPrints[doc].cited, citedBy),
         },
       for (final (i, part) in parts.indexed)
         {
           ..._partDocJson(part, partBlocks[i]),
           if (!part.pathOnly) 'text': _blockBody(partBlocks[i]),
           ..._partKeys(part),
-          ..._citedByKey(part.cited),
+          ..._citedByKey(part.cited, citedBy),
         },
     ],
     ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
@@ -257,10 +257,9 @@ ReadAnswer _overBudget(
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
   if (summary) {
-    final block =
-        '${namingLine(doc, summary: true)}\n'
-        '${summaryBodyOf(doc, content, docType, mode)}';
-    return (block: block, cited: const []);
+    final print = summaryPrintOf(doc, content, docType, mode, citedBy);
+    final block = '${namingLine(doc, summary: true)}\n${print.text}';
+    return (block: block, cited: print.cited);
   }
   final parts = <String>[];
   if (mode != BundleMode.query) {
@@ -272,18 +271,9 @@ ReadAnswer _overBudget(
   final cited = <CitedItem>[];
   final held = citedSectionsOf(content, docType);
   for (final section in keptSectionsOf(content, docType, mode)) {
-    final at = content.sections.indexOf(section);
-    final items = citedBy == null
-        ? const <CitedItem>[]
-        : citedItemsIn(citedBy, doc, content, held[at], at);
-    cited.addAll(items);
-    parts.add(
-      sectionBlockOf(
-        section,
-        bodyLine: content.lineFacts.sectionLines[at] + 1,
-        after: citedLinesAfter(items),
-      ),
-    );
+    final print = sectionPrintOf(doc, content, held, section, citedBy);
+    cited.addAll(print.cited);
+    parts.add(print.block);
   }
   return (block: '${namingLine(doc)}\n${parts.join('\n\n')}', cited: cited);
 }

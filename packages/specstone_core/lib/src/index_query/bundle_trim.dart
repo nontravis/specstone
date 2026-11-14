@@ -1,25 +1,55 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show CitedSection, citedSectionsOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 
 /// Returns the text a summary of [doc] prints after its naming line: its
-/// `# ` title line, then its summary sections, one blank line apart (INV-25).
-String summaryBodyOf(
+/// `# ` title line, then its summary sections, one blank line apart (INV-25),
+/// with the items [citedBy] holds lines for, each printed whole there.
+({String text, List<CitedItem> cited}) summaryPrintOf(
   IndexedDoc doc,
   DocContent content,
   MergedDocType? docType,
   BundleMode mode,
+  CitedByIndex? citedBy,
 ) {
   final title = doc.title;
-  return [
-    if (title != null) '# $title',
-    for (final section in summarySectionsOf(content, docType, mode))
-      sectionBlockOf(section),
-  ].join('\n\n');
+  final held = citedSectionsOf(content, docType);
+  final blocks = [if (title != null) '# $title'];
+  final cited = <CitedItem>[];
+  for (final section in summarySectionsOf(content, docType, mode)) {
+    final print = sectionPrintOf(doc, content, held, section, citedBy);
+    blocks.add(print.block);
+    cited.addAll(print.cited);
+  }
+  return (text: blocks.join('\n\n'), cited: cited);
+}
+
+/// Returns [section] of [doc], whose held sections [held] reads, as a bundle
+/// prints it, with the lines [citedBy] holds for its items after them.
+({String block, List<CitedItem> cited}) sectionPrintOf(
+  IndexedDoc doc,
+  DocContent content,
+  List<CitedSection> held,
+  IndexedSection section,
+  CitedByIndex? citedBy,
+) {
+  final at = content.sections.indexOf(section);
+  final items = citedBy == null
+      ? const <CitedItem>[]
+      : citedItemsIn(citedBy, doc, content, held[at], at);
+  final block = sectionBlockOf(
+    section,
+    bodyLine: content.lineFacts.sectionLines[at] + 1,
+    after: citedLinesAfter(items),
+  );
+  return (block: block, cited: items);
 }
 
 /// Returns the kept sections of a summary doc whose merged section is a
@@ -128,12 +158,13 @@ String printedBodyOf(
   final lineEnds = _lineEndsOf(text);
   final out = StringBuffer();
   var from = 0;
-  for (final line in after.keys.toList()..sort()) {
+  final byLine = after.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+  for (final MapEntry(key: line, value: lines) in byLine) {
     final end = lineEnds[(line - firstLine).clamp(0, lineEnds.length - 1)];
     final offset = _keptOffset(end, comments).clamp(from, printed.length);
     out
       ..write(printed.substring(from, offset))
-      ..write('\n${after[line]!.join('\n')}');
+      ..write('\n${lines.join('\n')}');
     from = offset;
   }
   return (out..write(printed.substring(from))).toString();

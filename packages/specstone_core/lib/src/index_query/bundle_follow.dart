@@ -294,11 +294,19 @@ final class _Walk {
     final docPath = view.doc.docPath;
     if (_whole.contains(docPath) || _summarized.contains(docPath)) return;
     _summarized.add(docPath);
+    final print = summaryPrintOf(
+      view.doc,
+      view.content,
+      view.type,
+      bundle.mode,
+      citedBy,
+    );
     _add(
       AppendedPart(
         doc: view.doc,
         summary: true,
-        text: summaryBodyOf(view.doc, view.content, view.type, bundle.mode),
+        cited: print.cited,
+        text: print.text,
       ),
       view,
       view.summaryRanges(bundle.mode),

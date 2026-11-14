@@ -740,9 +740,81 @@ void main() {
           'line': e01,
         },
       ]);
+      final feature = docs.firstWhere(
+        (d) => d['name'] == 'login' && d['docType'] == 'feature',
+      );
+      expect(feature['citedBy'], isEmpty);
       expect(
-        docs.where((d) => d['name'] == 'login' && d['docType'] == 'feature'),
-        everyElement(isNot(contains('citedBy'))),
+        docs.where((d) => !d.containsKey('citedBy')),
+        isEmpty,
+        reason: 'each doc object of a design bundle carries citedBy',
+      );
+    });
+    test('f01/us05/fr06: a nested item that ends on its cited parent last line keeps its line in the text', () async {
+      final a = design(
+        await citedIndex('Lock, by $inv14.', {
+          'docs/specs/f02_signup/DOMAIN.md':
+              '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+              '- **INV-14** Locks after five failures.\n'
+              '  - **INV-15** Mails its owner.\n',
+          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [INV-14](../f02_signup/DOMAIN.md#invariants) and [INV-15](../f02_signup/DOMAIN.md#invariants).\n',
+        }),
+      );
+      final text = a.text;
+      expect(
+        text,
+        contains(
+          '  - **INV-15** Mails its owner.\n  · cited by guide (topic) —: See [INV-14]',
+        ),
+      );
+      expect(
+        RegExp('  · cited by guide').allMatches(text).length,
+        2,
+        reason: 'one line for INV-14 and one for INV-15',
+      );
+      final part = docsOf(a).firstWhere((d) => d['item'] == 'INV-14');
+      expect(part['citedBy']! as List, hasLength(4));
+    });
+    test('f01/us05/fr06: a summary doc prints its whole-printed items with their cited-by lines', () async {
+      final a = design(
+        await citedIndex(
+          'Resets, by [BR-1](../us02_reset_password/USER_STORY.md#rules).',
+          {
+            'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md': '---\nslug:\n  - reset\n---\n\n# Agent resets a password\n\n## Use Case\nReset it.\n\n## Rules\n- **BR-1** Links expire.\n',
+          },
+        ),
+      );
+      expect(
+        a.text,
+        contains(
+          '## Rules\n- **BR-1** Links expire.\n'
+          '  · cited by $frName (fr) —: Resets, by [BR-1]',
+        ),
+      );
+      final summary = docsOf(a).firstWhere(
+        (d) => d['summary'] == true && d['name'] == 'login/reset_password',
+      );
+      expect(
+        (summary['citedBy']! as List).single,
+        containsPair('item', 'BR-1'),
+      );
+    });
+    test('f01/us05/fr06: an appended summary doc part prints its items with their cited-by lines', () async {
+      final a = design(
+        await citedIndex(
+          'See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).',
+          {
+            'docs/prds/features/f02_signup/us01_create_account/USER_STORY.md': '---\nslug:\n  - signup\n---\n\n# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n',
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [BR-1](../../prds/features/f02_signup/us01_create_account/USER_STORY.md#rules).\n',
+          },
+        ),
+      );
+      expect(
+        a.text,
+        contains(
+          '· summary · cited <==\n# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
+          '  · cited by guide (topic) —: See [BR-1]',
+        ),
       );
     });
     test('f01/us05/fr06/e07: the lines count toward the budget', () async {
