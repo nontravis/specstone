@@ -63,16 +63,16 @@ jobs:
       - name: Test specstone with coverage
         if: matrix.suite == 'cli' && matrix.os == 'ubuntu-latest'
         working-directory: packages/specstone
-        run: dart test --concurrency=4 --coverage-path=coverage/lcov.info --exclude-tags timing
+        run: dart test --coverage-path=coverage/lcov.info --exclude-tags timing
       - name: Test specstone (macOS)
         if: matrix.suite == 'cli' && matrix.os == 'macos-latest'
         working-directory: packages/specstone
-        run: dart test --concurrency=4 --exclude-tags timing
+        run: dart test --exclude-tags timing
       # The PowerShell script tests run in test-scripts-windows.
       - name: Test specstone (Windows)
         if: matrix.suite == 'cli' && matrix.os == 'windows-latest'
         working-directory: packages/specstone
-        run: dart test --concurrency=4 --exclude-tags timing,ps1
+        run: dart test --exclude-tags timing,ps1
       - name: Timing gate (NFR-P01, NFR-P02)
         if: matrix.suite == 'cli'
         working-directory: packages/specstone
