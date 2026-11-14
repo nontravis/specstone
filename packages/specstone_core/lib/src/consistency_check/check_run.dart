@@ -111,13 +111,14 @@ CheckReport runCheck(
       ..addAll(unresolvedTemplateReferences(context))
       ..addAll(staleAgentBlocks(context));
   }
-  findings.addAll(
-    checkErrorCatalogs(
-      context,
-      _namesOf(scope),
-    ).where((finding) => scope.contains(finding.path)),
-  );
-  findings.addAll(unreadableFindings(context, scope));
+  findings
+    ..addAll(
+      checkErrorCatalogs(
+        context,
+        _namesOf(scope),
+      ).where((finding) => scope.contains(finding.path)),
+    )
+    ..addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
 }
 
