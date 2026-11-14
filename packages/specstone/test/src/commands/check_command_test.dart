@@ -37,7 +37,7 @@ void main() {
     expect(err.toString(), isEmpty);
   });
 
-  test('f04/us01/fr02: each finding prints on its own line before the count, and the check exits 1', () async {
+  test('each finding prints on its own line before the count, and the check exits 1', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(extra: frWith('verify_method: maybe')),
     );
@@ -49,7 +49,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr01/e15: check architecture:login prints the finding of ARCHITECTURE.md only, not API.md beside it', () async {
+  test('check architecture:login prints the finding of ARCHITECTURE.md only, not API.md beside it', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: {
@@ -74,7 +74,7 @@ void main() {
     expect(out.toString(), endsWith('1 finding\n'));
   });
 
-  test('f04/us01/fr10/e01: check --json on a feature that holds a story and sub-features lists feature_mixed_children and exits 1', () async {
+  test('check --json on a feature that holds a story and sub-features lists feature_mixed_children and exits 1', () async {
     final (:runner, :out, :err) = readRunner(
       await writeNestedProject(
         extra: {
@@ -176,7 +176,7 @@ void main() {
     });
   });
 
-  test('consistency_check/find_template_breaks/print_findings E08: an '
+  test('E08: an '
       'approval_stale finding ends its line with the tag, and its JSON holds '
       'waitsFor owner with a message that carries no tag', () async {
     final project = await writeCheckProject(
@@ -256,7 +256,7 @@ void main() {
     );
   });
 
-  group('consistency_check/find_template_breaks/print_findings upstream block', () {
+  group('upstream block', () {
     final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
     final fingerprint = fingerprintFor(edited);
     final block = printedBlockOf(edited);
@@ -292,7 +292,7 @@ void main() {
     });
   });
 
-  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+  test('E12: an owner '
       'finding counts and exits 1 as any other', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
@@ -303,7 +303,7 @@ void main() {
     expect(out.toString(), contains('\n1 finding\n'));
   });
 
-  group('consistency_check/find_template_breaks/print_findings E11, E12: item_over_limit', () {
+  group('E11, E12: item_over_limit', () {
     final overlong = 'A long rationale'.padRight(700, '.');
 
     Future<Directory> project() => writeCheckProject(
@@ -368,21 +368,27 @@ void main() {
     expect(outside.out.toString(), isEmpty);
   });
 
-  test('f04/us01/fr02/e05: a warning no finding states goes to stderr, and to warnings under --json', () async {
-    Future<Directory> damaged() async {
-      final project = await writeCheckProject();
-      File('${project.path}/.specstone/index.sqlite')
-          .writeAsStringSync('not a database');
-      return project;
-    }
+  test(
+    'a warning no finding states goes to stderr, and to warnings under --json',
+    () async {
+      Future<Directory> damaged() async {
+        final project = await writeCheckProject();
+        File('${project.path}/.specstone/index.sqlite')
+            .writeAsStringSync('not a database');
+        return project;
+      }
 
-    final text = readRunner(await damaged());
-    expect(await text.runner.run(['check']), 0);
-    expect(text.err.toString(), startsWith('⚠️ WARNING: '));
-    final json = readRunner(await damaged());
-    expect(await json.runner.run(['check', '--json']), 0);
-    expect((jsonDecode(json.out.toString()) as Map)['warnings'], hasLength(1));
-  });
+      final text = readRunner(await damaged());
+      expect(await text.runner.run(['check']), 0);
+      expect(text.err.toString(), startsWith('⚠️ WARNING: '));
+      final json = readRunner(await damaged());
+      expect(await json.runner.run(['check', '--json']), 0);
+      expect(
+        (jsonDecode(json.out.toString()) as Map)['warnings'],
+        hasLength(1),
+      );
+    },
+  );
 
   test('f04/us01/fr01/e08, f04/us01/fr01/e19: a pin fault exits 78 before any rule; an unknown option or two targets '
       'exit 64', () async {
@@ -401,29 +407,32 @@ void main() {
     }
   });
 
-  test('f04/us01/fr01/e09: a write lock held past the busy timeout exits 75 with the JSON envelope', () async {
-    final project = await writeCheckProject();
-    expect(await readRunner(project).runner.run(['check']), 0);
-    final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
-      ..execute('BEGIN IMMEDIATE');
-    addTearDown(
-      () => holder
-        ..execute('ROLLBACK')
-        ..close(),
-    );
-    File('${project.path}/docs/$loginFeature')
-        .writeAsStringSync('# Login v2\n');
-    final (:runner, :out, :err) = readRunner(
-      project,
-      busyTimeout: const Duration(milliseconds: 200),
-    );
-    expect(await runner.run(['check', '--json']), 75);
-    expect(
-      (jsonDecode(err.toString()) as Map)['error'],
-      containsPair('code', 'index_busy'),
-    );
-    expect(out.toString(), isEmpty);
-  });
+  test(
+    'a write lock held past the busy timeout exits 75 with the JSON envelope',
+    () async {
+      final project = await writeCheckProject();
+      expect(await readRunner(project).runner.run(['check']), 0);
+      final holder = sqlite3.open('${project.path}/.specstone/index.sqlite')
+        ..execute('BEGIN IMMEDIATE');
+      addTearDown(
+        () => holder
+          ..execute('ROLLBACK')
+          ..close(),
+      );
+      File('${project.path}/docs/$loginFeature')
+          .writeAsStringSync('# Login v2\n');
+      final (:runner, :out, :err) = readRunner(
+        project,
+        busyTimeout: const Duration(milliseconds: 200),
+      );
+      expect(await runner.run(['check', '--json']), 75);
+      expect(
+        (jsonDecode(err.toString()) as Map)['error'],
+        containsPair('code', 'index_busy'),
+      );
+      expect(out.toString(), isEmpty);
+    },
+  );
   test('user_story:consistency_check/find_template_breaks S13: check names a stale agent block and its fix, and --json holds no name', () async {
     final project = await writeCheckProject(
       extra: {
@@ -463,7 +472,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_template_breaks/report_format_drift S12: check names the drifted file and its fix, and format clears it', () async {
+  test('S12: check names the drifted file and its fix, and format clears it', () async {
     final project = await writeCheckProject(
       extra: fr(
         'A wrong password must not sign in.\n',
@@ -486,7 +495,7 @@ void main() {
     expect(clean.out.toString(), '0 findings\n');
   });
 
-  test('consistency_check/find_template_breaks: check names an approved story edited outside the commands; padded table cells draw format_drift only', () async {
+  test('check names an approved story edited outside the commands; padded table cells draw format_drift only', () async {
     final project = await writeCheckProject(
       extra: {
         ...editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
@@ -509,7 +518,7 @@ void main() {
     );
   });
 
-  test('consistency_check/find_template_breaks: check names a doc made outside the commands in a project upgraded to 1.2.0', () async {
+  test('check names a doc made outside the commands in a project upgraded to 1.2.0', () async {
     final project = await writeCheckProject(
       extra: {'docs/$loginFr': checkProjectFiles()['docs/$loginFr']!},
       unstamped: {'docs/$loginFr'},
@@ -538,7 +547,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_broken_pointers S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
+  test('S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
       'prints the anchor, self, malformed, and doc_ref findings with their keys', () async {
     final project = await writeCheckProject(
       extra: edit(loginFeature, [
@@ -626,7 +635,7 @@ void main() {
     expect(file.readAsStringSync(), contains(kept));
   });
 
-  test('consistency_check/find_broken_pointers S15: check prints one number_label finding per label with its key, '
+  test('S15: check prints one number_label finding per label with its key, '
       'and none for a placeholder', () async {
     // The labels are built from parts so this file holds no number label.
     final run = ['F-${2}', 'US-${3}', 'FR-${4}'].join(' ');

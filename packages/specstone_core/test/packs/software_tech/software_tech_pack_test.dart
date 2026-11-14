@@ -15,29 +15,23 @@ import '../../helpers/temp_tree.dart';
 
 void main() {
   group('software-tech manifest', () {
-    test(
-      'f03/us07/fr01: software-tech ships at 1.6.0 and extends prd-core',
-      () {
-        final bytes = shippedPackFiles['software-tech/pack.yaml'];
-        expect(bytes, isNotNull);
-        final manifest = PackManifest.parse(
-          utf8.decode(bytes!),
-          file: 'packs/software-tech/pack.yaml',
-        );
-        expect(manifest.name, 'software-tech');
-        expect(manifest.version.toString(), '1.6.0');
-        expect(manifest.extendsPack, 'prd-core');
-      },
-    );
+    test('software-tech ships at 1.6.0 and extends prd-core', () {
+      final bytes = shippedPackFiles['software-tech/pack.yaml'];
+      expect(bytes, isNotNull);
+      final manifest = PackManifest.parse(
+        utf8.decode(bytes!),
+        file: 'packs/software-tech/pack.yaml',
+      );
+      expect(manifest.name, 'software-tech');
+      expect(manifest.version.toString(), '1.6.0');
+      expect(manifest.extendsPack, 'prd-core');
+    });
 
-    test(
-      'f03/us07/fr01: a project pinning both packs resolves with no fault',
-      () {
-        expect(resolveSoftwareTech(), completes);
-      },
-    );
+    test('a project pinning both packs resolves with no fault', () {
+      expect(resolveSoftwareTech(), completes);
+    });
 
-    test('f03/us07/fr01/e03: software-tech listed without prd-core is '
+    test('software-tech listed without prd-core is '
         'prd_core_missing', () async {
       final project = await writeTree({
         '.specstone/config.yaml': shippedPinsConfig(['software-tech']),
@@ -66,7 +60,7 @@ void main() {
       set = await resolveSoftwareTech();
     });
 
-    test('f03/us07/fr01/e01: the set holds the eleven prd-core and the nine '
+    test('the set holds the eleven prd-core and the nine '
         'software-tech doc types', () {
       expect(
         set.docTypes.map((d) => d.id).toList(),
@@ -80,7 +74,7 @@ void main() {
       }
     });
 
-    test('f03/us07/fr01: every spec doc path starts specs/, and the seven '
+    test('every spec doc path starts specs/, and the seven '
         'per-feature doc types take parent feature', () {
       const perFeature = <String, String>{
         'architecture': 'ARCHITECTURE',
@@ -101,7 +95,7 @@ void main() {
       }
     });
 
-    test('f03/us07/fr01/e04: no doc type is a spec index', () {
+    test('no doc type is a spec index', () {
       expect(set.lookup('index'), isNull);
       for (final docType in set.docTypes) {
         expect(
@@ -112,7 +106,7 @@ void main() {
       }
     });
 
-    test('f03/us07/fr01/e05: rollout, observability, and events are optional '
+    test('rollout, observability, and events are optional '
         'sections, not doc types', () {
       for (final id in ['rollout', 'observability', 'events']) {
         expect(set.lookup(id), isNull, reason: id);
@@ -124,7 +118,7 @@ void main() {
       expect(sectionOf(integration, 'events').required, isFalse);
     });
 
-    test('f03/us07/fr01/e06: only architecture and topic carry covers', () {
+    test('only architecture and topic carry covers', () {
       for (final docType in set.docTypes) {
         expect(
           docType.fields.any((f) => f.id == 'covers'),

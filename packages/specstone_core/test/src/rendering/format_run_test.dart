@@ -165,7 +165,7 @@ String _fresh() => '$_toc\ntoc R1\n$_end';
 String _stale() => '$_toc\nold\n$_end';
 
 void main() {
-  test('f05/us01/fr07/e01: a CRLF doc out of order is written with CRLF '
+  test('a CRLF doc out of order is written with CRLF '
       'only', () async {
     final run = await _open({
       _feature: _featureOutOfOrder.replaceAll('\n', '\r\n'),
@@ -177,7 +177,7 @@ void main() {
     expect(_read(run, _feature), _featureFormatted.replaceAll('\n', '\r\n'));
   });
 
-  test('f05/us01/fr07: a BOM doc out of order is rewritten with the BOM first '
+  test('a BOM doc out of order is rewritten with the BOM first '
       'and the sections ordered', () async {
     final run = await _open({_feature: ''});
     _file(
@@ -194,17 +194,14 @@ void main() {
     ]);
   });
 
-  test(
-    'f05/us01/fr07/e02: a doc with no line break is written with LF',
-    () async {
-      final run = await _open({_feature: '# T'});
+  test('a doc with no line break is written with LF', () async {
+    final run = await _open({_feature: '# T'});
 
-      final report = _run(run);
+    final report = _run(run);
 
-      expect(report.files.single.status, FileStatus.formatted);
-      expect(_read(run, _feature), '# T\n');
-    },
-  );
+    expect(report.files.single.status, FileStatus.formatted);
+    expect(_read(run, _feature), '# T\n');
+  });
 
   test('f05/us01/fr06/e01, f05/us01/fr07/e04, s03/inv7, s03/inv8: a CRLF '
       'copy of a formatted doc is unchanged, not written, not listed by '
@@ -278,7 +275,7 @@ void main() {
     expect(_read(run, _notes), 'free text');
   });
 
-  test('f05/us01/fr02/e02: hidden files are neither listed nor warned '
+  test('hidden files are neither listed nor warned '
       'about', () async {
     final run = await _open({
       _feature: _featureFormatted,
@@ -330,7 +327,7 @@ void main() {
     );
   });
 
-  test('f05/us01/fr04: a doc ending inside a fence is refused and left '
+  test('a doc ending inside a fence is refused and left '
       'alone; a second run adds no section either', () async {
     const unclosed = '# F-05\n\n## Feature name\n- **Human:** x\n```\ncode\n';
     final run = await _open({_feature: unclosed, _story: _storyOutOfOrder});
@@ -354,7 +351,7 @@ void main() {
     }
   });
 
-  test('f05/us01/fr04: under check a doc ending inside a fence is listed '
+  test('under check a doc ending inside a fence is listed '
       'as refused and exits 1', () async {
     final run = await _open({_feature: '# F-05\n\n```\n'});
 
@@ -364,7 +361,7 @@ void main() {
     expect(report.exitStatus, 1);
   });
 
-  test('f05/us01/fr04: toJson carries unclosedFence only when true', () async {
+  test('toJson carries unclosedFence only when true', () async {
     final run = await _open({
       _feature: '# F-05\n\n```\n',
       _story: _storyFormatted,
@@ -378,7 +375,7 @@ void main() {
     ]);
   });
 
-  test('rendering/format_docs/match_section_headers: a doc whose layout '
+  test('a doc whose layout '
       'would turn a body line into a frontmatter close is refused and left '
       'alone', () async {
     const text = '---\n# F-05\n\n## Feature name\nx\n--- \n';
@@ -398,7 +395,7 @@ void main() {
     expect(_read(run, _feature), text);
   });
 
-  test('f05/us01/fr06/e02: a refused doc lists a duplicate header with its '
+  test('a refused doc lists a duplicate header with its '
       'template form', () async {
     final run = await _open({_story: '$_storyFormatted\n## Summary\ntwice\n'});
 
@@ -431,7 +428,7 @@ void main() {
     });
   });
 
-  test('f05/us01/fr08: toJson of refused files prints the header and doc '
+  test('toJson of refused files prints the header and doc '
       'type lists', () async {
     final run = await _open(
       {
@@ -459,7 +456,7 @@ void main() {
     expect(json['warnings'], isEmpty);
   });
 
-  test('f05/us01/fr08/e04: every doc already formatted prints nothing, exit '
+  test('every doc already formatted prints nothing, exit '
       '0', () async {
     final run = await _open({
       _feature: _featureFormatted,
@@ -503,7 +500,7 @@ void main() {
     expect(_file(run, _feature).readAsBytesSync(), [0xFF, 0xFE]);
   });
 
-  test('f05/us01/fr02: a file target formats that file only', () async {
+  test('a file target formats that file only', () async {
     final run = await _open({
       _feature: _featureOutOfOrder,
       _story: '$_storyFormatted\n',
@@ -518,31 +515,27 @@ void main() {
     );
   });
 
-  test(
-    'f05/us01/fr07: a write that fails throws output_not_writable naming the '
-    'doc; docs written before it stay written',
-    () async {
-      final run = await _open({
-        _feature: _featureOutOfOrder,
-        _story: _storyOutOfOrder,
-      });
-      final storyFolder = _file(run, _story).parent;
-      await Process.run('chmod', ['555', storyFolder.path]);
-      addTearDown(() => Process.run('chmod', ['755', storyFolder.path]));
+  test('a write that fails throws output_not_writable naming the '
+      'doc; docs written before it stay written', () async {
+    final run = await _open({
+      _feature: _featureOutOfOrder,
+      _story: _storyOutOfOrder,
+    });
+    final storyFolder = _file(run, _story).parent;
+    await Process.run('chmod', ['555', storyFolder.path]);
+    addTearDown(() => Process.run('chmod', ['755', storyFolder.path]));
 
-      expect(
-        () => _run(run),
-        throwsA(
-          isA<RenderFault>()
-              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
-              .having((f) => f.file, 'file', _story)
-              .having((f) => f.exitStatus, 'exitStatus', 73),
-        ),
-      );
-      expect(_read(run, _feature), _featureFormatted);
-    },
-    skip: Platform.isWindows ? 'chmod does not apply on Windows' : false,
-  );
+    expect(
+      () => _run(run),
+      throwsA(
+        isA<RenderFault>()
+            .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+            .having((f) => f.file, 'file', _story)
+            .having((f) => f.exitStatus, 'exitStatus', 73),
+      ),
+    );
+    expect(_read(run, _feature), _featureFormatted);
+  }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : false);
 
   group('a read-only doc', () {
     const readOnlySkip = 'file modes need chmod, which Windows lacks';
@@ -552,52 +545,40 @@ void main() {
       addTearDown(() => Process.run('chmod', ['644', file.path]));
     }
 
-    test(
-      'f05/us01/fr07: format refuses with output_not_writable and leaves the '
-      'doc untouched; docs written before it stay written',
-      () async {
-        final run = await _open({
-          _feature: _featureOutOfOrder,
-          _story: _storyOutOfOrder,
-        });
-        await makeReadOnly(_file(run, _story));
+    test('format refuses with output_not_writable and leaves the '
+        'doc untouched; docs written before it stay written', () async {
+      final run = await _open({
+        _feature: _featureOutOfOrder,
+        _story: _storyOutOfOrder,
+      });
+      await makeReadOnly(_file(run, _story));
 
-        expect(
-          () => _run(run),
-          throwsA(
-            isA<RenderFault>()
-                .having(
-                  (f) => f.code,
-                  'code',
-                  RenderFaultCode.outputNotWritable,
-                )
-                .having((f) => f.file, 'file', _story)
-                .having((f) => f.message, 'message', 'the doc is read-only')
-                .having((f) => f.exitStatus, 'exitStatus', 73),
-          ),
-        );
+      expect(
+        () => _run(run),
+        throwsA(
+          isA<RenderFault>()
+              .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+              .having((f) => f.file, 'file', _story)
+              .having((f) => f.message, 'message', 'the doc is read-only')
+              .having((f) => f.exitStatus, 'exitStatus', 73),
+        ),
+      );
 
-        expect(_read(run, _story), _storyOutOfOrder);
-        expect(_file(run, _story).statSync().mode & 0x80, 0);
-        expect(_read(run, _feature), _featureFormatted);
-      },
-      skip: Platform.isWindows ? readOnlySkip : false,
-    );
+      expect(_read(run, _story), _storyOutOfOrder);
+      expect(_file(run, _story).statSync().mode & 0x80, 0);
+      expect(_read(run, _feature), _featureFormatted);
+    }, skip: Platform.isWindows ? readOnlySkip : false);
 
-    test(
-      'f05/us01/fr07: a read-only doc that needs no change is unchanged',
-      () async {
-        final run = await _open({_feature: _featureFormatted});
-        await makeReadOnly(_file(run, _feature));
+    test('a read-only doc that needs no change is unchanged', () async {
+      final run = await _open({_feature: _featureFormatted});
+      await makeReadOnly(_file(run, _feature));
 
-        final report = _run(run);
+      final report = _run(run);
 
-        expect(report.files.single.status, FileStatus.unchanged);
-      },
-      skip: Platform.isWindows ? readOnlySkip : false,
-    );
+      expect(report.files.single.status, FileStatus.unchanged);
+    }, skip: Platform.isWindows ? readOnlySkip : false);
 
-    test('f05/us01/fr07: --check lists a read-only doc that would change and '
+    test('--check lists a read-only doc that would change and '
         'raises no fault', () async {
       final run = await _open({_feature: _featureOutOfOrder});
       await makeReadOnly(_file(run, _feature));
@@ -610,7 +591,7 @@ void main() {
   });
 
   group('an unreadable path', () {
-    test('f05/us01/fr02: a doc that cannot be read is skipped with a warning; '
+    test('a doc that cannot be read is skipped with a warning; '
         'the run goes on and its exit status stays 0', () async {
       final run = await _open({
         _feature: _featureFormatted,
@@ -631,7 +612,7 @@ void main() {
       expect(_read(run, _story), _storyFormatted);
     }, skip: unreadablePathSkipReason() ?? false);
 
-    test('f05/us01/fr02: a folder that cannot be listed is skipped with a '
+    test('a folder that cannot be listed is skipped with a '
         'warning whose path ends in a slash', () async {
       final run = await _open({
         _feature: _featureOutOfOrder,
@@ -652,7 +633,7 @@ void main() {
     }, skip: unreadablePathSkipReason() ?? false);
   });
 
-  test('f05/us01/fr08: a docs root that is a link to a folder outside the '
+  test('a docs root that is a link to a folder outside the '
       'project still reports docs/... paths', () async {
     final outside = await writeTree({
       'prds/features/f05_rendering/FEATURE.md': _featureOutOfOrder,
@@ -721,7 +702,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_stale()));
     });
 
-    test('f05/us03/fr03/e02: format, then format --check, lists nothing and '
+    test('format, then format --check, lists nothing and '
         'exits 0', () async {
       final run = await _openNotes({_noteA: _noteDoc(_stale())});
       final generators = _tocRun(_Calls());
@@ -733,22 +714,19 @@ void main() {
       expect(report.exitStatus, 0);
     });
 
-    test(
-      'f05/us03/fr03/e04: a block that cannot be resolved is not listed',
-      () async {
-        final run = await _openNotes({_noteA: _noteDoc(_stale())});
+    test('a block that cannot be resolved is not listed', () async {
+      final run = await _openNotes({_noteA: _noteDoc(_stale())});
 
-        final report = _runNotes(
-          run,
-          _tocRun(_Calls(), noBlocks: true),
-          check: true,
-        );
+      final report = _runNotes(
+        run,
+        _tocRun(_Calls(), noBlocks: true),
+        check: true,
+      );
 
-        expect(report.toText(), '');
-        expect(report.exitStatus, 0);
-        expect(_read(run, _noteA), _noteDoc(_stale()));
-      },
-    );
+      expect(report.toText(), '');
+      expect(report.exitStatus, 0);
+      expect(_read(run, _noteA), _noteDoc(_stale()));
+    });
 
     test('f05/us03/s4, f05/us03/fr02/e03: a hand edit inside a block is '
         'replaced', () async {
@@ -813,7 +791,7 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh()));
     });
 
-    test('f05/us03/fr02/e06: an open marker whose line ends in spaces or a '
+    test('an open marker whose line ends in spaces or a '
         'tab refuses the file and leaves it byte-equal', () async {
       final openDoc = '# A\n\n## Contents\n$_toc  \nbody\n\n## Steps\nx\n';
       final run = await _openNotes({_noteA: openDoc});
@@ -828,7 +806,7 @@ void main() {
       expect(_read(run, _noteA), openDoc);
     });
 
-    test('f05/us03/fr01/e02: a run with no doc type listing generators never '
+    test('a run with no doc type listing generators never '
         'calls open', () async {
       final run = await _openNotes({_feature: _featureOutOfOrder});
       final calls = _Calls();
@@ -839,7 +817,7 @@ void main() {
       expect(calls.closed, 0);
     });
 
-    test('f05/us03/fr01: open runs once per run, before the first write, and '
+    test('open runs once per run, before the first write, and '
         'close runs after the last', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale()),
@@ -873,7 +851,7 @@ void main() {
       expect(events, ['open before writes', 'close after last write']);
     });
 
-    test('f05/us03/fr01: close still runs once when a write throws', () async {
+    test('close still runs once when a write throws', () async {
       final run = await _openNotes({_noteA: _noteDoc(_stale())});
       final folder = _file(run, _noteA).parent;
       await Process.run('chmod', ['555', folder.path]);
@@ -886,7 +864,7 @@ void main() {
       expect(calls.closed, 1);
     }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : false);
 
-    test('f05/us03/fr01/e05: a fault from open stops the run and writes no '
+    test('a fault from open stops the run and writes no '
         'file', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale()),
@@ -903,7 +881,7 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_stale()));
     });
 
-    test('f05/us01/fr03: sections out of order are reordered and each body '
+    test('sections out of order are reordered and each body '
         'is kept byte for byte outside its block', () async {
       final run = await _openNotes({
         _noteA: '# A\n\n## Steps\n\nx\n  y\n\n## Contents\n\nbody\n',
@@ -917,7 +895,7 @@ void main() {
       );
     });
 
-    test('f05/us03/fr02: a CRLF doc gets its block in CRLF, and a second run '
+    test('a CRLF doc gets its block in CRLF, and a second run '
         'is unchanged', () async {
       final run = await _openNotes({
         _noteA: _noteDoc(_stale()).replaceAll('\n', '\r\n'),
@@ -931,7 +909,7 @@ void main() {
       expect(again.files.single.status, FileStatus.unchanged);
     });
 
-    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+    test('Write each generated block '
         'statement: a missing section-top block lands one blank line under '
         'the header, and a second check reports unchanged', () async {
       final run = await _openNotes({
@@ -950,7 +928,7 @@ void main() {
       expect(again.files.single.status, FileStatus.unchanged);
     });
 
-    test('rendering/format_docs/write_formatted_files E07: an approved doc '
+    test('E07: an approved doc '
         'and a draft doc that need a change keep their key block and gain no '
         'draft: true', () async {
       const approved = '---\napproved: true\n---\n';
@@ -966,7 +944,7 @@ void main() {
       expect(_read(run, _noteB), _noteDoc(_fresh(), front: draft));
     });
 
-    test('rendering/format_docs/write_formatted_files E07: a doc that holds an '
+    test('E07: a doc that holds an '
         'approved hash keeps the key block byte for byte', () async {
       const hashed = '---\napproved: "0123456789ab"\n---\n';
       final run = await _openNotes({_noteA: _noteDoc(_stale(), front: hashed)});
@@ -976,7 +954,7 @@ void main() {
       expect(_read(run, _noteA), _noteDoc(_fresh(), front: hashed));
     });
 
-    test('rendering/keep_generated_blocks_current/write_generated_blocks '
+    test('Write each generated block '
         'E08: an approved doc whose block changed is written with no '
         'draft: true', () async {
       const approved = '---\napproved: true\n---\n';

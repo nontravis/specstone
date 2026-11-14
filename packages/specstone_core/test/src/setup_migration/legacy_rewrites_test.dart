@@ -20,7 +20,7 @@ void main() {
   });
 
   group('rewriteLegacyDoc', () {
-    test('f06/us01/fr04/e01: a numbered title loses its number', () {
+    test('a numbered title loses its number', () {
       const fr = '''
 ---
 name: Check pack pins
@@ -74,7 +74,7 @@ None.
       expect(domainResult.changes, ['title', 'name', 'feature_id']);
     });
 
-    test('f06/us01/fr04/e01: a doc with no title line or no number keeps its '
+    test('a doc with no title line or no number keeps its '
         'title line', () {
       const noTitle = '''
 ---
@@ -100,7 +100,7 @@ Body.
       expect(noNumberResult.changes, isEmpty);
     });
 
-    test('f06/us01/fr04/e02: the three project docs take fixed titles', () {
+    test('the three project docs take fixed titles', () {
       final project = rewriteLegacyDoc(
         _acme('d01_context.md'),
         LegacyKind.project,
@@ -126,7 +126,7 @@ Body.
       expect(gnfr.changes, ['title', 'name']);
     });
 
-    test('f06/us01/fr04/e03: the Feature name folds into the title', () {
+    test('the Feature name folds into the title', () {
       final result = rewriteLegacyDoc(
         _acme('features/f01_login/FEATURE.md'),
         LegacyKind.feature,
@@ -155,7 +155,7 @@ Let a user sign in.
       ]);
     });
 
-    test('f06/us01/fr04/e03: without a Human line the Feature name section '
+    test('without a Human line the Feature name section '
         'stays and the title only loses its number', () {
       const feature = '''
 # F-01 — Login
@@ -175,7 +175,7 @@ Let a user sign in.
       expect(result.changes, ['title']);
     });
 
-    test('f06/us01/fr04/e04: name goes everywhere, feature_id from spec docs, '
+    test('name goes everywhere, feature_id from spec docs, '
         'applies_to becomes covers', () {
       const topic = '''
 ---
@@ -232,7 +232,7 @@ feature_id: keep-me
       expect(featureResult.changes, ['name']);
     });
 
-    test('f06/us01/fr04/e05: the project vision labels become Why, Problem, '
+    test('the project vision labels become Why, Problem, '
         'and Audience', () {
       final project = rewriteLegacyDoc(
         _acme('d01_context.md'),
@@ -261,7 +261,7 @@ feature_id: keep-me
       expect(feature.changes, isEmpty);
     });
 
-    test('f06/us01/fr04/e06: the three index sections of a feature doc go', () {
+    test('the three index sections of a feature doc go', () {
       const feature = '''
 # Login
 
@@ -308,7 +308,7 @@ Kept.
       expect(result.changes, ['index tables removed']);
     });
 
-    test('f06/us01/fr04/e03: a doc with no title line gets the Feature name '
+    test('a doc with no title line gets the Feature name '
         'as its title', () {
       const feature = '''
 ## Feature name
@@ -331,7 +331,7 @@ Goal.
       expect(result.changes, ['title from Feature name']);
     });
 
-    test('f06/us01/fr04/e12: an index section mid-doc keeps a tail with no '
+    test('an index section mid-doc keeps a tail with no '
         'final newline', () {
       const feature =
           '# Login\n\n## User stories index\n\n| a |\n\n## Notes\n\nKept';
@@ -342,7 +342,7 @@ Goal.
       expect(result.changes, ['index tables removed']);
     });
 
-    test('f06/us01/fr04/e12: a doc that ends in a blank line keeps it when an '
+    test('a doc that ends in a blank line keeps it when an '
         'index section goes', () {
       const feature =
           '# Login\n\n## Notes\n\nKept\n\n## User stories index\n\n| a |\n\n';
@@ -353,7 +353,7 @@ Goal.
       expect(result.changes, ['index tables removed']);
     });
 
-    test('f06/us01/fr04/e12: an index section last in the doc leaves one '
+    test('an index section last in the doc leaves one '
         'final newline', () {
       const feature =
           '# Login\n\n## Notes\n\nKept\n\n## User stories index\n\n| a |\n';
@@ -364,7 +364,7 @@ Goal.
       expect(result.changes, ['index tables removed']);
     });
 
-    test('f06/us01/fr04/e12: an index section last in a doc with no final '
+    test('an index section last in a doc with no final '
         'newline leaves one final newline', () {
       const feature =
           '# Login\n\n## Notes\n\nKept\n\n## User stories index\n\n| a |';
@@ -375,7 +375,7 @@ Goal.
       expect(result.changes, ['index tables removed']);
     });
 
-    test('f06/us01/fr04/e07: Tier-2 decisions becomes Concerns and FR ↔ '
+    test('Tier-2 decisions becomes Concerns and FR ↔ '
         'endpoint trace becomes FR trace', () {
       const architecture = '''
 # Architecture
@@ -412,7 +412,7 @@ Goal.
       );
     });
 
-    test('f06/us01/fr04/e08: GNFR headers stay and the ones no GNFR section '
+    test('GNFR headers stay and the ones no GNFR section '
         'has are listed', () {
       final result = rewriteLegacyDoc(
         _acme('d03_non_functional.md'),
@@ -451,7 +451,7 @@ implements:
 ''');
     });
 
-    test('f06/us01/fr04/e12: every line the table does not name stays '
+    test('every line the table does not name stays '
         'byte-equal', () {
       const feature = '''
 ---
@@ -500,7 +500,7 @@ Let a user sign in.
       features: scanLegacyFeatures(paths),
     ).moves;
 
-    test('f06/us01/fr04/e10: links to moved files point at the new paths', () {
+    test('links to moved files point at the new paths', () {
       final result = rewriteLinks(
         _acme('features/f01_login/FEATURE.md'),
         docPath: 'prds/features/f01_login/FEATURE.md',
@@ -515,7 +515,7 @@ Let a user sign in.
       expect(result.label, '2 links');
     });
 
-    test('f06/us01/fr04/e15: a doc moved one folder deeper keeps its code '
+    test('a doc moved one folder deeper keeps its code '
         'link pointing at the same file', () {
       final result = rewriteLinks(
         '[code](../../../lib/a.dart)\n',
@@ -527,7 +527,7 @@ Let a user sign in.
       expect(result.label, '1 link');
     });
 
-    test('f06/us01/fr04/e10: a link to a file that stays keeps its target, '
+    test('a link to a file that stays keeps its target, '
         "and a moved doc's link is recomputed", () {
       const fr = '''
 # FR-01 — Validate credentials
@@ -555,7 +555,7 @@ See [story](../USER_STORY.md) and [index](../../../../../specs/INDEX.md).
       expect(result.label, '2 links');
     });
 
-    test('f06/us01/fr04/e10: no link change gives a null label and the same '
+    test('no link change gives a null label and the same '
         'text', () {
       const lf = 'See [web](https://x.dev/a.md).\n';
 
@@ -565,7 +565,7 @@ See [story](../USER_STORY.md) and [index](../../../../../specs/INDEX.md).
       expect(result.label, isNull);
     });
 
-    test('f06/us01/fr04/e11: an untyped moved doc gets the link rewrite '
+    test('an untyped moved doc gets the link rewrite '
         'only', () {
       const doc = '''
 ---
@@ -589,7 +589,7 @@ name: login
   });
 
   group('readDocText and writtenText', () {
-    test('f06/us01/fr04: a CRLF doc with a BOM keeps both', () {
+    test('a CRLF doc with a BOM keeps both', () {
       final lfText = _acme('d01_context.md');
       final bytes = [
         0xEF,
@@ -613,7 +613,7 @@ name: login
       );
     });
 
-    test('f06/us01/fr04: an LF doc without a BOM writes neither', () {
+    test('an LF doc without a BOM writes neither', () {
       final original = readDocText(utf8.encode('# D-01 — x\n'));
 
       expect(original.bom, isFalse);

@@ -62,7 +62,7 @@ String _render(DraftView draft, {int? context, bool color = false}) =>
     );
 
 void main() {
-  group('document_writing/approve_drafts/show_changes_since_approval E17', () {
+  group('E17', () {
     const body = '## Statement\n';
     String fr(String statement) =>
         '---\nverify_method: test\n---\n\n# FR-01 — T\n\n$body$statement';
@@ -139,7 +139,7 @@ void main() {
   });
 
   group('DraftView comparison', () {
-    test('document_writing/approve_drafts/show_changes_since_approval: the '
+    test('the '
         'view and the JSON read one comparison, found once', () {
       final draft = _draft(lookup: _copy(_old));
       final first = draft.comparison;
@@ -257,7 +257,7 @@ void main() {
   });
 
   group('renderApprovalView', () {
-    test('f02/us03/fr02: the view prints heading, path, table, and diff', () {
+    test('the view prints heading, path, table, and diff', () {
       final hash = baseHashOf(_neuDraft);
 
       expect(
@@ -290,26 +290,23 @@ void main() {
       );
     });
 
-    test(
-      'f02/us03/fr02/e08: a renamed header prints its removed and new rows',
-      () {
-        final renamed = _render(
-          _draft(
-            text: '---\nk: v\ndraft: true\n---\n\n## B\nx\n',
-            lookup: _copy('---\nk: v\n---\n\n## A\nx\n'),
-          ),
-        );
+    test('a renamed header prints its removed and new rows', () {
+      final renamed = _render(
+        _draft(
+          text: '---\nk: v\ndraft: true\n---\n\n## B\nx\n',
+          lookup: _copy('---\nk: v\n---\n\n## A\nx\n'),
+        ),
+      );
 
-        expect(
-          renamed,
-          contains(
-            '| changes | `## A` (removed) |\n|         | `## B` (new) |\n',
-          ),
-        );
-      },
-    );
+      expect(
+        renamed,
+        contains(
+          '| changes | `## A` (removed) |\n|         | `## B` (new) |\n',
+        ),
+      );
+    });
 
-    test('f02/us03/fr02: the hash is the base of the draft read as LF', () {
+    test('the hash is the base of the draft read as LF', () {
       final crlf = _neuDraft.replaceAll('\n', '\r\n');
 
       expect(
@@ -318,7 +315,7 @@ void main() {
       );
     });
 
-    test('f02/us03/fr02/e11: draft and approved never show', () {
+    test('draft and approved never show', () {
       final oldApproved = _old.replaceFirst(
         'verify_method: test\n',
         'verify_method: test\napproved: true\n',
@@ -331,18 +328,15 @@ void main() {
       expect(view, contains('| changes | field `verify_method` |\n'));
     });
 
-    test(
-      'f02/us03/fr02/e11: withoutApprovalMarks drops both key blocks only',
-      () {
-        expect(
-          withoutApprovalMarks(
-            '---\ndraft: true\nverify_method: test\napproved: true\n---\n# T\n',
-          ),
-          '---\nverify_method: test\n---\n# T\n',
-        );
-        expect(withoutApprovalMarks('# T\n'), '# T\n');
-      },
-    );
+    test('withoutApprovalMarks drops both key blocks only', () {
+      expect(
+        withoutApprovalMarks(
+          '---\ndraft: true\nverify_method: test\napproved: true\n---\n# T\n',
+        ),
+        '---\nverify_method: test\n---\n# T\n',
+      );
+      expect(withoutApprovalMarks('# T\n'), '# T\n');
+    });
 
     test('f02/us03/fr02/e03, e04: no old copy shows the doc whole', () {
       final lines = _neu.split('\n')..removeLast();
@@ -411,7 +405,7 @@ void main() {
       });
     });
 
-    test('f02/us03/fr02/e12: an unchanged draft says so', () {
+    test('an unchanged draft says so', () {
       final oldMarked = _neu.replaceFirst(
         'verify_method: demonstration\n',
         'verify_method: demonstration\napproved: true\n',
@@ -423,7 +417,7 @@ void main() {
       expect(view, isNot(contains('```')));
     });
 
-    test('f02/us03/fr02/e08: a CRLF approved copy diffs as LF', () {
+    test('a CRLF approved copy diffs as LF', () {
       final view = _render(
         _draft(text: _neuDraft, lookup: _copy(_neu.replaceAll('\n', '\r\n'))),
       );
@@ -431,7 +425,7 @@ void main() {
       expect(view, endsWith('| changes | none |\n$_noChangeEnd'));
     });
 
-    test("f02/us03/fr02/e13: the fence outlasts the doc's own fence", () {
+    test("the fence outlasts the doc's own fence", () {
       const oldText = '# T\n\n## Behavior\n```mermaid\nflowchart\n```\n';
       const newText = '# T\n\n## Behavior\n```mermaid\nflowchart X\n```\n';
 
@@ -441,7 +435,7 @@ void main() {
       expect(view, endsWith('\n````\n'));
     });
 
-    test('f02/us03/fr02/e13: a longer backtick run lengthens the fence', () {
+    test('a longer backtick run lengthens the fence', () {
       const oldText = '# T\n\n## Behavior\n`````x\n';
       const newText = '# T\n\n## Behavior\n`````y\n';
 
@@ -451,20 +445,17 @@ void main() {
       expect(view, endsWith('\n``````\n'));
     });
 
-    test(
-      'f02/us03/fr02/e13: a header holding backticks prints in a longer span',
-      () {
-        const header = '`specstone approve [<name> …] --dry-run` — US-03 FR-05';
-        const oldText = '# T\n\n## $header\nA.\n';
-        const newText = '# T\n\n## $header\nB.\n';
+    test('a header holding backticks prints in a longer span', () {
+      const header = '`specstone approve [<name> …] --dry-run` — US-03 FR-05';
+      const oldText = '# T\n\n## $header\nA.\n';
+      const newText = '# T\n\n## $header\nB.\n';
 
-        final view = _render(_draft(text: newText, lookup: _copy(oldText)));
+      final view = _render(_draft(text: newText, lookup: _copy(oldText)));
 
-        expect(view, contains('| changes | ``## $header`` |\n'));
-      },
-    );
+      expect(view, contains('| changes | ``## $header`` |\n'));
+    });
 
-    test('f02/us03/fr02/e13: a span whose text ends in a backtick pads it', () {
+    test('a span whose text ends in a backtick pads it', () {
       const oldText = '# T\n\n## Run `get`\nA.\n';
       const newText = '# T\n\n## Run `get`\nB.\n';
 
@@ -473,7 +464,7 @@ void main() {
       expect(view, contains('| changes | `` ## Run `get` `` |\n'));
     });
 
-    test('f02/us03/fr02/e13: a | in a table cell is escaped', () {
+    test('a | in a table cell is escaped', () {
       const oldText = '---\n"a|b": 1\n---\n# T\n\n## A | B\nA.\n';
       const newText = '---\n"a|b": 2\n---\n# T\n\n## A | B\nB.\n';
 
@@ -499,30 +490,27 @@ void main() {
       expect(lines[6], '| doc     | `` fr01_`t` `` (fr) |');
     });
 
-    test(
-      'f02/us03/fr02/e15: a rename prints its old path under the path line',
-      () {
-        final view = _render(
-          _draft(lookup: _copy(_old, path: 'docs/old/fr01_t.md')),
-        );
-        final lines = view.split('\n');
+    test('a rename prints its old path under the path line', () {
+      final view = _render(
+        _draft(lookup: _copy(_old, path: 'docs/old/fr01_t.md')),
+      );
+      final lines = view.split('\n');
 
-        expect(lines[1], '`docs/fr01_t.md`');
-        expect(lines[2], 'renamed from `docs/old/fr01_t.md`');
-        expect(lines[3], '');
-        expect(lines[4], '| field   | value |');
-        expect(
-          lines.where((l) => l.startsWith('|') && l.contains('docs/old')),
-          isEmpty,
-        );
-      },
-    );
+      expect(lines[1], '`docs/fr01_t.md`');
+      expect(lines[2], 'renamed from `docs/old/fr01_t.md`');
+      expect(lines[3], '');
+      expect(lines[4], '| field   | value |');
+      expect(
+        lines.where((l) => l.startsWith('|') && l.contains('docs/old')),
+        isEmpty,
+      );
+    });
 
-    test('f02/us03/fr02/e15: no rename line when the path is the same', () {
+    test('no rename line when the path is the same', () {
       expect(_render(_draft()), isNot(contains('renamed from')));
     });
 
-    test('f02/us03/fr02: no status and no title', () {
+    test('no status and no title', () {
       final view = _render(_draft(status: null, title: null));
       final lines = view.split('\n');
 
@@ -532,7 +520,7 @@ void main() {
       expect(lines[6], startsWith('| hash    |'));
     });
 
-    test('f02/us03/fr02/e14: context n narrows the diff to n lines', () {
+    test('context n narrows the diff to n lines', () {
       final view = _render(_draft(), context: 0);
 
       expect(
@@ -544,7 +532,7 @@ void main() {
       );
     });
 
-    test('f02/us03/fr02/e16: colour marks diff lines only', () {
+    test('colour marks diff lines only', () {
       final plain = _render(_draft());
       final colored = _render(_draft(), color: true);
       final tinted = colored.split('\n').where((l) => l.contains('\x1b'));
@@ -567,7 +555,7 @@ void main() {
     });
   });
 
-  group('document_writing/approve_drafts/show_changes_since_approval E23', () {
+  group('E23', () {
     test('the dropped and new rows follow the changes rows, and each list '
         'follows the diff', () {
       final view = _render(

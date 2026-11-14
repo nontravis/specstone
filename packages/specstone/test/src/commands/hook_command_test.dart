@@ -130,7 +130,7 @@ void main() {
     },
   );
 
-  test('f08/us06/fr02/e04: a code file prints nothing', () async {
+  test('a code file prints nothing', () async {
     final root = await writeCheckProject();
     final result = await postEdit(
       root,
@@ -151,7 +151,7 @@ void main() {
     expect(result.err, isEmpty);
   });
 
-  test('f08/us06/fr02/e07: an untyped .md in prds/ hands back its untyped_doc finding', () async {
+  test('an untyped .md in prds/ hands back its untyped_doc finding', () async {
     final root = await writeCheckProject(
       extra: {'docs/prds/notes.md': '# Notes\n'},
     );
@@ -166,7 +166,7 @@ void main() {
     expect(context, endsWith('\n1 finding'));
   });
 
-  test('consistency_check/find_template_breaks/print_findings E08: an owner '
+  test('E08: an owner '
       "finding's line keeps its tag in the hook context", () async {
     final root = await writeCheckProject(
       extra: editedAfterApproval(loginStory, [('Sign in', 'Sign in again')]),
@@ -182,36 +182,30 @@ void main() {
     expect(context, endsWith(' (waits for the Owner)\n1 finding'));
   });
 
-  test(
-    'consistency_check/find_suspect_links/report_suspect_links E12: a suspect '
-    'finding holds its upstream block, then the fingerprint, in the hook '
-    'context',
-    () async {
-      final edited = loginScenario2.replaceFirst(
-        'wrong password',
-        'wrong pass',
-      );
-      final root = await writeCheckProject(
-        extra: doc(loginStory, loginScenario2, edited),
-      );
-      final result = await postEdit(root, abs(root, loginFr));
-      expect(result.status, 0);
-      final decoded = jsonDecode(result.out) as Map<String, Object?>;
-      final context =
-          (decoded['hookSpecificOutput']!
-                  as Map<String, Object?>)['additionalContext']!
-              as String;
-      final block = printedBlockOf(edited);
-      expect(
-        context,
-        endsWith(
-          '${block.split('\n').map((l) => '    $l\n').join()}'
-          '    fingerprint ${fingerprintOf(edited)}\n1 finding',
-        ),
-      );
-      expect(context.split('\n').first, isNot(contains(fingerprintOf(edited))));
-    },
-  );
+  test('E12: a suspect '
+      'finding holds its upstream block, then the fingerprint, in the hook '
+      'context', () async {
+    final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
+    final root = await writeCheckProject(
+      extra: doc(loginStory, loginScenario2, edited),
+    );
+    final result = await postEdit(root, abs(root, loginFr));
+    expect(result.status, 0);
+    final decoded = jsonDecode(result.out) as Map<String, Object?>;
+    final context =
+        (decoded['hookSpecificOutput']!
+                as Map<String, Object?>)['additionalContext']!
+            as String;
+    final block = printedBlockOf(edited);
+    expect(
+      context,
+      endsWith(
+        '${block.split('\n').map((l) => '    $l\n').join()}'
+        '    fingerprint ${fingerprintOf(edited)}\n1 finding',
+      ),
+    );
+    expect(context.split('\n').first, isNot(contains(fingerprintOf(edited))));
+  });
 
   test("f08/us06/fr02/e08, f08/us06/s6: the platform's separators read as the same DocPath", () async {
     final root = await writeCheckProject(extra: _brokenStory());
@@ -220,16 +214,19 @@ void main() {
     _expectE05(result.out);
   });
 
-  test('f08/us06/fr02/e09: a template fault prints its line on stderr and exits 78, never 2', () async {
-    final base = checkProjectFiles()['.specstone/config.yaml']!;
-    final root = await writeCheckProject(
-      extra: {'.specstone/config.yaml': '$base\npacks:\n  prd-core: 9.9.9\n'},
-    );
-    final result = await postEdit(root, abs(root, loginFr));
-    expect(result.status, 78);
-    expect(result.out, isEmpty);
-    expect(result.err, isNotEmpty);
-  });
+  test(
+    'a template fault prints its line on stderr and exits 78, never 2',
+    () async {
+      final base = checkProjectFiles()['.specstone/config.yaml']!;
+      final root = await writeCheckProject(
+        extra: {'.specstone/config.yaml': '$base\npacks:\n  prd-core: 9.9.9\n'},
+      );
+      final result = await postEdit(root, abs(root, loginFr));
+      expect(result.status, 78);
+      expect(result.out, isEmpty);
+      expect(result.err, isNotEmpty);
+    },
+  );
 
   for (final stdin in [
     '',
@@ -239,7 +236,8 @@ void main() {
     '{"tool_input": {"file_path": 3}}',
   ]) {
     test(
-      'f08/us06/fr02/e10: stdin that is not one JSON object holding tool_input.file_path exits 64 (${jsonEncode(stdin)})',
+      'stdin that is not one JSON object holding tool_input.file_path exits 64 '
+      '(${jsonEncode(stdin)})',
       () async {
         final root = await writeCheckProject();
         final result = await _runHook(root, stdin);
@@ -251,7 +249,7 @@ void main() {
     );
   }
 
-  test('f08/us06/fr02: hook post-edit takes no argument', () async {
+  test('hook post-edit takes no argument', () async {
     final root = await writeCheckProject();
     final (:runner, :out, :err) = writeRunner(
       root,
@@ -260,41 +258,38 @@ void main() {
     expect(await runner.run(['hook', 'post-edit', 'x']), 64);
   });
 
+  test('a file path through a symbolic link reads as its DocPath', () async {
+    final root = await writeCheckProject(extra: _brokenStory());
+    final holder = await Directory.systemTemp.createTemp('specstone_link_');
+    addTearDown(() => holder.delete(recursive: true));
+    final link = Link([holder.path, 'shop'].join(Platform.pathSeparator));
+    try {
+      link.createSync(root.path);
+    } on FileSystemException {
+      markTestSkipped('symbolic links are unavailable here');
+      return;
+    }
+    final result = await postEdit(root, abs(Directory(link.path), loginStory));
+    expect(result.status, 0);
+    _expectE05(result.out);
+  });
+
   test(
-    'f08/us06/fr02: a file path through a symbolic link reads as its DocPath',
+    'a subfolder working directory and a relative file_path find the doc',
     () async {
       final root = await writeCheckProject(extra: _brokenStory());
-      final holder = await Directory.systemTemp.createTemp('specstone_link_');
-      addTearDown(() => holder.delete(recursive: true));
-      final link = Link([holder.path, 'shop'].join(Platform.pathSeparator));
-      try {
-        link.createSync(root.path);
-      } on FileSystemException {
-        markTestSkipped('symbolic links are unavailable here');
-        return;
-      }
+      final cwd = Directory([root.path, 'app'].join(Platform.pathSeparator));
       final result = await postEdit(
-        root,
-        abs(Directory(link.path), loginStory),
+        cwd,
+        '../docs/prds/features/f01_login/us01_email_login/USER_STORY.md'
+            .replaceAll('/', Platform.pathSeparator),
       );
       expect(result.status, 0);
       _expectE05(result.out);
     },
   );
 
-  test('f08/us06/fr02: a subfolder working directory and a relative file_path find the doc', () async {
-    final root = await writeCheckProject(extra: _brokenStory());
-    final cwd = Directory([root.path, 'app'].join(Platform.pathSeparator));
-    final result = await postEdit(
-      cwd,
-      '../docs/prds/features/f01_login/us01_email_login/USER_STORY.md'
-          .replaceAll('/', Platform.pathSeparator),
-    );
-    expect(result.status, 0);
-    _expectE05(result.out);
-  });
-
-  test('f08/us06/fr02/e01: a file_path that no longer exists prints nothing, exit 0', () async {
+  test('a file_path that no longer exists prints nothing, exit 0', () async {
     final root = await writeCheckProject();
     final result = await postEdit(
       root,
@@ -330,15 +325,12 @@ void main() {
       _expectE05(result.out);
     });
 
-    test(
-      'f08/us06/fr02/e10: the built binary exits 64 on stdin that is no JSON',
-      () async {
-        final root = await writeCheckProject();
-        final result = await spawn(root, 'not json');
-        expect(result.status, 64);
-        expect(result.out, isEmpty);
-        expect(result.err, contains('tool_input.file_path'));
-      },
-    );
+    test('the built binary exits 64 on stdin that is no JSON', () async {
+      final root = await writeCheckProject();
+      final result = await spawn(root, 'not json');
+      expect(result.status, 64);
+      expect(result.out, isEmpty);
+      expect(result.err, contains('tool_input.file_path'));
+    });
   });
 }

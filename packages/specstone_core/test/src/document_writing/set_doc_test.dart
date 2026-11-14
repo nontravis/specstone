@@ -114,7 +114,7 @@ void main() {
     expect(typed.target, isA<SectionTarget>());
   });
 
-  test('index_query/read_doc_section/resolve_doc_name E13 (W8): a path holding # is the whole address, so set takes --field for it and splits no section key off it', () async {
+  test('E13 (W8): a path holding # is the whole address, so set takes --field for it and splits no section key off it', () async {
     final root = await writeWriteProject(
       extra: {'docs/prds/notes#draft.md': '# Draft\n'},
     );
@@ -310,7 +310,7 @@ void main() {
     expect(sectionBase(root, target), written);
   });
 
-  test('document_writing/edit_one_section_or_field/write_one_section E19: a changed ### heading is written as given, and a link to its old anchor is reported, not rewritten', () async {
+  test('E19: a changed ### heading is written as given, and a link to its old anchor is reported, not rewritten', () async {
     const link =
         '[sign in](features/f01_login/us01_email_login/USER_STORY.md#scenario-1--happy-sign-in)';
     final root = await writeWriteProject(
@@ -1267,7 +1267,7 @@ void main() {
     );
     expect(answer.json['draft'], isFalse);
   });
-  test('document_writing/approve_drafts/mark_doc_approved E09: a covers write leaves an approved doc approved', () async {
+  test('E09: a covers write leaves an approved doc approved', () async {
     final root = await writeWriteProject();
     const arch = 'architecture:login';
     writeIn(
@@ -2202,7 +2202,7 @@ void main() {
       expect(answer.json['base'], emptyBaseHash);
     });
 
-    test('document_writing/edit_one_section_or_field/write_the_lead E06: a stale base refuses with the current lead and its naming line', () async {
+    test('E06: a stale base refuses with the current lead and its naming line', () async {
       final root = await project();
       expect(
         () => writeIn(root, (s) => answerSet(s, req(target, 'abc'), 'x\n')),
@@ -2262,22 +2262,25 @@ void main() {
     Future<Directory> archProject(String text) =>
         writeWriteProject(extra: {'docs/$signupArch': text});
 
-    test('document_writing/edit_one_section_or_field/write_one_section E01: the base of the laid-out body writes a body stored unlaid-out', () async {
-      final root = await archProject(padded);
-      const target = '$arch#deployment';
-      final base = sectionBase(root, target);
-      final answer = writeIn(
-        root,
-        (s) => answerSet(s, req(target, base), 'None at all.\n'),
-      );
-      expect(
-        readDoc(root, signupArch),
-        contains('## Deployment\n\nNone at all.\n'),
-      );
-      expect(answer.json['base'], baseHashOf('\nNone at all.\n'));
-    });
+    test(
+      'E01: the base of the laid-out body writes a body stored unlaid-out',
+      () async {
+        final root = await archProject(padded);
+        const target = '$arch#deployment';
+        final base = sectionBase(root, target);
+        final answer = writeIn(
+          root,
+          (s) => answerSet(s, req(target, base), 'None at all.\n'),
+        );
+        expect(
+          readDoc(root, signupArch),
+          contains('## Deployment\n\nNone at all.\n'),
+        );
+        expect(answer.json['base'], baseHashOf('\nNone at all.\n'));
+      },
+    );
 
-    test('document_writing/edit_one_section_or_field/write_one_section: a header that differs from the template header in case or spacing is that section, and set prints the base the next get reads', () async {
+    test('a header that differs from the template header in case or spacing is that section, and set prints the base the next get reads', () async {
       final root = await writeWriteProject(
         extra: {
           'docs/$persona':
@@ -2299,7 +2302,7 @@ void main() {
       expect(answer.json['base'], sectionBase(root, target));
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_section E03: a write to another section leaves this base valid', () async {
+    test('E03: a write to another section leaves this base valid', () async {
       final root = await writeWriteProject();
       const useCase = 'user_story:login/email_login#use_case';
       const criteria = 'user_story:login/email_login#acceptance_criteria';
@@ -2319,7 +2322,7 @@ void main() {
       );
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_section E16: a body with none, one, or several leading blank lines lands under one blank line', () async {
+    test('E16: a body with none, one, or several leading blank lines lands under one blank line', () async {
       const target = 'user_story:login/email_login#use_case';
       for (final lead in ['', '\n', '\n\n\n']) {
         final root = await writeWriteProject();
@@ -2335,7 +2338,7 @@ void main() {
       }
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_section E18: an unlaid-out doc is written whole laid out', () async {
+    test('E18: an unlaid-out doc is written whole laid out', () async {
       final root = await archProject(padded);
       const target = '$arch#deployment';
       writeIn(
@@ -2346,7 +2349,7 @@ void main() {
       expect(readDoc(root, signupArch), laidOutArch);
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_section E18: a doc format refuses keeps every other byte', () async {
+    test('E18: a doc format refuses keeps every other byte', () async {
       final root = await archProject(refused);
       const target = '$arch#components';
       writeIn(
@@ -2366,7 +2369,7 @@ void main() {
       );
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_field E14: an output_ref write on an approved doc lays it out and adds no draft', () async {
+    test('E14: an output_ref write on an approved doc lays it out and adds no draft', () async {
       final approved = padded.replaceFirst('draft: true', 'approved: true');
       final root = await archProject(approved);
       writeIn(
@@ -2388,7 +2391,7 @@ void main() {
       expect(written, isNot(contains('draft:')));
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_field E14: a doc format refuses keeps every other byte', () async {
+    test('E14: a doc format refuses keeps every other byte', () async {
       final root = await archProject(refused);
       writeIn(
         root,
@@ -2407,7 +2410,7 @@ void main() {
       );
     });
 
-    test('document_writing/edit_one_section_or_field/write_the_lead E03: text before the title line stays as on disk', () async {
+    test('E03: text before the title line stays as on disk', () async {
       const given =
           'before\n# T\nold\n\n## Use Case\n\nSign in.\n\n'
           '## Acceptance Criteria\n\n- **Given** x\n';
@@ -2431,7 +2434,7 @@ void main() {
       expect(readDoc(root, story1), contains('before\n# T\n'));
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_field E09: an absent field lands at its slot in a laid-out doc', () async {
+    test('E09: an absent field lands at its slot in a laid-out doc', () async {
       final root = await writeWriteProject();
       const target = 'user_story:login/email_login';
       writeIn(
@@ -2443,7 +2446,7 @@ void main() {
       expect(readDoc(root, story1), contains('## Use Case\n\nSign in'));
     });
 
-    test('document_writing/edit_one_section_or_field/write_the_title E07: an unlaid-out doc is written whole laid out', () async {
+    test('E07: an unlaid-out doc is written whole laid out', () async {
       final root = await archProject(padded);
       final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
       writeIn(
@@ -2457,7 +2460,7 @@ void main() {
       expect(readDoc(root, signupArch), laidOutArch);
     });
 
-    test('document_writing/edit_one_section_or_field/write_the_title E07: a doc format refuses keeps every other byte', () async {
+    test('E07: a doc format refuses keeps every other byte', () async {
       final root = await archProject(refused);
       final base = (getDoc(root, arch)['bases']! as Map)['title']! as String;
       writeIn(
@@ -2474,24 +2477,27 @@ void main() {
       );
     });
 
-    test('document_writing/edit_one_section_or_field/write_the_lead E09: a lead without a leading blank line keeps one under the title', () async {
-      final root = await writeWriteProject();
-      const target = 'user_story:login/email_login#_lead';
-      writeIn(
-        root,
-        (s) => answerSet(
-          s,
-          req(target, getDoc(root, target)['base']! as String),
-          'Short lead.\n',
-        ),
-      );
-      expect(
-        readDoc(root, story1),
-        contains('# Sign in with email\n\nShort lead.\n\n## Use Case\n'),
-      );
-    });
+    test(
+      'E09: a lead without a leading blank line keeps one under the title',
+      () async {
+        final root = await writeWriteProject();
+        const target = 'user_story:login/email_login#_lead';
+        writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(target, getDoc(root, target)['base']! as String),
+            'Short lead.\n',
+          ),
+        );
+        expect(
+          readDoc(root, story1),
+          contains('# Sign in with email\n\nShort lead.\n\n## Use Case\n'),
+        );
+      },
+    );
 
-    test('document_writing/edit_one_section_or_field/write_the_lead E10: an unlaid-out doc is written whole laid out', () async {
+    test('E10: an unlaid-out doc is written whole laid out', () async {
       final root = await archProject(padded);
       const target = '$arch#_lead';
       writeIn(
@@ -2511,7 +2517,7 @@ void main() {
       );
     });
 
-    test('document_writing/edit_one_section_or_field/write_the_lead E10: a doc format refuses keeps every other byte', () async {
+    test('E10: a doc format refuses keeps every other byte', () async {
       final root = await archProject(refused);
       const target = '$arch#_lead';
       writeIn(
@@ -2531,7 +2537,7 @@ void main() {
       );
     });
   });
-  group('document_writing/edit_one_section_or_field: splicePart checks and splices one part', () {
+  group('splicePart checks and splices one part', () {
     const address = 'user_story:login/email_login';
     final withLead = writeProject['docs/$story1']!.replaceFirst(
       '# Sign in with email\n',
@@ -2756,7 +2762,7 @@ void main() {
     });
   });
 
-  group('document_writing/edit_one_section_or_field/write_one_field: checkFieldWrite refuses a write', () {
+  group('checkFieldWrite refuses a write', () {
     const story = 'user_story:login/email_login';
 
     test(
@@ -2831,7 +2837,7 @@ void main() {
       checkFieldIn(root, 'feature:login', 'status', null, held: true);
     });
   });
-  group('document_writing/edit_one_section_or_field: a part is refused on its own text before the write lock', () {
+  group('a part is refused on its own text before the write lock', () {
     const address = 'user_story:login/email_login';
     const fr = 'fr:login/reset_password/expire_reset_link';
 
@@ -3043,7 +3049,7 @@ void main() {
     });
   });
 
-  group('document_writing/edit_one_section_or_field/write_one_section: a naming line in a text is refused,', () {
+  group('a naming line in a text is refused,', () {
     const naming =
         '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
     const target = 'user_story:login/email_login#use_case';
@@ -3118,18 +3124,24 @@ void main() {
     });
   });
 
-  test('document_writing/edit_one_section_or_field/write_one_section E15: header-only stdin on a section the doc lacks still writes it empty', () async {
-    final root = await writeWriteProject();
-    const target = 'user_story:login/email_login#open_questions';
-    writeIn(
-      root,
-      (s) => answerSet(s, req(target, emptyBaseHash), '## Open questions\n'),
-    );
-    expect(readDoc(root, story1), endsWith('## Open questions\n'));
-    expect('## Open questions'.allMatches(readDoc(root, story1)), hasLength(1));
-  });
+  test(
+    'E15: header-only stdin on a section the doc lacks still writes it empty',
+    () async {
+      final root = await writeWriteProject();
+      const target = 'user_story:login/email_login#open_questions';
+      writeIn(
+        root,
+        (s) => answerSet(s, req(target, emptyBaseHash), '## Open questions\n'),
+      );
+      expect(readDoc(root, story1), endsWith('## Open questions\n'));
+      expect(
+        '## Open questions'.allMatches(readDoc(root, story1)),
+        hasLength(1),
+      );
+    },
+  );
 
-  group('document_writing/edit_one_section_or_field with two code targets', () {
+  group('with two code targets', () {
     const arch = 'architecture:login';
     const recordLayer =
         'id: implementation\n'
@@ -3308,7 +3320,7 @@ void main() {
       expect(readDoc(root, jasprRecord), contains('draft: true'));
     });
 
-    test('document_writing/edit_one_section_or_field/write_one_field E06: a statuses line that check refuses is field_value_invalid, naming the four statuses', () async {
+    test('E06: a statuses line that check refuses is field_value_invalid, naming the four statuses', () async {
       final root = await twinWithRecords();
       final before = readDoc(root, jasprRecord);
       for (final stdin in [

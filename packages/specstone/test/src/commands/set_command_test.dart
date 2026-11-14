@@ -15,7 +15,7 @@ import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
-  test('f06/us01/s15: set refuses while a migration is unfinished', () async {
+  test('set refuses while a migration is unfinished', () async {
     final root = await writeWriteProject();
     writeJournal(root, [
       const MoveStep('docs/prds/personas/buyer', 'docs/prds/personas/shopper'),
@@ -293,7 +293,7 @@ void main() {
       expect(err.toString(), isEmpty);
     },
   );
-  test('document_writing/edit_one_section_or_field/write_a_batch: set --help names every flag --batch conflicts with', () async {
+  test('set --help names every flag --batch conflicts with', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['set', '--help']), 0);
     expect(

@@ -27,7 +27,7 @@ void main() {
     },
   );
 
-  test('f02/us05/s1: reorder prints moved and rewrote lines', () async {
+  test('reorder prints moved and rewrote lines', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
@@ -88,52 +88,52 @@ void main() {
     expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
   });
 
-  test(
-    'f02/us05/fr02/e10: reorder lists a doc changed by a path mention only',
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          'docs/prds/NOTES.md': '# Notes\n\nSee `features/f01_login/us03_reset_password/USER_STORY.md:4`.\n',
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
+  test('reorder lists a doc changed by a path mention only', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/prds/NOTES.md': '# Notes\n\nSee `features/f01_login/us03_reset_password/USER_STORY.md:4`.\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
 
-      expect(
-        await runner.run([
-          'reorder',
-          'user_story:login/reset_password',
-          '--to',
-          '1',
-        ]),
-        0,
-      );
-
-      expect(err.toString(), isEmpty);
-      expect(out.toString(), contains('rewrote prds/NOTES.md\n'));
-      expect(
-        readDoc(root, 'prds/NOTES.md'),
-        '# Notes\n\nSee `features/f01_login/us01_reset_password/USER_STORY.md:4`.\n',
-      );
-    },
-  );
-  test('f02/us05/s5: a place outside the list prints the sidecar error line, exit 64', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
         'reorder',
         'user_story:login/reset_password',
         '--to',
-        '5',
+        '1',
       ]),
-      64,
+      0,
     );
-    expect(out.toString(), isEmpty);
+
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), contains('rewrote prds/NOTES.md\n'));
     expect(
-      err.toString(),
-      'user_story:login/reset_password cannot move to place 5: the places run from 1 to 3\n',
+      readDoc(root, 'prds/NOTES.md'),
+      '# Notes\n\nSee `features/f01_login/us01_reset_password/USER_STORY.md:4`.\n',
     );
   });
-  test('f02/us05/s6: persona --json is doc_type_not_movable', () async {
+  test(
+    'a place outside the list prints the sidecar error line, exit 64',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+      expect(
+        await runner.run([
+          'reorder',
+          'user_story:login/reset_password',
+          '--to',
+          '5',
+        ]),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(
+        err.toString(),
+        'user_story:login/reset_password cannot move to place 5: the places run from 1 to 3\n',
+      );
+    },
+  );
+  test('persona --json is doc_type_not_movable', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run(['reorder', 'persona:buyer', '--to', '1', '--json']),
@@ -147,7 +147,7 @@ void main() {
       },
     });
   });
-  test('f02/us05/fr01/e10: reorder takes no --base', () async {
+  test('reorder takes no --base', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
@@ -161,59 +161,50 @@ void main() {
       64,
     );
   });
-  test('f02/us05/fr01/e10: no target is argument_missing', () async {
+  test('no target is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['reorder', '--to', '1']), 64);
     expect(err.toString(), startsWith('reorder needs a target'));
   });
-  test(
-    'f02/us05/fr01/e10: two positionals are a usage error, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(await runner.run(['reorder', 'a', 'b']), 64);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        contains(
-          'Expected one target, got 2.\n\n'
-          'Usage: specstone reorder <doc address> --to <n> '
-          '[--dry-run] [--target <name>] [--json]\n',
-        ),
-      );
-    },
-  );
-  test(
-    'f02/us05/fr01/e07: reorder with no --to is argument_missing, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(
-        await runner.run(['reorder', 'user_story:login/reset_password']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
-      );
-    },
-  );
-  test(
-    'f02/us05/fr01/e11: reorder renumbers a sub-feature inside its top feature',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-      expect(await runner.run(['reorder', 'feature:shop/pay', '--to', '1']), 0);
-      expect(err.toString(), isEmpty);
-      expect(
-        out.toString(),
-        startsWith(
-          'moved prds/features/f02_shop/f02_pay/ to prds/features/f02_shop/f01_pay/\n'
-          'moved prds/features/f02_shop/f01_cart/ to prds/features/f02_shop/f02_cart/\n',
-        ),
-      );
-    },
-  );
+  test('two positionals are a usage error, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['reorder', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected one target, got 2.\n\n'
+        'Usage: specstone reorder <doc address> --to <n> '
+        '[--dry-run] [--target <name>] [--json]\n',
+      ),
+    );
+  });
+  test('reorder with no --to is argument_missing, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(
+      await runner.run(['reorder', 'user_story:login/reset_password']),
+      64,
+    );
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
+    );
+  });
+  test('reorder renumbers a sub-feature inside its top feature', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(await runner.run(['reorder', 'feature:shop/pay', '--to', '1']), 0);
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith(
+        'moved prds/features/f02_shop/f02_pay/ to prds/features/f02_shop/f01_pay/\n'
+        'moved prds/features/f02_shop/f01_cart/ to prds/features/f02_shop/f02_cart/\n',
+      ),
+    );
+  });
 
-  test('document_writing/reorder_doc/rewrite_links_to_moved_docs E13: reorder writes a rewritten typed doc laid out', () async {
+  test('E13: reorder writes a rewritten typed doc laid out', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
@@ -252,7 +243,8 @@ void main() {
       },
     );
 
-    test('document_writing/reorder_doc/renumber_siblings E12: reorder --target takes a feature with its spec folder in every target', () async {
+    test('E12: reorder --target takes a feature with its spec folder in every '
+        'target', () async {
       final root = await twins();
       final (:runner, :out, :err) = writeRunner(root);
       expect(
@@ -281,7 +273,7 @@ void main() {
       expect(hasDoc(root, 'specs/jaspr/f01_signup/IMPLEMENTATION.md'), isTrue);
     });
 
-    test('document_writing/reorder_doc/renumber_siblings: a --target the project lacks exits 64', () async {
+    test('a --target the project lacks exits 64', () async {
       final (:runner, :out, :err) = writeRunner(await twins());
       expect(
         await runner.run([

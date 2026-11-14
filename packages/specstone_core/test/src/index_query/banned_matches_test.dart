@@ -83,14 +83,14 @@ void main() {
     );
   });
 
-  test('f04/us01/fr08/e02: a code span closes on a backtick run of its own '
+  test('a code span closes on a backtick run of its own '
       'length', () {
     final line = SearchLine('a ``b`c`` d ``e` f', 1);
     expect(line.code, ['b`c']);
     expect(line.prose, 'a ${' ' * 7} d ``e` f');
   });
 
-  test('f04/us01/fr08/e05: the entries of a held section are the doc type '
+  test('the entries of a held section are the doc type '
       "entries, then the section's own", () {
     final entries = bannedEntriesOf(_type, _type.sections.single);
     expect(entries.map((e) => e.id), ['fast', 'empty', 'code', 'own']);

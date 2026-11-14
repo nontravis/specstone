@@ -30,7 +30,7 @@ void main() {
     );
   });
 
-  test("f04/us01/s6: check on one feature reports only that feature's requirement", () async {
+  test("check on one feature reports only that feature's requirement", () async {
     const signupFr = 'prds/features/f02_signup/us01_create/fr01_store.md';
     final project = await writeCheckProject(
       extra: {
@@ -89,22 +89,25 @@ void main() {
     );
   });
 
-  test('f04/us01/fr04/e04: a doc of 405 non-blank body lines is over its 400-line limit', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          'docs/$loginFr':
-              '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 396}',
-        },
-      ),
-    );
-    final finding = report.findings.singleWhere(
-      (f) => f.kind == FindingKind.linesOverLimit,
-    );
-    expect(finding.textLine, startsWith('$loginFr:1: lines_over_limit'));
-    expect(finding.toJson(), containsPair('limit', 400));
-    expect(finding.toJson(), containsPair('actual', 405));
-  });
+  test(
+    'a doc of 405 non-blank body lines is over its 400-line limit',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            'docs/$loginFr':
+                '${checkProjectFiles()['docs/$loginFr']!}${'x\n' * 396}',
+          },
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.linesOverLimit,
+      );
+      expect(finding.textLine, startsWith('$loginFr:1: lines_over_limit'));
+      expect(finding.toJson(), containsPair('limit', 400));
+      expect(finding.toJson(), containsPair('actual', 405));
+    },
+  );
 
   test('60 blank lines or 30 frontmatter lines more leave the '
       'doc line count alone', () async {
@@ -185,7 +188,7 @@ void main() {
     expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });
 
-  test('f04/us01/fr04/e05: a section over its own limit is reported at its header, the doc limit aside', () async {
+  test('a section over its own limit is reported at its header, the doc limit aside', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -212,7 +215,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr04: a doc over its character limit, at line 1', () async {
+  test('a doc over its character limit, at line 1', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {'.specstone/templates/fr.yaml': 'lint:\n  max_chars: 300\n'},
@@ -223,128 +226,137 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us01/fr04/e06: invalid frontmatter still gets its sections checked',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: edit(loginFr, [
-            ('verify_method: test\n', 'verify_method: "test\n'),
-            ('## Statement\n\n$checkPasswordStatement\n\n', ''),
-          ]),
-        ),
-      );
-      expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
-      expect(spots(report, FindingKind.requiredSectionMissing), [
-        '$loginFr:1: required_section_missing',
-      ]);
-    },
-  );
-
-  test('f04/us01/fr04/e07: a vision entry with no quote line is vision_quote_missing at its heading', () async {
+  test('invalid frontmatter still gets its sections checked', () async {
     final report = checkOf(
       await writeCheckProject(
-        extra: doc(
-          projectDoc,
-          '> en: One sign-in for every app.\n',
-          '> en: One sign-in for every app.\n\n### PV-02 — Low cost\n\nCheap to run.\n',
-        ),
+        extra: edit(loginFr, [
+          ('verify_method: test\n', 'verify_method: "test\n'),
+          ('## Statement\n\n$checkPasswordStatement\n\n', ''),
+        ]),
       ),
     );
-    expect(spots(report, FindingKind.visionQuoteMissing), [
-      '$projectDoc:18: vision_quote_missing',
+    expect(spots(report, FindingKind.frontmatterInvalid), hasLength(1));
+    expect(spots(report, FindingKind.requiredSectionMissing), [
+      '$loginFr:1: required_section_missing',
     ]);
   });
 
   test(
-    'f04/us01/fr04: a doc with no # title is title_missing at line 1',
+    'a vision entry with no quote line is vision_quote_missing at its heading',
     () async {
       final report = checkOf(
-        await writeCheckProject(extra: fr('# Check the password\n\n', '')),
+        await writeCheckProject(
+          extra: doc(
+            projectDoc,
+            '> en: One sign-in for every app.\n',
+            '> en: One sign-in for every app.\n\n### PV-02 — Low cost\n\nCheap to run.\n',
+          ),
+        ),
       );
-      expect(spots(report, FindingKind.titleMissing), [
-        '$loginFr:1: title_missing',
+      expect(spots(report, FindingKind.visionQuoteMissing), [
+        '$projectDoc:18: vision_quote_missing',
       ]);
     },
   );
 
-  test('f04/us01/fr04: an undeclared section over the doc-level limits is reported at its header', () async {
+  test('a doc with no # title is title_missing at line 1', () async {
     final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml':
-              'lint:\n  max_lines: 30\n  max_chars: 600\n',
-          ...fr(
-            '## Statement\n',
-            '## Notes\n${'- A long note line.\n' * 40}\n## Statement\n',
-          ),
-        },
-      ),
+      await writeCheckProject(extra: fr('# Check the password\n\n', '')),
     );
-    final notes = report.findings
-        .where((f) => f.toJson()['section'] == 'notes')
-        .toList();
-    expect(
-      notes.map((f) => f.kind),
-      unorderedEquals([FindingKind.linesOverLimit, FindingKind.charsOverLimit]),
-    );
-    expect(notes.every((f) => f.line == notes.first.line), isTrue);
-    expect(notes.first.toJson(), containsPair('limit', anyOf(30, 600)));
+    expect(spots(report, FindingKind.titleMissing), [
+      '$loginFr:1: title_missing',
+    ]);
   });
 
   test(
-    'f04/us01/fr04: a head line "# " with no text is title_missing at line 1',
+    'an undeclared section over the doc-level limits is reported at its header',
     () async {
-      for (final head in ['# \n\n', '#   \n\n']) {
-        final report = checkOf(
-          await writeCheckProject(extra: fr('# Check the password\n\n', head)),
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/fr.yaml':
+                'lint:\n  max_lines: 30\n  max_chars: 600\n',
+            ...fr(
+              '## Statement\n',
+              '## Notes\n${'- A long note line.\n' * 40}\n## Statement\n',
+            ),
+          },
+        ),
+      );
+      final notes = report.findings
+          .where((f) => f.toJson()['section'] == 'notes')
+          .toList();
+      expect(
+        notes.map((f) => f.kind),
+        unorderedEquals([
+          FindingKind.linesOverLimit,
+          FindingKind.charsOverLimit,
+        ]),
+      );
+      expect(notes.every((f) => f.line == notes.first.line), isTrue);
+      expect(notes.first.toJson(), containsPair('limit', anyOf(30, 600)));
+    },
+  );
+
+  test('a head line "# " with no text is title_missing at line 1', () async {
+    for (final head in ['# \n\n', '#   \n\n']) {
+      final report = checkOf(
+        await writeCheckProject(extra: fr('# Check the password\n\n', head)),
+      );
+      expect(spots(report, FindingKind.titleMissing), [
+        '$loginFr:1: title_missing',
+      ]);
+    }
+  });
+
+  test(
+    'a section lint finding names the template section id, not the header slug',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/user_story.yaml': 'sections:\n  - id: acceptance_criteria\n    lint:\n      max_lines: 3\n      max_chars: 40\n',
+            ...doc(
+              loginStory,
+              '## Acceptance Criteria\n',
+              '## Acceptance criteria\n',
+            ),
+          },
+        ),
+      );
+      final limits = report.findings.where(
+        (f) =>
+            f.kind == FindingKind.linesOverLimit ||
+            f.kind == FindingKind.charsOverLimit,
+      );
+      expect(limits, hasLength(2));
+      for (final finding in limits) {
+        expect(
+          finding.toJson(),
+          containsPair('section', 'acceptance_criteria'),
         );
-        expect(spots(report, FindingKind.titleMissing), [
-          '$loginFr:1: title_missing',
-        ]);
+        expect(finding.message, contains('section acceptance_criteria '));
       }
     },
   );
 
-  test('f04/us01/fr04: a section lint finding names the template section id, not the header slug', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/user_story.yaml': 'sections:\n  - id: acceptance_criteria\n    lint:\n      max_lines: 3\n      max_chars: 40\n',
-          ...doc(
-            loginStory,
-            '## Acceptance Criteria\n',
-            '## Acceptance criteria\n',
+  test(
+    'a fenced example heading in the vision section is no vision entry',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            projectDoc,
+            '> en: One sign-in for every app.\n',
+            '> en: One sign-in for every app.\n```\n### PV-02 — Example\n```\n',
           ),
-        },
-      ),
-    );
-    final limits = report.findings.where(
-      (f) =>
-          f.kind == FindingKind.linesOverLimit ||
-          f.kind == FindingKind.charsOverLimit,
-    );
-    expect(limits, hasLength(2));
-    for (final finding in limits) {
-      expect(finding.toJson(), containsPair('section', 'acceptance_criteria'));
-      expect(finding.message, contains('section acceptance_criteria '));
-    }
-  });
-
-  test('f04/us01/fr04: a fenced example heading in the vision section is no vision entry', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(
-          projectDoc,
-          '> en: One sign-in for every app.\n',
-          '> en: One sign-in for every app.\n```\n### PV-02 — Example\n```\n',
         ),
-      ),
-    );
-    expect(spots(report, FindingKind.visionQuoteMissing), isEmpty);
-  });
+      );
+      expect(spots(report, FindingKind.visionQuoteMissing), isEmpty);
+    },
+  );
 
-  test('consistency_check/find_template_breaks/check_sections_and_limits E09: size counts the laid-out text, not the padding on disk', () async {
+  test('E09: size counts the laid-out text, not the padding on disk', () async {
     final padded =
         '| Case${' ' * 600} | Result |\n|${'-' * 602}|--------|\n'
         '| wrong${' ' * 599} | refused |\n';
@@ -364,7 +376,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_template_breaks/check_sections_and_limits E09: a section counts the blank lines format adds under its ### headings', () async {
+  test('E09: a section counts the blank lines format adds under its ### headings', () async {
     final body = '${'### Head\ntext\n' * 3}${'filler\n' * 32}';
     final report = checkOf(
       await writeCheckProject(
@@ -382,7 +394,7 @@ void main() {
     expect(finding.toJson(), containsPair('actual', 39));
   });
 
-  test('consistency_check/find_template_breaks/check_sections_and_limits E09: a doc format refuses counts its text on disk', () async {
+  test('E09: a doc format refuses counts its text on disk', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -401,7 +413,7 @@ void main() {
     expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 
-  group('consistency_check/find_template_breaks/check_sections_and_limits', () {
+  group('Check the title, sections, and size limits', () {
     const edgeFrom = '1. E01 — An empty password → refused.\n';
     const rationaleFrom = 'A wrong password must not sign in.\n';
     const itemLimitTemplate = '.specstone/templates/fr.yaml';

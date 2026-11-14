@@ -40,52 +40,55 @@ Map<String, String> _storyRules(String body) => doc(
 );
 
 void main() {
-  test('f04/us01/fr09/e01: an item with no prefix ID reports its line, message, and keys', () async {
-    final found = await _itemIdFindings(
-      _storyRules('- **BR-01** — a\n1. BR-02 — b\n- a rule with no ID'),
-    );
-    expect(found, hasLength(1));
-    expect(
-      found.single.path,
-      'prds/features/f01_login/us01_email_login/USER_STORY.md',
-    );
-    expect(found.single.line, 19);
-    expect(found.single.message, 'the item opens with no BR- ID');
-    expect(
-      found.single.toJson(),
-      allOf(containsPair('section', 'rules'), containsPair('prefix', 'BR-')),
-    );
-  });
-
-  test('f04/us01/fr09/e02: a heading item lacks its ID; quote and Serves lines are no items', () async {
-    final found = await _itemIdFindings(
-      doc(
-        projectDoc,
-        '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
-        '### One sign-in\n\n> en: One sign-in for every app.\n**Serves:** x',
-      ),
-    );
-    expect(found, hasLength(1));
-    expect(found.single.toJson(), containsPair('section', 'vision'));
-    expect(found.single.message, 'the item opens with no PV- ID');
-  });
-
   test(
-    'f04/us01/fr09/e03: N/A items and nested bullets are no items',
+    'an item with no prefix ID reports its line, message, and keys',
     () async {
-      final found = await _itemIdFindings({
-        ...doc(
-          gnfrDoc,
-          '## Security\n\nN/A — none applies.',
-          '## Security\n\n- N/A — no target applies',
-        ),
-        ..._storyRules('- **BR-01** — a\n  - detail of the rule'),
-      });
-      expect(found, isEmpty);
+      final found = await _itemIdFindings(
+        _storyRules('- **BR-01** — a\n1. BR-02 — b\n- a rule with no ID'),
+      );
+      expect(found, hasLength(1));
+      expect(
+        found.single.path,
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+      );
+      expect(found.single.line, 19);
+      expect(found.single.message, 'the item opens with no BR- ID');
+      expect(
+        found.single.toJson(),
+        allOf(containsPair('section', 'rules'), containsPair('prefix', 'BR-')),
+      );
     },
   );
 
-  test('f04/us01/fr09/e04: a repeated ID reports the second item with the first line', () async {
+  test(
+    'a heading item lacks its ID; quote and Serves lines are no items',
+    () async {
+      final found = await _itemIdFindings(
+        doc(
+          projectDoc,
+          '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
+          '### One sign-in\n\n> en: One sign-in for every app.\n**Serves:** x',
+        ),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.toJson(), containsPair('section', 'vision'));
+      expect(found.single.message, 'the item opens with no PV- ID');
+    },
+  );
+
+  test('N/A items and nested bullets are no items', () async {
+    final found = await _itemIdFindings({
+      ...doc(
+        gnfrDoc,
+        '## Security\n\nN/A — none applies.',
+        '## Security\n\n- N/A — no target applies',
+      ),
+      ..._storyRules('- **BR-01** — a\n  - detail of the rule'),
+    });
+    expect(found, isEmpty);
+  });
+
+  test('a repeated ID reports the second item with the first line', () async {
     final found = await _itemIdFindings(
       doc(
         projectDoc,
@@ -103,7 +106,7 @@ void main() {
     );
   });
 
-  test("f04/us01/fr09/e04: two scenarios of one number's value in a story are "
+  test("two scenarios of one number's value in a story are "
       'a duplicate, Scenario 2 twice or Scenario 02 after Scenario 2; '
       'Scenario 20 is none', () async {
     for (final repeat in ['Scenario 2', 'Scenario 02']) {
@@ -132,7 +135,7 @@ void main() {
     );
   });
 
-  test('f04/us01/fr09/e01: a domain invariant with a bold ID passes', () async {
+  test('a domain invariant with a bold ID passes', () async {
     final found = await _itemIdFindings({
       'docs/specs/f01_login/DOMAIN.md':
           '# Login domain\n\n## Entities\n- Account\n\n'
@@ -142,7 +145,7 @@ void main() {
   });
 
   group('item_id_lettered', () {
-    test('f04/us01/fr09/e05: a lettered rule names the next free number and '
+    test('a lettered rule names the next free number and '
         'raises no missing or duplicate', () async {
       final extra = _topicRules(
         '- **RULE-30** — a\n- **RULE-7** — b\n- **RULE-7a** Rule text',
@@ -167,7 +170,7 @@ void main() {
       );
     });
 
-    test('f04/us01/fr09/e06: lettered scenarios take the next numbers in '
+    test('lettered scenarios take the next numbers in '
         'document order', () async {
       final lettered = await _itemIdFindings(
         _scenarios(
@@ -190,31 +193,28 @@ void main() {
       ]);
     });
 
-    test(
-      'f04/us01/fr09/e07: IDs out of number order raise no finding',
-      () async {
-        final extra = {
-          ..._topicRules('- **RULE-12** — a\n- **RULE-3** — b'),
-          ..._scenarios(
-            '### Scenario 8 — [edge] A\n\n- a\n\n'
-            '### Scenario 5 — [edge] B\n\n- a',
-          ),
-        };
-        for (final kind in [
-          FindingKind.itemIdLettered,
-          FindingKind.itemIdMissing,
-          FindingKind.itemIdDuplicate,
-        ]) {
-          expect(
-            await _itemIdFindings(extra, kind: kind),
-            isEmpty,
-            reason: '$kind',
-          );
-        }
-      },
-    );
+    test('IDs out of number order raise no finding', () async {
+      final extra = {
+        ..._topicRules('- **RULE-12** — a\n- **RULE-3** — b'),
+        ..._scenarios(
+          '### Scenario 8 — [edge] A\n\n- a\n\n'
+          '### Scenario 5 — [edge] B\n\n- a',
+        ),
+      };
+      for (final kind in [
+        FindingKind.itemIdLettered,
+        FindingKind.itemIdMissing,
+        FindingKind.itemIdDuplicate,
+      ]) {
+        expect(
+          await _itemIdFindings(extra, kind: kind),
+          isEmpty,
+          reason: '$kind',
+        );
+      }
+    });
 
-    test('f04/us01/fr09: a digit after an item or scenario letter run is '
+    test('a digit after an item or scenario letter run is '
         'reference_malformed with no next, and takes no next number', () async {
       final extra = {
         ..._topicRules(
@@ -248,7 +248,7 @@ void main() {
       expect(await _itemIdFindings(extra), isEmpty);
     });
 
-    test('f04/us01/fr09/e04: RULE-12 beside RULE-1 is no duplicate', () async {
+    test('RULE-12 beside RULE-1 is no duplicate', () async {
       final found = await _itemIdFindings(
         _topicRules('- **RULE-1** — a\n- **RULE-12** — b'),
         kind: FindingKind.itemIdDuplicate,
@@ -256,7 +256,7 @@ void main() {
       expect(found, isEmpty);
     });
 
-    test('f04/us01/fr09: fenced, code-span, mid-line, and frontmatter text '
+    test('fenced, code-span, mid-line, and frontmatter text '
         'raises no ID finding', () async {
       final extra = {
         ..._topicRules(
@@ -283,7 +283,7 @@ void main() {
     });
   });
 
-  test('f04/us01/fr09/e06: a 25-digit ID counts without a throw', () async {
+  test('a 25-digit ID counts without a throw', () async {
     final found = await _itemIdFindings(
       _topicRules(
         '- **RULE-1234567890123456789012345** — a\n'
@@ -298,7 +298,7 @@ void main() {
   });
 
   group('idsInDoc', () {
-    test('f04/us01/fr09: lists items and scenario headings with their line '
+    test('lists items and scenario headings with their line '
         'spans, a null id for an item with no ID', () async {
       final session = openSession(
         await writeCheckProject(

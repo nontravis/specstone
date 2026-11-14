@@ -185,7 +185,7 @@ void main() {
       expect(merged.toJson()['maxDepth'], 2);
     });
 
-    test('template_packs/read_writing_guide/print_merged_schema: a per-target '
+    test('a per-target '
         'doc type prints perTarget right after maxDepth; one that is not '
         'prints no key', () {
       final perTarget = _merge(_featureLayer, 'max_depth: 2\nper_target: true');
@@ -216,7 +216,7 @@ void main() {
       expect(unset.nests, isFalse);
     });
 
-    test('template_packs/read_writing_guide/print_merged_schema E05: toJson '
+    test('E05: toJson '
         'prints maxItemChars only when a layer sets it', () {
       final unset = _merge(_featureLayer).toJson();
       expect(
@@ -228,7 +228,7 @@ void main() {
       expect((set['lint']! as Map<String, Object?>)['maxItemChars'], 900);
     });
 
-    test('f03/us01/fr03: the merged schema matches the s02 example', () {
+    test('the merged schema matches the s02 example', () {
       final json = _merge(
         _featureLayer,
         'sections: [{id: scope, disabled: true}]',
@@ -251,7 +251,7 @@ void main() {
       ]);
     });
 
-    test('f03/us01/fr03/e03: banned words changed by add and remove print as '
+    test('banned words changed by add and remove print as '
         'one list', () {
       final json = _merge(
         _featureLayer,
@@ -262,7 +262,7 @@ void main() {
       expect(lint['bannedWords'], ['robust', 'simply']);
     });
 
-    test('f03/us01/fr03/e05: extends and prefixId are absent when unset, and '
+    test('extends and prefixId are absent when unset, and '
         'no value is null', () {
       final json = featureDocType().toJson();
 
@@ -273,7 +273,7 @@ void main() {
       expect(_leaves(json), everyElement(isNotNull));
     });
 
-    test('f03/us01/fr03/e05: extends and prefixId print when set', () {
+    test('extends and prefixId print when set', () {
       final json = _merge(
         _featureLayer,
         'extends: base\nsections: [{id: goal, prefix_id: G}]',
@@ -294,7 +294,7 @@ void main() {
       expect(goal['prefixId'], 'G');
     });
 
-    test('f03/us01/fr03/e05: a doc type with no lint, reference, or '
+    test('a doc type with no lint, reference, or '
         'section lint omits those keys', () {
       final json = _merge('description: Bare\npath: bare.md').toJson();
 
@@ -302,7 +302,7 @@ void main() {
       expect(json['sections'], isEmpty);
     });
 
-    test('f03/us01/fr03/e05: a false list and required are absent', () {
+    test('a false list and required are absent', () {
       final json = featureDocType().toJson();
 
       final draft = (json['fields']! as List<Object?>)
@@ -311,7 +311,7 @@ void main() {
       expect(draft.keys, ['id', 'type', 'description']);
     });
 
-    test('f03/us01/fr03: an output_ref field prints pointer between docTypes '
+    test('an output_ref field prints pointer between docTypes '
         'and description', () {
       final json = _merge(
         _featureLayer,
@@ -340,7 +340,7 @@ void main() {
       ]);
     });
 
-    test('f03/us01/fr03/e05: a field with no pointer prints no pointer '
+    test('a field with no pointer prints no pointer '
         'key', () {
       final fields = (featureDocType().toJson()['fields']! as List<Object?>)
           .cast<Map<String, Object>>();
@@ -348,7 +348,7 @@ void main() {
       expect(fields.where((f) => f.containsKey('pointer')), isEmpty);
     });
 
-    test('f03/us01/fr03: bundle prints right after path and query right after '
+    test('bundle prints right after path and query right after '
         'lint', () {
       const docType = MergedDocType(
         id: 'feature',
@@ -392,7 +392,7 @@ void main() {
       });
     });
 
-    test('f03/us01/fr03: no bundle and no query print no key, as E05 says', () {
+    test('no bundle and no query print no key, as E05 says', () {
       const docType = MergedDocType(
         id: 'feature',
         fields: [],
@@ -414,7 +414,7 @@ void main() {
       expect(featureDocType().renderGuide(), _s02Guide);
     });
 
-    test("f03/us01/fr02: a section's own banned words follow its description, "
+    test("a section's own banned words follow its description, "
         'minus the allowed words, and name the line prefix they apply on', () {
       final guide = _merge('''
 description: Avoid the listed words.
@@ -439,7 +439,7 @@ sections:
       );
     });
 
-    test('f03/us01/fr02: a banned word list the allowed words empty prints '
+    test('a banned word list the allowed words empty prints '
         'no line', () {
       final guide = _merge(
         'description: A.\npath: a.md\n'
@@ -450,7 +450,7 @@ sections:
       expect(guide, 'A.\n\n## S\n');
     });
 
-    test('f03/us01/fr02: a template that holds a code fence prints inside a '
+    test('a template that holds a code fence prints inside a '
         'longer fence', () {
       final guide = _merge('''
 description: A.
@@ -471,7 +471,7 @@ sections:
       );
     });
 
-    test('f03/us01/fr02: an empty template prints no template block', () {
+    test('an empty template prints no template block', () {
       final guide = _merge(
         'description: A.\npath: a.md\n'
         "sections: [{id: s, header: S, template: ''}]",
@@ -491,7 +491,7 @@ sections:
       expect(guide, contains('## Out-of-scope'));
     });
 
-    test('f03/us01/fr02: a section with no description prints its header '
+    test('a section with no description prints its header '
         'alone', () {
       final guide = _merge(
         'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
@@ -500,7 +500,7 @@ sections:
       expect(guide, 'A.\n\n## S\n');
     });
 
-    test('f03/us01/fr02: a section with an empty description prints its '
+    test('a section with an empty description prints its '
         'header alone', () {
       final guide = _merge(
         'description: A.\npath: a.md\n'
@@ -510,7 +510,7 @@ sections:
       expect(guide, 'A.\n\n## S\n');
     });
 
-    test('f03/us01/fr02: an empty doc description adds no blank paragraph', () {
+    test('an empty doc description adds no blank paragraph', () {
       final guide = _merge(
         "description: ''\npath: a.md\nsections: [{id: s, header: S}]",
       ).renderGuide();
@@ -518,12 +518,12 @@ sections:
       expect(guide, '## S\n');
     });
 
-    test('f03/us01/fr02: a doc type with an empty description and no sections '
+    test('a doc type with an empty description and no sections '
         'renders nothing', () {
       expect(_merge("description: ''\npath: a.md").renderGuide(), '');
     });
 
-    test('f03/us01/fr02: an entry with a url prints title, locator, and '
+    test('an entry with a url prints title, locator, and '
         'url', () {
       final guide = _merge(
         'description: A.\npath: a.md\n'
@@ -533,7 +533,7 @@ sections:
       expect(guide, 'A.\n\nGuide sources:\n- T, L: https://e.example/x\n');
     });
 
-    test('f03/us01/fr02: a title-only entry prints its title alone', () {
+    test('a title-only entry prints its title alone', () {
       final guide = _merge(
         'description: A.\npath: a.md\nreference: [{title: T}]',
       ).renderGuide();
@@ -541,7 +541,7 @@ sections:
       expect(guide, endsWith('\n\nGuide sources:\n- T\n'));
     });
 
-    test('f03/us01/fr02: a doc entry from the project layer prints the doc '
+    test('a doc entry from the project layer prints the doc '
         'identity', () {
       final guide = _merge(
         'description: A.\npath: a.md',
@@ -551,7 +551,7 @@ sections:
       expect(guide, endsWith('Guide sources:\n- T: prd/feature\n'));
     });
 
-    test('f03/us01/fr02/e05: no reference list prints no sources', () {
+    test('no reference list prints no sources', () {
       final guide = _merge(
         'description: A.\npath: a.md\nsections: [{id: s, header: S}]',
       ).renderGuide();
@@ -559,7 +559,7 @@ sections:
       expect(guide, isNot(contains('Guide sources:')));
     });
 
-    test('f03/us01/fr02/e05: a project layer that removes every entry prints '
+    test('a project layer that removes every entry prints '
         'no sources', () {
       final guide = _merge(
         _featureLayer,
@@ -570,7 +570,7 @@ sections:
       expect(guide, endsWith('each naming its owner.\n'));
     });
 
-    test('f03/us01/fr02: a doc type with only a reference list prints the '
+    test('a doc type with only a reference list prints the '
         'sources block alone', () {
       final guide = _merge(
         "description: ''\npath: a.md\nreference: [{title: T}]",
@@ -580,7 +580,7 @@ sections:
     });
   });
 
-  test('f03/us02/fr03: a section prints the lint keys a layer sets, and no '
+  test('a section prints the lint keys a layer sets, and no '
       'lint when none is set', () {
     const section = MergedSection(
       id: 'statement',

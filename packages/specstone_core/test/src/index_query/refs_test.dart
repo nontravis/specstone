@@ -32,7 +32,7 @@ void main() {
       'Mentions\n- none\nUntyped mentions\n- none\n',
     );
   });
-  test("f01/us07/fr01/e01: a doc_ref targets its field's doc types only, and shows inbound on the target", () async {
+  test("a doc_ref targets its field's doc types only, and shows inbound on the target", () async {
     expect(
       answerRefs(index, 'persona:buyer').text,
       contains('Inbound\n- persona: login/email_login (user_story)\n'),
@@ -43,7 +43,7 @@ void main() {
     );
   });
   test(
-    'index_query/follow_references/list_doc_references E01, E05: depends_on is '
+    'E01, E05: depends_on is '
     'outbound to each feature it names and inbound on that feature',
     () async {
       final withDeps = await indexWith({
@@ -74,7 +74,7 @@ void main() {
       indexWith({emailFr: frTracing(entries)});
   const frName = 'login/email_login/validate_credentials';
 
-  test('index_query/follow_references/list_doc_references E22: a traced_from '
+  test('E22: a traced_from '
       'entry is outbound once per story and inbound on it; S<N> is no reference', () async {
     final traced = await withFrTracing([
       'S1',
@@ -93,7 +93,7 @@ void main() {
     );
   });
   test(
-    'index_query/follow_references/list_doc_references E22: a story of '
+    'E22: a story of '
     'another feature is listed, one that resolves to no story is not',
     () async {
       final traced = await withFrTracing([
@@ -112,7 +112,7 @@ void main() {
       );
     },
   );
-  test('index_query/follow_references/list_doc_references E19: a repeated '
+  test('E19: a repeated '
       'depends_on value prints one outbound and one inbound line', () async {
     final repeated = await indexWith({
       'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
@@ -127,7 +127,7 @@ void main() {
     );
   });
   test(
-    'index_query/follow_references/list_doc_references E20: a depends_on '
+    'E20: a depends_on '
     'value naming the doc itself is no reference, outbound or inbound',
     () async {
       final self = await indexWith({
@@ -141,7 +141,7 @@ void main() {
       );
     },
   );
-  test('index_query/follow_references/list_doc_references E21: one doc in '
+  test('E21: one doc in '
       'depends_on and reference prints one line per field', () async {
     final both = await indexWith({
       'docs/prds/features/f02_signup/FEATURE.md': '---\nstatus: planned\ndepends_on:\n  - login\nreference:\n  - login\n---\n\n# Sign up\n\n## Problem\nNew users.\n',
@@ -150,7 +150,7 @@ void main() {
     expect(text, contains('- depends_on: login (feature)\n'));
     expect(text, contains('- reference: login (feature)\n'));
   });
-  test('index_query/follow_references/list_doc_references E05: an empty depends_on '
+  test('E05: an empty depends_on '
       'list or an empty item prints - none', () async {
     for (final value in ['[]', '\n  - ""']) {
       final withDeps = await indexWith({
@@ -191,43 +191,37 @@ void main() {
       '==> notes.md · notes.md <==\nOutbound\n- none\nInbound\n- none\nMentions\n- none\nUntyped mentions\n- none\n',
     );
   });
-  test(
-    'f01/us07/fr01/e07: a shared name gives each doc its own group',
-    () async {
-      expect('==> '.allMatches(answerRefs(index, 'login').text), hasLength(5));
-    },
-  );
+  test('a shared name gives each doc its own group', () async {
+    expect('==> '.allMatches(answerRefs(index, 'login').text), hasLength(5));
+  });
   test(
     'f01/us07/s5, f01/us07/fr01/e08: a name no doc carries is doc_not_found',
     () async {
       expect(() => answerRefs(index, 'logn'), throwsA(isA<IndexFault>()));
     },
   );
-  test(
-    'f01/us07/fr01: --json gives kind and either name and docType or pointer',
-    () async {
-      final doc =
-          (answerRefs(index, 'login/email_login').json['docs']! as List).single
-              as Map;
-      expect(doc['outbound'], [
-        {'kind': 'persona', 'name': 'buyer', 'docType': 'persona'},
-        {'kind': 'link', 'name': 'password_rules', 'docType': 'reference'},
-      ]);
-      expect(doc['inbound'], [
-        {
-          'kind': 'link',
-          'name': 'login/email_login/validate_credentials',
-          'docType': 'fr',
-        },
-      ]);
-      final arch =
-          (answerRefs(index, 'architecture:login').json['docs']! as List).single
-              as Map;
-      expect(arch['outbound'], [
-        {'kind': 'covers', 'pointer': 'app/lib/src/login/'},
-      ]);
-    },
-  );
+  test('--json gives kind and either name and docType or pointer', () async {
+    final doc =
+        (answerRefs(index, 'login/email_login').json['docs']! as List).single
+            as Map;
+    expect(doc['outbound'], [
+      {'kind': 'persona', 'name': 'buyer', 'docType': 'persona'},
+      {'kind': 'link', 'name': 'password_rules', 'docType': 'reference'},
+    ]);
+    expect(doc['inbound'], [
+      {
+        'kind': 'link',
+        'name': 'login/email_login/validate_credentials',
+        'docType': 'fr',
+      },
+    ]);
+    final arch =
+        (answerRefs(index, 'architecture:login').json['docs']! as List).single
+            as Map;
+    expect(arch['outbound'], [
+      {'kind': 'covers', 'pointer': 'app/lib/src/login/'},
+    ]);
+  });
   test('f01/us07/s7, f01/us07/fr02/e01: steps 3 and 3x naming one story give one outbound and one inbound step', () async {
     final withJourney = await _withJourney([
       '### 3. Enter details',
@@ -258,7 +252,7 @@ void main() {
       ],
     );
   });
-  test('f01/us07/fr02/e02: refs feature:login has no step line', () async {
+  test('refs feature:login has no step line', () async {
     final withJourney = await _withJourney([
       '### 1. Enter details',
       'step: login/email_login S1',
@@ -268,7 +262,7 @@ void main() {
       isNot(contains('step')),
     );
   });
-  test('f01/us07/fr02/e03: a step naming no story is not listed', () async {
+  test('a step naming no story is not listed', () async {
     final withJourney = await _withJourney([
       '### 1. Enter details',
       'step: nope/none S1',
@@ -280,20 +274,17 @@ void main() {
       contains('Outbound\n- none\n'),
     );
   });
-  test(
-    'f01/us07/fr02/e04: a step naming a missing scenario of a story is listed',
-    () async {
-      final withJourney = await _withJourney([
-        '### 1. Enter details',
-        'step: login/email_login S9',
-      ]);
-      expect(
-        answerRefs(withJourney, 'journey:sign_in').text,
-        contains('- step: login/email_login (user_story)\n'),
-      );
-    },
-  );
-  test('f01/us07/fr01: the groups print doc_ref, link, step, then implements and covers', () async {
+  test('a step naming a missing scenario of a story is listed', () async {
+    final withJourney = await _withJourney([
+      '### 1. Enter details',
+      'step: login/email_login S9',
+    ]);
+    expect(
+      answerRefs(withJourney, 'journey:sign_in').text,
+      contains('- step: login/email_login (user_story)\n'),
+    );
+  });
+  test('the groups print doc_ref, link, step, then implements and covers', () async {
     final steps = ['### 1. Enter details', 'step: login/email_login S1'];
     final withJourney = await indexWith({
       _journeyDoc:
@@ -327,7 +318,7 @@ void main() {
         '\n'
         'Back to the [map](../INDEX.md); INDEX.md has it.\n';
 
-    test('f01/us07/fr01: a backticked file name and a bare DocPath are listed with their line; fenced code and a linking line are not', () async {
+    test('a backticked file name and a bare DocPath are listed with their line; fenced code and a linking line are not', () async {
       final mentions = await indexWith({
         index: '# Spec map\n\nThe old index.\n',
         summary: summaryText,
@@ -341,7 +332,7 @@ void main() {
         'Untyped mentions\n- specs/tools/summary.md:3\n- specs/tools/summary.md:4\n',
       );
     });
-    test('f01/us07/fr01: --json lists each mention by path and line', () async {
+    test('--json lists each mention by path and line', () async {
       final mentions = await indexWith({
         index: '# Spec map\n\nThe old index.\n',
         summary: summaryText,
@@ -354,7 +345,7 @@ void main() {
         {'path': 'specs/tools/summary.md', 'line': 4},
       ]);
     });
-    test('f01/us07/fr01: a path or a link to a doc of the same file name elsewhere is no mention; nor is a bare shared file name', () async {
+    test('a path or a link to a doc of the same file name elsewhere is no mention; nor is a bare shared file name', () async {
       final mentions = await indexWith({
         index: '# Spec map\n\nThe old index.\n',
         'docs/prds/INDEX.md': '# PRD map\n\nThe old PRD index.\n',
@@ -369,29 +360,26 @@ void main() {
         endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
       );
     });
-    test(
-      'f01/us07/fr01: a bare file name several docs carry names none of them',
-      () async {
-        final mentions = await indexWith({
-          'docs/superpowers/ledger.md':
-              '# Ledger\n\n'
-              'Each story keeps its USER_STORY.md under its `FEATURE.md`.\n',
-        });
+    test('a bare file name several docs carry names none of them', () async {
+      final mentions = await indexWith({
+        'docs/superpowers/ledger.md':
+            '# Ledger\n\n'
+            'Each story keeps its USER_STORY.md under its `FEATURE.md`.\n',
+      });
 
-        for (final name in [
-          'prds/features/f01_login/us01_email_login/USER_STORY.md',
-          'prds/features/f01_login/us02_reset_password/USER_STORY.md',
-          featureDoc,
-        ]) {
-          expect(
-            answerRefs(mentions, name).text,
-            endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
-            reason: name,
-          );
-        }
-      },
-    );
-    test('f01/us07/fr01: a path from the mentioning doc, the docs root, or the project root, or a tail one doc alone ends in, names that doc', () async {
+      for (final name in [
+        'prds/features/f01_login/us01_email_login/USER_STORY.md',
+        'prds/features/f01_login/us02_reset_password/USER_STORY.md',
+        featureDoc,
+      ]) {
+        expect(
+          answerRefs(mentions, name).text,
+          endsWith('Mentions\n- none\nUntyped mentions\n- none\n'),
+          reason: name,
+        );
+      }
+    });
+    test('a path from the mentioning doc, the docs root, or the project root, or a tail one doc alone ends in, names that doc', () async {
       final mentions = await indexWith({
         'docs/superpowers/ledger.md':
             '# Ledger\n\n'
@@ -434,7 +422,7 @@ void main() {
         'docs/superpowers/plans/plan.md': '# Plan\n\nEdit `docs/prds/features/f01_login/us01_email_login/USER_STORY.md`.\n',
       };
 
-      test('f01/us07/fr01: lists_untyped_doc_mentions_apart_when_typed_and_untyped_docs_mention_the_doc', () async {
+      test('lists_untyped_doc_mentions_apart_when_typed_and_untyped_docs_mention_the_doc', () async {
         final mentions = await indexWith(typedAndUntyped);
 
         final text = answerRefs(mentions, 'login/email_login').text;
@@ -449,28 +437,25 @@ void main() {
           ),
         );
       });
-      test(
-        'f01/us07/fr01: json_holds_untyped_doc_mentions_under_untypedMentions',
-        () async {
-          final mentions = await indexWith(typedAndUntyped);
+      test('json_holds_untyped_doc_mentions_under_untypedMentions', () async {
+        final mentions = await indexWith(typedAndUntyped);
 
-          final doc =
-              (answerRefs(mentions, 'login/email_login').json['docs']! as List)
-                      .single
-                  as Map;
+        final doc =
+            (answerRefs(mentions, 'login/email_login').json['docs']! as List)
+                    .single
+                as Map;
 
-          expect(doc['mentions'], [
-            {
-              'path': 'prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md',
-              'line': 4,
-            },
-          ]);
-          expect(doc['untypedMentions'], [
-            {'path': 'superpowers/plans/plan.md', 'line': 3},
-          ]);
-        },
-      );
-      test('f01/us07/fr01/e10: prints_untyped_mentions_none_when_only_typed_docs_mention_the_doc', () async {
+        expect(doc['mentions'], [
+          {
+            'path': 'prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md',
+            'line': 4,
+          },
+        ]);
+        expect(doc['untypedMentions'], [
+          {'path': 'superpowers/plans/plan.md', 'line': 3},
+        ]);
+      });
+      test('prints_untyped_mentions_none_when_only_typed_docs_mention_the_doc', () async {
         final mentions = await indexWith({
           'docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md':
               typedAndUntyped['docs/prds/features/f01_login/us02_reset_password/fr01_send_reset_link.md']!,
@@ -485,29 +470,26 @@ void main() {
         );
       });
     });
-    test(
-      'f01/us07/fr01: a longer path names the deepest doc it matches',
-      () async {
-        final mentions = await indexWith({
-          index: '# Spec map\n\nThe old index.\n',
-          'docs/INDEX.md': '# Top map\n\nThe top index.\n',
-          'docs/notes.md':
-              '# Notes\n\n'
-              'See docs/specs/INDEX.md.\n'
-              'See docs/INDEX.md.\n',
-        });
-        expect(
-          answerRefs(mentions, 'INDEX.md').text,
-          endsWith('Untyped mentions\n- notes.md:4\n'),
-        );
-        expect(
-          answerRefs(mentions, 'specs/INDEX.md').text,
-          endsWith('Untyped mentions\n- notes.md:3\n'),
-        );
-      },
-    );
+    test('a longer path names the deepest doc it matches', () async {
+      final mentions = await indexWith({
+        index: '# Spec map\n\nThe old index.\n',
+        'docs/INDEX.md': '# Top map\n\nThe top index.\n',
+        'docs/notes.md':
+            '# Notes\n\n'
+            'See docs/specs/INDEX.md.\n'
+            'See docs/INDEX.md.\n',
+      });
+      expect(
+        answerRefs(mentions, 'INDEX.md').text,
+        endsWith('Untyped mentions\n- notes.md:4\n'),
+      );
+      expect(
+        answerRefs(mentions, 'specs/INDEX.md').text,
+        endsWith('Untyped mentions\n- notes.md:3\n'),
+      );
+    });
   });
-  test('index_query/follow_references/list_doc_references E04, S3: a doc that '
+  test('E04, S3: a doc that '
       'writes the name in plain words is no mention, and one that writes it '
       'in a code span is a mention, never a reference', () async {
     final mentions = await indexWith({
@@ -534,12 +516,15 @@ void main() {
       {'path': 'prds/personas/buyer/PERSONA.md', 'line': 4},
     ]);
   });
-  test('f01/us07/fr01: refs user_story:shop/cart/add_item lists the API that links it', () async {
-    final nested = await nestedIndexWith();
-    final text = answerRefs(nested, 'user_story:shop/cart/add_item').text;
-    expect(text, contains('Inbound\n- link: shop (api)'));
-    expect(text, contains(cartAdd));
-  });
+  test(
+    'refs user_story:shop/cart/add_item lists the API that links it',
+    () async {
+      final nested = await nestedIndexWith();
+      final text = answerRefs(nested, 'user_story:shop/cart/add_item').text;
+      expect(text, contains('Inbound\n- link: shop (api)'));
+      expect(text, contains(cartAdd));
+    },
+  );
 
   group('record code paths, two targets', () {
     const recordType =
@@ -576,7 +561,7 @@ void main() {
           'implements:\n  - email_login:lib/web_page.dart\n---\n\n# Record\n',
     });
 
-    test('index_query/follow_references/list_doc_references E03, f01/us07/s2: a record lists each entry code path outbound as written, kind implements, no item beside it', () async {
+    test('E03, f01/us07/s2: a record lists each entry code path outbound as written, kind implements, no item beside it', () async {
       final twin = await twoTargets();
 
       final answer = answerRefs(
@@ -600,7 +585,7 @@ void main() {
       ]);
     });
 
-    test('index_query/follow_references/list_doc_references E03: a record lists its code paths in its implements line order, whatever its statuses order', () async {
+    test('E03: a record lists its code paths in its implements line order, whatever its statuses order', () async {
       final shuffled = await indexWith({
         '.specstone/templates/implementation.yaml': recordType,
         '.specstone/config.yaml':
@@ -635,7 +620,7 @@ void main() {
       ]);
     });
 
-    test('index_query/follow_references/list_doc_references E03: a record with no code path prints - none outbound', () async {
+    test('E03: a record with no code path prints - none outbound', () async {
       final bare = await indexWith({
         '.specstone/templates/implementation.yaml': recordType,
         '.specstone/config.yaml':
@@ -652,16 +637,19 @@ void main() {
       );
     });
 
-    test('index_query/follow_references/list_doc_references E03: a record has no inbound pointer from the code it names', () async {
-      final twin = await twoTargets();
+    test(
+      'E03: a record has no inbound pointer from the code it names',
+      () async {
+        final twin = await twoTargets();
 
-      expect(
-        answerRefs(twin, 'specs/jaspr/f01_login/IMPLEMENTATION.md').text,
-        contains(
-          'Outbound\n- implements: lib/web_page.dart\nInbound\n- none\n',
-        ),
-      );
-    });
+        expect(
+          answerRefs(twin, 'specs/jaspr/f01_login/IMPLEMENTATION.md').text,
+          contains(
+            'Outbound\n- implements: lib/web_page.dart\nInbound\n- none\n',
+          ),
+        );
+      },
+    );
 
     test('a record lists each tests line outbound with the kind tests, the name aside', () async {
       final withTests = await indexWith({
@@ -775,42 +763,50 @@ void main() {
       expect(jaspr, isNot(contains('sign_in_page')));
     });
 
-    test('index_query/read_doc_section/resolve_doc_name E22: a code target the config does not hold is argument_invalid', () async {
-      final twin = await twoTargets();
+    test(
+      'E22: a code target the config does not hold is argument_invalid',
+      () async {
+        final twin = await twoTargets();
 
-      expect(
-        () => answerRefs(twin, 'implementation:login', codeTarget: 'web'),
-        throwsA(
-          isA<IndexFault>().having(
-            (f) => f.code,
-            'code',
-            IndexFaultCode.argumentInvalid,
+        expect(
+          () => answerRefs(twin, 'implementation:login', codeTarget: 'web'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.argumentInvalid,
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('f01/us07/fr02: journey-step references print as before beside a record doc type', () async {
-      final twin = await indexWith({
-        '.specstone/templates/implementation.yaml': recordType,
-        '.specstone/config.yaml':
-            '${shippedPinsConfig()}targets:\n'
-            '  flutter:\n    code_root: flutter_lib\n',
-        'flutter_lib/.keep': '',
-        _journeyDoc: _journey([
-          '### 1. Enter details',
-          'step: login/email_login S1',
-        ]),
-      });
+    test(
+      'journey-step references print as before beside a record doc type',
+      () async {
+        final twin = await indexWith({
+          '.specstone/templates/implementation.yaml': recordType,
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  flutter:\n    code_root: flutter_lib\n',
+          'flutter_lib/.keep': '',
+          _journeyDoc: _journey([
+            '### 1. Enter details',
+            'step: login/email_login S1',
+          ]),
+        });
 
-      expect(
-        answerRefs(twin, 'journey:sign_in').text,
-        contains('Outbound\n- step: login/email_login (user_story)\nInbound\n'),
-      );
-    });
+        expect(
+          answerRefs(twin, 'journey:sign_in').text,
+          contains(
+            'Outbound\n- step: login/email_login (user_story)\nInbound\n',
+          ),
+        );
+      },
+    );
   });
 
-  test('index_query/follow_references/list_doc_references E03: a code pointer stays outbound as written, and a mention in a code file is no inbound pointer', () async {
+  test('E03: a code pointer stays outbound as written, and a mention in a code file is no inbound pointer', () async {
     final withCode = await indexWith({
       'app/lib/src/login/sign_in_page.dart':
           '/// Lays out `login/email_login`.\nclass SignInPage {}\n',

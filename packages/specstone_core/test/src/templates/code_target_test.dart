@@ -13,7 +13,7 @@ void main() {
     });
   });
 
-  group('f04/us02/fr03/e09: nestedPathsOf finds the code roots nested in a '
+  group('nestedPathsOf finds the code roots nested in a '
       'code root', () {
     test(
       'windows paths: a nested root is found under its native separator',

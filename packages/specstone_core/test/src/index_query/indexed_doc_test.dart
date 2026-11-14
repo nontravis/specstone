@@ -366,7 +366,7 @@ void main() {
     },
   );
 
-  test('index_query/read_current_docs/index_each_doc E22: both target twins '
+  test('E22: both target twins '
       'index with their own target and one target-free name', () {
     final targeted = DocTypeMatcher(
       MergedSet(
@@ -399,7 +399,7 @@ void main() {
     ));
   });
 
-  test('index_query/read_current_docs/index_each_doc E23: with two targets a '
+  test('E23: with two targets a '
       'target-free spec path and an unknown target folder index untyped', () {
     final targeted = DocTypeMatcher(
       MergedSet(
@@ -427,7 +427,7 @@ void main() {
     }
   });
 
-  test('index_query/read_current_docs/index_each_doc E24: one target, named '
+  test('E24: one target, named '
       'or not, gives a per-target doc that target and a PRD doc none', () {
     final oneNamed = DocTypeMatcher(
       MergedSet(
@@ -510,7 +510,7 @@ void main() {
     const problemText =
         '## Problem\n\n### Sub\n\ntext\n\n| a | b |\n|---|---|\n| 1 | 22 |';
 
-    test('index_query/read_current_docs/index_each_doc E18: a doc that differs '
+    test('E18: a doc that differs '
         'from its layout is not formatted and counts the laid-out text', () {
       final facts = parse(featurePath, padded);
       expect(facts.doc.formatted, isFalse);
@@ -527,7 +527,7 @@ void main() {
       expect(after.content.lineFacts.sectionCounts, counts.sectionCounts);
     });
 
-    test('index_query/read_current_docs/index_each_doc E19: a refused doc has no formatted value and counts '
+    test('E19: a refused doc has no formatted value and counts '
         'its text on disk', () {
       for (final text in [
         '# F\n\n## Bogus\nx  y\n',
@@ -540,16 +540,19 @@ void main() {
       }
     });
 
-    test('index_query/read_current_docs/index_each_doc: a fence nested in a list item is code to the index and the layout alike', () {
-      const nested =
-          '# F\n\n## Problem\n\n1. Run:\n\n    ```sh\n    echo "a  b"   \n'
-          '    ## not a section\n    ```\n';
-      final parsed = parse(featurePath, nested);
-      expect(parsed.doc.formatted, isTrue);
-      expect([for (final s in parsed.content.sections) s.key], ['problem']);
-    });
+    test(
+      'a fence nested in a list item is code to the index and the layout alike',
+      () {
+        const nested =
+            '# F\n\n## Problem\n\n1. Run:\n\n    ```sh\n    echo "a  b"   \n'
+            '    ## not a section\n    ```\n';
+        final parsed = parse(featurePath, nested);
+        expect(parsed.doc.formatted, isTrue);
+        expect([for (final s in parsed.content.sections) s.key], ['problem']);
+      },
+    );
 
-    test('index_query/read_current_docs/index_each_doc E19: a doc with an open generated block has no formatted value', () {
+    test('E19: a doc with an open generated block has no formatted value', () {
       final open = generatedOpenMarker('journey_flow');
       for (final end in ['', '$generatedEndMarker  \n']) {
         final disk = '# J\n\n## Flow\n\n$open\n| a     | b |\n|---|---|\n$end';
@@ -559,7 +562,8 @@ void main() {
       }
     });
 
-    test('index_query/read_current_docs/index_each_doc: a doc that is not UTF-8, which format skips, has no formatted value and counts its text as read', () {
+    test('a doc that is not UTF-8, which format skips, has no formatted value '
+        'and counts its text as read', () {
       const invalidByte = 0xFF;
       final bytes = [...utf8.encode(padded), invalidByte, ...utf8.encode('\n')];
       final parsed = parseIndexedDoc(
@@ -572,16 +576,16 @@ void main() {
       expect(parsed.content.lineFacts.charCount, read.length);
     });
 
-    test('index_query/read_current_docs/index_each_doc: an untyped doc has no formatted value', () {
+    test('an untyped doc has no formatted value', () {
       expect(parse('notes/a.md', '# A\n').doc.formatted, isNull);
     });
 
-    test('index_query/read_current_docs/index_each_doc: CRLF line ends alone leave a doc formatted', () {
+    test('CRLF line ends alone leave a doc formatted', () {
       final parsed = parse(featurePath, laidOut.replaceAll('\n', '\r\n'));
       expect(parsed.doc.formatted, isTrue);
     });
 
-    test('index_query/read_current_docs/index_each_doc R31: a generated block counts as on disk while '
+    test('R31: a generated block counts as on disk while '
         'padding outside it is laid out', () {
       final open = generatedOpenMarker('journey_flow');
       const block = '| a   | b |\n|-----|---|';
@@ -607,7 +611,7 @@ void main() {
         '1. E01 — A wrong password → refused\n\n'
         '## Statement\nThe system shall check it.\n';
 
-    test('index_query/read_current_docs/index_each_doc: parseIndexedDoc gives '
+    test('parseIndexedDoc gives '
         'the item facts of the laid-out text', () {
       final facts = parse(frPath, drifted).content.itemFacts;
 
@@ -619,7 +623,7 @@ void main() {
       ]);
     });
 
-    test('index_query/read_current_docs/index_each_doc: docStructureOf gives '
+    test('docStructureOf gives '
         'item facts that count its own text with no layout', () {
       final type = (matcher.match(frPath) as MatchedDocType).docType;
       final facts = docStructureOf(drifted, type).itemFacts;
@@ -631,7 +635,7 @@ void main() {
       ]);
     });
 
-    test('index_query/read_current_docs/index_each_doc: docStructureOf with '
+    test('docStructureOf with '
         'no doc type gives items with no ID', () {
       final facts = docStructureOf(
         '# T\n\n## Notes\n1. E01 — a\n',

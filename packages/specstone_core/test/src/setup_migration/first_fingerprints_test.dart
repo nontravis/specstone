@@ -17,7 +17,8 @@ String _api(List<String> cells, {String frontmatter = '---\n---\n'}) =>
 
 void main() {
   group('writeFirstFingerprints', () {
-    test('f06/us01/fr06/e01: a cell naming one existing FR becomes its FRRef and gains a confirmed entry', () {
+    test('a cell naming one existing FR becomes its FRRef and gains a '
+        'confirmed entry', () {
       final api = _api(['`us01/fr01_check_target`']);
 
       final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
@@ -52,21 +53,24 @@ void main() {
       expect(out.label, 'FR trace cells');
     });
 
-    test('f06/us01/fr06/e02: a cell naming no FR, two FRs, or a missing FR stays and gets no entry', () {
-      final api = _api([
-        '—',
-        '`us01/fr01, us01/fr02`',
-        '`us01/fr09_gone`',
-        '`us02/fr01`',
-      ]);
+    test(
+      'a cell naming no FR, two FRs, or a missing FR stays and gets no entry',
+      () {
+        final api = _api([
+          '—',
+          '`us01/fr01, us01/fr02`',
+          '`us01/fr09_gone`',
+          '`us02/fr01`',
+        ]);
 
-      final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
+        final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
 
-      expect(out.lf, api);
-      expect(out.label, isNull);
-    });
+        expect(out.lf, api);
+        expect(out.label, isNull);
+      },
+    );
 
-    test('f06/us01/fr06/e02: a cell whose numbers match two FR files stays', () {
+    test('a cell whose numbers match two FR files stays', () {
       const twin =
           'prds/features/f04_check/us01_other_story/functional_requirements/fr01_other.md';
       final api = _api(['`us01/fr01`']);
@@ -80,7 +84,7 @@ void main() {
       expect(out.label, isNull);
     });
 
-    test('f06/us01/fr06: a cell may omit the slugs or the backticks', () {
+    test('a cell may omit the slugs or the backticks', () {
       final api = _api(['`us01/fr01`', 'us1/fr1_check_target']);
 
       final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
@@ -97,7 +101,7 @@ void main() {
       expect(out.label, 'confirmed (1)');
     });
 
-    test('f06/us01/fr06: a written slug that differs keeps the cell', () {
+    test('a written slug that differs keeps the cell', () {
       final api = _api(['`us01_wrong_story/fr01`', '`us01/fr01_wrong`']);
 
       final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
@@ -106,7 +110,7 @@ void main() {
       expect(out.label, isNull);
     });
 
-    test('f06/us01/fr06: an FR with no Statement hashes the empty text', () {
+    test('an FR with no Statement hashes the empty text', () {
       const bare =
           '---\nname: fr01_check_target\n---\n\n# FR-01 — Check target\n';
       final api = _api(['`us01/fr01`']);
@@ -121,7 +125,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr06: an existing confirmed block gains the entry', () {
+    test('an existing confirmed block gains the entry', () {
       final api = _api(
         ['`us01/fr01`'],
         frontmatter:
@@ -143,7 +147,7 @@ void main() {
       ('zero-indent', '- '),
       ('four-space', '    - '),
     ]) {
-      test('f06/us01/fr06: a $name confirmed list gains the entry with its '
+      test('a $name confirmed list gains the entry with its '
           'own prefix, as its own item', () {
         final api = _api([
           '`us01/fr01`',
@@ -160,7 +164,7 @@ void main() {
       });
     }
 
-    test('f06/us01/fr06: a doc without frontmatter gains one, then a blank line', () {
+    test('a doc without frontmatter gains one, then a blank line', () {
       const api =
           '# check API\n\n## FR trace\n\n| FR id | Method |\n|---|---|\n| `us01/fr01` | CLI |\n';
 
@@ -174,7 +178,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr06: one FR named by two rows gets one entry', () {
+    test('one FR named by two rows gets one entry', () {
       final api = _api(['`us01/fr01`', '`us01/fr01_check_target`']);
 
       final out = writeFirstFingerprints(api, featureFrs: {_fr: _frText});
@@ -189,7 +193,7 @@ void main() {
       expect(out.label, 'confirmed (1)');
     });
 
-    test('f06/us01/fr06: a doc without an FR trace section is unchanged', () {
+    test('a doc without an FR trace section is unchanged', () {
       const api =
           '---\n---\n\n# check API\n\n## Models\n\n| `us01/fr01` | x |\n';
 
@@ -199,7 +203,7 @@ void main() {
       expect(out.label, isNull);
     });
 
-    test('f06/us01/fr06: a fenced example row is neither rewritten '
+    test('a fenced example row is neither rewritten '
         'nor fingerprinted', () {
       const api =
           '---\n---\n\n# check API\n\n## FR trace\n\n| FR id | Method |\n'
@@ -211,7 +215,7 @@ void main() {
       expect(out.label, isNull);
     });
 
-    test('f06/us01/fr06: a fenced ## line does not end the trace', () {
+    test('a fenced ## line does not end the trace', () {
       const api =
           '---\n---\n\n# check API\n\n## FR trace\n\n| FR id | Method |\n'
           '|---|---|\n```\n## not a header\n```\n| `us01/fr01` | CLI |\n';
@@ -222,7 +226,7 @@ void main() {
       expect(out.label, 'confirmed (1)');
     });
 
-    test('f06/us01/fr06: two FR files sharing a slug keep their own '
+    test('two FR files sharing a slug keep their own '
         'statements', () {
       const first =
           'prds/features/f04_check/us01_find/functional_requirements/'

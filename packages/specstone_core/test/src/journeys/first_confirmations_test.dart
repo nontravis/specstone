@@ -135,7 +135,7 @@ void main() {
     ('zero-indent', '- '),
     ('four-space', '    - '),
   ]) {
-    test('f10/us01/fr05: a $name confirmed list gains each entry with its own '
+    test('a $name confirmed list gains each entry with its own '
         'prefix, as its own item', () async {
       final root = await _project();
       final stdin =
@@ -173,44 +173,38 @@ void main() {
     );
   });
 
-  test(
-    'f10/us01/fr05/e03: no stdin writes the starter text, an empty flowchart, '
-    'and no confirmed key',
-    () async {
-      final root = await _project();
+  test('no stdin writes the starter text, an empty flowchart, '
+      'and no confirmed key', () async {
+    final root = await _project();
 
-      final text = _new(root);
+    final text = _new(root);
 
-      expect(text, startsWith('---\ndraft: true\n---\n'));
-      expect(text, isNot(contains('confirmed')));
-      expect(
-        text,
-        contains(
-          '${generatedOpenMarker(journeyFlowKind)}\n'
-          '```mermaid\nflowchart TD\n```\n$generatedEndMarker\n',
-        ),
-      );
-      expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 0);
-    },
-  );
+    expect(text, startsWith('---\ndraft: true\n---\n'));
+    expect(text, isNot(contains('confirmed')));
+    expect(
+      text,
+      contains(
+        '${generatedOpenMarker(journeyFlowKind)}\n'
+        '```mermaid\nflowchart TD\n```\n$generatedEndMarker\n',
+      ),
+    );
+    expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 0);
+  });
 
-  test(
-    'f10/us01/fr05: format right after new journey changes nothing',
-    () async {
-      final root = await _project();
-      final text = _new(root);
+  test('format right after new journey changes nothing', () async {
+    final root = await _project();
+    final text = _new(root);
 
-      final report = _format(root);
+    final report = _format(root);
 
-      expect(
-        report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
-        FileStatus.unchanged,
-      );
-      expect(_file(root).readAsStringSync(), text);
-    },
-  );
+    expect(
+      report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
+      FileStatus.unchanged,
+    );
+    expect(_file(root).readAsStringSync(), text);
+  });
 
-  test('f10/us01/fr05/e04: an entry stdin holds for a step is kept as written '
+  test('an entry stdin holds for a step is kept as written '
       'and not added twice', () async {
     final root = await _project();
     const held = '  - $_story#S1 aaaaaaaaaaaa\n';
@@ -226,7 +220,7 @@ void main() {
   });
 
   test(
-    "f10/us01/fr05/e04: an entry names its link by the scenario number's "
+    "an entry names its link by the scenario number's "
     'value, so a held S01 entry gets no S1 beside it, for step S1 or S01',
     () async {
       final root = await _project();
@@ -245,49 +239,46 @@ void main() {
     },
   );
 
-  test(
-    'f10/us01/fr05: draft is inserted above persona, confirmed below it, and '
-    'stdin is otherwise kept',
-    () async {
-      final root = await _project();
-      // As `new` writes it, less the generated blocks the regex strips.
-      const stdin =
-          '---\npersona:\n  - owner\n---\n\n# Sign in\n\n## Goal\n\n'
-          'Reach the home page.\n\n## Flow\n\n\n## Steps\n\n'
-          '### 1. Step 1\n\nstep: $_story S1\n\n'
-          '### 2. Step 2\n\nstep: $_story S2\n';
+  test('draft is inserted above persona, confirmed below it, and '
+      'stdin is otherwise kept', () async {
+    final root = await _project();
+    // As `new` writes it, less the generated blocks the regex strips.
+    const stdin =
+        '---\npersona:\n  - owner\n---\n\n# Sign in\n\n## Goal\n\n'
+        'Reach the home page.\n\n## Flow\n\n\n## Steps\n\n'
+        '### 1. Step 1\n\nstep: $_story S1\n\n'
+        '### 2. Step 2\n\nstep: $_story S2\n';
 
-      final text = _new(root, text: stdin);
+    final text = _new(root, text: stdin);
 
-      expect(
-        text,
-        startsWith(
-          '---\ndraft: true\npersona:\n  - owner\nconfirmed:\n'
-          '${_entry(1)}${_entry(2)}---\n',
-        ),
-      );
-      final restored = text
-          .replaceFirst('draft: true\n', '')
-          .replaceFirst('confirmed:\n${_entry(1)}${_entry(2)}', '')
-          .replaceAll(
-            RegExp(
-              '${RegExp.escape('<!-- specstone:generated ')}[a-z_]+'
-              '${RegExp.escape(' (do not edit) -->')}\n[\\s\\S]*?'
-              '${RegExp.escape(generatedEndMarker)}\n',
-            ),
-            '',
-          );
-      expect(restored, stdin);
-      final report = _format(root);
-      expect(
-        report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
-        FileStatus.unchanged,
-      );
-      expect(_file(root).readAsStringSync(), text);
-    },
-  );
+    expect(
+      text,
+      startsWith(
+        '---\ndraft: true\npersona:\n  - owner\nconfirmed:\n'
+        '${_entry(1)}${_entry(2)}---\n',
+      ),
+    );
+    final restored = text
+        .replaceFirst('draft: true\n', '')
+        .replaceFirst('confirmed:\n${_entry(1)}${_entry(2)}', '')
+        .replaceAll(
+          RegExp(
+            '${RegExp.escape('<!-- specstone:generated ')}[a-z_]+'
+            '${RegExp.escape(' (do not edit) -->')}\n[\\s\\S]*?'
+            '${RegExp.escape(generatedEndMarker)}\n',
+          ),
+          '',
+        );
+    expect(restored, stdin);
+    final report = _format(root);
+    expect(
+      report.files.where((f) => f.path.endsWith('JOURNEY.md')).single.status,
+      FileStatus.unchanged,
+    );
+    expect(_file(root).readAsStringSync(), text);
+  });
 
-  test('f10/us01/fr05: an existing confirmed list gains its new entries at its '
+  test('an existing confirmed list gains its new entries at its '
       'end', () async {
     final root = await _project();
     const other = '  - other/story#S1 bbbbbbbbbbbb\n';
@@ -306,19 +297,16 @@ void main() {
     );
   });
 
-  test(
-    'f10/us01/fr05: two steps naming one scenario get one confirmed entry',
-    () async {
-      final root = await _project();
+  test('two steps naming one scenario get one confirmed entry', () async {
+    final root = await _project();
 
-      final text = _new(root, text: _body([_step(1, 1), _step(2, 1)]));
+    final text = _new(root, text: _body([_step(1, 1), _step(2, 1)]));
 
-      expect(_count(text, '$_story#S1 '), 1);
-      expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 2);
-    },
-  );
+    expect(_count(text, '$_story#S1 '), 1);
+    expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 2);
+  });
 
-  test('f10/us01/fr05: stdin holding an open block still gets draft and the '
+  test('stdin holding an open block still gets draft and the '
       'first confirmed entries, and no block', () async {
     final root = await _project();
     final open = '${generatedOpenMarker(journeyFlowKind)}\n';
@@ -333,59 +321,49 @@ void main() {
     expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 0);
   });
 
-  test(
-    'f10/us01/fr05: a malformed confirmed list in stdin is written as given',
-    () async {
-      final root = await _project();
-      const held = 'confirmed:\n  - "login/email_login#S1\n';
-      final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
+  test('a malformed confirmed list in stdin is written as given', () async {
+    final root = await _project();
+    const held = 'confirmed:\n  - "login/email_login#S1\n';
+    final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
 
-      final text = _new(root, text: stdin);
+    final text = _new(root, text: stdin);
 
-      expect(text, startsWith('---\ndraft: true\n$held---\n'));
-      expect(_count(text, '$_story#S1 '), 0);
-    },
-  );
+    expect(text, startsWith('---\ndraft: true\n$held---\n'));
+    expect(_count(text, '$_story#S1 '), 0);
+  });
 
-  test(
-    'f10/us01/fr05: a dash-led scalar confirmed is written as given',
-    () async {
-      final root = await _project();
-      const held = 'confirmed: -foo\n';
-      final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
+  test('a dash-led scalar confirmed is written as given', () async {
+    final root = await _project();
+    const held = 'confirmed: -foo\n';
+    final stdin = '---\n$held---\n\n${_body([_step(1, 1)])}';
 
-      final text = _new(root, text: stdin);
+    final text = _new(root, text: stdin);
 
-      expect(text, startsWith('---\ndraft: true\n$held---\n'));
-      expect(_count(text, '$_story#S1 '), 0);
-    },
-  );
+    expect(text, startsWith('---\ndraft: true\n$held---\n'));
+    expect(_count(text, '$_story#S1 '), 0);
+  });
 
-  test(
-    'f05/us03/fr01: a doc type with no generators is written as before',
-    () async {
-      final plain = await _project();
-      final hooked = await _project();
+  test('a doc type with no generators is written as before', () async {
+    final plain = await _project();
+    final hooked = await _project();
 
-      writeIn(
-        plain,
-        (s) =>
-            answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'a'),
-      );
-      writeIn(
-        hooked,
-        (s) => answerNew(
-          s,
-          docTypeId: 'user_story',
-          parent: 'login',
-          slug: 'a',
-          generators: journeyGenerators(),
-          firstConfirmations: withFirstConfirmations,
-        ),
-      );
+    writeIn(
+      plain,
+      (s) => answerNew(s, docTypeId: 'user_story', parent: 'login', slug: 'a'),
+    );
+    writeIn(
+      hooked,
+      (s) => answerNew(
+        s,
+        docTypeId: 'user_story',
+        parent: 'login',
+        slug: 'a',
+        generators: journeyGenerators(),
+        firstConfirmations: withFirstConfirmations,
+      ),
+    );
 
-      const path = 'prds/features/f01_login/us02_a/USER_STORY.md';
-      expect(readDoc(hooked, path), readDoc(plain, path));
-    },
-  );
+    const path = 'prds/features/f01_login/us02_a/USER_STORY.md';
+    expect(readDoc(hooked, path), readDoc(plain, path));
+  });
 }

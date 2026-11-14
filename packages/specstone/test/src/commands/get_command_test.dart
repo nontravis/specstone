@@ -217,7 +217,7 @@ void main() {
       });
     });
   });
-  test('f01/us04/fr02/e06: no name is argument_missing, exit 64', () async {
+  test('no name is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['get']), 64);
     expect(err.toString(), 'get needs a name, such as specstone get login\n');
@@ -239,7 +239,8 @@ void main() {
       'message': 'no architecture doc carries the name signup',
     });
   });
-  test('index_query/read_doc_section/resolve_doc_name E18: a target whose text before its first colon is no slug is doc_not_found, exit 64', () async {
+  test('E18: a target whose text before its first colon is no slug is '
+      'doc_not_found, exit 64', () async {
     for (final target in ['Grid:login', 'check architecture:login']) {
       final (:runner, :out, :err) = readRunner(await writeReadProject());
       expect(await runner.run(['get', target, '--json']), 64, reason: target);
@@ -249,7 +250,7 @@ void main() {
       }, reason: target);
     }
   });
-  test('index_query/read_doc_section/resolve_doc_name E07: a misspelled slug prefix is doc_type_unknown, exit 64', () async {
+  test('E07: a misspelled slug prefix is doc_type_unknown, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['get', 'architectur:login', '--json']), 64);
     expect(
@@ -283,7 +284,7 @@ void main() {
       ),
     );
   });
-  test('index_query/read_doc_section/print_doc_or_section E08: '
+  test('E08: '
       'get --json prints the laid-out section bases', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
@@ -311,21 +312,18 @@ void main() {
     Future<Directory> project({String text = journeyText}) =>
         writeReadProject(extra: {journeyDoc: text, storyDoc: storyText});
 
-    test(
-      'f10/us02/fr01/e04: --paths with --code is argument_conflict, exit 64',
-      () async {
-        final (:runner, :out, :err) = readRunner(await project());
-        expect(
-          await runner.run(['get', 'sign_in', '--paths', '--code', '--json']),
-          64,
-        );
-        expect((jsonDecode(err.toString()) as Map)['error'], {
-          'code': 'argument_conflict',
-          'message': '--code and --paths cannot be given together',
-        });
-      },
-    );
-    test('f10/us02/fr01/e04: --paths with a section key is argument_conflict, exit 64', () async {
+    test('--paths with --code is argument_conflict, exit 64', () async {
+      final (:runner, :out, :err) = readRunner(await project());
+      expect(
+        await runner.run(['get', 'sign_in', '--paths', '--code', '--json']),
+        64,
+      );
+      expect((jsonDecode(err.toString()) as Map)['error'], {
+        'code': 'argument_conflict',
+        'message': '--code and --paths cannot be given together',
+      });
+    });
+    test('--paths with a section key is argument_conflict, exit 64', () async {
       final (:runner, :out, :err) = readRunner(await project());
       expect(
         await runner.run(['get', 'journey:sign_in#steps', '--paths', '--json']),
@@ -336,7 +334,8 @@ void main() {
         'message': '--paths takes no #<section key>',
       });
     });
-    test('index_query/read_doc_section/resolve_doc_name E13 (W8): --paths reads a path holding # whole, so it is no section key and no argument_conflict', () async {
+    test('E13 (W8): --paths reads a path holding # whole, so it is no section '
+        'key and no argument_conflict', () async {
       final (:runner, :out, :err) = readRunner(
         await writeReadProject(
           extra: {'docs/prds/notes#draft.md': '# Draft\n'},
@@ -346,26 +345,35 @@ void main() {
       expect(err.toString(), isNot(contains('argument_conflict')));
       expect(err.toString(), isNot(contains('takes no #<section key>')));
     });
-    test('f10/us02/fr01: get journey:<slug> --paths prints on stdout, warnings on stderr, exit 0', () async {
-      final (:runner, :out, :err) = readRunner(await project());
-      expect(await runner.run(['get', 'journey:sign_in', '--paths']), 0);
-      expect(
-        out.toString(),
-        startsWith(
-          '==> sign_in (journey) · prds/journeys/sign_in/JOURNEY.md <==\n'
-          'journey:sign_in path 1\n1. Open the page — login/email_login S1\n'
-          '- **Given** an account\n- **Then** the Agent sees home\n',
-        ),
-      );
-      expect(err.toString(), isEmpty);
-    });
-    test('f10/us02/fr01: a step naming no scenario warns on stderr and still exits 0', () async {
-      final (:runner, :out, :err) = readRunner(
-        await project(text: journeyText.replaceFirst('S1', 'S9')),
-      );
-      expect(await runner.run(['get', 'sign_in', '--paths']), 0);
-      expect(err.toString(), '⚠️ WARNING: sign_in: step 1 names no scenario\n');
-    });
+    test(
+      'get journey:<slug> --paths prints on stdout, warnings on stderr, exit 0',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(await runner.run(['get', 'journey:sign_in', '--paths']), 0);
+        expect(
+          out.toString(),
+          startsWith(
+            '==> sign_in (journey) · prds/journeys/sign_in/JOURNEY.md <==\n'
+            'journey:sign_in path 1\n1. Open the page — login/email_login S1\n'
+            '- **Given** an account\n- **Then** the Agent sees home\n',
+          ),
+        );
+        expect(err.toString(), isEmpty);
+      },
+    );
+    test(
+      'a step naming no scenario warns on stderr and still exits 0',
+      () async {
+        final (:runner, :out, :err) = readRunner(
+          await project(text: journeyText.replaceFirst('S1', 'S9')),
+        );
+        expect(await runner.run(['get', 'sign_in', '--paths']), 0);
+        expect(
+          err.toString(),
+          '⚠️ WARNING: sign_in: step 1 names no scenario\n',
+        );
+      },
+    );
     for (final option in ['--paths', '--code']) {
       test(
         'journeys/${option == '--paths' ? 'get_journey_test_paths/print_journey_paths' : 'read_code_per_step/list_code_per_step'} E09: '
@@ -397,8 +405,8 @@ void main() {
         },
       );
     }
-    test('journeys/read_code_per_step/list_code_per_step E10, '
-        'journeys/get_journey_test_paths/print_journey_paths: '
+    test('E10, '
+        'Print every start-to-end path: '
         'the journey line holds no base', () async {
       for (final option in ['--paths', '--code']) {
         final (:runner, :out, :err) = readRunner(await project());
@@ -412,7 +420,7 @@ void main() {
         );
       }
     });
-    test('f10/us03/s2: a project with no record doc type prints each step '
+    test('a project with no record doc type prints each step '
         'with no code pointer, exit 0 and no error', () async {
       final (:runner, :out, :err) = readRunner(await project());
       expect(await runner.run(['get', 'journey:sign_in', '--code']), 0);
@@ -425,19 +433,22 @@ void main() {
       );
       expect(err.toString(), isEmpty);
     });
-    test('f10/us03/fr01: get journey:<slug> --code --json prints one object, exit 0', () async {
-      final (:runner, :out, :err) = readRunner(await project());
-      expect(
-        await runner.run(['get', 'journey:sign_in', '--code', '--json']),
-        0,
-      );
-      final printed = jsonDecode(out.toString()) as Map;
-      expect(printed.keys, ['journeys', 'warnings']);
-      expect(
-        ((printed['journeys'] as List).single as Map)['steps'],
-        hasLength(1),
-      );
-    });
+    test(
+      'get journey:<slug> --code --json prints one object, exit 0',
+      () async {
+        final (:runner, :out, :err) = readRunner(await project());
+        expect(
+          await runner.run(['get', 'journey:sign_in', '--code', '--json']),
+          0,
+        );
+        final printed = jsonDecode(out.toString()) as Map;
+        expect(printed.keys, ['journeys', 'warnings']);
+        expect(
+          ((printed['journeys'] as List).single as Map)['steps'],
+          hasLength(1),
+        );
+      },
+    );
   });
 
   group('index_query/read_doc_section/resolve_doc_name, --target', () {
@@ -662,7 +673,7 @@ void main() {
         expect(err.toString(), isEmpty);
       });
 
-      test('f10/us03/fr01/e11: --target keeps one target, printed with no '
+      test('--target keeps one target, printed with no '
           'target name', () async {
         final (:runner, :out, :err) = readRunner(await project());
         expect(
@@ -681,7 +692,7 @@ void main() {
         expect(out.toString(), endsWith('$stepLines  - skipped\n'));
       });
 
-      test('f10/us03/fr01/e11: --json holds implementsByTarget with no '
+      test('--json holds implementsByTarget with no '
           '--target', () async {
         final (:runner, :out, :err) = readRunner(await project());
         expect(await runner.run(['get', 'sign_in', '--code', '--json']), 0);

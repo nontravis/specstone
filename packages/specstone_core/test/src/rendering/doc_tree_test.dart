@@ -103,7 +103,7 @@ void main() {
       skip: Platform.isWindows ? 'chmod does not apply on Windows' : false,
     );
 
-    test('f05/us02/fr01/e01: a feature folder yields the feature, then each '
+    test('a feature folder yields the feature, then each '
         'story with its requirements', () async {
       final walk = await _walk();
 
@@ -113,7 +113,8 @@ void main() {
       );
     });
 
-    test('f05/us02/fr01/e13: a feature folder yields its own files, then each sub-feature in number order', () async {
+    test('a feature folder yields its own files, then each sub-feature in '
+        'number order', () async {
       final walk = await _walk([
         'prds/features/f01_shop/f02_pay/FEATURE.md',
         'prds/features/f01_shop/f01_cart/us01_a/USER_STORY.md',
@@ -131,7 +132,7 @@ void main() {
       ]);
     });
 
-    test('f05/us02/fr01/e06: a folder target holds only its own subtree, the '
+    test('a folder target holds only its own subtree, the '
         'docs root holds every folder', () async {
       final walk = await _walk();
 
@@ -148,7 +149,7 @@ void main() {
       ]);
     });
 
-    test('f05/us02/fr01: a file target yields itself', () async {
+    test('a file target yields itself', () async {
       final walk = await _walk();
 
       final files = walk.collect('docs/prds/d01_context.md');
@@ -157,24 +158,21 @@ void main() {
       expect((files.single as DocFile).file.existsSync(), isTrue);
     });
 
-    test(
-      'f05/us02/fr01/e08: numbers that overflow an int sort as unnumbered',
-      () async {
-        final walk = await _walk([
-          'prds/d99999999999999999999_big.md',
-          'prds/d02_b.md',
-          'prds/a.md',
-        ]);
+    test('numbers that overflow an int sort as unnumbered', () async {
+      final walk = await _walk([
+        'prds/d99999999999999999999_big.md',
+        'prds/d02_b.md',
+        'prds/a.md',
+      ]);
 
-        expect(_docPaths(walk.collect('docs/prds')), [
-          'prds/a.md',
-          'prds/d99999999999999999999_big.md',
-          'prds/d02_b.md',
-        ]);
-      },
-    );
+      expect(_docPaths(walk.collect('docs/prds')), [
+        'prds/a.md',
+        'prds/d99999999999999999999_big.md',
+        'prds/d02_b.md',
+      ]);
+    });
 
-    test('f05/us02/fr01/e08: unnumbered names sort by code point, not '
+    test('unnumbered names sort by code point, not '
         'by locale', () async {
       final walk = await _walk(['prds/b.md', 'prds/Z.md', 'prds/a.md']);
 
@@ -185,7 +183,7 @@ void main() {
       ]);
     });
 
-    test('f05/us02/fr01: links are not followed', () async {
+    test('links are not followed', () async {
       final walk = await _walk(['prds/a.md', 'outside/secret.md']);
       final docs = walk.project.docsRoot.path;
       await Link('$docs/prds/loop').create('$docs/outside');
@@ -196,7 +194,7 @@ void main() {
   });
 
   group('an unreadable folder', () {
-    test('f05/us02/fr01: yields an UnreadableFolder in its place; the rest of '
+    test('yields an UnreadableFolder in its place; the rest of '
         'the tree still comes', () async {
       final walk = await _walk(['prds/a.md', 'prds/locked/b.md', 'z.md']);
       final locked = Directory('${walk.root.path}/docs/prds/locked');

@@ -33,7 +33,7 @@ void main() {
     api = prdCoreDocType(await resolveSoftwareTech(), 'api');
   });
 
-  test('f03/us07/fr02: the FR trace guide names each FR by <story slug>/<fr '
+  test('the FR trace guide names each FR by <story slug>/<fr '
       'slug>, the confirmed entry text', () {
     final description = sectionOf(api, 'fr_trace').description!;
     expect(
@@ -42,7 +42,7 @@ void main() {
     );
   });
 
-  test('f03/us07/fr02: the api FR trace guide names <sub-feature slug>/<story '
+  test('the api FR trace guide names <sub-feature slug>/<story '
       'slug>/<fr slug>', () {
     expect(
       sectionOf(api, 'fr_trace').description,
@@ -67,12 +67,12 @@ void main() {
   });
 
   test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
-      'f03/us07/fr02/e04: the api guide', () {
+      'the api guide', () {
     expectSpecGuide(api, title: '# <Feature name> API');
     expectSectionsSay(api, _says);
   });
 
-  test('f03/us07/fr03: api caps 400 lines, bans no word, and cites its four '
+  test('api caps 400 lines, bans no word, and cites its four '
       'sources', () {
     expectSpecLint(api);
   });

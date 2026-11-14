@@ -19,7 +19,7 @@ ChangedUnit _bare(UnitKind kind, [UnitSide side = .both]) =>
     (kind: kind, name: '', side: side);
 
 void main() {
-  group('document_writing/approve_drafts/show_changes_since_approval '
+  group('Show what changed since the last approval '
       'LineDiff', () {
     test('one diff shows the same hunks as approvalDiff for every context', () {
       final diff = LineDiff(_old, _new);
@@ -58,7 +58,7 @@ void main() {
       );
     });
 
-    test('f02/us03/fr02/e14: context 0 gives zero-context hunks', () {
+    test('context 0 gives zero-context hunks', () {
       expect(
         approvalDiff(_old, _new, context: 0),
         '@@ -2 +2 @@\n-verify_method: test\n+verify_method: demonstration\n'
@@ -91,30 +91,27 @@ void main() {
       expect(approvalDiff('', 'a\n', context: 0), '@@ -0,0 +1 @@\n+a\n');
     });
 
-    test('f02/us03/fr02/e14: context n gives n lines', () {
+    test('context n gives n lines', () {
       expect(
         approvalDiff(_old, _new, context: 1),
         startsWith('@@ -1,3 +1,3 @@\n ---\n'),
       );
     });
 
-    test(
-      'f02/us03/fr02/e14: context n merges hunks whose shown lines touch',
-      () {
-        const before = 'a\nb\nc\nd\ne\nf\n';
-        const after = 'A\nb\nc\nd\ne\nF\n';
-        expect(
-          approvalDiff(before, after, context: 1),
-          '@@ -1,2 +1,2 @@\n-a\n+A\n b\n@@ -5,2 +5,2 @@\n e\n-f\n+F\n',
-        );
-        expect(
-          approvalDiff(before, after, context: 2),
-          '@@ -1,6 +1,6 @@\n-a\n+A\n b\n c\n d\n e\n-f\n+F\n',
-        );
-      },
-    );
+    test('context n merges hunks whose shown lines touch', () {
+      const before = 'a\nb\nc\nd\ne\nf\n';
+      const after = 'A\nb\nc\nd\ne\nF\n';
+      expect(
+        approvalDiff(before, after, context: 1),
+        '@@ -1,2 +1,2 @@\n-a\n+A\n b\n@@ -5,2 +5,2 @@\n e\n-f\n+F\n',
+      );
+      expect(
+        approvalDiff(before, after, context: 2),
+        '@@ -1,6 +1,6 @@\n-a\n+A\n b\n c\n d\n e\n-f\n+F\n',
+      );
+    });
 
-    test('f02/us03/fr02/e09: a ## inside a code fence bounds no unit', () {
+    test('a ## inside a code fence bounds no unit', () {
       const before = '## A\n```\n## x\n```\nx\n## B\ny\n';
       const after = '## A\n```\n## x\n```\nX\n## B\ny\n';
       expect(
@@ -123,41 +120,35 @@ void main() {
       );
     });
 
-    test(
-      'f02/us03/fr02/e08: a doc with no frontmatter and no section is one unit',
-      () {
-        expect(
-          approvalDiff('# T\n\nbody\n', '# T\n\nbody2\n'),
-          '@@ -1,3 +1,3 @@\n # T\n \n-body\n+body2\n',
-        );
-      },
-    );
+    test('a doc with no frontmatter and no section is one unit', () {
+      expect(
+        approvalDiff('# T\n\nbody\n', '# T\n\nbody2\n'),
+        '@@ -1,3 +1,3 @@\n # T\n \n-body\n+body2\n',
+      );
+    });
 
-    test('f02/us03/fr02/e08: a changed head shows the head whole, not its sections', () {
+    test('a changed head shows the head whole, not its sections', () {
       expect(
         approvalDiff('# T\n\nlead\n\n## S\nx\n', '# T\n\nlead2\n\n## S\nx\n'),
         '@@ -1,4 +1,4 @@\n # T\n \n-lead\n+lead2\n \n',
       );
     });
 
-    test(
-      'f02/us03/fr02/e08: a deleted section shows whole in the old text',
-      () {
-        expect(
-          approvalDiff('## A\na\n## B\nb\n', '## A\na\n'),
-          '@@ -3,2 +2,0 @@\n-## B\n-b\n',
-        );
-      },
-    );
+    test('a deleted section shows whole in the old text', () {
+      expect(
+        approvalDiff('## A\na\n## B\nb\n', '## A\na\n'),
+        '@@ -3,2 +2,0 @@\n-## B\n-b\n',
+      );
+    });
 
-    test('f02/us03/fr02/e08: neighbouring changed units share one hunk', () {
+    test('neighbouring changed units share one hunk', () {
       expect(
         approvalDiff('## A\na\n## B\nb\n', '## A\nA\n## B\nB\n'),
         '@@ -1,4 +1,4 @@\n ## A\n-a\n+A\n ## B\n-b\n+B\n',
       );
     });
 
-    test('f02/us03/fr02/e14: a negative context is an argument error', () {
+    test('a negative context is an argument error', () {
       expect(
         () => approvalDiff('a\n', 'b\n', context: -1),
         throwsA(
@@ -170,87 +161,69 @@ void main() {
       );
     });
 
-    test('f02/us03/fr02/e08: equal texts give no hunk', () {
+    test('equal texts give no hunk', () {
       expect(approvalDiff(_old, _old), '');
       expect(approvalDiff('', ''), '');
     });
 
-    test(
-      'f02/us03/fr02/e08: CRLF and LF texts with the same lines are equal',
-      () {
-        expect(approvalDiff('a\r\nb\r\n', 'a\nb\n'), '');
-      },
-    );
+    test('CRLF and LF texts with the same lines are equal', () {
+      expect(approvalDiff('a\r\nb\r\n', 'a\nb\n'), '');
+    });
   });
 
   group('changedUnits', () {
-    test(
-      'f02/us03/fr02/e08: changed units name fields, title, lead, and sections',
-      () {
-        expect(changedUnits(_old, _new), [
-          _field('verify_method'),
-          _section('Rationale'),
-        ]);
-      },
-    );
+    test('changed units name fields, title, lead, and sections', () {
+      expect(changedUnits(_old, _new), [
+        _field('verify_method'),
+        _section('Rationale'),
+      ]);
+    });
 
-    test(
-      'f02/us03/fr02/e08: a renamed header is one removed and one new unit',
-      () {
-        expect(changedUnits('## A\nx\n', '## B\nx\n'), [
-          _section('A', .removed),
-          _section('B', .added),
-        ]);
-      },
-    );
+    test('a renamed header is one removed and one new unit', () {
+      expect(changedUnits('## A\nx\n', '## B\nx\n'), [
+        _section('A', .removed),
+        _section('B', .added),
+      ]);
+    });
 
-    test(
-      'f02/us03/fr02/e08: a row holds the key or header text as written',
-      () {
-        const header = '`specstone approve` | A';
+    test('a row holds the key or header text as written', () {
+      const header = '`specstone approve` | A';
 
-        expect(changedUnits('## $header\nx\n', '## $header\ny\n'), [
-          _section(header),
-        ]);
-      },
-    );
+      expect(changedUnits('## $header\nx\n', '## $header\ny\n'), [
+        _section(header),
+      ]);
+    });
 
-    test('f02/us03/fr02/e08: a changed title is the title unit', () {
+    test('a changed title is the title unit', () {
       expect(changedUnits('# T\n', '# U\n'), [_bare(.title)]);
     });
 
-    test('f02/us03/fr02/e08: a changed lead is the lead unit', () {
+    test('a changed lead is the lead unit', () {
       expect(
         changedUnits('# T\n\nlead\n\n## S\nx\n', '# T\n\nlead2\n\n## S\nx\n'),
         [_bare(.lead)],
       );
     });
 
-    test(
-      'f02/us03/fr02/e08: a lead that appears or goes is new or removed',
-      () {
-        expect(changedUnits('# T\n\n## S\nx\n', '# T\n\nlead\n\n## S\nx\n'), [
-          _bare(.lead, .added),
-        ]);
-        expect(changedUnits('# T\n\nlead\n\n## S\nx\n', '# T\n\n## S\nx\n'), [
-          _bare(.lead, .removed),
-        ]);
-      },
-    );
+    test('a lead that appears or goes is new or removed', () {
+      expect(changedUnits('# T\n\n## S\nx\n', '# T\n\nlead\n\n## S\nx\n'), [
+        _bare(.lead, .added),
+      ]);
+      expect(changedUnits('# T\n\nlead\n\n## S\nx\n', '# T\n\n## S\nx\n'), [
+        _bare(.lead, .removed),
+      ]);
+    });
 
-    test(
-      'f02/us03/fr02/e08: a field that appears or goes is new or removed',
-      () {
-        expect(changedUnits('---\na: 1\n---\n', '---\na: 1\nb: 2\n---\n'), [
-          _field('b', .added),
-        ]);
-        expect(changedUnits('---\na: 1\nb: 2\n---\n', '---\na: 1\n---\n'), [
-          _field('b', .removed),
-        ]);
-      },
-    );
+    test('a field that appears or goes is new or removed', () {
+      expect(changedUnits('---\na: 1\n---\n', '---\na: 1\nb: 2\n---\n'), [
+        _field('b', .added),
+      ]);
+      expect(changedUnits('---\na: 1\nb: 2\n---\n', '---\na: 1\n---\n'), [
+        _field('b', .removed),
+      ]);
+    });
 
-    test('f02/us03/fr02/e08: a change no key owns in the frontmatter names the frontmatter', () {
+    test('a change no key owns in the frontmatter names the frontmatter', () {
       // A comment above a key belongs to that key, so the lines no key owns
       // are a stray line above the first key, or a frontmatter with no key.
       expect(
@@ -262,37 +235,34 @@ void main() {
       ]);
     });
 
-    test(
-      'f02/us03/fr02/e08: the frontmatter row comes before the field rows',
-      () {
-        expect(
-          changedUnits('---\nstray\nk: v\n---\n', '---\nstray2\nk: w\n---\n'),
-          [_bare(.frontmatter), _field('k')],
-        );
-      },
-    );
+    test('the frontmatter row comes before the field rows', () {
+      expect(
+        changedUnits('---\nstray\nk: v\n---\n', '---\nstray2\nk: w\n---\n'),
+        [_bare(.frontmatter), _field('k')],
+      );
+    });
+
+    test('a doc gaining frontmatter lists its fields as new', () {
+      expect(changedUnits('# T\n', '---\na: 1\nb: 2\n---\n# T\n'), [
+        _field('a', .added),
+        _field('b', .added),
+      ]);
+    });
 
     test(
-      'f02/us03/fr02/e08: a doc gaining frontmatter lists its fields as new',
+      'rows follow the new text and a removed unit sits after its predecessor',
       () {
-        expect(changedUnits('# T\n', '---\na: 1\nb: 2\n---\n# T\n'), [
-          _field('a', .added),
-          _field('b', .added),
+        const before = '## A\na\n## B\nb\n## C\nc\n';
+        const after = '## A\nA\n## C\nC\n';
+        expect(changedUnits(before, after), [
+          _section('A'),
+          _section('B', .removed),
+          _section('C'),
         ]);
       },
     );
 
-    test('f02/us03/fr02/e08: rows follow the new text and a removed unit sits after its predecessor', () {
-      const before = '## A\na\n## B\nb\n## C\nc\n';
-      const after = '## A\nA\n## C\nC\n';
-      expect(changedUnits(before, after), [
-        _section('A'),
-        _section('B', .removed),
-        _section('C'),
-      ]);
-    });
-
-    test('f02/us03/fr02/e08: a removed first unit comes first', () {
+    test('a removed first unit comes first', () {
       expect(changedUnits('## A\na\n## B\nb\n', '## B\nb\n'), [
         _section('A', .removed),
       ]);
@@ -302,26 +272,26 @@ void main() {
       ]);
     });
 
-    test('f02/us03/fr02/e09: a ## inside a code fence is no section', () {
+    test('a ## inside a code fence is no section', () {
       expect(
         changedUnits('## A\n```\n## x\n```\nx\n', '## A\n```\n## x\n```\nX\n'),
         [_section('A')],
       );
     });
 
-    test('f02/us03/fr02/e08: a change in spacing between sections names the section above', () {
+    test('a change in spacing between sections names the section above', () {
       expect(changedUnits('## A\na\n## B\nb\n', '## A\na\n\n## B\nb\n'), [
         _section('A'),
       ]);
     });
 
-    test('f02/us03/fr02/e08: a final newline alone is no change', () {
+    test('a final newline alone is no change', () {
       expect(changedUnits('## A\nx\n', '## A\nx'), isEmpty);
       expect(changedUnits('## A\nx', '## A\nx\n'), isEmpty);
       expect(approvalDiff('## A\nx\n', '## A\nx'), '');
     });
 
-    test('f02/us03/fr02/e08: equal texts, even in another line ending, change no unit', () {
+    test('equal texts, even in another line ending, change no unit', () {
       expect(changedUnits(_old, _old), isEmpty);
       expect(
         changedUnits('# T\r\n\r\n## A\r\nx\r\n', '# T\n\n## A\nx\n'),

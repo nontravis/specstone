@@ -305,7 +305,8 @@ void main() {
       expect(stamp.binaryVersion, specstoneVersion);
       expect(stamp.targetNames, isEmpty);
     });
-    test('index_query/read_current_docs/refresh_index_before_answering E02, domain:index_query INV-2: a template edit that only flips per_target gives another stamp, so the index rebuilds', () {
+    test('E02, domain:index_query INV-2: a template edit that only flips '
+        'per_target gives another stamp, so the index rebuilds', () {
       MergedSet setWith({required bool isPerTarget}) => MergedSet(
         docTypes: [
           MergedDocType(
@@ -419,7 +420,7 @@ void main() {
       expect(facts.fenced, [(first: 9, last: 11)]);
       expect(facts.sectionCounts.last, (lines: 2, chars: 12));
     });
-    test('index_query/read_current_docs/index_each_doc: a stored doc loads '
+    test('a stored doc loads '
         'back with the item facts putDoc wrote', () async {
       const text =
           '# T\n\nLead.\n\n## A\n- one\n- two\n\n## B\nhéllo \u{1F600}\n';
@@ -442,7 +443,7 @@ void main() {
         jsonEncode(written.content.itemFacts.toJson()),
       );
     });
-    test('index_query/read_current_docs/index_each_doc: loadContent keeps the '
+    test('loadContent keeps the '
         'item facts column undecoded until they are read', () async {
       final r = await root();
       final store = IndexStore.open(r);
@@ -657,7 +658,7 @@ void main() {
         expect(store.search('"zebra"').map((r) => r.docPath), ['b.md']);
       },
     );
-    test('index_query/read_current_docs/index_each_doc: '
+    test('Index each doc: '
         'formatted round-trips as true, false, and null', () async {
       final doc = (await resolveSoftwareTech()).lookup('feature')!;
       final store = IndexStore.open(await root());
@@ -681,7 +682,7 @@ void main() {
         {'a.md': true, 'b.md': false, 'c.md': null},
       );
     });
-    test('index_query/read_current_docs/index_each_doc: '
+    test('Index each doc: '
         'an index of layout 8 has no stamp, so it is rebuilt', () async {
       final r = await root();
       final store = IndexStore.open(r);
@@ -772,7 +773,7 @@ void main() {
       raw.execute('UPDATE meta SET layout = 14');
       expect(store.readStamp(), isNull);
     });
-    test('index_query/read_current_docs/index_each_doc: a doc with a target '
+    test('a doc with a target '
         'round-trips through the docs table', () async {
       final r = await root();
       final store = IndexStore.open(r);

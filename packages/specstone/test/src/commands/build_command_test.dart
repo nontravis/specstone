@@ -99,19 +99,16 @@ void main() {
       expect(order, [...order]..sort());
     });
 
-    test(
-      'f05/us02/fr04/e02: a file keeps its .md in the output name',
-      () async {
-        final project = await fixtureProject(_fixture);
-        final runner = await runnerIn(project);
+    test('a file keeps its .md in the output name', () async {
+      final project = await fixtureProject(_fixture);
+      final runner = await runnerIn(project);
 
-        expect(await runner.run(['build', _feature]), 0);
-        expect(out.toString(), '.specstone/build/$_feature.html\n');
-        expect(exists(project, '.specstone/build/$_feature.html'), isTrue);
-      },
-    );
+      expect(await runner.run(['build', _feature]), 0);
+      expect(out.toString(), '.specstone/build/$_feature.html\n');
+      expect(exists(project, '.specstone/build/$_feature.html'), isTrue);
+    });
 
-    test('f05/us02/fr04/e03: the docs root and a docs/docs folder get '
+    test('the docs root and a docs/docs folder get '
         'separate files', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -156,7 +153,7 @@ void main() {
       expect(exists(project, '.specstone/build/docs/x.html'), isTrue);
     });
 
-    test('f05/us02/fr04: an absolute --output creates its parent and prints '
+    test('an absolute --output creates its parent and prints '
         'the path as given', () async {
       final project = await fixtureProject(_fixture);
       final share = await Directory.systemTemp.createTemp('specstone_share_');
@@ -169,7 +166,7 @@ void main() {
       expect(File(target).existsSync(), isTrue);
     });
 
-    test('f05/us02/fr04: a relative --output resolves from the working '
+    test('a relative --output resolves from the working '
         'directory and prints relative to the project root', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(
@@ -189,7 +186,7 @@ void main() {
       expect(exists(project, 'out/a.html'), isTrue);
     });
 
-    test('f05/us02/s2: a mermaid block ships the script and a pre', () async {
+    test('a mermaid block ships the script and a pre', () async {
       final project = await fixtureProject({
         _feature: '$_featureText\n```mermaid\ngraph TD; A-->B;\n```\n',
       });
@@ -201,7 +198,7 @@ void main() {
       expect(html, contains('"use strict";var __esbuild_esm_mermaid_nm'));
     });
 
-    test('f05/us02/s3: an off-template doc warns on stderr, renders in disk '
+    test('an off-template doc warns on stderr, renders in disk '
         'order, and exits 0', () async {
       final project = await fixtureProject({
         _feature:
@@ -223,7 +220,7 @@ void main() {
       );
     });
 
-    test('f05/us02/s4: links become an anchor, an outside-link span, and a '
+    test('links become an anchor, an outside-link span, and a '
         'kept web link', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -244,7 +241,7 @@ void main() {
       expect(html, contains('<a href="https://example.com/spec">web</a>'));
     });
 
-    test('f05/us02/s5: a draft doc shows the Draft label', () async {
+    test('a draft doc shows the Draft label', () async {
       final project = await fixtureProject({
         _feature: '---\ndraft: true\n---\n$_featureText',
       });
@@ -257,7 +254,7 @@ void main() {
       );
     });
 
-    test('f05/us02/s6: a file no doc type matches warns and the build still '
+    test('a file no doc type matches warns and the build still '
         'writes', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -341,7 +338,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr04/e06: a file at .specstone/build is 73 with the JSON '
+    test('a file at .specstone/build is 73 with the JSON '
         'envelope on stderr', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -360,7 +357,7 @@ void main() {
       });
     });
 
-    test('f05/us02/fr04/e07: --json prints output and warnings on stdout, '
+    test('--json prints output and warnings on stdout, '
         'stderr stays empty', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -379,7 +376,7 @@ void main() {
       expect(out.toString(), contains('\n  "output"'));
     });
 
-    test('f05/us02/fr01/e03: no project is 78 with the project_not_found '
+    test('no project is 78 with the project_not_found '
         'message', () async {
       final bare = await writeTree({'docs/a.md': '# a\n'});
       final runner = await runnerIn(bare);
@@ -389,7 +386,7 @@ void main() {
       expect(err.toString(), startsWith('no Specstone project'));
     });
 
-    test('f05/us02/fr01/e07: a pack version the config cannot satisfy is 78 '
+    test('a pack version the config cannot satisfy is 78 '
         'with an F-03 fault', () async {
       final project = await fixtureProject({
         ..._fixture,
@@ -403,7 +400,7 @@ void main() {
     });
 
     group('an --output inside the docs root', () {
-      test('f05/us02/fr04: html to a new file in docs/ is 73 and '
+      test('html to a new file in docs/ is 73 and '
           'renders nothing', () async {
         final project = await fixtureProject(_fixture);
         final runner = await runnerIn(project);
@@ -423,7 +420,7 @@ void main() {
         expect(exists(project, 'docs/x.html'), isFalse);
       });
 
-      test('f05/us02/fr04: html over a source doc leaves the source '
+      test('html over a source doc leaves the source '
           'byte-identical', () async {
         final project = await fixtureProject(_fixture);
         final runner = await runnerIn(project);
@@ -442,7 +439,7 @@ void main() {
         );
       });
 
-      test('f05/us02/fr04: a .. path and a symlink into docs/ do not slip '
+      test('a .. path and a symlink into docs/ do not slip '
           'past the guard', () async {
         final project = await fixtureProject(_fixture);
         final runner = await runnerIn(project);
@@ -470,7 +467,7 @@ void main() {
         expect(err.toString(), contains('inside the docs root'));
       });
 
-      test('f05/us02/fr04: --json prints the envelope with the file on '
+      test('--json prints the envelope with the file on '
           'stderr', () async {
         final project = await fixtureProject(_fixture);
         final runner = await runnerIn(project);
@@ -678,7 +675,7 @@ void main() {
       });
     }
 
-    test('f05/us02/fr04/e06: a write fault after a skipped file keeps its '
+    test('a write fault after a skipped file keeps its '
         'warning, in text and json', () async {
       final project = await fixtureProject({
         ..._fixture,

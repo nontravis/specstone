@@ -125,7 +125,7 @@ Finding _only(CheckReport report, FindingKind kind) =>
     report.findings.singleWhere((f) => f.kind == kind);
 
 void main() {
-  test('f04/us03/fr05/e01: a named, resolved, consistent record gives no '
+  test('a named, resolved, consistent record gives no '
       'finding', () async {
     final report = await _check(
       _record(
@@ -137,7 +137,7 @@ void main() {
     expect(_found(report), isEmpty);
   });
 
-  test('f04/us03/fr05/e02: an entry no FR or story carries is unresolved, '
+  test('an entry no FR or story carries is unresolved, '
       'and names itself', () async {
     final report = await _check(
       _record(statuses: ['$_story/pin_toast:planned']),
@@ -150,14 +150,14 @@ void main() {
     );
   });
 
-  test('f04/us03/fr05/e03: a story of another feature is unresolved: an '
+  test('a story of another feature is unresolved: an '
       'entry names its item relative to its feature', () async {
     final report = await _check(_record(statuses: ['signup/create:planned']));
 
     expect(_found(report), ['${_statusLine(0)} record_entry_unresolved']);
   });
 
-  test('f04/us03/fr05/e04: a second statuses line is a duplicate; two '
+  test('a second statuses line is a duplicate; two '
       'implements lines are no finding', () async {
     final report = await _check(
       _record(
@@ -173,7 +173,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr05/e05: a skip with no reason is reported at its '
+  test('a skip with no reason is reported at its '
       'statuses line; with a reason and no code it is no finding', () async {
     final bare = await _check(_record(statuses: ['$_story:skipped']));
     final blank = await _check(_record(statuses: ['$_story:skipped:']));
@@ -190,7 +190,7 @@ void main() {
     expect(_found(given), isEmpty);
   });
 
-  test('f04/us03/fr05/e06: a skip naming two code paths is reported at each '
+  test('a skip naming two code paths is reported at each '
       'implements line', () async {
     final report = await _check(
       _record(
@@ -212,7 +212,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr05/e07: under the feature skip a story with another '
+  test('under the feature skip a story with another '
       'status is reported, naming the skip; a story skip or no entry is '
       'none', () async {
     final report = await _check(
@@ -232,7 +232,7 @@ void main() {
     expect(_found(absent), isEmpty);
   });
 
-  test('f04/us03/fr05/e08: the feature skip in its record covers a nested '
+  test('the feature skip in its record covers a nested '
       "feature's record", () async {
     final report = await _checkNested(
       _record(statuses: [':skipped:no shop']),
@@ -247,7 +247,7 @@ void main() {
     expect(_found(report, _shopRecord), isEmpty);
   });
 
-  test('f04/us03/fr05/e09: under a story skip an FR with a planned status '
+  test('under a story skip an FR with a planned status '
       'and a code path is reported at both lines', () async {
     final report = await _check(
       _record(
@@ -269,14 +269,14 @@ void main() {
     );
   });
 
-  test('f04/us03/fr05/e10: the feature entry implemented is '
+  test('the feature entry implemented is '
       'feature_status_written', () async {
     final report = await _check(_record(statuses: [':implemented']));
 
     expect(_found(report), ['${_statusLine(0)} feature_status_written']);
   });
 
-  test('f04/us03/fr05/e11: an entry whose story left the PRD by hand is '
+  test('an entry whose story left the PRD by hand is '
       'unresolved', () async {
     final report = await _check(
       _record(statuses: ['$_story:planned']),
@@ -286,7 +286,7 @@ void main() {
     expect(_found(report), ['${_statusLine(0)} record_entry_unresolved']);
   });
 
-  test('f04/us03/fr05/e12: a project whose merged set holds no record doc '
+  test('a project whose merged set holds no record doc '
       'type runs no rule of this FR', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -303,7 +303,7 @@ void main() {
     expect(_found(report), isEmpty);
   });
 
-  test('f04/us03/fr05/e13: a draft record is checked as any record', () async {
+  test('a draft record is checked as any record', () async {
     final report = await _check(
       _record(front: 'draft: true\n', statuses: ['ghost:planned']),
     );
@@ -312,14 +312,14 @@ void main() {
     expect(_found(report), ['${_statusLine(0) + 1} record_entry_unresolved']);
   });
 
-  test('f04/us03/fr05/e14: an implements line with no statuses line reads '
+  test('an implements line with no statuses line reads '
       'planned and is no finding', () async {
     final report = await _check(_record(code: ['$_story:lib/a.dart']));
 
     expect(_found(report), isEmpty);
   });
 
-  test('f04/us03/fr05/e15: an implements line for no such FR is '
+  test('an implements line for no such FR is '
       'unresolved', () async {
     final report = await _check(
       _record(code: ['$_story/pin_toast:lib/pin.dart']),
@@ -332,7 +332,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr05/e16: under the feature skip an implements line with no '
+  test('under the feature skip an implements line with no '
       'statuses line is entry_under_skip', () async {
     final report = await _check(
       _record(statuses: [':skipped:no web view'], code: ['$_story:lib/a.dart']),
@@ -341,7 +341,7 @@ void main() {
     expect(_found(report), ['${_codeLine(1, 0)} entry_under_skip']);
   });
 
-  test('f04/us03/fr05/e17: a skip with no reason and two paths gives one '
+  test('a skip with no reason and two paths gives one '
       'finding per faulty line', () async {
     final report = await _check(
       _record(
@@ -357,7 +357,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr05/e18: an FR skip under a story skip, with a path, is '
+  test('an FR skip under a story skip, with a path, is '
       'skip_with_code and not entry_under_skip', () async {
     final report = await _check(
       _record(
@@ -369,7 +369,7 @@ void main() {
     expect(_found(report), ['${_codeLine(2, 0)} skip_with_code']);
   });
 
-  test('f04/us03/fr05/e19: an implements line naming the feature is '
+  test('an implements line naming the feature is '
       'feature_status_written; under its own skip, skip_with_code', () async {
     final written = await _check(_record(code: [':lib/a.dart', ':lib/b.dart']));
     final planned = await _check(
@@ -396,7 +396,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr05/e20: under an ancestor skip the nested feature line is '
+  test('under an ancestor skip the nested feature line is '
       'feature_status_written, never entry_under_skip', () async {
     final report = await _checkNested(
       _record(statuses: [':skipped:no shop']),
@@ -494,7 +494,7 @@ void main() {
     },
   );
 
-  test('f04/us03/fr05: a line that names no item is unresolved, once, even '
+  test('a line that names no item is unresolved, once, even '
       'when it holds the only fault', () async {
     final report = await _check(
       _record(statuses: ['planned'], code: ['lib/a.dart']),
@@ -506,7 +506,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr05: an unresolved line is no duplicate and no skip '
+  test('an unresolved line is no duplicate and no skip '
       'finding, even when it repeats', () async {
     final report = await _check(
       _record(

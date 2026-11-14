@@ -34,7 +34,7 @@ void main() {
     techStack = prdCoreDocType(await resolveSoftwareTech(), 'tech_stack');
   });
 
-  test('f03/us07/fr01: tech_stack sits at specs/TECH_STACK.md with no parent, '
+  test('tech_stack sits at specs/TECH_STACK.md with no parent, '
       'the code field, and four sections', () {
     expect(techStack.path, 'specs/TECH_STACK.md');
     expect(techStack.parent, isNull);
@@ -59,12 +59,12 @@ void main() {
     expectSectionsSay(techStack, _says);
   });
 
-  test('f03/us07/fr03: tech_stack caps 400 lines, bans no word, and cites '
+  test('tech_stack caps 400 lines, bans no word, and cites '
       'its four sources', () {
     expectSpecLint(techStack);
   });
 
-  test('f03/us07/fr01: tech_stack joins implement and design', () async {
+  test('tech_stack joins implement and design', () async {
     final set = await resolveSoftwareTech();
     expect(set.lookup('tech_stack')!.bundle, ['implement', 'design']);
   });

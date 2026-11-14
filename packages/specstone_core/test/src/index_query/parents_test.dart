@@ -56,7 +56,7 @@ void main() {
         'specs/f02_login/API.md': 'prds/features/f01_login/FEATURE.md',
       });
     });
-    test('index_query/read_current_docs/index_each_doc E22, s03/inv28: both '
+    test('E22, s03/inv28: both '
         'target twins take the shared feature as parent', () {
       final targeted = MergedSet(
         docTypes: const [

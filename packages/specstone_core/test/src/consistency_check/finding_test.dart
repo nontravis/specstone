@@ -145,7 +145,7 @@ void main() {
     );
   });
 
-  test('consistency_check/find_template_breaks/print_findings: every kind '
+  test('every kind '
       'waits for the Owner or the Agent, the Owner only for the kinds the '
       'Output lists', () {
     const owner = {
@@ -165,7 +165,7 @@ void main() {
     expect(WaitsFor.values.map((w) => w.wire), ['owner', 'agent']);
   });
 
-  test('consistency_check/find_template_breaks/print_findings: a finding '
+  test('a finding '
       'takes the waitsFor of its kind unless a rule sets it', () {
     const byKind = Finding(
       kind: FindingKind.unconfirmed,
@@ -184,7 +184,7 @@ void main() {
     expect(byRule.waitsFor, WaitsFor.owner);
   });
 
-  test('consistency_check/find_template_breaks/print_findings E08: an owner '
+  test('E08: an owner '
       'finding ends its line with the tag; its JSON holds waitsFor after '
       'message and no tag in the message', () {
     const finding = Finding(
@@ -213,7 +213,7 @@ void main() {
     );
   });
 
-  test('consistency_check/find_template_breaks/print_findings: a finding with '
+  test('a finding with '
       'a text key prints the block indented 4 spaces, an empty line as exactly '
       '4 spaces, then the fingerprint last', () {
     const finding = Finding(
@@ -235,7 +235,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_template_breaks/print_findings: a '
+  test('a '
       'reference_malformed finding keeps its own text key off the printed '
       'lines', () {
     const finding = Finding(
@@ -248,7 +248,7 @@ void main() {
     expect(finding.textLines, ['prds/a.md:3: reference_malformed: bad']);
   });
 
-  test('consistency_check/find_template_breaks/print_findings: a finding with '
+  test('a finding with '
       'no text key prints its line alone', () {
     const finding = Finding(
       kind: FindingKind.unconfirmed,
@@ -263,7 +263,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_template_breaks/print_findings: an agent '
+  test('an agent '
       'finding carries no tag, and its JSON waitsFor sits before the '
       'keys of its kind', () {
     const finding = Finding(
@@ -285,7 +285,7 @@ void main() {
     expect(finding.toJson()['waitsFor'], 'agent');
   });
 
-  test('consistency_check/find_template_breaks/print_findings E12: an owner '
+  test('E12: an owner '
       'finding counts and exits 1 as any other', () {
     final report = CheckReport(
       findings: const [
@@ -302,7 +302,7 @@ void main() {
     expect(report.text.split('\n').reversed.skip(1).first, '1 finding');
   });
 
-  test('f04/us01/fr02/e01: no finding prints 0 findings and exits 0', () {
+  test('no finding prints 0 findings and exits 0', () {
     final report = CheckReport(findings: const []);
     expect(report.text, '0 findings\n');
     expect(report.json, {'findings': <Object>[], 'count': 0});

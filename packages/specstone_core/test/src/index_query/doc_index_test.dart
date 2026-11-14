@@ -143,7 +143,8 @@ void main() {
       );
     },
   );
-  test('index_query/read_doc_section/resolve_doc_name E18: a target whose text before its first colon is no slug is doc_not_found, never doc_type_unknown', () async {
+  test('E18: a target whose text before its first colon is no slug is '
+      'doc_not_found, never doc_type_unknown', () async {
     for (final address in ['Grid:login', 'check architecture:login']) {
       expect(
         () => index.resolve(address),
@@ -404,14 +405,18 @@ void main() {
       return session.index;
     }
 
-    test('index_query/read_doc_section/resolve_doc_name E19: a typed name two targets twin resolves to both, in tree order', () async {
-      final twins = await nameTargets();
-      expect(paths(twins.resolve('architecture:feedback/toast')), [
-        flutterArch,
-        jasprArch,
-      ]);
-    });
-    test("index_query/read_doc_section/resolve_doc_name E20: a name stays in its target, a bare name gives the feature and that target's spec docs", () async {
+    test(
+      'E19: a typed name two targets twin resolves to both, in tree order',
+      () async {
+        final twins = await nameTargets();
+        expect(paths(twins.resolve('architecture:feedback/toast')), [
+          flutterArch,
+          jasprArch,
+        ]);
+      },
+    );
+    test('E20: a name stays in its target, a bare name gives the feature and '
+        "that target's spec docs", () async {
       final scoped = await nameTargets();
       expect(
         paths(
@@ -436,19 +441,23 @@ void main() {
         jasprArch,
       ]);
     });
-    test('index_query/read_doc_section/resolve_doc_name E21: a DocPath names its doc whatever target the flag names', () async {
-      final cross = await nameTargets();
-      expect(
-        paths(
-          cross.resolve(
-            'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
-            codeTarget: 'jaspr',
+    test(
+      'E21: a DocPath names its doc whatever target the flag names',
+      () async {
+        final cross = await nameTargets();
+        expect(
+          paths(
+            cross.resolve(
+              'specs/flutter/f02_feedback/f03_toast/DOMAIN.md',
+              codeTarget: 'jaspr',
+            ),
           ),
-        ),
-        ['specs/flutter/f02_feedback/f03_toast/DOMAIN.md'],
-      );
-    });
-    test('index_query/read_doc_section/resolve_doc_name E22: a target targets: holds none of, or any target where it names none, is argument_invalid', () async {
+          ['specs/flutter/f02_feedback/f03_toast/DOMAIN.md'],
+        );
+      },
+    );
+    test('E22: a target targets: holds none of, or any target where it names '
+        'none, is argument_invalid', () async {
       final named = await nameTargets();
       expect(
         () => named.resolve('architecture:feedback/toast', codeTarget: 'web'),

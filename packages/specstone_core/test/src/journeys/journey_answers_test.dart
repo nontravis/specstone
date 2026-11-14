@@ -207,7 +207,7 @@ void main() {
       expect(answer.text, isNot(contains('OLD COPY LINE')));
     });
 
-    test('f10/us02/s3: a step naming a missing scenario prints its line '
+    test('a step naming a missing scenario prints its line '
         'alone and one warning', () async {
       final answer = await _paths([_step('1', 1), _step('2', 9)]);
 
@@ -232,7 +232,7 @@ void main() {
       );
     });
 
-    test('f10/us02/fr01/e03: a bare name that also resolves to a persona is '
+    test('a bare name that also resolves to a persona is '
         'refused too', () async {
       await expectLater(
         _paths(
@@ -250,7 +250,7 @@ void main() {
       );
     });
 
-    test('f10/us02/fr01/e05: one step is one path', () async {
+    test('one step is one path', () async {
       final answer = await _paths([_step('1', 1)]);
 
       expect(
@@ -260,7 +260,7 @@ void main() {
       expect('path '.allMatches(answer.text), hasLength(1));
     });
 
-    test('f10/us02/fr01/e06: a step on no path prints under no path, with a '
+    test('a step on no path prints under no path, with a '
         'warning', () async {
       final answer = await _paths([_step('1', 1), _step('2', 2, after: '7')]);
 
@@ -277,7 +277,7 @@ void main() {
       ]);
     });
 
-    test('f10/us02/fr01: a step that follows an off-path step is warned as '
+    test('a step that follows an off-path step is warned as '
         'such', () async {
       final answer = await _paths([
         _step('1', 1),
@@ -291,7 +291,7 @@ void main() {
       ]);
     });
 
-    test('f10/us02/fr01/e07: a draft journey prints', () async {
+    test('a draft journey prints', () async {
       final answer = await _paths([
         _step('1', 1),
       ], front: '---\ndraft: true\n---\n\n');
@@ -299,7 +299,7 @@ void main() {
       expect(answer.text, contains('journey:$_slug path 1\n'));
     });
 
-    test('f10/us02/fr01/e08: a second ### 3. prints the paths and one '
+    test('a second ### 3. prints the paths and one '
         'warning naming 3', () async {
       final answer = await _paths([
         _step('1', 1),
@@ -311,7 +311,7 @@ void main() {
       expect(answer.warnings, ['$_slug: step number 3 is written twice']);
     });
 
-    test('f10/us02/fr01: --json holds journeys, paths with id, cite, and '
+    test('--json holds journeys, paths with id, cite, and '
         'steps, and warnings', () async {
       final answer = await _paths([_step('1', 1), _step('2', 9)]);
 
@@ -391,7 +391,7 @@ void main() {
       },
     );
 
-    test('f10/us03/fr01/e03: an FR traced from S2 and S4 is listed under '
+    test('an FR traced from S2 and S4 is listed under '
         'each step naming either', () async {
       final answer = await _code(
         [_step('1', 2), _step('2', 4)],
@@ -407,7 +407,7 @@ void main() {
     });
 
     test(
-      'f10/us03/fr01/e08: FRs of a sibling story and of another feature '
+      'FRs of a sibling story and of another feature '
       "tracing the step are listed after the story's own, in tree order",
       () async {
         String fr(String title, String entry) =>
@@ -435,7 +435,7 @@ void main() {
       },
     );
 
-    test('f10/us03/fr01/e04: a record code path naming a missing file '
+    test('a record code path naming a missing file '
         'prints as written', () async {
       final answer = await _code([
         _step('1', 1),
@@ -480,41 +480,38 @@ void main() {
       ]);
     });
 
-    test(
-      'f10/us03/fr01: --json holds journeys with steps, story, and frs',
-      () async {
-        final answer = await _code([_step('2', 2)], extra: single);
+    test('--json holds journeys with steps, story, and frs', () async {
+      final answer = await _code([_step('2', 2)], extra: single);
 
-        expect(answer.json, {
-          'journeys': [
-            {
-              'name': _slug,
-              'path': 'prds/journeys/$_slug/JOURNEY.md',
-              'steps': [
-                {
-                  'number': '2',
-                  'heading': 'Heading 2',
-                  'step': '$_story S2',
-                  'story': {
-                    'name': _story,
-                    'implements': ['app/lib/login.dart:SignInPage'],
-                  },
-                  'frs': [
-                    {
-                      'name': frName,
-                      'implements': ['app/lib/login.dart:checkPassword'],
-                    },
-                  ],
+      expect(answer.json, {
+        'journeys': [
+          {
+            'name': _slug,
+            'path': 'prds/journeys/$_slug/JOURNEY.md',
+            'steps': [
+              {
+                'number': '2',
+                'heading': 'Heading 2',
+                'step': '$_story S2',
+                'story': {
+                  'name': _story,
+                  'implements': ['app/lib/login.dart:SignInPage'],
                 },
-              ],
-            },
-          ],
-        });
-      },
-    );
+                'frs': [
+                  {
+                    'name': frName,
+                    'implements': ['app/lib/login.dart:checkPassword'],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    });
 
     group('skips and a single named target', () {
-      test('f10/us03/fr01/e11: a skipped item holding paths prints skipped '
+      test('a skipped item holding paths prints skipped '
           'and gives [] in JSON', () async {
         final answer = await _code(
           [_step('1', 1)],
@@ -539,7 +536,7 @@ void main() {
         });
       });
 
-      test('f10/us03/fr01/e11: a skip of the whole feature skips its story '
+      test('a skip of the whole feature skips its story '
           'and FRs in that target', () async {
         final answer = await _code(
           [_step('2', 2)],
@@ -558,7 +555,7 @@ void main() {
         );
       });
 
-      test('f10/us03/fr01/e11: one named target prints with no target '
+      test('one named target prints with no target '
           'name, a skip as - skipped', () async {
         Map<String, String> one(List<String> statuses) => {
           '.specstone/templates/implementation.yaml': _recordLayer,
@@ -592,7 +589,7 @@ void main() {
       );
 
       test(
-        'f10/us03/fr01/e11: each story and FR lists its flutter code '
+        'each story and FR lists its flutter code '
         'paths, then its jaspr ones; a skip reads <target>: skipped',
         () async {
           final answer = await _code([_step('2', 2)], extra: twin);
@@ -612,7 +609,7 @@ void main() {
         },
       );
 
-      test('f10/us03/fr01/e11: --target jaspr keeps the one target, printed '
+      test('--target jaspr keeps the one target, printed '
           'with no target name', () async {
         final answer = await _code(
           [_step('2', 2)],
@@ -632,7 +629,7 @@ void main() {
         );
       });
 
-      test('f10/us03/fr01/e11: a target whose record holds no path prints '
+      test('a target whose record holds no path prints '
           'nothing, and - none when no target holds one', () async {
         final answer = await _code([
           _step('1', 1),
@@ -649,7 +646,7 @@ void main() {
       });
 
       test(
-        'f10/us03/fr01/e11: --json holds implementsByTarget in targets: '
+        '--json holds implementsByTarget in targets: '
         'order in place of implements; --target brings implements back',
         () async {
           final both = await _code([_step('2', 2)], extra: twin);

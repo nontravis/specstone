@@ -105,23 +105,26 @@ void main() {
       );
     },
   );
-  test('f01/us05/fr03/e06: over budget with --json exits 1 with stdout one object and stderr empty', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run([
-        'context',
-        'login/email_login',
-        '--for',
-        'implement',
-        '--budget',
-        '1',
-        '--json',
-      ]),
-      1,
-    );
-    expect((jsonDecode(out.toString()) as Map)['overBudget'], isTrue);
-    expect(err.toString(), isEmpty);
-  });
+  test(
+    'over budget with --json exits 1 with stdout one object and stderr empty',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeReadProject());
+      expect(
+        await runner.run([
+          'context',
+          'login/email_login',
+          '--for',
+          'implement',
+          '--budget',
+          '1',
+          '--json',
+        ]),
+        1,
+      );
+      expect((jsonDecode(out.toString()) as Map)['overBudget'], isTrue);
+      expect(err.toString(), isEmpty);
+    },
+  );
   test('f01/us01/s7, f01/us05/s10: an untyped target exits 64 with the untyped_target message', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
@@ -189,7 +192,7 @@ void main() {
       '⚠️ WARNING: no doc covers or implements app/lib/main.dart\n',
     );
   });
-  test("f01/us05/fr04: under --json the object's first key is code", () async {
+  test("under --json the object's first key is code", () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(extra: {'app/lib/main.dart': ''}),
     );
@@ -381,45 +384,42 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
-    test(
-      'f01/us05/fr04/e13: --code under one root takes that target alone',
-      () async {
-        final project = await writeToastProject(
-          extra: {'jaspr_lib/lib/toast.dart': ''},
-        );
-        final (:runner, :out, :err) = readRunner(project);
-        expect(
-          await runner.run([
-            'context',
-            '--code',
-            'jaspr_lib/lib/toast.dart',
-            '--for',
-            'implement',
-          ]),
-          0,
-        );
-        expect(
-          out.toString(),
-          contains(
-            '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
-          ),
-        );
-        expect(
-          out.toString(),
-          contains(
-            '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
-          ),
-        );
-        expect(
-          out.toString(),
-          contains(
-            '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
-          ),
-        );
-        expect(out.toString(), isNot(contains('flutter')));
-        expect(err.toString(), isEmpty);
-      },
-    );
+    test('--code under one root takes that target alone', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run([
+          'context',
+          '--code',
+          'jaspr_lib/lib/toast.dart',
+          '--for',
+          'implement',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
+        ),
+      );
+      expect(
+        out.toString(),
+        contains(
+          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
+        ),
+      );
+      expect(out.toString(), isNot(contains('flutter')));
+      expect(err.toString(), isEmpty);
+    });
 
     test('f01/us05/fr04, domain:agent_plugin INV-25: --code names its code '
         'target on the first text line, covered or not', () async {
@@ -510,78 +510,76 @@ void main() {
       expect(answer['codeTarget'], 'jaspr');
     });
 
+    test('--code with one target prints no code target', () async {
+      final project = await writeReadProject(extra: {'app/lib/main.dart': ''});
+      final text = readRunner(project);
+      await text.runner.run([
+        'context',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'implement',
+      ]);
+      expect(text.out.toString(), isNot(contains('code target')));
+      final json = readRunner(project);
+      await json.runner.run([
+        'context',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'implement',
+        '--json',
+      ]);
+      expect(
+        (jsonDecode(json.out.toString()) as Map).containsKey('codeTarget'),
+        isFalse,
+      );
+    });
+
     test(
-      'f01/us05/fr04: --code with one target prints no code target',
+      '--code on a test file bundles the story and FR its tests line names',
       () async {
-        final project = await writeReadProject(
-          extra: {'app/lib/main.dart': ''},
+        final project = await writeToastProject(
+          extra: {
+            'jaspr_lib/test/toast_test.dart': '',
+            'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
+                '---\nstatuses:\n'
+                '  - show:implemented\n'
+                'implements:\n'
+                '  - show:lib/toast.dart:showToast\n'
+                'tests:\n'
+                '  - "show:test/toast_test.dart:queue: a toast #1"\n'
+                '---\n\n# Record\n',
+          },
         );
-        final text = readRunner(project);
-        await text.runner.run([
-          'context',
-          '--code',
-          'app/lib/main.dart',
-          '--for',
-          'implement',
-        ]);
-        expect(text.out.toString(), isNot(contains('code target')));
-        final json = readRunner(project);
-        await json.runner.run([
-          'context',
-          '--code',
-          'app/lib/main.dart',
-          '--for',
-          'implement',
-          '--json',
-        ]);
+        final (:runner, :out, :err) = readRunner(project);
         expect(
-          (jsonDecode(json.out.toString()) as Map).containsKey('codeTarget'),
-          isFalse,
+          await runner.run([
+            'context',
+            '--code',
+            'jaspr_lib/test/toast_test.dart',
+            '--for',
+            'implement',
+          ]),
+          0,
         );
+        expect(
+          out.toString(),
+          contains(
+            '==> feedback/toast/show (user_story) · prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md <==\n',
+          ),
+        );
+        expect(
+          out.toString(),
+          contains(
+            '==> feedback/toast (implementation) · specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md <==\n',
+          ),
+        );
+        expect(err.toString(), isEmpty);
       },
     );
 
-    test('f01/us05/fr04/e17: --code on a test file bundles the story and FR its tests line names', () async {
-      final project = await writeToastProject(
-        extra: {
-          'jaspr_lib/test/toast_test.dart': '',
-          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
-              '---\nstatuses:\n'
-              '  - show:implemented\n'
-              'implements:\n'
-              '  - show:lib/toast.dart:showToast\n'
-              'tests:\n'
-              '  - "show:test/toast_test.dart:queue: a toast #1"\n'
-              '---\n\n# Record\n',
-        },
-      );
-      final (:runner, :out, :err) = readRunner(project);
-      expect(
-        await runner.run([
-          'context',
-          '--code',
-          'jaspr_lib/test/toast_test.dart',
-          '--for',
-          'implement',
-        ]),
-        0,
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> feedback/toast/show (user_story) · prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md <==\n',
-        ),
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> feedback/toast (implementation) · specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md <==\n',
-        ),
-      );
-      expect(err.toString(), isEmpty);
-    });
-
-    test('f01/us05/fr04/e15: --code with --target naming another target is argument_conflict, exit 64', () async {
+    test('--code with --target naming another target is argument_conflict, exit 64', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},
       );

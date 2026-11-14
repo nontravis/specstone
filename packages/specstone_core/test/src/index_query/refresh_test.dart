@@ -450,7 +450,7 @@ void main() {
       expect(after.select('SELECT layout FROM meta').single['layout'], 15);
     });
     test(
-      'consistency_check/find_template_breaks/report_open_tbrs: an index at '
+      'an index at '
       'layout 11 is rebuilt to layout 15 with the TBR markers filled',
       () async {
         final project = await writeLoginProject(

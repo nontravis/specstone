@@ -63,7 +63,7 @@ Future<void> _expectFault(
 );
 
 void main() {
-  test('f03/us03/fr01: banned_patterns, required_patterns, and '
+  test('banned_patterns, required_patterns, and '
       'required_field_groups parse', () async {
     final set = await _resolve(
       project: '''
@@ -102,7 +102,7 @@ sections:
     expect(lintJson, contains('requiredFieldGroups'));
   });
 
-  test('f03/us03/fr01/e24: a bad regex is unknown_value', () async {
+  test('a bad regex is unknown_value', () async {
     await _expectFault(
       _resolve(
         project: '''
@@ -118,7 +118,7 @@ lint:
     );
   });
 
-  test('f03/us03/fr01/e24: a bad except regex is unknown_value', () async {
+  test('a bad except regex is unknown_value', () async {
     await _expectFault(
       _resolve(
         project: '''
@@ -135,12 +135,10 @@ lint:
     );
   });
 
-  test(
-    'f03/us03/fr01/e25: an in outside text, code, all is unknown_value',
-    () async {
-      await _expectFault(
-        _resolve(
-          project: '''
+  test('an in outside text, code, all is unknown_value', () async {
+    await _expectFault(
+      _resolve(
+        project: '''
 lint:
   banned_patterns:
     - id: a
@@ -148,14 +146,13 @@ lint:
       message: m
       in: html
 ''',
-        ),
-        code: FaultCode.unknownValue,
-        keyEndsWith: 'banned_patterns[0].in',
-      );
-    },
-  );
+      ),
+      code: FaultCode.unknownValue,
+      keyEndsWith: 'banned_patterns[0].in',
+    );
+  });
 
-  test('f03/us03/fr01/e27: an entry without message is missing_key', () async {
+  test('an entry without message is missing_key', () async {
     await _expectFault(
       _resolve(
         project: '''
@@ -170,12 +167,10 @@ lint:
     );
   });
 
-  test(
-    'f03/us03/fr01: a required_patterns entry with in is unknown_key',
-    () async {
-      await _expectFault(
-        _resolve(
-          project: '''
+  test('a required_patterns entry with in is unknown_key', () async {
+    await _expectFault(
+      _resolve(
+        project: '''
 sections:
   - id: goal
     lint:
@@ -185,14 +180,13 @@ sections:
           message: n
           in: code
 ''',
-        ),
-        code: FaultCode.unknownKey,
-        keyEndsWith: 'required_patterns[0].in',
-      );
-    },
-  );
+      ),
+      code: FaultCode.unknownKey,
+      keyEndsWith: 'required_patterns[0].in',
+    );
+  });
 
-  test('f03/us03/fr01/e26: a group naming no field of the merged type is '
+  test('a group naming no field of the merged type is '
       'unknown_value', () async {
     await _expectFault(
       _resolve(
@@ -207,7 +201,7 @@ lint:
     );
   });
 
-  test('f03/us02/fr03/e10: add replaces an entry with the same id and remove '
+  test('add replaces an entry with the same id and remove '
       'drops one', () async {
     final set = await _resolve(
       shipped: _lowerFeature,
@@ -227,7 +221,7 @@ lint:
     expect(patterns.single.pattern, 'new');
   });
 
-  test('f03/us02/fr03/e11: remove of an id no lower layer holds is '
+  test('remove of an id no lower layer holds is '
       'override_id_not_found', () async {
     await _expectFault(
       _resolve(
@@ -242,7 +236,7 @@ lint:
     );
   });
 
-  test('f03/us02/fr03/e12: a plain list over a lower list is '
+  test('a plain list over a lower list is '
       'list_override_needs_add_remove', () async {
     await _expectFault(
       _resolve(
@@ -259,7 +253,7 @@ lint:
     );
   });
 
-  test('f03/us02/fr03/e14: an upper required_field_groups replaces the lower '
+  test('an upper required_field_groups replaces the lower '
       'value', () async {
     final set = await _resolve(
       shipped: _lowerFeature,
@@ -275,7 +269,7 @@ lint:
     ]);
   });
 
-  test('f03/us02/fr03: section pattern lists merge per section id', () async {
+  test('section pattern lists merge per section id', () async {
     final set = await _resolve(
       shipped: '''
 id: feature
@@ -314,7 +308,7 @@ sections:
     );
   });
 
-  test('f03/us03/fr01: PatternEntry matches, excepts by full match, and '
+  test('PatternEntry matches, excepts by full match, and '
       'prints JSON', () {
     final entry = PatternEntry(
       id: 'a',

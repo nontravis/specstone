@@ -10,7 +10,7 @@ void main() {
     reference = prdCoreDocType(await resolvePrdCore(), 'reference');
   });
 
-  test('f03/us06/fr01: reference sits at prds/references/{slug}/REFERENCE.md '
+  test('reference sits at prds/references/{slug}/REFERENCE.md '
       'with its fields, status values, and two sections', () {
     expect(reference.path, 'prds/references/{slug}/REFERENCE.md');
     expect(reference.parent, isNull);
@@ -26,31 +26,28 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'f03/us06/fr03/e04: titled # <Name>, no NASA list', () {
+      'titled # <Name>, no NASA list', () {
     expectGuideShape(reference, title: '# <Name>');
     expectNoNasaLint(reference);
     expectSources(reference, []);
   });
 
-  test('f03/us06/fr01: superseded means a newer edition replaced it', () {
+  test('superseded means a newer edition replaced it', () {
     expect(
       fieldOf(reference, 'status').description,
       contains('a newer edition replaced it'),
     );
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        reference,
-        'Write one rule per ID; in a section with no IDs, one '
-        'rule per item, with mechanics left to the spec docs.\n'
-        'Keep a bound in the item it limits, and the trace to the '
-        'source in `source:` and `files:`, never in the summary.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      reference,
+      'Write one rule per ID; in a section with no IDs, one '
+      'rule per item, with mechanics left to the spec docs.\n'
+      'Keep a bound in the item it limits, and the trace to the '
+      'source in `source:` and `files:`, never in the summary.',
+    );
+  });
 }

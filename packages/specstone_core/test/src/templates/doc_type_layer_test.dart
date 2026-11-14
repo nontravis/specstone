@@ -33,7 +33,7 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key}) =>
 void main() {
   group('DocTypeLayer.parse', () {
     for (final kind in LayerKind.values) {
-      test('template_packs/add_doc_type/read_doc_type_file/e30: a ${kind.name} '
+      test('a ${kind.name} '
           'file name that is no slug is unknown_value before '
           'doc_type_id_mismatch', () {
         for (final name in ['Grid', 'api-v2']) {
@@ -58,19 +58,19 @@ void main() {
       });
     }
 
-    test('template_packs/add_doc_type/read_doc_type_file: a slug file name '
+    test('a slug file name '
         'loads', () {
       expect(_parse('max_depth: 1\n').docTypeId, 'feature');
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file E32, INV-30: '
+    test('E32, INV-30: '
         'per_target reads a boolean', () {
       expect(_parse('per_target: true\n').perTarget, isTrue);
       expect(_parse('per_target: false\n').perTarget, isFalse);
       expect(_parse('path: a/{slug}.md\n').perTarget, isNull);
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file E32, INV-30: '
+    test('E32, INV-30: '
         'a per_target that is not a boolean is unknown_value', () {
       expect(
         () => _parse('per_target: yes please\n'),
@@ -84,7 +84,7 @@ void main() {
       expect(layer.fields.single.type, FieldType.recordStatus);
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file E17, INV-13: '
+    test('E17, INV-13: '
         'item_exact is an accepted pointer kind', () {
       final layer = _parse(
         'fields: [{id: implements, type: output_ref, pointer: item_exact}]',
@@ -106,7 +106,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e29: max_depth reads an integer from 0 and refuses -1 '
+    test('max_depth reads an integer from 0 and refuses -1 '
         'and three', () {
       expect(_parse('max_depth: 3\n').maxDepth, 3);
       expect(_parse('max_depth: 0\n').maxDepth, 0);
@@ -139,22 +139,19 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e02: an unknown section key is unknown_key with the id path', () {
+    test('an unknown section key is unknown_key with the id path', () {
       expect(
         () => _parse('sections: [{id: goal, colour: x}]'),
         throwsA(_fault(FaultCode.unknownKey, key: 'sections.goal.colour')),
       );
     });
 
-    test(
-      'f03/us03/fr01/e04: a camelCase section key is unknown_key by its name',
-      () {
-        expect(
-          () => _parse('sections: [{id: goal, prefixId: PV-}]'),
-          throwsA(_fault(FaultCode.unknownKey, key: 'sections.goal.prefixId')),
-        );
-      },
-    );
+    test('a camelCase section key is unknown_key by its name', () {
+      expect(
+        () => _parse('sections: [{id: goal, prefixId: PV-}]'),
+        throwsA(_fault(FaultCode.unknownKey, key: 'sections.goal.prefixId')),
+      );
+    });
 
     test('f03/us03/fr01/e03, s03/inv10: a field with no id is missing_key at the index', () {
       expect(
@@ -212,7 +209,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01: an output_ref field reads its pointer kind', () {
+    test('an output_ref field reads its pointer kind', () {
       final layer = _parse(
         'fields: [{id: covers, type: output_ref, list: true, pointer: prefix}, '
         '{id: implements, type: output_ref, pointer: exact}]',
@@ -253,21 +250,21 @@ void main() {
       );
     });
 
-    test('f03/us02/fr01: an override entry may write pointer with no type; '
+    test('an override entry may write pointer with no type; '
         'its kind is checked at merge', () {
       final layer = _parse('fields: [{id: covers, pointer: glob}]');
       expect(layer.fields.single.type, isNull);
       expect(layer.fields.single.pointer, 'glob');
     });
 
-    test('f03/us02/fr03/e01: an unknown doc lint key is unknown_key', () {
+    test('an unknown doc lint key is unknown_key', () {
       expect(
         () => _parse('lint: {max_words: 3}'),
         throwsA(_fault(FaultCode.unknownKey, key: 'lint.max_words')),
       );
     });
 
-    test('f03/us02/fr03/e02: an unknown section lint key is unknown_key', () {
+    test('an unknown section lint key is unknown_key', () {
       expect(
         () => _parse('sections: [{id: goal, header: G, lint: {max_words: 3}}]'),
         throwsA(
@@ -276,13 +273,13 @@ void main() {
       );
     });
 
-    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+    test('Override lint settings '
         'Input: a doc-level lint.max_item_chars reads as written', () {
       expect(_parse('lint: {max_item_chars: 900}').lint?.maxItemChars, 900);
       expect(_parse('lint: {max_chars: 400}').lint?.maxItemChars, isNull);
     });
 
-    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+    test('Override lint settings '
         'E16: a section lint that writes max_item_chars is unknown_key', () {
       expect(
         () => _parse(
@@ -297,7 +294,7 @@ void main() {
       );
     });
 
-    test('template_packs/customize_shipped_doc_type/override_lint_settings '
+    test('Override lint settings '
         'Input: a non-integer lint.max_item_chars is unknown_value like '
         'max_chars', () {
       expect(
@@ -321,7 +318,7 @@ void main() {
       expect(lint.linePrefix, '- **Statement:**');
     });
 
-    test('f03/us02/fr03/e09: a section line_prefix that is not a string is '
+    test('a section line_prefix that is not a string is '
         'unknown_value', () {
       expect(
         () =>
@@ -332,13 +329,13 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e10: an override file with no id is accepted', () {
+    test('an override file with no id is accepted', () {
       final layer = _parse('sections: [{id: goal, description: New}]');
       expect(layer.id, isNull);
       expect(layer.docTypeId, 'feature');
     });
 
-    test('f03/us03/fr01: a full file reads back every value', () {
+    test('a full file reads back every value', () {
       final layer = _parse('''
 id: feature
 description: A feature spec
@@ -416,7 +413,7 @@ lint:
       expect(allowed.items, ['crisp']);
     });
 
-    test('f03/us03/fr01: an add/remove map reads as a ListChange', () {
+    test('an add/remove map reads as a ListChange', () {
       final layer = _parse('lint: {banned_words: {add: [x], remove: [y]}}');
       final change = switch (layer.lint?.bannedWords) {
         final ListChange<String> listChange => listChange,
@@ -426,81 +423,66 @@ lint:
       expect(change.remove, ['y']);
     });
 
-    test(
-      'f03/us03/fr01: an add-only map reads as a ListChange with no remove',
-      () {
-        final layer = _parse('lint: {allowed_words: {add: [x]}}');
-        final change = switch (layer.lint?.allowedWords) {
-          final ListChange<String> listChange => listChange,
-          _ => fail('allowed_words is not a ListChange'),
-        };
-        expect(change.add, ['x']);
-        expect(change.remove, isEmpty);
-      },
-    );
+    test('an add-only map reads as a ListChange with no remove', () {
+      final layer = _parse('lint: {allowed_words: {add: [x]}}');
+      final change = switch (layer.lint?.allowedWords) {
+        final ListChange<String> listChange => listChange,
+        _ => fail('allowed_words is not a ListChange'),
+      };
+      expect(change.add, ['x']);
+      expect(change.remove, isEmpty);
+    });
 
-    test(
-      'f03/us03/fr01: a remove-only map reads as a ListChange with no add',
-      () {
-        final layer = _parse('lint: {allowed_words: {remove: [y]}}');
-        final change = switch (layer.lint?.allowedWords) {
-          final ListChange<String> listChange => listChange,
-          _ => fail('allowed_words is not a ListChange'),
-        };
-        expect(change.add, isEmpty);
-        expect(change.remove, ['y']);
-      },
-    );
+    test('a remove-only map reads as a ListChange with no add', () {
+      final layer = _parse('lint: {allowed_words: {remove: [y]}}');
+      final change = switch (layer.lint?.allowedWords) {
+        final ListChange<String> listChange => listChange,
+        _ => fail('allowed_words is not a ListChange'),
+      };
+      expect(change.add, isEmpty);
+      expect(change.remove, ['y']);
+    });
 
-    test(
-      'f03/us03/fr01/e02: an unknown key in an add/remove map is unknown_key',
-      () {
-        expect(
-          () => _parse('lint: {banned_words: {add: [x], drop: [y]}}'),
-          throwsA(_fault(FaultCode.unknownKey, key: 'lint.banned_words.drop')),
-        );
-      },
-    );
+    test('an unknown key in an add/remove map is unknown_key', () {
+      expect(
+        () => _parse('lint: {banned_words: {add: [x], drop: [y]}}'),
+        throwsA(_fault(FaultCode.unknownKey, key: 'lint.banned_words.drop')),
+      );
+    });
 
-    test('f03/us03/fr01/e05: a scalar word list is unknown_value', () {
+    test('a scalar word list is unknown_value', () {
       expect(
         () => _parse('lint: {banned_words: loud}'),
         throwsA(_fault(FaultCode.unknownValue, key: 'lint.banned_words')),
       );
     });
 
-    test(
-      'f03/us03/fr01/e05: a non-string entry in a word list is unknown_value',
-      () {
-        expect(
-          () => _parse('lint: {banned_words: [[loud]]}'),
-          throwsA(_fault(FaultCode.unknownValue, key: 'lint.banned_words')),
-        );
-      },
-    );
+    test('a non-string entry in a word list is unknown_value', () {
+      expect(
+        () => _parse('lint: {banned_words: [[loud]]}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.banned_words')),
+      );
+    });
 
-    test(
-      'f03/us03/fr01/e05: a scalar field entry is unknown_value at the index',
-      () {
-        expect(
-          () => _parse('fields: [free]'),
-          throwsA(_fault(FaultCode.unknownValue, key: 'fields[0]')),
-        );
-      },
-    );
+    test('a scalar field entry is unknown_value at the index', () {
+      expect(
+        () => _parse('fields: [free]'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'fields[0]')),
+      );
+    });
 
-    test('f03/us03/fr01: parent with no value marks a cleared parent', () {
+    test('parent with no value marks a cleared parent', () {
       final layer = _parse('parent:\n');
       expect(layer.writesParent, isTrue);
       expect(layer.parent, isNull);
     });
 
-    test('f03/us03/fr01: reference is read past as a top-level key', () {
+    test('reference is read past as a top-level key', () {
       final layer = _parse('reference: [{title: Specstone}]');
       expect(layer.id, isNull);
     });
 
-    test('f03/us03/fr03: a plain reference list parses into entries', () {
+    test('a plain reference list parses into entries', () {
       final layer = _parse(
         'reference: [{title: T, url: https://example.com/a}, '
         '{title: Book}]',
@@ -530,17 +512,14 @@ lint:
       },
     );
 
-    test(
-      'f03/us03/fr03/e02: a link conflict inside parse keeps its index key',
-      () {
-        expect(
-          () => _parse(
-            'reference: [{title: T}, {title: U, url: https://x, doc: d}]',
-          ),
-          throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[1]')),
-        );
-      },
-    );
+    test('a link conflict inside parse keeps its index key', () {
+      expect(
+        () => _parse(
+          'reference: [{title: T}, {title: U, url: https://x, doc: d}]',
+        ),
+        throwsA(_fault(FaultCode.referenceLinkConflict, key: 'reference[1]')),
+      );
+    });
 
     test('f03/us03/fr01, tpl-s03/inv23: bundle and a section query are read as written', () {
       final layer = _parse(
@@ -553,7 +532,7 @@ lint:
       expect(layer.sections.single.query, isTrue);
     });
 
-    test('f03/us03/fr01: a bundle add and remove mapping is a ListChange', () {
+    test('a bundle add and remove mapping is a ListChange', () {
       final change =
           _parse('bundle: {add: [design], remove: [query]}\n').bundle!
               as ListChange<String>;
@@ -561,7 +540,7 @@ lint:
       expect(change.remove, ['query']);
     });
 
-    test('f03/us03/fr01: generators reads a plain list and add and remove '
+    test('generators reads a plain list and add and remove '
         'lists', () {
       final plain = _parse('generators: [note_toc]\n').generators!;
       expect(plain, isA<PlainList<String>>());
@@ -613,7 +592,7 @@ lint:
       );
     });
 
-    test('f03/us03/fr01: a layer that writes neither key leaves both null', () {
+    test('a layer that writes neither key leaves both null', () {
       final layer = _parse('sections: [{id: goal}]\n');
       expect(layer.bundle, isNull);
       expect(layer.sections.single.query, isNull);
@@ -877,19 +856,19 @@ lint:
   });
 
   group('isDocTypeFileName', () {
-    test('f03/us03/fr01: a top-level id yaml file is a doc type', () {
+    test('a top-level id yaml file is a doc type', () {
       expect(isDocTypeFileName('feature.yaml'), isTrue);
     });
 
-    test('f03/us03/fr01: pack.yaml is not a doc type', () {
+    test('pack.yaml is not a doc type', () {
       expect(isDocTypeFileName('pack.yaml'), isFalse);
     });
 
-    test('f03/us03/fr01: a non-yaml file is not a doc type', () {
+    test('a non-yaml file is not a doc type', () {
       expect(isDocTypeFileName('notes.md'), isFalse);
     });
 
-    test('f03/us03/fr01: a nested file is not a doc type', () {
+    test('a nested file is not a doc type', () {
       expect(isDocTypeFileName('refs/x.yaml'), isFalse);
     });
   });

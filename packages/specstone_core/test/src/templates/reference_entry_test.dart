@@ -116,18 +116,15 @@ void main() {
       expect(entry.doc, 'prd/feature');
     });
 
-    test(
-      'f03/us03/fr03/e08: a file of a shipped layer is accepted when present',
-      () {
-        final entry = parseRef(
-          '{title: T, file: refs/handbook.md}',
-          kind: LayerKind.shipped,
-        );
-        expect(entry.file, 'refs/handbook.md');
-      },
-    );
+    test('a file of a shipped layer is accepted when present', () {
+      final entry = parseRef(
+        '{title: T, file: refs/handbook.md}',
+        kind: LayerKind.shipped,
+      );
+      expect(entry.file, 'refs/handbook.md');
+    });
 
-    test('f03/us03/fr03: an unknown entry key is unknown_key', () {
+    test('an unknown entry key is unknown_key', () {
       expect(
         () => parseRef('{title: T, href: https://x}'),
         throwsA(_fault(FaultCode.unknownKey, key: 'reference[0].href')),
@@ -142,7 +139,7 @@ void main() {
       },
     );
 
-    test('f03/us03/fr03: a locator rides along in toJson', () {
+    test('a locator rides along in toJson', () {
       final entry = parseRef(
         '{title: NASA Systems Engineering Handbook, locator: Appendix C}',
       );
@@ -168,55 +165,49 @@ void main() {
   });
 
   group('ReferenceEntry file normalization', () {
-    test('f03/us03/fr03/e04: a file URL is reference_file_outside', () {
+    test('a file URL is reference_file_outside', () {
       expect(
         () => parseRef('{title: T, file: "file:///etc/hosts"}'),
         throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
       );
     });
 
-    test('f03/us03/fr03/e04: an http URL is reference_file_outside', () {
+    test('an http URL is reference_file_outside', () {
       expect(
         () => parseRef('{title: T, file: "https://h/handbook.md"}'),
         throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
       );
     });
 
-    test('f03/us03/fr03/e04: a drive letter is reference_file_outside', () {
+    test('a drive letter is reference_file_outside', () {
       expect(
         () => parseRef('{title: T, file: "C:/x.md"}'),
         throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
       );
     });
 
-    test(
-      'f03/us03/fr03/e04: a leading backslash is reference_file_outside',
-      () {
-        expect(
-          () => parseRef(r"{title: T, file: '\x.md'}"),
-          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-        );
-      },
-    );
+    test('a leading backslash is reference_file_outside', () {
+      expect(
+        () => parseRef(r"{title: T, file: '\x.md'}"),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
 
-    test('f03/us03/fr03/e04: a backslash escape is reference_file_outside', () {
+    test('a backslash escape is reference_file_outside', () {
       expect(
         () => parseRef(r"{title: T, file: 'refs\..\..\x.md'}"),
         throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
       );
     });
 
-    test(
-      'f03/us03/fr03/e04: a backslash separator is reference_file_outside',
-      () {
-        expect(
-          () => parseRef(r"{title: T, file: 'refs\x.md'}"),
-          throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
-        );
-      },
-    );
+    test('a backslash separator is reference_file_outside', () {
+      expect(
+        () => parseRef(r"{title: T, file: 'refs\x.md'}"),
+        throwsA(_fault(FaultCode.referenceFileOutside, key: 'reference[0]')),
+      );
+    });
 
-    test('f03/us03/fr03: a file name with a space keeps its characters', () {
+    test('a file name with a space keeps its characters', () {
       final entry = parseRef(
         '{title: T, file: my notes.md}',
         files: {'my notes.md'},
@@ -224,7 +215,7 @@ void main() {
       expect(entry.file, 'my notes.md');
     });
 
-    test('f03/us03/fr03: a file name with a hash keeps its characters', () {
+    test('a file name with a hash keeps its characters', () {
       final entry = parseRef(
         '{title: T, file: refs/a#b.md}',
         files: {'refs/a#b.md'},
@@ -232,18 +223,15 @@ void main() {
       expect(entry.file, 'refs/a#b.md');
     });
 
-    test(
-      'f03/us03/fr03: a file inside a nested template folder is accepted',
-      () {
-        final entry = parseRef(
-          '{title: T, file: handbook.md}',
-          templateFolder: 'refs',
-        );
-        expect(entry.file, 'refs/handbook.md');
-      },
-    );
+    test('a file inside a nested template folder is accepted', () {
+      final entry = parseRef(
+        '{title: T, file: handbook.md}',
+        templateFolder: 'refs',
+      );
+      expect(entry.file, 'refs/handbook.md');
+    });
 
-    test('f03/us03/fr03/e04: a file escaping a nested template folder is '
+    test('a file escaping a nested template folder is '
         'reference_file_outside', () {
       expect(
         () =>

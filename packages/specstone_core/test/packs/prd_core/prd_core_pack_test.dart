@@ -12,7 +12,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('f03/us06/fr01: prd-core ships at 1.8.0 with no extends', () {
+    test('prd-core ships at 1.8.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -25,7 +25,7 @@ void main() {
     });
 
     test(
-      'template_packs/write_prd_docs_from_prd_core/ship_prd_core_pack: prd-core '
+      'prd-core '
       'writes no migrations entry, so a 1.7.0 pin re-pins with no pack step',
       () {
         final manifest = PackManifest.parse(
@@ -50,7 +50,7 @@ void main() {
       },
     );
 
-    test('f03/us06/fr01: a project pinning the shipped prd-core resolves with '
+    test('a project pinning the shipped prd-core resolves with '
         'no fault', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.every((d) => d.pack == 'prd-core'), isTrue);
@@ -58,7 +58,7 @@ void main() {
   });
 
   group('listedWordsIn', () {
-    test('f03/us06/fr03: finds whole words and phrases in any case', () {
+    test('finds whole words and phrases in any case', () {
       expect(listedWordsIn('This is Fast, etc. and/or Light-Weight.'), [
         'fast',
         'light-weight',
@@ -72,7 +72,7 @@ void main() {
       ]);
     });
 
-    test('f03/us06/fr03: a listed word inside a longer word is no hit', () {
+    test('a listed word inside a longer word is no hit', () {
       expect(
         listedWordsIn('Safety, usability, smaller, fastest, retcon'),
         isEmpty,
@@ -89,7 +89,7 @@ void main() {
     });
 
     test(
-      'template_packs/write_prd_docs_from_prd_core/set_shared_lint_and_sources: '
+      'Set the shared lint and sources: '
       'no prd-core doc type sets max_item_chars, so each takes the default',
       () async {
         final set = await resolvePrdCore();
@@ -99,7 +99,7 @@ void main() {
       },
     );
 
-    test('f03/us06/fr01/e03: a project that groups features overrides the '
+    test('a project that groups features overrides the '
         'four paths in its layer', () async {
       const story = 'prds/features/{slug}/f{nn}_{slug}/us{nn}_{slug}';
       final set = await resolvePrdCore(
@@ -121,7 +121,7 @@ void main() {
       expect(set.lookup('fr')!.parent, 'user_story');
     });
 
-    test('f03/us06/fr01/e04: a project adds Availability to gnfr as a project '
+    test('a project adds Availability to gnfr as a project '
         'section', () async {
       final set = await resolvePrdCore(
         templates: {
@@ -161,7 +161,7 @@ void main() {
       expect(set.lookup('fr')!.lint.bannedWords, isNull);
     });
 
-    test('f03/us06/fr03/e03: a plain Statement list over the shipped one is '
+    test('a plain Statement list over the shipped one is '
         'list_override_needs_add_remove', () async {
       await expectLater(
         resolvePrdCore(
@@ -181,68 +181,59 @@ void main() {
       );
     });
 
-    test(
-      'f03/us06/fr03/e03: a project writes its own doc-level list plain',
-      () async {
-        final set = await resolvePrdCore(
-          templates: {'fr.yaml': 'lint:\n  banned_words: [simply]\n'},
-        );
-        expect(set.lookup('fr')!.lint.bannedWords, ['simply']);
-      },
-    );
+    test('a project writes its own doc-level list plain', () async {
+      final set = await resolvePrdCore(
+        templates: {'fr.yaml': 'lint:\n  banned_words: [simply]\n'},
+      );
+      expect(set.lookup('fr')!.lint.bannedWords, ['simply']);
+    });
   });
 
   group('expectOwnFields', () {
-    test(
-      'f03/us06/fr01: fails when an enum field lists other values',
-      () async {
-        final anti = prdCoreDocType(await resolvePrdCore(), 'anti_persona');
-        expect(
-          () => expectOwnFields(anti, const [
-            FieldSpec(
-              'anti_type',
-              FieldType.enumType,
-              required: true,
-              enumValues: ['misuser', 'other'],
-            ),
-            FieldSpec(
-              'basis',
-              FieldType.enumType,
-              required: true,
-              enumValues: ['proto', 'qualitative', 'statistical'],
-            ),
-            FieldSpec('reviewed', FieldType.date),
-          ]),
-          throwsA(isA<TestFailure>()),
-        );
-      },
-    );
+    test('fails when an enum field lists other values', () async {
+      final anti = prdCoreDocType(await resolvePrdCore(), 'anti_persona');
+      expect(
+        () => expectOwnFields(anti, const [
+          FieldSpec(
+            'anti_type',
+            FieldType.enumType,
+            required: true,
+            enumValues: ['misuser', 'other'],
+          ),
+          FieldSpec(
+            'basis',
+            FieldType.enumType,
+            required: true,
+            enumValues: ['proto', 'qualitative', 'statistical'],
+          ),
+          FieldSpec('reviewed', FieldType.date),
+        ]),
+        throwsA(isA<TestFailure>()),
+      );
+    });
 
-    test(
-      'f03/us06/fr01: fails when a docRef field names other doc types',
-      () async {
-        final feature = prdCoreDocType(await resolvePrdCore(), 'feature');
-        expect(
-          () => expectOwnFields(feature, const [
-            FieldSpec('vision', FieldType.string, list: true),
-            FieldSpec('goals', FieldType.string, list: true),
-            FieldSpec(
-              'persona',
-              FieldType.docRef,
-              list: true,
-              docTypes: ['anti_persona'],
-            ),
-            FieldSpec('system', FieldType.string),
-            FieldSpec(
-              'depends_on',
-              FieldType.docRef,
-              list: true,
-              docTypes: ['feature'],
-            ),
-          ]),
-          throwsA(isA<TestFailure>()),
-        );
-      },
-    );
+    test('fails when a docRef field names other doc types', () async {
+      final feature = prdCoreDocType(await resolvePrdCore(), 'feature');
+      expect(
+        () => expectOwnFields(feature, const [
+          FieldSpec('vision', FieldType.string, list: true),
+          FieldSpec('goals', FieldType.string, list: true),
+          FieldSpec(
+            'persona',
+            FieldType.docRef,
+            list: true,
+            docTypes: ['anti_persona'],
+          ),
+          FieldSpec('system', FieldType.string),
+          FieldSpec(
+            'depends_on',
+            FieldType.docRef,
+            list: true,
+            docTypes: ['feature'],
+          ),
+        ]),
+        throwsA(isA<TestFailure>()),
+      );
+    });
   });
 }

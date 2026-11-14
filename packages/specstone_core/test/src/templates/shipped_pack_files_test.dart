@@ -14,7 +14,7 @@ import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
 void main() {
-  test('f03/us03/fr03/e08: decodes base64 constants back to bytes', () {
+  test('decodes base64 constants back to bytes', () {
     final files = decodeShippedPacks({
       'a/x.pdf': base64Encode([0xff, 0, 1]),
     });
@@ -22,7 +22,7 @@ void main() {
     expect(files['a/x.pdf'], [0xff, 0, 1]);
   });
 
-  test('f03/us03/fr03/e08: the shipped pack files are decoded', () {
+  test('the shipped pack files are decoded', () {
     expect(shippedPackFiles.keys, contains('prd-core/pack.yaml'));
   });
 

@@ -58,7 +58,7 @@ void check(List<MergedDocType> docTypes, Map<String, DocTypeLayers> layers) =>
 
 void main() {
   group('checkMergedSet', () {
-    test('f03/us03/fr02/e06: two doc types with one path are '
+    test('two doc types with one path are '
         'doc_type_path_conflict', () {
       final layers = {
         'playbook': [
@@ -91,7 +91,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr02/e06: three doc types with one path are named in load '
+    test('three doc types with one path are named in load '
         'order, the last joined by "and"', () {
       final layers = {
         'runbook': [layerOf('runbook', 'path: ops/{slug}/RUNBOOK.md\n')],
@@ -145,7 +145,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr05/e04: max_depth on two doc types is unknown_value '
+    test('max_depth on two doc types is unknown_value '
         'naming both', () {
       final layers = {
         'playbook': [
@@ -176,7 +176,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr05/e04: max_depth on a doc type with a parent is '
+    test('max_depth on a doc type with a parent is '
         'unknown_value', () {
       final layers = {
         'epic': [
@@ -209,7 +209,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr05/e05: max_depth above 0 on a path whose last folder '
+    test('max_depth above 0 on a path whose last folder '
         'holds no {slug} is unknown_value naming the writer', () {
       final layers = {
         'runbook': [layerOf('runbook', 'max_depth: 3\n')],
@@ -233,7 +233,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr05/e02: max_depth 0 on any path, and one carrier with a '
+    test('max_depth 0 on any path, and one carrier with a '
         'slug folder, pass', () {
       final layers = {
         'runbook': [layerOf('runbook', 'max_depth: 0\n')],
@@ -260,7 +260,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e13: a parent loop is parent_cycle', () {
+    test('a parent loop is parent_cycle', () {
       final layers = {
         'epic': [layerOf('epic', 'parent: story\n', file: _epicFile)],
         'story': [layerOf('story', 'parent: epic\n', file: _storyFile)],
@@ -280,7 +280,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e13: a self parent names one file', () {
+    test('a self parent names one file', () {
       final layers = {
         'self': [layerOf('self', 'parent: self\n', file: _selfFile)],
       };
@@ -295,40 +295,37 @@ void main() {
       );
     });
 
-    test(
-      'f03/us03/fr01/e14: a doc_types entry naming no id is unknown_value',
-      () {
-        final layers = {
-          'runbook': [
-            layerOf(
-              'runbook',
-              'fields:\n  - id: up\n    type: doc_ref\n    doc_types: [nope]\n',
-            ),
-          ],
-        };
-        expect(
-          () => check([
-            builtIn('runbook').copyWith(
-              fields: [
-                const MergedField(
-                  id: 'up',
-                  type: FieldType.docRef,
-                  docTypes: ['nope'],
-                ),
-              ],
-            ),
-          ], layers),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.unknownValue)
-                .having((f) => f.key, 'key', 'fields.up.doc_types')
-                .having((f) => f.file, 'file', _runbookFile),
+    test('a doc_types entry naming no id is unknown_value', () {
+      final layers = {
+        'runbook': [
+          layerOf(
+            'runbook',
+            'fields:\n  - id: up\n    type: doc_ref\n    doc_types: [nope]\n',
           ),
-        );
-      },
-    );
+        ],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(
+            fields: [
+              const MergedField(
+                id: 'up',
+                type: FieldType.docRef,
+                docTypes: ['nope'],
+              ),
+            ],
+          ),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'fields.up.doc_types')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
 
-    test('f03/us02/fr04/e04: a parent naming an id passes', () {
+    test('a parent naming an id passes', () {
       final layers = {
         'runbook': [layerOf('runbook', 'parent: feature\n')],
         'feature': [layerOf('feature', 'path: f.md\n')],
@@ -342,7 +339,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr01/e12: a parent fault names the upper file when a '
+    test('a parent fault names the upper file when a '
         'lower layer also wrote it', () {
       final layers = {
         'runbook': [
@@ -364,7 +361,7 @@ void main() {
       );
     });
 
-    test('f03/us03/fr02/e07: grid at a nested feature pattern is '
+    test('grid at a nested feature pattern is '
         'doc_type_path_conflict', () {
       const nestedPath = 'prds/features/f{nn}_{slug}/f{nn}_{slug}/FEATURE.md';
       final layers = {
@@ -397,7 +394,7 @@ void main() {
       );
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file E31, INV-31: two '
+    test('E31, INV-31: two '
         'doc types holding a record_status field are unknown_value naming '
         'each holder', () {
       const recordField =
@@ -441,7 +438,7 @@ void main() {
       );
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file E33, INV-31: the '
+    test('E33, INV-31: the '
         'record doc type with a merged per_target that is not true is '
         'unknown_value', () {
       const noKey =
@@ -496,7 +493,7 @@ void main() {
       );
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file E33, INV-31: the '
+    test('E33, INV-31: the '
         'record doc type with per_target: true passes, and one holder names '
         'the record doc type', () {
       const layer =
@@ -524,7 +521,7 @@ void main() {
   });
 
   group('checkMergedSet targets', () {
-    test('template_packs/pin_pack_versions/read_project_config E30, '
+    test('E30, '
         'INV-29: a targets config in a merged set with no record doc type is '
         'unknown_value', () {
       expect(
@@ -545,7 +542,7 @@ void main() {
       );
     });
 
-    test('template_packs/pin_pack_versions/read_project_config E30: one '
+    test('E30: one '
         'target and no targets both need a record doc type; one unnamed '
         'target does not', () {
       const recordLayer =

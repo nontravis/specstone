@@ -38,7 +38,7 @@ void main() {
   MergedDocType typeOf(String path) =>
       (matcher.match(path) as MatchedDocType).docType;
 
-  group('index_query/read_current_docs/index_each_doc', () {
+  group('Index each doc', () {
     test('E21: a lead paragraph is a _lead count and an item with no ID, '
         'and each edge case holds its ID, line, and characters', () {
       const text =
@@ -236,7 +236,7 @@ void main() {
     });
   });
 
-  group('index_query/read_current_docs/index_each_doc lead', () {
+  group('lead', () {
     test('E08: a doc with no title line takes its whole head as the lead', () {
       final facts = factsOf(
         'README.md',
@@ -313,7 +313,7 @@ void main() {
     );
   });
 
-  group('index_query/read_current_docs/index_each_doc', () {
+  group('Index each doc', () {
     test('a layout that would turn a body line into a frontmatter close '
         'leaves the doc counted on disk and the reindex whole', () {
       const text = '---\n# V\n\n## Statement\nThe system shall.\n--- \n';
@@ -328,7 +328,7 @@ void main() {
     });
   });
 
-  group('index_query/read_current_docs/index_each_doc generated blocks', () {
+  group('generated blocks', () {
     final open = generatedOpenMarker('scenario_copy');
     final copied = '- **Given** ${'x' * 40}';
 

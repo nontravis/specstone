@@ -15,7 +15,7 @@ TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
 
 void main() {
   group('PackManifest.parse', () {
-    test('f03/us04/fr01: reads name, version, and file', () {
+    test('reads name, version, and file', () {
       final manifest = _parse('name: software-tech\nversion: 1.2.0\n');
 
       expect(manifest.name, 'software-tech');
@@ -24,7 +24,7 @@ void main() {
       expect(manifest.file, _file);
     });
 
-    test('f03/us04/fr01: reads the extends key', () {
+    test('reads the extends key', () {
       final manifest = _parse(
         'name: team\nversion: 1.0.0\nextends: software-tech\n',
       );
@@ -69,14 +69,14 @@ void main() {
       },
     );
 
-    test('f03/us04/fr01/e06: an unquoted double version is invalid', () {
+    test('an unquoted double version is invalid', () {
       expect(
         () => _parse('name: x\nversion: 1.2\n'),
         throwsA(_fault(FaultCode.packVersionInvalid, key: 'version')),
       );
     });
 
-    test('f03/us04/fr01/e08: a YAML syntax error carries its line', () {
+    test('a YAML syntax error carries its line', () {
       expect(
         () => _parse('name: [\n'),
         throwsA(
@@ -88,27 +88,27 @@ void main() {
       );
     });
 
-    test('f03/us04/fr01/e08: an unknown key is unknown_key', () {
+    test('an unknown key is unknown_key', () {
       expect(
         () => _parse('name: x\nversion: 1.0.0\nowner: me\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'owner')),
       );
     });
 
-    test('f03/us04/fr01/e08: an unknown key wins over a missing key', () {
+    test('an unknown key wins over a missing key', () {
       expect(
         () => _parse('owner: me\n'),
         throwsA(_fault(FaultCode.unknownKey, key: 'owner')),
       );
     });
 
-    test('f06/us02/fr01/e02: a pack.yaml with no migrations key has none', () {
+    test('a pack.yaml with no migrations key has none', () {
       final manifest = _parse('name: p\nversion: 1.0.0\n');
 
       expect(manifest.migrations, isEmpty);
     });
 
-    test('f06/us02/fr01: pack.yaml accepts migrations', () {
+    test('pack.yaml accepts migrations', () {
       final manifest = _parse('''
 name: p
 version: 1.0.0
@@ -125,14 +125,11 @@ migrations:
       expect(manifest.migrations.map((m) => '${m.from}'), ['1.0.0', '1.1.0']);
     });
 
-    test(
-      'f06/us02/fr01/e06: migrations that is not a list is unknown_value',
-      () {
-        expect(
-          () => _parse('name: p\nversion: 1.0.0\nmigrations: {}\n'),
-          throwsA(_fault(FaultCode.unknownValue, key: 'migrations')),
-        );
-      },
-    );
+    test('migrations that is not a list is unknown_value', () {
+      expect(
+        () => _parse('name: p\nversion: 1.0.0\nmigrations: {}\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'migrations')),
+      );
+    });
   });
 }

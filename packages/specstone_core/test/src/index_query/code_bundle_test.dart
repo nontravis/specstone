@@ -63,19 +63,16 @@ void main() {
       },
     );
   });
-  test(
-    'f01/us05/fr04/e02: a folder matches every implements entry under it',
-    () async {
-      final b = code('app/lib/src/login', BundleMode.implement);
-      expect(
-        b.docPaths,
-        containsAll([
-          '$f/us01_email_login/fr01_validate_credentials.md',
-          '$f/us01_email_login/USER_STORY.md',
-        ]),
-      );
-    },
-  );
+  test('a folder matches every implements entry under it', () async {
+    final b = code('app/lib/src/login', BundleMode.implement);
+    expect(
+      b.docPaths,
+      containsAll([
+        '$f/us01_email_login/fr01_validate_credentials.md',
+        '$f/us01_email_login/USER_STORY.md',
+      ]),
+    );
+  });
   test('f01/us05/fr04/e02, f01/us05/fr04/e10, f01/us05/fr04/e17: a tests path '
       'matches as a pointer value, its name aside', () async {
     final project = await writeLoginProject(
@@ -129,19 +126,25 @@ void main() {
       ...specs,
     });
   });
-  test('f01/us05/fr04/e03: a topic covers match with no trace gives the topic and the joined docs', () async {
-    final b = code('app/lib/src/tokens/token_store.dart', BundleMode.implement);
-    expect(b.docPaths, {'specs/topics/auth_tokens.md'});
-    expect(b.joinedPaths, hasLength(3));
-  });
-  test('f01/us05/fr04/e04: matches in two features form one bundle', () async {
+  test(
+    'a topic covers match with no trace gives the topic and the joined docs',
+    () async {
+      final b = code(
+        'app/lib/src/tokens/token_store.dart',
+        BundleMode.implement,
+      );
+      expect(b.docPaths, {'specs/topics/auth_tokens.md'});
+      expect(b.joinedPaths, hasLength(3));
+    },
+  );
+  test('matches in two features form one bundle', () async {
     final b = code('app/lib/src', BundleMode.implement);
     expect(
       b.docPaths,
       containsAll(['$f/FEATURE.md', 'prds/features/f02_signup/FEATURE.md']),
     );
   });
-  test('f01/us05/fr04/e05: an architecture match with no trace gives feature, spec docs, and story names', () async {
+  test('an architecture match with no trace gives feature, spec docs, and story names', () async {
     final b = code('app/lib/src/login/login_form.dart', BundleMode.implement);
     expect(b.docPaths, {'$f/FEATURE.md', ...specs});
     expect(b.nameListTops, {'$f/FEATURE.md'});
@@ -152,7 +155,7 @@ void main() {
     expect(b.joinedPaths, hasLength(3));
     expect(b.warnings, ['no doc covers or implements app/lib/main.dart']);
   });
-  test('f01/us05/fr04/e08: a path that does not exist is code_path_not_found naming it', () async {
+  test('a path that does not exist is code_path_not_found naming it', () async {
     expect(
       () => code('app/lib/nope.dart', BundleMode.implement),
       throwsA(
@@ -231,28 +234,34 @@ void main() {
       'no doc covers or implements docs/specs/schema.dbml',
     ]);
   });
-  test('f01/us05/fr04/e11: --no-project with no match holds no doc and still warns', () async {
+  test('--no-project with no match holds no doc and still warns', () async {
     final b = code('app/lib/main.dart', BundleMode.implement, noProject: true);
     expect(b.docPaths, isEmpty);
     expect(b.joinedPaths, isEmpty);
     expect(b.warnings, hasLength(1));
   });
-  test("f01/us05/fr04: query gives the matched feature's map; design its whole subtree", () async {
-    expect(
-      code(
-        'app/lib/src/login/credential_validator.dart',
-        BundleMode.query,
-      ).mapTops,
-      {'$f/FEATURE.md'},
-    );
-    expect(
-      code(
-        'app/lib/src/login/credential_validator.dart',
-        BundleMode.design,
-      ).docPaths,
-      {for (final d in index.subtreeOf(index.at('$f/FEATURE.md')!)) d.docPath},
-    );
-  });
+  test(
+    "query gives the matched feature's map; design its whole subtree",
+    () async {
+      expect(
+        code(
+          'app/lib/src/login/credential_validator.dart',
+          BundleMode.query,
+        ).mapTops,
+        {'$f/FEATURE.md'},
+      );
+      expect(
+        code(
+          'app/lib/src/login/credential_validator.dart',
+          BundleMode.design,
+        ).docPaths,
+        {
+          for (final d in index.subtreeOf(index.at('$f/FEATURE.md')!))
+            d.docPath,
+        },
+      );
+    },
+  );
   test(
     'review focus 4: a code path given through a symbolic link to the project resolves inside it',
     skip: Platform.isWindows ? 'links need privileges on Windows' : null,
@@ -334,38 +343,35 @@ void main() {
       return (session, root);
     }
 
-    test(
-      'f01/us05/fr04/e13: a path under one code root picks that target alone',
-      () async {
-        final (session, root) = await writeFeedbackProject(
-          extra: {'jaspr_lib/lib/toast.dart': ''},
-        );
-        final codePath = resolveCodePath(
-          'jaspr_lib/lib/toast.dart',
-          workingDirectory: root,
-          targets: session.project.targets,
-          codeRootOf: session.project.codeRootOf,
-        );
-        expect(codePath.target.name, 'jaspr');
-        expect(codePath.path, 'lib/toast.dart');
-        final bundle = pickCodeBundle(
-          session.index,
-          codePath,
-          BundleMode.implement,
-          noProject: false,
-        );
-        expect(bundle.docPaths, {
-          'prds/features/f02_feedback/FEATURE.md',
-          'prds/features/f02_feedback/f03_toast/FEATURE.md',
-          'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md',
-          'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
-          'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
-        });
-        expect(bundle.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
-      },
-    );
+    test('a path under one code root picks that target alone', () async {
+      final (session, root) = await writeFeedbackProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final codePath = resolveCodePath(
+        'jaspr_lib/lib/toast.dart',
+        workingDirectory: root,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      );
+      expect(codePath.target.name, 'jaspr');
+      expect(codePath.path, 'lib/toast.dart');
+      final bundle = pickCodeBundle(
+        session.index,
+        codePath,
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(bundle.docPaths, {
+        'prds/features/f02_feedback/FEATURE.md',
+        'prds/features/f02_feedback/f03_toast/FEATURE.md',
+        'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md',
+        'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
+        'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
+      });
+      expect(bundle.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
+    });
 
-    test("f01/us05/fr04/e13: a shared doc's covers count for no target, so the target's own architecture is the spec match", () async {
+    test("a shared doc's covers count for no target, so the target's own architecture is the spec match", () async {
       final (session, root) = await writeFeedbackProject(
         extra: {
           'jaspr_lib/lib/toast.dart': '',
@@ -434,7 +440,7 @@ void main() {
       expect(resolve('lib/main.dart').target.name, 'app');
     });
 
-    test('f01/us05/fr04 traced docs: a stale implements line with no record entry traces nothing', () async {
+    test('traced docs: a stale implements line with no record entry traces nothing', () async {
       final (session, root) = await writeFeedbackProject(
         extra: {
           'jaspr_lib/lib/toast.dart': '',

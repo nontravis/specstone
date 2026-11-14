@@ -64,7 +64,7 @@ void main() {
     expectSectionsSay(integration, _says);
   });
 
-  test('f03/us07/fr03: integration caps 400 lines, bans no word, and cites '
+  test('integration caps 400 lines, bans no word, and cites '
       'its four sources', () {
     expectSpecLint(integration);
   });

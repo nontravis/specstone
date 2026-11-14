@@ -98,7 +98,7 @@ void main() {
     expectSectionsSay(architecture, _says);
   });
 
-  test('f03/us07/fr02: the component diagram guide ends with the Mermaid '
+  test('the component diagram guide ends with the Mermaid '
       'quoting sentence', () {
     expect(
       sectionOf(architecture, 'component_diagram').description,
