@@ -58,6 +58,14 @@ bool _isSlugChar(int code) =>
 
 bool _isDigit(int code) => code >= 0x30 && code <= 0x39;
 
+// The index of the first digit of [text]; -1 when it holds none.
+int _firstDigitAt(String text) {
+  for (var at = 0; at < text.length; at++) {
+    if (_isDigit(text.codeUnitAt(at))) return at;
+  }
+  return -1;
+}
+
 final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
 
 /// Whether all of [text] is shaped like a doc type id: `[a-z][a-z0-9_]*`.
@@ -688,7 +696,7 @@ OverrideLabel? _readOverrideLabel(String text) {
   final address = readDocAddress(text);
   final key = address.sectionKey;
   if (address.typeId == null || !address.isName || key == null) return null;
-  final prefixEnd = key.indexOf(RegExp('[0-9]'));
+  final prefixEnd = _firstDigitAt(key);
   if (prefixEnd <= 0) return null;
   final id = readItemIdAt(key, 0, key.substring(0, prefixEnd));
   if (id is! ItemId || id.written.length != key.length) return null;

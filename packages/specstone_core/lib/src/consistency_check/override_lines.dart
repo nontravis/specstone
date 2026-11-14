@@ -55,10 +55,11 @@ final class OverrideLine {
 }
 
 /// Whether a doc of [type] can hold override lines: it declares the
-/// `overrides` field and is not an `nf`, whose field is one NFR id.
+/// `overrides` field and is not an `nf` or a type built on it, whose field is
+/// one NFR id.
 bool carriesOverrides(MergedDocType? type) =>
     type != null &&
-    type.id != nfTypeId &&
+    !type.buildsOn(nfTypeId) &&
     type.fields.any((field) => field.id == _overridesField);
 
 /// Returns the override lines of [doc], in file order.
@@ -105,7 +106,8 @@ bool _isProjectSpecType(CheckContext context, MergedDocType type) =>
 
 // The docs above [doc]: the project spec docs of its code target, and, for a
 // feature's spec doc, that target's spec docs under each ancestor feature of
-// its feature.
+// its feature. The ancestor docs count only when their type carries
+// `overrides`.
 Set<String> _chainOf(CheckContext context, IndexedDoc doc) {
   final index = context.index;
   bool inTarget(IndexedDoc other) => other.target == doc.target;

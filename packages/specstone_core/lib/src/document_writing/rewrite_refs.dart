@@ -617,8 +617,9 @@ String? _newParentName(
   return renamed[(parent.docTypeId, parent.name)] ?? parent.name;
 }
 
-/// Whether a `journey` or `api` [doc] holds a step identity, FR trace cell,
-/// or `confirmed` label that [renamed] renames.
+/// Whether [doc], of a type that [carriesLinkLabels], holds a step identity,
+/// FR trace cell, `traced_from` entry, `confirmed` label, or `overrides`
+/// entry that [renamed] renames.
 ///
 /// Reads the file leniently, as the index does, so a doc that names no
 /// renamed doc is never read strictly and never refuses the rename.

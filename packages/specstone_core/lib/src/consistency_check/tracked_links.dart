@@ -257,6 +257,10 @@ typedef _Entry = ({String fingerprint, int line});
   return (label: label.written, fingerprint: fingerprint);
 }
 
+// Whether [value] opens with an override address, whatever follows it.
+bool _isOverrideEntry(Object? value) =>
+    value is String && readLinkLabel(value.split(' ').first) is OverrideLabel;
+
 // The first well-formed entry naming [link] is its entry.
 _Entry? _entryOf(DocLines lines, TrackedLink link) {
   final identity = linkIdentityOf(link.label);
@@ -322,9 +326,12 @@ Iterable<Finding> checkTrackedLinks(
       continue;
     }
     final entry = _entryOf(lines, link);
+    final field = link.entryKey == _overrideEntriesKey
+        ? ' in `$_overrideEntriesKey`'
+        : '';
     final read =
-        'read $block of $upstream below, then record ${link.label} with the '
-        'fingerprint after it';
+        'read $block of $upstream below, then record ${link.label}$field '
+        'with the fingerprint after it';
     final text = _blockText(source);
     switch (_stateOf(doc, link, entry)) {
       case LinkState.clean:
@@ -409,6 +416,9 @@ Iterable<Finding> checkConfirmedEntries(
           message: key == _overrideEntriesKey
               ? '$text is not an overrides entry; write '
                     '"<doc type>:<name>#<ID> <12 lowercase hex characters>"'
+              : _isOverrideEntry(item.value)
+              ? '$text is an override address, which belongs in '
+                    '`$_overrideEntriesKey`, not in `$_confirmedKey`'
               : '$text is not a confirmed entry; write '
                     '"<link> <12 lowercase hex characters>"',
           keys: {'entry': text},

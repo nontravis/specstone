@@ -106,8 +106,6 @@ Iterable<Finding> _unresolvedConcerns(
   IndexedDoc doc,
 ) sync* {
   final held = context.contentOf(doc).sections;
-  final type = context.typeOf(doc);
-  if (type == null) return;
   final headers = {
     for (final section in held)
       headerKey(section.headerLine.trimLeft().substring(2)),

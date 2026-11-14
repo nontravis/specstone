@@ -254,9 +254,9 @@ String? _overrideEntryLabel(
   return null;
 }
 
-/// Returns the `confirmed` key [block] with each entry label set to
-/// [newLabel], read by the shared key-block scan, so a flow list is read as a
-/// block list is; [block]'s text itself when none changes.
+/// Returns the `confirmed` or `overrides` key [block] with each entry label
+/// set to [newLabel], read by the shared key-block scan, so a flow list is
+/// read as a block list is; [block]'s text itself when none changes.
 ///
 /// The scan passes a bare entry's label and fingerprint one at a time, and a
 /// quoted entry whole; only its label part is renamed.
