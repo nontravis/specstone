@@ -163,14 +163,26 @@ static HANDLE inheritable_std_handle(DWORD which)
     return handle;
 }
 
-/* Returns the cmd.exe that ComSpec names, else the one under SystemRoot. */
+/* Returns whether the entry is absolute: a drive letter, `:`, then `\` or `/`,
+ * or a leading `\\`. */
+static BOOL is_absolute_entry(const wchar_t *entry)
+{
+    if (((entry[0] >= L'A' && entry[0] <= L'Z') || (entry[0] >= L'a' && entry[0] <= L'z'))
+        && entry[1] == L':' && (entry[2] == L'\\' || entry[2] == L'/')) {
+        return TRUE;
+    }
+    return entry[0] == L'\\' && entry[1] == L'\\';
+}
+
+/* Returns the cmd.exe that ComSpec names when it is an absolute path, else the
+ * one under SystemRoot. */
 static wchar_t *find_cmd(void)
 {
     wchar_t buffer[PATH_CAPACITY];
     const wchar_t *parts[2];
     DWORD length = GetEnvironmentVariableW(L"ComSpec", buffer, PATH_CAPACITY);
 
-    if (length > 0 && length < PATH_CAPACITY) {
+    if (length > 0 && length < PATH_CAPACITY && is_absolute_entry(buffer)) {
         parts[0] = buffer;
         return join(parts, 1);
     }
@@ -253,17 +265,6 @@ static DWORD start_and_wait(const wchar_t *program, const wchar_t *tail, BOOL th
     release(command_line);
     release(cmd);
     return status;
-}
-
-/* Returns whether the entry is absolute: a drive letter, `:`, then `\` or `/`,
- * or a leading `\\`. */
-static BOOL is_absolute_entry(const wchar_t *entry)
-{
-    if (((entry[0] >= L'A' && entry[0] <= L'Z') || (entry[0] >= L'a' && entry[0] <= L'z'))
-        && entry[1] == L':' && (entry[2] == L'\\' || entry[2] == L'/')) {
-        return TRUE;
-    }
-    return entry[0] == L'\\' && entry[1] == L'\\';
 }
 
 /* Returns whether the path names a file, not a folder; a link counts by what it
