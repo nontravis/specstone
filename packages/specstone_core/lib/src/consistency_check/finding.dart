@@ -87,6 +87,7 @@ enum FindingKind {
   perTargetReference('per_target_reference'),
   sharedDocCodePath('shared_doc_code_path'),
   numberLabel('number_label'),
+  citeUnlinked('cite_unlinked'),
   referenceDocUnresolved('reference_doc_unresolved'),
   listedFileMissing('listed_file_missing'),
   concernsTargetUnresolved('concerns_target_unresolved'),

@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/catalog_rules.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
+import 'package:specstone_core/src/consistency_check/cite_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/cross_doc_rules.dart';
@@ -100,6 +101,7 @@ CheckReport runCheck(
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
+      ..addAll(checkOldCites(context, doc))
       ..addAll(checkOpenTbrs(context, doc))
       ..addAll(checkReferenceEntries(context, doc))
       ..addAll(checkDiagrams(context, doc));

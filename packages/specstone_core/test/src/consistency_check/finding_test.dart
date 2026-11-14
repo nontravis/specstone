@@ -70,6 +70,7 @@ void main() {
       'per_target_reference',
       'shared_doc_code_path',
       'number_label',
+      'cite_unlinked',
       'reference_doc_unresolved',
       'listed_file_missing',
       'concerns_target_unresolved',

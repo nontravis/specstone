@@ -181,7 +181,8 @@ void main() {
         },
       ),
     );
-    expect(report.findings, isEmpty);
+    // One doc carries USER_STORY.md, so the prose path is an old cite form.
+    expect(spots(report), ['$loginFeature:13: cite_unlinked']);
   });
 
   group('link_target_missing', () {
