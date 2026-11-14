@@ -65,7 +65,7 @@ String _listName(IndexedDoc doc, bool summary) =>
 
 /// Returns the closing-list name of [part],
 /// `<name> (<doc type>) · cited <section key> [<ID>]`; a summary doc's is
-/// marked ` · summary` before ` · cited` (`trim_and_order_bundle` E15), and
+/// marked ` · summary` before ` · cited`, and
 /// a path's is `<DocPath> · cited`.
 String _partListName(AppendedPart part) =>
     '${part.pathOnly ? part.doc.docPath : _listName(part.doc, part.summary)}'
@@ -367,7 +367,7 @@ ContextAnswer _overBudget(
 
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
-/// joined by one blank line (Plan decision 21, INV-14), with the lines
+/// joined by one blank line, with the lines
 /// [citedBy] holds for its items printed after them, and the line each kept
 /// section starts on in the block.
 ({String block, List<CitedItem> cited, List<SectionLine> sections}) _docBlock(
@@ -412,8 +412,8 @@ ContextAnswer _overBudget(
 }
 
 /// Returns the map block of [top]: its subtree, one line per doc with its
-/// name, doc type, and token size, indented two spaces per depth below [top]
-/// (Plan decision 13); [codeTarget] keeps that target's per-target docs alone.
+/// name, doc type, and token size, indented two spaces per depth below [top];
+/// [codeTarget] keeps that target's per-target docs alone.
 String _mapBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [
     for (final member in index.subtreeOf(top))
@@ -427,7 +427,7 @@ String _mapLine(DocIndex index, IndexedDoc top, IndexedDoc member) =>
     '- ${nameWithType(member)} · ${member.tokens} tokens';
 
 /// Returns the names block of [top]: one `- <name> (<doc type>) · <n> tokens`
-/// line per ChainType child of [top] (Plan decision 13); [codeTarget] keeps
+/// line per ChainType child of [top]; [codeTarget] keeps
 /// that target's per-target children alone.
 String _namesBlock(DocIndex index, IndexedDoc top, String? codeTarget) {
   final lines = [

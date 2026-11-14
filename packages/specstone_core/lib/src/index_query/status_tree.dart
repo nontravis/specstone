@@ -94,11 +94,11 @@ final class StatusTree {
   /// null: the one `targets:` names when it names one, else the unnamed
   /// target.
   ///
-  /// A feature computes it from its subtree's stories (INV-17); a story or FR
+  /// A feature computes it from its subtree's stories; a story or FR
   /// takes its record entry's status, or `planned` without one, outside every
-  /// skip that covers it (INV-29); any other doc returns the status it writes,
+  /// skip that covers it; any other doc returns the status it writes,
   /// or null. With no record doc type every story and FR reads its `status:`
-  /// with no target, and a feature computes from those (INV-29).
+  /// with no target, and a feature computes from those.
   String? statusOf(IndexedDoc doc, {String? codeTarget}) {
     final typeId = doc.docTypeId;
     if (typeId == featureType) return _featureStatusOf(doc, codeTarget).wire;
@@ -107,7 +107,7 @@ final class StatusTree {
     return itemStatus(doc, codeTarget: codeTarget).wire;
   }
 
-  /// Returns the status of the story or FR [item] in [codeTarget] (INV-29):
+  /// Returns the status of the story or FR [item] in [codeTarget]:
   /// `skipped` under a skip of its feature, of a feature above, or, for an FR,
   /// of its story; else its record entry's `statuses` status, `planned`
   /// without an entry or a status.
@@ -120,7 +120,7 @@ final class StatusTree {
   }
 
   /// Returns the name of the skip that covers the story or FR [item] in
-  /// [codeTarget] apart from its own entry (INV-29), or null when none does.
+  /// [codeTarget] apart from its own entry, or null when none does.
   ///
   /// The narrowest skip wins, and the record nearest [item] first; a skipped
   /// feature entry is named by its feature.
@@ -176,7 +176,7 @@ final class StatusTree {
   }
 
   /// Returns the feature [doc]'s status in [codeTarget] from the stories of
-  /// its whole subtree (INV-17): `skipped` under its own skip or one above;
+  /// its whole subtree: `skipped` under its own skip or one above;
   /// `planned` with no story; `skipped` when every story is; `deprecated`
   /// when every story not skipped is; `implemented` when every story neither
   /// skipped nor deprecated is; `planned` otherwise.

@@ -26,7 +26,7 @@ void checkSlug(String slug) {
 
 /// Whether [own], an entry that fits [shape]'s own segment, holds the doc.
 ///
-/// A folder with no doc file under it is no sibling: INV-8 counts docs. A
+/// A folder with no doc file under it is no sibling: only docs count. A
 /// file, or a doc file name with placeholders, is taken as is.
 bool _holdsDoc(DocPathShape shape, FileSystemEntity own) {
   if (shape.ownIsFile) return true;

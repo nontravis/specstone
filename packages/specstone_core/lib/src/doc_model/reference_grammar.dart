@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/whatwg_url.dart';
 
-/// A doc reference split into its parts (doc_model RULE-11); DocIndex
+/// A doc reference split into its parts; DocIndex
 /// resolves it.
 final class DocAddress {
   const new({this.typeId, required this.body, this.sectionKey});
@@ -20,7 +20,7 @@ final class DocAddress {
   /// `/`.
   bool get isName => _slugCount(body) >= 1;
 
-  /// Whether the form alone marks a reference (R62): a Name of 2 or more
+  /// Whether the form alone marks a reference: a Name of 2 or more
   /// slugs, bare or after `<doc type>:`, or a one-slug Name after
   /// `<doc type>:`.
   bool get isReferenceWithoutLookup =>
@@ -48,7 +48,7 @@ int _slugCount(String text) {
   return count;
 }
 
-/// The one-code-point letter test P9 allows (RULE-12: a letter ends no ID).
+/// The one-code-point letter test: a letter ends no ID.
 final _letters = RegExp(r'\p{L}', unicode: true);
 
 bool _isSlugChar(int code) =>
@@ -64,7 +64,7 @@ final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
 bool isDocTypeIdShaped(String text) => _docTypeId.hasMatch(text);
 
 /// Reads [text] as a doc address: an optional `<doc type>:` prefix, a Name
-/// or path, and an optional `#<section key>` (RULE-11).
+/// or path, and an optional `#<section key>`.
 ///
 /// The text before the first `:` is a prefix only when it is one slug; any
 /// other text reads whole as the body.
@@ -96,7 +96,7 @@ final _closingMark = RegExp(r'[.,;:]$');
 String proseTrimmedPath(String path) =>
     path.replaceFirst(_closingMark, '').replaceFirst(_lineSuffix, '');
 
-/// An item ID or a scenario number where its item opens (doc_model RULE-12).
+/// An item ID or a scenario number where its item opens.
 sealed class IdRead {
   const new({required this.prefix, required this.digits});
 
@@ -168,7 +168,7 @@ IdRead? readItemIdAt(String text, int at, String prefix) {
 ///
 /// An ID is a token of one of [prefixes], the longest first, so `SHA256` is
 /// no ID unless a doc type's section holds the prefix `SHA`. The digits are
-/// read by [readItemIdAt]: a lettered or unreadable form (RULE-33) is no ID.
+/// read by [readItemIdAt]: a lettered or unreadable form is no ID.
 List<({int at, ItemId id})> itemIdsInProse(
   String prose, {
   required Set<String> prefixes,
@@ -216,7 +216,7 @@ IdRead? readScenarioHeading(String line) {
   return _readIdAt(line, scenarioIdPrefix, open.length);
 }
 
-/// Reads the digits at [start] and any letter run that follows (RULE-12); a
+/// Reads the digits at [start] and any letter run that follows; a
 /// digit after that run makes the form unreadable.
 IdRead? _readIdAt(String text, String prefix, int start) {
   final end = _digitsEnd(text, start);
@@ -257,7 +257,7 @@ int _alphanumericEnd(String text, int start) {
 }
 
 /// The index past a letter run starting at [start], astral letters
-/// included (P9: the test is the code point, not the UTF-16 unit).
+/// included (the test is the code point, not the UTF-16 unit).
 int _lettersEnd(String text, int start) {
   var end = start;
   while (end < text.length) {
@@ -273,11 +273,11 @@ bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 
 // MARK: - Link targets
 
-/// A markdown link target read through the grammar (RULE-11).
+/// A markdown link target read through the grammar.
 sealed class LinkTargetForm;
 
 /// A target the WHATWG URL parser fails on, the linking doc's file URL as
-/// its base (RULE-11): the only unreadable class.
+/// its base: the only unreadable class.
 final class UnreadableLink extends LinkTargetForm;
 
 /// A target opening with a scheme, any scheme.
@@ -303,12 +303,12 @@ final class RelativeLink extends LinkTargetForm {
     required this.pathEnd,
   });
 
-  /// The path split on `/`, each segment percent-decoded (RULE-7); empty
+  /// The path split on `/`, each segment percent-decoded; empty
   /// for `#x`, `?q`.
   final List<String> segments;
 
   /// The fragment decoded as a segment is; null with no `#`; `''` for `#`
-  /// alone (the doc's top, RULE-13).
+  /// alone (the doc's top).
   final String? anchor;
 
   /// The text after the first `#` as written, escapes kept; null with no `#`.
@@ -319,7 +319,7 @@ final class RelativeLink extends LinkTargetForm {
   final int pathEnd;
 }
 
-/// Reads [href] as a link target form (RULE-11): only a target the WHATWG
+/// Reads [href] as a link target form: only a target the WHATWG
 /// URL parser fails on with a `file:` base is unreadable.
 LinkTargetForm readLinkTarget(String href) {
   if (whatwgParseFails(href)) return UnreadableLink();
@@ -497,7 +497,7 @@ bool _isAsciiPunctuation(int code) =>
 
 /// Returns the index past the `:` of a scheme at [start] of [text], or -1
 /// when none opens there: an ASCII letter, then letters, digits, `+`, `-`,
-/// `.`, then `:` (RULE-11).
+/// `.`, then `:`.
 int schemeEndOf(String text, [int start = 0]) {
   if (start >= text.length || !_isAsciiLetter(text.codeUnitAt(start))) {
     return -1;
@@ -516,7 +516,7 @@ bool _isAsciiLetter(int code) =>
     (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
 
 /// Returns, keyed by its index in [ids], the next free ID of each
-/// [LetteredId], counted per prefix in list order (RULE-12, R61): the
+/// [LetteredId], counted per prefix in list order: the
 /// highest [ItemId] number of that prefix plus one, plus one per earlier
 /// [LetteredId] of that prefix, zero-padded to the digit count of that
 /// highest [ItemId] (1 when none).
@@ -544,7 +544,7 @@ Map<int, String> nextFreeIds(List<IdRead> ids) {
   return nextOf;
 }
 
-/// A scenario ref (RULE-11): `S<N>` of the own story when [storyName] is
+/// A scenario ref: `S<N>` of the own story when [storyName] is
 /// null, else `<story Name>#S<N>`, or a journey `<story Name> S<N>`.
 final class ScenarioRef {
   const new(this.number, {this.storyName});
@@ -557,7 +557,7 @@ final class ScenarioRef {
   /// The scenario number; null for a LetteredId.
   BigInt? get scenario => number is ItemId ? (number as ItemId).number : null;
 
-  /// `S<N>` or `<story Name>#S<N>`, as written (P10).
+  /// `S<N>` or `<story Name>#S<N>`, as written.
   String get label =>
       storyName == null ? number.written : '$storyName#${number.written}';
 }
@@ -612,8 +612,8 @@ final class ScenarioLabel extends LinkLabel {
   @override
   String get written => ref.label;
 
-  /// `S<value>` or `<story Name>#S<value>`, so `a/b#S09` names `a/b#S9`
-  /// (W9); a lettered number as written.
+  /// `S<value>` or `<story Name>#S<value>`, so `a/b#S09` names `a/b#S9`;
+  /// a lettered number as written.
   @override
   String get identity {
     final scenario = ref.scenario;
@@ -643,7 +643,7 @@ final class FrRefLabel extends LinkLabel {
   String get written => name;
 }
 
-/// Reads [text], whole, as a `confirmed` entry's first word (RULE-11).
+/// Reads [text], whole, as a `confirmed` entry's first word.
 LinkLabel? readLinkLabel(String text) {
   final scenario = readScenarioRef(text);
   if (scenario != null) return ScenarioLabel(scenario);

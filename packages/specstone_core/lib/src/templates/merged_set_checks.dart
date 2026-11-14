@@ -15,7 +15,7 @@ typedef ParsedPack = ({LoadedPack pack, Map<String, DocTypeLayer> layers});
 /// The load index of every layer file: its place in the load sequence.
 ///
 /// The load sequence runs the packs in `orderPacks` order, each pack's layers
-/// in parse order, then the project layers (INV-22). A later layer has the
+/// in parse order, then the project layers. A later layer has the
 /// higher index, so layer rank and file order need no second rule.
 typedef LoadIndex = Map<String, int>;
 
@@ -65,8 +65,8 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// through `extends` when no own layer wrote it. A fault that names several
 /// files ranks them by [loadIndex]. [targetNames] holds the config's target
 /// names, empty when the config reads no `targets:` key; a named-target
-/// config needs the record doc type (INV-29). Runs after every merge
-/// (INV-19, INV-21): two doc types may not share one `path`
+/// config needs the record doc type. Runs after every merge:
+/// two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
@@ -92,7 +92,7 @@ void checkMergedSet(
   _checkRecords(sorted, layerLists, loadIndex, targetNames);
 }
 
-/// Throws `unknown_value` for a `max_depth` that breaks INV-28 (SF-R11).
+/// Throws `unknown_value` for an invalid `max_depth`.
 void _checkNesting(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
@@ -166,8 +166,7 @@ bool _lastFolderHoldsSlug(String? path) {
       segments[segments.length - 2].contains('{slug}');
 }
 
-/// Throws `doc_type_path_conflict` for a `path` two doc types share
-/// (INV-19).
+/// Throws `doc_type_path_conflict` for a `path` two doc types share.
 ///
 /// `file` holds the `path` writer that loads last by [loadIndex], and
 /// `relatedFiles` the other holders' writers, ascending. The message names the
@@ -218,7 +217,7 @@ String _joinIds(List<String> ids) => ids.length < 2
     : '${ids.sublist(0, ids.length - 1).join(', ')} and ${ids.last}';
 
 /// Throws `unknown_value` for a `parent` naming no doc type of the set, then
-/// `parent_cycle` for a `parent` chain that returns to its start (INV-21).
+/// `parent_cycle` for a `parent` chain that returns to its start.
 void _checkParents(
   List<MergedDocType> docTypes,
   Map<String, MergedDocType> byId,
@@ -278,7 +277,7 @@ Never _throwParentCycle(
 }
 
 /// Throws `unknown_value` for a `doc_types` entry naming no doc type of the
-/// set (INV-21).
+/// set.
 void _checkFieldTargets(
   List<MergedDocType> docTypes,
   Map<String, MergedDocType> byId,
@@ -354,7 +353,7 @@ void _checkRequiredWhen(
   }
 }
 
-/// Throws `unknown_value` for the record doc type rules (INV-29, INV-31):
+/// Throws `unknown_value` for the record doc type rules:
 /// a second `record_status` holder, a record doc type whose merged
 /// `per_target` is not `true`, and a named-target config with no record doc
 /// type.

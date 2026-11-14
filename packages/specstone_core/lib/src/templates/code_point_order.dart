@@ -1,4 +1,4 @@
-/// Compares [a] and [b] by Unicode code point (INV-22).
+/// Compares [a] and [b] by Unicode code point.
 ///
 /// Compares `runes` element by element; a strict prefix sorts first. Unlike
 /// `String.compareTo`, which orders UTF-16 code units, this puts `U+FF01`

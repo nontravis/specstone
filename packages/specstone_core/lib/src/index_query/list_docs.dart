@@ -82,7 +82,7 @@ ReadAnswer answerList(DocIndex index, String docTypeId, ListFilters filters) {
 }
 
 /// Throws `argument_missing` when a per-target filter would judge two or
-/// more code targets at once with no target picked (E10).
+/// more code targets at once with no target picked.
 void _refuseAmbiguousTarget(DocIndex index, ListFilters filters) {
   final judgesTarget = filters.status != null || filters.noImplements;
   if (!judgesTarget || filters.codeTarget != null) return;

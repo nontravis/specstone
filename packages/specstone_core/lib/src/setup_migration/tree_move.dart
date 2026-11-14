@@ -18,7 +18,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 ///
 /// [olderPatterns] are the one-target patterns that a pack's `move_file` steps
 /// of per-target doc types read their docs from, which the doc types of [set]
-/// no longer hold (R-T26-1).
+/// no longer hold.
 List<PathMove> treeMovesOf(
   List<String> docPaths,
   MergedSet set, {

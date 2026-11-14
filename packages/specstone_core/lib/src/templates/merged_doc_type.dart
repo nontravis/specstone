@@ -531,7 +531,7 @@ final class MergedDocType {
   /// when no layer sets it.
   final int? maxDepth;
 
-  /// Whether the doc type reads its patterns once per target (INV-30).
+  /// Whether the doc type reads its patterns once per target.
   final bool isPerTarget;
 
   /// Whether the doc type's own folder segment may repeat.
@@ -552,7 +552,7 @@ final class MergedDocType {
 
   /// The generated-block kinds the doc type lists; null when no layer sets it.
   ///
-  /// Null differs from empty: a plain list merges only over null (PD17).
+  /// Null differs from empty: a plain list merges only over null.
   final List<String>? generators;
 
   /// The generated-block kinds the doc type lists, empty when none is set.

@@ -296,7 +296,7 @@ List<IndexedDoc> _distinct(List<IndexedDoc> targets) {
 }
 
 /// Throws [IndexFault] `argument_invalid` when [parent] holds a doc of the
-/// nesting type, since a feature holds stories or features (SF-R1).
+/// nesting type, since a feature holds stories or features.
 void _checkTakesStory(
   WriteSession session,
   IndexedDoc parent,
@@ -488,7 +488,7 @@ List<PathMove> _renameMoves(
 }
 
 /// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
-/// [slug], or a path on disk is where one of [moves] lands (PD12); the fault
+/// [slug], or a path on disk is where one of [moves] lands; the fault
 /// names [newDocPath].
 void _checkNoClash(
   WriteSession session,
@@ -615,7 +615,7 @@ bool _folderExists(WriteSession session, String folder) =>
 
 /// Returns every move twice, as a [MoveStep]: each path to its stage slot,
 /// then each stage slot to its target, so no move lands on a path another
-/// has not yet left (PD3).
+/// has not yet left.
 List<MoveStep> _stageSteps(WriteSession session, List<PathMove> moves) => [
   for (final (i, move) in moves.indexed)
     MoveStep(_stepPath(session, move.from), '${MoveJournal.stagePath}/$i'),

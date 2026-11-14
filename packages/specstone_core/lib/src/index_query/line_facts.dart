@@ -32,7 +32,7 @@ String markdownUnparsedWarning(String docPath) =>
 /// and null otherwise.
 ///
 /// The second keeps a doc whose links a move or the see rule cannot read
-/// from passing in silence (R74).
+/// from passing in silence.
 String? linkWarningOf(String docPath, LinkPlaces? links) {
   if (links == null) return markdownUnparsedWarning(docPath);
   if (links.readersAgree) return null;
@@ -287,14 +287,14 @@ final class LineFacts {
   final List<LinkPlace> unreadableLinks;
 
   /// The text and place of each doc link and self link whose text reads as an
-  /// item ID (RULE-45), in source order.
+  /// item ID, in source order.
   final List<LinkText> linkTexts;
 
-  /// The doc-name mentions of the body, in source order (RULE-11); `line` is
+  /// The doc-name mentions of the body, in source order; `line` is
   /// the file line.
   final List<NameMention> nameMentions;
 
-  /// The number labels of the body as `number_label` reads them (R82), in
+  /// The number labels of the body as `number_label` reads them, in
   /// source order; `line` is the file line.
   final List<LabelPlace> numberLabels;
 
@@ -303,11 +303,11 @@ final class LineFacts {
   /// the marker, trimmed.
   final List<TbrMarkerPlace> tbrMarkers;
 
-  /// The cite candidates of the body (RULE-48), in source order; none for an
+  /// The cite candidates of the body, in source order; none for an
   /// untyped doc.
   final List<CiteCandidate> citeCandidates;
 
-  /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
+  /// The doc's anchor set; null when the anchor set cannot
   /// be computed, never a stand-in for an empty one.
   final DocAnchors? anchors;
 

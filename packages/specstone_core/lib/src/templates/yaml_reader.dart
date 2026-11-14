@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:yaml/yaml.dart';
 
-/// Decodes YAML file [bytes] as UTF-8 with CRLF normalized to LF (F3-D50).
+/// Decodes YAML file [bytes] as UTF-8 with CRLF normalized to LF.
 ///
 /// A non-UTF-8 byte sequence is `yaml_syntax` naming [file], with no `line`.
 /// Every YAML file, shipped or on disk, is read as bytes and decoded here.

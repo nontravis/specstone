@@ -23,7 +23,7 @@ const _planLabel = 'number labels: ';
 const _leftLabel = '; left: ';
 
 /// The text between two labels that makes the second follow the first in a
-/// list or a range (R82).
+/// list or a range.
 const _listJoiners = {', ', '; ', ' and ', ' or ', ' to '};
 
 final _featureFolder = RegExp(r'^f(\d+)_([a-z0-9_]+)$');
@@ -170,7 +170,7 @@ final class LabelTree {
   // MARK: - Resolving
 
   /// The one DocPath [label], read relative to [citingDocPath], names; null
-  /// for none or two or more (E26, E27).
+  /// for none or two or more.
   ///
   /// [before] is the label the list or range puts just before [label]: a
   /// label that lacks a feature or story then has two readings, the citing
@@ -578,7 +578,7 @@ final class _TreeDoc {
 // MARK: - LabelPass
 
 /// The one-time pass of a pack upgrade that replaces each number label that
-/// names exactly one doc with that doc's name (D18, R81, R82).
+/// names exactly one doc with that doc's name.
 ///
 /// A converted label becomes the doc name in a code span, the name alone
 /// inside a code span that holds it and inside a `mermaid` block. A file under
@@ -766,8 +766,8 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
 }
 
 /// Returns the text of each of [docs] a label conversion changes, its links
-/// to a heading whose slug the conversion changed set to the new slug (D58,
-/// ledger G11); the one step both the upgrade and the legacy run take.
+/// to a heading whose slug the conversion changed set to the new slug; the one
+/// step both the upgrade and the legacy run take.
 ///
 /// [docs] are the texts before the conversion and [converted] the texts
 /// after it, by the path each doc's links are relative to. A heading changes
@@ -913,7 +913,7 @@ _Converted _markdownEdits(
 
 /// Whether [gap], the text between two labels, joins them in a list or a
 /// range: a joiner, with any item IDs and a joiner after each, once the
-/// [firstItemId] that follows the first label is set aside (R82).
+/// [firstItemId] that follows the first label is set aside.
 bool _isListGap(String gap, String? firstItemId) {
   var rest = gap;
   if (firstItemId != null && rest.startsWith(' $firstItemId')) {

@@ -126,7 +126,7 @@ Iterable<Finding> _unresolvedConcerns(
         start: see.start,
         end: see.start + target.length,
       );
-      // The doc's markdown_unparsed already says its links go unchecked (E14).
+      // The doc's markdown_unparsed already says its links go unchecked.
       if (link case (href: null)) continue;
       final resolves = _seeResolves(
         context,
@@ -180,10 +180,10 @@ bool _isTrailingDrop(String char) =>
 
 /// Whether [text], a `see` target or the href of the link that spans it,
 /// names a `##` section of [doc], a file at the path relative to it, the
-/// doc itself included, or an anchor of the doc or of that file (R63).
+/// doc itself included, or an anchor of the doc or of that file.
 ///
-/// A link, [isLink], names no section, as the link rule reads it (R71). Text
-/// after a path makes it no path (E11). An anchor set that is unknown (null)
+/// A link, [isLink], names no section, as the link rule reads it. Text
+/// after a path makes it no path. An anchor set that is unknown (null)
 /// or a file no doc indexes raises nothing for the anchor; [anchors] is the
 /// set of [doc] itself.
 bool _seeResolves(

@@ -84,8 +84,7 @@ final _frFile = RegExp(r'/functional_requirements/fr\d+_[^/]+\.md$');
 /// `TemplateFault` before it returns, so a refused run prints nothing. The
 /// plan's `inputs` hold every file it read.
 /// A created config, or a rewritten one with no `code_root:` key, names the
-/// folder from which the most cited code paths exist as its `code_root`
-/// (`write_project_files` E11).
+/// folder from which the most cited code paths exist as its `code_root`.
 ///
 /// - [homeDirectory]: the personal pack home, or null.
 /// - [linkFolder]: the canonical folder whose `docs` link led to [root], or
@@ -156,8 +155,7 @@ RunPlan _legacyRunOf(
   );
   final config = File.fromUri(root.uri.resolve(projectConfigPath));
   final existing = config.existsSync() ? ProjectConfig.read(root) : null;
-  // A config that holds its roots, `code_root:` or `targets:`, keeps them
-  // (`write_project_files` E10, E15).
+  // A config that holds its roots, `code_root:` or `targets:`, keeps them.
   final keepsCodeRoots =
       existing != null &&
       (existing.hasCodeRoot || existing.targetNames.isNotEmpty);
@@ -561,8 +559,7 @@ _Rewrites _rewritesOf(
     _ => null,
   };
   MergedDocType? typeOf(_Work work) => matchOf(work)?.docType;
-  // The stamp is the last write of a doc, so the hash covers its final text
-  // (`show_plan_and_apply_on_yes` E07).
+  // The stamp is the last write of a doc, so the hash covers its final text.
   void layOut(_Work work) {
     final type = typeOf(work);
     work.lf = layOutDoc(work.lf, type);
@@ -677,7 +674,7 @@ String _approvedBlockOf(String lf) => [
 ].join();
 
 /// Moves the status and code paths of each story and FR of [works] into the
-/// draft record of its feature (`write_project_files` E14), and returns the
+/// draft record of its feature, and returns the
 /// records the run creates, in path order.
 ///
 /// It is the upgrade's `move_to_record` step, placed by the same builder, so
@@ -804,7 +801,7 @@ String _keysLost(String before, String after) {
 }
 
 /// Converts the legacy IDs and number labels of [works] that name one moved
-/// doc to its name (`rewrite_titles_keys_and_links` E18, E19), and moves the
+/// doc to its name, and moves the
 /// anchors of links to a heading whose slug a conversion changed.
 ///
 /// The tree is read before any conversion, from the texts the title and key

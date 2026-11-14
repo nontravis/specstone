@@ -27,7 +27,7 @@ typedef _BodyPass = ({Map<String, String> bodies, Set<String> linksUnread});
 /// It reads IDs and next numbers as `check` does, so each new number is the
 /// `next` its `item_id_lettered` finding named. Its cost follows the lettered
 /// IDs: a doc holding no renumbered token is read for its structure once and
-/// never rewritten, and each rewrite runs once (W17).
+/// never rewritten, and each rewrite runs once.
 final class RenumberPass {
   new _(this._texts, this._docs, this._index)
     : renumberings = _index.renumberings;
@@ -36,7 +36,7 @@ final class RenumberPass {
   /// merged doc type, null for an untyped doc.
   ///
   /// An untyped doc holds no ID; only its links take the moved anchors, as
-  /// `check` reads its links too (W3).
+  /// `check` reads its links too.
   factory plan(List<({String docPath, String lf, MergedDocType? type})> docs) {
     final sorted = [...docs]
       ..sort((a, b) => compareCodePoints(a.docPath, b.docPath));
@@ -101,7 +101,7 @@ final class RenumberPass {
   /// `<m>` counts the docs the pass rewrites, the renumbered docs and each
   /// other doc it rewrites for them. A doc whose links it needs but `markdown`
   /// does not read, whose link citations and link anchors stay as written,
-  /// adds `; not fully rewritten: <k>` (LP2, R74).
+  /// adds `; not fully rewritten: <k>`.
   String? get planLine {
     if (renumberings.isEmpty) return null;
     final unread = _unreadDocs;

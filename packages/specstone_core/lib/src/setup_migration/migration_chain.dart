@@ -30,7 +30,7 @@ final class PackUpgrade {
 /// version, in code point order of the pack name.
 ///
 /// `steps` holds, for every entry with `pin <= from < target` in ascending
-/// `from` order, its steps in list order (INV-10); a pack with no such entry
+/// `from` order, its steps in list order; a pack with no such entry
 /// changes its pin only.
 ///
 /// A pin newer than the available version yields no upgrade: `chooseRun`

@@ -17,7 +17,7 @@ const _planLabel = 'cites: ';
 const _leftLabel = '; left: ';
 const _space = 0x20;
 
-/// The pack versions that first ship the cite rule (doc_model RULE-45).
+/// The pack versions that first ship the cite rule.
 ///
 /// A pack upgrade that moves one of these pins up from below its version runs
 /// the cite pass once; a later upgrade never does.
@@ -75,7 +75,7 @@ typedef _Edit = ({int line, int start, int end, String text});
 // MARK: - CitePass
 
 /// The pass of a pack upgrade that rewrites each old cite form naming exactly
-/// one doc, section, or item to its link (apply_steps_and_pins E78 to E85).
+/// one doc, section, or item to its link.
 ///
 /// It reads each typed doc's body as `check` reads its cite candidates and
 /// resolves each through `resolveCite` over the planned tree, so it rewrites
@@ -198,7 +198,7 @@ _DocResult _convertDoc(
 ///
 /// A doc or section cite becomes its one link. An item cite drops its doc
 /// part and the spaces after it, and each item ID becomes its own link, the
-/// words between them kept (E79, E80).
+/// words between them kept.
 List<_Edit> _editsOf(
   CiteForm form,
   CiteLink link,

@@ -20,7 +20,7 @@ final class PathPattern {
   final RegExp _values;
 
   /// Returns this pattern with [target] as a literal folder right after its
-  /// first segment (RULE-20): a pattern with no folder takes the target as
+  /// first segment: a pattern with no folder takes the target as
   /// its folder.
   PathPattern forTarget(String target) {
     final (:head, :rest) = _splitAtFirstFolder();
@@ -28,7 +28,7 @@ final class PathPattern {
   }
 
   /// Returns the folder, ending in `/`, that holds [target]'s docs of this
-  /// pattern: its first folder, then the target folder (RULE-20).
+  /// pattern: its first folder, then the target folder.
   String targetFolder(String target) => '${_splitAtFirstFolder().head}$target/';
 
   // The text up to and including the first `/`, and the rest.

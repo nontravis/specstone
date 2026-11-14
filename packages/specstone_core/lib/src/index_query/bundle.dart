@@ -45,7 +45,7 @@ final class Bundle {
   final bool summary;
 
   /// The code target whose per-target docs alone this bundle keeps; null keeps
-  /// every target's (E24, E25).
+  /// every target's.
   final String? codeTarget;
 
   /// The docs the chain rule picks, by DocPath.
@@ -58,11 +58,11 @@ final class Bundle {
   final Set<String> joinedPaths = {};
 
   /// The docs `--no-project` drops: those [joinedPaths] would hold without
-  /// it; a link into one is not followed (follow_cited_links E11).
+  /// it; a link into one is not followed.
   final Set<String> droppedPaths = {};
 
   /// The docs that print in summary only: [summaryPaths] that no target picks
-  /// whole and no `bundle:` join adds (DB-C9).
+  /// whole and no `bundle:` join adds.
   Set<String> get summaryOnly =>
       summaryPaths.difference(docPaths).difference(joinedPaths);
 
@@ -81,7 +81,7 @@ final class Bundle {
   /// target's docs.
   bool keepsTarget(IndexedDoc doc) => doc.inTarget(codeTarget);
 
-  /// Adds [target] and its chain docs by [mode]'s rule (INV-11, INV-12).
+  /// Adds [target] and its chain docs by [mode]'s rule.
   void addTarget(DocIndex index, IndexedDoc target) {
     final typeId = target.docTypeId;
     final parent = index.parentOf(target);
@@ -102,7 +102,7 @@ final class Bundle {
   }
 
   /// Adds every typed doc whose doc type's `bundle:` list holds the mode,
-  /// unless [noProject] drops it (INV-13).
+  /// unless [noProject] drops it.
   void join(DocIndex index, {required bool noProject}) {
     for (final doc in index.docs) {
       final bundle = index.typeOf(doc)?.bundle;
@@ -118,7 +118,7 @@ final class Bundle {
   /// Returns the docs in print order: the joined docs in tree order, then a
   /// pre-order walk from each doc of [docPaths] and [summaryPaths] whose
   /// parent is outside both, children inside both sorted by chain type first,
-  /// then doc type id, then DocPath, by code point (INV-15). The walk drops a
+  /// then doc type id, then DocPath, by code point. The walk drops a
   /// joined doc, which prints once, whole.
   List<IndexedDoc> printOrder(DocIndex index) {
     final inDocPaths = {...docPaths, ...summaryPaths};
@@ -143,7 +143,7 @@ final class Bundle {
   /// Adds the design docs of [target] read from its nearest nesting doc.
   ///
   /// The nearest nesting doc and its unit take the design rule; each chain doc
-  /// above prints whole with a name list of its ChainType children (SF-C7).
+  /// above prints whole with a name list of its ChainType children.
   void _addDesign(DocIndex index, IndexedDoc target, IndexedDoc top) {
     final designTop = _designTopOf(index, target, top);
     final chain = index.chainOf(target);
@@ -272,7 +272,7 @@ int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
 /// prints a top doc's ChainType children in summary and throws
 /// `argument_conflict` outside `BundleMode.design`. [codeTarget] keeps the
 /// per-target docs of that code target alone and is required for
-/// `BundleMode.implement` with two or more targets (E23).
+/// `BundleMode.implement` with two or more targets.
 Bundle pickBundle(
   DocIndex index,
   String target,
@@ -329,7 +329,7 @@ Bundle pickBundle(
 }
 
 /// Throws `argument_missing` for an implement bundle over two or more code
-/// targets with none picked (E23).
+/// targets with none picked.
 void _refuseAmbiguousTarget(DocIndex index) {
   if (!index.hasTwins) return;
   throw IndexFault(

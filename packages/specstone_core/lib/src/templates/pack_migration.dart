@@ -138,7 +138,7 @@ final class StampCodeFingerprints extends MigrationStep {
 /// A null node gives no entries; entries keep file order. A bad `from:` is
 /// `pack_version_invalid`, an unknown step kind is `unknown_value`, a missing
 /// key is `missing_key`, and an unknown key is `unknown_key`, keyed
-/// `migrations[<i>].from` and `migrations[<i>].steps[<j>].<kind>.<key>` (PD17).
+/// `migrations[<i>].from` and `migrations[<i>].steps[<j>].<kind>.<key>`.
 List<PackMigration> parseMigrations(YamlNode? node, {required String file}) =>
     switch (node) {
       null => const <PackMigration>[],

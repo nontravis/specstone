@@ -24,12 +24,12 @@ final _fingerprintShape = RegExp(r'^[0-9a-f]{12}$');
 /// Whether a tracked link is current, changed, or without a matching entry.
 enum LinkState { clean, suspect, unconfirmed }
 
-/// One link from a downstream doc to an upstream block (INV-5).
+/// One link from a downstream doc to an upstream block.
 final class TrackedLink {
   /// The link [label] traced at [traceLine].
   ///
   /// [upstream], [block], [source], and [fingerprint] stay null when the
-  /// upstream block is missing; the link then has no [LinkState] (INV-6).
+  /// upstream block is missing; the link then has no [LinkState].
   const new({
     required this.label,
     required this.traceLine,
@@ -59,8 +59,8 @@ final class TrackedLink {
   final String? fingerprint;
 }
 
-/// Returns the links [doc] tracks, one per link identity, in trace order
-/// (INV-5): `S6` and `S06` are one link.
+/// Returns the links [doc] tracks, one per link identity, in trace order:
+/// `S6` and `S06` are one link.
 ///
 /// An `fr` tracks its `S<N>` and sibling `<story Name>#S<N>` trace
 /// entries (a lettered number yields a link with no upstream), an `nf` of
@@ -159,7 +159,7 @@ TrackedLink _statementLink(
 }
 
 // A step whose `step:` reads as a target tracks that story scenario; a missing
-// story or scenario leaves the link without an upstream (INV-6).
+// story or scenario leaves the link without an upstream.
 Iterable<TrackedLink> _stepLinks(
   CheckContext context,
   IndexedDoc journey,
@@ -205,7 +205,7 @@ typedef _Entry = ({String fingerprint, int line});
   return (label: label.written, fingerprint: fingerprint);
 }
 
-// The first well-formed entry naming the link of [label] is its entry (PD19).
+// The first well-formed entry naming the link of [label] is its entry.
 _Entry? _entryOf(DocLines lines, String label) {
   final identity = linkIdentityOf(label);
   for (final item in lines.entriesOf(_confirmedKey)) {
@@ -225,7 +225,7 @@ LinkState _stateOf(IndexedDoc doc, TrackedLink link, _Entry? entry) {
       : LinkState.suspect;
 }
 
-/// Whether any link [doc] tracks is `suspect` (INV-6).
+/// Whether any link [doc] tracks is `suspect`.
 bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
   if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return false;
   final lines = context.linesOf(doc);
@@ -236,11 +236,11 @@ bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
   );
 }
 
-/// Returns the `suspect` and `unconfirmed` findings of [doc] (INV-6, INV-7).
+/// Returns the `suspect` and `unconfirmed` findings of [doc].
 ///
 /// A link whose upstream block is missing takes no state; the broken-pointer
 /// check reports it.
-/// Only a doc type that defines `confirmed` is read (INV-2).
+/// Only a doc type that defines `confirmed` is read.
 Iterable<Finding> checkTrackedLinks(
   CheckContext context,
   IndexedDoc doc,
@@ -318,7 +318,7 @@ String _blockText(String source) {
   return text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
 }
 
-/// Returns the malformed and stale `confirmed` entries of [doc] (INV-7).
+/// Returns the malformed and stale `confirmed` entries of [doc].
 ///
 /// Only a doc type that defines `confirmed` is read; a draft is read too.
 Iterable<Finding> checkConfirmedEntries(

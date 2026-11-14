@@ -66,7 +66,7 @@ bool _namesFolders(CheckContext context, String matched) =>
     matched.split('/').every(context.folderNames.contains);
 
 /// Whether every code span of the 1-based [line] that holds [matched] is one
-/// the reference grammar reads as a doc address with no lookup (R62).
+/// the reference grammar reads as a doc address with no lookup.
 ///
 /// A stored match names no span, so a match two spans hold stays a hit unless
 /// both are references.

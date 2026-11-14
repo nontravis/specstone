@@ -5,7 +5,7 @@ import 'package:specstone_core/specstone_core.dart';
 /// schema.
 ///
 /// A template fault reaches only the commands that resolve templates, `guide`
-/// and `format` (INV-11).
+/// and `format`.
 class GuideCommand extends SpecstoneCommand {
   new() {
     argParser.addFlag(

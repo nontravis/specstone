@@ -6,7 +6,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 /// a typed doc.
 ///
 /// The body is the text after the frontmatter; prose, code spans, and
-/// `mermaid` blocks are read, other fenced code is not (R82). The labels are
+/// `mermaid` blocks are read, other fenced code is not. The labels are
 /// the ones the index found when it parsed the doc, so no text is read here.
 Iterable<Finding> checkNumberLabels(
   CheckContext context,

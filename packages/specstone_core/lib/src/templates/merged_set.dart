@@ -16,8 +16,8 @@ final class MergedSet {
   /// The doc type that writes `max_depth`, 0 included; null when none does.
   MergedDocType? get nestingType => nestingTypeOf(docTypes);
 
-  /// The doc type holding a `record_status` field, found by that field alone
-  /// (INV-31); null when none does.
+  /// The doc type holding a `record_status` field, found by that field alone;
+  /// null when none does.
   MergedDocType? get recordDocType {
     for (final docType in docTypes) {
       if (docType.fields.any((f) => f.type == FieldType.recordStatus)) {
@@ -55,7 +55,7 @@ final class MergedSet {
       ? null
       : const LineSplitter().convert(text).firstOrNull ?? '';
 
-  /// Returns a [docTypes] copy sorted by id (INV-22).
+  /// Returns a [docTypes] copy sorted by id.
   static List<MergedDocType> _sortedCopy(List<MergedDocType> docTypes) =>
       List<MergedDocType>.of(docTypes)
         ..sort((a, b) => compareCodePoints(a.id, b.id));

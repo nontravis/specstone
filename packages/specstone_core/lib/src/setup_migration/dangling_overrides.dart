@@ -17,7 +17,7 @@ const _layerWithoutPath =
     "architecture folder, so no rule gives each feature's record its folder";
 
 /// Throws `override_dangling` when a project-layer override names a section,
-/// field, or doc type that the upgrade target no longer defines (INV-11), or
+/// field, or doc type that the upgrade target no longer defines, or
 /// when a selected `move_to_record` step needs a record override the run
 /// cannot write ([recordPathOverrideOf]).
 ///
@@ -144,7 +144,7 @@ final class RecordPathOverride {
 /// the record file name of [target]. It is unwritable when the `architecture`
 /// file is named by the feature's `{slug}`, since that folder holds no
 /// feature's own record, or when a layer for the record doc type exists
-/// without a `path` (apply_steps_and_pins E36, refuse_dangling_override E06).
+/// without a `path`.
 RecordPathOverride? recordPathOverrideOf(
   List<MigrationStep> steps, {
   required List<DocTypeLayer> overrides,

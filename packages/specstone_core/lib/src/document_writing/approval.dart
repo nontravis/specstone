@@ -18,7 +18,7 @@ const _approvedKey = 'approved';
 const _hashLength = 12;
 
 /// Whether the approval stamps have run: any pin at or above its
-/// [agentFilesSince] entry, `prd-core` 1.7.0 or `software-tech` 1.4.0 (R82).
+/// [agentFilesSince] entry, `prd-core` 1.7.0 or `software-tech` 1.4.0.
 bool stampsHaveRun(Map<String, PackVersion> pins) =>
     agentFilesSince.entries.any(
       (since) => switch (pins[since.key]) {
@@ -146,7 +146,7 @@ final _leadingBlankLines = RegExp(r'^\n+');
 /// Returns [lfText] with `approved: "<approvalHashOf>"` in place of any
 /// `approved:` value, at its slot in the field order of [docType].
 ///
-/// The one writer of the mark (R84).
+/// The one writer of the mark.
 String withApprovalHash(
   String lfText,
   MergedDocType? docType, {
@@ -169,7 +169,7 @@ String withApprovalHash(
 
 /// The two frontmatter values the approval rules read.
 ///
-/// The one place a frontmatter `approved:` value is read (R85).
+/// The one place a frontmatter `approved:` value is read.
 final class ApprovalFields {
   const new({required this.isDraft, required this.approvedValue});
 
@@ -217,7 +217,7 @@ String? comparedApprovalHash(
       : null;
 }
 
-/// Whether the doc of [fields] awaits the Owner's approval (INV-5), given
+/// Whether the doc of [fields] awaits the Owner's approval, given
 /// [hash], its [comparedApprovalHash]; never when [hash] is null.
 bool awaitsApproval(
   ApprovalFields fields,
@@ -235,7 +235,7 @@ bool awaitsApproval(
 }
 
 /// Whether only the Owner may delete the doc of [fields]: any `approved:`
-/// value, or no `draft: true` (INV-7).
+/// value, or no `draft: true`.
 bool isGuarded(ApprovalFields fields) =>
     fields.approvedValue != null || !fields.isDraft;
 
@@ -271,7 +271,7 @@ final class UnknownHistory extends ApprovalLookup {
   const new();
 }
 
-/// Whether a committed copy counts as approved (R85, R86): no `draft: true`,
+/// Whether a committed copy counts as approved: no `draft: true`,
 /// and an `approved:` value that is the ApprovalHash of the copy's own
 /// content, or `approved: true`.
 ///
@@ -489,7 +489,7 @@ final _sha = RegExp(r'^(?:[0-9a-f]{40}|[0-9a-f]{64})$');
 /// Pairs each commit of a `-z --format=%H --name-only` log with its listed
 /// path.
 ///
-/// A hash is 40 or 64 hex, git's SHA-1 or SHA-256 object format (FM1). `-z`
+/// A hash is 40 or 64 hex, git's SHA-1 or SHA-256 object format. `-z`
 /// ends each field with NUL and leaves a path unquoted whatever its bytes; git
 /// puts a newline between a commit's hash and its path.
 Iterable<(String, String)> _commitsOf(String log) sync* {
