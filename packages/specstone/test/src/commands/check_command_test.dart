@@ -1165,6 +1165,78 @@ void main() {
       expect(none.stdout, '0 repeat groups\n');
     });
 
+    test('f04/us05/fr01/e11, topic:specstone RULE-8: a read-session warning goes to stderr, and to warnings under --json, as for a plain check', () async {
+      Future<Directory> damaged() async {
+        final project = await repeating();
+        File('${project.path}/.specstone/index.sqlite')
+            .writeAsStringSync('not a database');
+        return project;
+      }
+
+      final text = readRunner(await damaged());
+      expect(await text.runner.run(['check', '--repeats']), 0);
+      expect(text.err.toString(), startsWith('⚠️ WARNING: '));
+      expect(text.out.toString(), startsWith('repeat: "$clause"\n'));
+      final json = readRunner(await damaged());
+      expect(await json.runner.run(['check', '--repeats', '--json']), 0);
+      final printed = jsonDecode(json.out.toString()) as Map;
+      expect(printed['warnings'], hasLength(1));
+      expect(printed['count'], 1);
+    });
+
+    test('f04/us05/s5, f04/us05/fr01/e07: --target jaspr keeps the shared docs and the jaspr twin, and drops the flutter twin', () async {
+      const invariant =
+          '# Login domain\n\n## Entities\n\n- Account\n\n## Invariants\n\n';
+      final project = await writeTwinProject(
+        extra: {
+          ...doc(
+            loginFr,
+            frEdge,
+            'When the Agent runs it → it shows $clause for the Agent.',
+          ),
+          'docs/specs/flutter/f01_login/DOMAIN.md':
+              '$invariant- **INV-6** Every run: $clause, in short.\n',
+          'docs/specs/jaspr/f01_login/DOMAIN.md':
+              '$invariant- **INV-6** Every run: $clause, in short.\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run(['check', '--repeats', '--target', 'jaspr', '--json']),
+        0,
+        reason: err.toString(),
+      );
+      final repeats = (jsonDecode(out.toString()) as Map)['repeats']! as List;
+      expect(
+        [
+          for (final i in (repeats.single as Map)['items']! as List)
+            (i as Map)['docPath'],
+        ],
+        [loginFr, 'specs/jaspr/f01_login/DOMAIN.md'],
+      );
+    });
+
+    test('f04/us05/fr01/e11: a config pin fault and a template fault exit as the plain check does, with nothing on stdout', () async {
+      final faults = <Map<String, String>>[
+        {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
+        {'.specstone/templates/fr.yaml': 'sections: [unclosed\n'},
+      ];
+      for (final fault in faults) {
+        final project = await writeCheckProject(extra: fault);
+        final plain = readRunner(project);
+        final plainStatus = await plain.runner.run(['check']);
+        final repeats = readRunner(project);
+        expect(
+          await repeats.runner.run(['check', '--repeats']),
+          plainStatus,
+          reason: '$fault',
+        );
+        expect(plainStatus, isNot(0), reason: '$fault');
+        expect(repeats.out.toString(), isEmpty);
+        expect(repeats.err.toString(), plain.err.toString());
+      }
+    });
+
     test('f04/us05/s6, f04/us05/fr01/e11: outside a project it exits 78 and prints no project was found', () async {
       final result = await spawn(await writeTree({}), ['--repeats']);
       expect(result.exitCode, 78);

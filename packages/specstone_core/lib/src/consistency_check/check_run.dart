@@ -136,6 +136,7 @@ RepeatReport runRepeats(
     session,
     _scopeOf(CheckContext(session), target, null, codeTarget),
   ),
+  warnings: session.warnings,
 );
 
 CheckScope _scopeOf(

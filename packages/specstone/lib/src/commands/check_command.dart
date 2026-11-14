@@ -76,10 +76,14 @@ class CheckCommand extends SpecstoneCommand {
   }
 
   int _printRepeats(RepeatReport repeats, {required bool asJson}) {
-    final text = asJson
-        ? '${SpecstoneCommand.pretty.convert(repeats.json)}\n'
-        : repeats.text;
-    specstoneRunner.out.write(text);
+    if (asJson) {
+      specstoneRunner.out.write(
+        '${SpecstoneCommand.pretty.convert(repeats.json)}\n',
+      );
+    } else {
+      warn(repeats.warnings);
+      specstoneRunner.out.write(repeats.text);
+    }
     return 0;
   }
 }

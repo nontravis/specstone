@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
+import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -207,20 +208,66 @@ void main() {
     expect(_groupsOf(project), isEmpty);
   });
 
-  test('f04/us05/fr01/e12: a template layer that adds the run to a section description drops its group, with no doc changed', () async {
-    final extra = {
-      ..._edge('When the Agent runs it, $_clause for the Agent.'),
-      ..._statement('The system shall hold that $_clause, always.'),
-    };
-    expect(_groupsOf(await writeCheckProject(extra: extra)), hasLength(1));
-    final layered = await writeCheckProject(
+  test('f04/us05/fr01/e12: a pack change that adds the run to a section description drops its group on the same index, from the words the first run stored', () async {
+    final project = await writeCheckProject(
       extra: {
-        ...extra,
-        '.specstone/templates/fr.yaml':
-            'sections:\n  - id: edge_cases\n    description: "Write it as: $_clause."\n',
+        ..._edge('When the Agent runs it, $_clause for the Agent.'),
+        ..._statement('The system shall hold that $_clause, always.'),
       },
     );
-    expect(_groupsOf(layered), isEmpty);
+    List<(String, int, String)> stored(ReadSession session) => [
+      for (final item in session.index.ruleItemWords())
+        (item.docPath, item.line, item.words.join(' ')),
+    ];
+    final first = openSession(project);
+    final before = (runRepeats(first).groups.length, stored(first));
+    first.close();
+    expect(before.$1, 1);
+    File('${project.path}/.specstone/templates/fr.yaml')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        'sections:\n  - id: edge_cases\n    description: "Write it as: $_clause."\n',
+      );
+    final second = openSession(project);
+    try {
+      expect(runRepeats(second).groups, isEmpty);
+      expect(stored(second), before.$2);
+    } finally {
+      second.close();
+    }
+  });
+
+  test('f04/us05/fr01/e03, f04/us05/fr01/e04: a run two docs share whole and a third holds the last part of prints beside the shorter run all three share', () async {
+    const whole = 'w01 w02 w03 w04 w05 w06 w07 w08 w09 w10 w11 w12 w13 w14';
+    const last = 'w05 w06 w07 w08 w09 w10 w11 w12 w13 w14';
+    final project = await writeCheckProject(
+      extra: {
+        ..._edge('Alpha opens $whole closes.'),
+        ..._statement('Beta begins $whole ends.'),
+        ..._invariant('Gamma holds $last stops.'),
+      },
+    );
+    final groups = {
+      for (final g in _groupsOf(project))
+        g.run: [for (final i in g.items) i.docPath],
+    };
+    expect(groups, {
+      whole: [loginFr, loginNf],
+      last: [loginFr, loginNf, _domain],
+    });
+  });
+
+  test('f04/us05/fr01/e04: windows another doc holds apart are not merged into one run for it', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ..._edge('Alpha opens p1 p2 p3 p4 p5 p6 p7 p8 p9 closes.'),
+        ..._statement(
+          'Beta begins p1 p2 p3 p4 p5 p6 p7 p8 qq p2 p3 p4 p5 p6 p7 p8 p9 ends.',
+        ),
+      },
+    );
+    final runs = [for (final g in _groupsOf(project)) g.run]..sort();
+    expect(runs, ['p1 p2 p3 p4 p5 p6 p7 p8', 'p2 p3 p4 p5 p6 p7 p8 p9']);
   });
 
   test('f04/us05/fr01/e07, f04/us05/s5: a target keeps only the groups that hold an item of its docs, each listing every item', () async {
