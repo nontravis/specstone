@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show skippedLineOf, writeRefusalOf;
+    show isGitEntry, skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -158,14 +158,22 @@ final class _Planner {
     AgentFolderGroup group, {
     required bool isUpsert,
   }) {
-    final entries = {
+    final listed = {
       for (final folder in group.folders)
-        if (_isUsable(base, folder)) folder: _ownedEntriesIn(base, folder),
+        if (_isUsable(base, folder)) folder: _namesIn(base, folder),
+    };
+    final entries = {
+      for (final MapEntry(key: folder, value: names) in listed.entries)
+        folder: [
+          for (final name in names)
+            if (name.startsWith(_ownedPrefix)) name,
+        ],
     };
     final isInUse = entries.values.any((names) => names.isNotEmpty);
     if (!isInUse && !isUpsert) return;
     for (final file in _rendered) {
-      if (entries.containsKey(file.folder)) _planFile(base, file);
+      final names = listed[file.folder];
+      if (names != null) _planFile(base, file, names);
     }
     for (final MapEntry(key: folder, value: names) in entries.entries) {
       for (final name in names) {
@@ -174,38 +182,55 @@ final class _Planner {
     }
   }
 
-  /// Whether [folder] and its top lie where a run may write; a refusal is
-  /// named once.
+  /// Whether [folder] and its top are folders, or missing, where a run may
+  /// write; a refusal is named once.
   bool _isUsable(AgentFileBase base, AgentFolder folder) {
     for (final relative in [folder.path.split('/').first, folder.path]) {
-      final refusal = writeRefusalOf(
-        _pathIn(base, relative),
-        projectRoot: _root,
-      );
-      if (refusal == null) continue;
-      _skip(skippedLineOf(_rootPath(base, relative), refusal));
-      return false;
+      final path = _pathIn(base, relative);
+      final refusal = writeRefusalOf(path, projectRoot: _root);
+      if (refusal != null) {
+        _skip(skippedLineOf(_rootPath(base, relative), refusal));
+        return false;
+      }
+      if (_isNoFolder(path)) {
+        _skip('${_rootPath(base, relative)} is not a folder; left as it is');
+        return false;
+      }
     }
     return true;
   }
 
-  List<String> _ownedEntriesIn(AgentFileBase base, AgentFolder folder) {
+  bool _isNoFolder(String path) {
+    final type = FileSystemEntity.typeSync(path);
+    return type != FileSystemEntityType.notFound &&
+        type != FileSystemEntityType.directory;
+  }
+
+  /// The names listed in [folder], by code point; none when it is missing.
+  List<String> _namesIn(AgentFileBase base, AgentFolder folder) {
     final directory = Directory(_pathIn(base, folder.path));
     if (!directory.existsSync()) return const [];
     return [
       for (final entity in directory.listSync(followLinks: false))
-        if (_nameOf(entity).startsWith(_ownedPrefix)) _nameOf(entity),
+        _nameOf(entity),
     ]..sort(compareCodePoints);
   }
 
-  void _planFile(AgentFileBase base, RenderedFile file) {
+  void _planFile(AgentFileBase base, RenderedFile file, List<String> names) {
+    final twin = _caseTwinOf(file.entry, names);
+    if (twin != null) {
+      return _skip(
+        '${_rootPath(base, '${file.folder.path}/${file.entry}')} '
+        'differs only in case from $twin; left as it is',
+      );
+    }
     final target = File(_pathIn(base, file.path));
+    if (!_planned.add(canonicalPath(target.path))) return;
     final current =
         FileSystemEntity.typeSync(target.path) == FileSystemEntityType.file
         ? utf8.decode(readPlanInput(target), allowMalformed: true)
         : null;
     if (current != null && toLf(current) == file.text) return;
-    if (!_planned.add(canonicalPath(target.path))) return;
     final path = _rootPath(base, file.path);
     final refusal = writeRefusalOf(target.path, projectRoot: _root);
     if (refusal != null) return _skip(skippedLineOf(path, refusal));
@@ -225,10 +250,31 @@ final class _Planner {
     final isShipped = _shipped.any(
       (path) => path == entry || path.startsWith('$entry/'),
     );
-    if (!isShipped) return _trash(base, entry);
+    if (!isShipped) return _trashOrLeave(base, entry);
     for (final relative in _filesUnder(base, entry)) {
       if (!_shipped.contains(relative)) _trash(base, relative);
     }
+  }
+
+  /// Trashes [entry], or leaves it whole and names it when a `.git` entry lies
+  /// anywhere inside, so no repository history goes with the trash.
+  void _trashOrLeave(AgentFileBase base, String entry) {
+    final git = _gitEntryIn(base, entry);
+    if (git == null) return _trash(base, entry);
+    final refusal = writeRefusalOf(git, projectRoot: _root);
+    _skip(skippedLineOf(_rootPath(base, entry), refusal));
+  }
+
+  String? _gitEntryIn(AgentFileBase base, String entry) {
+    final path = _pathIn(base, entry);
+    final type = FileSystemEntity.typeSync(path, followLinks: false);
+    if (type != FileSystemEntityType.directory) return null;
+    for (final entity in Directory(
+      path,
+    ).listSync(recursive: true, followLinks: false)) {
+      if (isGitEntry(_nameOf(entity))) return entity.path;
+    }
+    return null;
   }
 
   void _trash(AgentFileBase base, String relative) {
@@ -257,8 +303,10 @@ final class _Planner {
         recursive: true,
         followLinks: false,
       ))
-        if (FileSystemEntity.typeSync(entity.path) == FileSystemEntityType.file)
-          '$entry/${Uri.decodeComponent(entity.uri.path.substring(prefixLength))}',
+        if (FileSystemEntity.typeSync(entity.path) ==
+                FileSystemEntityType.file &&
+            !_relativeOf(entity, prefixLength).split('/').any(isGitEntry))
+          '$entry/${_relativeOf(entity, prefixLength)}',
     ]..sort(compareCodePoints);
   }
 
@@ -272,6 +320,18 @@ final class _Planner {
 
   String _rootPath(AgentFileBase base, String relative) =>
       base.path.isEmpty ? relative : '${base.path}/$relative';
+}
+
+String _relativeOf(FileSystemEntity entity, int prefixLength) =>
+    Uri.decodeComponent(entity.uri.path.substring(prefixLength));
+
+/// Returns the name in [names] that spells [entry] with other case, or null.
+String? _caseTwinOf(String entry, List<String> names) {
+  final folded = entry.toLowerCase();
+  for (final name in names) {
+    if (name != entry && name.toLowerCase() == folded) return name;
+  }
+  return null;
 }
 
 String _nameOf(FileSystemEntity entity) =>

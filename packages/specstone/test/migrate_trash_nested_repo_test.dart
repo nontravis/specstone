@@ -14,6 +14,9 @@ import 'helpers/built_cli.dart';
 
 const _entry = '.claude/skills/specstone-old';
 
+/// A shipped skill file the project edited, so a run has one write to make.
+final String _edited = skillPaths().first;
+
 void main() {
   late String binary;
 
@@ -38,6 +41,7 @@ void main() {
       '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
       '.gitignore': ignore,
       ...skillFileTexts(),
+      _edited: 'hand edit\n',
       '$_entry/SKILL.md': 'old\n',
     });
     final nested = Directory('${root.path}/$_entry');
@@ -48,53 +52,45 @@ void main() {
     return root;
   }
 
-  /// Plans the migrate in [root], then applies exactly that plan.
-  Future<({ProcessResult dry, ProcessResult applied})> migrate(
-    Directory root,
-  ) async {
-    final dry = await run(root, ['migrate', '--dry-run']);
-    expect(dry.exitCode, 0, reason: '${dry.stdout}\n${dry.stderr}');
-    final hash = RegExp(
-      r'^plan ([0-9a-f]+)$',
-      multiLine: true,
-    ).firstMatch(dry.stdout as String)!.group(1)!;
-    final applied = await run(root, ['migrate', '--yes', '--plan', hash]);
-    return (dry: dry, applied: applied);
-  }
-
   List<String> subjects(Directory root) =>
       '${git(root, ['log', '--format=%s']).stdout}'.trim().split('\n');
 
-  test('an entry that is a repository the project tracks as one entry moves '
-      'to the trash and commit 2 records its removal', () async {
-    final root = await project();
-    final before = subjects(root);
+  const leftLine = '$_entry lies under .git; left as it is';
 
-    final (:dry, :applied) = await migrate(root);
+  for (final (:label, :ignore) in [
+    (label: 'the project tracks as one entry', ignore: ''),
+    (label: 'the project never tracked', ignore: '$_entry/\n'),
+  ]) {
+    test('an entry that is a repository $label stays whole and is named on '
+        'stderr while the run writes its other file', () async {
+      final root = await project(ignore: ignore);
+      final before = subjects(root);
 
-    expect(dry.stdout, contains('  agent files: 1 files\n'));
-    expect(applied.exitCode, 0, reason: '${applied.stdout}\n${applied.stderr}');
-    expect(Directory('${root.path}/$_entry').existsSync(), isFalse);
-    expect(subjects(root), hasLength(before.length + 1));
-    expect(
-      '${git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout}'
-          .trim(),
-      _entry,
-    );
-    expect('${git(root, ['status', '--porcelain']).stdout}'.trim(), isEmpty);
-  });
+      final dry = await run(root, ['migrate', '--dry-run']);
+      final hash = RegExp(
+        r'^plan ([0-9a-f]+)$',
+        multiLine: true,
+      ).firstMatch(dry.stdout as String)!.group(1)!;
+      final applied = await run(root, ['migrate', '--yes', '--plan', hash]);
 
-  test('an entry that is a repository the project never tracked moves to '
-      'the trash and commit 2 stages nothing for it', () async {
-    final root = await project(ignore: '$_entry/\n');
-    final before = subjects(root);
-
-    final (:dry, :applied) = await migrate(root);
-
-    expect(dry.stdout, contains('  agent files: 1 files\n'));
-    expect(applied.exitCode, 0, reason: '${applied.stdout}\n${applied.stderr}');
-    expect(Directory('${root.path}/$_entry').existsSync(), isFalse);
-    expect(subjects(root), before);
-    expect('${git(root, ['status', '--porcelain']).stdout}'.trim(), isEmpty);
-  });
+      for (final result in [dry, applied]) {
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect(result.stderr, contains(leftLine));
+      }
+      expect(dry.stdout, contains('  agent files: 1 files\n'));
+      expect(File('${root.path}/$_entry/SKILL.md').readAsStringSync(), 'old\n');
+      expect(Directory('${root.path}/$_entry/.git').existsSync(), isTrue);
+      expect(subjects(root), hasLength(before.length + 1));
+      expect(
+        '${git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout}'
+            .trim(),
+        _edited,
+      );
+      expect('${git(root, ['status', '--porcelain']).stdout}'.trim(), isEmpty);
+    });
+  }
 }

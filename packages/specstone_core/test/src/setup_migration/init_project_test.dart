@@ -289,6 +289,21 @@ void main() {
     skip: Platform.isWindows ? 'symbolic links need a privilege' : null,
   );
 
+  test('a .cursor file that is no folder is named and left, and init still '
+      'writes the other folders and the config', () async {
+    final root = await writeTree({'.cursor': 'mine\n'});
+    final warnings = <String>[];
+
+    final (status, lines) = _run(root, warnings: warnings);
+
+    expect(status, 0);
+    expect(warnings, ['.cursor is not a folder; left as it is']);
+    expect(File('${root.path}/.cursor').readAsStringSync(), 'mine\n');
+    expect(lines, isNot(contains(startsWith('created .cursor/'))));
+    expect(lines, contains(startsWith('created .claude/skills: ')));
+    expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
+  });
+
   test('a rerun after a stop before the config writes no skill or agent file '
       'and prints no count line', () async {
     final root = await writeTree({'keep.txt': 'x\n'});

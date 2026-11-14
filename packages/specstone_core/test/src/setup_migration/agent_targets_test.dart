@@ -245,7 +245,8 @@ void main() {
       expect(plan.listed, plan.trashFiles);
     });
 
-    test('a nested repository folder under an entry is never listed', () async {
+    test('an entry holding a repository folder is left out of the trash and '
+        'named', () async {
       final base = await _base(
         settled({
           'proj/.claude/skills/specstone-old/SKILL.md': 'old\n',
@@ -256,23 +257,13 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: false);
 
-      expect(plan.trash, ['.claude/skills/specstone-old']);
-      expect(plan.trashFiles, ['.claude/skills/specstone-old/SKILL.md']);
-      expect(plan.line, 'agent files: 1 files');
+      expect(plan.trash, isEmpty);
+      expect(plan.writeSet, isEmpty);
+      expect(plan.skipped, [
+        '.claude/skills/specstone-old lies under .git; left as it is',
+      ]);
+      expect(plan.line, '');
     });
-
-    test(
-      'an entry holding only a repository folder counts as itself',
-      () async {
-        final base = await _base(
-          settled({'proj/.claude/skills/specstone-old/.git/HEAD': 'ref\n'}),
-        );
-
-        final plan = planAgentWrites(_inputs(base), full: false);
-
-        expect(plan.trashFiles, ['.claude/skills/specstone-old']);
-      },
-    );
 
     test('the write set holds the place of each entry it moves', () async {
       final base = await _base(
@@ -892,8 +883,8 @@ void main() {
       },
     );
 
-    test('$_write E34: a .cursor folder holding only specstone- agents is no '
-        '.cursor folder', () async {
+    test('a .cursor folder holding only specstone- agents is no .cursor '
+        'folder', () async {
       final base = await _base({
         'proj/.cursor/agents/specstone-x.md': 'x\n',
         'proj/.cursor/agents/specstone-y.md': 'y\n',
@@ -905,18 +896,20 @@ void main() {
       expect(_paths(plan), isNot(contains(_cursor)));
     });
 
-    test('$_write E34: an agent without the specstone- prefix makes a .cursor '
-        'folder', () async {
-      final base = await _base({
-        'proj/.cursor/agents/specstone-x.md': 'x\n',
-        'proj/.cursor/agents/my-agent.md': 'mine\n',
-      });
+    test(
+      'an agent without the specstone- prefix makes a .cursor folder',
+      () async {
+        final base = await _base({
+          'proj/.cursor/agents/specstone-x.md': 'x\n',
+          'proj/.cursor/agents/my-agent.md': 'mine\n',
+        });
 
-      final plan = planAgentWrites(_inputs(base), full: true);
+        final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_paths(plan), contains(_cursor));
-      expect(_paths(plan), isNot(contains('AGENTS.md')));
-    });
+        expect(_paths(plan), contains(_cursor));
+        expect(_paths(plan), isNot(contains('AGENTS.md')));
+      },
+    );
 
     test(
       '$_write: a .cursor file is no .cursor folder; AGENTS.md is made',
@@ -925,7 +918,13 @@ void main() {
 
         final plan = planAgentWrites(_inputs(base), full: true);
 
-        expect(_paths(plan), [_agentMd, 'AGENTS.md', ...skillPaths()]);
+        expect(_paths(plan), [
+          _agentMd,
+          'AGENTS.md',
+          for (final path in skillPaths())
+            if (!path.startsWith('.cursor/')) path,
+        ]);
+        expect(plan.skipped, ['.cursor is not a folder; left as it is']);
       },
     );
 

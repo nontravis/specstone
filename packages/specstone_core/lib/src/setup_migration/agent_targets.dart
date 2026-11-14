@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show isGitEntry, skippedLineOf, writeRefusalOf;
+    show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
@@ -376,8 +376,8 @@ final class AgentWritePlan {
   /// The canonical path of every agent file the plan writes and the place of
   /// every entry or file it moves to the trash, each inside the project root.
   ///
-  /// A migrate records it with its journal, so a replay admits these paths
-  /// and no others.
+  /// A migrate records it with its journal, so a replay also admits these
+  /// paths outside the journal's roots.
   final Set<String> writeSet;
 
   /// The path from the project root of each skill or agent entry or file the
@@ -544,9 +544,7 @@ String _placeOf(Directory root, String path) {
 /// Returns each file under the entry [path] from [root], by code point, or
 /// [path] itself when it is a file, a link, or a folder holding none.
 ///
-/// A link inside a folder counts as a file, and no link is followed. A `.git`
-/// entry below [path] counts for nothing: a run names no path under one, and
-/// the folder carries it along.
+/// A link inside a folder counts as a file, and no link is followed.
 List<String> _filesUnder(Directory root, String path) {
   final folder = _fileIn(root, path).path;
   if (FileSystemEntity.typeSync(folder, followLinks: false) !=
@@ -559,10 +557,9 @@ List<String> _filesUnder(Directory root, String path) {
     folder,
   ).listSync(recursive: true, followLinks: false)) {
     if (entity is Directory) continue;
-    final relative = Uri.decodeComponent(
-      entity.uri.path.substring(prefixLength),
+    files.add(
+      '$path/${Uri.decodeComponent(entity.uri.path.substring(prefixLength))}',
     );
-    if (!relative.split('/').any(isGitEntry)) files.add('$path/$relative');
   }
   files.sort(compareCodePoints);
   return files.isEmpty ? [path] : files;

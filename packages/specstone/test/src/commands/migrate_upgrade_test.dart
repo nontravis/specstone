@@ -982,6 +982,39 @@ void main() {
         },
       );
 
+      test(
+        'a .cursor file that is no folder is named and left, and the '
+        'one-time run still writes the other folders and ends clean',
+        () async {
+          final root = await agentProject({
+            'CLAUDE.md': '# Owner rules\n',
+            '.cursor': 'mine\n',
+          }, 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n');
+          final home = await writeTree({});
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(
+            result.err,
+            contains('.cursor is not a folder; left as it is'),
+          );
+          expect(_read(root, '.cursor'), 'mine\n');
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n'),
+            isNot(contains(startsWith('.cursor/'))),
+          );
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.status, 0, reason: rerun.err);
+          expect(rerun.out, 'nothing to migrate\n');
+        },
+      );
+
       test('a hand-edited skill file with every pin equal is the '
           'agent-only upgrade, one file listed and rewritten', () async {
         final texts = skillFileTexts();
