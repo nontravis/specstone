@@ -253,6 +253,26 @@ void main() {
       expect(bundleIndexJson(base, '/p').containsKey('codeTarget'), isFalse);
     });
 
+    ContextAnswer withTarget(ContextAnswer base) => ContextAnswer(
+      text: base.text,
+      json: base.json,
+      entries: base.entries,
+      tokens: base.tokens,
+      codeTarget: 'jaspr',
+    );
+
+    test('e05: a code target line, the header, and 198 entries make 200 lines and keep their sections', () {
+      final index = bundleIndex(withTarget(_answerOf(198)), '/p');
+      expect(const LineSplitter().convert(index), hasLength(200));
+      expect(index, contains('- d197 (fr) · 395-395 · statement0 395\n'));
+    });
+    test('e05: a code target line, the header, and 199 entries pass 200 lines and drop the sections', () {
+      final index = bundleIndex(withTarget(_answerOf(199)), '/p');
+      expect(const LineSplitter().convert(index), hasLength(201));
+      expect(index, contains('- d198 (fr) · 397-397\n'));
+      expect(index, isNot(contains('statement0')));
+    });
+
     test('e05: an index of 200 lines keeps its sections', () {
       final index = bundleIndex(_answerOf(199), '/p');
       expect(const LineSplitter().convert(index), hasLength(200));
