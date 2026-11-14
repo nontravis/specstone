@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show fileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -135,6 +138,7 @@ void main() {
   _treeMoveTests();
   _planInputTests();
   _testNameTests();
+  _codeStampTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -1142,7 +1146,8 @@ sections:
       r'|stamps: \d+ approval hashes, \d+ fingerprints(; skipped: \d+)?'
       r'|agent files: \d+ files'
       r'|mentions: \d+'
-      r'|from \S+: .+: \d+ docs)$',
+      r'|from \S+: .+: \d+ docs'
+      r'(; (\S+: )?\d+ entries)*(; unreadable: \d+)?)$',
     );
     final passLines = plan
         .toText()
@@ -2598,7 +2603,9 @@ void _moveToRecordTests() {
         );
         expect(
           text,
-          contains('  from 1.6.0: stamp_code_fingerprints: 0 docs\n'),
+          contains(
+            '  from 1.6.0: stamp_code_fingerprints: 0 docs; 0 entries\n',
+          ),
         );
         expect(text, isNot(contains('renumber ids:')));
         expect(text, isNot(contains('number labels:')));
@@ -3540,6 +3547,111 @@ void _testNameTests() {
           'names: ${rewritten.length} rewritten in 1 files; '
           'left: 0\n',
         ),
+      );
+    });
+  });
+}
+
+void _codeStampTests() {
+  group('stamp_code_fingerprints step', () {
+    const signIn = 'app/lib/login/sign_in.dart';
+    const signInCode = 'class SignIn {}\n';
+    const architecturePath = 'specs/f01_login/ARCHITECTURE.md';
+    final signInFingerprint = fileCodeFingerprint(utf8.encode(signInCode));
+
+    /// A project on the shipped prd-core and software-tech 1.6.0, whose
+    /// record and architecture doc name code with no fingerprint recorded.
+    Future<Directory> project({Map<String, String> extra = const {}}) =>
+        writeTree({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.6.0\n',
+          'docs/$_featurePath': '# Login\n',
+          'docs/$_loginStoryPath': '# Email login\n',
+          'docs/$_recordPath': recordText(
+            statuses: ['email_login:implemented'],
+            code: ['email_login:$signIn:SignIn'],
+          ),
+          'docs/$architecturePath':
+              '---\ncovers:\n  - app/lib/\n---\n# Login architecture\n',
+          signIn: signInCode,
+          ...extra,
+        });
+
+    test('commit 2 writes each fingerprint, and the step line counts the '
+        'docs and entries with its paths and unreadable list', () async {
+      final plan = _planAt(await project());
+
+      expect(plan.moves, isEmpty);
+      expect(
+        _rewriteAt(plan, 'docs/$_recordPath').text,
+        contains("  - 'email_login:$signIn:SignIn $signInFingerprint'\n"),
+      );
+      expect(
+        _rewriteAt(plan, 'docs/$architecturePath').text,
+        contains('covers:\n  - app/lib/ '),
+      );
+      final text = plan.toText();
+      expect(
+        text,
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.6.0',
+          'step': 'stamp_code_fingerprints',
+          'paths': [architecturePath, _recordPath],
+          'unreadable': <String>[],
+        },
+      ]);
+    });
+
+    test('the plan hash holds while no code file changes, and moves when a '
+        'named file changes or a covered folder gains one', () async {
+      final root = _canonical(await project());
+      final first = _hashOf(_planAt(root));
+
+      expect(_hashOf(_planAt(root)), first);
+
+      File('${root.path}/$signIn').writeAsStringSync('class SignIn {} \n');
+      final edited = _planAt(root);
+      expect(_hashOf(edited), isNot(first));
+      expect(
+        _rewriteAt(edited, 'docs/$_recordPath').text,
+        isNot(contains(signInFingerprint)),
+      );
+
+      final beforeAdd = _hashOf(edited);
+      File('${root.path}/app/lib/extra.dart').writeAsStringSync('// x\n');
+      expect(_hashOf(_planAt(root)), isNot(beforeAdd));
+    });
+
+    test('a record the move_to_record step creates in the same run takes '
+        'its fingerprints', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.4.0\n',
+        for (final MapEntry(:key, :value) in _loginDocs.entries)
+          'docs/$key': value,
+        signIn: signInCode,
+      });
+
+      final plan = _planAt(root);
+
+      final record = plan.creates.singleWhere(
+        (create) => create.path == 'docs/$_recordPath',
+      );
+      expect(_valuesOf(record.text)['implements'], [
+        'email_login:$signIn:SignIn $signInFingerprint',
+      ]);
+      expect(_valuesOf(record.text)['draft'], isTrue);
+      expect(
+        plan.toText(),
+        contains('  from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
       );
     });
   });

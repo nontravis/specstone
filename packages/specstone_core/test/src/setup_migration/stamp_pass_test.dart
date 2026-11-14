@@ -16,6 +16,7 @@ const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
 const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _draftFrPath = 'prds/features/f01_a/us01_b/fr02_d.md';
 const _notesPath = 'notes/free.md';
+const _recordPath = 'specs/f01_a/IMPLEMENTATION.md';
 
 const _one = '### Scenario 1 — [happy] one\n\n- **Given** g';
 const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
@@ -64,12 +65,14 @@ List<StampDoc> _docs(Map<String, String> texts) => [
   Map<String, String> before,
   Map<String, String> after, {
   Map<String, PackVersion>? pins,
+  Map<String, PackVersion>? pinsAfter,
   bool restampsFingerprints = true,
 }) {
   final pass = StampPass.plan(
     _docs(before),
     _docs(after),
     pins: pins ?? _belowBoth,
+    pinsAfter: pinsAfter ?? pins ?? _belowBoth,
     restampsFingerprints: restampsFingerprints,
   );
   return (
@@ -410,6 +413,7 @@ void main() {
         [(docPath: _storyPath, lf: approved, type: held)],
         [(docPath: _storyPath, lf: moved, type: dropped)],
         pins: _belowBoth,
+        pinsAfter: _belowBoth,
         restampsFingerprints: false,
       );
 
@@ -417,6 +421,75 @@ void main() {
       expect(stamped, matches(_approvedHash));
       expect(stamped, contains('approved: "${_hashOf(stamped, dropped)}"'));
       expect(pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+  });
+
+  group('records across the statuses rule', () {
+    final below = {
+      'prd-core': _version('1.7.0'),
+      'software-tech': _version('1.6.0'),
+    };
+    final at = {
+      'prd-core': _version('1.7.0'),
+      'software-tech': _version('1.7.0'),
+    };
+    const record =
+        "---\nstatuses:\n  - 'b:implemented'\nimplements:\n"
+        "  - 'b:app/a.dart'\n---\n\n# Record\n";
+
+    test('a record approved by the hash that counted its statuses takes the '
+        'hash that leaves them out', () {
+      final type = _typeAt(_recordPath);
+      final approved = withApprovalHash(record, type, statusesOutside: false);
+      final docs = {_recordPath: approved};
+
+      final run = _run(docs, docs, pins: below, pinsAfter: at);
+
+      final stamped = run.applied[_recordPath]!;
+      expect(stamped, withApprovalHash(approved, type, statusesOutside: true));
+      expect(
+        approvalHashOf(stamped, type, statusesOutside: true),
+        isNot(approvalHashOf(stamped, type, statusesOutside: false)),
+      );
+      expect(run.pass.planLine, 'stamps: 1 approval hashes, 0 fingerprints');
+    });
+
+    test('a record whose hash went stale before the run keeps it, and a '
+        'draft record keeps its draft line', () {
+      final docs = {
+        _recordPath: record.replaceFirst(
+          '---\n',
+          '---\napproved: "000000000000"\n',
+        ),
+        'specs/f02_c/IMPLEMENTATION.md': record.replaceFirst(
+          '---\n',
+          '---\ndraft: true\n',
+        ),
+      };
+
+      final run = _run(docs, docs, pins: below, pinsAfter: at);
+
+      expect(run.applied, docs);
+      expect(run.pass.planLine, isNull);
+    });
+
+    test('an upgrade that keeps the pins below the rule re-stamps a changed '
+        'record by the rule that counts the statuses', () {
+      final type = _typeAt(_recordPath);
+      final approved = withApprovalHash(record, type, statusesOutside: false);
+      final changed = approved.replaceFirst('# Record', '# Login record');
+
+      final run = _run(
+        {_recordPath: approved},
+        {_recordPath: changed},
+        pins: below,
+        pinsAfter: below,
+      );
+
+      expect(
+        run.applied[_recordPath],
+        withApprovalHash(changed, type, statusesOutside: false),
+      );
     });
   });
 }
