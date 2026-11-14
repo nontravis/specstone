@@ -69,7 +69,7 @@ retire set.
 
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
-2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set: merge it first.
+2. Referrers inside the set never block. An old untyped doc under `specs/` joins the set: merge it first.
    A batch's set holds only files it merged; list each untyped referrer outside it, with the file it names, for its
    owner to merge. Leave any other untyped file as history. Repoint each other link or mention to the doc holding the
    content, or drop one nothing replaces.

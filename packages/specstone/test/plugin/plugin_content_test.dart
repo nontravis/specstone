@@ -3775,6 +3775,34 @@ void _repeatsBatchTests() {
     });
   }
 
+  test('f08/us05/fr01/e22, e23: each bootstrap procedure merges only its own '
+      "tree's untyped referrers and leaves the other tree's to its owner", () {
+    final spec = _oneLine(
+      _sectionOf(
+        _pluginText('skills/bootstrap-spec/references/procedure.md'),
+        '5. Retire the old files',
+      ),
+    );
+    expect(
+      spec,
+      contains(
+        'An old untyped doc under `specs/` joins the set: merge it first.',
+      ),
+    );
+    expect(spec, isNot(contains('under `prds/` or `specs/` joins the set')));
+    expect(
+      _oneLine(
+        _sectionOf(
+          _pluginText('skills/bootstrap-prd/references/procedure.md'),
+          '5. Retire the old files',
+        ),
+      ),
+      contains(
+        'merge it first (`specstone:bootstrap-spec` takes one under `specs/`).',
+      ),
+    );
+  });
+
   test("f08/us05/fr01/e27: bootstrap-spec's repeats batch runs after "
       "bootstrap-prd's", () {
     expect(
