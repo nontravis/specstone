@@ -820,4 +820,66 @@ void main() {
       contains('Mentions\n- none\nUntyped mentions\n- none\n'),
     );
   });
+
+  test(
+    'a covers entry lists the pointer alone, without the fingerprint',
+    () async {
+      const fingerprint = '0123456789ab';
+      final recorded = await indexWith({
+        'docs/specs/f01_login/ARCHITECTURE.md':
+            '---\ncovers:\n  - app/lib/src/login/ $fingerprint\n---\n\n'
+            '# Login architecture\n',
+      });
+
+      final text = answerRefs(recorded, 'architecture:login').text;
+
+      expect(text, contains('- covers: app/lib/src/login/\n'));
+      expect(text, isNot(contains(fingerprint)));
+    },
+  );
+
+  test(
+    'an implements line lists the pointer alone, without the fingerprint',
+    () async {
+      const fingerprint = '0123456789ab';
+      final recorded = await indexWith({
+        '.specstone/templates/implementation.yaml':
+            'id: implementation\n'
+            'description: One feature record per target.\n'
+            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'parent: feature\n'
+            'per_target: true\n'
+            'fields:\n'
+            '  - id: statuses\n'
+            '    type: record_status\n'
+            '    list: true\n'
+            '  - id: implements\n'
+            '    type: output_ref\n'
+            '    list: true\n'
+            '    pointer: item_exact\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/specs/flutter/f01_login/IMPLEMENTATION.md':
+            '---\nstatuses:\n  - email_login:implemented\n'
+            'implements:\n'
+            '  - email_login:lib/sign_in_page.dart:SignInPage $fingerprint\n'
+            '---\n\n# Record\n',
+      });
+
+      final text = answerRefs(
+        recorded,
+        'specs/flutter/f01_login/IMPLEMENTATION.md',
+      ).text;
+
+      expect(
+        text,
+        contains('- implements: lib/sign_in_page.dart:SignInPage\n'),
+      );
+      expect(text, isNot(contains(fingerprint)));
+    },
+  );
 }
