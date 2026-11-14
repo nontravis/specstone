@@ -261,6 +261,18 @@ void main() {
     expect(upload['if'], "matrix.os == 'ubuntu-latest'");
   });
 
+  test('no leg of the ci test job can pass while its tests fail', () {
+    final job = _job(ci, 'test');
+    expect(job.containsKey('continue-on-error'), isFalse);
+    expect(job.containsKey('if'), isFalse);
+    for (final s in _steps(job)) {
+      expect(s.containsKey('continue-on-error'), isFalse, reason: '$s');
+    }
+    final call = _job(release, 'test');
+    expect(call['uses'], './.github/workflows/ci.yaml');
+    expect(call.containsKey('with'), isFalse);
+  });
+
   test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
       'job and stay out of the main Windows step', () {
     final job = _job(ci, 'test-scripts-windows');
