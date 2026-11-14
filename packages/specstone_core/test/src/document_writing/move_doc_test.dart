@@ -19,7 +19,16 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart'
-    show checkOf, doc, edit, projectDoc, spots, techStack, writeCheckProject;
+    show
+        checkOf,
+        doc,
+        edit,
+        loginArchitecture,
+        loginRecord,
+        projectDoc,
+        spots,
+        techStack,
+        writeCheckProject;
 import '../../helpers/failing_rename.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
@@ -1982,6 +1991,8 @@ void main() {
           ..writeAsStringSync('// `login/email_login`\n');
         final root = await writeCheckProject(
           extra: {'.specstone/config.yaml': config()},
+          // The code lies outside the project, so no link can take a fingerprint.
+          unfingerprinted: {'docs/$loginRecord', 'docs/$loginArchitecture'},
         );
         final before = outsideBytes();
 
@@ -2009,6 +2020,8 @@ void main() {
             ..writeAsStringSync('// nothing renamed here\n');
           final root = await writeCheckProject(
             extra: {'.specstone/config.yaml': config()},
+            // The code lies outside the project, so no link can take a fingerprint.
+            unfingerprinted: {'docs/$loginRecord', 'docs/$loginArchitecture'},
           );
 
           final answer = renameLogin(root);
@@ -2026,6 +2039,12 @@ void main() {
           extra: {
             '.specstone/config.yaml': config(),
             'docs/notes.md': 'See `shop/cart/add_item`.\n',
+          },
+          // The code lies outside the project, so no link can take a fingerprint.
+          unfingerprinted: {
+            'docs/$shopArchitecture',
+            'docs/$loginRecord',
+            'docs/$loginArchitecture',
           },
         );
         final before = outsideBytes();

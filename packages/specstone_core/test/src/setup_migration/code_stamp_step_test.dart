@@ -338,7 +338,10 @@ void main() {
 
     test('two code targets count the entries of each target', () async {
       final project = await writeTwinProject(
-        unfingerprinted: {'docs/$flutterArchitecture'},
+        unfingerprinted: {
+          'docs/$flutterArchitecture',
+          'docs/$jasprArchitecture',
+        },
       );
       final records = {
         _flutterRecord: _record(code: ['email_login:$_login:SignInPage']),
