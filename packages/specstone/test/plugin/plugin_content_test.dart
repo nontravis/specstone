@@ -1481,14 +1481,18 @@ const _citedLinkPoints = [
 const _confirmLinks = 'skills/expert-sdd/references/confirm-links.md';
 
 /// What [_confirmLinks] says about the entry an `Overrides:` line takes.
-const _overrideEntryPoints = [
+const _overrideEntryPoints = <String>[
   '`overrides` entry',
   '`<doc type>:<name>#<ID> <fingerprint>`',
   '`specstone set <target> --field overrides --base <hash>`',
   '`bases.fields.overrides`',
-  'Until the entry matches, `check` reports the line `unconfirmed`; in a '
-      "draft the line stays `unconfirmed` even when the entry matches, and waits for the Owner's approval.",
+  _overrideDraftSentence,
 ];
+
+const String _overrideDraftSentence =
+    'Until the entry matches, `check` reports the line `unconfirmed`; in a '
+    'draft the line stays `unconfirmed` even when the entry matches, and '
+    "waits for the Owner's approval.";
 
 /// Rule 4 of expert-sdd as it read before its steps moved to [_confirmLinks].
 const _confirmLinkSteps =
