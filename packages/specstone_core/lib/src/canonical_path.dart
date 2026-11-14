@@ -70,12 +70,13 @@ bool _hasDrive(String path) =>
 ///
 /// Links that loop, or a chain of dangling links longer than the OS follows,
 /// stay as named, so a write through them fails at the disk. With [strict]
-/// they throw a [FileSystemException] instead. A link whose target Windows
-/// reads against a drive the link does not name (`X:name`) throws too, since
-/// the place it leads to depends on that drive's current folder. A `.` or `..`
-/// after a missing name throws too, since that name may become a link. Windows
-/// collapses a `..` that lands on an existing folder before the disk sees it;
-/// one that lands on a missing name still throws.
+/// they throw a [FileSystemException] instead. So does a drive or network
+/// share the disk cannot reach, which stays as named. A link whose target
+/// Windows reads against a drive the link does not name (`X:name`) throws
+/// too, since the place it leads to depends on that drive's current folder. A
+/// `.` or `..` after a missing name throws too, since that name may become a
+/// link. Windows collapses a `..` that lands on an existing folder before the
+/// disk sees it; one that lands on a missing name still throws.
 ///
 /// [resolve] reads the real path of an existing name and [readLink] the
 /// target of a link; they default to the disk's answers, and a test passes
@@ -106,11 +107,20 @@ String canonicalPath(
     return true;
   }
 
+  walk:
   while (true) {
     var type = FileSystemEntity.typeSync(existing, followLinks: false);
     while (type == FileSystemEntityType.notFound) {
+      if (isVolumeRoot(existing)) {
+        // A drive or share the disk cannot reach; climbing past a share
+        // would land on the current drive.
+        if (strict) {
+          throw FileSystemException('the volume cannot be reached', existing);
+        }
+        resolved = existing;
+        break walk;
+      }
       missing.add(_nameOf(existing));
-      // An absolute path always reaches the file-system root, which exists.
       existing = parentOf(existing);
       type = FileSystemEntity.typeSync(existing, followLinks: false);
     }

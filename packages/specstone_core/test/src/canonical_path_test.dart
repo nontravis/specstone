@@ -408,6 +408,23 @@ void main() {
     }, skip: _linksUnavailable);
   });
 
+  group('$_scope: canonicalPath on a network share the disk cannot reach', () {
+    const share = r'\\localhost\specstone-missing-share$';
+    const path = '$share\\f.md';
+    const posixHasNoShare = 'only Windows reads a path as a network share';
+
+    test('stays as named, never under the current drive', () {
+      expect(canonicalPath(path), path);
+    }, skip: Platform.isWindows ? null : posixHasNoShare);
+
+    test('throws in strict mode', () {
+      expect(
+        () => canonicalPath(path, strict: true),
+        throwsA(isA<FileSystemException>()),
+      );
+    }, skip: Platform.isWindows ? null : posixHasNoShare);
+  });
+
   group('$_scope: isVolumeRoot', () {
     for (final (path, isWindows, expected) in [
       ('/', false, true),
