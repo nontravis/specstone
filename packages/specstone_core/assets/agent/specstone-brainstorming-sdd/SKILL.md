@@ -40,7 +40,7 @@ questions, and show the Owner each answer; go on only after their yes.
 
 The brainstorm skill is the one in your skill list whose description says it turns a change into a design through
 dialogue with the user. Judge by that alone, never by name. No Specstone skill qualifies. When two qualify,
-take the one the project's `CLAUDE.md` names, else the first listed.
+take the one the project's instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed.
 
 - **A skill qualifies:** run it on the change, grounded in step 1's docs. It keeps the conversation and the approval;
   at its write step, write through step 3. At its own hand-off to a plan or build skill, invoke nothing: once the

@@ -4978,6 +4978,19 @@ void _brainstormTests() {
       }
     });
 
+    test('the skill picks a brainstorm skill by the files that carry the '
+        "project's instructions", () {
+      final skill = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+      );
+      expect(
+        skill,
+        contains(
+          "the project's instruction file (`CLAUDE.md`, `AGENTS.md`) names",
+        ),
+      );
+    });
+
     test('each of the six skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_brainstormContent()), isEmpty);
     });
