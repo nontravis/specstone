@@ -1,12 +1,12 @@
 ---
 name: specstone-update-sdd
-description: Use when the Owner asks to change one value or passage in a PRD or spec doc that already exists, such as raising a timeout an FR states, rewording one section, setting one field, or confirming a requirement again after the doc it traces changed, or when another `specstone:` skill names `specstone:update-sdd`.
+description: Use when the Owner asks to change one value or passage in a PRD or spec doc that already exists, such as raising a timeout an FR states, rewording one section, setting one field, or confirming a requirement again after the doc it traces changed, or when another Specstone skill names `specstone-update-sdd`.
 ---
 
 # Update one doc section or field as a draft
 
 A small edit skips the design round: you rewrite one target, and the Owner's approval of the change you name is its
-only review. Follow `specstone:expert-sdd` before and after the write.
+only review. Follow the `specstone-expert-sdd` skill before and after the write.
 
 ## 1. Sort the request
 
@@ -20,16 +20,17 @@ It is a small edit only when all four hold. Sort it from the request, before any
 | Request                                     | Path                                                      |
 |---------------------------------------------|-----------------------------------------------------------|
 | An FR's timeout goes from 10 s to 30 s      | small edit, even though it changes a number the FR states |
-| A new scenario that only a new FR can carry | `specstone:brainstorming-sdd`                             |
-| One wording fix, wanted in two docs         | `specstone:brainstorming-sdd`                             |
-| An `implements:` path the code moved        | `specstone:sync-sdd`                                      |
+| A new scenario that only a new FR can carry | `specstone-brainstorming-sdd`                             |
+| One wording fix, wanted in two docs         | `specstone-brainstorming-sdd`                             |
+| An `implements:` path the code moved        | `specstone-sync-sdd`                                      |
 
-Not a small edit: an `implements:` or `covers:` change is code sync and goes to `specstone:sync-sdd`; anything
-else goes to `specstone:brainstorming-sdd`. Hand it over and stop: write nothing here, and run no `specstone set`.
+Not a small edit: an `implements:` or `covers:` change is code sync, so follow the `specstone-sync-sdd` skill
+instead; anything else, follow the `specstone-brainstorming-sdd` skill instead. Stop there: write nothing here, and
+run no `specstone set`.
 
 ## 2. Gate on the target, then read it
 
-Make this your first CLI call, before any other command or file read. It is the `specstone:expert-sdd` gate, run on
+Make this your first CLI call, before any other command or file read. It is the `specstone-expert-sdd` gate, run on
 the one doc you will write:
 
 ```
@@ -57,7 +58,7 @@ specstone get <type>:<name> --json
 
 The text between the title and the first `##` section is `#_lead`.
 
-A name that matches docs in two or more code targets: ask the Owner which one, as `specstone:plan-sdd` does, then run
+A name that matches docs in two or more code targets: ask the Owner which one, as `specstone-plan-sdd` does, then run
 `get` and `set` on that doc's DocPath, the one `get`'s doc header prints, such as
 `specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md`. A name that matches one doc asks
 nothing.
@@ -80,15 +81,15 @@ specstone set <type>:<name> --field <id> --base <hash>
   write your old text over it.
 - **Any other exit:** stop, and report the refusal the CLI printed.
 
-After the write, run `specstone check <type>:<name>` again. Fix, as `specstone:expert-sdd` says, only the findings
+After the write, run `specstone check <type>:<name>` again. Fix, as `specstone-expert-sdd` says, only the findings
 on that target that step 2's baseline lacks; leave every other one alone.
 
 Confirming a requirement again after `specstone check` marks a link `suspect` is a small edit of its `confirmed`
-field; `specstone:expert-sdd` says how to record it.
+field; `specstone-expert-sdd` says how to record it.
 
 ## 4. Name the change for the Owner
 
-Write no design document. Name the change through `specstone:expert-sdd`'s Owner confirmation: its `Why:` line,
+Write no design document. Name the change through `specstone-expert-sdd`'s Owner confirmation: its `Why:` line,
 adding for a confirmation the upstream change you checked it against, then the view
 `specstone approve <type>:<name> --dry-run` prints.
 
@@ -100,10 +101,10 @@ approve before their `ok`.
 
 ## Red flags
 
-| Thought                                            | Do instead                                   |
-|----------------------------------------------------|----------------------------------------------|
-| "Two docs, but each change is one line."           | Hand over to `specstone:brainstorming-sdd`.  |
-| "The new FR is short; one `set` fits it."          | Hand over to `specstone:brainstorming-sdd`.  |
-| "A quick design document first, to be safe."       | A small edit has none; name the change.      |
-| "Base mismatch: rerun with my text."               | Merge into the current text first.           |
-| "I'll run `specstone approve` without an `ok`."    | Show the change; wait for the Owner's `ok`.  |
+| Thought                                            | Do instead                                      |
+|----------------------------------------------------|-------------------------------------------------|
+| "Two docs, but each change is one line."           | Follow the `specstone-brainstorming-sdd` skill. |
+| "The new FR is short; one `set` fits it."          | Follow the `specstone-brainstorming-sdd` skill. |
+| "A quick design document first, to be safe."       | A small edit has none; name the change.         |
+| "Base mismatch: rerun with my text."               | Merge into the current text first.              |
+| "I'll run `specstone approve` without an `ok`."    | Show the change; wait for the Owner's `ok`.     |

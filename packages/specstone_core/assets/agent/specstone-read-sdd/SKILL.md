@@ -1,6 +1,6 @@
 ---
 name: specstone-read-sdd
-description: Use when a task in a Specstone project needs its PRD or spec docs, such as a plan task that names the story, FR, NFR, or spec doc it builds, a question about a feature's docs, or design work on a feature, or when another `specstone:` skill names `specstone:read-sdd`.
+description: Use when a task in a Specstone project needs its PRD or spec docs, such as a plan task that names the story, FR, NFR, or spec doc it builds, a question about a feature's docs, or design work on a feature, or when another Specstone skill names `specstone-read-sdd`.
 ---
 
 # Ground a task in its Specstone docs
@@ -71,7 +71,8 @@ own. Part reads after that action fall outside the bound.
 
 ## Whole sections from the reader
 
-With the `Agent` tool, you may dispatch `specstone:sdd-reader` for whole sections, each cited by doc and section.
+You may dispatch `specstone-sdd-reader` for whole sections, each cited by doc and section, as
+`../specstone-expert-sdd/references/dispatch.md` gives.
 Hand it the saved file's path exactly as the header printed it, the mode, and the task: no doc text, no index lines,
 and no path you join yourself. It reads that file and runs no `context` of its own. No bundle size calls for it.
 

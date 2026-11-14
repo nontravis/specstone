@@ -19,8 +19,8 @@ specstone init
 Run no `specstone check` and no look for `.specstone/` before it: `specstone init` refuses on its own in a folder
 that is already a project.
 
-- **0:** it printed the four drafts and the config it created. Go on, and follow `specstone:expert-sdd` from here:
-  its gate now passes, and its rules govern every write below.
+- **0:** it printed the four drafts and the config it created. Go on, and follow the `specstone-expert-sdd` skill from
+  here: its gate now passes, and its rules govern every write below.
 - **64, `config_exists`:** tell the Owner this folder is already a Specstone project, and stop. The CLI changed no
   file; run nothing more.
 - **Any other exit:** report the CLI's error and stop.
@@ -54,21 +54,21 @@ is and the folder is still missing; keep the entry either way.
 
 ## 3. Get the drafts approved
 
-Tell the Owner the four drafts are filled, then get each one approved through `specstone:expert-sdd`'s Owner
-confirmation (terminal or chat).
+Tell the Owner the four drafts are filled, then get each one approved through the `specstone-expert-sdd` skill's
+Owner confirmation (terminal or chat).
 
 ## 4. Features go to brainstorming
 
 This skill writes no feature doc. A feature the Owner names during setup waits until the four drafts are written;
-then, and for every later feature, hand it to `specstone:brainstorming-sdd`, one feature at a time.
+then, and for every later feature, follow the `specstone-brainstorming-sdd` skill, one feature at a time.
 
 ## Red flags
 
-| Thought                                          | Do instead                                         |
-|--------------------------------------------------|----------------------------------------------------|
-| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own. |
-| "Already a project: I'll migrate it."            | Say it is a project already, and stop.             |
-| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.            |
-| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.           |
-| "The Owner named a feature: `specstone new`."    | Note it; `specstone:brainstorming-sdd` takes it.   |
-| "I'll run `specstone approve` without an `ok`."  | Show each draft; wait for the Owner's `ok`.        |
+| Thought                                          | Do instead                                                 |
+|--------------------------------------------------|------------------------------------------------------------|
+| "Check for a project first, as other skills do." | Run `specstone init` first; it refuses on its own.         |
+| "Already a project: I'll migrate it."            | Say it is a project already, and stop.                     |
+| "No code yet, so the code roots can wait."       | Fill `code` before asking for approval.                    |
+| "`code_root_missing`: clear the `code` field."   | Keep it; the folder comes with the code.                   |
+| "The Owner named a feature: `specstone new`."    | Note it; the `specstone-brainstorming-sdd` skill takes it. |
+| "I'll run `specstone approve` without an `ok`."  | Show each draft; wait for the Owner's `ok`.                |

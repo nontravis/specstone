@@ -239,6 +239,7 @@ void main() {
   _agentFileTests();
   _hostRenderTests();
   _dispatchReferenceTests();
+  _groundInitUpdateTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -1714,8 +1715,8 @@ void _agentTests() {
     expect(
       reader,
       contains(
-        'read that file with `Read`, in parts as the task needs, and '
-        'run no `context`',
+        "read that file with the host's file read, in parts as the task "
+        'needs, and run no `context`',
       ),
     );
     expect(
@@ -1917,7 +1918,7 @@ void _agentTests() {
       skill,
       contains(
         'A name that matches docs in two or more code targets: ask the Owner '
-        'which one, as `specstone:plan-sdd` does, then run `get` and `set` '
+        'which one, as `specstone-plan-sdd` does, then run `get` and `set` '
         "on that doc's DocPath, the one `get`'s doc header prints, such as "
         '`specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md`'
         '. A name that matches one doc asks '
@@ -4776,6 +4777,97 @@ void _dispatchReferenceTests() {
             .where((problem) => problem.contains('specstone-expert-sdd/')),
         isEmpty,
       );
+    });
+  });
+}
+
+const _groundInitUpdateFiles = [
+  'specstone-read-sdd/',
+  'specstone-sdd-reader.',
+  'specstone-init/',
+  'specstone-update-sdd/',
+];
+
+/// The grounding, reader, init, and update files, in the source and in each
+/// host's render.
+List<ContentFile> _groundInitUpdateContent() => [
+  for (final file in contentFiles())
+    if (_groundInitUpdateFiles.any(file.path.contains)) file,
+];
+
+void _groundInitUpdateTests() {
+  group('the grounding, init, and update files', () {
+    test('each of the four reaches the source and every host render', () {
+      final paths = _groundInitUpdateContent().map((file) => file.path);
+      expect(paths, hasLength(3 + 5 + 3 + 3));
+    });
+
+    test("they name no host tool, no CLAUDE_ variable, no other host's skills "
+        'folder, no specstone:<name> skill, and every relative path '
+        'resolves', () {
+      final files = _groundInitUpdateContent();
+      expect(hostTiedText(files), isEmpty);
+      expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);
+      expect(
+        unresolvedPaths(contentFiles())
+            .where((problem) => _groundInitUpdateFiles.any(problem.contains)),
+        isEmpty,
+      );
+    });
+
+    test('read-sdd takes the dispatch rungs from expert-sdd and names the '
+        'reader', () {
+      final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
+      expect(skill, contains('`specstone-sdd-reader`'));
+      expect(
+        skill,
+        contains('`../specstone-expert-sdd/references/dispatch.md`'),
+      );
+      expect(skill, isNot(contains('`Agent` tool')));
+      expect(skill, isNot(contains('rung')));
+    });
+
+    test('sdd-reader makes each project-root path absolute from the folder '
+        'specstone folder prints', () {
+      final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
+      expect(
+        reader,
+        contains(
+          'run `specstone folder` once and join the path to the parent of '
+          'the folder it prints',
+        ),
+      );
+      expect(reader, contains('A path already absolute stays as given.'));
+    });
+
+    test("sdd-reader reads through the host's file read and stays read-only "
+        'by its own text', () {
+      final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
+      expect(reader, contains("read that file with the host's file read"));
+      expect(
+        _sectionOf(_pluginText('specstone-sdd-reader.md'), 'Scope Boundaries'),
+        contains(
+          "- Write or edit any file, by the host's file write or a shell "
+          'redirect;',
+        ),
+      );
+    });
+
+    test('init and update-sdd hand over by following the next skill', () {
+      final init = _oneLine(_pluginText('specstone-init/SKILL.md'));
+      final update = _oneLine(_pluginText('specstone-update-sdd/SKILL.md'));
+      expect(init, contains('follow the `specstone-expert-sdd` skill'));
+      expect(init, contains('follow the `specstone-brainstorming-sdd` skill'));
+      expect(update, contains('Follow the `specstone-expert-sdd` skill'));
+      expect(update, contains('follow the `specstone-sync-sdd` skill instead'));
+      expect(
+        update,
+        contains('follow the `specstone-brainstorming-sdd` skill instead'),
+      );
+    });
+
+    test('each of the four skill files stays within 1,500 est. tokens', () {
+      expect(oversizedSkillFiles(_groundInitUpdateContent()), isEmpty);
     });
   });
 }
