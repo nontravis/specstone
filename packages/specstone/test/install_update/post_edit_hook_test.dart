@@ -36,7 +36,7 @@ exit ${STUB_EXIT:-0}''');
   String logged(String name) =>
       File('${sb.logs.path}/$name').readAsStringSync();
 
-  group('post-edit hook (G8-R11)', () {
+  group('post-edit hook', () {
     test('the command starts its script through an absolute shell', () {
       expect(hookCommandOf('PostToolUse'), startsWith('/bin/sh '));
     });

@@ -11,17 +11,13 @@ import '../../../specstone_core/test/helpers/git_repo.dart'
 import '../helpers/install_local_repo.dart';
 import '../helpers/script_sandbox.dart';
 
-const _fr =
-    'install_update/machine_install/install_local_build/'
-    'build_and_place_branch';
-
 void main() {
   late String tool;
 
   setUpAll(() async => tool = await compileInstallLocal());
 
   test(
-    '$_fr E02: Windows exits non-zero; snapshot() and the worktree list stay',
+    'Windows exits non-zero; snapshot() and the worktree list stay',
     () async {
       final sandbox = await createScriptSandbox();
       final separator = Platform.pathSeparator;

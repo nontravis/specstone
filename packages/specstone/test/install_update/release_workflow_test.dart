@@ -33,14 +33,14 @@ void main() {
     ci = _load('ci.yaml');
   });
 
-  test('f09/us04/fr05: release.yaml runs on a v* tag with read-only top '
+  test('release.yaml runs on a v* tag with read-only top '
       'permissions', () {
     final on = release['on'] as YamlMap;
     expect((on['push'] as YamlMap)['tags'], ['v*']);
     expect(release['permissions'], {'contents': 'read'});
   });
 
-  test("f09/us04/fr05/e01, e05: version, then ci.yaml's jobs, then build, "
+  test("version, then ci.yaml's jobs, then build, "
       'then publish', () {
     expect(
       _jobs(release).keys,
@@ -53,7 +53,7 @@ void main() {
     expect(_job(release, 'publish')['needs'], 'build');
   });
 
-  test('f09/us04/fr05: only publish holds contents: write', () {
+  test('only publish holds contents: write', () {
     for (final name in ['version', 'test', 'build']) {
       expect(
         _job(release, name).containsKey('permissions'),
@@ -64,7 +64,7 @@ void main() {
     expect(_job(release, 'publish')['permissions'], {'contents': 'write'});
   });
 
-  test('f09/us04/fr05, f09/us04/fr06: build packs and smoke-tests the four '
+  test('build packs and smoke-tests the four '
       'targets', () {
     final build = _job(release, 'build');
     final include =
@@ -120,7 +120,7 @@ void main() {
     }
   });
 
-  test('f09/us04/fr06: each install smoke opens the SQLite index between the '
+  test('each install smoke opens the SQLite index between the '
       'install and the uninstall', () {
     final steps = _steps(_job(release, 'build'));
     for (final (installer, uninstaller, index) in [
@@ -140,7 +140,7 @@ void main() {
   });
 
   test('Package each archive with its notices '
-      'E04: Stage the bundle copies the target shim into bin', () {
+      'Stage the bundle copies the target shim into bin', () {
     final stage = _steps(_job(release, 'build'))
         .singleWhere((s) => s['name'] == 'Stage the bundle');
     final run = '${stage['run']}';
@@ -162,7 +162,7 @@ void main() {
   });
 
   test('Package each archive with its notices '
-      'E04: Compile stn.exe runs build.ps1 on Windows between the CLI build '
+      'Compile stn.exe runs build.ps1 on Windows between the CLI build '
       'and the stage', () {
     final steps = _steps(_job(release, 'build'));
     final names = steps.map((s) => '${s['name'] ?? s['uses'] ?? ''}').toList();
@@ -181,7 +181,7 @@ void main() {
   });
 
   test('Package each archive with its notices '
-      'E04: the packed archive is checked between the pack steps and '
+      'the packed archive is checked between the pack steps and '
       'SHA256SUMS', () {
     final steps = _steps(_job(release, 'build'));
     final names = steps.map((s) => '${s['name'] ?? s['uses'] ?? ''}').toList();
@@ -209,7 +209,7 @@ void main() {
   });
 
   test('Package each archive with its notices '
-      'E04: the staged-binary smoke runs stn.exe --version on Windows and '
+      'the staged-binary smoke runs stn.exe --version on Windows and '
       'compares it to the tag', () {
     final smoke = _steps(_job(release, 'build'))
         .singleWhere((s) => s['name'] == 'Smoke-test the staged binary');
@@ -228,7 +228,7 @@ void main() {
   });
 
   test('Package each archive with its notices '
-      'E04: Check the stn.exe version resource reads both versions after the '
+      'Check the stn.exe version resource reads both versions after the '
       'smoke and before the upload', () {
     final steps = _steps(_job(release, 'build'));
     final names = steps.map((s) => '${s['name'] ?? s['uses'] ?? ''}').toList();
@@ -254,7 +254,7 @@ void main() {
     expect(run, contains('throw'));
   });
 
-  test('f09/us04/fr05/e02: the version job checks the tag against '
+  test('the version job checks the tag against '
       'version.dart and the five spots', () {
     final version = _job(release, 'version');
     expect(version['runs-on'], 'ubuntu-latest');
@@ -266,7 +266,7 @@ void main() {
     expect(run, contains('--enforce-lockfile'));
   });
 
-  test('f09/us04/fr05: publish uploads four archives and SHA256SUMS with '
+  test('publish uploads four archives and SHA256SUMS with '
       'generated notes', () {
     final publish = _job(release, 'publish');
     expect(publish['runs-on'], 'ubuntu-latest');
@@ -277,7 +277,7 @@ void main() {
     expect(_stepText(publish), contains('actions/download-artifact@v8'));
   });
 
-  test('f09/us04/fr07, f09/us04/s2: ci.yaml tests on Linux, macOS arm64, and '
+  test('ci.yaml tests on Linux, macOS arm64, and '
       'Windows and answers workflow_call', () {
     expect((ci['on'] as YamlMap).containsKey('workflow_call'), isTrue);
     final matrix =
@@ -354,7 +354,7 @@ void main() {
     expect(call.containsKey('with'), isFalse);
   });
 
-  test('f09/us04/fr07: the PowerShell script tests run in their own Windows '
+  test('the PowerShell script tests run in their own Windows '
       'job and stay out of the main Windows step', () {
     final job = _job(ci, 'test-scripts-windows');
     expect(job['runs-on'], 'windows-latest');
@@ -374,7 +374,7 @@ void main() {
     expect('${otherStep['run']}', isNot(contains('ps1')));
   });
 
-  test('f09/us04/fr05: no run script holds a workflow expression', () {
+  test('no run script holds a workflow expression', () {
     for (final workflow in [release, ci]) {
       for (final job in _jobs(workflow).values) {
         if ((job as YamlMap).containsKey('uses')) continue;
@@ -385,7 +385,7 @@ void main() {
     }
   });
 
-  test('f09/us04/fr05, INV-4: every build upload name matches the publish '
+  test('every build upload name matches the publish '
       'download pattern', () {
     final upload = _steps(
       _job(release, 'build'),
@@ -424,12 +424,12 @@ void main() {
       );
     }
 
-    test('f09/us04/fr05/e02: the tag equal to version.dart passes', () async {
+    test('the tag equal to version.dart passes', () async {
       final r = await runCheck('v$specstoneVersion');
       expect(r.exitCode, 0, reason: '${r.stderr}');
     });
 
-    test('f09/us04/fr05/e02: a tag off version.dart fails', () async {
+    test('a tag off version.dart fails', () async {
       final r = await runCheck('v$specstoneVersion.1');
       expect(r.exitCode, 1);
     });
@@ -474,20 +474,17 @@ void main() {
     }
 
     for (final tag in ['v1.2.0-beta.1', 'v1.2.0-rc.1', 'v1.2.0-alpha-1']) {
-      test(
-        'Test, build, and publish on the tag '
-        'E06: $tag publishes a GitHub pre-release with generated notes',
-        () async {
-          final log = await publishedWith(tag);
+      test('Test, build, and publish on the tag '
+          '$tag publishes a GitHub pre-release with generated notes', () async {
+        final log = await publishedWith(tag);
 
-          expectCreateLine(log, tag);
-          expect(log, contains('--prerelease'));
-        },
-      );
+        expectCreateLine(log, tag);
+        expect(log, contains('--prerelease'));
+      });
     }
 
     test('Test, build, and publish on the tag '
-        'E07: a release tag publishes a normal release', () async {
+        'a release tag publishes a normal release', () async {
       final log = await publishedWith('v1.2.0');
 
       expectCreateLine(log, 'v1.2.0');

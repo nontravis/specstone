@@ -90,47 +90,35 @@ void main() {
       'Run: specstone upgrade';
 
   group('session-start.sh', () {
-    test(
-      'f09/us05/fr02, f09/us05/s1: equal versions print nothing; exit 0',
-      () async {
-        final r = await runHook(version: '0.2.0');
+    test('equal versions print nothing; exit 0', () async {
+      final r = await runHook(version: '0.2.0');
 
-        expect(r.exitCode, 0);
-        expect(r.stdout, isEmpty);
-      },
-    );
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
+    });
 
-    test(
-      'f09/us05/fr02/e01, f09/us05/s2: an older CLI gets the mismatch message',
-      () async {
-        expect(
-          message(await runHook(version: '0.1.0')),
-          mismatch('0.1.0', '0.2.0'),
-        );
-      },
-    );
+    test('an older CLI gets the mismatch message', () async {
+      expect(
+        message(await runHook(version: '0.1.0')),
+        mismatch('0.1.0', '0.2.0'),
+      );
+    });
 
-    test(
-      'f09/us05/fr02/e02, f09/us05/s3: an older plugin gets the same message',
-      () async {
-        expect(
-          message(await runHook(version: '0.3.0')),
-          mismatch('0.3.0', '0.2.0'),
-        );
-      },
-    );
+    test('an older plugin gets the same message', () async {
+      expect(
+        message(await runHook(version: '0.3.0')),
+        mismatch('0.3.0', '0.2.0'),
+      );
+    });
 
-    test(
-      'f09/us05/fr02/e03: trailing newlines of --version are trimmed',
-      () async {
-        final r = await runHook(version: '0.2.0\n\n');
+    test('trailing newlines of --version are trimmed', () async {
+      final r = await runHook(version: '0.2.0\n\n');
 
-        expect(r.exitCode, 0);
-        expect(r.stdout, isEmpty);
-      },
-    );
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
+    });
 
-    test('f09/us05/fr02, f09/us05/s6: a failing --version gets the reinstall '
+    test('a failing --version gets the reinstall '
         'message', () async {
       expect(
         message(await runHook(version: '0.2.0', exit: 1)),
@@ -139,7 +127,7 @@ void main() {
       );
     });
 
-    test('f09/us05/fr02: a --version that prints nothing gets the reinstall '
+    test('a --version that prints nothing gets the reinstall '
         'message', () async {
       expect(
         message(await runHook(version: '\n')),
@@ -148,14 +136,14 @@ void main() {
       );
     });
 
-    test('f09/us05/fr03/e01, f09/us05/s4: an installed CLI off the PATH gets '
+    test('an installed CLI off the PATH gets '
         'the off-PATH message', () async {
       installBinary('specstone');
 
       expect(message(await runHook()), offPathMessage);
     });
 
-    test('f09/us05/fr03/e02, f09/us05/s5: no CLI on macOS or Linux names the '
+    test('no CLI on macOS or Linux names the '
         'curl line', () async {
       for (final uname in ['Darwin', 'Linux']) {
         expect(
@@ -165,7 +153,7 @@ void main() {
       }
     });
 
-    test('f09/us05/fr03/e03: Git Bash on Windows names the irm line and finds '
+    test('Git Bash on Windows names the irm line and finds '
         'specstone.exe', () async {
       for (final uname in [mingw, 'MSYS_NT-10.0', 'CYGWIN_NT-10.0']) {
         expect(
@@ -181,24 +169,21 @@ void main() {
       );
     });
 
-    test(
-      'f09/us05/fr03: a reinstall message on Git Bash names the irm line',
-      () async {
-        expect(
-          message(
-            await runHook(
-              version: '0.2.0',
-              exit: 1,
-              extra: {'STUB_UNAME_S': mingw},
-            ),
+    test('a reinstall message on Git Bash names the irm line', () async {
+      expect(
+        message(
+          await runHook(
+            version: '0.2.0',
+            exit: 1,
+            extra: {'STUB_UNAME_S': mingw},
           ),
-          'Specstone: the CLI did not report its version. '
-          'Reinstall it: $irmLine',
-        );
-      },
-    );
+        ),
+        'Specstone: the CLI did not report its version. '
+        'Reinstall it: $irmLine',
+      );
+    });
 
-    test('f09/us05/fr03: USERPROFILE stands in for a missing HOME', () async {
+    test('USERPROFILE stands in for a missing HOME', () async {
       installBinary('specstone');
 
       final r = await runHook(extra: {'HOME': '', 'USERPROFILE': sb.home.path});
@@ -219,8 +204,7 @@ void main() {
       File envFile([String content = '']) =>
           File('${sb.root.path}/claude_env.sh')..writeAsStringSync(content);
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E06: off the PATH with the binary present, the line is appended '
+      test('off the PATH with the binary present, the line is appended '
           'to the file', () async {
         installBinary('specstone');
         final env = envFile('# kept\n');
@@ -232,8 +216,7 @@ void main() {
       });
 
       test(
-        'install_update/warn_at_session_start/register_session_start_hook '
-        'E06: a file without a final line feed keeps its last line whole',
+        'a file without a final line feed keeps its last line whole',
         () async {
           installBinary('specstone');
           final env = envFile('# kept');
@@ -244,8 +227,7 @@ void main() {
         },
       );
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E06: a second run appends again and truncates nothing', () async {
+      test('a second run appends again and truncates nothing', () async {
         installBinary('specstone');
         final env = envFile();
 
@@ -255,8 +237,7 @@ void main() {
         expect(env.readAsStringSync(), '$hookPathLine$hookPathLine');
       });
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E07: specstone on the PATH appends nothing', () async {
+      test('specstone on the PATH appends nothing', () async {
         installBinary('specstone');
         final env = envFile('# kept\n');
 
@@ -270,8 +251,7 @@ void main() {
         expect(env.readAsStringSync(), '# kept\n');
       });
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E08: an unset CLAUDE_ENV_FILE appends nothing and the off-PATH '
+      test('an unset CLAUDE_ENV_FILE appends nothing and the off-PATH '
           'message says the CLI is not on the PATH Claude Code sees', () async {
         installBinary('specstone');
 
@@ -281,8 +261,7 @@ void main() {
         expect(sb.snapshot().keys, ['.specstone/bin/specstone']);
       });
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E08: an empty CLAUDE_ENV_FILE appends nothing and gets the same '
+      test('an empty CLAUDE_ENV_FILE appends nothing and gets the same '
           'message', () async {
         installBinary('specstone');
         final cwd = Directory('${sb.root.path}/cwd')..createSync();
@@ -300,8 +279,7 @@ void main() {
         expect(sb.snapshot().keys, ['.specstone/bin/specstone']);
       });
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E09: no binary appends nothing and the not-installed message '
+      test('no binary appends nothing and the not-installed message '
           'shows', () async {
         final env = envFile('# kept\n');
 
@@ -311,7 +289,7 @@ void main() {
         expect(env.readAsStringSync(), '# kept\n');
       });
 
-      test('install_update/warn_at_session_start/find_missing_cli E04: with '
+      test('with '
           'CLAUDE_ENV_FILE set the message names the hook; without it the '
           'message does not', () async {
         installBinary('specstone');
@@ -326,8 +304,7 @@ void main() {
         expect(withFile, isNot(without));
       });
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E06: an env file in a missing folder still exits 0 with a message '
+      test('an env file in a missing folder still exits 0 with a message '
           'that does not claim the hook put the folder on the PATH', () async {
         installBinary('specstone');
         final missing = '${sb.root.path}/no_such_folder/claude_env.sh';
@@ -338,8 +315,7 @@ void main() {
         expect(File(missing).existsSync(), isFalse);
       });
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E06: a read-only env file still exits 0 with that message and '
+      test('a read-only env file still exits 0 with that message and '
           'stays as it was', () async {
         installBinary('specstone');
         final env = envFile('# kept\n');
@@ -352,8 +328,7 @@ void main() {
         expect(env.readAsStringSync(), '# kept\n');
       }, skip: _isRoot ? 'root ignores file modes' : null);
 
-      test('install_update/warn_at_session_start/register_session_start_hook '
-          'E06: an unreadable env file appends nothing and gets that '
+      test('an unreadable env file appends nothing and gets that '
           'message', () async {
         installBinary('specstone');
         final env = envFile('# kept');
@@ -368,53 +343,50 @@ void main() {
       }, skip: _isRoot ? 'root ignores file modes' : null);
     });
 
-    test(
-      'f09/us05/fr02/e04, INV-9: the script writes nothing, opens no network, '
-      'and reads no stdin',
-      () async {
-        for (final tool in ['curl', 'wget']) {
-          sb.stub(tool, r'echo "$0 $*" >> "$STUB_LOG_DIR/net.log"');
-        }
-        sb.stub('specstone', r'printf "%s" "$STUB_VERSION"');
-        final tmp = Directory(sb.env()['TMPDIR']!);
-        List<String> files(Directory d) =>
-            d.listSync(recursive: true).map((e) => e.path).toList()..sort();
-        final homeBefore = sb.snapshot();
-        final tmpBefore = files(tmp);
+    test('the script writes nothing, opens no network, '
+        'and reads no stdin', () async {
+      for (final tool in ['curl', 'wget']) {
+        sb.stub(tool, r'echo "$0 $*" >> "$STUB_LOG_DIR/net.log"');
+      }
+      sb.stub('specstone', r'printf "%s" "$STUB_VERSION"');
+      final tmp = Directory(sb.env()['TMPDIR']!);
+      List<String> files(Directory d) =>
+          d.listSync(recursive: true).map((e) => e.path).toList()..sort();
+      final homeBefore = sb.snapshot();
+      final tmpBefore = files(tmp);
 
-        // An open stdin pipe that is never closed: a script that reads
-        // stdin would block here until the timeout.
-        final process = await Process.start(
-          '/bin/bash',
-          [scriptPath()],
-          environment: sb.env(hookEnv({'STUB_VERSION': '0.1.0'})),
-          includeParentEnvironment: false,
-          workingDirectory: sb.root.path,
-        );
-        final stdout = process.stdout.transform(utf8.decoder).join();
-        unawaited(process.stderr.drain<void>());
-        final code = await process.exitCode.timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            process.kill(ProcessSignal.sigkill);
-            return -1;
-          },
-        );
+      // An open stdin pipe that is never closed: a script that reads
+      // stdin would block here until the timeout.
+      final process = await Process.start(
+        '/bin/bash',
+        [scriptPath()],
+        environment: sb.env(hookEnv({'STUB_VERSION': '0.1.0'})),
+        includeParentEnvironment: false,
+        workingDirectory: sb.root.path,
+      );
+      final stdout = process.stdout.transform(utf8.decoder).join();
+      unawaited(process.stderr.drain<void>());
+      final code = await process.exitCode.timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          process.kill(ProcessSignal.sigkill);
+          return -1;
+        },
+      );
 
-        expect(code, 0);
-        expect(await stdout, contains('specstone upgrade'));
-        expect(sb.snapshot(), homeBefore);
-        expect(files(tmp), tmpBefore);
-        expect(sb.logOf('net'), isEmpty);
-      },
-    );
+      expect(code, 0);
+      expect(await stdout, contains('specstone upgrade'));
+      expect(sb.snapshot(), homeBefore);
+      expect(files(tmp), tmpBefore);
+      expect(sb.logOf('net'), isEmpty);
+    });
 
     void pluginAt(String version) {
       File('$pluginDir/.claude-plugin/plugin.json')
           .writeAsStringSync('{"name": "specstone", "version": "$version"}\n');
     }
 
-    test('install_update/version_match session-start INV-9: a matching '
+    test('a matching '
         'pre-release plugin and CLI pair prints nothing', () async {
       pluginAt('1.2.0-beta.1');
 
@@ -424,7 +396,7 @@ void main() {
       expect(r.stdout, isEmpty);
     });
 
-    test('install_update/version_match session-start INV-9: a different '
+    test('a different '
         'pre-release CLI gets the mismatch message', () async {
       pluginAt('1.2.0-beta.1');
 
@@ -434,7 +406,7 @@ void main() {
       );
     });
 
-    test('install_update/version_match session-start INV-9: a release CLI '
+    test('a release CLI '
         'against a pre-release plugin gets the mismatch message', () async {
       pluginAt('1.2.0-beta.1');
 
@@ -444,7 +416,7 @@ void main() {
       );
     });
 
-    test('f09/us05/fr02: a plugin version holding a backslash or a tab still '
+    test('a plugin version holding a backslash or a tab still '
         'gives valid JSON', () async {
       const plugin = '1.0\\q\tz';
       File('$pluginDir/.claude-plugin/plugin.json')
@@ -460,7 +432,7 @@ void main() {
         'Specstone: the CLI did not report its version. '
         'Reinstall it: $curlLine';
 
-    test('f09/us05/fr02: a hung --version is cut off and gets the reinstall '
+    test('a hung --version is cut off and gets the reinstall '
         'message', () async {
       sb.stub('specstone', 'sleep 30');
       final watch = Stopwatch()..start();
@@ -479,7 +451,7 @@ void main() {
       ('prints endlessly', 'yes'),
       ('ignores TERM', "trap '' TERM; sleep 30"),
     ]) {
-      test('f09/us05/fr02: a --version that $name is cut off and gets the '
+      test('a --version that $name is cut off and gets the '
           'reinstall message', () async {
         sb.stub('specstone', body);
         final watch = Stopwatch()..start();
@@ -495,7 +467,7 @@ void main() {
       });
     }
 
-    test('f09/us05/fr02: the version check never calls timeout, whose -k '
+    test('the version check never calls timeout, whose -k '
         'misses a grandchild on uutils coreutils', () async {
       sb.stub('timeout', r'echo "$0 $*" >> "$STUB_LOG_DIR/timeout.log"');
 
@@ -506,36 +478,27 @@ void main() {
       expect(sb.logOf('timeout'), isEmpty);
     });
 
-    test(
-      'f09/us05/fr02: a 100,000-byte version gets the reinstall message',
-      () async {
-        final watch = Stopwatch()..start();
+    test('a 100,000-byte version gets the reinstall message', () async {
+      final watch = Stopwatch()..start();
 
-        final r = await runHook(version: '1' * 100000);
+      final r = await runHook(version: '1' * 100000);
 
-        expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
-        expect(message(r), failed);
-      },
-    );
+      expect(watch.elapsed, lessThan(const Duration(seconds: 5)));
+      expect(message(r), failed);
+    });
 
-    test(
-      'f09/us05/fr02: a non-ASCII version gets the reinstall message',
-      () async {
-        expect(message(await runHook(version: '0.2.0\u00e9')), failed);
-      },
-    );
+    test('a non-ASCII version gets the reinstall message', () async {
+      expect(message(await runHook(version: '0.2.0\u00e9')), failed);
+    });
 
-    test(
-      'f09/us05/fr02: a version with leading spaces is trimmed and matches',
-      () async {
-        final r = await runHook(version: '  0.2.0 ');
+    test('a version with leading spaces is trimmed and matches', () async {
+      final r = await runHook(version: '  0.2.0 ');
 
-        expect(r.exitCode, 0);
-        expect(r.stdout, isEmpty);
-      },
-    );
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
+    });
 
-    test('f09/us05/fr02: a minified plugin.json with a nested version uses the '
+    test('a minified plugin.json with a nested version uses the '
         'top-level one', () async {
       File('$pluginDir/.claude-plugin/plugin.json').writeAsStringSync(
         '{"name":"specstone","version":"0.2.0",'
@@ -548,19 +511,16 @@ void main() {
       expect(r.stdout, isEmpty);
     });
 
-    test(
-      'f09/us05/fr02: an unreadable plugin version prints nothing',
-      () async {
-        File('$pluginDir/.claude-plugin/plugin.json').deleteSync();
+    test('an unreadable plugin version prints nothing', () async {
+      File('$pluginDir/.claude-plugin/plugin.json').deleteSync();
 
-        final r = await runHook(version: '0.1.0');
+      final r = await runHook(version: '0.1.0');
 
-        expect(r.exitCode, 0);
-        expect(r.stdout, isEmpty);
-      },
-    );
+      expect(r.exitCode, 0);
+      expect(r.stdout, isEmpty);
+    });
 
-    test('f09/us05/fr01: hooks.json holds the SessionStart entry beside the '
+    test('hooks.json holds the SessionStart entry beside the '
         'unchanged PostToolUse entry', () {
       final decoded = jsonDecode(
         File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
@@ -576,7 +536,7 @@ void main() {
       ]);
     });
 
-    test('f09/us05/fr01/e02: git keeps every .sh at LF', () async {
+    test('git keeps every .sh at LF', () async {
       final r = await Process.run('git', [
         'check-attr',
         'eol',
@@ -594,7 +554,7 @@ void main() {
     });
   });
 
-  group('session-start.sh PATH search (G8-R11)', () {
+  group('session-start.sh PATH search', () {
     setUp(() {
       // The sandbox plugin folder holds the plugin.json the stub matches.
       Directory('$pluginDir/hooks').createSync(recursive: true);

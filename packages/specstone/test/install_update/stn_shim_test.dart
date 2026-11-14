@@ -14,7 +14,7 @@ void main() {
 
   Directory dir(String path) => Directory(path)..createSync(recursive: true);
 
-  test('run_cli_or_yield S1: no other stn runs the specstone beside it, '
+  test('no other stn runs the specstone beside it, '
       'passing argv, stdin, PATH, and no guard, exit 0', () async {
     final sb = await createShimSandbox();
     final path = '${sb.bin.path}:$systemEntries';
@@ -40,49 +40,43 @@ void main() {
     expect(sb.logOf('other'), isEmpty);
   });
 
-  test(
-    "run_cli_or_yield S1: the exit status is the specstone run's, 3 here",
-    () async {
-      final sb = await createShimSandbox();
+  test("the exit status is the specstone run's, 3 here", () async {
+    final sb = await createShimSandbox();
 
-      final r = await sb.runStn(
-        ['check'],
-        path: '${sb.bin.path}:$systemEntries',
-        extra: {'FAKE_EXIT': '3'},
-      );
+    final r = await sb.runStn(
+      ['check'],
+      path: '${sb.bin.path}:$systemEntries',
+      extra: {'FAKE_EXIT': '3'},
+    );
 
-      expect(r.exitCode, 3);
-    },
-  );
+    expect(r.exitCode, 3);
+  });
 
-  test(
-    'run_cli_or_yield S1: arguments with spaces and quotes arrive as typed',
-    () async {
-      final sb = await createShimSandbox();
+  test('arguments with spaces and quotes arrive as typed', () async {
+    final sb = await createShimSandbox();
 
-      final r = await sb.runStn([
-        'a b',
-        '"q"',
-        "it's",
-      ], path: '${sb.bin.path}:$systemEntries');
+    final r = await sb.runStn([
+      'a b',
+      '"q"',
+      "it's",
+    ], path: '${sb.bin.path}:$systemEntries');
 
-      expect(r.exitCode, 0);
-      expect(sb.logOf('specstone'), [
-        'argv',
-        'a b',
-        '"q"',
-        "it's",
-        'stdin',
-        '',
-        'path',
-        '${sb.bin.path}:$systemEntries',
-        'guard',
-        'unset',
-      ]);
-    },
-  );
+    expect(r.exitCode, 0);
+    expect(sb.logOf('specstone'), [
+      'argv',
+      'a b',
+      '"q"',
+      "it's",
+      'stdin',
+      '',
+      'path',
+      '${sb.bin.path}:$systemEntries',
+      'guard',
+      'unset',
+    ]);
+  });
 
-  test('run_cli_or_yield S3: another stn on a later entry runs with the '
+  test('another stn on a later entry runs with the '
       'unchanged PATH and the guard set; the specstone does not run; the '
       "exit status is that stn's", () async {
     final sb = await createShimSandbox();
@@ -106,7 +100,7 @@ void main() {
     expect(sb.logOf('specstone'), isEmpty);
   });
 
-  test('run_cli_or_yield E01: the guard set runs the specstone beside it '
+  test('the guard set runs the specstone beside it '
       'even with another stn on the PATH', () async {
     final sb = await createShimSandbox();
     final other = dir('${sb.root.path}/tools');
@@ -124,7 +118,7 @@ void main() {
     expect(sb.logOf('other'), isEmpty);
   });
 
-  test('run_cli_or_yield E02: relative, dot, empty, and tilde entries are '
+  test('relative, dot, empty, and tilde entries are '
       'skipped even when each holds a stn', () async {
     final sb = await createShimSandbox();
     // A stn in `rel`, found only if the walk ran a relative entry from the
@@ -144,7 +138,7 @@ void main() {
     expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
   });
 
-  test('run_cli_or_yield E08: the install folder on the PATH with a trailing '
+  test('the install folder on the PATH with a trailing '
       'slash or through a folder symlink is skipped, so a later stn runs and '
       'no loop forms', () async {
     final sb = await createShimSandbox();
@@ -168,7 +162,7 @@ void main() {
     expect(sb.logOf('specstone'), isEmpty);
   });
 
-  test('run_cli_or_yield E09: a folder and a non-executable file named stn '
+  test('a folder and a non-executable file named stn '
       'are skipped; a symlink to an executable stn counts', () async {
     final sb = await createShimSandbox();
     final withDir = dir('${sb.root.path}/one/stn');
@@ -192,7 +186,7 @@ void main() {
     expect(sb.logOf('other').sublist(0, 2), ['argv', 'check']);
   });
 
-  test('run_cli_or_yield E11 analogue: two runs in a row from one parent '
+  test('two runs in a row from one parent '
       'environment both hand off; the parent never holds the guard', () async {
     final sb = await createShimSandbox();
     final other = dir('${sb.root.path}/tools');
@@ -210,7 +204,7 @@ void main() {
     expect(Platform.environment[stnGuardVariable], isNull);
   });
 
-  test('review focus 1, 3: a spaced PATH entry holds one entry; no argument '
+  test('a spaced PATH entry holds one entry; no argument '
       'reaches the target as none', () async {
     final sb = await createShimSandbox();
     final other = dir('${sb.root.path}/space tools');
@@ -230,7 +224,7 @@ void main() {
     ]);
   });
 
-  test('review focus 4: stdin piped into stn reaches the target', () async {
+  test('stdin piped into stn reaches the target', () async {
     final sb = await createShimSandbox();
     final other = dir('${sb.root.path}/tools');
     sb.otherStn(other.path);
@@ -250,19 +244,16 @@ void main() {
     ]);
   });
 
-  test(
-    'review focus 5: a missing absolute entry is skipped with empty stderr',
-    () async {
-      final sb = await createShimSandbox();
-      final missing = '${sb.root.path}/no such folder';
+  test('a missing absolute entry is skipped with empty stderr', () async {
+    final sb = await createShimSandbox();
+    final missing = '${sb.root.path}/no such folder';
 
-      final r = await sb.runStn([
-        'check',
-      ], path: '$missing:${sb.bin.path}:$systemEntries');
+    final r = await sb.runStn([
+      'check',
+    ], path: '$missing:${sb.bin.path}:$systemEntries');
 
-      expect(r.exitCode, 0);
-      expect(r.stderr, isEmpty);
-      expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
-    },
-  );
+    expect(r.exitCode, 0);
+    expect(r.stderr, isEmpty);
+    expect(sb.logOf('specstone').sublist(0, 2), ['argv', 'check']);
+  });
 }

@@ -760,7 +760,7 @@ try {
     }
 
     # Prints one line naming the first `stn` on the cut $env:Path other than
-    # in $BinFolder, as bin\stn.exe walks it (run_cli_or_yield E03, E08-E10):
+    # in $BinFolder, as bin\stn.exe walks it:
     # an entry that reads as $BinFolder, or holds stn.exe and specstone.exe,
     # is skipped; a `stn` is a file named stn.exe, .cmd, .bat, .com, or .ps1,
     # tried in that order. The notice never changes the run's exit status.

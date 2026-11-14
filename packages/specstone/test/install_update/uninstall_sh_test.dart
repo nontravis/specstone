@@ -33,7 +33,7 @@ void main() {
       (Process.runSync('id', ['-u']).stdout as String).trim() == '0';
 
   group('uninstall.sh', () {
-    test('f09/us03/fr01, f09/us03/fr02, f09/us03/s1: bin, lib, and the entry '
+    test('bin, lib, and the entry '
         'go; the plugin command is last', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
@@ -52,7 +52,7 @@ void main() {
       expect(read('.zshrc'), '');
     });
 
-    test('f09/us03/fr01/e01, e02, f09/us03/s3: packs, ~/.specstone, and a '
+    test('packs, ~/.specstone, and a '
         'project .specstone stay', () async {
       sb.installFake();
       File(home('.specstone/packs/mine/pack.yaml'))
@@ -71,25 +71,22 @@ void main() {
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
     });
 
-    test(
-      'f09/us03/fr01/e03: a fish file holding only the entry is deleted',
-      () async {
-        sb.installFake();
-        const fish = '.config/fish/conf.d/specstone.fish';
-        profile(fish, '$fishEntry\n');
+    test('a fish file holding only the entry is deleted', () async {
+      sb.installFake();
+      const fish = '.config/fish/conf.d/specstone.fish';
+      profile(fish, '$fishEntry\n');
 
-        final r = await sb.run('uninstall.sh');
+      final r = await sb.run('uninstall.sh');
 
-        expect(r.exitCode, 0);
-        expect(File(home(fish)).existsSync(), isFalse);
-        expect(
-          r.stdout,
-          contains('Removed the PATH entry from ${sb.home.path}/$fish\n'),
-        );
-      },
-    );
+      expect(r.exitCode, 0);
+      expect(File(home(fish)).existsSync(), isFalse);
+      expect(
+        r.stdout,
+        contains('Removed the PATH entry from ${sb.home.path}/$fish\n'),
+      );
+    });
 
-    test('f09/us03/fr01/e03: a fish file with another line keeps that '
+    test('a fish file with another line keeps that '
         'line', () async {
       const fish = '.config/fish/conf.d/specstone.fish';
       profile(fish, 'set -x A 1\n$fishEntry\n');
@@ -100,7 +97,7 @@ void main() {
       expect(read(fish), 'set -x A 1\n');
     });
 
-    test('f09/us03/fr01/e05: other profile lines stay byte for byte, and a '
+    test('other profile lines stay byte for byte, and a '
         'missing final newline stays missing', () async {
       profile('.bashrc', 'a\r\n$entry\nb');
       profile('.profile', 'x\n$entry\n');
@@ -114,7 +111,7 @@ void main() {
       expect(read('.bash_profile'), 'y\n\n  z  \n');
     });
 
-    test('f09/us03/fr01/e05: an entry on the unterminated last line leaves '
+    test('an entry on the unterminated last line leaves '
         'the line before it terminated', () async {
       profile('.zshrc', 'a\n$entry');
 
@@ -123,21 +120,18 @@ void main() {
       expect(read('.zshrc'), 'a\n');
     });
 
-    test(
-      'f09/us03/fr01/e05: a line that only contains the entry stays',
-      () async {
-        const near = '# $entry';
-        profile('.zshrc', '$near\n$entry \n');
+    test('a line that only contains the entry stays', () async {
+      const near = '# $entry';
+      profile('.zshrc', '$near\n$entry \n');
 
-        final r = await sb.run('uninstall.sh');
+      final r = await sb.run('uninstall.sh');
 
-        expect(r.exitCode, 0);
-        expect(read('.zshrc'), '$near\n$entry \n');
-        expect(r.stdout, isNot(contains('Removed the PATH entry')));
-      },
-    );
+      expect(r.exitCode, 0);
+      expect(read('.zshrc'), '$near\n$entry \n');
+      expect(r.stdout, isNot(contains('Removed the PATH entry')));
+    });
 
-    test('f09/us03/fr01: every profile file the install can write is '
+    test('every profile file the install can write is '
         'cleaned, ~/.bash_login included', () async {
       for (final name in [
         '.zshrc',
@@ -167,7 +161,7 @@ void main() {
       }
     });
 
-    test('f09/us03/fr01: a symlinked profile keeps its link and the target '
+    test('a symlinked profile keeps its link and the target '
         'keeps its mode', () async {
       final target = File(home('dotfiles/zshrc'))
         ..createSync(recursive: true)
@@ -184,7 +178,7 @@ void main() {
       expect(target.statSync().mode & 0x1ff, 416); // 0640
     });
 
-    test('f09/us03/fr01/e04, f09/us03/fr02/e02, f09/us03/s5: nothing '
+    test('nothing '
         'installed says so and still names the plugin command', () async {
       final r = await sb.run('uninstall.sh');
 
@@ -194,7 +188,7 @@ void main() {
       expect(sb.snapshot(), isEmpty);
     });
 
-    test('f09/us03/fr02/e01, f09/us03/s4: claude on the PATH is never '
+    test('claude on the PATH is never '
         'run', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
@@ -207,7 +201,7 @@ void main() {
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     });
 
-    test('f09/us03/fr01: a second run finds nothing left', () async {
+    test('a second run finds nothing left', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
       await sb.run('uninstall.sh');
@@ -218,7 +212,7 @@ void main() {
       expect(r.stdout, 'specstone: nothing to remove\n$pluginLine\n');
     });
 
-    test('f09/us03/fr01: an unwritable profile is named on stderr and the '
+    test('an unwritable profile is named on stderr and the '
         'rest is removed', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
@@ -239,7 +233,7 @@ void main() {
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     }, skip: runsAsRoot ? 'root ignores file modes' : false);
 
-    test('f09/us03/fr01: a write that fails midway leaves the profile '
+    test('a write that fails midway leaves the profile '
         'byte for byte as it was', () async {
       const original = 'keep\n$entry\nmore';
       profile('.zshrc', original);
@@ -260,7 +254,7 @@ exec /bin/cat "$@"''');
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     });
 
-    test('f09/us03/fr01: when the restore fails too the old content is kept '
+    test('when the restore fails too the old content is kept '
         'and its path is named', () async {
       const original = 'keep\n$entry\n';
       profile('.zshrc', original);
@@ -276,7 +270,7 @@ exec /bin/cat "$@"''');
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     });
 
-    test('f09/us03/fr01: two profiles whose writes and restores fail keep '
+    test('two profiles whose writes and restores fail keep '
         'one backup each and name both', () async {
       const zsh = 'z\n$entry\n';
       const bash = 'b\n$entry\n';
@@ -298,7 +292,7 @@ exec /bin/cat "$@"''');
       expect(File(paths[home('.bashrc')]!).readAsStringSync(), bash);
     });
 
-    test('f09/us03/fr01: a signal between truncating the profile and '
+    test('a signal between truncating the profile and '
         'confirming it keeps the backup and names it', () async {
       const original = 'keep\n$entry\n';
       profile('.zshrc', original);
@@ -315,7 +309,7 @@ exec /bin/cat "$@"''');
       expect(File(match.group(2)!).readAsStringSync(), original);
     });
 
-    test('f09/us03/fr01: a mktemp that succeeds but writes to stderr still '
+    test('a mktemp that succeeds but writes to stderr still '
         'edits the profile', () async {
       profile('.zshrc', 'keep\n$entry\n');
       sb.stub('mktemp', r'''
@@ -328,7 +322,7 @@ exec /usr/bin/mktemp "$@"''');
       expect(read('.zshrc'), 'keep\n');
     });
 
-    test('f09/us03/fr01: a closed stderr does not stop the run', () async {
+    test('a closed stderr does not stop the run', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
       File('${sb.stubs.path}/sh_no_stderr')
@@ -346,7 +340,7 @@ exec /usr/bin/mktemp "$@"''');
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
     });
 
-    test('f09/us03/fr01: an unreadable profile is named on stderr', () async {
+    test('an unreadable profile is named on stderr', () async {
       profile('.zshrc', '$entry\n');
       Process.runSync('chmod', ['000', home('.zshrc')]);
       addTearDown(() => Process.runSync('chmod', ['644', home('.zshrc')]));
@@ -362,7 +356,7 @@ exec /usr/bin/mktemp "$@"''');
       expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     }, skip: runsAsRoot ? 'root ignores file modes' : false);
 
-    test('f09/us03/fr01: a failed delete of bin is named, the rest goes on, '
+    test('a failed delete of bin is named, the rest goes on, '
         'and the run exits 1', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
@@ -394,7 +388,7 @@ exec /bin/rm "$@"''');
       ]);
     });
 
-    test('f09/us03/fr01: USERPROFILE stands in when HOME is unset', () async {
+    test('USERPROFILE stands in when HOME is unset', () async {
       sb.installFake();
 
       final r = await sb.run(
@@ -406,7 +400,7 @@ exec /bin/rm "$@"''');
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
     });
 
-    test('f09/us03/fr01: with neither HOME nor USERPROFILE set it exits 1 '
+    test('with neither HOME nor USERPROFILE set it exits 1 '
         'and touches nothing', () async {
       final r = await sb.run(
         'uninstall.sh',
@@ -422,7 +416,7 @@ exec /bin/rm "$@"''');
       expect(sb.snapshot(), isEmpty);
     });
 
-    group('PATH search (G8-R10)', () {
+    group('PATH search', () {
       // Each name is planted in the run folder and in a relative `planted`
       // folder; a planted program only records that it ran.
       const plantedNames = ['mktemp', 'rm', 'grep', 'tail', 'awk', 'cmp'];

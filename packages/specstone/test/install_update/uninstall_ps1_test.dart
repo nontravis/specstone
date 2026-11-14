@@ -37,7 +37,7 @@ void main() {
   }
 
   group('uninstall.ps1', () {
-    pathTest('f09/us03/fr01, fr02, f09/us03/s2: bin, lib, and the user PATH '
+    pathTest('bin, lib, and the user PATH '
         'item go; packs stay; plugin command last', () async {
       final sb = await installedSandbox();
       File('${sb.home.path}\\.specstone\\packs\\mine\\pack.yaml')
@@ -72,7 +72,7 @@ void main() {
       );
     });
 
-    pathTest('f09/us03/fr01/e06, f09/us03/fr02/e03, f09/us03/s6: a running '
+    pathTest('a running '
         'specstone.exe stops the uninstall', () async {
       final sb = await installedSandbox();
       final exe = '${binDir(sb)}\\specstone.exe';
@@ -179,7 +179,7 @@ void main() {
       expect(path?.kind, 'ExpandString');
     });
 
-    pathTest('f09/us03/fr01/e04, f09/us03/s5: nothing installed says so and '
+    pathTest('nothing installed says so and '
         'names the plugin command', () async {
       final sb = await createScriptSandbox();
       await writeUserPath((value: otherItems, kind: 'String'));
@@ -210,23 +210,20 @@ void main() {
       );
     });
 
-    test(
-      'f09/us03/fr01: with neither HOME nor USERPROFILE it refuses',
-      () async {
-        final sb = await createScriptSandbox();
+    test('with neither HOME nor USERPROFILE it refuses', () async {
+      final sb = await createScriptSandbox();
 
-        final r = await sb.run(
-          'uninstall.ps1',
-          extra: {'HOME': '', 'USERPROFILE': ''},
-        );
+      final r = await sb.run(
+        'uninstall.ps1',
+        extra: {'HOME': '', 'USERPROFILE': ''},
+      );
 
-        expect(r.exitCode, 1);
-        expect(
-          flat(r.stderr),
-          contains('specstone: no home folder: HOME and USERPROFILE are unset'),
-        );
-      },
-    );
+      expect(r.exitCode, 1);
+      expect(
+        flat(r.stderr),
+        contains('specstone: no home folder: HOME and USERPROFILE are unset'),
+      );
+    });
 
     pathTest("irm | iex leaves the session's "
         'ErrorActionPreference as it was', () async {
@@ -255,7 +252,7 @@ void main() {
 
     // The script starts no program by name, so a planted one cannot show the
     // search; what a run shows is that the session's PATH comes back whole.
-    pathTest("G8-R10: irm | iex leaves the session's PATH as it was", () async {
+    pathTest("irm | iex leaves the session's PATH as it was", () async {
       final sb = await createScriptSandbox();
       final script = '${repoRoot().path}\\uninstall.ps1';
       final path = '.;;planted;${sb.env()['PATH']}';
