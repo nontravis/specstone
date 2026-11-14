@@ -9,10 +9,24 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 
+/// A `##` section a printed text holds whole, with the line its header sits
+/// on, counted from 0 at the text's first line.
+typedef SectionLine = ({String key, int line});
+
+/// Returns the number of lines [text] spans.
+int lineCountOf(String text) => '\n'.allMatches(text).length + 1;
+
+/// Returns the line, counted from 0, where a block joined after [blocks] by
+/// one blank line starts.
+int lineAfterBlocks(Iterable<String> blocks) =>
+    blocks.fold(0, (line, block) => line + lineCountOf(block) + 1);
+
 /// Returns the text a summary of [doc] prints after its naming line: its
 /// `# ` title line, then its summary sections, one blank line apart (INV-25),
-/// with the items [citedBy] holds lines for, each printed whole there.
-({String text, List<CitedItem> cited}) summaryPrintOf(
+/// with the items [citedBy] holds lines for, each printed whole there, and
+/// the line each section starts on.
+({String text, List<CitedItem> cited, List<SectionLine> sections})
+summaryPrintOf(
   IndexedDoc doc,
   DocContent content,
   MergedDocType? docType,
@@ -23,12 +37,16 @@ final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
   final held = citedSectionsOf(content, docType);
   final blocks = [if (title != null) '# $title'];
   final cited = <CitedItem>[];
+  final sections = <SectionLine>[];
+  var line = lineAfterBlocks(blocks);
   for (final section in summarySectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
+    sections.add((key: section.key, line: line));
+    line += lineAfterBlocks([print.block]);
     blocks.add(print.block);
     cited.addAll(print.cited);
   }
-  return (text: blocks.join('\n\n'), cited: cited);
+  return (text: blocks.join('\n\n'), cited: cited, sections: sections);
 }
 
 /// Returns [section] of [doc], whose held sections [held] reads, as a bundle

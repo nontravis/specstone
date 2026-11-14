@@ -1,7 +1,35 @@
+import 'dart:io';
+
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Prints the docs a work mode needs for one target, within a token budget.
+/// The hidden flag a bare `--out` is read as; see [withBareOut].
+const _bareOut = 'bare-out';
+
+/// Returns [args] with each bare `--out` of a `context` call written as a
+/// hidden flag, since `package:args` gives an option no optional value.
+///
+/// `--out` is bare when it is the last argument before any `--`, or the next
+/// one starts with `-` (`index_query/get_task_bundle/write_bundle_to_file`);
+/// any other next argument, `""` included, is its path.
+List<String> withBareOut(Iterable<String> args) {
+  final list = args.toList();
+  final command = list.indexWhere((arg) => !arg.startsWith('-'));
+  if (command < 0 || list[command] != 'context') return list;
+  final end = list.indexOf('--');
+  final limit = end < 0 ? list.length : end;
+  bool isBare(int i) => i + 1 >= limit || list[i + 1].startsWith('-');
+  return [
+    for (final (i, arg) in list.indexed)
+      if (arg == '--out' && i > command && i < limit && isBare(i))
+        '--$_bareOut'
+      else
+        arg,
+  ];
+}
+
+/// Prints the docs a work mode needs for one target, within a token budget,
+/// or writes them to a file and prints its index.
 class ContextCommand extends SpecstoneCommand {
   new() {
     argParser
@@ -19,6 +47,14 @@ class ContextCommand extends SpecstoneCommand {
         'budget',
         help: 'Print no doc text when the bundle exceeds this many tokens.',
       )
+      ..addOption(
+        'out',
+        valueHelp: 'path',
+        help:
+            'Write the bundle to this file, or under .specstone/bundles/ '
+            'when given no path, and print its index.',
+      )
+      ..addFlag(_bareOut, negatable: false, hide: true)
       ..addFlag(
         'summary',
         negatable: false,
@@ -41,8 +77,9 @@ class ContextCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone context [<target> | --code <path>] --for <mode> [--budget N] '
-      '[--summary] [--no-project] [--target <name>] [--json]';
+      'specstone context [<target> | --code <path>] --for <mode> '
+      '[--budget N | --out [<path>]] [--summary] [--no-project] '
+      '[--target <name>] [--json]';
 
   @override
   Future<int> run() async {
@@ -51,6 +88,8 @@ class ContextCommand extends SpecstoneCommand {
     final rest = args.rest;
     final summary = args.flag('summary');
     final code = args.option('code');
+    final out = args.option('out');
+    final writesFile = out != null || args.flag(_bareOut);
     if (code != null && rest.isNotEmpty) {
       return fail(
         IndexFault(
@@ -73,6 +112,12 @@ class ContextCommand extends SpecstoneCommand {
           '--code takes a file or folder, not ""',
         );
       }
+      if (out != null && out.isEmpty) {
+        throw IndexFault(
+          IndexFaultCode.argumentInvalid,
+          '--out takes a file path, not ""',
+        );
+      }
       if (rest.isEmpty && code == null) {
         throw missingArgument(
           'context',
@@ -93,11 +138,37 @@ class ContextCommand extends SpecstoneCommand {
           'give --summary with a target, not --code',
         );
       }
+      if (writesFile && args.option('budget') != null) {
+        throw IndexFault(
+          IndexFaultCode.argumentConflict,
+          'give --out or --budget, not both',
+        );
+      }
       budget = parsePositiveOption('--budget', args.option('budget'));
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);
     }
     final noProject = args.flag('no-project');
+    final name = bundleFileName(
+      target: code == null ? rest.single : null,
+      codePath: code,
+      mode: mode,
+      summary: summary,
+      noProject: noProject,
+      codeTarget: targetOf(args),
+    );
+    ReadAnswer answered(ReadSession session, ContextAnswer answer) {
+      if (!writesFile) return answer;
+      return answerBundleFile(
+        answer,
+        out == null
+            ? bareBundleFile(session.project.projectRoot, name)
+            : _fromWorkingDirectory(out),
+        project: session.project,
+        isBare: out == null,
+      );
+    }
+
     if (code != null) {
       return runRead((session) {
         final given = targetOf(args);
@@ -115,18 +186,19 @@ class ContextCommand extends SpecstoneCommand {
             '${codePath.target.name}, not $given',
           );
         }
-        return answerContext(
+        final answer = answerContext(
           session.index,
           pickCodeBundle(session.index, codePath, mode, noProject: noProject),
           label: codePath.path,
           byCode: true,
           budget: budget,
         );
+        return answered(session, answer);
       }, asJson: asJson);
     }
     final target = rest.single;
-    return runRead(
-      (session) => answerContext(
+    return runRead((session) {
+      final answer = answerContext(
         session.index,
         pickBundle(
           session.index,
@@ -139,8 +211,18 @@ class ContextCommand extends SpecstoneCommand {
         label: target,
         byCode: false,
         budget: budget,
-      ),
-      asJson: asJson,
+      );
+      return answered(session, answer);
+    }, asJson: asJson);
+  }
+
+  /// Returns the file [path] names, read from the working directory.
+  File _fromWorkingDirectory(String path) {
+    final file = File(path);
+    if (file.isAbsolute) return file;
+    return File(
+      '${specstoneRunner.workingDirectory.absolute.path}'
+      '${Platform.pathSeparator}$path',
     );
   }
 }

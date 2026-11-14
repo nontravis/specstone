@@ -28,6 +28,7 @@ final class AppendedPart {
     this.heading,
     this.summary = false,
     this.cited = const [],
+    this.sections = const [],
     required this.text,
   });
 
@@ -63,6 +64,11 @@ final class AppendedPart {
   /// The items of the part whose cited-by lines [text] holds, in print order;
   /// empty outside a design bundle.
   final List<CitedItem> cited;
+
+  /// The `##` sections [text] holds whole, each with its header's line in
+  /// [text]: a section part's own, a summary doc's summary sections; none for
+  /// an item, a `###` block, or a path.
+  final List<SectionLine> sections;
 
   /// What prints after the part's naming line: an item's own lines, a
   /// section whole, a summary doc's title and summary sections, or nothing
@@ -306,6 +312,7 @@ final class _Walk {
         doc: view.doc,
         summary: true,
         cited: print.cited,
+        sections: print.sections,
         text: print.text,
       ),
       view,
@@ -322,6 +329,7 @@ final class _Walk {
         doc: view.doc,
         sectionKey: sectionKey,
         cited: cited,
+        sections: [(key: sectionKey, line: 0)],
         text: sectionBlockOf(
           view.content.sections[at],
           bodyLine: view.facts.sectionLines[at] + 1,

@@ -11,6 +11,44 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 const _summaryNextStep =
     'Read a summary doc whole with: specstone context <name> --for implement';
 
+const _overBudgetNextStep =
+    'narrow the target, or run it again with --out and no --budget';
+
+const _overBudgetSummaryNextStep =
+    'narrow the target, or run it again with --summary --out and no --budget';
+
+/// One doc or appended part a bundle text prints, with the lines it spans
+/// there, counted from 1: its naming line `first` to its `last` line, and
+/// the header line of each `##` section it prints whole.
+typedef BundleEntry = ({
+  IndexedDoc doc,
+  String listName,
+  bool summary,
+  bool cited,
+  int first,
+  int last,
+  List<({String key, int first})> sections,
+});
+
+/// A `context` answer, with where each doc and part sits in its text.
+final class ContextAnswer extends ReadAnswer {
+  const new({
+    required super.text,
+    required super.json,
+    super.warnings,
+    super.exitStatus,
+    required this.entries,
+    required this.tokens,
+  });
+
+  /// Each doc and appended part [text] prints, in print order; empty when
+  /// it prints no doc text, as over budget.
+  final List<BundleEntry> entries;
+
+  /// The bundle's est. token size, as its closing line gives it.
+  final int tokens;
+}
+
 String _overBudgetLine(String listName, int tokens) =>
     '- $listName · $tokens tokens\n';
 
@@ -72,7 +110,9 @@ String _codeTargetLine(String? name) =>
 /// project has two or more. A bundle larger than [budget] prints its sizes
 /// and the next step instead of doc text, with exit status 1
 /// (`index_query/get_task_bundle/refuse_bundle_over_budget`); an equal one prints whole.
-ReadAnswer answerContext(
+/// The answer places each doc and part in its text, for `--out`'s index
+/// (`index_query/get_task_bundle/write_bundle_to_file`).
+ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
   required String label,
@@ -133,6 +173,38 @@ ReadAnswer answerContext(
   ];
   final listsSummary =
       summaryOnly.isNotEmpty || parts.any((part) => part.summary);
+  final starts = _blockStarts([
+    ...docBlocks,
+    ...mapBlocks,
+    ...namesBlocks,
+    ...partBlocks,
+  ], firstLine: named == null ? 1 : 2);
+  final partsFrom = docBlocks.length + mapBlocks.length + namesBlocks.length;
+  final entries = <BundleEntry>[
+    for (final (i, doc) in ordered.indexed)
+      _entry(
+        doc,
+        _listName(doc, inSummary(doc)),
+        docBlocks[i],
+        docPrints[i].sections,
+        first: starts[i],
+        summary: inSummary(doc),
+        cited: false,
+      ),
+    for (final (i, part) in parts.indexed)
+      _entry(
+        part.doc,
+        _partListName(part),
+        partBlocks[i],
+        [
+          for (final section in part.sections)
+            (key: section.key, line: section.line + 1),
+        ],
+        first: starts[partsFrom + i],
+        summary: part.summary,
+        cited: true,
+      ),
+  ];
   final text =
       '${_codeTargetLine(named)}'
       '$shown\n'
@@ -166,8 +238,49 @@ ReadAnswer answerContext(
     ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
     ..._namesJson(index, bundle.nameListTops, bundle.codeTarget),
   };
-  return ReadAnswer(text: text, json: json, warnings: [...bundle.warnings]);
+  return ContextAnswer(
+    text: text,
+    json: json,
+    warnings: [...bundle.warnings],
+    entries: entries,
+    tokens: tokens,
+  );
 }
+
+/// Returns the line, from [firstLine], where each of [blocks] starts once
+/// they are joined by one blank line.
+List<int> _blockStarts(List<String> blocks, {required int firstLine}) {
+  final starts = <int>[];
+  var line = firstLine;
+  for (final block in blocks) {
+    starts.add(line);
+    line += lineCountOf(block) + 1;
+  }
+  return starts;
+}
+
+/// Returns the entry of a doc or part whose printed [block] starts on line
+/// [first], its [sections] counted from that line.
+BundleEntry _entry(
+  IndexedDoc doc,
+  String listName,
+  String block,
+  List<SectionLine> sections, {
+  required int first,
+  required bool summary,
+  required bool cited,
+}) => (
+  doc: doc,
+  listName: listName,
+  summary: summary,
+  cited: cited,
+  first: first,
+  last: first + lineCountOf(block) - 1,
+  sections: [
+    for (final section in sections)
+      (key: section.key, first: first + section.line),
+  ],
+);
 
 /// Returns the name, doc type, path, and printed size of [part], whose block
 /// is [block]; a path gives its path and size alone.
@@ -181,8 +294,9 @@ Map<String, Object> _partDocJson(AppendedPart part, String block) => {
 };
 
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
-/// [budget]: each doc's and part's size, no doc text, and the next step (`index_query/get_task_bundle/refuse_bundle_over_budget`).
-ReadAnswer _overBudget(
+/// [budget]: each doc's and part's size, no doc text, and the next step,
+/// which keeps `--summary` when the bundle has it (`index_query/get_task_bundle/refuse_bundle_over_budget`).
+ContextAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,
   Set<String> summaryOnly,
@@ -195,8 +309,9 @@ ReadAnswer _overBudget(
   required int tokens,
   required String? codeTarget,
 }) {
-  final handOver = bundle.summary ? '$label with --summary' : label;
-  final next = 'narrow the target, or hand $handOver to specstone:sdd-reader';
+  final next = bundle.summary
+      ? _overBudgetSummaryNextStep
+      : _overBudgetNextStep;
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
     for (final (i, doc) in ordered.indexed)
@@ -235,19 +350,22 @@ ReadAnswer _overBudget(
     ],
     'next': next,
   };
-  return ReadAnswer(
+  return ContextAnswer(
     text: text,
     json: json,
     warnings: [...bundle.warnings],
     exitStatus: 1,
+    entries: const [],
+    tokens: tokens,
   );
 }
 
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
 /// joined by one blank line (Plan decision 21, INV-14), with the lines
-/// [citedBy] holds for its items printed after them.
-({String block, List<CitedItem> cited}) _docBlock(
+/// [citedBy] holds for its items printed after them, and the line each kept
+/// section starts on in the block.
+({String block, List<CitedItem> cited, List<SectionLine> sections}) _docBlock(
   DocIndex index,
   IndexedDoc doc,
   BundleMode mode, {
@@ -259,7 +377,11 @@ ReadAnswer _overBudget(
   if (summary) {
     final print = summaryPrintOf(doc, content, docType, mode, citedBy);
     final block = '${namingLine(doc, summary: true)}\n${print.text}';
-    return (block: block, cited: print.cited);
+    final sections = [
+      for (final section in print.sections)
+        (key: section.key, line: section.line + 1),
+    ];
+    return (block: block, cited: print.cited, sections: sections);
   }
   final parts = <String>[];
   if (mode != BundleMode.query) {
@@ -269,13 +391,19 @@ ReadAnswer _overBudget(
     if (head.trim().isNotEmpty) parts.add(head.trimRight());
   }
   final cited = <CitedItem>[];
+  final sections = <SectionLine>[];
   final held = citedSectionsOf(content, docType);
+  // The naming line is the block's line 0.
+  var line = 1 + lineAfterBlocks(parts);
   for (final section in keptSectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
     cited.addAll(print.cited);
+    sections.add((key: section.key, line: line));
+    line += lineAfterBlocks([print.block]);
     parts.add(print.block);
   }
-  return (block: '${namingLine(doc)}\n${parts.join('\n\n')}', cited: cited);
+  final block = '${namingLine(doc)}\n${parts.join('\n\n')}';
+  return (block: block, cited: cited, sections: sections);
 }
 
 /// Returns the map block of [top]: its subtree, one line per doc with its

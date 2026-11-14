@@ -185,7 +185,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   @override
   Future<int> run(Iterable<String> args) async {
     try {
-      return await super.run(_withTargetValue(args)) ?? 0;
+      return await super.run(_withTargetValue(withBareOut(args))) ?? 0;
     } on UsageException catch (error) {
       _err
         ..writeln(error.message)

@@ -844,7 +844,7 @@ void main() {
       expect(
         a.text,
         endsWith(
-          'Next step: narrow the target, or hand login/email_login to specstone:sdd-reader.\n',
+          'Next step: narrow the target, or run it again with --out and no --budget.\n',
         ),
       );
       expect(a.text, isNot(contains('## Statement')));
@@ -917,16 +917,16 @@ void main() {
       expect(json['overBudget'], isTrue);
       expect(
         json['next'],
-        'narrow the target, or hand login/email_login to specstone:sdd-reader',
+        'narrow the target, or run it again with --out and no --budget',
       );
       expect(
         ((json['docs']! as List).first as Map).containsKey('text'),
         isFalse,
       );
     });
-    test('f01/us05/fr03/e09, db-r6: over budget with --summary, the next step names --summary for the reader', () {
+    test('f01/us05/fr03/e09, db-r6: over budget with --summary, the next step keeps --summary on the --out call', () {
       const next =
-          'narrow the target, or hand login with --summary to specstone:sdd-reader';
+          'narrow the target, or run it again with --summary --out and no --budget';
       final answer = answerContext(
         index,
         pickBundle(

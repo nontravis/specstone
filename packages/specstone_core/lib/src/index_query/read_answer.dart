@@ -5,7 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 final _asciiDigits = RegExp(r'^[0-9]+$');
 
 /// What one read command prints: its text form and its JSON form.
-final class ReadAnswer {
+base class ReadAnswer {
   const new({
     required this.text,
     required this.json,

@@ -28,7 +28,9 @@ export 'src/document_writing/write_session.dart' show WriteSession;
 export 'src/executable_lookup.dart' show findExecutable;
 export 'src/fault.dart';
 export 'src/index_query/bundle.dart' show Bundle, BundleMode, pickBundle;
-export 'src/index_query/bundle_render.dart' show answerContext;
+export 'src/index_query/bundle_file.dart'
+    show answerBundleFile, bareBundleFile, bundleFileName;
+export 'src/index_query/bundle_render.dart' show ContextAnswer, answerContext;
 export 'src/index_query/code_bundle.dart'
     show CodePath, pickCodeBundle, resolveCodePath;
 export 'src/index_query/doc_index.dart' show DocIndex;
