@@ -1882,6 +1882,68 @@ void _agentTests() {
         ),
       );
     });
+
+    test('sdd-engineer takes a feature name and the Owner picks in sync mode '
+        'and names no changed-path or base-commit input', () {
+      final agent = _oneLine(_pluginText('agents/sdd-engineer.md'));
+      final input = _oneLine(
+        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Input Contract'),
+      );
+      expect(
+        input,
+        contains(
+          '- **`feature`** (sync, optional): the feature name the Owner gave; '
+          'absent, your gate `check` gives the work list.',
+        ),
+      );
+      expect(
+        input,
+        contains(
+          '- **`picks`** (sync, bootstrap, optional): each Owner pick whose '
+          'fix lands in a spec doc, a fix-the-spec pick per `Mismatches:` '
+          'point or a write-a-spec pick per `Uncovered:` file.',
+        ),
+      );
+      for (final phrase in ['changed paths', 'base commit', 'given paths']) {
+        expect(agent, isNot(contains(phrase)), reason: phrase);
+      }
+    });
+
+    test('sdd-engineer syncs on its gate check work list or a named feature '
+        "and writes each pick by the procedure's step 5", () {
+      expect(
+        _oneLine(_sectionOf(_pluginText('agents/sdd-engineer.md'), 'Workflow')),
+        contains(
+          '2. **Sync**: follow the On-Demand procedure from its step 2, on '
+          "your gate `check`'s work list, or on every code link of `feature`; "
+          'write each of `picks` by its step 5. Then Workflow step 5.',
+        ),
+      );
+    });
+
+    test('sdd-engineer reports each Mismatches: point, each Uncovered: file, '
+        'and each waiting pointer in sync mode, and each Uncovered: file in '
+        'bootstrap mode', () {
+      final output = _oneLine(
+        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+      );
+      expect(
+        output,
+        contains(
+          'each pointer fixed; each `Mismatches:` point and each `Uncovered:` '
+          'file; each behavior handed to `specstone:brainstorming-sdd`; each '
+          'pointer that waits on an approval; open questions; then '
+          '`Findings:`.',
+        ),
+      );
+      expect(
+        output,
+        contains(
+          'split proposals, or why none applies; open questions; each '
+          '`Uncovered:` file; one `specstone delete …` line;',
+        ),
+      );
+    });
   });
 
   group('Agent sets up a new project with no code', () {
