@@ -1,12 +1,12 @@
-`specstone:sdd-engineer` runs this in `mode: design`, its gate already made; so does `specstone:brainstorming-sdd`'s
-runner without the `Agent` tool or after a failed dispatch. As the agent, ask the Owner nothing: each gap is an open
+`specstone-sdd-engineer` runs this in `mode: design`, its gate already made; so does the runner of
+`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner nothing: each gap is an open
 question in your report.
 
 ## 1. Check the inputs
 
 - **Brief**: the Owner's approved answers: decisions, rulings in the Owner's words, the approach picked, and open
   questions. Read it whole. When it names a file to re-read, also follow `## Map the source` in
-  `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md`.
+  `source.md`.
 - **Design path**: the document to write or amend; step 2 judges it.
 
 ## 2. Ground each claim
@@ -14,8 +14,8 @@ question in your report.
 Run `specstone context <target> --for design --out` on the smallest doc that holds the brief's whole change: the
 story for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story,
 and the project doc to add a feature. Pass no `--budget`. Pass no `--target`: a design read spans every code target.
-Read the saved file per `specstone:read-sdd`, searching it before any `get`.
-As the skill's runner, run no other call: your ground is what its step 1 gave, the bundle or `specstone:sdd-reader`'s
+Read the saved file per the `specstone-read-sdd` skill, searching it before any `get`.
+As the skill's runner, run no other call: your ground is what its step 1 gave, the bundle or `specstone-sdd-reader`'s
 sections, and, for a change from a source, the gate call's bundle plus any `--no-project` call's or the reader's
 sections.
 
@@ -59,7 +59,7 @@ Sections, in this order:
 
 Before the Docs to change table closes, search each decision's dependents:
 
-- Name the owner doc of the decision's rule (`specstone:expert-sdd` rule 7). Run `specstone refs <owner>` for the
+- Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7). Run `specstone refs <owner>` for the
   docs that cite it, and `specstone search` on the decision's terms and on the wording it supersedes. A per-target owner
   goes to `refs` by its DocPath.
 - Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change links the
@@ -76,7 +76,7 @@ entity's field list. Name the decision; the doc holds the content.
 When you amend, sweep each ruling: search the document for the text it supersedes and edit every place
 that still states it.
 
-Write the file with `Write`, or amend it with `Edit` when it exists. Write no other file but the agent's `report:` file, and no PRD or spec doc.
+Write the file, or amend it when it exists. Write no other file but the agent's `report:` file, and no PRD or spec doc.
 
 ## 4. Check before you report
 

@@ -1,4 +1,4 @@
-The runner of `specstone:brainstorming-sdd` follows this from the first design-mode reply until the Owner approves
+The runner of `specstone-brainstorming-sdd` follows this from the first design-mode reply until the Owner approves
 the drafts. Each dispatch passes `report:`, and each reply goes to the Owner, as the skill's step 3 says.
 
 ## 1. Route each Owner decision
@@ -12,7 +12,7 @@ rule. Every other decision only words or records one.
   dispatch nothing; the author, or the fix round under way, goes on.
 - **Adds or changes behavior**, or needs more PRD or spec grounding: add it to the brief and dispatch `mode: design`
   again with the brief's path and the document's path, an amend of the same file. Design mode searches the
-  decision's terms (`references/design.md`) before the author writes it.
+  decision's terms (`design.md`) before the author writes it.
 - **Before the author**: after an append or an amend, ask for the approval again. When the design report holds
   open questions, gather the Owner's answers, append each that only words or records one, send the rest to one
   amend, and ask for the approval only after it.
@@ -21,7 +21,7 @@ rule. Every other decision only words or records one.
 - **After the second fix round**, a decision that adds or changes behavior, the Owner's decision on a finding past the
   cap included, takes an amend, then one author pass that carries the amend alone and is no fix round, then a
   re-audit (section 3) whose findings reach the Owner with the drafts, with no further round. Fix an Owner change
-  that only corrects text per `specstone:expert-sdd`, with no amend.
+  that only corrects text per the `specstone-expert-sdd` skill, with no amend.
 
 ## 2. Run the fix rounds
 

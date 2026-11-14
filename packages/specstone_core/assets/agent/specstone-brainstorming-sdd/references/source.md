@@ -1,6 +1,6 @@
 A change from a source starts from a spec or design another tool wrote: in a file, behind a link or issue the Owner
 gave, or in the current conversation, such as an interview that wrote no file. The runner of
-`specstone:brainstorming-sdd` follows `## Take in the source`; `specstone:sdd-engineer` in `mode: design` follows
+`specstone-brainstorming-sdd` follows `## Take in the source`; `specstone-sdd-engineer` in `mode: design` follows
 `## Map the source`.
 
 Both match a source item by its content shape alone, never by the tool that wrote it. Each section takes what its
@@ -19,14 +19,14 @@ type's writing guide says it needs; a gap goes to the Owner.
 
 ## Take in the source
 
-1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`, with
-   or without the `Agent` tool: a call over its budget prints no doc path to judge the source by. Read no source and
+1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`, on any
+   host: a call over its budget prints no doc path to judge the source by. Read no source and
    open no link or issue before it. Its exits are the skill's step 1's; on 78 the source stays unread.
 2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the `==> ` headers of the
    gate's saved bundle hold, right under the docs folder) is no source. Read none of it with any tool; make item 4's
    call with its path as the target and no `--summary`. Its exit decides:
    - **64, `untyped_target`:** tell the Owner in one line it is the project's own old doc, and name
-     `specstone:bootstrap-prd` or `specstone:bootstrap-spec`, which merge it into typed docs. Run no other command on
+     `specstone-bootstrap-prd` or `specstone-bootstrap-spec`, which merge it into typed docs. Run no other command on
      its path; the brief never names it.
    - **0:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's name, which the bundle
      prints, as the brief's `context` target: no source, no copy, no Source map. That call was your narrow call: read
@@ -44,8 +44,8 @@ type's writing guide says it needs; a gap goes to the Owner.
    specstone context <target> --for design --no-project --out
    ```
 
-   - **0:** both saved bundles are the grounding, whatever their size: read them per `specstone:read-sdd`, searching
-     them before any `get`.
+   - **0:** both saved bundles are the grounding, whatever their size: read them per the `specstone-read-sdd`
+     skill, searching them before any `get`.
    - **Any other exit:** report the CLI's error and stop.
 5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
    question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's

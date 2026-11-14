@@ -1,5 +1,5 @@
-`specstone:sdd-engineer` runs this in `mode: audit`, its gate already made; so does the runner of
-`specstone:brainstorming-sdd` when it has no `Agent` tool or the dispatch failed. Write nothing but the agent's `report:`
+`specstone-sdd-engineer` runs this in `mode: audit`, its gate already made; so does the runner of
+`specstone-brainstorming-sdd` when it runs the mode itself. Write nothing but the agent's `report:`
 file: no doc, no other file, no fix. As the agent, ask the Owner nothing: each gap goes into your report.
 
 `specstone check` reads each doc's form, not what it means. Read the docs as a reader who did not write them, and
@@ -19,7 +19,7 @@ report what the author's own coverage table cannot show.
 3. **Bundles**: run `specstone context <target> --for design --out` once for each feature the targets fall under
    (the project doc for a project-level one), not once per target: a design bundle already holds the whole feature.
    Pass no `--budget`. Pass no `--target`: the bundle takes every code target's spec docs. Read each saved file whole,
-   per `specstone:read-sdd`.
+   per the `specstone-read-sdd` skill.
    - **0:** the bundle is what you audit.
    - **Any other exit:** report the CLI's error for that call as a finding, and go on with the rest.
 4. **Design document**, when given: read it whole, and list each decision and ruling by its ID or label. Then run
@@ -40,7 +40,7 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 | PRD and spec apart   | a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for   |
 | Docs contradict      | two docs that state different values or behavior for one thing; name both                    |
 | Statement untested   | an FR statement, or a clause of one, that no scenario of its story and no edge case covers   |
-| Rule restated        | a draft stating a rule another doc owns instead of citing it (`specstone:expert-sdd` rule 7) |
+| Rule restated        | a draft stating a rule another doc owns instead of citing it (`specstone-expert-sdd` rule 7) |
 
 - **Rule restated:** name the owner doc and the item; its fix is an item link in the draft.
 - **No design document:** skip the first two rows; every other comparison and `check` still run.

@@ -1,5 +1,5 @@
-`specstone:sdd-engineer` runs this in `mode: author`, its gate already made; so does the runner of
-`specstone:brainstorming-sdd` when it has no `Agent` tool or the dispatch failed. As the agent, ask the Owner
+`specstone-sdd-engineer` runs this in `mode: author`, its gate already made; so does the runner of
+`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner
 nothing: each gap goes in your report.
 
 ## 1. Read
@@ -30,7 +30,7 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
   `specstone set <type>:<name> --field <id> --base <hash>`.
 - **Several docs in one step**: run `specstone get <names> > "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, `<folder>` the path `specstone folder` prints; edit its
-  blocks with `Edit`, each naming line kept; then run `specstone set --batch "<file>"`. A block printed ` · unchanged`
+  blocks, each naming line kept; then run `specstone set --batch "<file>"`. A block printed ` · unchanged`
   wrote nothing and adds no draft.
 - **A refused batch** writes nothing, but exit 73
   leaves docs half written until a write command ends its journal: run one, or `get` again, first.
@@ -57,8 +57,8 @@ hit in a doc the design changes, as step 2 writes. List each hit in any other do
 Run a bare `specstone check` before your first write and again after your last. For each finding the second run adds:
 
 - **In one of your drafts:** fix it there.
-- **A `suspect` link in a doc you did not write:** confirm it again per `specstone:expert-sdd`; that doc joins your
-  drafts. When you cannot, list it under `Findings:`.
+- **A `suspect` link in a doc you did not write:** confirm it again per the `specstone-expert-sdd`
+  skill; that doc joins your drafts. When you cannot, list it under `Findings:`.
 - **A finding whose `waitsFor` is `owner`**, its line ending `(waits for the Owner)`: leave it, never write
   around it; list it.
 
@@ -81,7 +81,7 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Rows**: one per decision; in a fix round, one per finding.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, the drafts list less each name step 1
-  dropped, plus each doc this pass added. Audit mode and `specstone:plan-sdd` take it as is: names only, no
+  dropped, plus each doc this pass added. Audit mode and `specstone-plan-sdd` take it as is: names only, no
   `--target`. Name each draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
 - **Counts**: on the `Counts:` line, take every count, of drafts and of sentences dropped and new, from one
   `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
