@@ -9,7 +9,10 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/link_scan.dart'
+    show linkSourcesOf;
 import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Parts
@@ -86,9 +89,9 @@ final class AppendedPart {
 ///
 /// `query` follows no link. A file no doc type describes, an untyped doc or
 /// any other linked file on disk, adds its path alone. A target the bundle
-/// already prints whole, a doc `--no-project` dropped, and a link `check`
-/// reports as broken add nothing; a link into another code target's doc is
-/// followed.
+/// already prints whole, a section the trim drops, a doc `--no-project`
+/// dropped, and a link `check` reports as broken add nothing; a link into
+/// another code target's doc is followed.
 ///
 /// Given [citedBy], each part holds its items' cited-by lines right after
 /// them.
@@ -322,7 +325,7 @@ final class _Walk {
 
   void _appendSection(_DocView view, int at, String sectionKey) {
     final range = view.sectionRange(at);
-    if (_prints(view, range)) return;
+    if (!view.keeps(at, bundle.mode) || _prints(view, range)) return;
     final cited = _citedIn(view, at);
     _add(
       AppendedPart(
@@ -422,7 +425,7 @@ final class _Walk {
     required String? itemId,
     String? heading,
   }) {
-    if (_prints(view, extent)) return;
+    if (!view.keeps(at, bundle.mode) || _prints(view, extent)) return;
     final lines = [
       for (final line in body)
         if (extent.first <= line.line && line.line <= extent.last) line.text,
@@ -481,6 +484,10 @@ final class _DocView {
 
   late final List<String> _lines = content.text.split('\n');
 
+  late final Map<(int, String), List<int>> _sourceColumns = _sourceColumnsOf(
+    content,
+  );
+
   LineFacts get facts => content.lineFacts;
 
   /// Returns the section at [at] as [classifyLink] reads it, or null when the
@@ -508,6 +515,17 @@ final class _DocView {
       if (starts[at] < line) return at;
     }
     return null;
+  }
+
+  /// Whether a print in [mode] keeps the section at [at]; one that is N/A or
+  /// still its template prints nowhere, as a part or whole.
+  bool keeps(int at, BundleMode mode) {
+    final section = content.sections[at];
+    return keptSectionsOf(
+      content,
+      type,
+      mode,
+    ).any((kept) => identical(kept, section));
   }
 
   /// Returns the ranges a whole print of the doc holds: its head, then each
@@ -550,34 +568,19 @@ final class _DocView {
 
   /// Returns [links], every link of one file line, in source order.
   ///
-  /// A stored text gives its link's column. `LinkPlace` keeps none, so any
-  /// other link sits at the next `](<destination>` of the line outside every
-  /// stored text's link; one the line does not show, such as a reference
-  /// link, goes last.
+  /// The nth link of a destination as written on the line sits at the column
+  /// of the nth link source the scan reads there, however the destination is
+  /// written; a link the scan placed on no source of the line goes last.
   List<_Link> inSourceOrder(List<_Link> links) {
     if (links.length < 2) return links;
-    final text = lineText(links.first.text.line);
-    final spans = [
-      for (final link in links)
-        if (link.shaped)
-          (
-            start: link.text.column,
-            end: link.text.endLine == link.text.line
-                ? link.text.endColumn
-                : text.length,
-          ),
-    ];
-    final searchFrom = <String, int>{};
+    final lineEnd = lineText(links.first.text.line).length;
+    final taken = <(int, String), int>{};
     int columnOf(_Link link) {
-      if (link.shaped) return link.text.column;
-      final opener = '](${link.text.shown}';
-      var at = text.indexOf(opener, searchFrom[opener] ?? 0);
-      while (at >= 0 && spans.any((s) => s.start <= at && at < s.end)) {
-        at = text.indexOf(opener, at + 1);
-      }
-      if (at < 0) return text.length;
-      searchFrom[opener] = at + 1;
-      return at;
+      final key = (link.text.line, link.text.shown);
+      final nth = taken[key] ?? 0;
+      taken[key] = nth + 1;
+      final columns = _sourceColumns[key];
+      return columns != null && nth < columns.length ? columns[nth] : lineEnd;
     }
 
     final columns = [for (final link in links) columnOf(link)];
@@ -597,6 +600,24 @@ final class _DocView {
 
   int _indexOf(IndexedSection section) =>
       content.sections.indexWhere((held) => identical(held, section));
+}
+
+/// Returns the 0-based column of each link source of [content]'s stored text,
+/// by its file line and destination as written, in source order: the scan
+/// the index placed each link by.
+Map<(int, String), List<int>> _sourceColumnsOf(DocContent content) {
+  final lf = toLf(content.text);
+  final frontmatter = content.frontmatterText ?? '';
+  final body = lf.substring(frontmatter.length);
+  final firstLine = '\n'.allMatches(frontmatter).length + 1;
+  final columns = <(int, String), List<int>>{};
+  for (final source in linkSourcesOf(body, firstLine: firstLine)) {
+    final shown = source.shown;
+    if (shown == null) continue;
+    final lineStart = body.lastIndexOf('\n', source.offset) + 1;
+    (columns[(source.line, shown)] ??= []).add(source.offset - lineStart);
+  }
+  return columns;
 }
 
 /// Returns the doc links, self links, and file links of [facts] in line

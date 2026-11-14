@@ -58,14 +58,19 @@ typedef CiteForm = ({
 /// envelope` ``. The item IDs are the IDs the reference grammar reads in the
 /// line's prose after the candidate, up to the next citation, a link or
 /// another candidate, so the nearest citation before an ID owns it
-/// (setup_migration `apply_steps_and_pins` E47).
-List<CiteCandidate> citeCandidatesOf(String lfText) => [
-  for (final form in citeFormsOf(lfText)) form.candidate,
+/// (setup_migration `apply_steps_and_pins` E47); an item ID is a token of one
+/// of [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
+List<CiteCandidate> citeCandidatesOf(
+  String lfText, {
+  required Set<String> idPrefixes,
+}) => [
+  for (final form in citeFormsOf(lfText, idPrefixes: idPrefixes))
+    form.candidate,
 ];
 
 /// Returns the cite candidates of [lfText] as [citeCandidatesOf] reads them,
 /// each with its place on its line.
-List<CiteForm> citeFormsOf(String lfText) {
+List<CiteForm> citeFormsOf(String lfText, {required Set<String> idPrefixes}) {
   final mentions = docMentionsInFile(lfText, markdownExtension);
   if (mentions.isEmpty) return const [];
   final body = Doc.parse(lfText).afterFrontmatter;
@@ -86,6 +91,7 @@ List<CiteForm> citeFormsOf(String lfText) {
         lines.lineOf(mention.line - firstLine),
         nextBoundary: _firstAfter(boundaries, offset),
         lineStart: offset - mention.column,
+        idPrefixes: idPrefixes,
       ),
   ];
 }
@@ -95,6 +101,7 @@ CiteForm _formOf(
   String line, {
   required int? nextBoundary,
   required int lineStart,
+  required Set<String> idPrefixes,
 }) {
   final spans = codeSpansOf(line);
   var end = mention.column + mention.text.length;
@@ -114,6 +121,7 @@ CiteForm _formOf(
   final items = [
     for (final (:at, :id) in itemIdsInProse(
       _proseOf(line, spans, from: end).substring(end, stop),
+      prefixes: idPrefixes,
     ))
       (column: end + at, itemId: id.written),
   ];

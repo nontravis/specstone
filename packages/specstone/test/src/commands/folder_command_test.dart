@@ -209,5 +209,19 @@ void main() {
       };
       expect(names, {'config.yaml', 'reports'});
     });
+
+    test('f01/us08/fr01/e12: a .specstone regular file with no project '
+        'above it is project_not_found, exit 78', () async {
+      final tree = await writeTree({'.specstone': 'x', 'lib/main.dart': ''});
+
+      final result = await run('${tree.path}/lib', ['--json']);
+
+      expect(result.exitCode, 78, reason: '${result.stderr}');
+      expect(result.stdout, isEmpty);
+      final error =
+          (jsonDecode(result.stderr as String) as Map)['error']! as Map;
+      expect(error['code'], 'project_not_found');
+      expect(File('${tree.path}/.specstone').readAsStringSync(), 'x');
+    });
   });
 }

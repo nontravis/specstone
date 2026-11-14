@@ -10,6 +10,8 @@ import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show IndexedDoc;
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -388,7 +390,7 @@ RunPlan _upgradeRunOf(
               type: work.docType,
               target: work.target,
             ),
-        ])
+        ], idPrefixes: itemIdPrefixesOf(finalSet.docTypes))
       : null;
   final citedFrom = <String, String>{};
   final laidOutPaths = <String>[];

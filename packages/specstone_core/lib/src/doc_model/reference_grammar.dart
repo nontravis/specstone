@@ -163,31 +163,16 @@ IdRead? readItemIdAt(String text, int at, String prefix) {
   return _readIdAt(text, prefix, at + prefix.length);
 }
 
-/// A prefix of an item ID written in prose: capital-led words joined by `-`,
-/// then an optional `-`, before a digit; the digits are read by the grammar.
-final _proseIdPrefix = RegExp(
-  r'(?<![\p{L}\p{N}])[A-Z][A-Za-z]*(?:-[A-Z][A-Za-z]*)*-?(?=\d)',
-  unicode: true,
-);
-
-/// Returns each item ID written in [prose], in order, with its offset.
+/// Returns each item ID of [prefixes] written in [prose], in order, with its
+/// offset.
 ///
-/// With [prefixes], an ID is a token of one of them, the longest first. With
-/// none, the prefix is not known, so a prefix shape is tried. The digits are
-/// read by [readItemIdAt] either way: a lettered or unreadable form (RULE-33)
-/// is no ID.
+/// An ID is a token of one of [prefixes], the longest first, so `SHA256` is
+/// no ID unless a doc type's section holds the prefix `SHA`. The digits are
+/// read by [readItemIdAt]: a lettered or unreadable form (RULE-33) is no ID.
 List<({int at, ItemId id})> itemIdsInProse(
   String prose, {
-  Set<String>? prefixes,
+  required Set<String> prefixes,
 }) {
-  if (prefixes == null) {
-    return [
-      for (final match in _proseIdPrefix.allMatches(prose))
-        if (readItemIdAt(prose, match.start, match.group(0)!)
-            case final ItemId id)
-          (at: match.start, id: id),
-    ];
-  }
   final found = <({int at, ItemId id})>[];
   final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
   for (final prefix in longestFirst) {

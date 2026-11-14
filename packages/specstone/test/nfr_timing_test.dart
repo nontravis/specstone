@@ -171,7 +171,13 @@ void main() {
   test('NFR-P01, f01/us05/fr06/e09: specstone context --for design, with its '
       'cited-by lines, answers within 500 ms in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'design'];
-    timed(call); // warm-up: the index is current after it
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 0, reason: '${first.stderr}');
+    expect(first.stdout.toString(), contains('  · cited by '));
     expect(
       bestOf(timingRuns, () => timed(call), label: 'design context calls'),
       lessThanOrEqualTo(const Duration(milliseconds: 500)),

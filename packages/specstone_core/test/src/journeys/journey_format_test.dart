@@ -4,6 +4,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/journeys/journey_generators.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
@@ -280,15 +282,16 @@ void main() {
       _format(root);
       String lf(String key) =>
           File.fromUri(root.uri.resolve(key)).readAsStringSync();
+      const docPaths = [loginFeature, loginStory, journeyDocPath];
       final pass = CitePass.plan([
-        for (final docPath in [loginFeature, loginStory, journeyDocPath])
+        for (final docPath in docPaths)
           (
             docPath: docPath,
             lf: lf('docs/$docPath'),
             type: fixtureDocTypeOf(docPath),
             target: null,
           ),
-      ]);
+      ], idPrefixes: itemIdPrefixesOf(docPaths.map(fixtureDocTypeOf)));
       for (final (docPath, key) in [
         (loginStory, storyKey),
         (journeyDocPath, _journeyKey),

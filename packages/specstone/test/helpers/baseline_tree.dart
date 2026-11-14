@@ -121,12 +121,15 @@ Future<void> _writeCode(Directory root) async {
   }
 }
 
-/// One doc to write: its type, path under `docs/`, title, and frontmatter.
+/// One doc to write: its type, path under `docs/`, title, frontmatter, and
+/// the body of each required section, by header, that holds more than
+/// [_baselineText].
 typedef _DocSpec = ({
   String type,
   String path,
   String title,
   String frontmatter,
+  Map<String, String> texts,
 });
 
 _DocSpec _spec(
@@ -134,7 +137,26 @@ _DocSpec _spec(
   String path,
   String title, [
   String frontmatter = '',
-]) => (type: type, path: path, title: title, frontmatter: frontmatter);
+  Map<String, String> texts = const {},
+]) => (
+  type: type,
+  path: path,
+  title: title,
+  frontmatter: frontmatter,
+  texts: texts,
+);
+
+const _baselineText = 'Baseline text.';
+
+/// The edge case of feature 1's first FR, which feature 2's first FR cites,
+/// so the design bundle of `feature_1/story_1` prints a cited-by line.
+const Map<String, String> _citedFr = {'Edge cases': '- **E01** $_baselineText'};
+
+const Map<String, String> _citingFr = {
+  'Statement':
+      '$_baselineText See '
+      '[E01](../../f01_feature_1/us01_story_1/fr01_req_1.md#edge-cases).',
+};
 
 /// Lists every doc of the tree in generation order.
 List<_DocSpec> _docSpecs() => [
@@ -187,6 +209,11 @@ List<_DocSpec> _featureSpecs(int f) {
           'prds/features/$key/us${_two(s)}_story_$s/fr${_two(r)}_req_$r.md',
           'Requirement $r',
           'traced_from:\n  - S1\nverify_method: test\n',
+          switch ((f, s, r)) {
+            (1, 1, 1) => _citedFr,
+            (2, 1, 1) => _citingFr,
+            _ => const {},
+          },
         ),
       _spec(
         'nf',
@@ -242,9 +269,9 @@ String _render(MergedSet templates, _DocSpec spec, int size, String padding) {
     ..write(spec.frontmatter.isEmpty ? '' : '---\n${spec.frontmatter}---\n\n')
     ..write('# ${spec.title}\n\n');
   for (final header in headers.take(headers.length - 1)) {
-    head.write('## $header\nBaseline text.\n\n');
+    head.write('## $header\n${spec.texts[header] ?? _baselineText}\n\n');
   }
-  head.write('## ${headers.last}\nBaseline text. ');
+  head.write('## ${headers.last}\n$_baselineText ');
   return _fill(spec, '$head', size, padding);
 }
 

@@ -87,7 +87,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    `{ specstone check 2>&1; echo "exit=$?"; } | grep -E 'approval_stale|^exit='`, and read only those lines. Exit 0 or
    1 is a finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is
    an error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
-   Match each `approval_stale` line to a doc by the file path a Ground bundle header printed
+   Match each `approval_stale` line to a doc by the file path a `==> ` header of a Ground saved bundle holds
    (`==> <name> (<type>) · <path> <==`).
 4. **Design document**: when given, read it whole for what changed and why; the docs, never the document, say what
    each change now is.
@@ -132,10 +132,10 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 8. **Write**, either format, taking the first case that holds:
    - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
      the sync task; `Plan:` reads `none`.
-   - **A plan path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
-     docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or
-     spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a new
-     `plan path`.
+   - **A plan path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
+     right under the docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is
+     outside), or a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the
+     Owner for a new `plan path`.
    - **Else**: the one plan file, at a given `plan path`, else as `<YYYY-MM-DD>-<slug>.md` in the plans folder the
      project's instruction files (`CLAUDE.md`, `AGENTS.md`) name, else the plan skill's own path, else
      `docs/plans/<YYYY-MM-DD>-<slug>.md`. `Read` a file already there, such as one an earlier run wrote, and amend

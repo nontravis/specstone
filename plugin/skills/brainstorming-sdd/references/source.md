@@ -22,9 +22,9 @@ type's writing guide says it needs; a gap goes to the Owner.
 1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`, with
    or without the `Agent` tool: a call over its budget prints no doc path to judge the source by. Read no source and
    open no link or issue before it. Its exits are the skill's step 1's; on 78 the source stays unread.
-2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the gate's bundle headers
-   print, right under the docs folder) is no source. Read none of it with any tool; make item 4's call with its path
-   as the target and no `--summary`. Its exit decides:
+2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the `==> ` headers of the
+   gate's saved bundle hold, right under the docs folder) is no source. Read none of it with any tool; make item 4's
+   call with its path as the target and no `--summary`. Its exit decides:
    - **64, `untyped_target`:** tell the Owner in one line it is the project's own old doc, and name
      `specstone:bootstrap-prd` or `specstone:bootstrap-spec`, which merge it into typed docs. Run no other command on
      its path; the brief never names it.

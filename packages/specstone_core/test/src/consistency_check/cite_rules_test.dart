@@ -49,6 +49,17 @@ void main() {
     expect(finding.message, contains('[INV-6]($_fromFeature#invariants)'));
   });
 
+  test('f04/us02/fr08/e01: a token shaped like an ID but of no doc type prefix, such as SHA256 or UTF-8, is no item ID', () async {
+    final findings = await _citesInFeature(
+      'Users forget; `domain:login` with SHA256 and UTF-8.',
+    );
+    expect(findings, hasLength(1));
+    expect(
+      findings.single.message,
+      contains('write it as [domain:login]($_fromFeature)'),
+    );
+  });
+
   test('f04/us02/fr08/e02, f04/us02/s21: a one-slug span that resolves counts, a field name that resolves to no doc does not', () async {
     final findings = await _citesInFeature(
       'Users forget; see `gnfr` and the `user_id` field.',

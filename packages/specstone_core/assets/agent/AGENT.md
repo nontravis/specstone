@@ -11,6 +11,6 @@ This project keeps its PRD and spec as Specstone docs.
 - Before writing a doc, read its type's guide with `specstone guide <type>`; write each item in its shape,
   once, short, complete.
 - Before writing a plan, tickets, or tests for a story, ground them with `specstone context <story> --for implement --out`.
-- Cite a doc by a markdown link, never by a number label (`F-<nn> US-<nn>`).
+- Cite docs, sections, and items by markdown link, never by a number label (`F-<nn> US-<nn>`).
 - Before reporting work done, run `specstone check <doc>` on each doc you changed until every finding ends `(waits for the Owner)` (`--json`: `waitsFor` is `owner`).
 - Without specstone on PATH, run `~/.specstone/bin/specstone`.

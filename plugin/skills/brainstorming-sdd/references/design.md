@@ -24,9 +24,10 @@ sections.
 
 Before any write, judge the design path by that bundle:
 
-- **A design path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
-  docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or spec
-  doc named as the file: write nothing but the agent's `report:` file; report the path as an open question.
+- **A design path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
+  right under the docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside),
+  or a PRD or spec doc named as the file: write nothing but the agent's `report:` file; report the path as an open
+  question.
 - **Any other design path**: the file to write, at the host brainstorm skill's design document path, else
   `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole.
 

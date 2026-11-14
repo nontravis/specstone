@@ -1210,7 +1210,10 @@ void main() {
         );
         expect(
           _read(root, 'docs/specs/topics/labelled.md'),
-          contains('See `a/b/c` and FR-09.\n'),
+          contains(
+            'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and '
+            'FR-09.\n',
+          ),
         );
         expect(
           _read(root, 'docs/specs/topics/labelled.md').split('\n')[8],

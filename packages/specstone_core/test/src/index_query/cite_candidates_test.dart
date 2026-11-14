@@ -1,10 +1,23 @@
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+
+/// The item ID prefixes of the shipped packs.
+final Set<String> _idPrefixes = itemIdPrefixesOf(
+  TemplateResolver()
+      .resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+      )
+      .docTypes,
+);
 
 /// Each candidate of [lf] as `(line, written, sectionKey, item IDs)`, the IDs
 /// joined by a space, so a record compares by value.
 List<(int, String, String?, String)> _readAll(String lf) => [
-  for (final c in citeCandidatesOf(lf))
+  for (final c in citeCandidatesOf(lf, idPrefixes: _idPrefixes))
     (c.line, c.written, c.sectionKey, c.itemIds.join(' ')),
 ];
 
@@ -87,6 +100,13 @@ void main() {
       expect(read, [
         (6, 'domain:login', null, 'INV-6 INV-7 INV-8 INV-9'),
         (7, 'a/b', null, 'INV-1'),
+      ]);
+    });
+
+    test('topic:doc_model#rules RULE-12: a token of no section prefix, such '
+        'as UTF-8, SHA256, or Base64, makes no item ID', () {
+      expect(_readAll(_doc('`gnfr` UTF-8, SHA256, Base64 and NFR-P01\n')), [
+        (6, 'gnfr', null, 'NFR-P01'),
       ]);
     });
 

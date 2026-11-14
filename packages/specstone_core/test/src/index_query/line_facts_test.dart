@@ -419,6 +419,7 @@ void main() {
       bytes: utf8.encode(text),
       match: MatchedDocType(type),
       statusesOutside: true,
+      idPrefixes: const {'INV-'},
     ).content.lineFacts;
 
     LineFacts roundTrip(LineFacts facts) => LineFacts.fromJson(

@@ -280,7 +280,8 @@ final class ParsedDoc {
 /// has no `formatted` value. [statusesOutside] is the rule its approval hash
 /// follows (`comparedApprovalHash`). [idPrefixes] are the item ID prefixes of
 /// the merged doc type set (see `itemIdPrefixesOf`); a typed doc's rule item
-/// words drop the tokens of those prefixes alone.
+/// words drop the tokens of those prefixes alone, and its cite candidates read
+/// those tokens alone as item IDs.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
@@ -329,7 +330,9 @@ ParsedDoc parseIndexedDoc({
     frontmatterErrorLine: yaml?.errorLine,
     bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
-    citeCandidates: docType == null ? const [] : citeCandidatesOf(lfText),
+    citeCandidates: docType == null
+        ? const []
+        : citeCandidatesOf(lfText, idPrefixes: idPrefixes),
     warnings: warnings,
   );
   final itemFacts = itemFactsOf(

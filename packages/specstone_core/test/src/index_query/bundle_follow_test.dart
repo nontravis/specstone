@@ -165,6 +165,20 @@ void main() {
       '## Components\n| Component | Responsibility |\n|---|---|\n| Form | Takes the email |',
     );
   });
+  test('f01/us05/fr02/e01, f01/us05/fr02/e02: a section link appends nothing when the section is N/A or still its template', () async {
+    const pay = '../../f03_pay/FEATURE.md';
+    final parts = await followed(
+      'See [hypothesis]($pay#benefit-hypothesis), [measures]($pay#success-measures), '
+      'and [problem]($pay#problem).',
+      extra: {
+        'docs/prds/features/f03_pay/FEATURE.md':
+            '# Pay\n\n## Problem\nSlow pay.\n\n## Benefit hypothesis\n'
+            'We believe <outcome> will be achieved if <persona> attains <benefit> with <feature>.\n\n'
+            '## Success measures\nN/A — one local user\n',
+      },
+    );
+    expect(parts.map(_id), ['prds/features/f03_pay/FEATURE.md#problem']);
+  });
   test('f01/us05/fr05/e06: a doc link with no fragment or an empty one appends the doc in summary, once', () async {
     final parts = await followed(
       'See [ranges]($_specs/topics/ranges.md) and [again]($_specs/topics/ranges.md#).',
@@ -221,6 +235,17 @@ void main() {
     ]);
     expect(parts.first.pathOnly, isTrue);
     expect(parts.first.text, isEmpty);
+  });
+  test('f01/us05/fr05: links written <dest> or with spaces around the destination keep source order on their line', () async {
+    final parts = await followed(
+      'See [g](<$_specs/topics/guide.md>), [d]( $_specs/topics/doc_model.md ), '
+      'then [r]($_specs/topics/ranges.md).',
+    );
+    expect(parts.map(_id).take(3), [
+      'specs/topics/guide.md summary',
+      'specs/topics/doc_model.md summary',
+      'specs/topics/ranges.md summary',
+    ]);
   });
   test('f01/us05/fr05/e10: a link to a file no doc type describes appends its path only, once', () async {
     final parts = await followed(

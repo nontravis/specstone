@@ -81,27 +81,34 @@ typedef _Edit = ({int line, int start, int end, String text});
 /// resolves each through `resolveCite` over the planned tree, so it rewrites
 /// what `cite_unlinked` reports as one link and keeps every other form.
 final class CitePass {
-  new _(this._tree, this._docTexts, this._reads);
+  new _(this._tree, this._docTexts, this._reads, this._idPrefixes);
 
   /// Plans the pass over every doc of the run, its text after the earlier
   /// passes; untyped docs are cite targets but are never rewritten.
-  static CitePass plan(List<CitePassDoc> docs) {
+  ///
+  /// - [idPrefixes]: the item ID prefixes of the run's merged set, as
+  ///   `itemIdPrefixesOf` gives them.
+  static CitePass plan(
+    List<CitePassDoc> docs, {
+    required Set<String> idPrefixes,
+  }) {
     final tree = _PlannedCiteTree(docs);
     final reads = <_Read>[];
     final docTexts = <String, String>{};
     for (final (:docPath, :lf, :type, target: _) in docs) {
       if (type == null) continue;
-      final result = _convertDoc(tree, docPath, lf, type);
+      final result = _convertDoc(tree, docPath, lf, type, idPrefixes);
       reads.add((docPath: docPath, type: type, result: result));
       if (result.lf != lf) docTexts[docPath] = result.lf;
     }
     reads.sort((a, b) => compareCodePoints(a.docPath, b.docPath));
-    return CitePass._(tree, docTexts, reads);
+    return CitePass._(tree, docTexts, reads, idPrefixes);
   }
 
   final _PlannedCiteTree _tree;
   final Map<String, String> _docTexts;
   final List<_Read> _reads;
+  final Set<String> _idPrefixes;
 
   /// Returns the text of the doc at [docPath] with its cites converted, [lf]
   /// when it has none to convert.
@@ -133,7 +140,13 @@ final class CitePass {
   List<String> leftOn(Map<String, String> written) => [
     for (final (:docPath, :type, :result) in _reads)
       for (final (:line, :cite) in switch (written[docPath]) {
-        final text? => _convertDoc(_tree, docPath, text, type).kept,
+        final text? => _convertDoc(
+          _tree,
+          docPath,
+          text,
+          type,
+          _idPrefixes,
+        ).kept,
         null => result.kept,
       })
         '$docPath:$line $cite',
@@ -149,8 +162,9 @@ _DocResult _convertDoc(
   String docPath,
   String lf,
   MergedDocType type,
+  Set<String> idPrefixes,
 ) {
-  final forms = citeFormsOf(lf);
+  final forms = citeFormsOf(lf, idPrefixes: idPrefixes);
   if (forms.isEmpty) return (lf: lf, rewrites: 0, kept: const []);
   final lines = lf.split('\n');
   final seeTargets = seeTargetsIn(docStructureOf(lf, type), type);

@@ -2,6 +2,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/cite_resolution.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
@@ -50,7 +52,10 @@ CitePass _passOf(Map<String, String> docs) => CitePass.plan([
       },
       target: null,
     ),
-]);
+], idPrefixes: _idPrefixes);
+
+/// The item ID prefixes of [_set].
+final Set<String> _idPrefixes = itemIdPrefixesOf(_set.docTypes);
 
 /// The text the pass gives the doc at [_citing] holding [body].
 String _converted(String body, {Map<String, String> extra = const {}}) {
@@ -81,6 +86,13 @@ void main() {
       expect(
         _converted('`domain:login` INV-6 and INV-7\n'),
         '[INV-6](../f01_login/DOMAIN.md#invariants) and [INV-7](../f01_login/DOMAIN.md#invariants)\n',
+      );
+    });
+
+    test('f06/us02/fr02/e78: a token shaped like an ID but of no doc type prefix, such as SHA256 or UTF-8, leaves a doc cite', () {
+      expect(
+        _converted('See `domain:login` with SHA256 and UTF-8.\n'),
+        'See [domain:login](../f01_login/DOMAIN.md) with SHA256 and UTF-8.\n',
       );
     });
 
@@ -194,7 +206,7 @@ void main() {
             },
             target: null,
           ),
-      ]);
+      ], idPrefixes: itemIdPrefixesOf(set.docTypes));
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -256,7 +268,7 @@ void main() {
         'docs/$_domain': docs[_domain]!,
         'docs/$citing': text,
       });
-      final candidates = citeCandidatesOf(text);
+      final candidates = citeCandidatesOf(text, idPrefixes: _idPrefixes);
       final checked = [
         for (final candidate in candidates)
           resolveCite(IndexCiteTree(index), citing, candidate),

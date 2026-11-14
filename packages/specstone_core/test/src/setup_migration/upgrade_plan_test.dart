@@ -1888,7 +1888,9 @@ void _labelTests() {
       final text = plan.toText();
       expect(
         _docText(plan, 'specs/topics/labelled.md'),
-        contains('See `a/b/c` and FR-09.'),
+        contains(
+          'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and FR-09.',
+        ),
       );
       final lines = text.split('\n');
       final renumber = lines.indexWhere((l) => l.startsWith('  renumber ids:'));
