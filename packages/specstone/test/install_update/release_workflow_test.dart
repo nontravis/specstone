@@ -196,7 +196,11 @@ void main() {
     expect(run, contains('tar -tvzf'));
     expect(run, contains("grep -Eq '^-..x'"));
     expect(run, contains(r"grep 'bin/stn$'"));
-    expect(run, contains(r"grep -q 'stn.cmd$'"));
+    // The tar arm fails on a stn.exe, the zip arm below on stn and stn.cmd.
+    expect(
+      run.indexOf(r"grep -q 'stn.exe$'"),
+      allOf(isNonNegative, lessThan(zipArm)),
+    );
     expect(zipArm, isNonNegative, reason: run);
     expect(run.indexOf(r"grep -q 'bin/stn.exe$'"), greaterThan(zipArm));
     // The zip arm fails on a leftover stn and on a leftover stn.cmd.
@@ -215,9 +219,11 @@ void main() {
     expect(windowsArm, isNonNegative, reason: run);
     expect(stnRun, greaterThan(windowsArm), reason: run);
     expect(
-      run.indexOf(r'"${GITHUB_REF_NAME#v}"', stnRun),
-      isNonNegative,
-      reason: run,
+      run,
+      contains(
+        r'test "$("$RUNNER_TEMP/stage/bin/stn.exe" --version)" = '
+        r'"${GITHUB_REF_NAME#v}"',
+      ),
     );
   });
 
@@ -242,8 +248,8 @@ void main() {
     final run = '${step['run']}';
     expect(run, contains('[Diagnostics.FileVersionInfo]::GetVersionInfo'));
     expect(run, contains(r'$env:RUNNER_TEMP\stage\bin\stn.exe'));
-    expect(run, contains('FileVersion'));
-    expect(run, contains('ProductVersion'));
+    expect(run, contains(r'$info.FileVersion -ne $expected'));
+    expect(run, contains(r'$info.ProductVersion -ne $expected'));
     expect(run, contains(r"$env:GITHUB_REF_NAME -replace '^v', ''"));
     expect(run, contains('throw'));
   });

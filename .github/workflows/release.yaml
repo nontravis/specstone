@@ -93,8 +93,8 @@ jobs:
               echo "bin/stn missing or not executable in $ASSET" >&2
               exit 1
             }
-            if echo "$listing" | grep -q 'stn.cmd$'; then
-              echo "stn.cmd packed into $ASSET" >&2
+            if echo "$listing" | grep -q 'stn.exe$'; then
+              echo "stn.exe packed into $ASSET" >&2
               exit 1
             fi
           else
