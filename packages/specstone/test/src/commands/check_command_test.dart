@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart'
     show shippedStatusesOutside;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
@@ -293,6 +294,33 @@ void main() {
       expect(finding['fingerprint'], fingerprint);
       expect(finding['message'], isNot(contains(fingerprint)));
     });
+  });
+
+  test('check prints the override rule text before its current fingerprint', () async {
+    final edited = rootRule.replaceFirst('7 days', '14 days');
+    final files = overrideFiles(
+      root: edited,
+      extra: {
+        'docs/$loginDomain': domainDoc(
+          [overrideOfRoot],
+          entries: ['$rootAddress $rootFingerprint'],
+        ),
+      },
+    );
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+    );
+    expect(await runner.run(['check', 'domain:login']), 1);
+    expect(
+      out.toString(),
+      contains(
+        '$loginDomain:3: suspect: $rootAddress changed after it was confirmed, recorded $rootFingerprint; '
+        'read INV-3 of $rootDomain below, then record $rootAddress with the fingerprint after it\n'
+        '    $edited\n'
+        '    fingerprint ${fingerprintFor(edited)}\n',
+      ),
+    );
+    expect(err.toString(), isEmpty);
   });
 
   group('code link', () {

@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
+import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -15,6 +16,7 @@ const _tracedFromKey = 'traced_from';
 const _kindKey = 'kind';
 const _overridesKey = 'overrides';
 const _confirmedKey = 'confirmed';
+const _overrideEntriesKey = 'overrides';
 const _statementSection = 'statement';
 const _statementBlock = 'Statement';
 const _tighten = 'tighten';
@@ -37,11 +39,17 @@ final class TrackedLink {
     this.block,
     this.source,
     this.fingerprint,
+    this.entryKey = _confirmedKey,
   });
 
-  /// The LinkLabel: `S<N>`, an NFR id, `<story slug>/<fr slug>`, or
-  /// `<story Name>#S<N>`.
+  /// The LinkLabel: `S<N>`, an NFR id, `<story slug>/<fr slug>`,
+  /// `<story Name>#S<N>`, or an override address
+  /// `<doc type>:<name>#<ID>`.
   final String label;
+
+  /// The frontmatter field that holds the link's entry: `confirmed`, or
+  /// `overrides` for an override line's link.
+  final String entryKey;
 
   /// The file line of the key or table row that traces the link.
   final int traceLine;
@@ -66,19 +74,55 @@ final class TrackedLink {
 /// entries (a lettered number yields a link with no upstream), an `nf` of
 /// kind `tighten` or `relax` its overridden NFR, an `api` doc each FR of its
 /// trace table, and a `journey` the story scenario each step names.
+///
+/// A doc type that carries override lines adds one link per distinct override
+/// address after its own links; an `api` doc holds both.
 List<TrackedLink> trackedLinksOf(CheckContext context, IndexedDoc doc) {
-  final links = switch (doc.docTypeId) {
-    _frType => _scenarioLinks(context, doc),
-    _nfType => _overrideLinks(context, doc),
-    _apiType => _frRowLinks(context, doc),
-    journeyTypeId => _stepLinks(context, doc),
-    _ => const <TrackedLink>[],
-  };
+  final links = [
+    ...switch (doc.docTypeId) {
+      _frType => _scenarioLinks(context, doc),
+      _nfType => _overrideLinks(context, doc),
+      _apiType => _frRowLinks(context, doc),
+      journeyTypeId => _stepLinks(context, doc),
+      _ => const <TrackedLink>[],
+    },
+    if (carriesOverrides(context.typeOf(doc)))
+      ..._overrideLineLinks(context, doc),
+  ];
   final seen = <String>{};
   return [
     for (final link in links)
       if (seen.add(linkIdentityOf(link.label))) link,
   ];
+}
+
+// The link of an override line that names an item; its item is the upstream
+// block, by the ID the line links. A line that tracks no link yields none.
+Iterable<TrackedLink> _overrideLineLinks(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  for (final line in overrideLinesOf(context, doc)) {
+    if (line case OverrideLine(:final address?, :final upstream?)) {
+      final itemId = line.itemId;
+      final text = line.itemText;
+      yield text == null
+          ? TrackedLink(
+              label: address,
+              traceLine: line.line,
+              entryKey: _overrideEntriesKey,
+            )
+          : TrackedLink(
+              label: address,
+              traceLine: line.line,
+              upstream: upstream,
+              block: itemId,
+              source: text,
+              fingerprint: fingerprintOf(text),
+              entryKey: _overrideEntriesKey,
+            );
+    }
+  }
 }
 
 Iterable<TrackedLink> _scenarioLinks(
@@ -191,10 +235,15 @@ Iterable<TrackedLink> _stepLinks(
 
 typedef _Entry = ({String fingerprint, int line});
 
-// Reads [value] as `<LinkLabel> <12 lowercase hex characters>`, one space
-// between; the label goes through the doc model reference grammar, where a
-// lettered scenario number names no scenario.
-({String label, String fingerprint})? _readEntry(Object? value) {
+// Reads [value] of the field [entryKey] as `<LinkLabel> <12 lowercase hex
+// characters>`, one space between; the label goes through the doc model
+// reference grammar, where a lettered scenario number names no scenario. An
+// override address is a label of `overrides` entries alone, and `overrides`
+// takes no other label.
+({String label, String fingerprint})? _readEntry(
+  Object? value,
+  String entryKey,
+) {
   if (value is! String) return null;
   final space = value.indexOf(' ');
   if (space < 0) return null;
@@ -202,19 +251,32 @@ typedef _Entry = ({String fingerprint, int line});
   final label = readLinkLabel(value.substring(0, space));
   if (label == null || !_fingerprintShape.hasMatch(fingerprint)) return null;
   if (label is ScenarioLabel && label.ref.scenario == null) return null;
+  if ((label is OverrideLabel) != (entryKey == _overrideEntriesKey)) {
+    return null;
+  }
   return (label: label.written, fingerprint: fingerprint);
 }
 
-// The first well-formed entry naming the link of [label] is its entry.
-_Entry? _entryOf(DocLines lines, String label) {
-  final identity = linkIdentityOf(label);
-  for (final item in lines.entriesOf(_confirmedKey)) {
-    final entry = _readEntry(item.value);
+// The first well-formed entry naming [link] is its entry.
+_Entry? _entryOf(DocLines lines, TrackedLink link) {
+  final identity = linkIdentityOf(link.label);
+  for (final item in lines.entriesOf(link.entryKey)) {
+    final entry = _readEntry(item.value, link.entryKey);
     if (entry != null && linkIdentityOf(entry.label) == identity) {
       return (fingerprint: entry.fingerprint, line: item.line);
     }
   }
   return null;
+}
+
+// The entry fields [doc] holds: `confirmed` for the link kinds that record
+// there, `overrides` for a doc type that carries override lines.
+List<String> _entryKeysOf(CheckContext context, IndexedDoc doc) {
+  final type = context.typeOf(doc);
+  return [
+    if (context.typeHoldsField(type, _confirmedKey)) _confirmedKey,
+    if (carriesOverrides(type)) _overrideEntriesKey,
+  ];
 }
 
 // A draft's links are never clean or suspect: its entries wait for approval.
@@ -227,12 +289,12 @@ LinkState _stateOf(IndexedDoc doc, TrackedLink link, _Entry? entry) {
 
 /// Whether any link [doc] tracks is `suspect`.
 bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
-  if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return false;
+  if (_entryKeysOf(context, doc).isEmpty) return false;
   final lines = context.linesOf(doc);
   return trackedLinksOf(context, doc).any(
     (link) =>
         link.fingerprint != null &&
-        _stateOf(doc, link, _entryOf(lines, link.label)) == LinkState.suspect,
+        _stateOf(doc, link, _entryOf(lines, link)) == LinkState.suspect,
   );
 }
 
@@ -240,12 +302,13 @@ bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
 ///
 /// A link whose upstream block is missing takes no state; the broken-pointer
 /// check reports it.
-/// Only a doc type that defines `confirmed` is read.
+/// Only a doc type that defines `confirmed` or carries override lines is
+/// read.
 Iterable<Finding> checkTrackedLinks(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return;
+  if (_entryKeysOf(context, doc).isEmpty) return;
   final lines = context.linesOf(doc);
   for (final link in trackedLinksOf(context, doc)) {
     final current = link.fingerprint;
@@ -258,7 +321,7 @@ Iterable<Finding> checkTrackedLinks(
         source == null) {
       continue;
     }
-    final entry = _entryOf(lines, link.label);
+    final entry = _entryOf(lines, link);
     final read =
         'read $block of $upstream below, then record ${link.label} with the '
         'fingerprint after it';
@@ -320,40 +383,46 @@ String _blockText(String source) {
 
 /// Returns the malformed and stale `confirmed` entries of [doc].
 ///
-/// Only a doc type that defines `confirmed` is read; a draft is read too.
+/// Only a doc type that defines `confirmed` or carries override lines is
+/// read, each entry field against its own links; a draft is read too.
 Iterable<Finding> checkConfirmedEntries(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  if (!context.typeHoldsField(context.typeOf(doc), _confirmedKey)) return;
-  final tracked = {
-    for (final link in trackedLinksOf(context, doc)) linkIdentityOf(link.label),
-  };
-  for (final item in context.linesOf(doc).entriesOf(_confirmedKey)) {
-    // A block map item's span ends with its line break.
-    final text = item.text.trim();
-    final entry = _readEntry(item.value);
-    if (entry == null) {
+  final keys = _entryKeysOf(context, doc);
+  if (keys.isEmpty) return;
+  final links = trackedLinksOf(context, doc);
+  for (final key in keys) {
+    final tracked = {
+      for (final link in links)
+        if (link.entryKey == key) linkIdentityOf(link.label),
+    };
+    for (final item in context.linesOf(doc).entriesOf(key)) {
+      // A block map item's span ends with its line break.
+      final text = item.text.trim();
+      final entry = _readEntry(item.value, key);
+      if (entry == null) {
+        yield context.finding(
+          doc,
+          FindingKind.confirmedEntryMalformed,
+          line: item.line,
+          message:
+              '$text is not a confirmed entry; write '
+              '"<link> <12 lowercase hex characters>"',
+          keys: {'entry': text},
+        );
+        continue;
+      }
+      final label = entry.label;
+      if (tracked.contains(linkIdentityOf(label))) continue;
       yield context.finding(
         doc,
-        FindingKind.confirmedEntryMalformed,
+        FindingKind.confirmedEntryStale,
         line: item.line,
-        message:
-            '$text is not a confirmed entry; write '
-            '"<link> <12 lowercase hex characters>"',
-        keys: {'entry': text},
+        message: '$text names $label, which this doc does not trace',
+        keys: {'entry': text, 'link': label},
       );
-      continue;
     }
-    final label = entry.label;
-    if (tracked.contains(linkIdentityOf(label))) continue;
-    yield context.finding(
-      doc,
-      FindingKind.confirmedEntryStale,
-      line: item.line,
-      message: '$text names $label, which this doc does not trace',
-      keys: {'entry': text, 'link': label},
-    );
   }
 }
 

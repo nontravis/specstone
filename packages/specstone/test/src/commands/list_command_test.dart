@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
+import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -98,6 +99,31 @@ void main() {
     expect(out.toString(), startsWith('sign_in (journey)'));
     expect(out.toString().split('\n').where((l) => l.isNotEmpty), hasLength(1));
   });
+
+  test(
+    'list --suspect lists a doc whose only suspect link is an override',
+    () async {
+      final files = overrideFiles(
+        root: rootRule.replaceFirst('7 days', '14 days'),
+        extra: {
+          'docs/$loginDomain': domainDoc(
+            [overrideOfRoot],
+            entries: ['$rootAddress $rootFingerprint'],
+          ),
+        },
+      );
+      final (:runner, :out, :err) = readRunner(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+      );
+      expect(await runner.run(['list', 'domain', '--suspect']), 0);
+      expect(out.toString(), startsWith('login (domain)'));
+      expect(
+        out.toString().split('\n').where((l) => l.isNotEmpty),
+        hasLength(1),
+      );
+      expect(err.toString(), isEmpty);
+    },
+  );
 
   test('f04/us04/fr04/e03, f04/us04/fr04/e05: list api --suspect keeps an API doc with a suspect row; a type with no '
       'tracked link lists nothing', () async {

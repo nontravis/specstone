@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/override_link_fixture.dart';
 
 void main() {
   const fp = fingerprintOf;
@@ -998,5 +999,282 @@ void main() {
         '$loginFr:7: confirmed_entry_malformed',
       ]);
     });
+  });
+
+  group('override links', () {
+    const shopDomain = 'specs/f02_shop/DOMAIN.md';
+    const cartDomain = 'specs/f02_shop/f01_cart/DOMAIN.md';
+    const shopAddress = 'domain:shop#INV-3';
+    const shopRule = '- **INV-3** A cart holds stock.';
+    final shopFingerprint = fp(shopRule);
+    final editedRule = rootRule.replaceFirst('7 days', '14 days');
+    final rootEntry = '$rootAddress $rootFingerprint';
+
+    Future<List<Finding>> findings(
+      Map<String, String> files,
+      String docPath,
+    ) async {
+      final report = checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: docPath,
+      );
+      return [
+        for (final finding in report.findings)
+          if (linkKinds.contains(finding.kind)) finding,
+      ];
+    }
+
+    Map<String, String> loginFiles(
+      List<String> items, {
+      List<String> entries = const [],
+      bool draft = false,
+      String root = rootRule,
+    }) => overrideFiles(
+      root: root,
+      extra: {
+        'docs/$loginDomain': domainDoc(items, entries: entries, draft: draft),
+      },
+    );
+
+    Map<String, String> cartFiles(List<String> items, List<String> entries) =>
+        overrideFiles(
+          extra: {
+            'docs/prds/features/f02_shop/FEATURE.md': '# Shop\n',
+            'docs/prds/features/f02_shop/f01_cart/FEATURE.md': '# Cart\n',
+            'docs/$shopDomain': domainDoc([shopRule]),
+            'docs/$cartDomain': domainDoc(items, entries: entries),
+          },
+        );
+
+    test('an edited root rule makes the override link suspect with the '
+        'address as link', () async {
+      final files = loginFiles(
+        [overrideOfRoot],
+        entries: [rootEntry],
+        root: editedRule,
+      );
+      final finding = (await findings(files, loginDomain)).single;
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.line, lineOf(files['docs/$loginDomain']!, rootAddress));
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.keys, {
+        'link': rootAddress,
+        'recorded': rootFingerprint,
+        'upstream': rootDomain,
+        'block': 'INV-3',
+        'text': printedBlockOf(editedRule),
+        'fingerprint': fp(editedRule),
+      });
+      expect(finding.message, isNot(contains(fp(editedRule))));
+    });
+
+    test('an unedited root rule keeps the override link clean', () async {
+      expect(
+        await findings(
+          loginFiles([overrideOfRoot], entries: [rootEntry]),
+          loginDomain,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('an edit to a nested bullet of the rule keeps it clean', () async {
+      final files = loginFiles(
+        [overrideOfRoot],
+        entries: [rootEntry],
+        root: '$rootRule\n  - Enforcer: the cart service.',
+      );
+      expect(await findings(files, loginDomain), isEmpty);
+      final edited = loginFiles(
+        [overrideOfRoot],
+        entries: [rootEntry],
+        root: '$rootRule\n  - Enforcer: the order service.',
+      );
+      expect(await findings(edited, loginDomain), isEmpty);
+    });
+
+    test("an approved topic's override goes suspect", () async {
+      final files = overrideFiles(
+        root: editedRule,
+        extra: {
+          'docs/$rulesTopic': topicDoc(
+            ['- **RULE-1** A rule holds.', overrideOfRoot],
+            entries: [rootEntry],
+          ),
+        },
+      );
+      final finding = (await findings(files, rulesTopic)).single;
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.keys['link'], rootAddress);
+      expect(finding.keys['upstream'], rootDomain);
+    });
+
+    test('an override line with no entry is unconfirmed at the line', () async {
+      final files = loginFiles([overrideOfRoot]);
+      final finding = (await findings(files, loginDomain)).single;
+      expect(finding.kind, FindingKind.unconfirmed);
+      expect(finding.line, lineOf(files['docs/$loginDomain']!, 'Overrides:'));
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.keys, {
+        'link': rootAddress,
+        'upstream': rootDomain,
+        'block': 'INV-3',
+        'text': printedBlockOf(rootRule),
+        'fingerprint': rootFingerprint,
+      });
+    });
+
+    test('a draft with a current override entry gets waitsFor owner', () async {
+      final files = loginFiles(
+        [overrideOfRoot],
+        entries: [rootEntry],
+        draft: true,
+      );
+      final finding = (await findings(files, loginDomain)).single;
+      expect(finding.kind, FindingKind.unconfirmed);
+      expect(finding.waitsFor, WaitsFor.owner);
+      expect(finding.line, lineOf(files['docs/$loginDomain']!, rootAddress));
+      expect(finding.message, contains("waits for the Owner's approve"));
+    });
+
+    test(
+      'a draft with an older override entry still waits for the agent',
+      () async {
+        final files = loginFiles(
+          [overrideOfRoot],
+          entries: ['$rootAddress ${fp(editedRule)}'],
+          draft: true,
+        );
+        final finding = (await findings(files, loginDomain)).single;
+        expect(finding.kind, FindingKind.unconfirmed);
+        expect(finding.waitsFor, WaitsFor.agent);
+      },
+    );
+
+    test('an override entry no line links is stale', () async {
+      final files = loginFiles(
+        ['- **INV-1** An account holds one email.'],
+        entries: [rootEntry],
+      );
+      final finding = (await findings(files, loginDomain)).single;
+      expect(finding.kind, FindingKind.confirmedEntryStale);
+      expect(finding.line, lineOf(files['docs/$loginDomain']!, rootAddress));
+      expect(finding.keys, {'entry': rootEntry, 'link': rootAddress});
+    });
+
+    test(
+      'an override entry with no address or no fingerprint is malformed',
+      () async {
+        final files = loginFiles(
+          [overrideOfRoot],
+          entries: ['INV-3 $rootFingerprint', rootAddress, rootEntry],
+        );
+        final found = await findings(files, loginDomain);
+        expect(found.map((f) => f.kind), [
+          FindingKind.confirmedEntryMalformed,
+          FindingKind.confirmedEntryMalformed,
+        ]);
+        expect(found.map((f) => f.keys['entry']), [
+          'INV-3 $rootFingerprint',
+          rootAddress,
+        ]);
+      },
+    );
+
+    test('a scenario entry in overrides is malformed and an override '
+        'entry in confirmed is malformed', () async {
+      final scenarioEntry = 'S1 $rootFingerprint';
+      final inOverrides = loginFiles(
+        [overrideOfRoot],
+        entries: [scenarioEntry, rootEntry],
+      );
+      expect(
+        (await findings(inOverrides, loginDomain)).map((f) => f.keys['entry']),
+        [scenarioEntry],
+      );
+      final inConfirmed = checkOf(
+        await writeCheckProject(
+          extra: fr('  - S2 ${fp(loginScenario2)}', '  - $rootEntry'),
+        ),
+        docPath: loginFr,
+      );
+      expect(
+        spots(inConfirmed, FindingKind.confirmedEntryMalformed),
+        hasLength(1),
+      );
+    });
+
+    test('two lines of one id in two docs pair by address', () async {
+      final items = [
+        '- Overrides: [INV-3](../DOMAIN.md#invariants) — a cart holds stock, because stock',
+        '- Overrides: [INV-3](../../DOMAIN.md#invariants) — carts expire, because stock',
+      ];
+      final entries = ['$shopAddress $shopFingerprint', rootEntry];
+      expect(await findings(cartFiles(items, entries), cartDomain), isEmpty);
+
+      final partial = cartFiles(items, [rootEntry]);
+      final finding = (await findings(partial, cartDomain)).single;
+      expect(finding.kind, FindingKind.unconfirmed);
+      expect(finding.keys['link'], shopAddress);
+      expect(
+        finding.line,
+        lineOf(partial['docs/$cartDomain']!, '../DOMAIN.md#invariants'),
+      );
+    });
+
+    test('reordered lines or entries change no pairing', () async {
+      final items = [
+        '- Overrides: [INV-3](../DOMAIN.md#invariants) — a cart holds stock, because stock',
+        '- Overrides: [INV-3](../../DOMAIN.md#invariants) — carts expire, because stock',
+      ];
+      final entries = ['$shopAddress $shopFingerprint', rootEntry];
+      expect(
+        await findings(cartFiles(items.reversed.toList(), entries), cartDomain),
+        isEmpty,
+      );
+      expect(
+        await findings(cartFiles(items, entries.reversed.toList()), cartDomain),
+        isEmpty,
+      );
+    });
+
+    test('two lines of one address share one link', () async {
+      final session = openSession(
+        await writeCheckProject(
+          extra: loginFiles([overrideOfRoot, '$overrideOfRoot, twice']),
+          unstamped: loginFiles([]).keys.toSet(),
+        ),
+      );
+      addTearDown(session.close);
+      final context = CheckContext(session);
+      final links = trackedLinksOf(context, session.index.at(loginDomain)!);
+      expect(links.map((l) => l.label), [rootAddress]);
+      expect(links.single.entryKey, 'overrides');
+    });
+
+    test(
+      'an nf keeps its own overrides field out of override checks',
+      () async {
+        final report = checkOf(
+          await writeCheckProject(extra: overrideFiles()),
+          docPath: loginNf,
+        );
+        expect(
+          report.findings.where((f) => linkKinds.contains(f.kind)),
+          isEmpty,
+        );
+        final session = openSession(
+          await writeCheckProject(extra: overrideFiles()),
+        );
+        addTearDown(session.close);
+        final links = trackedLinksOf(
+          CheckContext(session),
+          session.index.at(loginNf)!,
+        );
+        expect(links.map((l) => (l.label, l.entryKey)), [
+          ('NFR-P01', 'confirmed'),
+        ]);
+      },
+    );
   });
 }
