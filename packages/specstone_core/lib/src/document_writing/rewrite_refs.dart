@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
-    show DocTarget, relativeFilePathOf, resolveDocLink;
+    show DocTarget, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
@@ -120,11 +120,11 @@ String? rewriteDocLinks(
 }
 
 /// Returns [lfBody], text written in the doc at [fromDocPath], with each
-/// relative link's path set to reach from [toDocPath] what it reaches from
-/// [fromDocPath]; a link with an empty path, such as `#rules`, takes the path
-/// of [fromDocPath] itself.
+/// relative link's path set to reach from [toDocPath] the file or folder it
+/// reaches from [fromDocPath] (see [rebasedHref]); a link with an empty
+/// path, such as `#rules`, takes the path of [fromDocPath] itself.
 ///
-/// A link keeps every other byte, and every other text stays, as
+/// A link keeps its `?` and `#` part, and every other text stays, as
 /// [rewriteDocLinks] keeps it: a web address, another scheme, a rooted path,
 /// and an href in a code span or a fenced block.
 String rebaseDocLinks(
@@ -133,12 +133,14 @@ String rebaseDocLinks(
   required String toDocPath,
 }) {
   if (!_mayHoldLink(lfBody)) return lfBody;
-  String? newPathOf(String href) => _encodedPath(href, (path) {
-    final target = path.isEmpty
-        ? fromDocPath
-        : relativeFilePathOf(path, fromDocPath);
-    return target == null ? null : rebasedRelativePath(path, toDocPath, target);
-  });
+  String? newPathOf(String href) => switch (readLinkTarget(href)) {
+    RelativeLink(:final pathEnd) => rebasedHref(
+      href.substring(0, pathEnd),
+      fromDocPath,
+      toDocPath,
+    ),
+    _ => null,
+  };
   final scan = linkScanOf(lfBody, firstLine: 1);
   return _withEdits(lfBody, _pathEdits(lfBody, scan, newPathOf));
 }
@@ -701,25 +703,21 @@ String? _newName(
 ///
 /// The target is any relative file, or a folder, under or outside the docs
 /// root. A folder link keeps its trailing `/`.
-String? _movedPath(String href, String docPath, List<PathMove> moves) =>
-    _encodedPath(href, (path) => movedRelativePath(path, docPath, moves));
-
-/// Returns the decoded path [newPathOf] gives the path part of [href], a
-/// relative link, encoded, or null when the link keeps its text.
-///
-/// A folder link keeps its trailing `/`.
-String? _encodedPath(String href, String? Function(String path) newPathOf) {
+String? _movedPath(String href, String docPath, List<PathMove> moves) {
   if (readLinkTarget(href) case RelativeLink(:final pathEnd)) {
-    final path = href.substring(0, pathEnd);
-    // Re-encoding the decoded path would turn an escape that is not UTF-8
-    // into U+FFFD, so the link keeps the bytes the author wrote.
-    if (!percentDecodesCleanly(path)) return null;
-    final after = newPathOf(path);
-    if (after == null) return null;
-    final slash = path.endsWith('/') ? '/' : '';
-    return '${after.split('/').map(Uri.encodeComponent).join('/')}$slash';
+    return _movedRelativePath(href.substring(0, pathEnd), docPath, moves);
   }
   return null;
+}
+
+String? _movedRelativePath(String path, String docPath, List<PathMove> moves) {
+  // Re-encoding the decoded path would turn an escape that is not UTF-8 into
+  // U+FFFD, so the link keeps the bytes the author wrote.
+  if (!percentDecodesCleanly(path)) return null;
+  final after = movedRelativePath(path, docPath, moves);
+  if (after == null) return null;
+  final slash = path.endsWith('/') ? '/' : '';
+  return '${after.split('/').map(Uri.encodeComponent).join('/')}$slash';
 }
 
 /// Returns the key block [text] of [field] with each renamed value replaced.

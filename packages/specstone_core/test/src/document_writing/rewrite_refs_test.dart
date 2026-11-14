@@ -1352,4 +1352,63 @@ void main() {
       );
     });
   });
+
+  group('rebaseDocLinks', () {
+    const story = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const journey = 'prds/journeys/first_order/JOURNEY.md';
+
+    String rebased(String body) =>
+        rebaseDocLinks(body, fromDocPath: story, toDocPath: journey);
+
+    test('f10/us01/fr04/e08: a folder link keeps its trailing slash', () {
+      expect(
+        rebased('[sign out](../us02_sign_out/)'),
+        '[sign out](../../features/f01_login/us02_sign_out/)',
+      );
+    });
+
+    test('f10/us01/fr04/e08: a link to the docs root reaches it from the '
+        'journey', () {
+      expect(rebased('[docs](../../../../)'), '[docs](../../../)');
+    });
+
+    test('f10/us01/fr04/e08: a segment with an encoded slash keeps its '
+        'escape', () {
+      expect(
+        rebased('[odd](../a%2Fb.md)'),
+        '[odd](../../features/f01_login/a%2Fb.md)',
+      );
+    });
+
+    test('f10/us01/fr04/e08: a query and a fragment are kept', () {
+      expect(
+        rebased('[q](../FEATURE.md?v=1#problem)'),
+        '[q](../../features/f01_login/FEATURE.md?v=1#problem)',
+      );
+    });
+
+    test('f10/us01/fr04/e08: a link that leaves the docs root still reaches '
+        'its file', () {
+      expect(
+        rebased('[code](../../../../../lib/a.dart)'),
+        '[code](../../../../lib/a.dart)',
+      );
+    });
+
+    test("f10/us01/fr04/e09: a fragment-only link takes the story's "
+        'path', () {
+      expect(
+        rebased('[rules](#rules)'),
+        '[rules](../../features/f01_login/us01_email_login/USER_STORY.md#rules)',
+      );
+    });
+
+    test('f10/us01/fr04/e10, f10/us01/fr04/e11: web, scheme, rooted, and '
+        'code-span paths stay as written', () {
+      const body =
+          '[w](https://example.com/a.md) [m](mailto:a@example.com) '
+          '[r](/a.md) `../a.md`';
+      expect(rebased(body), body);
+    });
+  });
 }

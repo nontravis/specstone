@@ -298,6 +298,15 @@ void main() {
       expect(text, endsWith('[s]: <../../features/f01_login/FEATURE.md>'));
     });
 
+    test('f10/us01/fr04/e08: a folder link and a docs-root link reach from '
+        "the journey's folder what they reach from the story", () async {
+      expect(
+        await _copiedThen('[out](../us02_sign_out/) [docs](../../../../)'),
+        '- **Then** the Agent sees the home page '
+        '[out](../../features/f01_login/us02_sign_out/) [docs](../../../)',
+      );
+    });
+
     test('f10/us01/fr04/e10: a web address, another scheme, and a rooted '
         'path are copied as written', () async {
       const tail =

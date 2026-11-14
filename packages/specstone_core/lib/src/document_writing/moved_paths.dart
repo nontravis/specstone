@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/percent_decode.dart'
+    show percentDecoded;
 
 /// One move of a doc or a folder, as DocPaths.
 ///
@@ -45,22 +47,74 @@ String relativeHref(String fromDocPath, String toDocPath) {
 String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
   final target = relativeFilePathOf(path, docPath);
   if (target == null) return null;
-  return rebasedRelativePath(
-    path,
-    movedPath(docPath, moves),
-    movedFilePath(target, moves),
-  );
+  final movedDoc = movedPath(docPath, moves);
+  final movedTarget = movedFilePath(target, moves);
+  if (relativeFilePathOf(path, movedDoc) == movedTarget) return null;
+  final after = relativeHref(movedDoc, movedTarget);
+  return _keptDotSlash(path, after);
 }
 
-/// Returns the decoded path that reaches [target] from the doc at [docPath],
-/// or null when [path], written there, already reaches it.
+/// Returns [path], written in the doc at [fromDocPath], as the path that
+/// reaches the same file or folder from the doc at [toDocPath], or null when
+/// it is unchanged.
 ///
-/// [path] has no `?` or `#` part; an empty one reaches no file. A leading
-/// `./` stays unless the new path starts with `../`.
-String? rebasedRelativePath(String path, String docPath, String target) {
-  if (relativeFilePathOf(path, docPath) == target) return null;
-  final after = relativeHref(docPath, target);
-  return path.startsWith('./') && !after.startsWith('../') ? './$after' : after;
+/// [path] has no `?` or `#` part; an empty one names [fromDocPath] itself.
+/// Works on the segments as written, so an escape, an encoded slash
+/// included, and a trailing `/` stay; a `.` or `..` segment, decoded, moves
+/// the walk, which may leave the docs root.
+String? rebasedHref(String path, String fromDocPath, String toDocPath) {
+  final target = path.isEmpty
+      ? fromDocPath.split('/')
+      : _walked(_folderOf(fromDocPath), path.split('/'));
+  final from = _folderOf(toDocPath);
+  var common = 0;
+  while (common < from.length &&
+      common < target.length &&
+      from[common] == percentDecoded(target[common])) {
+    common++;
+  }
+  final segments = [
+    ...List.filled(from.length - common, '..'),
+    ...target.skip(common),
+  ];
+  final joined = segments.isEmpty ? '.' : segments.join('/');
+  final slash = path.endsWith('/') ? '/' : '';
+  final after = _keptDotSlash(path, '$joined$slash');
+  return after == path ? null : after;
+}
+
+/// Returns [after] with the leading `./` of [path] when [after] opens with
+/// neither `../` nor `.` alone.
+String _keptDotSlash(String path, String after) =>
+    path.startsWith('./') &&
+        !after.startsWith('../') &&
+        !after.startsWith('./') &&
+        after != '.'
+    ? './$after'
+    : after;
+
+/// Returns the folder segments of [docPath].
+List<String> _folderOf(String docPath) => docPath.split('/')..removeLast();
+
+/// Returns [folder] after walking [segments] as written: an empty or `.`
+/// segment stays, `..` pops, or is kept once the walk leaves the root.
+List<String> _walked(List<String> folder, List<String> segments) {
+  final walk = [...folder];
+  for (final segment in segments) {
+    switch (percentDecoded(segment)) {
+      case '' || '.':
+        continue;
+      case '..':
+        if (walk.isEmpty || walk.last == '..') {
+          walk.add('..');
+        } else {
+          walk.removeLast();
+        }
+      default:
+        walk.add(segment);
+    }
+  }
+  return walk;
 }
 
 /// Returns [path], a file or a folder under the docs root or outside it,
