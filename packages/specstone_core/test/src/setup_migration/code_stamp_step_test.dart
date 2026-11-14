@@ -13,6 +13,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
 
 const _login = 'app/lib/login.dart';
@@ -269,6 +270,49 @@ void main() {
 
       expect(step.rewrites, isEmpty);
       expect(step.paths, isEmpty);
+    });
+  });
+
+  group('one named code target', () {
+    test('every implemented link takes its fingerprint, so the next check '
+        'finds no code link to compare', () async {
+      final project = await _project(
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n  app:\n    code_root: .\n',
+        },
+      );
+      expect(_codeFindings(_check(project)), hasLength(3));
+
+      final step = _planAt(project);
+      _write(project, step);
+
+      expect(
+        step.stepLine(from: _from, step: _step).text,
+        'from 1.6.0: stamp_code_fingerprints: 2 docs; 3 entries',
+      );
+      expect(_codeFindings(_check(project)), isEmpty);
+    });
+  });
+
+  group('an entry the step cannot rewrite', () {
+    test('a folded scalar stays as written and is not counted', () async {
+      final project = await _project(
+        extra: {
+          'docs/$loginRecord':
+              "---\nstatuses:\n  - 'email_login:implemented'\n"
+              'implements:\n  - >-\n    email_login:$_login:SignInPage\n'
+              '---\n\n# Login implementation\n',
+        },
+      );
+
+      final step = _planAt(project);
+
+      expect(step.rewrites, isNot(contains(loginRecord)));
+      expect(
+        step.stepLine(from: _from, step: _step).text,
+        'from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries',
+      );
     });
   });
 
