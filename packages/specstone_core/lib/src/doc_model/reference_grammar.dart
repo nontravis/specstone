@@ -643,8 +643,25 @@ final class FrRefLabel extends LinkLabel {
   String get written => name;
 }
 
+/// An override address: `<doc type>:<name>#<item ID>`, as
+/// `project_domain:domain#INV-3`.
+final class OverrideLabel extends LinkLabel {
+  const new(this.address, this.itemId);
+
+  /// The doc the address names, never looked up.
+  final DocAddress address;
+
+  /// The item ID after the `#`, as written.
+  final String itemId;
+
+  @override
+  String get written => '${address.docPart}#$itemId';
+}
+
 /// Reads [text], whole, as a `confirmed` entry's first word.
 LinkLabel? readLinkLabel(String text) {
+  final override = _readOverrideLabel(text);
+  if (override != null) return override;
   final scenario = readScenarioRef(text);
   if (scenario != null) return ScenarioLabel(scenario);
   if (_isNfrId(text)) return NfrLabel(text);
@@ -657,6 +674,19 @@ LinkLabel? readLinkLabel(String text) {
 ///
 /// Every reader that matches a `confirmed` entry to its link compares this.
 String linkIdentityOf(String label) => readLinkLabel(label)?.identity ?? label;
+
+/// Reads [text], whole, as `<doc type>:<name>#<item ID>`; null for any other
+/// text, a lettered or unreadable ID included.
+OverrideLabel? _readOverrideLabel(String text) {
+  final address = readDocAddress(text);
+  final key = address.sectionKey;
+  if (address.typeId == null || !address.isName || key == null) return null;
+  final prefixEnd = key.indexOf(RegExp('[0-9]'));
+  if (prefixEnd <= 0) return null;
+  final id = readItemIdAt(key, 0, key.substring(0, prefixEnd));
+  if (id is! ItemId || id.written.length != key.length) return null;
+  return OverrideLabel(address, key);
+}
 
 bool _isNfrId(String text) {
   const open = 'NFR-';
