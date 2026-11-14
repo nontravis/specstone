@@ -154,15 +154,18 @@ void main() {
     },
   );
 
-  test('E01, E08, E10: a held skipped item, and an unskipped one, give no finding of any rule', () async {
-    final project = await _project(
-      skips: ['- `crud/paged_list` — one page is enough'],
-    );
+  test(
+    'a held skipped item, and an unskipped one, give no finding of any rule',
+    () async {
+      final project = await _project(
+        skips: ['- `crud/paged_list` — one page is enough'],
+      );
 
-    expect(spots(checkOf(project)), isEmpty);
-  });
+      expect(spots(checkOf(project)), isEmpty);
+    },
+  );
 
-  test('E02: a skipped item its feature pattern does not hold is feature_pattern_item_missing at the bullet', () async {
+  test('a skipped item its feature pattern does not hold is feature_pattern_item_missing at the bullet', () async {
     final project = await _project(
       skips: ['- `crud/paged_lis` — one page is enough'],
     );
@@ -179,7 +182,7 @@ void main() {
     expect(found.single.toJson(), containsPair('item', 'paged_lis'));
   });
 
-  test('E03: a patterns value no merged feature pattern holds is feature_pattern_missing at its line, and its skip lines add none', () async {
+  test('a patterns value no merged feature pattern holds is feature_pattern_missing at its line, and its skip lines add none', () async {
     final project = await _project(
       patterns: ['crud', 'cruds'],
       skips: ['- `cruds/paged_list` — one page is enough'],
@@ -195,7 +198,7 @@ void main() {
     expect(found.single.toJson().containsKey('item'), isFalse);
   });
 
-  test('E04: an item a pattern takes through extends is held, one a pattern it extends lacks is not', () async {
+  test('an item a pattern takes through extends is held, one a pattern it extends lacks is not', () async {
     final project = await _project(
       patterns: ['sign_in', 'sign_up'],
       skips: [
@@ -220,7 +223,7 @@ void main() {
   });
 
   test(
-    'E05: an item a project layer disables is feature_pattern_item_missing',
+    'an item a project layer disables is feature_pattern_item_missing',
     () async {
       final project = await _project(
         skips: ['- `crud/paged_list` — one page is enough'],
@@ -234,7 +237,7 @@ void main() {
     },
   );
 
-  test('E09: a project that pins only prd-core holds no feature pattern, so each value is feature_pattern_missing', () async {
+  test('a project that pins only prd-core holds no feature pattern, so each value is feature_pattern_missing', () async {
     final project = await _project(
       patterns: ['crud', 'auth'],
       files: {
@@ -256,7 +259,7 @@ void main() {
   });
 
   test(
-    'E11: another doc type that carries the field is checked the same way',
+    'another doc type that carries the field is checked the same way',
     () async {
       final project = await writeCheckProject(
         extra: {

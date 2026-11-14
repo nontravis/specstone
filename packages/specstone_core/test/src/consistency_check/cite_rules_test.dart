@@ -287,14 +287,14 @@ void main() {
       ]),
     });
 
-    test('E06: is no cite candidate', () async {
+    test('a skip line of a listed pattern is no cite candidate', () async {
       final findings = await citesWithSkip(
         '- `crud/paged_list` — one page is enough',
       );
       expect(findings, isEmpty);
     });
 
-    test('E07: the same span in a feature that does not list the pattern '
+    test('the same span in a feature that does not list the pattern '
         'still gives cite_unlinked', () async {
       final findings = await citesWithSkip(
         '- `crud/paged_list` — one page is enough',
@@ -307,6 +307,14 @@ void main() {
         'a cite', () async {
       final findings = await citesWithSkip(
         '- `crud/paged_list` - one page is enough',
+      );
+      expect([for (final f in findings) f.keys['cite']], ['crud/paged_list']);
+    });
+
+    test('guard: a double hyphen separator makes it no skip line, so its '
+        'span is a cite', () async {
+      final findings = await citesWithSkip(
+        '- `crud/paged_list` -- one page is enough',
       );
       expect([for (final f in findings) f.keys['cite']], ['crud/paged_list']);
     });

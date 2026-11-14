@@ -1395,7 +1395,7 @@ void main() {
       return (code: code, out: out.toString());
     }
 
-    test('f01/us05/s25: a design bundle holds each checklist the feature names right after it, in the order it names them', () async {
+    test('a design bundle holds each checklist the feature names right after it, in the order it names them', () async {
       final r = await run(patterned('[sign_in_checks, record_checks]'), [
         'login/email_login',
         '--for',
@@ -1418,20 +1418,17 @@ void main() {
       expect(first, lessThan(second));
       expect(second, lessThan(story));
     });
-    test(
-      'f01/us05/s25: a bundle for implementing holds no checklist',
-      () async {
-        final r = await run(patterned('[sign_in_checks]'), [
-          'login/email_login',
-          '--for',
-          'implement',
-        ]);
+    test('a bundle for implementing holds no checklist', () async {
+      final r = await run(patterned('[sign_in_checks]'), [
+        'login/email_login',
+        '--for',
+        'implement',
+      ]);
 
-        expect(r.code, 0);
-        expect(r.out, isNot(contains('(feature pattern)')));
-      },
-    );
-    test('f01/us05/fr08/e10: --json carries featurePatterns in each design reply and in no other mode', () async {
+      expect(r.code, 0);
+      expect(r.out, isNot(contains('(feature pattern)')));
+    });
+    test('--json carries featurePatterns in each design reply and in no other mode', () async {
       final extra = patterned('[sign_in_checks]');
       final design = await run(extra, [
         'login/email_login',
@@ -1471,25 +1468,28 @@ void main() {
       );
       expect(jsonDecode(query.out) as Map, isNot(contains('featurePatterns')));
     });
-    test('f01/us05/fr08/e10: a design bundle where no part joins gives featurePatterns: []', () async {
-      final none = await run(const {}, [
-        'login/email_login',
-        '--for',
-        'design',
-        '--json',
-      ]);
-      final unknown = await run(patterned('[nothing]'), [
-        'login/email_login',
-        '--for',
-        'design',
-        '--json',
-      ]);
+    test(
+      'a design bundle where no part joins gives featurePatterns: []',
+      () async {
+        final none = await run(const {}, [
+          'login/email_login',
+          '--for',
+          'design',
+          '--json',
+        ]);
+        final unknown = await run(patterned('[nothing]'), [
+          'login/email_login',
+          '--for',
+          'design',
+          '--json',
+        ]);
 
-      expect((jsonDecode(none.out) as Map)['featurePatterns'], isEmpty);
-      expect((jsonDecode(unknown.out) as Map)['featurePatterns'], isEmpty);
-      expect(none.out, contains('"featurePatterns":'));
-    });
-    test('f01/us05/fr08/e10: --out --json indexes each part as {id, doc, lines} beside docs, whose lines point at the part in the file', () async {
+        expect((jsonDecode(none.out) as Map)['featurePatterns'], isEmpty);
+        expect((jsonDecode(unknown.out) as Map)['featurePatterns'], isEmpty);
+        expect(none.out, contains('"featurePatterns":'));
+      },
+    );
+    test('--out --json indexes each part as {id, doc, lines} beside docs, whose lines point at the part in the file', () async {
       final project = await writeReadProject(
         extra: patterned('[sign_in_checks, record_checks]'),
       );

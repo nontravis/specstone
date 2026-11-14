@@ -6,15 +6,16 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 # Brainstorm a change into an approved design
 
 A change this skill takes reaches the PRD and spec only after the Owner approves its design document. A change that
-only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: use
-`specstone:update-sdd` instead.
+only rewrites one section or field of an existing doc, adding no story or FR, is a small edit: use
+`specstone:update-sdd`.
 
 ## 1. Ground: the first call
 
-Make this call, the gate, your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
-change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
-with `--summary` to add a story, and the project doc to add a feature. Keep `--out` bare and last, and pass no
-`--budget`, with or without the `Agent` tool. Pass no `--target`: a design read spans every code target.
+Make this call, the gate, your first CLI call, before any other command or file read.
+Target the smallest doc that holds the whole change, one call per target: the story for a change inside one story,
+the feature for one across stories, the feature with `--summary` to add a story, and the project doc to add a feature.
+Keep `--out` bare and last, and pass no `--budget`, with or without the `Agent` tool.
+Pass no `--target`: a design read spans every code target.
 
 ```
 specstone context <target> --for design --out
@@ -74,10 +75,10 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 
 1. After approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
-   list as its targets.
+   list as targets.
 3. Run fix rounds on its `Findings:` lines per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
-4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
-   until then, per `specstone:expert-sdd`.
+4. Show each author reply and the last audit's relay block; approve the drafts through
+   `specstone:expert-sdd`'s Owner confirmation, testing both under `auto`.
 
 ## 5. Hand the approved drafts to the plan skill
 

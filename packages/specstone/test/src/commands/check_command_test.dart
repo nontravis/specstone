@@ -1408,7 +1408,7 @@ void main() {
     );
   });
 
-  group('user_story:consistency_check/find_broken_pointers S28, S29', () {
+  group('feature pattern names and skipped items', () {
     const outOfScope = '## Out-of-scope\n\n- Social sign-in — not planned\n';
 
     Future<Directory> featureWith(String pattern, String skip) =>
@@ -1440,7 +1440,7 @@ void main() {
       ], workingDirectory: project.path),
     );
 
-    test('S28: a feature naming a pattern one letter short of a shipped one is one finding at the value, in text and --json', () async {
+    test('a feature naming a pattern one letter short of a shipped one is one finding at the value, in text and --json', () async {
       final project = await featureWith('cruds', '- `crud/paged_list` — kept');
       final line = lineOf(project, '- cruds');
       const message = 'patterns value cruds names no feature pattern';
@@ -1466,7 +1466,7 @@ void main() {
       ]);
     });
 
-    test('S29: a skipped item its pattern does not hold is one finding at the bullet naming the pattern and the item; a held one gives none', () async {
+    test('a skipped item its pattern does not hold is one finding at the bullet naming the pattern and the item; a held one gives none', () async {
       final project = await featureWith(
         'crud',
         '- `crud/paged_lis` — kept\n- `crud/paged_list` — kept',
@@ -1498,17 +1498,14 @@ void main() {
       ]);
     });
 
-    test(
-      'S29: a held skipped item alone gives no finding and exits 0',
-      () async {
-        final project = await featureWith('crud', '- `crud/paged_list` — kept');
+    test('a held skipped item alone gives no finding and exits 0', () async {
+      final project = await featureWith('crud', '- `crud/paged_list` — kept');
 
-        final (text, json) = await run(project);
+      final (text, json) = await run(project);
 
-        expect(text.exitCode, 0, reason: '${text.stdout}\n${text.stderr}');
-        expect(text.stdout, '0 findings\n');
-        expect(json.exitCode, 0);
-      },
-    );
+      expect(text.exitCode, 0, reason: '${text.stdout}\n${text.stderr}');
+      expect(text.stdout, '0 findings\n');
+      expect(json.exitCode, 0);
+    });
   });
 }

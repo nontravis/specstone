@@ -1127,8 +1127,7 @@ void _handOffTests() {
     }
   });
 
-  test('E14: '
-      'the Rules section of expert-sdd has a new feature pick its patterns '
+  test('the Rules section of expert-sdd has a new feature pick its patterns '
       'with guide --pattern and cover each checklist item or name it in the '
       "feature's Out-of-scope", () {
     final rules = _oneLine(
@@ -1196,7 +1195,233 @@ void _handOffTests() {
     }
     expect(hits..sort(), unorderedEquals(_ownTextNameCites.keys));
   });
+
+  group('the auto approve branch', () {
+    test("expert-sdd's Owner confirmation points the approve item to "
+        'references/approve-mode.md', () {
+      final section = _oneLine(
+        _sectionOf(
+          _pluginText('skills/expert-sdd/SKILL.md'),
+          'Owner confirmation',
+        ),
+      );
+      final approveItem = section.substring(
+        section.indexOf('- `approve`:'),
+        section.indexOf('- `delete`:'),
+      );
+      expect(approveItem, contains('follow `references/approve-mode.md`'));
+    });
+
+    test("expert-sdd's step 3 runs the --yes command only after the ok, a "
+        'clean draft under auto excepted', () {
+      final section = _oneLine(
+        _sectionOf(
+          _pluginText('skills/expert-sdd/SKILL.md'),
+          'Owner confirmation',
+        ),
+      );
+      expect(
+        section,
+        contains(
+          'Run the `--yes` command, a clean draft under `auto` excepted, only '
+          "after the Owner's `ok`",
+        ),
+      );
+    });
+
+    test('the approve-mode reference asks no ok, passes an unconfirmed '
+        'finding that waits for the owner, and names the upstream change in '
+        'its list', () {
+      final text = _pluginText(_approveMode);
+      expect(_oneLine(text), contains('Ask no `ok`'));
+      final tests = _oneLine(_sectionOf(text, 'Clean-draft tests'));
+      expect(tests, contains('`unconfirmed` with `waitsFor` `owner`'));
+      final list = _oneLine(_sectionOf(text, 'Approved list'));
+      expect(list, contains('name the upstream change it was checked against'));
+    });
+
+    test('the approve-mode reference runs the dry run, reads approveMode, '
+        'checks, and approves the clean drafts in one --yes call', () {
+      final text = _oneLine(_pluginText(_approveMode));
+      for (final token in [
+        '--dry-run --json',
+        'approveMode',
+        '`ask`',
+        '`auto`',
+        'check --json',
+        '@<hash>',
+        '--yes',
+        'Owner confirmation',
+      ]) {
+        expect(text, contains(token), reason: token);
+      }
+    });
+
+    test('the approve-mode reference holds five numbered clean-draft tests, '
+        'the last reading Not landed: lines', () {
+      final tests = _sectionOf(_pluginText(_approveMode), 'Clean-draft tests');
+      final numbered = RegExp(
+        r'^\d+\. .*',
+        multiLine: true,
+      ).allMatches(tests).map((match) => match[0]!).toList();
+      expect(numbered, hasLength(5));
+      for (final (at, line) in numbered.indexed) {
+        expect(line, startsWith('${at + 1}. '));
+      }
+      expect(numbered.last, contains('Not landed:'));
+      expect(_oneLine(tests), contains('Not landed: none'));
+    });
+
+    test('the approve-mode reference retries once on exit 75 and makes one '
+        'last call', () {
+      final exit = _oneLine(_sectionOf(_pluginText(_approveMode), 'Exit 75'));
+      for (final token in [
+        '75',
+        '`base_mismatch`',
+        '`index_busy`',
+        'retry once',
+        'one last',
+        'never retried',
+        'the retry',
+      ]) {
+        expect(exit, contains(token), reason: token);
+      }
+      final sentences = _oneLine(_pluginText(_approveMode))
+          .split(RegExp(r'(?<=\.) '));
+      final withThird = sentences.where((line) => line.contains('third'));
+      expect(withThird, isNotEmpty);
+      for (final line in withThird) {
+        expect(line.toLowerCase(), contains('never'), reason: line);
+      }
+    });
+
+    test('the approve-mode reference names docPath and Why: for its list', () {
+      final list = _oneLine(
+        _sectionOf(_pluginText(_approveMode), 'Approved list'),
+      );
+      expect(list, contains('docPath'));
+      expect(list, contains('Why:'));
+    });
+
+    test('only expert-sdd holds the auto rule', () {
+      final holders = [
+        for (final file in _skillAndAgentFiles())
+          if (_pluginText(file).contains('approveMode')) file,
+      ];
+      expect(holders, [_approveMode]);
+    });
+
+    test('no skill reads the approve mode from a shell', () {
+      final root = pluginRoot().uri.toFilePath(windows: false);
+      final holders = [
+        for (final file
+            in pluginRoot().listSync(recursive: true).whereType<File>())
+          if (file.readAsStringSync().contains('SPECSTONE_APPROVE_MODE'))
+            file.uri.toFilePath(windows: false).substring(root.length),
+      ];
+      expect(holders, isEmpty);
+    });
+
+    test('confirm-links names the approved list for a re-confirmation under '
+        'auto', () {
+      expect(_pluginText(_confirmLinks), contains('approve-mode.md'));
+    });
+
+    for (final skill in ['update-sdd', 'init']) {
+      test("$skill's approve red flag waits for the ok under ask and defers "
+          'to Owner confirmation under auto', () {
+        final row = _oneLine(
+          _sectionOf(_pluginText('skills/$skill/SKILL.md'), 'Red flags')
+              .split('\n')
+              .singleWhere((line) => line.contains('specstone approve')),
+        );
+        expect(row, contains('`ask`'));
+        expect(row, contains('Owner confirmation'));
+      });
+    }
+
+    test("update-sdd's step 4 limits waiting for the ok to the ask mode", () {
+      final step = _oneLine(
+        _sectionOf(
+          _pluginText('skills/update-sdd/SKILL.md'),
+          '4. Name the change for the Owner',
+        ),
+      );
+      expect(step, contains('`ask`'));
+    });
+
+    test("init's approval section names Owner confirmation and the auto "
+        'mode', () {
+      final section = _oneLine(
+        _sectionOf(
+          _pluginText('skills/init/SKILL.md'),
+          '3. Get the drafts approved',
+        ),
+      );
+      expect(section, contains('Owner confirmation'));
+      expect(section, contains('`auto`'));
+    });
+
+    test('every pointing skill names Owner confirmation for its drafts and '
+        'holds no auto copy', () {
+      for (final skill in [
+        'bootstrap-prd',
+        'bootstrap-spec',
+        'init',
+        'sync-sdd',
+        'update-sdd',
+      ]) {
+        final text = _oneLine(_pluginText('skills/$skill/SKILL.md'));
+        expect(text, contains('Owner confirmation'), reason: skill);
+        expect(text, isNot(contains('approveMode')), reason: skill);
+      }
+    });
+
+    String draftsStep() => _sectionOf(
+      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      '4. Write the drafts, then audit them',
+    );
+
+    test("brainstorming-sdd hands the last audit's relay block and the author "
+        'replies to Owner confirmation', () {
+      final step = _oneLine(draftsStep());
+      expect(step, contains('relay block'));
+      expect(step, contains('Owner confirmation'));
+    });
+
+    test("brainstorming-sdd's approval step names the auto mode", () {
+      expect(draftsStep(), contains('`auto`'));
+    });
+
+    test("the audit's Waits on the Owner bullet names Owner confirmation as "
+        'its clearer and no sole approver', () {
+      final audit = _oneLine(
+        _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      );
+      expect(
+        audit,
+        contains("`specstone:expert-sdd`'s Owner confirmation clears it"),
+      );
+      expect(audit, isNot(contains('only the Owner clears')));
+    });
+
+    test("the approve-mode reference takes its drafts only from the run's "
+        'own list or the report lines that name them', () {
+      final step = _oneLine(_sectionOf(_pluginText(_approveMode), 'Dry run'));
+      for (final token in [
+        "`Drafts for the Owner's specstone approve`",
+        'author report',
+        'sync or bootstrap report',
+        'drafts lines',
+        'other drafts',
+      ]) {
+        expect(step, contains(token), reason: token);
+      }
+    });
+  });
 }
+
+const _approveMode = 'skills/expert-sdd/references/approve-mode.md';
 
 /// An instruction to cite by a name: a cite word, then `by` a name, within
 /// one clause, or a citation of a doc name.
@@ -2037,7 +2262,7 @@ void _agentTests() {
         procedure(),
         contains(
           'Write no record code path or `covers:` entry that names this code '
-          'until the Owner approves the draft. Then add it at once by step '
+          'until it is approved. Then add it at once by step '
           "4.3, on the path's target's record.",
         ),
       );
@@ -2401,7 +2626,7 @@ void _agentTests() {
 
     test('the sync procedure writes a spec draft only on the write-a-spec '
         'pick, in the path code target, and writes no pointer to the code '
-        'before the Owner approves the draft', () {
+        'before the draft is approved', () {
       final text = procedure();
       expect(
         text,
@@ -2412,9 +2637,8 @@ void _agentTests() {
       expect(
         text,
         contains(
-          'the Owner approves it with `specstone approve`. Write no record '
-          'code path or `covers:` entry that names this code until the Owner '
-          'approves the draft.',
+          'it waits for approval. Write no record code path or `covers:` '
+          'entry that names this code until it is approved.',
         ),
       );
     });
@@ -2875,17 +3099,23 @@ void _agentTests() {
     );
   });
 
-  test('E02, '
-      'sf-r3: sdd-engineer runs approve only with --dry-run, and no delete, '
+  test('sdd-engineer runs approve only with --dry-run, and no delete, '
       'rename, reorder, or move', () {
     expect(
       _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Scope Boundaries'),
       contains(
         "**DON'T:**\n\n- Run `specstone approve` without `--dry-run` "
-        "(approving is the Owner's), `delete`, `rename`, `reorder`, or "
-        '`move`.\n',
+        '(the main session that dispatched you approves, never you), '
+        '`delete`, `rename`, `reorder`, or `move`.\n',
       ),
     );
+  });
+
+  test("sdd-engineer's role names the main session, not the Owner, as the "
+      'one that gets its drafts approved', () {
+    final role = _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Role');
+    expect(role, isNot(contains('the Owner approves your drafts')));
+    expect(role, contains('main session'));
   });
 
   test('sdd-reader takes --summary '

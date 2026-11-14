@@ -104,7 +104,7 @@ Future<DocIndex> _loginWith(
 });
 
 void main() {
-  test('e01: patterns [sign_in, records] give the sign_in part, then the records part, after the feature', () async {
+  test('patterns [sign_in, records] give the sign_in part, then the records part, after the feature', () async {
     final index = await _loginWith('[sign_in, records]');
 
     expect(_summary(_partsOf(index, 'login/email_login')), [
@@ -113,16 +113,19 @@ void main() {
     ]);
   });
 
-  test('e02: a value that names no merged feature pattern gives no part and no fault', () async {
-    final index = await _loginWith('[nothing, sign_in]');
+  test(
+    'a value that names no merged feature pattern gives no part and no fault',
+    () async {
+      final index = await _loginWith('[nothing, sign_in]');
 
-    expect(_summary(_partsOf(index, 'login/email_login')), [
-      ('sign_in', 'login', 'lockout reset'),
-    ]);
-  });
+      expect(_summary(_partsOf(index, 'login/email_login')), [
+        ('sign_in', 'login', 'lockout reset'),
+      ]);
+    },
+  );
 
   test(
-    'e03: [sign_up, sign_in] prints each shared item under sign_up only',
+    '[sign_up, sign_in] prints each shared item under sign_up only',
     () async {
       final index = await _loginWith('[sign_up, sign_in]');
 
@@ -133,7 +136,7 @@ void main() {
     },
   );
 
-  test('e12: a later part drops the items an earlier part printed and shares through extends', () async {
+  test('a later part drops the items an earlier part printed and shares through extends', () async {
     final index = await _loginWith('[sign_in, sign_up]');
 
     expect(_summary(_partsOf(index, 'login/email_login')), [
@@ -142,7 +145,7 @@ void main() {
     ]);
   });
 
-  test('e13: an item sign_up rewrites by id prints under both parts, each with its own text', () async {
+  test('an item sign_up rewrites by id prints under both parts, each with its own text', () async {
     for (final order in ['sign_in, sign_up', 'sign_up, sign_in']) {
       final index = await _loginWith(
         '[$order]',
@@ -196,20 +199,23 @@ void main() {
     }
   });
 
-  test('e11: any doc type with the patterns field lists parts, right after that doc', () async {
-    final index = await indexWith({
-      '.specstone/templates/user_story.yaml': _patternsField,
-      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md': '---\npatterns: [records]\ngoals:\n  - PG-01\n---\n\n# Agent signs in\n\n## Use Case\nSign in.\n',
-      ..._allPatterns,
-    });
+  test(
+    'any doc type with the patterns field lists parts, right after that doc',
+    () async {
+      final index = await indexWith({
+        '.specstone/templates/user_story.yaml': _patternsField,
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md': '---\npatterns: [records]\ngoals:\n  - PG-01\n---\n\n# Agent signs in\n\n## Use Case\nSign in.\n',
+        ..._allPatterns,
+      });
 
-    final parts = _partsOf(index, 'login/email_login');
+      final parts = _partsOf(index, 'login/email_login');
 
-    expect(_summary(parts), [
-      ('records', 'login/email_login', 'create delete'),
-    ]);
-    expect(parts.single.lister.docTypeId, 'user_story');
-  });
+      expect(_summary(parts), [
+        ('records', 'login/email_login', 'create delete'),
+      ]);
+      expect(parts.single.lister.docTypeId, 'user_story');
+    },
+  );
 
   test(
     'a doc type without the patterns field lists no part, even with the value',
@@ -224,7 +230,7 @@ void main() {
     },
   );
 
-  test('e09: implement and query bundles give no part', () async {
+  test('implement and query bundles give no part', () async {
     final index = await _loginWith('[sign_in]');
 
     expect(
@@ -257,7 +263,7 @@ void main() {
       ..._allPatterns,
     });
 
-    test('e04: a parent and its sub-feature both listing records give one records part, right after the first', () async {
+    test('a parent and its sub-feature both listing records give one records part, right after the first', () async {
       final index = await shop('[records]', '[records, sign_in]');
 
       expect(_summary(_partsOf(index, 'shop/cart/add_item')), [
@@ -266,7 +272,7 @@ void main() {
       ]);
     });
 
-    test('e12: the parent lists sign_in, the sub-feature sign_up: the sign_up part drops the sign_in items', () async {
+    test('the parent lists sign_in, the sub-feature sign_up: the sign_up part drops the sign_in items', () async {
       final index = await shop('[sign_in]', '[sign_up]');
 
       expect(_summary(_partsOf(index, 'shop/cart/add_item')), [
@@ -298,7 +304,7 @@ void main() {
       index = session.index;
     });
 
-    test('e14: two features bundled by one path, both listing records, give one records part after the first feature doc', () {
+    test('two features bundled by one path, both listing records, give one records part after the first feature doc', () {
       final bundle = pickCodeBundle(
         index,
         resolveCodePath(

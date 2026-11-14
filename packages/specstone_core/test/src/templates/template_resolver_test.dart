@@ -2512,8 +2512,8 @@ reference:
       expect(merged.docTypes.map((d) => d.id), ['architecture', 'feature']);
     });
 
-    test('a project pinned at the carried pack version reads that '
-        "version's patterns", () async {
+    test('a pin at the carried pack version loads its patterns and an older '
+        'pin is refused', () async {
       final merged = await resolveTree(
         project: {
           _configPath: 'packs:\n  prd-core: 1.1.0\n  software-tech: 1.0.0\n',
