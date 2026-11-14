@@ -487,7 +487,7 @@ final class TemplateResolver {
     final target = defining.extendsId;
     final base = target == null
         ? merger.builtInBase(id)
-        : _extendsBase(id, target, merged);
+        : _extendsBase(id, target, merged, defining);
     _checkNewDocTypeKeys(defining, target);
     String? packName;
     var mergedType = base;
@@ -531,18 +531,21 @@ final class TemplateResolver {
   /// merged target kept but `id`, `path`, and `max_depth`.
   ///
   /// `pack` and `files` restart with the defining layer; `extendsId` holds
-  /// the target. Every list is unmodifiable, so the base is frozen as
-  /// merged.
+  /// the target. The base drops `parent` when the [defining] layer clears it,
+  /// since a new doc type has no docs the clear could move. Every list is
+  /// unmodifiable, so the base is frozen as merged.
   MergedDocType _extendsBase(
     String id,
     String targetId,
     Map<String, MergedDocType> merged,
+    DocTypeLayer defining,
   ) {
     final target = merged[targetId]!;
+    final clearsParent = defining.writesParent && defining.parent == null;
     return MergedDocType(
       id: id,
       description: target.description,
-      parent: target.parent,
+      parent: clearsParent ? null : target.parent,
       extendsId: targetId,
       path: null,
       maxDepth: null,

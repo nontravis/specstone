@@ -1219,6 +1219,90 @@ lint:
       expect(feature.lint.maxLines, 300);
     });
 
+    test('a defining extends layer that clears parent gives a doc type with '
+        'no parent', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/feature.yaml': 'parent: project\n',
+        '.specstone/templates/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+parent:
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('adr')!.parent, isNull);
+      expect(merged.lookup('feature')!.parent, 'project');
+    });
+
+    test('a layer above the defining layer that clears parent stays '
+        'locked_field_disabled', () async {
+      final home = await writeTree({
+        '.specstone/packs/nont-x/pack.yaml':
+            'name: nont-x\nversion: 1.0.0\nextends: prd-core\n',
+        '.specstone/packs/nont-x/adr.yaml': '''
+id: adr
+extends: feature
+path: adr/{slug}.md
+parent: project
+''',
+      });
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-x: 1.0.0\n',
+        '.specstone/templates/project.yaml': '''
+id: project
+description: A project
+path: projects/{slug}/PROJECT.md
+''',
+        '.specstone/templates/adr.yaml': 'parent:\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.lockedFieldDisabled)
+              .having((f) => f.key, 'key', 'parent'),
+        ),
+      );
+    });
+
+    test('a defining layer without extends that clears parent is not '
+        'affected', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/runbook.yaml': '''
+id: runbook
+description: A runbook
+path: ops/{slug}/runbook.md
+parent:
+''',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+
+      expect(merged.lookup('runbook')!.parent, isNull);
+    });
+
     test('f03/us03/fr04/e05, s03/inv12: an extending doc type that writes no '
         'bundle inherits the bundle of its target', () async {
       final project = await writeTree({

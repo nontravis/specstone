@@ -220,6 +220,21 @@ void main() {
     },
   );
 
+  test(
+    'a doc of an extending type with a cleared parent gets no parent_missing',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/project_api.yaml': 'id: project_api\nextends: api\npath: specs/PROJECT_API.md\nparent:\n',
+            'docs/specs/PROJECT_API.md': '# Project API\n',
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.parentMissing), isEmpty);
+    },
+  );
+
   test('a doc type with no parent is never parent_missing', () async {
     final report = checkOf(
       await writeCheckProject(
