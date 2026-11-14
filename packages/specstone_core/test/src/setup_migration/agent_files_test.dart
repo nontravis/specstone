@@ -19,8 +19,9 @@ const _agentMd =
     'search its saved file before any `specstone get`; never open doc files '
     'directly.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
-    '- Change docs only with `specstone set`, `new`, `move`, or `rename`; '
-    'agent drafts stay drafts until the Owner runs `specstone approve`.\n'
+    '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
+    "drafts wait for Owner's `specstone approve`; clean under `auto` mode, "
+    "main session's.\n"
     "- Before writing a doc, read its type's guide with "
     '`specstone guide <type>`; write each item in its shape,\n'
     '  once, short, complete.\n'
