@@ -37,7 +37,7 @@ again while that file exists.
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
 
 An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
-that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item per `size-fix.md`. In any other
+that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item. In any other
 run the finding waits for the Owner.
 
 The procedure for the main session is `references/procedure.md` beside this file: with no subagent at all, over every

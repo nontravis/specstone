@@ -160,8 +160,8 @@ With no `report`, run `specstone folder` once, after the Ground's calls or at a 
 `specstone folder` prints, and name your own `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
 characters, picked again while that file exists; every round reuses it.
 
-Read the `report` file with the host's file read before each write to it, in every round, not only the first: a
-write refuses a file it has not read, and a missing file's read error is no stop. Write the report, the block below,
+Read the `report` file with the host's file read before each write to it, in every round, not only the first; a
+missing file's read error is no stop. Write the report, the block below,
 with the host's file write to that file. Then reply `Report: <path>` and, under it, the same block, the relay block.
 
 ```

@@ -78,8 +78,7 @@ or at a stop before them, and reuse `<folder>` the path `specstone folder` print
 `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
 exists; name a batch file by the same rule (Scope Boundaries).
 
-Read the `report` file once, when it exists, before your first write to it: a write overwrites no file you have not
-read.
+Read the `report` file once, when it exists, before your first write to it.
 
 Write your whole report to the `report` file: author, design, and audit, the Report of the mode's
 reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the

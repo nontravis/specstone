@@ -6,8 +6,8 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 # Brainstorm a change into an approved design
 
 A change this skill takes reaches the PRD and spec only after the Owner approves its design document. A change that
-only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: use
-`specstone-update-sdd` instead.
+only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: follow the
+`specstone-update-sdd` skill instead.
 
 ## 1. Ground: the first call
 

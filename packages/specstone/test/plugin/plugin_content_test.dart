@@ -2849,8 +2849,9 @@ void _agentTests() {
         expect(
           afterReports(),
           contains(
-            'A write-a-spec pick whose behavior needs a new story or FR goes '
-            'to `specstone-brainstorming-sdd`; any other goes with its file '
+            'A write-a-spec pick whose behavior needs a new story or FR hands '
+            'over by following the `specstone-brainstorming-sdd` skill; any '
+            'other goes with its file '
             "to the next round's agent of that batch as `picks:`, which "
             'writes the draft and does not report the file.',
           ),

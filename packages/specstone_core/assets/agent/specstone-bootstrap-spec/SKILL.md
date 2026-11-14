@@ -43,7 +43,7 @@ exists.
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
 
 An `item_over_limit` finding joins its doc's batch only when the Owner named `item_over_limit` when starting the run;
-that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item per `size-fix.md`. In any other
+that batch's `batch:` then names `item_over_limit`, and its agent reshapes the item. In any other
 run the finding waits for the Owner.
 
 The procedure for the main session is `references/procedure.md` beside this file: with no subagent at all, over every
@@ -61,7 +61,7 @@ in for item 4.
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
    for the batch with them. Ask once per batch, every file under its `Uncovered:` in one question: write a spec for it,
    or change or remove the code. Change or remove writes nothing. A write-a-spec pick whose behavior needs a new story
-   or FR goes to `specstone-brainstorming-sdd`; any other goes with its file to the next round's agent of that batch
+   or FR hands over by following the `specstone-brainstorming-sdd` skill; any other goes with its file to the next round's agent of that batch
    as `picks:`, which writes the draft and does not report the file. Keep each answered file, whatever the pick, for
    the run: no later batch reports it and the Owner is not asked again.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
