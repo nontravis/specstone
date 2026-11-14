@@ -85,9 +85,7 @@ jobs:
 
   test-scripts-windows:
     runs-on: windows-latest
-    # WORKAROUND: about 30 install.ps1 runs still take ~20 s each on a cold Windows PowerShell 5.1 (cause unconfirmed,
-    # Specstone fix item 79), so the job needs ~16-20 min; remove when those runs take under ~3 s.
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: dart-lang/setup-dart@v1

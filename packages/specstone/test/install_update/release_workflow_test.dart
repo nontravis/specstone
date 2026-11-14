@@ -279,8 +279,7 @@ void main() {
       'job and stay out of the main Windows step', () {
     final job = _job(ci, 'test-scripts-windows');
     expect(job['runs-on'], 'windows-latest');
-    // 30 while ci.yaml's WORKAROUND (fix item 79) holds; 20 once it goes.
-    expect(job['timeout-minutes'], 30);
+    expect(job['timeout-minutes'], 20);
     expect(_runText(job), contains('dart test --tags ps1'));
     final main = _steps(_job(ci, 'test'));
     final windowsStep = main.singleWhere(
