@@ -263,10 +263,10 @@ void main() {
         addTearDown(() => Process.runSync('chmod', ['644', path]));
         final report = checkOf(project);
         expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
-        const warning =
-            'app/lib/locked.dart: cannot read the file; '
-            'doc names in it are not checked';
-        expect(report.warnings, [warning]);
+        expect(report.warnings, [
+          'app/lib/locked.dart: cannot read the file; implements Symbols in it are not checked',
+          'app/lib/locked.dart: cannot read the file; doc names in it are not checked',
+        ]);
       },
     );
 
