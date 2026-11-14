@@ -240,7 +240,7 @@ void main() {
     });
 
     test(
-      'f01/us01/fr04/e13, f06/us02: a project holding the three older ignore '
+      'a project holding the three older ignore '
       'lines ends migrate with a clean tree and the five lines committed',
       () async {
         final home = await _home(migrations: '');
@@ -258,7 +258,7 @@ void main() {
     );
 
     test(
-      'f01/us01/fr04/e13, f06/us02: a layout-only run over the three older '
+      'a layout-only run over the three older '
       'ignore lines ends with a clean tree and the five lines committed',
       () async {
         final home = await _home(migrations: '');
@@ -2216,7 +2216,7 @@ agent_file_roots:
           '### Scenario 1 — [happy] Sign in\n\n'
           '- **Given** the rule `domain:login` INV-6\n';
 
-      test('f06/us02/s14, f06/us02/fr02/e83, f06/us02/fr02/e86: a release '
+      test('a release '
           'that brings the cite rule links each cite that names one part, '
           'counts the rest, keeps every approval, and runs once', () async {
         final types = TemplateResolver().resolveCarried(

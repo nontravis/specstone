@@ -58,7 +58,7 @@ void main() {
   }
 
   group('install.sh', () {
-    test('f09/us01/fr01/e01, f09/us01/s5: Linux aarch64 refuses before any '
+    test('Linux aarch64 refuses before any '
         'download, exit 1', () async {
       final sb = await createScriptSandbox();
       sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
@@ -74,7 +74,7 @@ void main() {
       expect(sb.logOf('curl'), isEmpty);
     });
 
-    test('f09/us01/fr01/e04: Git Bash on Windows refuses naming the four '
+    test('Git Bash on Windows refuses naming the four '
         'targets', () async {
       final sb = await createScriptSandbox();
       sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
@@ -94,7 +94,7 @@ void main() {
       expect(sb.logOf('curl'), isEmpty);
     });
 
-    test('f09/us01/fr01/e05: a version argument is ignored; the latest '
+    test('a version argument is ignored; the latest '
         'archive installs', () async {
       final sb = await sandboxWith();
 
@@ -109,9 +109,6 @@ void main() {
     });
 
     group('install by version', () {
-      const chosen =
-          'install_update/machine_install/install_cli_and_plugin/'
-          'install_chosen_version';
       const releases = 'https://github.com/nontravis/specstone/releases';
       const downloadFailed =
           'specstone: download failed for $asset; the install is unchanged\n';
@@ -151,38 +148,32 @@ fi''');
         return sb;
       }
 
-      test(
-        '$chosen E01: the named version installs from its own release',
-        () async {
-          final sb = await sandboxServing('1.2.0-beta.1');
+      test('the named version installs from its own release', () async {
+        final sb = await sandboxServing('1.2.0-beta.1');
 
-          final r = await sb.run(
-            'install.sh',
-            extra: {
-              'ARCHIVES': sb.archives.path,
-              'SPECSTONE_VERSION': '1.2.0-beta.1',
-            },
-          );
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            'ARCHIVES': sb.archives.path,
+            'SPECSTONE_VERSION': '1.2.0-beta.1',
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          final log = sb.logOf('curl');
-          expect(log, hasLength(2));
-          expect(
-            log.first,
-            endsWith('$releases/download/v1.2.0-beta.1/$asset'),
-          );
-          expect(
-            log.last,
-            endsWith('$releases/download/v1.2.0-beta.1/SHA256SUMS'),
-          );
-          expect(installedVersion(sb), '1.2.0-beta.1');
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        final log = sb.logOf('curl');
+        expect(log, hasLength(2));
+        expect(log.first, endsWith('$releases/download/v1.2.0-beta.1/$asset'));
+        expect(
+          log.last,
+          endsWith('$releases/download/v1.2.0-beta.1/SHA256SUMS'),
+        );
+        expect(installedVersion(sb), '1.2.0-beta.1');
+      });
 
       // The form check is shell code of its own, so every form runs through
       // it; one sandbox serves them all, since a refusal changes nothing and
       // an accepted form reaches the stubbed download and stops there.
-      test('$chosen E02, install_cli_and_plugin S8: every refused form is '
+      test('every refused form is '
           'refused before any download', () async {
         final sb = await createScriptSandbox();
         stubCurlServing(sb);
@@ -212,7 +203,7 @@ fi''');
         }
       });
 
-      test('$chosen: every accepted form passes the form check and fails as a '
+      test('every accepted form passes the form check and fails as a '
           'download', () async {
         final sb = await createScriptSandbox();
         stubCurlFailing(sb);
@@ -237,7 +228,7 @@ fi''');
         }
       });
 
-      test('$chosen E03: a version no release carries fails as a failed '
+      test('a version no release carries fails as a failed '
           'download, the install unchanged', () async {
         final sb = await createScriptSandbox();
         stubCurlFailing(sb);
@@ -254,33 +245,30 @@ fi''');
         expect(sb.snapshot(), before);
       });
 
-      test(
-        '$chosen E04: an empty version fetches the latest release',
-        () async {
-          final sb = await sandboxServing('0.2.0');
-          // The sandbox drops an empty variable, so a wrapper sets it empty.
-          final wrapper = File('${sb.root.path}/empty_version.sh')
-            ..writeAsStringSync(
-              'SPECSTONE_VERSION=""\n'
-              'export SPECSTONE_VERSION\n'
-              'exec /bin/sh "${repoRoot().path}/install.sh"\n',
-            );
-
-          final r = await sb.run(
-            wrapper.path,
-            extra: {'ARCHIVES': sb.archives.path},
+      test('an empty version fetches the latest release', () async {
+        final sb = await sandboxServing('0.2.0');
+        // The sandbox drops an empty variable, so a wrapper sets it empty.
+        final wrapper = File('${sb.root.path}/empty_version.sh')
+          ..writeAsStringSync(
+            'SPECSTONE_VERSION=""\n'
+            'export SPECSTONE_VERSION\n'
+            'exec /bin/sh "${repoRoot().path}/install.sh"\n',
           );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(
-            sb.logOf('curl').first,
-            endsWith('$releases/latest/download/$asset'),
-          );
-          expect(installedVersion(sb), '0.2.0');
-        },
-      );
+        final r = await sb.run(
+          wrapper.path,
+          extra: {'ARCHIVES': sb.archives.path},
+        );
 
-      test('$chosen E05: the version already installed is named and '
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          sb.logOf('curl').first,
+          endsWith('$releases/latest/download/$asset'),
+        );
+        expect(installedVersion(sb), '0.2.0');
+      });
+
+      test('the version already installed is named and '
           'nothing is placed', () async {
         final sb = await sandboxServing('1.2.0-beta.1');
         sb.installFake(version: '1.2.0-beta.1');
@@ -306,7 +294,7 @@ fi''');
         expect(sb.snapshot(), before);
       });
 
-      test('$chosen: the form check runs grep with LC_ALL=C and an empty '
+      test('the form check runs grep with LC_ALL=C and an empty '
           'GREP_OPTIONS', () async {
         final sb = await createScriptSandbox();
         stubGrep(sb);
@@ -322,7 +310,7 @@ fi''');
         expect(check.single, startsWith('LC_ALL=C GREP_OPTIONS= -Eqx '));
       });
 
-      test('$chosen: GREP_OPTIONS=-v neither lets a path through nor refuses '
+      test('GREP_OPTIONS=-v neither lets a path through nor refuses '
           'a version', () async {
         final sb = await createScriptSandbox();
         stubCurlFailing(sb);
@@ -346,25 +334,22 @@ fi''');
         expect(sb.logOf('curl').single, endsWith('/v1.2.0/$asset'));
       });
 
-      test(
-        '$chosen: a carriage return is refused even when grep drops it',
-        () async {
-          final sb = await createScriptSandbox();
-          stubGrep(sb);
-          stubCurlFailing(sb);
+      test('a carriage return is refused even when grep drops it', () async {
+        final sb = await createScriptSandbox();
+        stubGrep(sb);
+        stubCurlFailing(sb);
 
-          final r = await sb.run(
-            'install.sh',
-            extra: {'SPECSTONE_VERSION': '1.2.0\r', 'STUB_GREP_STRIP_CR': '1'},
-          );
+        final r = await sb.run(
+          'install.sh',
+          extra: {'SPECSTONE_VERSION': '1.2.0\r', 'STUB_GREP_STRIP_CR': '1'},
+        );
 
-          expect(r.exitCode, 1);
-          expect(r.stderr, startsWith('specstone: 1.2.0? is not a version'));
-          expect(sb.logOf('curl'), isEmpty);
-        },
-      );
+        expect(r.exitCode, 1);
+        expect(r.stderr, startsWith('specstone: 1.2.0? is not a version'));
+        expect(sb.logOf('curl'), isEmpty);
+      });
 
-      test('$chosen: a named version replaces an older CLI', () async {
+      test('a named version replaces an older CLI', () async {
         final sb = await sandboxServing('1.2.0-beta.1');
         sb.installFake();
 
@@ -392,7 +377,7 @@ fi''');
       ('Darwin', 'x86_64', 'macos-x64'),
       ('Linux', 'x86_64', 'linux-x64'),
     ]) {
-      test('f09/us01/fr01: $os $machine reads the $target archive', () async {
+      test('$os $machine reads the $target archive', () async {
         final sb = await sandboxWith(target: target);
 
         final r = await sb.run(
@@ -409,7 +394,7 @@ fi''');
       });
     }
 
-    test('f09/us01/fr02/e01: a failed download stops with the install '
+    test('a failed download stops with the install '
         'unchanged, exit 1', () async {
       final sb = await createScriptSandbox();
       stubCurlFailing(sb);
@@ -433,7 +418,7 @@ fi''');
       );
     });
 
-    test('f09/us01/fr02/e03, f09/us01/s6: a damaged archive stops, the older '
+    test('a damaged archive stops, the older '
         'CLI still runs', () async {
       final sb = await sandboxWith(damaged: true);
       sb.installFake();
@@ -450,25 +435,22 @@ fi''');
       expect(installedVersion(sb), '0.1.0');
     });
 
-    test(
-      'f09/us01/fr02/e02: no SHA256SUMS line is a checksum failure',
-      () async {
-        final sb = await sandboxWith(withSumsLine: false);
-        sb.installFake();
-        final before = sb.snapshot();
+    test('no SHA256SUMS line is a checksum failure', () async {
+      final sb = await sandboxWith(withSumsLine: false);
+      sb.installFake();
+      final before = sb.snapshot();
 
-        final r = await sb.run('install.sh', extra: archiveEnv(sb));
+      final r = await sb.run('install.sh', extra: archiveEnv(sb));
 
-        expect(r.exitCode, 1);
-        expect(
-          r.stderr,
-          'specstone: checksum mismatch for $asset; the install is unchanged\n',
-        );
-        expect(sb.snapshot(), before);
-      },
-    );
+      expect(r.exitCode, 1);
+      expect(
+        r.stderr,
+        'specstone: checksum mismatch for $asset; the install is unchanged\n',
+      );
+      expect(sb.snapshot(), before);
+    });
 
-    test('f09/us01/fr02: the temp folder is gone after a failure and after '
+    test('the temp folder is gone after a failure and after '
         'a success', () async {
       for (final damaged in [true, false]) {
         final sb = await sandboxWith(damaged: damaged);
@@ -488,7 +470,7 @@ echo "$dir"''');
       }
     });
 
-    test('f09/us01/fr03, f09/us01/s4: an older CLI is replaced; packs stay; '
+    test('an older CLI is replaced; packs stay; '
         'the install line prints', () async {
       final sb = await sandboxWith();
       sb.installFake();
@@ -510,7 +492,7 @@ echo "$dir"''');
       expect(installedVersion(sb), '0.2.0');
     });
 
-    test('f09/us01/fr03/e03: the same version is left as it is', () async {
+    test('the same version is left as it is', () async {
       final sb = await sandboxWith();
       sb.installFake(version: '0.2.0');
       File('${sb.home.path}/.zshrc')
@@ -528,7 +510,7 @@ echo "$dir"''');
       expect(sb.snapshot(), before);
     });
 
-    test('f09/us01/fr03/e04: an empty home gains .specstone with bin and lib '
+    test('an empty home gains .specstone with bin and lib '
         'only', () async {
       final sb = await sandboxWith();
 
@@ -541,7 +523,7 @@ echo "$dir"''');
       expect(top.toSet(), {'bin', 'lib'});
     });
 
-    test("f09/us01/fr03: the running binary's file is never written", () async {
+    test("the running binary's file is never written", () async {
       final sb = await sandboxWith();
       sb.installFake();
       final keep = '${sb.root.path}/keep';
@@ -558,7 +540,7 @@ echo "$dir"''');
       expect(installedVersion(sb), '0.2.0');
     });
 
-    test('f09/us01/fr02: a truncated script stream runs nothing', () async {
+    test('a truncated script stream runs nothing', () async {
       final sb = await sandboxWith();
       sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
       final script = File('${repoRoot().path}/install.sh');
@@ -576,7 +558,7 @@ echo "$dir"''');
       expect(r.stdout, isEmpty);
     });
 
-    test('f09/us01/fr03: no HOME and no USERPROFILE refuses '
+    test('no HOME and no USERPROFILE refuses '
         'with exit 1', () async {
       final sb = await sandboxWith();
 
@@ -593,7 +575,7 @@ echo "$dir"''');
       expect(sb.snapshot(), isEmpty);
     });
 
-    test('f09/us01/fr02: the curl path fetches the archive and SHA256SUMS, '
+    test('the curl path fetches the archive and SHA256SUMS, '
         'with timeouts', () async {
       final sb = await sandboxWith();
       sb.stub('curl', r'''
@@ -622,7 +604,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       expect(log.last, endsWith('/latest/download/SHA256SUMS'));
     });
 
-    test('f09/us01/fr02: shasum is used when sha256sum is absent', () async {
+    test('shasum is used when sha256sum is absent', () async {
       final shasum = Process.runSync('/bin/sh', ['-c', 'command -v shasum']);
       if (shasum.exitCode != 0) {
         markTestSkipped('no shasum on this machine');
@@ -653,25 +635,22 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       expect(installedVersion(sb), '0.2.0');
     });
 
-    test(
-      'f09/us01/fr02: an upper-case hash in SHA256SUMS still matches',
-      () async {
-        final sb = await sandboxWith();
-        final sums = File('${sb.archives.path}/SHA256SUMS');
-        final lines = sums.readAsLinesSync().map((line) {
-          final parts = line.split('  ');
-          return '${parts.first.toUpperCase()}  ${parts.last}';
-        });
-        sums.writeAsStringSync('${lines.join('\n')}\n');
+    test('an upper-case hash in SHA256SUMS still matches', () async {
+      final sb = await sandboxWith();
+      final sums = File('${sb.archives.path}/SHA256SUMS');
+      final lines = sums.readAsLinesSync().map((line) {
+        final parts = line.split('  ');
+        return '${parts.first.toUpperCase()}  ${parts.last}';
+      });
+      sums.writeAsStringSync('${lines.join('\n')}\n');
 
-        final r = await sb.run('install.sh', extra: archiveEnv(sb));
+      final r = await sb.run('install.sh', extra: archiveEnv(sb));
 
-        expect(r.exitCode, 0, reason: '${r.stderr}');
-        expect(installedVersion(sb), '0.2.0');
-      },
-    );
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(installedVersion(sb), '0.2.0');
+    });
 
-    test('f09/us01/fr02: a stream cut just before main runs nothing', () async {
+    test('a stream cut just before main runs nothing', () async {
       final sb = await sandboxWith();
       sb.stub('curl', r'echo "$@" >> "$STUB_LOG_DIR/curl.log"; exit 0');
       final script = File('${repoRoot().path}/install.sh');
@@ -695,7 +674,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
     });
 
     for (final folder in ['lib', 'bin']) {
-      test('f09/us01/fr03: a failed $folder copy is named, leaves no staging '
+      test('a failed $folder copy is named, leaves no staging '
           'and the old install runnable', () async {
         final sb = await sandboxWith();
         sb
@@ -727,7 +706,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       });
     }
 
-    test('f09/us01/fr02: an unpack failure names the archive, install '
+    test('an unpack failure names the archive, install '
         'unchanged', () async {
       final sb = await sandboxWith();
       sb
@@ -745,7 +724,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       expect(sb.snapshot(), before);
     });
 
-    test('f09/us01/fr02: a downloaded binary that does not run is named, '
+    test('a downloaded binary that does not run is named, '
         'install unchanged', () async {
       final sb = await createScriptSandbox();
       final bundle = Directory('${sb.root.path}/bundle')
@@ -771,7 +750,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       expect(sb.snapshot(), before);
     });
 
-    test('f09/us01/fr02: a downloaded binary that fails with a message '
+    test('a downloaded binary that fails with a message '
         'names that first stderr line', () async {
       final sb = await createScriptSandbox();
       final bundle = Directory('${sb.root.path}/bundle')
@@ -801,7 +780,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       expect(sb.snapshot(), before);
     });
 
-    test('f09/us01/fr02: a temporary folder that cannot be made prints a '
+    test('a temporary folder that cannot be made prints a '
         'specstone line, install unchanged', () async {
       final sb = await createScriptSandbox();
       sb.installFake();
@@ -835,7 +814,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
           'Added ~/.specstone/bin to the PATH in ${sb.home.path}/$file. '
           'Open a new terminal to use specstone.\n';
 
-      test('f09/us01/fr04, f09/us01/s1: zsh gains one line in ~/.zshrc and '
+      test('zsh gains one line in ~/.zshrc and '
           'the new-terminal note', () async {
         final sb = await sandboxWith();
 
@@ -847,7 +826,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(sb.snapshot().keys, isNot(contains('.profile')));
       });
 
-      test('f09/us01/fr04/e01: a second run keeps one line and prints no '
+      test('a second run keeps one line and prints no '
           'note', () async {
         final sb = await sandboxWith();
         await runWith(sb, {'SHELL': '/bin/zsh'});
@@ -859,7 +838,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(r.stdout, isNot(contains('Added')));
       });
 
-      test('f09/us01/fr04: bash on macOS writes ~/.bashrc and '
+      test('bash on macOS writes ~/.bashrc and '
           '~/.bash_profile', () async {
         final sb = await sandboxWith(target: 'macos-arm64');
 
@@ -876,7 +855,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         }
       });
 
-      test('f09/us01/fr04/e03: bash on Linux writes ~/.bashrc only', () async {
+      test('bash on Linux writes ~/.bashrc only', () async {
         final sb = await sandboxWith();
 
         final r = await runWith(sb, {'SHELL': '/usr/bin/bash'});
@@ -886,7 +865,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(sb.snapshot().keys, isNot(contains('.bash_profile')));
       });
 
-      test('f09/us01/fr04: fish writes ~/.config/fish/conf.d/specstone.fish '
+      test('fish writes ~/.config/fish/conf.d/specstone.fish '
           'and not ~/.profile', () async {
         final sb = await sandboxWith();
 
@@ -902,7 +881,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       });
 
       for (final shell in ['/bin/tcsh', 'nu']) {
-        test('f09/us01/fr04: SHELL="$shell" writes ~/.profile', () async {
+        test('SHELL="$shell" writes ~/.profile', () async {
           final sb = await sandboxWith();
 
           final r = await runWith(sb, {'SHELL': shell});
@@ -916,7 +895,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         });
       }
 
-      test('f09/us01/fr04/e02: a missing file is created holding the '
+      test('a missing file is created holding the '
           'line', () async {
         final sb = await sandboxWith();
         expect(File('${sb.home.path}/.zshrc').existsSync(), isFalse);
@@ -926,7 +905,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(File('${sb.home.path}/.zshrc').readAsStringSync(), posixLine);
       });
 
-      test('f09/us01/fr04: a last line with no newline stays its own '
+      test('a last line with no newline stays its own '
           'line', () async {
         final sb = await sandboxWith();
         File('${sb.home.path}/.zshrc').writeAsStringSync('alias a=b');
@@ -939,7 +918,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         );
       });
 
-      test('f09/us01/fr04: other lines stay and a longer line naming the '
+      test('other lines stay and a longer line naming the '
           'folder does not count as the entry', () async {
         final sb = await sandboxWith();
         const before =
@@ -955,7 +934,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       });
 
       test(
-        'f09/us01/fr04: an unset SHELL writes ~/.profile',
+        'an unset SHELL writes ~/.profile',
         () async {
           final sb = await sandboxWith();
 
@@ -971,7 +950,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         testOn: '!mac-os',
       );
 
-      test('f09/us01/fr04: an unwritable profile warns, the other target is '
+      test('an unwritable profile warns, the other target is '
           'still written, exit 0', () async {
         final sb = await sandboxWith(target: 'macos-arm64');
         final rc = File('${sb.home.path}/.bashrc')
@@ -997,7 +976,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         );
       }, skip: runsAsRoot ? rootSkip : null);
 
-      test('f09/us01/fr04: an unreadable profile is not appended to', () async {
+      test('an unreadable profile is not appended to', () async {
         final sb = await sandboxWith();
         final rc = File('${sb.home.path}/.zshrc')
           ..writeAsStringSync('alias a=b');
@@ -1017,7 +996,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         (['.bash_login'], '.bash_login'),
         (['.bash_login', '.profile'], '.bash_login'),
       ]) {
-        test('f09/us01/fr04: macOS bash with only ${existing.join(", ")} '
+        test('macOS bash with only ${existing.join(", ")} '
             'writes $expected and creates no ~/.bash_profile', () async {
           final sb = await sandboxWith(target: 'macos-arm64');
           for (final name in existing) {
@@ -1046,7 +1025,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         });
       }
 
-      test('f09/us01/fr04: a second run on macOS bash adds nothing to '
+      test('a second run on macOS bash adds nothing to '
           'either file', () async {
         final sb = await sandboxWith(target: 'macos-arm64');
         final env = {
@@ -1063,7 +1042,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         expect(sb.snapshot(), before);
       });
 
-      test('f09/us01/fr03/e03: the same version still gets its PATH '
+      test('the same version still gets its PATH '
           'entry', () async {
         final sb = await sandboxWith();
         sb.installFake(version: '0.2.0');
@@ -1089,9 +1068,6 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
       const addMarketplace = 'plugin marketplace add nontravis/specstone';
       const installPlugin = 'plugin install specstone@specstone';
       const removeMarketplace = 'plugin marketplace remove specstone';
-      const plugin =
-          'install_update/machine_install/install_cli_and_plugin/'
-          'install_plugin';
       const beta = '1.2.0-beta.1';
       const betaSource = 'nontravis/specstone#v$beta';
       const noClaudeHeader =
@@ -1158,7 +1134,7 @@ esac''');
         Map<String, String> extra = const {},
       ]) => sb.run('install.sh', extra: {...archiveEnv(sb), ...extra});
 
-      test('f09/us01/fr05, f09/us01/s1: claude adds the marketplace, then '
+      test('claude adds the marketplace, then '
           'installs the plugin', () async {
         final sb = await sandboxWithClaude();
 
@@ -1173,7 +1149,7 @@ esac''');
         ]);
       });
 
-      test('f09/us01/fr05/e01: an added marketplace skips the add', () async {
+      test('an added marketplace skips the add', () async {
         final sb = await sandboxWithClaude();
 
         final r = await runWith(sb, {'STUB_MARKETPLACES': marketplaceJson});
@@ -1186,22 +1162,19 @@ esac''');
         ]);
       });
 
-      test(
-        'f09/us01/fr05/e02: an installed plugin skips the install',
-        () async {
-          final sb = await sandboxWithClaude();
+      test('an installed plugin skips the install', () async {
+        final sb = await sandboxWithClaude();
 
-          final r = await runWith(sb, {
-            'STUB_MARKETPLACES': marketplaceJson,
-            'STUB_PLUGINS': userPluginJson,
-          });
+        final r = await runWith(sb, {
+          'STUB_MARKETPLACES': marketplaceJson,
+          'STUB_PLUGINS': userPluginJson,
+        });
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
 
-      test('f09/us01/fr05/e02: a pretty-printed list still counts the user '
+      test('a pretty-printed list still counts the user '
           'entry', () async {
         final sb = await sandboxWithClaude();
 
@@ -1216,7 +1189,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('f09/us01/fr05/e02: a project- or local-scope specstone@specstone '
+      test('a project- or local-scope specstone@specstone '
           'still installs at user scope', () async {
         final sb = await sandboxWithClaude();
 
@@ -1236,7 +1209,7 @@ esac''');
         ]);
       });
 
-      test('f09/us01/fr05/e02: a user entry of another plugin does not '
+      test('a user entry of another plugin does not '
           'count', () async {
         final sb = await sandboxWithClaude();
 
@@ -1256,7 +1229,7 @@ esac''');
         ]);
       });
 
-      test('f09/us01/fr05: a marketplace named specstone-extra is not '
+      test('a marketplace named specstone-extra is not '
           'specstone', () async {
         final sb = await sandboxWithClaude();
 
@@ -1274,7 +1247,7 @@ esac''');
         ('without a version', 'nontravis/specstone', <String, String>{}),
         ('with a version', betaSource, {'SPECSTONE_VERSION': beta}),
       ]) {
-        test('$plugin E10, f09/us01/fr05/e03, f09/us01/s3: no claude prints '
+        test('no claude prints '
             'the remove, the add, and the install $label; the CLI stays; '
             'exit 0', () async {
           final sb = await sandboxWith();
@@ -1297,7 +1270,7 @@ esac''');
           '[{"name": "other", "source": "github", "repo": "someone/other"}]',
         ),
       ]) {
-        test('$plugin: a version against $label adds the tag, then installs '
+        test('a version against $label adds the tag, then installs '
             'the plugin', () async {
           final sb = await sandboxWithClaude();
 
@@ -1316,7 +1289,7 @@ esac''');
         });
       }
 
-      test('$plugin E01: the official marketplace with no ref needs nothing '
+      test('the official marketplace with no ref needs nothing '
           'without a version', () async {
         final sb = await sandboxWithClaude();
 
@@ -1330,7 +1303,7 @@ esac''');
         expect(r.stdout, isNot(contains('re-added')));
       });
 
-      test('$plugin E01: the official marketplace at the wanted ref needs '
+      test('the official marketplace at the wanted ref needs '
           'nothing with a version', () async {
         final sb = await sandboxWithClaude();
 
@@ -1344,7 +1317,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin E01: the official marketplace at the wanted ref still '
+      test('the official marketplace at the wanted ref still '
           'installs a missing plugin', () async {
         final sb = await sandboxWithClaude();
 
@@ -1361,7 +1334,7 @@ esac''');
         ]);
       });
 
-      test('$plugin E08, install_cli_and_plugin S7: a pinned marketplace '
+      test('a pinned marketplace '
           'with no version goes back to main', () async {
         final sb = await sandboxWithClaude();
 
@@ -1386,7 +1359,7 @@ esac''');
         );
       });
 
-      test('$plugin E08, install_cli_and_plugin S7: an unpinned marketplace '
+      test('an unpinned marketplace '
           'with a version moves to the tag', () async {
         final sb = await sandboxWithClaude();
 
@@ -1411,7 +1384,7 @@ esac''');
         );
       });
 
-      test('$plugin E08: a marketplace at another tag moves to the wanted '
+      test('a marketplace at another tag moves to the wanted '
           'tag', () async {
         final sb = await sandboxWithClaude();
 
@@ -1430,7 +1403,7 @@ esac''');
         ]);
       });
 
-      test('$plugin E08: the remove uninstalled the plugin, so the install '
+      test('the remove uninstalled the plugin, so the install '
           'runs although the earlier list held it', () async {
         final sb = await sandboxWithClaude();
 
@@ -1443,7 +1416,7 @@ esac''');
         expect(sb.logOf('claude'), contains(installPlugin));
       });
 
-      test('$plugin E09: a failing add after the remove names the add; no '
+      test('a failing add after the remove names the add; no '
           'install; exit 0', () async {
         final sb = await sandboxWithClaude();
 
@@ -1472,7 +1445,7 @@ esac''');
         );
       });
 
-      test('$plugin E09: a failing remove names the remove; no add, no '
+      test('a failing remove names the remove; no add, no '
           'install; exit 0', () async {
         final sb = await sandboxWithClaude();
 
@@ -1496,8 +1469,8 @@ esac''');
         ]);
       });
 
-      // Each entry is the Owner's own source, never removed: E11 and Review
-      // Focus 3 (a path holding `}` and `"`, a repo that differs by case, a
+      // Each entry is the Owner's own source, never removed: look-alikes (a
+      // path holding `}` and `"`, a repo that differs by case, a
       // git source with a GitHub URL, a source type that disagrees with the
       // repo it names).
       for (final (label, entry, source)
@@ -1599,7 +1572,7 @@ esac''');
           ('without a version', 'nontravis/specstone', <String, String>{}),
           ('with a version', betaSource, {'SPECSTONE_VERSION': beta}),
         ]) {
-          test('$plugin E11: $label is never removed $suffix; the commands '
+          test('$label is never removed $suffix; the commands '
               'print; the install runs for a missing plugin', () async {
             final sb = await sandboxWithClaude();
 
@@ -1619,7 +1592,7 @@ esac''');
         }
       }
 
-      test('$plugin E11: another source with the plugin installed runs no '
+      test('another source with the plugin installed runs no '
           'install', () async {
         final sb = await sandboxWithClaude();
 
@@ -1636,7 +1609,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin E11: an official-looking value inside another key does '
+      test('an official-looking value inside another key does '
           'not make the entry official', () async {
         final sb = await sandboxWithClaude();
 
@@ -1653,7 +1626,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin E11: an escaped slash in a repo stays as typed, so the '
+      test('an escaped slash in a repo stays as typed, so the '
           'entry is another source', () async {
         final sb = await sandboxWithClaude();
 
@@ -1669,7 +1642,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin E11: a unicode escape in a repo stays as typed, so the '
+      test('a unicode escape in a repo stays as typed, so the '
           'entry is another source', () async {
         final sb = await sandboxWithClaude();
 
@@ -1685,7 +1658,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin: a key with a quote deeper in a marketplace entry does '
+      test('a key with a quote deeper in a marketplace entry does '
           'not stop the step', () async {
         final sb = await sandboxWithClaude();
 
@@ -1703,7 +1676,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin: a key with a quote deeper in a plugin entry does not '
+      test('a key with a quote deeper in a plugin entry does not '
           'stop the step', () async {
         final sb = await sandboxWithClaude();
 
@@ -1723,7 +1696,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('$plugin: a name written inside another entry is not '
+      test('a name written inside another entry is not '
           'specstone', () async {
         final sb = await sandboxWithClaude();
 
@@ -1765,7 +1738,7 @@ esac''');
         ('in the middle', [others[0], pinned, others[1]]),
         ('last', [...others, pinned]),
       ]) {
-        test('$plugin E08: the specstone marketplace $position among '
+        test('the specstone marketplace $position among '
             'several is the one moved', () async {
           final sb = await sandboxWithClaude();
 
@@ -1788,7 +1761,7 @@ esac''');
         ('before', true),
         ('after', false),
       ]) {
-        test('$plugin E11: another marketplace on the official repo $position '
+        test('another marketplace on the official repo $position '
             'a folder specstone does not make it official', () async {
           final sb = await sandboxWithClaude();
           final folder = {'source': 'directory', 'path': '/work/specstone'};
@@ -1808,8 +1781,8 @@ esac''');
         });
       }
 
-      // A reply that exits 0 but cannot be read for sure is a failed list
-      // (E06): nothing is added, removed, or installed.
+      // A reply that exits 0 but cannot be read for sure is a failed list:
+      // nothing is added, removed, or installed.
       String unreadableLine(String command) =>
           'specstone: claude $command failed: its reply could not be read; '
           'run it by hand\n';
@@ -1874,7 +1847,7 @@ esac''');
       };
       for (final MapEntry(key: label, value: reply)
           in unreadableMarketplaces.entries) {
-        test('$plugin E06: a marketplace list that is $label stops the '
+        test('a marketplace list that is $label stops the '
             'step; the commands print; exit 0', () async {
           final sb = await sandboxWithClaude();
 
@@ -1894,7 +1867,7 @@ esac''');
         });
       }
 
-      test('$plugin E06: an unreadable marketplace list prints the wanted '
+      test('an unreadable marketplace list prints the wanted '
           'source of a version', () async {
         final sb = await sandboxWithClaude();
 
@@ -1909,7 +1882,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces]);
       });
 
-      test('$plugin E06: a NUL byte in a list reply stops the step for a '
+      test('a NUL byte in a list reply stops the step for a '
           'version too; the wanted source prints', () async {
         for (final (listCommand, marketplaces, plugins) in [
           (
@@ -1962,7 +1935,7 @@ esac''');
       };
       for (final MapEntry(key: label, value: reply)
           in unreadablePlugins.entries) {
-        test('$plugin E06: a plugin list that is $label stops the step; '
+        test('a plugin list that is $label stops the step; '
             'the commands print; exit 0', () async {
           final sb = await sandboxWithClaude();
 
@@ -1982,7 +1955,7 @@ esac''');
         });
       }
 
-      test('$plugin E02: GREP_OPTIONS=-v changes neither a skipped nor a '
+      test('GREP_OPTIONS=-v changes neither a skipped nor a '
           'needed install', () async {
         final installed = await sandboxWithClaude();
         final missing = await sandboxWithClaude();
@@ -2010,7 +1983,7 @@ esac''');
         ]);
       });
 
-      test('$plugin E02: a brace and a quote inside a plugin string do not '
+      test('a brace and a quote inside a plugin string do not '
           'hide the user entry', () async {
         final sb = await sandboxWithClaude();
 
@@ -2030,7 +2003,7 @@ esac''');
         expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
       });
 
-      test('f09/us01/fr05/e04: a failing install names its first stderr '
+      test('a failing install names its first stderr '
           'line; exit 0', () async {
         final sb = await sandboxWithClaude();
 
@@ -2050,7 +2023,7 @@ esac''');
         );
       });
 
-      test('f09/us01/fr05: a command with empty stderr is named with its exit '
+      test('a command with empty stderr is named with its exit '
           'status', () async {
         final sb = await sandboxWithClaude();
         sb.stub('claude', r'''
@@ -2073,7 +2046,7 @@ echo '[]'
         );
       });
 
-      test('f09/us01/fr05: a failing marketplace add stops the plugin step; '
+      test('a failing marketplace add stops the plugin step; '
           'exit 0', () async {
         final sb = await sandboxWithClaude();
 
@@ -2089,44 +2062,38 @@ echo '[]'
         expect(sb.logOf('claude'), isNot(contains(installPlugin)));
       });
 
-      test(
-        'f09/us01/fr05: a failing list names the list command; exit 0',
-        () async {
-          final sb = await sandboxWithClaude();
+      test('a failing list names the list command; exit 0', () async {
+        final sb = await sandboxWithClaude();
 
-          final r = await runWith(sb, {'STUB_FAIL': listPlugins});
+        final r = await runWith(sb, {'STUB_FAIL': listPlugins});
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(
-            r.stderr,
-            contains(
-              'specstone: claude $listPlugins failed: boom; run it by hand\n',
-            ),
-          );
-          expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $listPlugins failed: boom; run it by hand\n',
+          ),
+        );
+        expect(sb.logOf('claude'), [listMarketplaces, listPlugins]);
+      });
 
-      test(
-        'f09/us01/fr05: a failing marketplace list is named; exit 0',
-        () async {
-          final sb = await sandboxWithClaude();
+      test('a failing marketplace list is named; exit 0', () async {
+        final sb = await sandboxWithClaude();
 
-          final r = await runWith(sb, {'STUB_FAIL': listMarketplaces});
+        final r = await runWith(sb, {'STUB_FAIL': listMarketplaces});
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(
-            r.stderr,
-            contains(
-              'specstone: claude $listMarketplaces failed: boom; run it by '
-              'hand\n',
-            ),
-          );
-          expect(sb.logOf('claude'), [listMarketplaces]);
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(
+          r.stderr,
+          contains(
+            'specstone: claude $listMarketplaces failed: boom; run it by '
+            'hand\n',
+          ),
+        );
+        expect(sb.logOf('claude'), [listMarketplaces]);
+      });
 
-      test('f09/us01/fr05: add and install show claude stdout live and replay '
+      test('add and install show claude stdout live and replay '
           'its stderr', () async {
         final sb = await sandboxWithClaude();
         sb.stub('claude', r'''
@@ -2146,7 +2113,7 @@ esac
         expect(r.stderr, contains('a-warning\n'));
       });
 
-      test('f09/us01/fr05: claude gets EOF on stdin, not the script', () async {
+      test('claude gets EOF on stdin, not the script', () async {
         final sb = await sandboxWithClaude();
         sb.stub('claude', r'''
 echo "$*" >> "$STUB_LOG_DIR/claude.log"
@@ -2169,7 +2136,7 @@ echo '[]'
         expect(sb.logOf('claude'), contains(installPlugin));
       });
 
-      test('f09/us01/fr05: empty stderr falls back to the first non-blank '
+      test('empty stderr falls back to the first non-blank '
           'stdout line', () async {
         final sb = await sandboxWithClaude();
         sb.stub('claude', r'''
@@ -2192,7 +2159,7 @@ echo '[]'
         );
       });
 
-      test('f09/us01/fr05: a CRLF stderr line has no carriage return and '
+      test('a CRLF stderr line has no carriage return and '
           'blank lines are skipped', () async {
         final sb = await sandboxWithClaude();
         sb.stub('claude', r'''
@@ -2215,7 +2182,7 @@ echo '[]'
         expect(r.stderr, isNot(contains('\r')));
       });
 
-      test('f09/us01/fr04, f09/us01/fr05: an unwritable profile still runs '
+      test('an unwritable profile still runs '
           'the plugin step; exit 0', () async {
         final sb = await sandboxWithClaude();
         final rc = File('${sb.home.path}/.zshrc')
@@ -2434,7 +2401,7 @@ esac''');
       });
     });
 
-    group('PATH search (G8-R10)', () {
+    group('PATH search', () {
       // Each name is planted in the run folder and in a relative `planted`
       // folder; a planted program only records that it ran.
       const plantedNames = ['claude', 'uname', 'mktemp', 'tar', 'awk', 'cp'];
@@ -2538,11 +2505,7 @@ esac''');
       );
     });
 
-    group('name_other_stn_at_install', () {
-      const fr =
-          'install_update/machine_install/run_by_short_name/'
-          'name_other_stn_at_install';
-
+    group('name another stn at install', () {
       String notice(String path) =>
           'specstone: another stn is at $path; '
           'type specstone to run the CLI\n';
@@ -2562,7 +2525,7 @@ esac''');
         return folder;
       }
 
-      test('$fr S2, E04: another stn on a later absolute entry prints one '
+      test('another stn on a later absolute entry prints one '
           'notice line; bin/stn is installed and executable; exit 0', () async {
         final sb = await sandboxWith();
         final tools = Directory('${sb.root.path}/space tools')..createSync();
@@ -2599,7 +2562,7 @@ esac''');
         expect(sb.logOf('other'), isEmpty);
       });
 
-      test('$fr E02: two other stn name the earlier entry only', () async {
+      test('two other stn name the earlier entry only', () async {
         final sb = await sandboxWith();
         final first = otherStn('${sb.root.path}/first');
         final second = otherStn('${sb.root.path}/second');
@@ -2623,7 +2586,7 @@ esac''');
         expect(r.stdout, isNot(contains('$second/stn')));
       });
 
-      test('$fr E01: no other stn prints no notice', () async {
+      test('no other stn prints no notice', () async {
         final sb = await sandboxWith();
 
         final r = await sb.run(
@@ -2642,26 +2605,23 @@ esac''');
         expect(r.stdout, isNot(contains('another stn')));
       });
 
-      test(
-        '$fr E03: a stn on a relative entry only prints no notice',
-        () async {
-          final sb = await sandboxWith();
-          otherStn('${sb.root.path}/rel');
+      test('a stn on a relative entry only prints no notice', () async {
+        final sb = await sandboxWith();
+        otherStn('${sb.root.path}/rel');
 
-          final r = await sb.run(
-            'install.sh',
-            extra: {
-              ...archiveEnv(sb),
-              'PATH': ['rel:.::', sb.stubs.path, '/usr/bin:/bin'].join(':'),
-            },
-          );
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': ['rel:.::', sb.stubs.path, '/usr/bin:/bin'].join(':'),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(r.stdout, isNot(contains('another stn')));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('another stn')));
+      });
 
-      test('$fr E07: the install folder with a trailing slash or through a '
+      test('the install folder with a trailing slash or through a '
           'symlink prints no notice', () async {
         final sb = await sandboxWith();
         final linked = '${sb.root.path}/linked';
@@ -2681,7 +2641,7 @@ esac''');
         }
       });
 
-      test('$fr E08: a folder named stn prints no notice', () async {
+      test('a folder named stn prints no notice', () async {
         final sb = await sandboxWith();
         Directory('${sb.root.path}/tools/stn').createSync(recursive: true);
 
@@ -2702,33 +2662,30 @@ esac''');
         expect(r.stdout, isNot(contains('another stn')));
       });
 
-      test(
-        '$fr E08: a non-executable file named stn prints no notice',
-        () async {
-          final sb = await sandboxWith();
-          File('${sb.root.path}/tools/stn')
-            ..createSync(recursive: true)
-            ..writeAsStringSync('#!/bin/sh\nexit 5\n');
+      test('a non-executable file named stn prints no notice', () async {
+        final sb = await sandboxWith();
+        File('${sb.root.path}/tools/stn')
+          ..createSync(recursive: true)
+          ..writeAsStringSync('#!/bin/sh\nexit 5\n');
 
-          final r = await sb.run(
-            'install.sh',
-            extra: {
-              ...archiveEnv(sb),
-              'PATH': [
-                '${sb.home.path}/.specstone/bin',
-                '${sb.root.path}/tools',
-                sb.stubs.path,
-                '/usr/bin:/bin',
-              ].join(':'),
-            },
-          );
+        final r = await sb.run(
+          'install.sh',
+          extra: {
+            ...archiveEnv(sb),
+            'PATH': [
+              '${sb.home.path}/.specstone/bin',
+              '${sb.root.path}/tools',
+              sb.stubs.path,
+              '/usr/bin:/bin',
+            ].join(':'),
+          },
+        );
 
-          expect(r.exitCode, 0, reason: '${r.stderr}');
-          expect(r.stdout, isNot(contains('another stn')));
-        },
-      );
+        expect(r.exitCode, 0, reason: '${r.stderr}');
+        expect(r.stdout, isNot(contains('another stn')));
+      });
 
-      test('review focus 5: a missing absolute entry is skipped with nothing '
+      test('a missing absolute entry is skipped with nothing '
           'on stderr', () async {
         final sb = await sandboxWith();
         final missing = '${sb.root.path}/no such folder';

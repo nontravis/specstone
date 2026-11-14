@@ -169,7 +169,7 @@ void main() {
     );
   });
 
-  test('NFR-P01, f01/us05/fr06/e09: specstone context --for design, with its '
+  test('specstone context --for design, with its '
       'cited-by lines, answers within 500 ms in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'design'];
     final first = Process.runSync(
@@ -240,7 +240,7 @@ void main() {
     );
   });
 
-  test('NFR-P03, f04/us05/fr01/e12: a whole-project specstone check --repeats, '
+  test('a whole-project specstone check --repeats, '
       'with a current index, finishes within 2 s in the fastest of five '
       'calls', () {
     const call = ['check', '--repeats'];

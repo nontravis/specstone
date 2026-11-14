@@ -284,7 +284,7 @@ void main() {
     expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
   });
 
-  test('f02/us07/fr02/e11: move sets a link text equal to the old Name to the '
+  test('move sets a link text equal to the old Name to the '
       'new Name and keeps an item link text', () async {
     final root = await writeNestedProject(
       extra: {

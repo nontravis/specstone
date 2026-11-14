@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'built_stn.dart';
 import 'script_sandbox.dart';
 
 /// The loop guard variable the `stn` shim sets before a hand-off.
@@ -16,17 +17,33 @@ const fakeExitVariable = 'FAKE_EXIT';
 /// its stdin; unset, it leaves stdin to the shell that typed `stn`.
 const readStdinVariable = 'STUB_READ_STDIN';
 
+/// The environment variable whose value a Windows recorder writes to its
+/// stdout, one line, when set.
+const writeStdoutVariable = 'STUB_STDOUT';
+
+/// The environment variable whose value a Windows recorder writes to its
+/// stderr, one line, when set.
+const writeStderrVariable = 'STUB_STDERR';
+
+/// The environment variable that, set to `1`, makes a Windows recorder write
+/// its pid to `<name>.pid`, start one detached child that writes
+/// `grandchild.pid`, and sleep, so a run can be killed while it holds.
+const holdVariable = 'STUB_HOLD';
+
+/// The text a Windows recorder appends to `stn.exe` when it gets `upgrade`.
+const upgradeMarker = 'STN-UPGRADED';
+
 /// The shell a Windows run types `stn` in.
 enum StnShell { cmd, powershell }
 
 /// Creates a [ShimSandbox] under a new temp folder.
 ///
 /// The folder is deleted by `addTearDown`. The sandbox's
-/// `<home>/.specstone/bin/` holds a copy of the repo's shim (`stn`, or
-/// `stn.cmd` on Windows) and a fake `specstone` that records its argv,
-/// stdin, `PATH`, and the guard's value to a log and exits with the status in
-/// `FAKE_EXIT` (0 when unset). On Windows the fake is a compiled
-/// `specstone.exe`, compiled once per run.
+/// `<home>/.specstone/bin/` holds the installed shim (a copy of the repo's
+/// `stn`, or on Windows the `stn.exe` that `build.ps1` builds) and a fake
+/// `specstone` that records its argv, stdin, `PATH`, and the guard's value to
+/// a log and exits with the status in `FAKE_EXIT` (0 when unset). On Windows
+/// the fake is a compiled `specstone.exe`, compiled once per run.
 Future<ShimSandbox> createShimSandbox() async {
   final root = await Directory.systemTemp.createTemp('specstone_shim_');
   addTearDown(() => root.delete(recursive: true));
@@ -138,15 +155,16 @@ final class ShimSandbox {
   /// as `PATH` and a minimal environment plus [extra].
   ///
   /// cmd reads the lines as a cmd window would (`cmd /d /q /k`, fed through
-  /// stdin), and prints its prompt before each line, `/q` or not, so its
-  /// `PROMPT` is a bare line break, a blank line a case skips; PowerShell runs
-  /// them as one `-Command`. The exit status is the last line's. The run
-  /// fails after [timeout].
+  /// stdin, `/v:on` too when [delayedExpansion]), and prints its prompt before
+  /// each line, `/q` or not, so its `PROMPT` is a bare line break, a blank
+  /// line a case skips; PowerShell runs them as one `-Command`. The exit
+  /// status is the last line's. The run fails after [timeout].
   Future<ProcessResult> typeStn(
     List<String> lines, {
     required StnShell shell,
     required String path,
     Map<String, String> extra = const {},
+    bool delayedExpansion = false,
     Duration timeout = const Duration(seconds: 60),
   }) {
     if (!_windows) {
@@ -156,7 +174,7 @@ final class ShimSandbox {
     return switch (shell) {
       StnShell.cmd => _run(
         _cmd,
-        ['/d', '/q', '/k', 'rem'],
+        ['/d', '/q', if (delayedExpansion) '/v:on', '/k', 'rem'],
         environment: {...environment, 'PROMPT': r'$_'},
         stdinText: '${[...lines, 'exit %ERRORLEVEL%'].join('\r\n')}\r\n',
         timeout: timeout,
@@ -173,6 +191,26 @@ final class ShimSandbox {
         timeout: timeout,
       ),
     };
+  }
+
+  /// Starts the installed Windows `stn.exe` directly with [args], exactly
+  /// [path] as `PATH` and a minimal environment plus [extra], for a test that
+  /// kills it; the caller owns the process.
+  Future<Process> startStn(
+    List<String> args, {
+    required String path,
+    Map<String, String> extra = const {},
+  }) {
+    if (!_windows) {
+      throw UnsupportedError('startStn starts the Windows stn.exe');
+    }
+    return Process.start(
+      _join(bin.path, 'stn.exe'),
+      args,
+      environment: _windowsEnvironment(path, extra),
+      includeParentEnvironment: false,
+      workingDirectory: root.path,
+    );
   }
 
   Future<ProcessResult> _run(
@@ -210,7 +248,7 @@ final class ShimSandbox {
     if (_windows) {
       await _tmp.create();
       _recorderCache ??= await _compileRecorder();
-      await _shimSource('stn.cmd').copy(_join(bin.path, 'stn.cmd'));
+      await File(_join(bin.path, 'stn.exe')).writeAsBytes(await buildStnExe());
       _writeRecorderExe(File(_join(bin.path, 'specstone.exe')));
     } else {
       final installed = await _shimSource('stn').copy('${bin.path}/stn');
@@ -336,13 +374,20 @@ exit ${exit ?? '\${$fakeExitVariable:-0}'}
 
 // The Windows recorder: logs argv, stdin (read only when STUB_READ_STDIN is
 // 1), PATH, and the guard to <STUB_LOG_DIR>\<name>.log, name `specstone` for
-// specstone.exe and `other` for any other file. Its exit status is the number
-// in `<its path>.exit`, else FAKE_EXIT for specstone, else 0. Each run also
-// writes its whole environment to <name>.env. Given `upgrade`, specstone.exe
-// replaces the stn.cmd beside it with a file twice its length whose every
-// line prints REREAD, prints `upgraded`, then exits.
-const _recorderSource = r'''
+// specstone.exe and `other` for any other file; it writes STUB_STDOUT, when
+// set, to its stdout as one line and STUB_STDERR, when set, to its stderr. Its
+// exit status is the number in `<its path>.exit`, else FAKE_EXIT for
+// specstone, else 0. Each run also writes its whole environment to
+// <name>.env. Given `upgrade`, specstone.exe renames the stn.exe beside it to
+// stn.exe.old, writes a new stn.exe (the old bytes and a trailing marker),
+// prints `upgraded`, then exits. With STUB_HOLD=1 a run writes its pid to
+// <name>.pid, starts one detached child that writes grandchild.pid and sleeps
+// 30 s, then sleeps 30 s itself, before it exits.
+final String _recorderSource =
+    r'''
 import 'dart:io';
+
+const _holdSeconds = 30;
 
 Future<void> main(List<String> args) async {
   final program = Platform.resolvedExecutable;
@@ -350,6 +395,12 @@ Future<void> main(List<String> args) async {
   final base = program.substring(folder.length + 1).toLowerCase();
   final name = base.startsWith('specstone.') ? 'specstone' : 'other';
   final env = Platform.environment;
+  if (env['STUB_GRANDCHILD'] == '1') {
+    File('${env['STUB_LOG_DIR']}\\grandchild.pid')
+        .writeAsStringSync('$pid');
+    sleep(const Duration(seconds: _holdSeconds));
+    return;
+  }
   final input = <String>[];
   if (env['STUB_READ_STDIN'] == '1') {
     for (var l = stdin.readLineSync(); l != null; l = stdin.readLineSync()) {
@@ -371,15 +422,26 @@ Future<void> main(List<String> args) async {
   final variables = [for (final e in env.entries) '${e.key}=${e.value}'];
   File('${env['STUB_LOG_DIR']}\\$name.env')
       .writeAsStringSync('${variables.join('\n')}\n');
+  final echo = env['STUB_STDOUT'];
+  if (echo != null) stdout.writeln(echo);
+  final complaint = env['STUB_STDERR'];
+  if (complaint != null) stderr.writeln(complaint);
   if (name == 'specstone' && args.isNotEmpty && args.first == 'upgrade') {
-    final shim = File('$folder\\stn.cmd');
-    final wanted = 2 * shim.lengthSync();
-    final text = StringBuffer('@echo off\r\n');
-    for (var i = 0; text.length <= wanted; i++) {
-      text.write('echo REREAD $i\r\n');
-    }
-    shim.writeAsStringSync(text.toString());
+    final shim = File('$folder\\stn.exe');
+    final old = shim.readAsBytesSync();
+    shim.renameSync('$folder\\stn.exe.old');
+    shim.writeAsBytesSync([...old, ...'@MARKER@'.codeUnits]);
     stdout.writeln('upgraded');
+  }
+  if (env['STUB_HOLD'] == '1') {
+    File('${env['STUB_LOG_DIR']}\\$name.pid').writeAsStringSync('$pid');
+    await Process.start(
+      program,
+      const [],
+      environment: {'STUB_GRANDCHILD': '1'},
+      mode: ProcessStartMode.detached,
+    );
+    sleep(const Duration(seconds: _holdSeconds));
   }
   final exitFile = File('$program.exit');
   exitCode = exitFile.existsSync()
@@ -389,4 +451,5 @@ Future<void> main(List<String> args) async {
       : 0;
   await stdout.flush();
 }
-''';
+'''
+        .replaceAll('@MARKER@', upgradeMarker);

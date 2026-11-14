@@ -435,7 +435,7 @@ name: Login API
     expect(plan.left, containsAll([toolContainer, stripe, slot]));
   });
 
-  test('f06/us01/fr05, f01/us01/fr04: the planned .specstone/.gitignore holds '
+  test('the planned .specstone/.gitignore holds '
       'the five lines', () async {
     final plan = await _plan(acmeLegacy);
 

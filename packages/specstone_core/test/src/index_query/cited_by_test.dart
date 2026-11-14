@@ -47,47 +47,43 @@ List<CitedBy> _of(CitedByIndex cited, String docPath, String itemId) =>
     cited[(docPath: docPath, itemId: itemId)] ?? const [];
 
 void main() {
-  test('f01/us05/fr06/e01: an item link from an item of another doc gives its line, doc, and item', () async {
-    const line = '1. E01 — A wrong password → refused, by $_inv14.';
-    final cited = _citedBy(await _index('Check it.', edge: line));
-    expect(_of(cited, _domain, 'INV-14'), [
-      (name: _frName, docType: 'fr', byItem: 'E01', line: line),
-    ]);
-  });
-
   test(
-    'f01/us05/fr06/e02: a link on a line that belongs to no item reads no item',
+    'an item link from an item of another doc gives its line, doc, and item',
     () async {
-      const line = 'The system shall lock, by $_inv13.';
-      final cited = _citedBy(await _index(line));
-      expect(_of(cited, _domain, 'INV-13'), [
-        (name: _frName, docType: 'fr', byItem: null, line: line),
+      const line = '1. E01 — A wrong password → refused, by $_inv14.';
+      final cited = _citedBy(await _index('Check it.', edge: line));
+      expect(_of(cited, _domain, 'INV-14'), [
+        (name: _frName, docType: 'fr', byItem: 'E01', line: line),
       ]);
     },
   );
 
-  test(
-    'f01/us05/fr06/e03: a range gives one line under each item it spans',
-    () async {
-      const line =
-          'See [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules).';
-      final index = await _index(
-        'Check it.',
-        extra: {'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n'},
-      );
-      final cited = _citedBy(index);
-      final guide = index.at('specs/topics/guide.md')!;
-      for (final id in ['RULE-2', 'RULE-3', 'RULE-4']) {
-        expect(_of(cited, 'specs/topics/ranges.md', id), [
-          (name: guide.name, docType: 'topic', byItem: null, line: line),
-        ], reason: id);
-      }
-      expect(_of(cited, 'specs/topics/ranges.md', 'RULE-1'), isEmpty);
-      expect(_of(cited, 'specs/topics/ranges.md', 'RULE-5'), isEmpty);
-    },
-  );
+  test('a link on a line that belongs to no item reads no item', () async {
+    const line = 'The system shall lock, by $_inv13.';
+    final cited = _citedBy(await _index(line));
+    expect(_of(cited, _domain, 'INV-13'), [
+      (name: _frName, docType: 'fr', byItem: null, line: line),
+    ]);
+  });
 
-  test('f01/us05/fr06/e04: an item of a doc whose type lists bundle: gets no line, read by the key', () async {
+  test('a range gives one line under each item it spans', () async {
+    const line = 'See [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules).';
+    final index = await _index(
+      'Check it.',
+      extra: {'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n'},
+    );
+    final cited = _citedBy(index);
+    final guide = index.at('specs/topics/guide.md')!;
+    for (final id in ['RULE-2', 'RULE-3', 'RULE-4']) {
+      expect(_of(cited, 'specs/topics/ranges.md', id), [
+        (name: guide.name, docType: 'topic', byItem: null, line: line),
+      ], reason: id);
+    }
+    expect(_of(cited, 'specs/topics/ranges.md', 'RULE-1'), isEmpty);
+    expect(_of(cited, 'specs/topics/ranges.md', 'RULE-5'), isEmpty);
+  });
+
+  test('an item of a doc whose type lists bundle: gets no line, read by the key', () async {
     final cited = _citedBy(
       await _index(
         'Cites [PV-01](../../../PROJECT.md#project-vision) and [NFR-Sec01](../../../GNFR.md#security), also $_inv14.',
@@ -102,20 +98,23 @@ void main() {
     expect(_of(cited, _domain, 'INV-14'), hasLength(1));
   });
 
-  test('f01/us05/fr06/e05: a link from the item own doc, or from an untyped doc, gives no line', () async {
-    final index = await _index(
-      'Check it.',
-      extra: {
-        'docs/README.md': '# Readme\n\nSee [INV-14](specs/f02_signup/DOMAIN.md#invariants).\n',
-      },
-    );
-    expect(index.at('README.md')!.isTyped, isFalse);
-    final cited = _citedBy(index);
-    expect(_of(cited, _domain, 'INV-13'), isEmpty);
-    expect(_of(cited, _domain, 'INV-14'), isEmpty);
-  });
+  test(
+    'a link from the item own doc, or from an untyped doc, gives no line',
+    () async {
+      final index = await _index(
+        'Check it.',
+        extra: {
+          'docs/README.md': '# Readme\n\nSee [INV-14](specs/f02_signup/DOMAIN.md#invariants).\n',
+        },
+      );
+      expect(index.at('README.md')!.isTyped, isFalse);
+      final cited = _citedBy(index);
+      expect(_of(cited, _domain, 'INV-13'), isEmpty);
+      expect(_of(cited, _domain, 'INV-14'), isEmpty);
+    },
+  );
 
-  test('f01/us05/fr06/e07: an item many docs cite gets one line per link, none dropped', () async {
+  test('an item many docs cite gets one line per link, none dropped', () async {
     final index = await _index(
       'Check it, by $_inv14.',
       edge: '1. E01 — Refused, by $_inv14.',
@@ -132,13 +131,16 @@ void main() {
     ]);
   });
 
-  test('f01/us05/fr06/e07: two links to one item on one line give one line each, none dropped', () async {
-    const line = 'Both $_inv14 and $_inv14.';
-    final cited = _of(_citedBy(await _index(line)), _domain, 'INV-14');
-    expect(cited.map((c) => c.line), [line, line]);
-  });
+  test(
+    'two links to one item on one line give one line each, none dropped',
+    () async {
+      const line = 'Both $_inv14 and $_inv14.';
+      final cited = _of(_citedBy(await _index(line)), _domain, 'INV-14');
+      expect(cited.map((c) => c.line), [line, line]);
+    },
+  );
 
-  test('f01/us05/fr06/e03, e07: items a range chain spans each get one line from it', () async {
+  test('items a range chain spans each get one line from it', () async {
     const line =
         'See [RULE-1](ranges.md#rules) to [RULE-3](ranges.md#rules) to [RULE-5](ranges.md#rules).';
     final index = await _index(
@@ -155,7 +157,7 @@ void main() {
     }
   });
 
-  test('f01/us05/fr06/e07: two separate ranges on one line count apart', () async {
+  test('two separate ranges on one line count apart', () async {
     const line =
         'See [RULE-2](ranges.md#rules) to [RULE-3](ranges.md#rules) and [RULE-2](ranges.md#rules) to [RULE-4](ranges.md#rules).';
     final index = await _index(
@@ -173,7 +175,7 @@ void main() {
     }
   });
 
-  test('f01/us05/fr06/e07: nested items that end on one line keep every line, inner first', () {
+  test('nested items that end on one line keep every line, inner first', () {
     const outer = (
       item: 'INV-14',
       after: 7,
@@ -189,7 +191,7 @@ void main() {
     });
   });
 
-  test('f01/us05/fr06/e08: a doc link or a section link names no item and gives no line', () async {
+  test('a doc link or a section link names no item and gives no line', () async {
     final cited = _citedBy(
       await _index(
         'See [the domain]($_specs/f02_signup/DOMAIN.md) and [invariants]($_specs/f02_signup/DOMAIN.md#invariants).',
@@ -198,17 +200,20 @@ void main() {
     expect(cited.keys.where((k) => k.docPath == _domain), isEmpty);
   });
 
-  test('f01/us05/fr06/e09: the lines come from the stored index; the call reads no file', () async {
-    final project = await writeLoginProject(
-      extra: {..._docs, _fr: _frWith('Lock, by $_inv14.')},
-    );
-    final session = openSession(project);
-    addTearDown(session.close);
-    File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
-    File('${project.path}/$_fr').deleteSync();
-    final cited = _of(citedByIndex(session.index), _domain, 'INV-14');
-    expect(cited.single.line, 'Lock, by $_inv14.');
-  });
+  test(
+    'the lines come from the stored index; the call reads no file',
+    () async {
+      final project = await writeLoginProject(
+        extra: {..._docs, _fr: _frWith('Lock, by $_inv14.')},
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      File('${project.path}/docs/specs/f02_signup/DOMAIN.md').deleteSync();
+      File('${project.path}/$_fr').deleteSync();
+      final cited = _of(citedByIndex(session.index), _domain, 'INV-14');
+      expect(cited.single.line, 'Lock, by $_inv14.');
+    },
+  );
 
   group('printedBodyOf', () {
     test(

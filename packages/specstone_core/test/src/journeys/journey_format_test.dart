@@ -233,7 +233,7 @@ void main() {
       expect(check(root), isEmpty);
     });
 
-    test('f10/us01/fr04/e08, f10/us01/fr04/e09: format pastes links that '
+    test('format pastes links that '
         'resolve from the journey, and a second format changes '
         'nothing', () async {
       const links =

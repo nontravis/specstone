@@ -1177,16 +1177,19 @@ void main() {
       ),
     ]);
 
-    test('f04/us02/fr09/e01: an item link whose section holds the item gives no finding', () async {
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: featureLinking('[NFR-P01]($gnfrPerformance).'),
-        ),
-      );
-      expect(findings, isEmpty);
-    });
+    test(
+      'an item link whose section holds the item gives no finding',
+      () async {
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: featureLinking('[NFR-P01]($gnfrPerformance).'),
+          ),
+        );
+        expect(findings, isEmpty);
+      },
+    );
 
-    test('f04/us02/fr09/e02: an item link whose section lacks the item is link_item_missing with target and item', () async {
+    test('an item link whose section lacks the item is link_item_missing with target and item', () async {
       final findings = itemFindingsOf(
         await writeCheckProject(
           extra: featureLinking('[NFR-P09]($gnfrPerformance).'),
@@ -1201,65 +1204,77 @@ void main() {
       });
     });
 
-    test('f04/us02/fr09/e03: an S<N> link to a scenario the story lacks is link_item_missing', () async {
-      const story = 'us01_email_login/USER_STORY.md#acceptance-criteria';
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: featureLinking('[S2]($story) and [S7]($story).'),
-        ),
-      );
-      expect(
-        [for (final f in findings) f.keys],
-        [
-          {'target': story, 'item': 'S7'},
-        ],
-      );
-    });
+    test(
+      'an S<N> link to a scenario the story lacks is link_item_missing',
+      () async {
+        const story = 'us01_email_login/USER_STORY.md#acceptance-criteria';
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: featureLinking('[S2]($story) and [S7]($story).'),
+          ),
+        );
+        expect(
+          [for (final f in findings) f.keys],
+          [
+            {'target': story, 'item': 'S7'},
+          ],
+        );
+      },
+    );
 
-    test('f04/us02/fr09/e04: a fragment that names no anchor is link_anchor_missing only', () async {
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: featureLinking('[NFR-P09](../../GNFR.md#speed).'),
-        ),
-      );
-      expect(
-        [for (final f in findings) f.kind],
-        [FindingKind.linkAnchorMissing],
-      );
-    });
+    test(
+      'a fragment that names no anchor is link_anchor_missing only',
+      () async {
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: featureLinking('[NFR-P09](../../GNFR.md#speed).'),
+          ),
+        );
+        expect(
+          [for (final f in findings) f.kind],
+          [FindingKind.linkAnchorMissing],
+        );
+      },
+    );
 
-    test('f04/us02/fr09/e05: an anchor of a doc whose anchor set is unknown gives neither finding', () async {
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: {
-            ...featureLinking('[NFR-P09]($gnfrPerformance).'),
-            ...edit(gnfrDoc, [
-              ('## Performance', '[a]:<b\\\n\n## Performance'),
-            ]),
-          },
-        ),
-      );
-      expect(findings, isEmpty);
-    });
+    test(
+      'an anchor of a doc whose anchor set is unknown gives neither finding',
+      () async {
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: {
+              ...featureLinking('[NFR-P09]($gnfrPerformance).'),
+              ...edit(gnfrDoc, [
+                ('## Performance', '[a]:<b\\\n\n## Performance'),
+              ]),
+            },
+          ),
+        );
+        expect(findings, isEmpty);
+      },
+    );
 
-    test('f04/us02/fr09/e02: two spellings of one destination on a line each keep their own target', () async {
-      const plain = '../../GNFR.md#performance';
-      const dotted = './../../GNFR.md#performance';
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: featureLinking('[NFR-P08]($plain) and [NFR-P09]($dotted).'),
-        ),
-      );
-      expect(
-        [for (final f in findings) f.keys],
-        [
-          {'target': plain, 'item': 'NFR-P08'},
-          {'target': dotted, 'item': 'NFR-P09'},
-        ],
-      );
-    });
+    test(
+      'two spellings of one destination on a line each keep their own target',
+      () async {
+        const plain = '../../GNFR.md#performance';
+        const dotted = './../../GNFR.md#performance';
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: featureLinking('[NFR-P08]($plain) and [NFR-P09]($dotted).'),
+          ),
+        );
+        expect(
+          [for (final f in findings) f.keys],
+          [
+            {'target': plain, 'item': 'NFR-P08'},
+            {'target': dotted, 'item': 'NFR-P09'},
+          ],
+        );
+      },
+    );
 
-    test('f04/us02/fr09/e06: a text that is no item ID of the section prefix is a section link', () async {
+    test('a text that is no item ID of the section prefix is a section link', () async {
       final findings = itemFindingsOf(
         await writeCheckProject(
           extra: featureLinking(
@@ -1270,18 +1285,21 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('f04/us02/fr09/e07: a fragment that names a ### heading gives no finding of this rule', () async {
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: featureLinking(
-            '[NFR-P09](../../GNFR.md#nfr-p01--sign-in-time).',
+    test(
+      'a fragment that names a ### heading gives no finding of this rule',
+      () async {
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: featureLinking(
+              '[NFR-P09](../../GNFR.md#nfr-p01--sign-in-time).',
+            ),
           ),
-        ),
-      );
-      expect(findings, isEmpty);
-    });
+        );
+        expect(findings, isEmpty);
+      },
+    );
 
-    test('f04/us02/fr09/e08: each end of a range is checked alone, and the middle numbers are not', () async {
+    test('each end of a range is checked alone, and the middle numbers are not', () async {
       final project = await writeCheckProject(
         extra: {
           ...gnfrWithP03(),
@@ -1301,53 +1319,53 @@ void main() {
       expect(findings.single.line, 15);
     });
 
-    test('f04/us02/fr09/e09: a bare #anchor link is checked against the linking doc own section', () async {
-      final findings = itemFindingsOf(
-        await writeCheckProject(
-          extra: doc(
-            gnfrDoc,
-            '## Security\n\nN/A — none applies.',
-            '## Security\n\n[NFR-P01](#performance) and [NFR-P09](#performance).',
-          ),
-        ),
-      );
-      expect([for (final f in findings) f.path], [gnfrDoc]);
-      expect(
-        [for (final f in findings) f.keys],
-        [
-          {'target': '#performance', 'item': 'NFR-P09'},
-        ],
-      );
-    });
-
     test(
-      'f04/us02/fr09/e10: the rule reads the stored item facts, never a file',
+      'a bare #anchor link is checked against the linking doc own section',
       () async {
-        final project = await writeCheckProject(
-          extra: featureLinking('[NFR-P01]($gnfrPerformance).'),
+        final findings = itemFindingsOf(
+          await writeCheckProject(
+            extra: doc(
+              gnfrDoc,
+              '## Security\n\nN/A — none applies.',
+              '## Security\n\n[NFR-P01](#performance) and [NFR-P09](#performance).',
+            ),
+          ),
         );
-        final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
-        for (final file in Directory(
-          '${project.path}/docs',
-        ).listSync(recursive: true).whereType<File>()) {
-          file.setLastModifiedSync(anHourAgo);
-        }
-        expect(itemFindingsOf(project), isEmpty);
-        // The stat is unchanged, so the next refresh keeps the row with its
-        // item facts edited to hold no NFR-P01.
-        sqlite3.open('${project.path}/$indexFilePath')
-          ..execute(
-            "UPDATE docs SET item_facts = replace(item_facts, '\"NFR-P01\"', 'null') WHERE doc_path = ?",
-            [gnfrDoc],
-          )
-          ..close();
+        expect([for (final f in findings) f.path], [gnfrDoc]);
         expect(
-          [for (final f in itemFindingsOf(project)) f.keys],
+          [for (final f in findings) f.keys],
           [
-            {'target': gnfrPerformance, 'item': 'NFR-P01'},
+            {'target': '#performance', 'item': 'NFR-P09'},
           ],
         );
       },
     );
+
+    test('the rule reads the stored item facts, never a file', () async {
+      final project = await writeCheckProject(
+        extra: featureLinking('[NFR-P01]($gnfrPerformance).'),
+      );
+      final anHourAgo = DateTime.now().subtract(const Duration(hours: 1));
+      for (final file in Directory(
+        '${project.path}/docs',
+      ).listSync(recursive: true).whereType<File>()) {
+        file.setLastModifiedSync(anHourAgo);
+      }
+      expect(itemFindingsOf(project), isEmpty);
+      // The stat is unchanged, so the next refresh keeps the row with its
+      // item facts edited to hold no NFR-P01.
+      sqlite3.open('${project.path}/$indexFilePath')
+        ..execute(
+          "UPDATE docs SET item_facts = replace(item_facts, '\"NFR-P01\"', 'null') WHERE doc_path = ?",
+          [gnfrDoc],
+        )
+        ..close();
+      expect(
+        [for (final f in itemFindingsOf(project)) f.keys],
+        [
+          {'target': gnfrPerformance, 'item': 'NFR-P01'},
+        ],
+      );
+    });
   });
 }
