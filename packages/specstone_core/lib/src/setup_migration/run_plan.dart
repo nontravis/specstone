@@ -130,7 +130,8 @@ final class PlanLists {
   /// rewrites or cannot fully rewrite.
   final List<String> renumberIds;
 
-  /// The path from the project root of each agent file the run writes.
+  /// The path from the project root of each skill or agent file the run writes
+  /// and each it moves to the trash.
   final List<String> agentFiles;
 
   /// The DocPath of each doc the stamp pass leaves for its frontmatter.

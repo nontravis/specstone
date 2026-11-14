@@ -31,12 +31,8 @@ final Map<String, PackVersion> citeRuleSince = Map.unmodifiable({
 
 /// Whether [upgrades] move a [citeRuleSince] pin from below its version to it
 /// or later: the one trigger of the cite pass.
-bool runsCitePass(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
-  final since = citeRuleSince[upgrade.pack];
-  return since != null &&
-      upgrade.pin.compareTo(since) < 0 &&
-      upgrade.target.compareTo(since) >= 0;
-});
+bool runsCitePass(List<PackUpgrade> upgrades) =>
+    crossesSince(upgrades, citeRuleSince);
 
 // MARK: - Types
 

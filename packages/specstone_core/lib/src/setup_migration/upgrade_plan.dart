@@ -30,6 +30,8 @@ import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show shipsSkillFiles;
 import 'package:specstone_core/src/setup_migration/stamp_pass.dart';
 import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart';
@@ -554,7 +556,7 @@ RunPlan _upgradeRunOf(
       citesRewritten: cites?.paths ?? const [],
       citesLeft: cites?.leftOn(writtenLf) ?? const [],
       renumberIds: renumber?.paths ?? const [],
-      agentFiles: agentFiles.paths,
+      agentFiles: agentFiles.listed,
       stampsSkipped: stamps.paths,
       steps: stepLines,
       mentions: mentions,
@@ -821,16 +823,15 @@ AgentWritePlan _agentFilesOf(
       agentFileRoots: config.agentFileRoots,
     ),
     full: runsOneTimePasses(upgrades),
+    shipsSkills: shipsSkillFiles(upgrades),
   );
 }
 
 /// Whether [upgrades] move a prd-core or software-tech pin up from below its
 /// fixed `agentFilesSince` version, not the version this binary carries: the
 /// one trigger of every one-time pass, the label pass among them.
-bool runsOneTimePasses(List<PackUpgrade> upgrades) => upgrades.any((upgrade) {
-  final since = agentFilesSince[upgrade.pack];
-  return since != null && upgrade.pin.compareTo(since) < 0;
-});
+bool runsOneTimePasses(List<PackUpgrade> upgrades) =>
+    crossesSince(upgrades, agentFilesSince);
 
 /// Plans the renumber pass over every doc of [works], typed or not.
 RenumberPass _renumberPassOf(List<_DocWork> works) => RenumberPass.plan([

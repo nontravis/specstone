@@ -26,6 +26,18 @@ final class PackUpgrade {
   final List<({PackVersion from, MigrationStep step})> steps;
 }
 
+/// Whether one of [upgrades] moves its pin from below the version [since]
+/// holds for its pack up to that version or later.
+///
+/// The one test every once-only pass runs, each with its own [since] map.
+bool crossesSince(List<PackUpgrade> upgrades, Map<String, PackVersion> since) =>
+    upgrades.any((upgrade) {
+      final first = since[upgrade.pack];
+      return first != null &&
+          upgrade.pin.compareTo(first) < 0 &&
+          upgrade.target.compareTo(first) >= 0;
+    });
+
 /// Returns one [PackUpgrade] per pack whose pin is older than its available
 /// version, in code point order of the pack name.
 ///

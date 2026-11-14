@@ -3,7 +3,9 @@ import 'dart:io';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
@@ -545,6 +547,33 @@ void main() {
 
       expect(skillAndAgentFileDrifts(inputs), isEmpty);
       expect(planSkillAndAgentFiles(inputs, full: false).writes, isEmpty);
+    });
+  });
+
+  group('shipsSkillFiles', () {
+    PackUpgrade upgrade(String pack, String pin, String target) => PackUpgrade(
+      pack: pack,
+      pin: PackVersion.parse(pin, file: 'test', key: pack),
+      target: PackVersion.parse(target, file: 'test', key: pack),
+      steps: const [],
+    );
+
+    test('holds when a prd-core or software-tech pin crosses the first '
+        'version that ships the files', () {
+      expect(shipsSkillFiles([upgrade('prd-core', '1.8.0', '1.9.0')]), isTrue);
+      expect(
+        shipsSkillFiles([upgrade('software-tech', '1.6.0', '1.7.0')]),
+        isTrue,
+      );
+      expect(shipsSkillFiles([upgrade('prd-core', '1.0.0', '1.9.0')]), isTrue);
+    });
+
+    test('fails for a pin already at the version, a target short of it, and '
+        'another pack', () {
+      expect(shipsSkillFiles([upgrade('prd-core', '1.9.0', '1.9.1')]), isFalse);
+      expect(shipsSkillFiles([upgrade('prd-core', '1.7.0', '1.8.0')]), isFalse);
+      expect(shipsSkillFiles([upgrade('acme', '1.0.0', '2.0.0')]), isFalse);
+      expect(shipsSkillFiles(const []), isFalse);
     });
   });
 }

@@ -951,6 +951,99 @@ void main() {
         expect(rerun.out, 'nothing to migrate\n');
       });
 
+      test(
+        'E87: a pin between agentFilesSince and the cite rule writes every '
+        'skill and agent file once, in commit 2, and gains no block',
+        () async {
+          final root = await agentProject({
+            'CLAUDE.md': '# Owner rules\n',
+          }, 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n');
+          final home = await writeTree({});
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(
+            result.out,
+            contains('  agent files: $skillFileCount files\n'),
+          );
+          expect(_read(root, 'CLAUDE.md'), '# Owner rules\n');
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n').toSet(),
+            containsAll(skillPaths()),
+          );
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.out, 'nothing to migrate\n');
+        },
+      );
+
+      test('E89: a hand-edited skill file with every pin equal is the '
+          'agent-only upgrade, one file listed and rewritten', () async {
+        final texts = skillFileTexts();
+        final path = texts.keys.first;
+        final root = await agentProject({
+          ...texts,
+          path: '${texts[path]}hand edit\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+
+        final json = await _run(root, home, ['migrate', '--dry-run', '--json']);
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(json.status, 0, reason: json.err);
+        final plan = jsonDecode(json.out) as Map<String, Object?>;
+        expect(plan['agentFiles'], [path]);
+        expect(result.status, 0, reason: result.err);
+        expect(result.out, contains('  agent files: 1 files\n'));
+        expect(_read(root, path), texts[path]);
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+          path,
+        );
+      });
+
+      test('E90: a group none of whose folders holds a specstone entry starts '
+          'no run', () async {
+        final root = await agentProject({
+          '.claude/skills/own-skill/SKILL.md': 'own\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+
+        final result = await _run(root, home, ['migrate']);
+
+        expect(result.out, 'nothing to migrate\n');
+      });
+
+      test('E14: the plan hash moves when the bytes of one skill file '
+          'change', () async {
+        final texts = skillFileTexts();
+        final path = texts.keys.first;
+        final root = await agentProject({
+          ...texts,
+          path: '${texts[path]}first edit\n',
+        }, shippedPinsConfig());
+        final home = await writeTree({});
+        String hashOf(String out) => RegExp(
+          r'^plan ([0-9a-f]+)$',
+          multiLine: true,
+        ).firstMatch(out)!.group(1)!;
+
+        final first = await _run(root, home, ['migrate', '--dry-run']);
+        File('${root.path}/$path')
+            .writeAsStringSync('${texts[path]}second edit\n');
+        commitAll(root, 'second edit');
+        final second = await _run(root, home, ['migrate', '--dry-run']);
+
+        expect(first.status, 0, reason: first.err);
+        expect(second.status, 0, reason: second.err);
+        expect(hashOf(first.out), isNot(hashOf(second.out)));
+      });
+
       test('E16: a malformed file refuses '
           'before anything prints', () async {
         final root = await agentProject({
@@ -1684,7 +1777,7 @@ void main() {
 
       test('a 1.4.0 project moves its values into a draft '
           'record of the shipped implementation type, with no one-time '
-          'pass', () async {
+          'pass and the skill and agent files written once', () async {
         final h = await writeTree({});
         final root = await project(
           '---\nstatus: implemented\nimplements:\n'
@@ -1703,7 +1796,9 @@ void main() {
           ),
         );
         expect(dry.out, isNot(contains('renumber ids:')));
-        expect(dry.out, isNot(contains('agent files:')));
+        // The move crosses the cite rule's version, so E87 writes the skill
+        // and agent files alone.
+        expect(dry.out, contains('  agent files: $skillFileCount files\n'));
 
         final lines = dry.out.split('\n');
         final applied = await _run(root, h, [

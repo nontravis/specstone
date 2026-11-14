@@ -9,7 +9,10 @@ import 'package:specstone_core/src/document_writing/move_journal.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/cite_pass.dart'
+    show citeRuleSince;
 import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _ownedPrefix = 'specstone-';
@@ -34,15 +37,25 @@ typedef SkillFileDrift = ({String path, SkillFileDriftKind kind});
 ///
 /// `trash` lists each path to move to the trash: the folder or file of a
 /// `specstone-*` entry the CLI ships nothing of, which moves whole, and each
-/// unshipped file inside an entry it ships. `skipped` holds the warning line
+/// unshipped file inside an entry it ships; `topTrash` holds those of it that
+/// lie at a repository top. `skipped` holds the warning line
 /// for each folder or file the run leaves because its real path lies outside
 /// the project root or under `.git`.
 typedef SkillFilePlan = ({
   List<AgentWrite> writes,
   List<String> trash,
+  List<String> topTrash,
   List<String> skipped,
   Set<String> writeSet,
 });
+
+/// Whether [upgrades] first ship the skill and agent files: the pack upgrade
+/// that writes every one of them once.
+///
+/// It rides the pack versions of the cite rule, so one pack bump serves both
+/// one-time passes.
+bool shipsSkillFiles(List<PackUpgrade> upgrades) =>
+    crossesSince(upgrades, citeRuleSince);
 
 /// Plans the `specstone-*` skill and agent file changes of [inputs], by folder
 /// group at the project root and at each repository top.
@@ -50,19 +63,23 @@ typedef SkillFilePlan = ({
 /// [full] is the `init`, legacy, and one-time upgrade upsert at the project
 /// root; otherwise a folder group takes writes only while one of its folders
 /// holds a `specstone-*` entry. An unlisted top always takes the full upsert
-/// once. Entries not named `specstone-*` are never read.
+/// once; [includesListedTops] gives each listed top the same as the root, for
+/// the run that first ships these files. Entries not named `specstone-*` are
+/// never read.
 SkillFilePlan planSkillAndAgentFiles(
   AgentFileInputs inputs, {
   required bool full,
+  bool includesListedTops = false,
 }) {
   final bases = agentFileBasesOf(inputs);
   final planner = _Planner(bases.first.directory);
   for (final base in bases) {
-    planner.plan(base, full: full);
+    planner.plan(base, full: full, includesListedTops: includesListedTops);
   }
   return (
     writes: planner.writes,
     trash: planner.trash,
+    topTrash: planner.topTrash,
     skipped: planner.skipped,
     writeSet: planner.writeSet,
   );
@@ -109,36 +126,44 @@ final class _Planner {
 
   final writes = <AgentWrite>[];
   final trash = <String>[];
+  final topTrash = <String>[];
   final skipped = <String>[];
   final writeSet = <String>{};
   final _planned = <String>{};
 
-  void plan(AgentFileBase base, {required bool full}) {
+  void plan(
+    AgentFileBase base, {
+    required bool full,
+    required bool includesListedTops,
+  }) {
+    final isUpsert = base.isTop
+        ? base.isUnlisted || (full && includesListedTops)
+        : full;
     if (base.isTop) {
       final refusal = writeRefusalOf(base.directory.path, projectRoot: _root);
       if (refusal != null) {
-        if (base.isUpsert(full: full)) {
+        if (isUpsert) {
           _skip(skippedLineOf(base.path, refusal));
         }
         return;
       }
     }
     for (final group in AgentFolderGroup.values) {
-      _planGroup(base, group, full: full);
+      _planGroup(base, group, isUpsert: isUpsert);
     }
   }
 
   void _planGroup(
     AgentFileBase base,
     AgentFolderGroup group, {
-    required bool full,
+    required bool isUpsert,
   }) {
     final entries = {
       for (final folder in group.folders)
         if (_isUsable(base, folder)) folder: _ownedEntriesIn(base, folder),
     };
     final isInUse = entries.values.any((names) => names.isNotEmpty);
-    if (!isInUse && !base.isUpsert(full: full)) return;
+    if (!isInUse && !isUpsert) return;
     for (final file in _rendered) {
       if (entries.containsKey(file.folder)) _planFile(base, file);
     }
@@ -211,6 +236,7 @@ final class _Planner {
     final refusal = writeRefusalOf(_pathIn(base, relative), projectRoot: _root);
     if (refusal == null) {
       trash.add(path);
+      if (base.isTop) topTrash.add(path);
     } else {
       _skip(skippedLineOf(path, refusal));
     }

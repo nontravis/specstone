@@ -357,6 +357,7 @@ final class AgentWritePlan {
     required this.addedRoots,
     required this.writeSet,
     this.trash = const [],
+    this.topTrash = const [],
     this.skipped = const [],
   });
 
@@ -383,6 +384,9 @@ final class AgentWritePlan {
   /// run moves to the trash, each real file once.
   final List<String> trash;
 
+  /// The paths of [trash] at a repository top, outside the project's commits.
+  final List<String> topTrash;
+
   /// The warning line for each agent file the run would write but leaves,
   /// because its real path lies outside the project root or under `.git`.
   final List<String> skipped;
@@ -393,11 +397,12 @@ final class AgentWritePlan {
     for (final write in [...rootWrites, ...topWrites]) write.path,
   ];
 
+  /// The path of each file the run writes, then of each it moves to the trash.
+  List<String> get listed => [...paths, ...trash];
+
   /// The plan's `agent files:` line, empty when no file is written or trashed.
-  String get line {
-    final count = paths.length + trash.length;
-    return count == 0 ? '' : '$_agentsLinePrefix$count files';
-  }
+  String get line =>
+      listed.isEmpty ? '' : '$_agentsLinePrefix${listed.length} files';
 
   /// Whether the run writes or trashes no file and lists no new top.
   bool get isEmpty =>
@@ -411,11 +416,17 @@ final class AgentWritePlan {
 ///
 /// [full] is the `init`, legacy, and one-time upgrade upsert at the project
 /// root; otherwise the root and each listed top only refresh what exists. An
-/// unlisted top always takes the full upsert once. Reads every file first.
+/// unlisted top always takes the full upsert once. [shipsSkills] is the run
+/// that first ships the skill and agent files: it writes all of them at the
+/// root and at each listed top too. Reads every file first.
 ///
 /// Throws `MigrateFault` `agent_block_malformed`, naming every malformed file
 /// with its first marker line, before it returns.
-AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
+AgentWritePlan planAgentWrites(
+  AgentFileInputs inputs, {
+  required bool full,
+  bool shipsSkills = false,
+}) {
   final survey = _Survey.of(inputs)..throwIfMalformed();
   final root = _canonicalOf(inputs.projectRoot);
   final rootWrites = <AgentWrite>[];
@@ -467,7 +478,11 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
       skipped.insert(0, skippedLineOf(_agentMdPath, refusal));
     }
   }
-  final skills = planSkillAndAgentFiles(inputs, full: full);
+  final skills = planSkillAndAgentFiles(
+    inputs,
+    full: full || shipsSkills,
+    includesListedTops: shipsSkills,
+  );
   for (final write in skills.writes) {
     (write.isAtTop ? topWrites : rootWrites).add(write);
   }
@@ -481,6 +496,7 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
     addedRoots: added,
     writeSet: writeSet,
     trash: _eachRealPathOnce(root, skills.trash),
+    topTrash: _eachRealPathOnce(root, skills.topTrash),
     skipped: [...skipped, ...skills.skipped],
   );
 }

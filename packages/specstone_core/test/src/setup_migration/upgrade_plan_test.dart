@@ -9,7 +9,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
-    show MoveStep;
+    show CommitStep, CreateStep, MoveStep;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show frontmatterValuesOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -1273,6 +1273,9 @@ const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
 const _staleBlock = '$_begin\nold rules\n<!-- END specstone -->\n';
 const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
 
+/// Pins that sit past every one-time pass but below the cite rule's versions.
+const _betweenSinces = 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n';
+
 Directory _canonical(Directory directory) =>
     Directory(directory.resolveSymbolicLinksSync());
 
@@ -1328,6 +1331,149 @@ void _agentFilesTests() {
         ...skillPaths(),
       ]);
       expect(plan.toText(), contains('software-tech 1.3.0 -> 1.7.0'));
+    });
+
+    test('$_fr E87: a pin between agentFilesSince and the cite rule writes '
+        'every skill and agent file once and gains no block', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': _betweenSinces,
+        'CLAUDE.md': '# Owner rules\n',
+      });
+
+      final plan = _planAt(project);
+
+      final agents = plan.agentFiles!;
+      expect(agents.rootWrites.map((write) => write.path), skillPaths());
+      expect(agents.topWrites, isEmpty);
+      expect(plan.toText(), contains('  agent files: $skillFileCount files\n'));
+      expect(plan.lists.agentFiles, skillPaths());
+    });
+
+    test('$_fr E87, E92: the one-time write reaches a listed top, its files '
+        'outside the root files', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '$_betweenSinces'
+            'code_root: code\nagent_file_roots:\n  - code\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+      });
+
+      final plan = _planAt(project);
+
+      final agents = plan.agentFiles!;
+      expect(agents.rootWrites.map((write) => write.path), skillPaths());
+      expect(agents.topWrites.map((write) => write.path), skillPaths('code/'));
+      expect(agents.topWrites.every((write) => write.isAtTop), isTrue);
+      expect(agents.addedRoots, isEmpty);
+      expect(
+        plan.toText(),
+        contains('  agent files: ${2 * skillFileCount} files\n'),
+      );
+    });
+
+    test(
+      '$_fr E87, E92: commit 2 holds the root files and none of a top',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml':
+              '$_betweenSinces'
+              'code_root: code\nagent_file_roots:\n  - code\n',
+          'code/.git/HEAD': 'ref: refs/heads/main\n',
+        });
+
+        final plan = _planAt(project);
+
+        final steps = plan.journalSteps(
+          base: 'x',
+          projectRoot: _canonical(project),
+        );
+        final commit2 = steps.whereType<CommitStep>().last;
+        expect(commit2.paths, containsAll(skillPaths()));
+        expect(commit2.paths, isNot(contains(skillPaths('code/').first)));
+        expect(
+          steps.whereType<CreateStep>().map((step) => step.path),
+          containsAll(skillPaths('code/')),
+        );
+      },
+    );
+
+    test('$_fr E88, E89: pins equal and one hand-edited skill file is the '
+        'agent-only upgrade, one file counted', () async {
+      final texts = skillFileTexts();
+      final path = texts.keys.first;
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...texts,
+        path: '${texts[path]}hand edit\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, agent files only\n'
+        'commit 2, rewrites:\n'
+        '  agent files: 1 files\n',
+      );
+      expect(plan.lists.agentFiles, [path]);
+      expect(plan.agentFiles!.rootWrites.single.isNew, isFalse);
+      expect(plan.rewrites, isEmpty);
+    });
+
+    test('$_fr E88: an entry the binary ships missing from a group in use is '
+        'written, the other groups left alone', () async {
+      final texts = skillFileTexts();
+      final missing = texts.keys.first;
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        for (final MapEntry(:key, :value) in texts.entries)
+          if (key != missing) key: value,
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, [missing]);
+      expect(plan.agentFiles!.rootWrites.single.isNew, isTrue);
+    });
+
+    test('$_fr E90: a group none of whose folders holds a specstone entry '
+        'starts no run', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.claude/skills/own-skill/SKILL.md': 'own\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.agentFiles!.isEmpty, isTrue);
+      expect(plan.toText(), isNot(contains('agent files:')));
+      expect(plan.lists.agentFiles, isEmpty);
+    });
+
+    test('$_fr E91, E92: an unshipped entry is counted and listed under '
+        'agentFiles, the one at a top named apart', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
+            '  - code\n',
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+        ...skillFileTexts(),
+        ...skillFileTexts('code/'),
+        '.claude/skills/specstone-old/SKILL.md': 'old\n',
+        'code/.claude/skills/specstone-old/SKILL.md': 'old\n',
+      });
+
+      final plan = _planAt(project);
+
+      final trash = [
+        '.claude/skills/specstone-old',
+        'code/.claude/skills/specstone-old',
+      ];
+      expect(plan.agentFiles!.trash, trash);
+      expect(plan.agentFiles!.topTrash, ['code/.claude/skills/specstone-old']);
+      expect(plan.lists.agentFiles, trash);
+      expect(plan.toText(), contains('  agent files: 2 files\n'));
+      expect(plan.lists.toJson()['agentFiles'], trash);
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '
@@ -2607,9 +2753,10 @@ void _moveToRecordTests() {
         ...extra,
       });
 
-      test('E39: the move from 1.4.0 to 1.7.0 runs no one-time pass, the '
-          'move_to_record and stamp_code_fingerprints steps beside the passes '
-          'every upgrade runs', () async {
+      test('E39, E87: the move from 1.4.0 to 1.7.0 runs no one-time pass and '
+          'writes the skill and agent files alone, the move_to_record and '
+          'stamp_code_fingerprints steps beside the passes every upgrade '
+          'runs', () async {
         final project = await shippedProject(
           extra: {'CLAUDE.md': '# Owner rules\n'},
         );
@@ -2633,8 +2780,13 @@ void _moveToRecordTests() {
         );
         expect(text, isNot(contains('renumber ids:')));
         expect(text, isNot(contains('number labels:')));
-        expect(text, isNot(contains('agent files:')));
-        expect(plan.agentFiles!.rootWrites, isEmpty);
+        // The move crosses the cite rule's version, so E87 writes the skill
+        // and agent files alone: no block, rules file, or AGENT.md.
+        expect(text, contains('  agent files: $skillFileCount files\n'));
+        expect(
+          plan.agentFiles!.rootWrites.map((write) => write.path),
+          skillPaths(),
+        );
         expect(plan.agentFiles!.topWrites, isEmpty);
       });
 

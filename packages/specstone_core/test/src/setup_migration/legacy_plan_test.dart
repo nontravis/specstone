@@ -1007,6 +1007,23 @@ name: NFR
       ]);
     });
 
+    test('E13, E87: commit 2 holds every rendered skill and agent file at the '
+        'root', () async {
+      final plan = await _plan(acmeLegacy);
+
+      final steps = plan.journalSteps(
+        base: 'x',
+        projectRoot: Directory.systemTemp,
+      );
+
+      final commit2 = steps.whereType<CommitStep>().last;
+      expect(commit2.paths, containsAll(skillPaths()));
+      expect(
+        steps.whereType<CreateStep>().map((step) => step.path),
+        containsAll(skillPaths()),
+      );
+    });
+
     test('E08: a '
         'malformed block refuses before the plan returns', () async {
       final root = await writeTree({
