@@ -854,6 +854,28 @@ reference:
       );
     });
 
+    test('an item written as a block scalar prints with no trailing blank '
+        'line', () {
+      final pattern = mergeOne('auth', {
+        'auth': [
+          layerOf('auth', '''
+id: auth
+description: Sign-in checklist.
+items:
+  - id: lockout
+    text: |
+      Name the lockout rule.
+'''),
+        ],
+      });
+
+      expect(pattern.items.single.text, 'Name the lockout rule.');
+      expect(
+        pattern.renderBody(),
+        'Sign-in checklist.\n- **lockout** Name the lockout rule.\n',
+      );
+    });
+
     test('prints the description alone when no item is given', () {
       final pattern = signup();
 

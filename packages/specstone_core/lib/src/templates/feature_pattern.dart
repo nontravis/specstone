@@ -65,8 +65,7 @@ final class FeaturePattern {
   String renderBody([List<ChecklistItem>? items]) {
     return [
       description,
-      for (final item in items ?? this.items)
-        '- **${item.id}** ${item.text.trimRight()}',
+      for (final item in items ?? this.items) '- **${item.id}** ${item.text}',
       if (reference.isNotEmpty) ...[
         'Pattern sources:',
         ...reference.map(referenceSourceLine),
@@ -210,7 +209,7 @@ final class _PatternMerge {
     final items = [...base];
     for (final entry in layer.items) {
       final index = items.indexWhere((i) => i.id == entry.id);
-      final text = entry.text;
+      final text = entry.text?.trimRight();
       if (index == -1) {
         if (entry.disabled || text == null) {
           throw TemplateFault(

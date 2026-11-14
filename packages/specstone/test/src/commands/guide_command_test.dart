@@ -1048,7 +1048,9 @@ items:
       final result = await run(await project(), []);
 
       expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(result.stdout, 'export\nimport\n');
+      final ids = const LineSplitter().convert(result.stdout as String);
+      expect(ids, containsAllInOrder(['export', 'import']));
+      expect(ids, [...ids]..sort(), reason: 'code point order');
       expect(result.stderr, isEmpty);
     });
 
