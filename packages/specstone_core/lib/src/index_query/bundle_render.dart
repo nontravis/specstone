@@ -189,7 +189,7 @@ ContextAnswer answerContext(
   final list = [
     for (final (:doc, :part) in slots)
       if (doc == null)
-        '- ${featurePatternListName(patternParts[part!])}\n'
+        '- ${featurePatternListName(patternParts[part!].pattern.id)}\n'
       else
         '- ${_listName(ordered[doc], inSummary(ordered[doc]))}\n',
     for (final part in parts) '- ${_partListName(part)}\n',
@@ -383,7 +383,7 @@ ContextAnswer _overBudget(
     for (final (:doc, :part) in slots)
       if (doc == null)
         _overBudgetLine(
-          featurePatternListName(patternParts[part!]),
+          featurePatternListName(patternParts[part!].pattern.id),
           tokenSizeOf(patternBlocks[part]),
         )
       else
@@ -425,7 +425,7 @@ ContextAnswer _overBudget(
         for (final (i, part) in patternParts.indexed)
           {
             'id': part.pattern.id,
-            'doc': featurePatternDocAddress(part),
+            'doc': featurePatternDocAddress(part.lister),
             'tokens': tokenSizeOf(patternBlocks[i]),
           },
       ],

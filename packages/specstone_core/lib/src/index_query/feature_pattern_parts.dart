@@ -52,22 +52,22 @@ List<FeaturePatternPart> featurePatternParts(
 /// Returns [part] as its text block: the naming line
 /// `==> <id> (feature pattern) · <name> <==`, then its body.
 String featurePatternBlock(FeaturePatternPart part) =>
-    '==> ${featurePatternListName(part)} · ${part.lister.name} <==\n'
+    '==> ${featurePatternListName(part.pattern.id)} · ${part.lister.name} <==\n'
     '${part.pattern.renderBody(part.items).trimRight()}';
 
-/// Returns the closing-list name of [part], `<id> (feature pattern)`.
-String featurePatternListName(FeaturePatternPart part) =>
-    '${part.pattern.id} (feature pattern)';
+/// Returns the list name of the part for pattern [id]: the id, then
+/// ` (feature pattern)`.
+String featurePatternListName(String id) => '$id (feature pattern)';
 
-/// Returns the typed address `<doc type>:<name>` of the doc that lists
-/// [part].
-String featurePatternDocAddress(FeaturePatternPart part) =>
-    '${part.lister.docTypeId}:${part.lister.name}';
+/// Returns the typed address `<doc type>:<name>` of [lister], the doc that
+/// lists a feature pattern part.
+String featurePatternDocAddress(IndexedDoc lister) =>
+    '${lister.docTypeId}:${lister.name}';
 
 /// Returns [part] as its `--json` entry.
 Map<String, Object> featurePatternJson(FeaturePatternPart part) => {
   'id': part.pattern.id,
-  'doc': featurePatternDocAddress(part),
+  'doc': featurePatternDocAddress(part.lister),
   'description': part.pattern.description,
   'items': [
     for (final item in part.items) {'id': item.id, 'text': item.text},

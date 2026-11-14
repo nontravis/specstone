@@ -1466,5 +1466,44 @@ void main() {
       expect((jsonDecode(unknown.out) as Map)['featurePatterns'], isEmpty);
       expect(none.out, contains('"featurePatterns":'));
     });
+    test('f01/us05/fr08/e10: --out --json indexes each part as {id, doc, lines} beside docs, whose lines point at the part in the file', () async {
+      final project = await writeReadProject(
+        extra: patterned('[sign_in_checks, record_checks]'),
+      );
+      final (:runner, :out, :err) = readRunner(project);
+
+      final code = await runner.run([
+        'context',
+        'login/email_login',
+        '--for',
+        'design',
+        '--out',
+        '--json',
+      ]);
+
+      expect(code, 0, reason: err.toString());
+      final index = jsonDecode(out.toString()) as Map;
+      final fileLines = File(index['out'] as String).readAsLinesSync();
+      final parts = (index['featurePatterns'] as List)
+          .cast<Map<String, Object?>>();
+      expect(
+        [for (final part in parts) part['id']],
+        ['sign_in_checks', 'record_checks'],
+      );
+      expect(parts.map((part) => part['doc']), everyElement('feature:login'));
+      for (final part in parts) {
+        final [first, last] = (part['lines']! as List).cast<int>();
+        expect(
+          fileLines[first - 1],
+          '==> ${part['id']} (feature pattern) · login <==',
+        );
+        expect(last, greaterThan(first));
+      }
+      final docNames = [
+        for (final doc in index['docs'] as List) (doc as Map)['name'],
+      ];
+      expect(docNames, contains('login'));
+      expect(docNames, isNot(contains('sign_in_checks')));
+    });
   });
 }

@@ -6,6 +6,8 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
+import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
+    show featurePatternDocAddress, featurePatternListName;
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/build_output.dart';
@@ -107,8 +109,8 @@ ReadAnswer answerBundleFile(
 // MARK: - Index
 
 /// Returns the stdout index of [answer]'s bundle saved at [shownPath]: the
-/// code target line when it has one, the header line, then one line per doc
-/// and appended part with its line range.
+/// code target line when it has one, the header line, then one line per doc,
+/// appended part, and feature pattern part with its line range.
 ///
 /// Each line lists its sections' first lines while the whole index stays
 /// within 200 lines and 8 KiB, counting its header line and any code target
@@ -137,13 +139,16 @@ String bundleIndex(ContextAnswer answer, String shownPath) {
 /// Returns `--out`'s `--json` object for [answer]'s bundle saved at
 /// [shownPath], with its `codeTarget` when it has one; each doc lists its
 /// sections whatever the index's size.
+///
+/// A design answer also lists its feature pattern parts under
+/// `featurePatterns`, as `{id, doc, lines}`; `docs` lists no part.
 Map<String, Object> bundleIndexJson(ContextAnswer answer, String shownPath) => {
   'out': shownPath,
   'codeTarget': ?answer.codeTarget,
   'tokens': answer.tokens,
   'lines': _lineCountOf(answer.text),
   'docs': [
-    for (final entry in answer.entries)
+    for (final entry in _docEntries(answer))
       {
         'name': entry.doc.name,
         'docType': ?entry.doc.docTypeId,
@@ -157,12 +162,27 @@ Map<String, Object> bundleIndexJson(ContextAnswer answer, String shownPath) => {
         ],
       },
   ],
+  if (answer.json['for'] == BundleMode.design.wire)
+    'featurePatterns': [
+      for (final entry in answer.entries)
+        if (entry.featurePattern case final id?)
+          {
+            'id': id,
+            'doc': featurePatternDocAddress(entry.doc),
+            'lines': [entry.first, entry.last],
+          },
+    ],
 };
 
 /// Returns `- <name> (<doc type>) · <first>-<last>`, then ` · summary` and
 /// ` · cited <section key> [<ID>]` when they apply, then
 /// ` · <key> <first>, …` for [entry]'s sections when [withSections].
+///
+/// A feature pattern part's line is its list name, then ` · <first>-<last>`.
 String _indexLine(BundleEntry entry, {required bool withSections}) {
+  if (entry.featurePattern case final id?) {
+    return '- ${featurePatternListName(id)} · ${entry.first}-${entry.last}\n';
+  }
   final fields = [
     nameWithType(entry.doc),
     '${entry.first}-${entry.last}',
@@ -182,8 +202,14 @@ String _citedField(BundleEntry entry) => [
   if (entry.itemId != null) '[${entry.itemId}]',
 ].join(' ');
 
-/// Returns the number of picked docs [answer] prints; appended parts aside.
+/// Returns the entries of [answer] that are docs, never a feature pattern
+/// part.
+Iterable<BundleEntry> _docEntries(ContextAnswer answer) =>
+    answer.entries.where((entry) => entry.featurePattern == null);
+
+/// Returns the number of picked docs [answer] prints; appended parts and
+/// feature pattern parts aside.
 int _docCountOf(ContextAnswer answer) =>
-    answer.entries.where((entry) => !entry.cited).length;
+    _docEntries(answer).where((entry) => !entry.cited).length;
 
 int _lineCountOf(String text) => const LineSplitter().convert(text).length;
