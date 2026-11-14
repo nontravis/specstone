@@ -40,6 +40,7 @@ fields:
       Lists one line per item and test file that proves it: `<item>:<test file path>[:<test or group name>]`, the item named as in `statuses`, such as `show_toast:test/toast_test.dart`.
       Add `:<test or group name>` after the path only to pin one test, written as a quoted YAML string when the name holds `: ` or ` #`.
       Write each path relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
+      This field sits outside the approval hash, so a write of test lines alone marks no draft.
 lint:
   max_chars: 60000
   max_lines: 400

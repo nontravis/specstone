@@ -14,6 +14,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
@@ -103,6 +104,34 @@ void main() {
       '$f/FEATURE.md',
       ...specs,
     });
+  });
+  test('with no record doc type, a story implements line that carries a fingerprint traces its file', () async {
+    final project = await writeLoginProject(
+      extra: {
+        '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+            '---\nimplements:\n'
+            '  - app/lib/src/login/credential_validator.dart 0123456789ab\n'
+            '---\n\n# Agent signs in with email\n\n## Use Case\nSign in.\n',
+      },
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    expect(session.index.set.recordDocType, isNull);
+
+    final bundle = pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        'app/lib/src/login/credential_validator.dart',
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      ),
+      BundleMode.implement,
+      noProject: false,
+    );
+
+    expect(bundle.docPaths, contains('$f/us01_email_login/USER_STORY.md'));
   });
   test('a folder matches every implements entry under it', () async {
     final b = code('app/lib/src/login', BundleMode.implement);

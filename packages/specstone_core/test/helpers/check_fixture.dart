@@ -19,6 +19,7 @@ import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
+import 'package:yaml/yaml.dart';
 
 import 'index_fixture.dart';
 import 'shipped_pins.dart';
@@ -169,27 +170,94 @@ Future<Directory> writeCheckProject({
 /// `covers` entry names recorded after it, for a doc not in [unfingerprinted].
 ///
 /// An entry that records one, or names no file or folder of [files], stays as
-/// written. The code is every file outside `docs/` and `.specstone/`.
+/// written. The code is every file outside `docs/` and `.specstone/`; an entry
+/// reads from the code root of its doc's target under `targets:`, else from
+/// the config's `code_root:`, else from the project root.
 Map<String, String> withCodeFingerprints(
   Map<String, String> files, {
   Set<String> unfingerprinted = const {},
 }) {
-  final code = {
+  final codeFiles = {
     for (final MapEntry(:key, :value) in files.entries)
       if (!key.startsWith('docs/') && !key.startsWith('.specstone/'))
         key: fileCodeFingerprint(utf8.encode(value)),
   };
+  final config = _configOf(files);
+  final codeByRoot = <String, Map<String, String>>{};
+  String stamped(String docKey, String text) {
+    final root = _codeRootOf(docKey, config);
+    final code = root == null
+        ? null
+        : codeByRoot.putIfAbsent(root, () => _codeUnder(root, codeFiles));
+    return _withCodeFingerprints(docKey, text, code);
+  }
+
   return {
     for (final MapEntry(:key, :value) in files.entries)
       key: key.startsWith('docs/') && !unfingerprinted.contains(key)
-          ? _withCodeFingerprints(value, code)
+          ? stamped(key, value)
           : value,
+  };
+}
+
+Map<Object?, Object?> _configOf(Map<String, String> files) {
+  final text = files['.specstone/config.yaml'];
+  if (text == null) return const {};
+  try {
+    return switch (loadYaml(text)) {
+      final Map<Object?, Object?> config => config,
+      _ => const {},
+    };
+  } on YamlException {
+    // A fixture may hold a config the loader refuses; it names no code root.
+    return const {};
+  }
+}
+
+/// Returns the code root [docKey] reads its entries from, `''` for the
+/// project root, null for a root outside the project, which holds no fixture
+/// file.
+String? _codeRootOf(String docKey, Map<Object?, Object?> config) {
+  final targets = config['targets'];
+  if (targets is! Map) return _normalRoot(config['code_root']);
+  for (final MapEntry(:key, :value) in targets.entries) {
+    if (!docKey.startsWith('docs/specs/$key/')) continue;
+    return switch (value) {
+      null => '',
+      final Map<Object?, Object?> target => _normalRoot(target['code_root']),
+      _ => throw StateError('target $key holds no mapping: $value'),
+    };
+  }
+  return '';
+}
+
+/// Returns [root] as a `/`-separated path under the project root, `''` for
+/// the project root itself or an absent root, null for a root outside it.
+String? _normalRoot(Object? root) {
+  if (root == null) return '';
+  final segments = '$root'.split('/').where((s) => s.isNotEmpty && s != '.');
+  if (segments.contains('..') || '$root'.startsWith('/')) return null;
+  return segments.join('/');
+}
+
+/// Returns the fingerprints of the files under [root], by path from [root].
+Map<String, String> _codeUnder(String root, Map<String, String> codeFiles) {
+  if (root.isEmpty) return codeFiles;
+  return {
+    for (final MapEntry(:key, :value) in codeFiles.entries)
+      if (key.startsWith('$root/')) key.substring(root.length + 1): value,
   };
 }
 
 final _codeLinkLine = RegExp(r"^(  - )('?)(.+?)\2$");
 
-String _withCodeFingerprints(String text, Map<String, String> code) {
+/// Throws a [StateError] when [code] is null, a root outside the project,
+/// and [text] holds an entry to stamp: list the doc in `unfingerprinted`.
+String _withCodeFingerprints(
+  String docKey,
+  String text,
+  Map<String, String>? code,
+) {
   if (!text.startsWith('---\n')) return text;
   var field = '';
   final lines = text.split('\n');
@@ -198,6 +266,12 @@ String _withCodeFingerprints(String text, Map<String, String> code) {
     if (key != null) field = key;
     final link = _codeLinkLine.firstMatch(lines[i]);
     if (link == null || (field != 'implements' && field != 'covers')) continue;
+    if (code == null) {
+      throw StateError(
+        '$docKey holds a code link under a code_root outside the project; '
+        'list it in unfingerprinted',
+      );
+    }
     final [indent, quote, value] = [link[1]!, link[2]!, link[3]!];
     final stamped = field == 'covers'
         ? _stampedEntry(value, code)

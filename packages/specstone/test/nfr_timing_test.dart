@@ -255,6 +255,13 @@ void main() {
         isNot(contains('comments/c_')),
       ),
     );
+    // The new files change the folder its architecture doc covers.
+    final suspects = RegExp(
+      r'^.*: code_suspect: .*$',
+      multiLine: true,
+    ).allMatches(first.stdout.toString()).map((m) => m[0]);
+    expect(suspects, hasLength(1));
+    expect(suspects.single, startsWith('specs/f01_feature_1/ARCHITECTURE.md:'));
     expect(
       bestOf(
         timingRuns,
