@@ -581,7 +581,7 @@ void _assetLayoutTests() {
     (folder) => _baseNameOf(folder).startsWith('specstone-'),
   );
   final agentFiles = agentSourceFiles(agentAssetsRoot())
-      .where((file) => !_isSkillFile(shippedPathOf(file)));
+      .where((file) => !isSkillSourcePath(shippedPathOf(file)));
 
   test('the plugin folder holds no skills folder and no agents folder', () {
     for (final folder in const ['skills', 'agents']) {
@@ -617,7 +617,7 @@ void _assetLayoutTests() {
     final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
     expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
     expect(
-      seen.where((path) => !path.contains('/')),
+      seen.where((path) => !isSkillSourcePath(path)),
       unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
     );
     expect(seen, isNot(contains('AGENT.md')));
@@ -750,7 +750,7 @@ void _shippedFileTests() {
       expect(_frontmatterName.firstMatch(text)?.group(1), shipped.name);
       final commands = cliCommands(text);
       expect(commands, containsAll(shipped.commands));
-      if (_isSkillFile(shipped.file)) {
+      if (isSkillSourcePath(shipped.file)) {
         final first = commands.first;
         if (shipped.name == 'specstone-init') {
           expect(first, 'init');
@@ -1427,9 +1427,6 @@ List<String> _skillAndAgentFiles() => [
     if (file.path.endsWith('.md')) shippedPathOf(file),
 ];
 
-/// Whether [path] of the skill and agent sources is a file in a skill folder.
-bool _isSkillFile(String path) => path.contains('/');
-
 /// The skill and agent files that ground through their own `context` call.
 const _groundingFiles = [
   'specstone-read-sdd/SKILL.md',
@@ -1614,7 +1611,7 @@ void _agentTests() {
       'grounds through a saved bundle names read-sdd for its read, and each '
       'agent that reads one holds Grep for the search', () {
     for (final file in _groundingFiles) {
-      if (!_isSkillFile(file) || file == 'specstone-read-sdd/SKILL.md') {
+      if (!isSkillSourcePath(file) || file == 'specstone-read-sdd/SKILL.md') {
         continue;
       }
       expect(_pluginText(file), contains('`specstone-read-sdd`'), reason: file);
@@ -4727,8 +4724,7 @@ List<ContentFile> _expertSddFiles() => [
 
 void _dispatchReferenceTests() {
   group('the dispatch rungs', () {
-    test('f08/us10/fr02/e08: dispatch.md sits in the source and in both '
-        'skill renders', () {
+    test('dispatch.md sits in the source and in both skill renders', () {
       final paths = _expertSddFiles().map((file) => file.path);
       expect(
         paths,
@@ -4740,8 +4736,8 @@ void _dispatchReferenceTests() {
       );
     });
 
-    test('f08/us10/fr02/e08: dispatch.md holds the named rung, the generic '
-        'rung, and the main-session rung, in that order', () {
+    test('dispatch.md holds the named rung, the generic rung, and the '
+        'main-session rung, in that order', () {
       final text = _pluginText(_dispatchReference);
       final rungs = [
         for (final heading in [
@@ -4755,9 +4751,9 @@ void _dispatchReferenceTests() {
       expect([...rungs]..sort(), rungs);
     });
 
-    test('f08/us10/fr02 statement, e04, e06, e09: the rungs name the host '
-        'lists no such agent, no subagent, the agent file from the skill, '
-        "the failed dispatch, and the audit that is no fresh reader's", () {
+    test('the rungs name the host lists no such agent, no subagent, the '
+        'agent file from the skill, the failed dispatch, and the audit that '
+        "is no fresh reader's", () {
       final text = _oneLine(_pluginText(_dispatchReference));
       for (final point in [
         '`specstone-sdd-engineer`',
@@ -4774,9 +4770,9 @@ void _dispatchReferenceTests() {
       }
     });
 
-    test('f08/us10/fr01, fr02/e09: the specstone-expert-sdd files name no '
-        "host tool, no CLAUDE_ variable, no other host's skills folder, no "
-        'specstone:<name> skill, and every relative path resolves', () {
+    test('the specstone-expert-sdd files name no host tool, no CLAUDE_ '
+        "variable, no other host's skills folder, no specstone:<name> skill, "
+        'and every relative path resolves', () {
       final files = _expertSddFiles();
       expect(hostTiedText(files), isEmpty);
       expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);

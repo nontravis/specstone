@@ -92,13 +92,16 @@ List<ContentFile> contentFiles() => [
   ...renderedContentFiles(renderHostFiles()),
 ];
 
+/// Whether [path] of the skill and agent sources is a file in a skill folder.
+bool isSkillSourcePath(String path) => path.contains('/');
+
 /// Returns the files [agentSourceFiles] finds under [root], as sources.
 List<ContentFile> contentFilesOf(Directory root) => [
   for (final file in agentSourceFiles(root))
     _contentFile(
       _relativePath(root, file),
       file.readAsStringSync(),
-      isSkillFile: _relativePath(root, file).contains('/'),
+      isSkillFile: isSkillSourcePath(_relativePath(root, file)),
     ),
 ];
 

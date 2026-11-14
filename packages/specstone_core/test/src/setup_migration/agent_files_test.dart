@@ -92,8 +92,7 @@ void main() {
       expect(clauses.single, isNot(contains('jaspr')));
     });
 
-    test('$_fr: AGENT.md and the inline block name no specstone:<name> '
-        'skill', () {
+    test('AGENT.md and the inline block name no specstone:<name> skill', () {
       final skillName = RegExp('`specstone:[a-z0-9-]+`');
       expect(skillName.hasMatch(agentMdText), isFalse);
       expect(skillName.hasMatch(_inlineBlock()), isFalse);
