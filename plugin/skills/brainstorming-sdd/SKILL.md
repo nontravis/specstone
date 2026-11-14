@@ -27,11 +27,11 @@ specstone context <target> --for design --out
 - **Any other exit:** report the CLI's error and stop.
 
 For a change from a source, another tool's spec or design, that first call is
-`specstone context project --for design --out`, never with `--budget`. Read or open the source, a link or an issue
+`specstone context project --for design --out`. Read or open the source, a link or an issue
 included, only after it exits 0; then follow `## Take in the source` in
 `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/source.md`.
 
-That call is the gate. Never look for `.specstone/` first: the CLI searches upward.
+Never look for `.specstone/` first: the CLI searches upward.
 
 For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
 questions, and show the Owner each answer; go on only after their yes.
@@ -39,15 +39,17 @@ questions, and show the Owner each answer; go on only after their yes.
 ## 2. Reach an approved design document
 
 The brainstorm skill is the one in your skill list whose description says it turns a change into a design through
-dialogue with the user. Judge by that alone, never by name. No `specstone:` skill qualifies. When two qualify,
+dialogue with the user. Judge by that, never by name. No `specstone:` skill qualifies. When two qualify,
 take the one the project's `CLAUDE.md` names, else the first listed.
+
+The design document proposes each new or reshaped feature's `patterns:` value, picked from `specstone guide --pattern`.
 
 - **A skill qualifies:** run it on the change, grounded in step 1's docs. It keeps the conversation and the approval;
   at its write step, write through step 3. At its own hand-off to a plan or build skill, invoke nothing: once the
   Owner approves the document, go to step 4. Specstone's rules win on a conflict.
 - **None qualifies:** run this flow; it ends at the same document and approval.
-  1. Ask the Owner one question per message until scope, behavior, edge cases, and what stays out are clear.
-  2. Offer two or three approaches with their trade-offs, and recommend one.
+  1. Ask the Owner one question per message until scope, behavior, edge cases, and exclusions are clear.
+  2. Offer two or three approaches with trade-offs, and recommend one.
   3. Write the document through step 3.
   4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
 
@@ -80,11 +82,11 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 ## 5. Hand the approved drafts to the plan skill
 
 After the Owner approves the drafts, invoke `specstone:plan-sdd` through `Skill` with the approved drafts list, whole,
-and the document's path. It writes the plan and asks the Owner how to run it.
+and the document's path.
 
 ## Without the `Agent` tool
 
-Without it, or when a dispatch fails, read that mode's reference and follow it yourself. An audit you run is no
+Without it, or when a dispatch fails, read that mode's reference and follow it. An audit you run is no
 fresh reader's, since you saw the drafts made: tell the Owner so.
 
 - author: `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md`

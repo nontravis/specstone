@@ -1144,6 +1144,24 @@ void _handOffTests() {
     );
   });
 
+  test('E29: '
+      'step 2 of brainstorming-sdd has the design document propose each '
+      "new or reshaped feature's patterns from guide --pattern", () {
+    final step = _oneLine(
+      _sectionOf(
+        _pluginText('skills/brainstorming-sdd/SKILL.md'),
+        '2. Reach an approved design document',
+      ),
+    );
+    expect(
+      step,
+      contains(
+        "The design document proposes each new or reshaped feature's "
+        '`patterns:` value, picked from `specstone guide --pattern`.',
+      ),
+    );
+  });
+
   test('E18-E20: '
       'the audit compares each feature pattern item of a design bundle with '
       'the docs and reports an item neither covered nor skipped', () {
