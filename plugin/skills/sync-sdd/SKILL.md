@@ -45,7 +45,8 @@ When you followed the procedure yourself, its report stands in for item 1.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
 3. Ask the Owner, per point under `Mismatches:`, fix the code or fix the spec. Fix the code writes nothing: the next
    `check` lists the link again. Send a fix-the-spec pick to the same agent while it is live, else to a new one with the
-   answers, when the fix lands in a spec doc.
+   answers, when the fix lands in a spec doc. Ask the Owner, per file under `Uncovered:`, write a spec or change or
+   remove the code; change or remove writes nothing, and a write-a-spec pick routes as a fix-the-spec pick does.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
    list to `specstone set implementation:<feature> --field implements --base <hash>` (or
    `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the target the report

@@ -1781,6 +1781,63 @@ void _agentTests() {
         ),
       );
     });
+
+    test('the sync procedure reads each uncovered file, writes nothing for it, '
+        'and reports it under Uncovered: with what it does that no spec '
+        'states and whether that needs a new story or FR', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          '`code_uncovered` path. Read the file and write nothing for it; '
+          'report it under `Uncovered:`: its path, what it does that no spec '
+          'states, and whether that needs a new story or FR.',
+        ),
+      );
+      expect(
+        _oneLine(
+          _sectionOf(
+            _pluginText('skills/sync-sdd/references/procedure.md'),
+            'Report to the Owner',
+          ),
+        ),
+        contains('each `Mismatches:` point, each `Uncovered:` file,'),
+      );
+    });
+
+    test('the sync procedure writes a spec draft only on the write-a-spec '
+        'pick, in the path code target, and writes no pointer to the code '
+        'before the Owner approves the draft', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          "On the Owner's write-a-spec or fix-the-spec pick sent to you,",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'the Owner approves it with `specstone approve`, through '
+          "`specstone:expert-sdd`'s confirmation. Write no record code path "
+          'or `covers:` entry that names this code until the Owner approves '
+          'the draft.',
+        ),
+      );
+    });
+
+    test('the sync skill asks the Owner per uncovered file to write a spec or '
+        'change or remove the code, and routes the spec pick as a '
+        'fix-the-spec pick', () {
+      expect(
+        skill(),
+        contains(
+          'Ask the Owner, per file under `Uncovered:`, write a spec or change '
+          'or remove the code; change or remove writes nothing, and a '
+          'write-a-spec pick routes as a fix-the-spec pick does.',
+        ),
+      );
+    });
   });
 
   group('Agent sets up a new project with no code', () {

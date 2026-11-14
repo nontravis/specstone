@@ -19,7 +19,9 @@ instead, a waiting code target's left out, each keeping its state.
 For each listed code path but a `tests_unresolved` line's (step 4.4), run `specstone context --code <path> --for
 implement`. It takes its path's code target, prints it, and carries no `--target`.
 
-- **Warning `no doc covers or implements <path>`:** a `code_uncovered` path: step 5. Else step 4.
+- **Warning `no doc covers or implements <path>`:** a `code_uncovered` path. Read the file and write nothing for it;
+  report it under `Uncovered:`: its path, what it does that no spec states, and whether that needs a new story or FR.
+  Else go to step 4.
 - **64, `code_path_not_found`:** the file moved or is gone. `specstone check` lists the record entries that still name
   it; step 4.3 fixes them. **Any other non-zero exit:** report the CLI's error and stop.
 
@@ -71,6 +73,6 @@ step 4.3 `specstone set --field` write, on the path's target's record.
 After your last write, run one `specstone approve --dry-run --json`, the source of every count, never your own tally.
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
-shows as no draft is a finding. Then list each `Mismatches:` point, each pointer fixed, each
+shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer fixed, each
 behavior handed to `specstone:brainstorming-sdd`, and each pointer that waits on an approval, with its doc, its code
 target, and its code path.
