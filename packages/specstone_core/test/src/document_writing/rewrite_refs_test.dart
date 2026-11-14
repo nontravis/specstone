@@ -104,13 +104,26 @@ void main() {
       ('feature', 'login'): 'signin',
       ('user_story', 'login/email_login'): 'signin/email_login',
     };
+    const renamedDocs = <String, (String, String)>{
+      'prds/features/f01_login/FEATURE.md': ('feature', 'login'),
+      'prds/features/f01_login/us01_email_login/USER_STORY.md': (
+        'user_story',
+        'login/email_login',
+      ),
+    };
     const docPath = 'prds/features/f03_other/FEATURE.md';
 
     String? rewrite(
       String text, {
       List<PathMove> moves = renameMoves,
       Map<(String, String), String> names = renamed,
-    }) => rewriteDocLinks(text, docPath: docPath, moves: moves, renamed: names);
+    }) => rewriteDocLinks(
+      text,
+      docPath: docPath,
+      moves: moves,
+      renamed: names,
+      renamedDocs: renamedDocs,
+    );
 
     test('f02/us06/fr02/e14: a link text equal to a renamed doc old Name takes the new Name, its prefix and path following', () {
       expect(
@@ -143,18 +156,18 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a full reference link takes the new Name; a shortcut or collapsed link, whose text is its label, an image description, and a text with a section key keep theirs', () {
+    test('f02/us06/fr02/e21: a full reference link takes the new Name; a shortcut or collapsed link, whose text is its label, an image description, and a text with a section key keep theirs', () {
       expect(
         rewrite(
-          '[login/email_login][r] [login/email_login] [login/email_login][] '
-          '![login/email_login](a.png) [feature:login#problem](x.md)\n\n'
+          '[feature:login][r] [login][r] [feature:login] [feature:login][] '
+          '![feature:login](a.png) [feature:login#problem](x.md)\n\n'
           '[r]: ../f01_login/FEATURE.md\n'
-          '[login/email_login]: ../f01_login/FEATURE.md\n',
+          '[feature:login]: ../f01_login/FEATURE.md\n',
         ),
-        '[signin/email_login][r] [login/email_login] [login/email_login][] '
-        '![login/email_login](a.png) [feature:login#problem](x.md)\n\n'
+        '[feature:signin][r] [signin][r] [feature:login] [feature:login][] '
+        '![feature:login](a.png) [feature:login#problem](x.md)\n\n'
         '[r]: ../f01_signin/FEATURE.md\n'
-        '[login/email_login]: ../f01_signin/FEATURE.md\n',
+        '[feature:login]: ../f01_signin/FEATURE.md\n',
       );
     });
 
@@ -169,10 +182,37 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a text equal to an old Name takes the new Name even when its link target is no moved path', () {
+    test('f02/us06/fr02/e19: a typed text takes the new Name on any link', () {
       expect(
-        rewrite('[login/email_login](https://x.dev/a.md)\n', moves: const []),
-        '[signin/email_login](https://x.dev/a.md)\n',
+        rewrite('[feature:login](notes.md)\n'),
+        '[feature:signin](notes.md)\n',
+      );
+      expect(
+        rewrite('[user_story:login/email_login](https://x.dev/a.md)\n'),
+        '[user_story:signin/email_login](https://x.dev/a.md)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e19: a bare text keeps its text on a link that reaches no renamed doc', () {
+      expect(rewrite('[login](https://example.com/login)\n'), isNull);
+      expect(rewrite('[login/email_login](notes.md)\n'), isNull);
+    });
+
+    test('f02/us06/fr02/e19: a bare text keeps its text on a link that reaches another renamed doc', () {
+      expect(
+        rewrite('[login/email_login](../f01_login/FEATURE.md#problem)\n'),
+        '[login/email_login](../f01_signin/FEATURE.md#problem)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e19: a bare text takes the new Name on a link that reaches the doc it names, a fragment or a reference definition between', () {
+      expect(
+        rewrite(
+          '[login](../f01_login/FEATURE.md#problem) [login][r]\n\n'
+          '[r]: ../f01_login/FEATURE.md\n',
+        ),
+        '[signin](../f01_signin/FEATURE.md#problem) [signin][r]\n\n'
+        '[r]: ../f01_signin/FEATURE.md\n',
       );
     });
 
