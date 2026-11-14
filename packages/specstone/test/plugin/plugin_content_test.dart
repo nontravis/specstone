@@ -3305,11 +3305,42 @@ void _planTests() {
   });
 
   test('$_writePlan statement: the Ground and Workflow sections of '
-      'plan-engineer name only the context and check commands', () {
+      'plan-engineer name only the context and check commands it runs and '
+      'the set command a tests-line step gives the implementer', () {
     final agent = _pluginText(_planAgent);
     final sections =
         '${_sectionOf(agent, 'Ground')}\n${_sectionOf(agent, 'Workflow')}';
-    expect(cliCommands(sections).toSet(), {'context', 'check'});
+    expect(cliCommands(sections).toSet(), {'context', 'check', 'set'});
+    expect(cliCommands(_sectionOf(agent, 'Ground')).toSet(), {
+      'context',
+    }, reason: 'the Ground section names no write command');
+  });
+
+  test('plan-engineer has each task that adds or moves a '
+      "test for an FR write a step that sets that FR's tests line", () {
+    expect(
+      _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
+      contains(
+        '- **Tests line**: a task that adds or moves a test for an FR writes '
+        "out a step that sets that FR's `tests` line in its target's record: "
+        '`specstone set implementation:<feature> --field tests`, with '
+        '`--target <code target>` when one is given. The sync writes no new '
+        '`tests` line.',
+      ),
+    );
+  });
+
+  test('the last task of a plan runs specstone:sync-sdd with '
+      'no path list and carries no read line', () {
+    final workflow = _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow'));
+    expect(
+      workflow,
+      contains(
+        "The plan's last task runs `specstone:sync-sdd` with no path list; it "
+        'builds no doc, so it carries no read line.',
+      ),
+    );
+    expect(workflow, isNot(contains('paths the plan changed')));
   });
 
   test('$_writePlan, domain:agent_plugin INV-10: plan-engineer lists no tools '
