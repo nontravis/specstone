@@ -1041,6 +1041,42 @@ sections:
       expect(plan.inputs.lines, contains('lib/a.dart '));
     });
 
+    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a doc a '
+        'move_file step moves still narrows the code files by its code '
+        'entries', () async {
+      const movedType = '''
+id: runbook
+description: A runbook.
+path: ops/runbooks/{slug}/RUNBOOK.md
+fields:
+  - id: code
+    type: string
+    list: true
+sections:
+  - {id: steps, header: Steps, required: true}
+''';
+      const mention = '// See prds/runbooks/deploy/RUNBOOK.md\n';
+      final fixture = await _fixture(
+        packYaml: packYaml,
+        runbookType: movedType,
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md':
+              '---\ncode:\n  - lib/\n---\n# Deploy\n\n## Steps\n\nx\n',
+        },
+        overrides: const {'lib/a.dart': mention, 'src/b.dart': mention},
+      );
+
+      final plan = _plan(fixture);
+
+      expect(plan.lists.mentions, [
+        (
+          path: 'lib/a.dart',
+          line: 1,
+          mention: 'prds/runbooks/deploy/RUNBOOK.md',
+        ),
+      ]);
+    });
+
     test('setup_migration/upgrade_pack_pins/chain_migration_steps: a mention '
         'of a doc no move touches prints no count line', () async {
       final fixture = await fixtureWith({

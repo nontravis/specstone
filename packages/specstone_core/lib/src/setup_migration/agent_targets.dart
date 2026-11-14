@@ -7,6 +7,8 @@ import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
+import 'package:specstone_core/src/document_writing/moved_paths.dart'
+    show PathMove;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show mentionScanFiles;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -130,13 +132,15 @@ List<Directory> codeFoldersOf(
 /// from its own root, or every file under its root when its docs list none
 /// (`mentionScanFiles`); a file under the root of another target nested in its
 /// own belongs to that target. A shared doc's entries count for no target when
-/// [targets] holds two or more.
+/// [targets] holds two or more. A doc [moves] moves is read where the move
+/// puts it.
 List<({Directory root, String path})> codeFilesOf(
   Directory projectRoot,
   MergedSet set, {
   required List<CodeTarget> targets,
+  List<PathMove> moves = const [],
 }) {
-  final entriesOf = _entriesByTarget(projectRoot, set, targets);
+  final entriesOf = _entriesByTarget(projectRoot, set, targets, moves);
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   return [
     for (final target in targets)
@@ -155,13 +159,15 @@ List<({Directory root, String path})> codeFilesOf(
 Map<CodeTarget, Set<String>> _entriesByTarget(
   Directory projectRoot,
   MergedSet set,
-  List<CodeTarget> targets,
-) {
+  List<CodeTarget> targets, [
+  List<PathMove> moves = const [],
+]) {
   final entriesOf = <CodeTarget, Set<String>>{};
   for (final (:target, :entry) in _codeEntriesOf(
     projectRoot,
     set,
     targetNames: targetNamesOf(targets),
+    moves: moves,
   )) {
     final owner = _ownerOf(targets, target);
     if (owner != null) entriesOf.putIfAbsent(owner, () => {}).add(entry);
@@ -184,11 +190,12 @@ CodeTarget? _ownerOf(List<CodeTarget> targets, String? name) {
 ///
 /// A per-target doc still at its one-target path is read where the tree move
 /// puts it ([treeMovesOf]), so the run that moves it already counts its
-/// entries for the first target.
+/// entries for the first target; a doc [moves] moves is read at its new path.
 Iterable<({String? target, String entry})> _codeEntriesOf(
   Directory projectRoot,
   MergedSet set, {
   required List<String> targetNames,
+  List<PathMove> moves = const [],
 }) sync* {
   final docsRoot = Directory.fromUri(projectRoot.uri.resolve(_docsFolder));
   if (!docsRoot.existsSync()) return;
@@ -203,6 +210,7 @@ Iterable<({String? target, String entry})> _codeEntriesOf(
   final landing = {
     for (final move in treeMovesOf(docPaths, set, targetNames: targetNames))
       move.from: move.to,
+    for (final move in moves) move.from: move.to,
   };
   for (final docPath in docPaths) {
     final match = matcher.match(landing[docPath] ?? docPath);

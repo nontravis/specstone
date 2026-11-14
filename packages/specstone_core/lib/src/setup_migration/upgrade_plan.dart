@@ -482,6 +482,7 @@ List<StaleMention> _staleMentionsOf(
       set: set,
       targets: config.targets,
       agentFileRoots: config.agentFileRoots,
+      docMoves: moves,
       docs: [
         for (final docPath in docPaths)
           IndexedDoc(
