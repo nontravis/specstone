@@ -34,27 +34,30 @@ void main() {
     );
   });
 
-  test('f04/us01/fr05/e02: a doc-level word and a section word in one section are both reported', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [simply]\n',
-          ...fr(
-            checkPasswordStatement,
-            'The system shall simply refuse a wrong password fast.',
-          ),
-        },
-      ),
-    );
-    expect(
-      report.findings
-          .where((f) => f.kind == FindingKind.bannedWord)
-          .map((f) => f.toJson()['word']),
-      ['fast', 'simply'],
-    );
-  });
+  test(
+    'a doc-level word and a section word in one section are both reported',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [simply]\n',
+            ...fr(
+              checkPasswordStatement,
+              'The system shall simply refuse a wrong password fast.',
+            ),
+          },
+        ),
+      );
+      expect(
+        report.findings
+            .where((f) => f.kind == FindingKind.bannedWord)
+            .map((f) => f.toJson()['word']),
+        ['fast', 'simply'],
+      );
+    },
+  );
 
-  test('f04/us01/fr05/e03: a gnfr section bans the word on its Statement lines only', () async {
+  test('a gnfr section bans the word on its Statement lines only', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: edit(gnfrDoc, [
@@ -72,37 +75,40 @@ void main() {
     expect(spots(report, FindingKind.bannedWord), ['$gnfrDoc:11: banned_word']);
   });
 
-  test('f04/us01/fr05/e04: allowed_words free a word everywhere, or in their section only', () async {
-    final everywhere = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml': 'lint:\n  allowed_words: [safe]\n',
-          ...fr(
-            checkPasswordStatement,
-            'The system shall keep the password safe.',
-          ),
-        },
-      ),
-    );
-    expect(spots(everywhere, FindingKind.bannedWord), isEmpty);
-    final oneSection = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [safe]\nsections:\n  - id: statement\n    lint:\n      allowed_words: [safe]\n',
-          ...edit(loginFr, [
-            (
+  test(
+    'allowed_words free a word everywhere, or in their section only',
+    () async {
+      final everywhere = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/fr.yaml': 'lint:\n  allowed_words: [safe]\n',
+            ...fr(
               checkPasswordStatement,
               'The system shall keep the password safe.',
             ),
-            ('A wrong password must not sign in.', 'Safe sign-in.'),
-          ]),
-        },
-      ),
-    );
-    expect(spots(oneSection, FindingKind.bannedWord), [
-      '$loginFr:22: banned_word',
-    ]);
-  });
+          },
+        ),
+      );
+      expect(spots(everywhere, FindingKind.bannedWord), isEmpty);
+      final oneSection = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [safe]\nsections:\n  - id: statement\n    lint:\n      allowed_words: [safe]\n',
+            ...edit(loginFr, [
+              (
+                checkPasswordStatement,
+                'The system shall keep the password safe.',
+              ),
+              ('A wrong password must not sign in.', 'Safe sign-in.'),
+            ]),
+          },
+        ),
+      );
+      expect(spots(oneSection, FindingKind.bannedWord), [
+        '$loginFr:22: banned_word',
+      ]);
+    },
+  );
 
   test('f04/us01/fr05/e05, f04/us01/fr05/e07: letter case is ignored, other words are not matched, a phrase spans '
       'spaces', () async {
@@ -114,7 +120,7 @@ void main() {
     expect(bannedWordPattern('ad hoc').hasMatch('adhoc'), isFalse);
   });
 
-  test('f04/us01/fr05/e06: a software-tech spec doc type bans no word at either level', () async {
+  test('a software-tech spec doc type bans no word at either level', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: doc(
@@ -127,30 +133,33 @@ void main() {
     expect(spots(report, FindingKind.bannedWord), isEmpty);
   });
 
-  test('f04/us01/fr05: a banned-word finding names the template section id, not the header slug', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/user_story.yaml':
-              'lint:\n  banned_words: [sketch]\n',
-          ...edit(loginStory, [
-            ('## Acceptance Criteria\n', '## Acceptance criteria\n'),
-            (
-              'an account\n- **When** the Agent signs in',
-              'a sketch\n- **When** the Agent signs in',
-            ),
-          ]),
-        },
-      ),
-    );
-    final finding = report.findings.singleWhere(
-      (f) => f.kind == FindingKind.bannedWord,
-    );
-    expect(finding.toJson(), containsPair('section', 'acceptance_criteria'));
-    expect(finding.message, 'sketch is a banned word in acceptance_criteria');
-  });
+  test(
+    'a banned-word finding names the template section id, not the header slug',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/user_story.yaml':
+                'lint:\n  banned_words: [sketch]\n',
+            ...edit(loginStory, [
+              ('## Acceptance Criteria\n', '## Acceptance criteria\n'),
+              (
+                'an account\n- **When** the Agent signs in',
+                'a sketch\n- **When** the Agent signs in',
+              ),
+            ]),
+          },
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.bannedWord,
+      );
+      expect(finding.toJson(), containsPair('section', 'acceptance_criteria'));
+      expect(finding.message, 'sketch is a banned word in acceptance_criteria');
+    },
+  );
 
-  test('f04/us01/fr05/e02: a phrase and its last word are both reported on one line', () async {
+  test('a phrase and its last word are both reported on one line', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -180,40 +189,37 @@ void main() {
         .toList();
   }
 
-  test('f04/us01/fr05/e08: a word inside a single-backtick code span is not reported', () async {
+  test('a word inside a single-backtick code span is not reported', () async {
     expect(await bannedIn('The system shall refuse a `fast` login.'), isEmpty);
   });
 
-  test('f04/us01/fr05/e08: a word inside a double-backtick code span is not reported', () async {
+  test('a word inside a double-backtick code span is not reported', () async {
     expect(
       await bannedIn('The system shall refuse a ``fast`x`` login.'),
       isEmpty,
     );
   });
 
-  test('f04/us01/fr05/e08: a bare word on the line of a code span is still reported', () async {
+  test('a bare word on the line of a code span is still reported', () async {
     final found = await bannedIn(
       'The system shall refuse `fast` and fast logins.',
     );
     expect(found.map((f) => f.toJson()['word']), ['fast']);
   });
 
-  test('f04/us01/fr05/e08: an unclosed backtick run leaves the rest of the line prose', () async {
+  test('an unclosed backtick run leaves the rest of the line prose', () async {
     final found = await bannedIn('The system shall refuse ``fast` logins.');
     expect(found.map((f) => f.toJson()['word']), ['fast']);
   });
 
-  test(
-    'f04/us01/fr05/e08: a word inside a fenced code block is not reported',
-    () async {
-      expect(
-        await bannedIn(
-          'The system shall refuse a wrong password.\n```\nfast\n```',
-        ),
-        isEmpty,
-      );
-    },
-  );
+  test('a word inside a fenced code block is not reported', () async {
+    expect(
+      await bannedIn(
+        'The system shall refuse a wrong password.\n```\nfast\n```',
+      ),
+      isEmpty,
+    );
+  });
 
   test('cc-s03/inv9: a word builds its pattern once per run', () async {
     final session = openSession(await writeCheckProject());

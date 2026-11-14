@@ -30,7 +30,7 @@ void main() {
     );
   });
 
-  test('f02/us06/s1: rename prints moved and rewrote lines', () async {
+  test('rename prints moved and rewrote lines', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
@@ -55,7 +55,7 @@ void main() {
       ),
     );
   });
-  test('f02/us06/s5: a taken slug --json is doc_exists with file', () async {
+  test('a taken slug --json is doc_exists with file', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
@@ -72,7 +72,7 @@ void main() {
     expect(error['code'], 'doc_exists');
     expect(error['file'], story2);
   });
-  test('f02/us06/fr01/e10: rename takes no --base', () async {
+  test('rename takes no --base', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
       await runner.run([
@@ -86,43 +86,34 @@ void main() {
       64,
     );
   });
-  test('f02/us06/fr01/e10: no target is argument_missing', () async {
+  test('no target is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['rename', '--to', 'x']), 64);
     expect(err.toString(), startsWith('rename needs a target'));
   });
-  test(
-    'f02/us06/fr01/e10: two positionals are a usage error, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(await runner.run(['rename', 'a', 'b']), 64);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        contains(
-          'Expected one target, got 2.\n\n'
-          'Usage: specstone rename <doc address> --to <slug> '
-          '[--dry-run] [--target <name>] [--json]\n',
-        ),
-      );
-    },
-  );
-  test(
-    'f02/us06/fr01/e07: rename with no --to is argument_missing, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-      expect(
-        await runner.run(['rename', 'user_story:login/reset_password']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account\n',
-      );
-    },
-  );
-  test('f02/us06/fr03: rename --json lists the rewritten journey', () async {
+  test('two positionals are a usage error, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['rename', 'a', 'b']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      contains(
+        'Expected one target, got 2.\n\n'
+        'Usage: specstone rename <doc address> --to <slug> '
+        '[--dry-run] [--target <name>] [--json]\n',
+      ),
+    );
+  });
+  test('rename with no --to is argument_missing, exit 64', () async {
+    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+    expect(await runner.run(['rename', 'user_story:login/reset_password']), 64);
+    expect(out.toString(), isEmpty);
+    expect(
+      err.toString(),
+      'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account\n',
+    );
+  });
+  test('rename --json lists the rewritten journey', () async {
     const journey = 'prds/journeys/sign_in/JOURNEY.md';
     final root = await writeCheckProject(
       extra: {
@@ -147,7 +138,7 @@ void main() {
     expect(rewritten, contains(journey));
   });
 
-  test('document_writing/rename_doc/rewrite_name_references E07: rename writes a rewritten typed doc laid out', () async {
+  test('E07: rename writes a rewritten typed doc laid out', () async {
     final root = await writeWriteProject(
       extra: {
         'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\n\n\n\nThe system shall lock the account. See [reset](../us03_reset_password/USER_STORY.md#use-case).\n\n\n',
@@ -169,27 +160,30 @@ void main() {
     expect(text, contains('draft: true\n'));
   });
 
-  test('document_writing/rename_doc/rewrite_link_labels E15: rename rewrites an fr traced_from entry and confirmed label', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$fr11': '---\ntraced_from: [S1, login/reset_password#S3]\nverify_method: test\nconfirmed:\n  - login/reset_password#S3 0123456789ab\n---\n\n# Validate credentials\n\n## Statement\nThe system shall validate.\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'rename',
-        'user_story:login/reset_password',
-        '--to',
-        'recover_account',
-      ]),
-      0,
-    );
-    final text = readDoc(root, fr11);
-    expect(text, contains('traced_from: [S1, login/recover_account#S3]\n'));
-    expect(text, contains('  - login/recover_account#S3 0123456789ab\n'));
-    expect(out.toString(), contains('rewrote $fr11\n'));
-  });
+  test(
+    'E15: rename rewrites an fr traced_from entry and confirmed label',
+    () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$fr11': '---\ntraced_from: [S1, login/reset_password#S3]\nverify_method: test\nconfirmed:\n  - login/reset_password#S3 0123456789ab\n---\n\n# Validate credentials\n\n## Statement\nThe system shall validate.\n',
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run([
+          'rename',
+          'user_story:login/reset_password',
+          '--to',
+          'recover_account',
+        ]),
+        0,
+      );
+      final text = readDoc(root, fr11);
+      expect(text, contains('traced_from: [S1, login/recover_account#S3]\n'));
+      expect(text, contains('  - login/recover_account#S3 0123456789ab\n'));
+      expect(out.toString(), contains('rewrote $fr11\n'));
+    },
+  );
 
   test('rename keeps a code file as it is and prints its mention after the '
       'rewrote lines', () async {
@@ -245,47 +239,53 @@ void main() {
       without: {'docs/specs/f01_login/ARCHITECTURE.md'},
     );
 
-    test('document_writing/rename_doc/rewrite_name_references E11: rename prints each record it rewrites, one per target', () async {
-      final root = await twins();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'rename',
-          'user_story:login/reset_password',
-          '--to',
-          'recover',
-        ]),
-        0,
-        reason: err.toString(),
-      );
-      expect(out.toString(), contains('rewrote $flutterRecord\n'));
-      expect(out.toString(), contains('rewrote $jasprRecord\n'));
-      expect(readDoc(root, flutterRecord), contains("'recover:implemented'"));
-      expect(readDoc(root, jasprRecord), contains("'recover:planned'"));
-    });
+    test(
+      'E11: rename prints each record it rewrites, one per target',
+      () async {
+        final root = await twins();
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'rename',
+            'user_story:login/reset_password',
+            '--to',
+            'recover',
+          ]),
+          0,
+          reason: err.toString(),
+        );
+        expect(out.toString(), contains('rewrote $flutterRecord\n'));
+        expect(out.toString(), contains('rewrote $jasprRecord\n'));
+        expect(readDoc(root, flutterRecord), contains("'recover:implemented'"));
+        expect(readDoc(root, jasprRecord), contains("'recover:planned'"));
+      },
+    );
 
-    test('document_writing/rename_doc/rename_doc_segment E06: rename --target reads a per-target doc and names its feature', () async {
-      final (:runner, :out, :err) = writeRunner(await twins());
-      expect(
-        await runner.run([
-          'rename',
-          'architecture:login',
-          '--to',
-          'signin',
-          '--target',
-          'flutter',
-        ]),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'architecture:login takes its name from its feature; '
-        'rename feature:login instead\n',
-      );
-    });
+    test(
+      'E06: rename --target reads a per-target doc and names its feature',
+      () async {
+        final (:runner, :out, :err) = writeRunner(await twins());
+        expect(
+          await runner.run([
+            'rename',
+            'architecture:login',
+            '--to',
+            'signin',
+            '--target',
+            'flutter',
+          ]),
+          64,
+        );
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          'architecture:login takes its name from its feature; '
+          'rename feature:login instead\n',
+        );
+      },
+    );
 
-    test('document_writing/rename_doc/rename_doc_segment E12: rename --target a project lacks exits 64', () async {
+    test('E12: rename --target a project lacks exits 64', () async {
       final (:runner, :out, :err) = writeRunner(await twins());
       expect(
         await runner.run([

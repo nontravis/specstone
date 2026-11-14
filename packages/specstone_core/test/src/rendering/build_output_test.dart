@@ -27,7 +27,7 @@ Target _target(DocsProject project, Directory root, String? path) => project
 
 void main() {
   group('outputName', () {
-    test('f05/us02/fr04/e01: a folder target keeps its path under docs and '
+    test('a folder target keeps its path under docs and '
         'gains the format extension', () async {
       final (project, root) = await _open({
         '$_featureDir/FEATURE.md': _feature,
@@ -39,7 +39,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr04/e02: a file target keeps its .md', () async {
+    test('a file target keeps its .md', () async {
       final (project, root) = await _open({
         '$_featureDir/FEATURE.md': _feature,
       });
@@ -53,7 +53,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr04/e03: the docs root is named docs', () async {
+    test('the docs root is named docs', () async {
       final (project, root) = await _open({
         '$_featureDir/FEATURE.md': _feature,
       });
@@ -83,7 +83,7 @@ void main() {
   });
 
   group('defaultOutputFile', () {
-    test('f05/us02/fr04: mirrors the target under .specstone/build', () async {
+    test('mirrors the target under .specstone/build', () async {
       final (project, root) = await _open({
         '$_featureDir/FEATURE.md': _feature,
       });
@@ -130,7 +130,7 @@ void main() {
   });
 
   group('BuildResult', () {
-    test('f05/us02/fr04/e07: toJson holds output and warnings', () {
+    test('toJson holds output and warnings', () {
       const result = BuildResult(output: 'a.html', warnings: ['w']);
 
       expect(result.toJson(), {
@@ -157,7 +157,7 @@ void main() {
       expect(names, ['page.html']);
     });
 
-    test('f05/us02/fr04/e06: a parent that is a file is output_not_writable '
+    test('a parent that is a file is output_not_writable '
         'with the display path', () async {
       final root = await Directory.systemTemp.createTemp('specstone_out_');
       addTearDown(() => root.delete(recursive: true));

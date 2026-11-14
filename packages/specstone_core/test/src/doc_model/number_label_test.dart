@@ -90,7 +90,7 @@ void main() {
   });
 
   group('numberLabelsIn, the boundary of '
-      'consistency_check/find_broken_pointers/report_number_labels E09', () {
+      'E09', () {
     test('a letter before the label is no boundary', () {
       expect(writtenIn('UTF-8 and UTF-16 and x-${fr(12)}'), isEmpty);
     });

@@ -139,7 +139,7 @@ void main() {
     }
   });
 
-  test('install_update/version_match/release_new_version/package_archive '
+  test('Package each archive with its notices '
       'E04: Stage the bundle copies the target shim into bin', () {
     final stage = _steps(_job(release, 'build'))
         .singleWhere((s) => s['name'] == 'Stage the bundle');
@@ -160,7 +160,7 @@ void main() {
     expect(stnCopy, greaterThan(posixArm), reason: run);
   });
 
-  test('install_update/version_match/release_new_version/package_archive '
+  test('Package each archive with its notices '
       'E04: the packed archive is checked between the pack steps and '
       'SHA256SUMS', () {
     final steps = _steps(_job(release, 'build'));
@@ -329,7 +329,7 @@ void main() {
 
     for (final tag in ['v1.2.0-beta.1', 'v1.2.0-rc.1', 'v1.2.0-alpha-1']) {
       test(
-        'install_update/version_match/release_new_version/publish_on_tag '
+        'Test, build, and publish on the tag '
         'E06: $tag publishes a GitHub pre-release with generated notes',
         () async {
           final log = await publishedWith(tag);
@@ -340,7 +340,7 @@ void main() {
       );
     }
 
-    test('install_update/version_match/release_new_version/publish_on_tag '
+    test('Test, build, and publish on the tag '
         'E07: a release tag publishes a normal release', () async {
       final log = await publishedWith('v1.2.0');
 

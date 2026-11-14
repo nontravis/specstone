@@ -142,83 +142,74 @@ void main() {
     );
   });
 
-  test('f04/us02/fr01/e10: a pointer resolves from the code folder, not the project root', () async {
-    final report = _run(
-      await _project(
-        _record(code: [point, '$_fr:app/lib/b.dart']),
-        extra: {
-          '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
-          'code/$login': checkProjectFiles()[login]!,
-        },
-        without: {login},
-      ),
-    );
-
-    expect(_spots(report), [
-      '$_recordPath:${_codeLine(1, 1)}: implements_path_unresolved',
-    ]);
-    expect(
-      _found(report).single.toJson(),
-      containsPair('entry', 'app/lib/b.dart'),
-    );
-  });
-
   test(
-    'f04/us02/fr01/e10: a code folder outside the project root holds the code',
+    'a pointer resolves from the code folder, not the project root',
     () async {
-      final files = withApprovalHashes(checkProjectFiles());
-      final workspace = await writeTree({
-        for (final MapEntry(:key, :value) in files.entries)
-          if (!key.startsWith('app/') && key != '.specstone/config.yaml')
-            'project/$key': value,
-        ..._withRecord(_record(code: [point]))
-            .map((key, value) => MapEntry('project/$key', value)),
-        'project/.specstone/config.yaml':
-            '${shippedPinsConfig()}code_root: ../outside\n',
-        'outside/$login': files[login]!,
-      });
-
-      final report = _run(Directory.fromUri(workspace.uri.resolve('project/')));
-
-      expect(_found(report), isEmpty);
-    },
-  );
-
-  test(
-    'f04/us02/fr01/e10: each target resolves its record in its own code root',
-    () async {
-      String code(String name) =>
-          'class SignInPage {}\nclass ${name}SignIn {}\n'
-          'bool checkPassword(String p) => p.isNotEmpty;\n';
-      final project = await writeTwinProject(
-        extra: {
-          '.specstone/templates/implementation.yaml': _recordLayer,
-          'flutter_ws/app/lib/flutter_only.dart': code('Flutter'),
-          'docs/$_flutterRecord': _record(
-            code: [
-              '$_fr:$login:FlutterSignIn',
-              '$_fr:app/lib/flutter_only.dart',
-            ],
-          ),
-          'docs/$_jasprRecord': _record(
-            code: [
-              '$_fr:$login:FlutterSignIn',
-              '$_fr:app/lib/flutter_only.dart',
-            ],
-          ),
-        },
+      final report = _run(
+        await _project(
+          _record(code: [point, '$_fr:app/lib/b.dart']),
+          extra: {
+            '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
+            'code/$login': checkProjectFiles()[login]!,
+          },
+          without: {login},
+        ),
       );
 
-      final report = _run(project);
-
       expect(_spots(report), [
-        '$_jasprRecord:${_codeLine(1, 0)}: implements_symbol_unresolved',
-        '$_jasprRecord:${_codeLine(1, 1)}: implements_path_unresolved',
+        '$_recordPath:${_codeLine(1, 1)}: implements_path_unresolved',
       ]);
+      expect(
+        _found(report).single.toJson(),
+        containsPair('entry', 'app/lib/b.dart'),
+      );
     },
   );
 
-  test('f04/us02/fr01/e10: a --target run resolves the records of that target only', () async {
+  test('a code folder outside the project root holds the code', () async {
+    final files = withApprovalHashes(checkProjectFiles());
+    final workspace = await writeTree({
+      for (final MapEntry(:key, :value) in files.entries)
+        if (!key.startsWith('app/') && key != '.specstone/config.yaml')
+          'project/$key': value,
+      ..._withRecord(_record(code: [point]))
+          .map((key, value) => MapEntry('project/$key', value)),
+      'project/.specstone/config.yaml':
+          '${shippedPinsConfig()}code_root: ../outside\n',
+      'outside/$login': files[login]!,
+    });
+
+    final report = _run(Directory.fromUri(workspace.uri.resolve('project/')));
+
+    expect(_found(report), isEmpty);
+  });
+
+  test('each target resolves its record in its own code root', () async {
+    String code(String name) =>
+        'class SignInPage {}\nclass ${name}SignIn {}\n'
+        'bool checkPassword(String p) => p.isNotEmpty;\n';
+    final project = await writeTwinProject(
+      extra: {
+        '.specstone/templates/implementation.yaml': _recordLayer,
+        'flutter_ws/app/lib/flutter_only.dart': code('Flutter'),
+        'docs/$_flutterRecord': _record(
+          code: ['$_fr:$login:FlutterSignIn', '$_fr:app/lib/flutter_only.dart'],
+        ),
+        'docs/$_jasprRecord': _record(
+          code: ['$_fr:$login:FlutterSignIn', '$_fr:app/lib/flutter_only.dart'],
+        ),
+      },
+    );
+
+    final report = _run(project);
+
+    expect(_spots(report), [
+      '$_jasprRecord:${_codeLine(1, 0)}: implements_symbol_unresolved',
+      '$_jasprRecord:${_codeLine(1, 1)}: implements_path_unresolved',
+    ]);
+  });
+
+  test('a --target run resolves the records of that target only', () async {
     final project = await writeTwinProject(
       extra: {
         '.specstone/templates/implementation.yaml': _recordLayer,
@@ -233,23 +224,27 @@ void main() {
     expect(_spots(_run(project)), hasLength(2));
   });
 
-  test('f04/us02/fr01/e11: a code root that does not exist leaves every path unresolved', () async {
-    final report = _run(
-      await _project(
-        _record(code: [point]),
-        extra: {
-          '.specstone/config.yaml':
-              '${shippedPinsConfig()}code_root: nowhere\n',
-        },
-      ),
-    );
+  test(
+    'a code root that does not exist leaves every path unresolved',
+    () async {
+      final report = _run(
+        await _project(
+          _record(code: [point]),
+          extra: {
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}code_root: nowhere\n',
+          },
+        ),
+      );
 
-    expect(_spots(report), [
-      '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
-    ]);
-  });
+      expect(_spots(report), [
+        '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
+      ]);
+    },
+  );
 
-  test('f04/us02/fr01/e11: a target with no code folder leaves its paths unresolved beside a target that has one', () async {
+  test('a target with no code folder leaves its paths unresolved beside a '
+      'target that has one', () async {
     final project = await writeTwinProject(
       without: {'jaspr_ws/app/lib/login.dart'},
       extra: {
@@ -264,14 +259,11 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us02/fr01/e03: an empty code path is a path finding that says so',
-    () async {
-      final report = _run(await _project(_record(code: ['$_fr:'])));
+  test('an empty code path is a path finding that says so', () async {
+    final report = _run(await _project(_record(code: ['$_fr:'])));
 
-      expect(_found(report).single.message, 'the code path is empty');
-    },
-  );
+    expect(_found(report).single.message, 'the code path is empty');
+  });
 
   test('f04/us02/fr01/e03, f04/us02/fr01/e10: a pointer with a backslash or a name Windows trims '
       'names no file on any OS, though a POSIX disk holds one', () async {
@@ -312,28 +304,25 @@ void main() {
     },
   );
 
-  test(
-    'f04/us02/fr01/e05: a dotted Symbol resolves only when each segment does',
-    () async {
-      final files = {
-        'app/lib/auth.dart': 'class AuthService {\n  void signIn() {}\n}\n',
-      };
-      final both = _run(
-        await _project(
-          _record(code: ['$_fr:app/lib/auth.dart:AuthService.signIn']),
-          extra: files,
-        ),
-      );
-      expect(_spots(both), isEmpty);
-      final one = _run(
-        await _project(
-          _record(code: ['$_fr:app/lib/auth.dart:AuthService.signOut']),
-          extra: files,
-        ),
-      );
-      expect(_found(one).single.toJson()['symbol'], 'signOut');
-    },
-  );
+  test('a dotted Symbol resolves only when each segment does', () async {
+    final files = {
+      'app/lib/auth.dart': 'class AuthService {\n  void signIn() {}\n}\n',
+    };
+    final both = _run(
+      await _project(
+        _record(code: ['$_fr:app/lib/auth.dart:AuthService.signIn']),
+        extra: files,
+      ),
+    );
+    expect(_spots(both), isEmpty);
+    final one = _run(
+      await _project(
+        _record(code: ['$_fr:app/lib/auth.dart:AuthService.signOut']),
+        extra: files,
+      ),
+    );
+    expect(_found(one).single.toJson()['symbol'], 'signOut');
+  });
 
   test('f04/us02/fr01/e06, f04/us02/fr01/e07: a whole word only, found in any text, comments included', () async {
     final part = _run(
@@ -358,7 +347,8 @@ void main() {
     expect(_spots(comment), isEmpty);
   });
 
-  test('f04/us02/fr01/e08: an untyped doc, and a story or FR that still writes implements, get no pointer rule', () async {
+  test('an untyped doc, and a story or FR that still writes implements, get no '
+      'pointer rule', () async {
     final report = _run(
       await _project(
         _record(code: [point]),
@@ -382,7 +372,7 @@ void main() {
   });
 
   test(
-    'f04/us02/fr01/e09: an unreadable code file gives a warning and no finding',
+    'an unreadable code file gives a warning and no finding',
     skip: unreadablePathSkipReason(),
     () async {
       final project = await _project(
@@ -423,39 +413,46 @@ void main() {
     ]);
   });
 
-  test('f04/us02/fr01/e13: a planned entry names a symbol not added yet, and its file is not read', () async {
-    final session = openSession(
-      await _project(
-        _record(
-          statuses: ['$_fr:planned'],
-          code: ['$_fr:$login:resetPassword'],
+  test(
+    'a planned entry names a symbol not added yet, and its file is not read',
+    () async {
+      final session = openSession(
+        await _project(
+          _record(
+            statuses: ['$_fr:planned'],
+            code: ['$_fr:$login:resetPassword'],
+          ),
         ),
-      ),
-    );
-    addTearDown(session.close);
-    final context = CheckContext(session);
+      );
+      addTearDown(session.close);
+      final context = CheckContext(session);
 
-    expect(checkImplements(context, session.index.at(_recordPath)!), isEmpty);
-    expect(context.codeFilesRead, 0);
-  });
+      expect(checkImplements(context, session.index.at(_recordPath)!), isEmpty);
+      expect(context.codeFilesRead, 0);
+    },
+  );
 
-  test('f04/us02/fr01/e14: an implemented and a deprecated entry both resolve in every run', () async {
-    final report = _run(
-      await _project(
-        _record(
-          statuses: ['$_story:implemented', '$_fr:deprecated'],
-          code: ['$_story:app/lib/gone.dart', '$_fr:app/lib/gone.dart'],
+  test(
+    'an implemented and a deprecated entry both resolve in every run',
+    () async {
+      final report = _run(
+        await _project(
+          _record(
+            statuses: ['$_story:implemented', '$_fr:deprecated'],
+            code: ['$_story:app/lib/gone.dart', '$_fr:app/lib/gone.dart'],
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(_spots(report), [
-      '$_recordPath:${_codeLine(2, 0)}: implements_path_unresolved',
-      '$_recordPath:${_codeLine(2, 1)}: implements_path_unresolved',
-    ]);
-  });
+      expect(_spots(report), [
+        '$_recordPath:${_codeLine(2, 0)}: implements_path_unresolved',
+        '$_recordPath:${_codeLine(2, 1)}: implements_path_unresolved',
+      ]);
+    },
+  );
 
-  test('f04/us02/fr01/e15: an item with no statuses line reads planned, and resolves once a line gives implemented', () async {
+  test('an item with no statuses line reads planned, and resolves once a line '
+      'gives implemented', () async {
     const code = '$_fr:app/lib/toast.dart:showToast';
     final bare = _run(await _project(_record(statuses: [], code: [code])));
     expect(_spots(bare), isEmpty);
@@ -476,25 +473,22 @@ void main() {
     expect(_spots(written), hasLength(1));
   });
 
-  test(
-    'f04/us03/fr05: a line check_record_entries reports is not resolved here',
-    () async {
-      final report = _run(
-        await _project(
-          _record(
-            statuses: ['$_story:skipped:no web', '$_fr:implemented'],
-            code: [
-              '$_story:app/lib/gone.dart',
-              '$_fr:app/lib/gone.dart',
-              ':app/lib/gone.dart',
-              'email_login/nothing:app/lib/gone.dart',
-            ],
-          ),
+  test('a line check_record_entries reports is not resolved here', () async {
+    final report = _run(
+      await _project(
+        _record(
+          statuses: ['$_story:skipped:no web', '$_fr:implemented'],
+          code: [
+            '$_story:app/lib/gone.dart',
+            '$_fr:app/lib/gone.dart',
+            ':app/lib/gone.dart',
+            'email_login/nothing:app/lib/gone.dart',
+          ],
         ),
-      );
+      ),
+    );
 
-      expect(_spots(report), isEmpty);
-      expect(spots(report, FindingKind.skipWithCode), isNotEmpty);
-    },
-  );
+    expect(_spots(report), isEmpty);
+    expect(spots(report, FindingKind.skipWithCode), isNotEmpty);
+  });
 }

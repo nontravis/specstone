@@ -20,7 +20,7 @@ void main() {
     expect(checkOf(await writeCheckProject()).findings, isEmpty);
   });
 
-  test('f04/us04/fr01: a scenario is named by the value of its number, so S02 '
+  test('a scenario is named by the value of its number, so S02 '
       'and Scenario 02 name Scenario 2 alike, in traces and in confirmed '
       'entries', () async {
     final padded = loginScenario2.replaceFirst('Scenario 2', 'Scenario 02');
@@ -53,7 +53,7 @@ void main() {
     );
   });
 
-  test('f04/us04/fr01: traces S2 and S02 are one link, so an edit of Scenario 2 raises one suspect', () async {
+  test('traces S2 and S02 are one link, so an edit of Scenario 2 raises one suspect', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -93,7 +93,7 @@ void main() {
     );
   });
 
-  group('consistency_check/find_suspect_links/report_suspect_links', () {
+  group('Report suspect links', () {
     final block = printedBlockOf(edited);
 
     test(
@@ -202,7 +202,7 @@ void main() {
     });
   });
 
-  group('consistency_check/find_suspect_links/report_unconfirmed_links', () {
+  group('Report unconfirmed links', () {
     test('E01: a link with no entry carries the block text before the '
         'fingerprint and prints them indented', () async {
       final finding = checkOf(
@@ -293,27 +293,30 @@ void main() {
     }
   });
 
-  test('f04/us04/fr01/e04: an nf turns suspect on its NFR Statement line, not on its Rationale', () async {
-    const statement =
-        '- **Statement:** The system shall answer a sign-in within 3 s.';
-    final suspect = checkOf(
-      await writeCheckProject(
-        extra: doc(gnfrDoc, loginNfrStatement, statement),
-      ),
-    );
-    expect(spots(suspect), ['$loginNf:7: suspect']);
-    expect(suspect.findings.single.toJson()['block'], 'NFR-P01 Statement');
-    final rationale = checkOf(
-      await writeCheckProject(
-        extra: doc(
-          gnfrDoc,
-          '- **Rationale:** Users wait.',
-          '- **Rationale:** People wait.',
+  test(
+    'an nf turns suspect on its NFR Statement line, not on its Rationale',
+    () async {
+      const statement =
+          '- **Statement:** The system shall answer a sign-in within 3 s.';
+      final suspect = checkOf(
+        await writeCheckProject(
+          extra: doc(gnfrDoc, loginNfrStatement, statement),
         ),
-      ),
-    );
-    expect(rationale.findings, isEmpty);
-  });
+      );
+      expect(spots(suspect), ['$loginNf:7: suspect']);
+      expect(suspect.findings.single.toJson()['block'], 'NFR-P01 Statement');
+      final rationale = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            gnfrDoc,
+            '- **Rationale:** Users wait.',
+            '- **Rationale:** People wait.',
+          ),
+        ),
+      );
+      expect(rationale.findings, isEmpty);
+    },
+  );
 
   test('f04/us04/s6, f04/us04/fr01/e05: an API spec turns suspect for the one row whose FR Statement changed', () async {
     const lock =
@@ -398,7 +401,7 @@ void main() {
   });
 
   test(
-    'consistency_check/find_suspect_links/report_unconfirmed_links E02: a draft '
+    'E02: a draft '
     'whose entry matches the current fingerprint waits for the Owner',
     () async {
       final finding = checkOf(
@@ -413,35 +416,32 @@ void main() {
     },
   );
 
-  test(
-    'consistency_check/find_suspect_links/report_unconfirmed_links E05: in a '
-    'draft with one entry at the current fingerprint, that link waits for the '
-    'Owner and a link with no entry waits for the Agent',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: edit(loginFr, [
-            (
-              'traced_from:\n  - S2\n',
-              'draft: true\ntraced_from:\n  - S1\n  - S2\n',
-            ),
-          ]),
-        ),
-      );
-      final byLink = {
-        for (final f in report.findings)
-          if (f.kind == FindingKind.unconfirmed) f.keys['link']: f,
-      };
-      expect(byLink['S2']!.waitsFor, WaitsFor.owner);
-      expect(byLink['S1']!.waitsFor, WaitsFor.agent);
-      expect(
-        byLink['S1']!.textLines.first,
-        isNot(contains('waits for the Owner)')),
-      );
-    },
-  );
+  test('E05: in a '
+      'draft with one entry at the current fingerprint, that link waits for the '
+      'Owner and a link with no entry waits for the Agent', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: edit(loginFr, [
+          (
+            'traced_from:\n  - S2\n',
+            'draft: true\ntraced_from:\n  - S1\n  - S2\n',
+          ),
+        ]),
+      ),
+    );
+    final byLink = {
+      for (final f in report.findings)
+        if (f.kind == FindingKind.unconfirmed) f.keys['link']: f,
+    };
+    expect(byLink['S2']!.waitsFor, WaitsFor.owner);
+    expect(byLink['S1']!.waitsFor, WaitsFor.agent);
+    expect(
+      byLink['S1']!.textLines.first,
+      isNot(contains('waits for the Owner)')),
+    );
+  });
 
-  test('consistency_check/find_suspect_links/report_unconfirmed_links E04: a '
+  test('E04: a '
       'draft whose entry records an older fingerprint waits for the Agent, and '
       'so does a link with no entry outside a draft', () async {
     final older = checkOf(
@@ -461,7 +461,7 @@ void main() {
     expect(none.waitsFor, WaitsFor.agent);
   });
 
-  test('consistency_check/find_suspect_links/report_suspect_links: a suspect '
+  test('a suspect '
       'finding waits for the Agent', () async {
     final finding = checkOf(
       await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
@@ -470,7 +470,7 @@ void main() {
     expect(finding.waitsFor, WaitsFor.agent);
   });
 
-  test('f04/us04/fr02/e04: a draft whose entry records an older fingerprint is unconfirmed, never suspect', () async {
+  test('a draft whose entry records an older fingerprint is unconfirmed, never suspect', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
@@ -618,22 +618,19 @@ void main() {
     }
   });
 
-  test(
-    'f04/us04/fr03/e05: an add nf tracks no link, so its entry is stale',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: edit(loginNf, [
-            ('kind: tighten', 'kind: add'),
-            ('overrides: NFR-P01\n', ''),
-          ]),
-        ),
-      );
-      expect(spots(report), ['$loginNf:6: confirmed_entry_stale']);
-    },
-  );
+  test('an add nf tracks no link, so its entry is stale', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: edit(loginNf, [
+          ('kind: tighten', 'kind: add'),
+          ('overrides: NFR-P01\n', ''),
+        ]),
+      ),
+    );
+    expect(spots(report), ['$loginNf:6: confirmed_entry_stale']);
+  });
 
-  test('f04/us01/fr06/e07: an untyped doc gets no field, section, banned-word, trace, or suspect rule', () async {
+  test('an untyped doc gets no field, section, banned-word, trace, or suspect rule', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -646,21 +643,18 @@ void main() {
     expect(spots(report), ['prds/notes.md:1: untyped_doc']);
   });
 
-  test(
-    'f04/us04/fr03/e06: an API entry with no FR trace row is stale',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: doc(
-            loginApi,
-            '---\n\n# Login API',
-            '  - email_login/send_otp 5d1e0c4b7a92\n---\n\n# Login API',
-          ),
+  test('an API entry with no FR trace row is stale', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginApi,
+          '---\n\n# Login API',
+          '  - email_login/send_otp 5d1e0c4b7a92\n---\n\n# Login API',
         ),
-      );
-      expect(spots(report), ['$loginApi:5: confirmed_entry_stale']);
-    },
-  );
+      ),
+    );
+    expect(spots(report), ['$loginApi:5: confirmed_entry_stale']);
+  });
 
   test('f04/us04, cc-s03/inv2: a project layer that disables confirmed on fr runs no link state rule on an fr', () async {
     final report = checkOf(
@@ -711,14 +705,17 @@ void main() {
     expect(spots(report), ['$loginFr:3: scenario_trace_unresolved']);
   });
 
-  test('f04/us04/fr03/e10: an api entry naming a nested FR by three segments is well-formed', () async {
-    final report = checkOf(await writeNestedProject(), docPath: shopApi);
+  test(
+    'an api entry naming a nested FR by three segments is well-formed',
+    () async {
+      final report = checkOf(await writeNestedProject(), docPath: shopApi);
 
-    expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
-    expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
-    expect(spots(report, FindingKind.suspect), isEmpty);
-    expect(spots(report, FindingKind.unconfirmed), isEmpty);
-  });
+      expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
+      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+      expect(spots(report, FindingKind.suspect), isEmpty);
+      expect(spots(report, FindingKind.unconfirmed), isEmpty);
+    },
+  );
 
   group('journey step links', () {
     const journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -772,7 +769,7 @@ void main() {
       );
     });
 
-    test('f04/us04/fr01: a matching entry is clean; no entry is unconfirmed; a draft journey is unconfirmed', () async {
+    test('a matching entry is clean; no entry is unconfirmed; a draft journey is unconfirmed', () async {
       final clean = await check(
         journey([stepOne], confirmed: ['$label1 ${fp(loginScenario1)}']),
       );
@@ -799,21 +796,26 @@ void main() {
       );
     });
 
-    test('f04/us04/fr01/e09: a journey has no parent, and its step links still run', () async {
+    test('a journey has no parent, and its step links still run', () async {
       final report = await check(journey([stepOne]));
       expect(spots(report, FindingKind.unconfirmed), hasLength(1));
     });
 
-    test('f04/us04/fr01: two steps naming one scenario track one link and need one entry', () async {
-      final entry = ['$label1 ${fp(loginScenario1)}'];
-      final report = await check(journey([stepOne, stepTwo], confirmed: entry));
-      expect(report.findings, isEmpty);
+    test(
+      'two steps naming one scenario track one link and need one entry',
+      () async {
+        final entry = ['$label1 ${fp(loginScenario1)}'];
+        final report = await check(
+          journey([stepOne, stepTwo], confirmed: entry),
+        );
+        expect(report.findings, isEmpty);
 
-      final bare = await check(journey([stepOne, stepTwo]));
-      expect(spots(bare, FindingKind.unconfirmed), hasLength(1));
-    });
+        final bare = await check(journey([stepOne, stepTwo]));
+        expect(spots(bare, FindingKind.unconfirmed), hasLength(1));
+      },
+    );
 
-    test("f04/us04/fr01: a journey entry names its scenario by story Name and the number's value, so "
+    test("a journey entry names its scenario by story Name and the number's value, so "
         'login/email_login#S01 confirms a step on S1 or S01 and is no stale entry', () async {
       const padded = 'login/email_login#S01';
       for (final step in [
@@ -838,20 +840,23 @@ void main() {
       );
     });
 
-    test('f04/us04/fr03/e07: an entry for a scenario no step names is confirmed_entry_stale', () async {
-      final report = await check(
-        journey(
-          [stepOne],
-          confirmed: [
-            '$label1 ${fp(loginScenario1)}',
-            '$label2 ${fp(loginScenario2)}',
-          ],
-        ),
-      );
-      final finding = report.findings.single;
-      expect(finding.kind, FindingKind.confirmedEntryStale);
-      expect(finding.toJson(), containsPair('link', label2));
-    });
+    test(
+      'an entry for a scenario no step names is confirmed_entry_stale',
+      () async {
+        final report = await check(
+          journey(
+            [stepOne],
+            confirmed: [
+              '$label1 ${fp(loginScenario1)}',
+              '$label2 ${fp(loginScenario2)}',
+            ],
+          ),
+        );
+        final finding = report.findings.single;
+        expect(finding.kind, FindingKind.confirmedEntryStale);
+        expect(finding.toJson(), containsPair('link', label2));
+      },
+    );
 
     test('f04/us04/fr03/e09, f04/us02/fr06/e06: a step whose scenario was deleted keeps its link', () async {
       final report = await check(
@@ -865,7 +870,7 @@ void main() {
       expect(report.findings.single.kind, FindingKind.journeyStepUnresolved);
     });
 
-    test('f04/us04/fr03: login/email_login#S1: 047e817f9707 (map form) is confirmed_entry_malformed', () async {
+    test('login/email_login#S1: 047e817f9707 (map form) is confirmed_entry_malformed', () async {
       final report = await check(
         journey([stepOne], confirmed: ['"login/email_login#S1: 047e817f9707"']),
       );
@@ -913,25 +918,25 @@ void main() {
       docPath: cartAddFr,
     );
 
-    test('f04/us04/fr01: a scenario of a sibling story is tracked against that story', () async {
-      final (:links, :block) = await linksOf(sibling);
-      final link = links.singleWhere((l) => l.label == sibling);
-
-      expect(link.upstream, cartDrop);
-      expect(link.block, 'Scenario 1');
-      expect(link.fingerprint, fp(block));
-    });
-
     test(
-      'f04/us03/fr01/e09: a story of another feature tracks no link',
+      'a scenario of a sibling story is tracked against that story',
       () async {
-        final (:links, block: _) = await linksOf(foreign);
+        final (:links, :block) = await linksOf(sibling);
+        final link = links.singleWhere((l) => l.label == sibling);
 
-        expect(links.map((l) => l.label), ['S1']);
+        expect(link.upstream, cartDrop);
+        expect(link.block, 'Scenario 1');
+        expect(link.fingerprint, fp(block));
       },
     );
 
-    test('f04/us04/fr02/e11: an edit to the sibling story makes the sibling link suspect, an edit to the own story leaves it clean', () async {
+    test('a story of another feature tracks no link', () async {
+      final (:links, block: _) = await linksOf(foreign);
+
+      expect(links.map((l) => l.label), ['S1']);
+    });
+
+    test('an edit to the sibling story makes the sibling link suspect, an edit to the own story leaves it clean', () async {
       final (links: _, :block) = await linksOf(sibling);
       final edited = nestedFiles()['docs/$cartDrop']!.replaceFirst(
         'the shopper acts',
@@ -970,16 +975,19 @@ void main() {
       );
     });
 
-    test('f04/us04/fr03: a sibling entry the FR traces is neither malformed nor stale', () async {
-      final (links: _, :block) = await linksOf(sibling);
-      final report = await checkWith(sibling, recorded: fp(block));
+    test(
+      'a sibling entry the FR traces is neither malformed nor stale',
+      () async {
+        final (links: _, :block) = await linksOf(sibling);
+        final report = await checkWith(sibling, recorded: fp(block));
 
-      expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
-      expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
-      expect(spots(report, FindingKind.suspect), isEmpty);
-    });
+        expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
+        expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
+        expect(spots(report, FindingKind.suspect), isEmpty);
+      },
+    );
 
-    test('f04/us04/fr03: a confirmed entry with a lettered scenario number is confirmed_entry_malformed', () async {
+    test('a confirmed entry with a lettered scenario number is confirmed_entry_malformed', () async {
       final report = checkOf(
         await writeCheckProject(
           extra: fr('  - S2 ${fp(loginScenario2)}', '  - S6a 0123456789ab'),

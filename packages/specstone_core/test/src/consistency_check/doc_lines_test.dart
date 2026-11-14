@@ -46,7 +46,7 @@ void main() {
     },
   );
 
-  test('f04/us01/fr03/e07: frontmatter YAML with an unclosed quote names the parser line', () {
+  test('frontmatter YAML with an unclosed quote names the parser line', () {
     expect(
       DocLines.of('---\ntitle: "open\n---\n\n# T\n').frontmatterErrorLine,
       3,

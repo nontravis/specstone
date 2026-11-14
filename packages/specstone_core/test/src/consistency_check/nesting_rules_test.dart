@@ -62,7 +62,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr10/e01: a third chain type among the children is listed with commas, ids in code point order', () async {
+    test('a third chain type among the children is listed with commas, ids in code point order', () async {
       final report = checkOf(
         await writeNestedProject(
           extra: {
@@ -200,7 +200,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr10/e03: a link finding and a note in the folder of an over-deep FEATURE.md report nothing', () async {
+    test('a link finding and a note in the folder of an over-deep FEATURE.md report nothing', () async {
       final report = checkOf(
         await writeNestedProject(
           extra: {
@@ -215,7 +215,7 @@ void main() {
       ]);
     });
 
-    test('f04/us01/fr10/e05: of two over-limit FEATURE.md files, one in the folder of the other, the outer one reports', () async {
+    test('of two over-limit FEATURE.md files, one in the folder of the other, the outer one reports', () async {
       final report = checkOf(
         await writeNestedProject(
           extra: {
@@ -231,7 +231,7 @@ void main() {
       expect(_under(report, '$_deepFolder/f01_d'), isEmpty);
     });
 
-    test('f04/us01/fr10/e04: a project layer that writes max_depth 0 makes a nested FEATURE.md nesting_over_limit, limit 0, actual 1, never untyped_doc', () async {
+    test('a project layer that writes max_depth 0 makes a nested FEATURE.md nesting_over_limit, limit 0, actual 1, never untyped_doc', () async {
       final report = checkOf(
         await writeNestedProject(
           extra: {'.specstone/templates/feature.yaml': 'max_depth: 0\n'},

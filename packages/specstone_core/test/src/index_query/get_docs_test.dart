@@ -90,19 +90,16 @@ void main() {
       throwsA(isA<IndexFault>()),
     );
   });
-  test(
-    'f01/us04/fr02/e05: nothing is trimmed: comments and N/A sections print',
-    () async {
-      expect(
-        answerGet(index, ['login/email_login/validate_credentials']).text,
-        contains('<!-- fill in later -->'),
-      );
-      expect(
-        answerGet(index, ['login/email_login/lock_after_failures']).text,
-        contains('## Rationale\nN/A\n'),
-      );
-    },
-  );
+  test('nothing is trimmed: comments and N/A sections print', () async {
+    expect(
+      answerGet(index, ['login/email_login/validate_credentials']).text,
+      contains('<!-- fill in later -->'),
+    );
+    expect(
+      answerGet(index, ['login/email_login/lock_after_failures']).text,
+      contains('## Rationale\nN/A\n'),
+    );
+  });
   test("review focus 1, f02 review focus 4: two sections with one header both print, in file order, under the first one's base", () async {
     final notes = await indexWith({
       'docs/notes.md': '# Notes\n\n## Notes\nfirst\n\n## Notes\nsecond\n',
@@ -133,20 +130,23 @@ void main() {
       'root_schema': sectionBaseOf(content.sections.first.body, null),
     });
   });
-  test('f01/us04/fr02: --json gives name, path, section, and text; no docType on an untyped doc', () async {
-    expect(
-      answerGet(index, ['prds/d01_context.md#project_name']).json['docs'],
-      [
-        {
-          'name': 'prds/d01_context.md',
-          'path': 'prds/d01_context.md',
-          'section': 'project_name',
-          'base': '26018c0105bb',
-          'text': '## Project name\n- **Human:** Specstone\n- **Code:** `specstone`\n',
-        },
-      ],
-    );
-  });
+  test(
+    '--json gives name, path, section, and text; no docType on an untyped doc',
+    () async {
+      expect(
+        answerGet(index, ['prds/d01_context.md#project_name']).json['docs'],
+        [
+          {
+            'name': 'prds/d01_context.md',
+            'path': 'prds/d01_context.md',
+            'section': 'project_name',
+            'base': '26018c0105bb',
+            'text': '## Project name\n- **Human:** Specstone\n- **Code:** `specstone`\n',
+          },
+        ],
+      );
+    },
+  );
   test('review focus 5, preflight F15: a whole doc keeps its CRLF line endings as written', () async {
     final crlf = await indexWith({
       'docs/crlf.md': '# Crlf\r\n\r\n## A\r\nx\r\n',
@@ -188,7 +188,7 @@ void main() {
       '==> login (feature) · prds/features/f01_login/FEATURE.md · base abc123abc123 <==',
     );
   });
-  test('index_query/read_doc_section/print_doc_or_section E08, E13: a section read names <DocPath>#<key> with its base; a whole-doc read names its path with bases.doc', () async {
+  test('E08, E13: a section read names <DocPath>#<key> with its base; a whole-doc read names its path with bases.doc', () async {
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     expect(
       answerGet(index, [
@@ -208,7 +208,7 @@ void main() {
     final doc = (whole.json['docs']! as List).single as Map;
     expect((doc['bases']! as Map)['doc'], baseHashOf(file(storyPath)));
   });
-  group('index_query/read_doc_section/print_doc_or_section E08, layout-blind bases', () {
+  group('E08, layout-blind bases', () {
     const storyPath =
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
     const bareBody =
@@ -318,7 +318,7 @@ void main() {
       },
     );
   });
-  test('index_query/read_doc_section/print_doc_or_section E09: a template section the doc lacks prints its naming line alone with the base of empty text', () async {
+  test('E09: a template section the doc lacks prints its naming line alone with the base of empty text', () async {
     expect(
       answerGet(index, ['login/email_login#rules']).text,
       '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#rules · base e3b0c44298fc <==\n',
@@ -330,7 +330,7 @@ void main() {
     expect(doc['text'], '');
     expect(doc['base'], emptyBaseHash);
   });
-  test('f01/us04/fr02/e10: --json bases list the title, every section, and every field, absent ones empty', () async {
+  test('--json bases list the title, every section, and every field, absent ones empty', () async {
     final story =
         (answerGet(index, ['user_story:login/email_login']).json['docs']!
                     as List)
@@ -423,7 +423,7 @@ void main() {
 
   const gnfrWithLead = '# GNFR\n\nLead [x](a.md).\n\n## Performance\nN/A\n';
 
-  test('f01/us04/fr02/e11: #_lead prints the lead under its base', () async {
+  test('#_lead prints the lead under its base', () async {
     final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
     final answer = answerGet(withLead, ['gnfr#_lead']);
     const lead = '\nLead [x](a.md).\n';
@@ -437,7 +437,7 @@ void main() {
     expect(doc['text'], lead);
   });
 
-  test('f01/us04/fr02/e12: #_lead of a doc with no lead prints the naming line with the empty-text base', () async {
+  test('#_lead of a doc with no lead prints the naming line with the empty-text base', () async {
     final answer = answerGet(index, ['gnfr#_lead']);
     expect(
       answer.text,
@@ -448,33 +448,36 @@ void main() {
     expect(doc['text'], '');
   });
 
-  test('f01/us04/fr02/e10: bases.sections lists _lead first only when the lead holds non-blank text', () async {
-    final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
-    final held =
-        ((answerGet(withLead, ['gnfr']).json['docs']! as List).single
-                as Map)['bases']!
-            as Map;
-    expect((held['sections']! as Map).keys.first, '_lead');
-    expect(
-      (held['sections']! as Map)['_lead'],
-      baseHashOf('\nLead [x](a.md).\n'),
-    );
+  test(
+    'bases.sections lists _lead first only when the lead holds non-blank text',
+    () async {
+      final withLead = await indexWith({'docs/prds/GNFR.md': gnfrWithLead});
+      final held =
+          ((answerGet(withLead, ['gnfr']).json['docs']! as List).single
+                  as Map)['bases']!
+              as Map;
+      expect((held['sections']! as Map).keys.first, '_lead');
+      expect(
+        (held['sections']! as Map)['_lead'],
+        baseHashOf('\nLead [x](a.md).\n'),
+      );
 
-    final bare =
-        ((answerGet(index, ['gnfr']).json['docs']! as List).single
-                as Map)['bases']!
-            as Map;
-    expect((bare['sections']! as Map).containsKey('_lead'), isFalse);
-  });
+      final bare =
+          ((answerGet(index, ['gnfr']).json['docs']! as List).single
+                  as Map)['bases']!
+              as Map;
+      expect((bare['sections']! as Map).containsKey('_lead'), isFalse);
+    },
+  );
 
-  test('f01/us04/fr02: a whole-doc get of an empty file prints the naming line and one blank line, as at 404b9a7', () async {
+  test('a whole-doc get of an empty file prints the naming line and one blank line, as at 404b9a7', () async {
     final withEmpty = await indexWith({'docs/prds/empty.md': ''});
     expect(
       answerGet(withEmpty, ['prds/empty.md']).text,
       '==> prds/empty.md · prds/empty.md · base $emptyBaseHash <==\n\n',
     );
   });
-  test('index_query/read_doc_section/resolve_doc_name E13 (W8): a path holding # is read whole, as resolve reads it, so get splits no section key off it', () async {
+  test('E13 (W8): a path holding # is read whole, as resolve reads it, so get splits no section key off it', () async {
     final noted = await indexWith({'docs/prds/notes#draft.md': '# Draft\n'});
     expect(
       answerGet(noted, ['prds/notes#draft.md']).text,
@@ -731,7 +734,7 @@ void main() {
       );
     });
   });
-  test('f01/us04/fr02: get feature:shop/cart prints the text of the nested feature', () async {
+  test('get feature:shop/cart prints the text of the nested feature', () async {
     final nested = await nestedIndexWith();
     final text = withApprovalHashes(nestedFiles())['docs/$cartFeature']!;
     expect(

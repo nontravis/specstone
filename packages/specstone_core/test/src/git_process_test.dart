@@ -18,7 +18,7 @@ const _listed = [
 ];
 
 void main() {
-  group('f06/us01/fr02/e15: gitChildEnvironment', () {
+  group('gitChildEnvironment', () {
     test('drops each listed variable but the two config ones', () {
       final child = gitChildEnvironment(
         inherited: {
@@ -109,7 +109,7 @@ void main() {
     });
   });
 
-  group('f06/us01/fr02/e15: localEnvVarsFrom', () {
+  group('localEnvVarsFrom', () {
     test('reads one name per line, with no CR and no empty name', () {
       final names = localEnvVarsFrom(
         ProcessResult(0, 0, 'GIT_DIR\r\nGIT_WORK_TREE\n\n', ''),
@@ -167,7 +167,7 @@ void main() {
     );
   });
 
-  group('f06/us01/fr02/e15: through the real git launch', () {
+  group('through the real git launch', () {
     Future<List<Map<String, Object?>>> runIn(
       List<Directory> folders,
       List<String> gitArguments, {

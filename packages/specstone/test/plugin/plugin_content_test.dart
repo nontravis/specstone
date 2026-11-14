@@ -32,7 +32,7 @@ void main() {
     },
   );
 
-  test('f08/us01/fr04: a span with no specstone call, a skill name, a '
+  test('a span with no specstone call, a skill name, a '
       'placeholder, and prose pass', () async {
     expect(
       await _problemsOf({
@@ -44,7 +44,7 @@ void main() {
     );
   });
 
-  test('f08/us01/fr04: a flag a subcommand lacks fails naming the full '
+  test('a flag a subcommand lacks fails naming the full '
       'command path', () async {
     expect(
       await _problemsOf({
@@ -54,7 +54,7 @@ void main() {
     );
   });
 
-  test('f08/us01/fr04: an end-of-options -- names no flag', () async {
+  test('an end-of-options -- names no flag', () async {
     expect(
       await _problemsOf({
         'skills/x/SKILL.md': 'Run `specstone set -- <path>`.',
@@ -63,7 +63,7 @@ void main() {
     );
   });
 
-  test('f08/us01/fr04: fenced lines and subcommands are checked', () async {
+  test('fenced lines and subcommands are checked', () async {
     expect(
       await _problemsOf({
         'skills/x/SKILL.md':
@@ -93,23 +93,19 @@ void main() {
     expect(oversizedSkillFiles(root), isEmpty);
   });
 
-  test(
-    'f08/us01/fr04/e03: an agent file is name-checked and never sized',
-    () async {
-      final valid =
-          '${'a' * 8000}\n`specstone check` `specstone hook post-edit`';
-      expect(await _problemsOf({'agents/a.md': valid}), isEmpty);
-      expect(
-        oversizedSkillFiles(
-          await writeTree({'skills/x/SKILL.md': 'small', 'agents/a.md': valid}),
-        ),
-        isEmpty,
-      );
-      expect(await _problemsOf({'agents/a.md': '$valid `specstone nope`'}), [
-        'agents/a.md: specstone has no command nope',
-      ]);
-    },
-  );
+  test('an agent file is name-checked and never sized', () async {
+    final valid = '${'a' * 8000}\n`specstone check` `specstone hook post-edit`';
+    expect(await _problemsOf({'agents/a.md': valid}), isEmpty);
+    expect(
+      oversizedSkillFiles(
+        await writeTree({'skills/x/SKILL.md': 'small', 'agents/a.md': valid}),
+      ),
+      isEmpty,
+    );
+    expect(await _problemsOf({'agents/a.md': '$valid `specstone nope`'}), [
+      'agents/a.md: specstone has no command nope',
+    ]);
+  });
 
   test('f08/us01/fr04, nfr-te01: oversized skill files list sorted, nested '
       'and non-md files are sized, exactly-limit files pass', () async {
@@ -128,15 +124,12 @@ void main() {
     ]);
   });
 
-  test(
-    'f08/us01/fr04: no skills folder means no oversized skill file',
-    () async {
-      final root = await writeTree({'agents/a.md': 'text'});
-      expect(oversizedSkillFiles(root), isEmpty);
-    },
-  );
+  test('no skills folder means no oversized skill file', () async {
+    final root = await writeTree({'agents/a.md': 'text'});
+    expect(oversizedSkillFiles(root), isEmpty);
+  });
 
-  test('f08/us01/fr04/e04: CRLF line ends count as LF', () async {
+  test('CRLF line ends count as LF', () async {
     final root = await writeTree({
       'skills/x/at_limit.md': 'a\r\n' * 3000,
       'skills/x/over.md': 'a\r\n' * 3002,
@@ -157,7 +150,7 @@ void main() {
   });
 
   test(
-    'f08/us02/fr05/e07: a line with a letter outside the Latin script '
+    'a line with a letter outside the Latin script '
     'fails naming its file and line; accents, emoji, and symbols pass',
     () async {
       final root = await writeTree({
@@ -172,7 +165,7 @@ void main() {
     },
   );
 
-  test("f08/us02/fr05/e07: no shipped plugin file presumes the Owner's "
+  test("no shipped plugin file presumes the Owner's "
       'language with a letter outside the Latin script', () {
     expect(nonLatinLetterLines(pluginRoot()), isEmpty);
   });
@@ -597,7 +590,7 @@ void _handOffTests() {
     }
   });
 
-  test('f08/us02/fr05/e07: approval flows paste the printed view', () {
+  test('approval flows paste the printed view', () {
     for (final skill in _handOffs) {
       expect(
         _pluginText('skills/$skill/SKILL.md'),
@@ -665,7 +658,7 @@ void _handOffTests() {
   });
 
   test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
-      'f08/us05/fr01: sdd-engineer writes its whole report to the report file '
+      'sdd-engineer writes its whole report to the report file '
       'and replies with the Report line and the relay block', () {
     final agent = _pluginText('agents/sdd-engineer.md');
     final input = _sectionOf(agent, 'Input Contract');
@@ -708,7 +701,7 @@ void _handOffTests() {
     );
   });
 
-  test('f08/us02/fr02: no shipped plugin file holds the relay line or '
+  test('no shipped plugin file holds the relay line or '
       'routed by', () {
     for (final file
         in pluginRoot().listSync(recursive: true).whereType<File>()) {
@@ -738,10 +731,10 @@ void _handOffTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E07, '
+  test('E07, '
       'agent_plugin/write_prd_and_spec/audit_drafts_by_reading, '
-      'agent_plugin/write_prd_and_spec/write_drafts_with_coverage E09, '
-      'agent_plugin/fill_missing_format/fill_check_findings: each plugin '
+      'E09, '
+      'each plugin '
       'reader of what waits for the Owner reads waitsFor or its tag, never '
       'message prose', () {
     for (final (file, section) in _ownerFindingReaders) {
@@ -782,7 +775,7 @@ void _handOffTests() {
     }
   });
 
-  test('f08/us02/fr02: author mode runs a bare specstone check before its '
+  test('author mode runs a bare specstone check before its '
       'first write and after its last', () {
     final check = _sectionOf(
       _pluginText('skills/brainstorming-sdd/references/author.md'),
@@ -793,7 +786,7 @@ void _handOffTests() {
     expect(check, contains('after your last'));
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E07: the '
+  test('E07: the '
       'author report holds the ready move command, and the skill runner runs '
       'it before the audit', () {
     final report = _sectionOf(
@@ -831,7 +824,7 @@ void _handOffTests() {
     expect(move, lessThan(drafts.indexOf('`mode: audit`')));
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E10, '
+  test('E10, '
       'domain:agent_plugin INV-4: the drafts list and every count come from '
       'one approve --dry-run --json after the last write, other drafts '
       'named and never counted', () {
@@ -883,8 +876,8 @@ void _handOffTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E10, '
-      'agent_plugin/write_prd_and_spec/run_brainstorm_to_design: the author '
+  test('E10, '
+      'the author '
       "report's Drafts line stays a bare list of names that the audit "
       'dispatch and plan-sdd take as it is, its counts on their own line', () {
     final report = _sectionOf(
@@ -944,7 +937,7 @@ void _handOffTests() {
     expect(section, contains("Claude Code's `!` prefix is not a terminal"));
   });
 
-  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E08, E09: '
+  test('E08, E09: '
       'the Rules section of expert-sdd holds the one-owner rule and its '
       'citation form and points to confirm-links.md, which alone holds the '
       'steps that confirm a traced link', () {
@@ -1059,7 +1052,7 @@ final _codeSpan = RegExp(r'`([^`\n]+)`');
 
 void _agentTests() {
   test(
-    'agent_plugin/write_prd_and_spec/write_drafts_with_coverage E04, '
+    'E04, '
     'sd-r9: the sdd-engineer Input Contract names exactly its five modes',
     () {
       final contract = _sectionOf(
@@ -1088,7 +1081,7 @@ void _agentTests() {
   });
 
   test(
-    'agent_plugin/write_prd_and_spec/write_drafts_with_coverage E04: the '
+    'E04: the '
     'sdd-engineer description sends sync and bootstrap through their skills '
     'and names the three modes a caller may dispatch directly, plan none',
     () {
@@ -1106,7 +1099,7 @@ void _agentTests() {
   );
 
   test('domain:agent_plugin INV-10, '
-      'agent_plugin/write_prd_and_spec/write_design_document statement: sdd-engineer holds Write and Edit for '
+      'statement: sdd-engineer holds Write and Edit for '
       'the one design document a design dispatch names, audit and design mode '
       'write no other file but the report file, and no file names '
       'docs/superpowers/', () {
@@ -1149,7 +1142,7 @@ void _agentTests() {
     }
   });
 
-  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design statement, '
+  test('statement, '
       'E03, E14, E15: brainstorming-sdd hands the approved drafts to '
       'specstone:plan-sdd through Skill and runs no plan mode', () {
     final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
@@ -1167,7 +1160,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E04: the '
+  test('E04: the '
       'plan procedure file is gone, as plan-engineer holds the steps', () {
     final plan = File.fromUri(
       pluginRoot().uri.resolve('skills/brainstorming-sdd/references/plan.md'),
@@ -1175,7 +1168,7 @@ void _agentTests() {
     expect(plan.existsSync(), isFalse);
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E06: read-sdd names '
+  test('E06: read-sdd names '
       'the context call it runs per cited story, NFR, and spec doc', () {
     expect(
       _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
@@ -1183,7 +1176,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E14: read-sdd runs a '
+  test('E14: read-sdd runs a '
       "plan task's read line with its --target as written", () {
     final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
     expect(
@@ -1193,7 +1186,7 @@ void _agentTests() {
     expect(skill, contains("a plan task's read line's, as written"));
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E15: read-sdd gives '
+  test('E15: read-sdd gives '
       'a task no plan wrote no --target in query or design mode', () {
     expect(
       _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
@@ -1201,7 +1194,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E16: read-sdd has a '
+  test('E16: read-sdd has a '
       'main session ask the Owner after argument_missing and rerun with '
       '--target', () {
     final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
@@ -1215,7 +1208,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E17: read-sdd has a '
+  test('E17: read-sdd has a '
       'Subagent stop and report the missing target to its dispatcher', () {
     expect(
       _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
@@ -1226,7 +1219,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E18: read-sdd '
+  test('E18: read-sdd '
       "hands the call's --target to sdd-reader on exit 1", () {
     final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
     expect(
@@ -1245,7 +1238,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/ground_through_context E05, E13: read-sdd '
+  test('E05, E13: read-sdd '
       'allows one target a third call after an argument_missing refusal', () {
     expect(
       _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
@@ -1256,7 +1249,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/return_whole_sections E06: sdd-reader runs '
+  test('E06: sdd-reader runs '
       "context with the hand-off's --target in implement mode", () {
     final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
     expect(
@@ -1272,7 +1265,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/ground_a_task/return_whole_sections E07: sdd-reader '
+  test('E07: sdd-reader '
       'passes no --target in query or design mode', () {
     expect(
       _oneLine(_pluginText('agents/sdd-reader.md')),
@@ -1280,7 +1273,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E17: the '
+  test('E17: the '
       'first design call passes no --budget without the Agent tool and no '
       '--target', () {
     final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
@@ -1291,7 +1284,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E13: '
+  test('E13: '
       'author takes a per-target doc from the design row, or its DocPath, and '
       'keeps the drafts list free of --target', () {
     final author = _oneLine(
@@ -1326,7 +1319,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/take_small_edit_to_draft E07: '
+  test('E07: '
       'update-sdd asks which code target for a name in two or more, then '
       "reads and writes on the doc's DocPath", () {
     final skill = _oneLine(_pluginText('skills/update-sdd/SKILL.md'));
@@ -1343,7 +1336,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E02, E06, E09: '
+  test('E02, E06, E09: '
       'expert-sdd gives set (a confirmed write included), structure, and refs '
       'the target of its loader, with no Owner question, and approve and '
       'delete none', () {
@@ -1359,7 +1352,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/write_design_document E17: design '
+  test('E17: design '
       'mode runs refs on a per-target owner by its DocPath', () {
     expect(
       _oneLine(_pluginText('skills/brainstorming-sdd/references/design.md')),
@@ -1367,7 +1360,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/write_design_document E20: design '
+  test('E20: design '
       'mode grounds with no --target and names a code target on each '
       'per-target row', () {
     final design = _oneLine(
@@ -1386,7 +1379,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/audit_drafts_by_reading E16: audit '
+  test('E16: audit '
       'mode passes no --target on its design bundles or its drafts get', () {
     final audit = _oneLine(
       _pluginText('skills/brainstorming-sdd/references/audit.md'),
@@ -1407,7 +1400,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E13: the '
+  test('E13: the '
       're-audit get of the drafts list needs no --target', () {
     expect(
       _oneLine(_pluginText('skills/brainstorming-sdd/references/rounds.md')),
@@ -1415,7 +1408,7 @@ void _agentTests() {
     );
   });
 
-  group('agent_plugin/sync_code_and_docs', () {
+  group('Agent brings the docs in line with changed code', () {
     const targetLine =
         "**Code target** (two or more `targets:`): a changed path's target "
         'is the `code target:` line, or the '
@@ -1555,7 +1548,7 @@ void _agentTests() {
     });
   });
 
-  group('agent_plugin/set_up_new_project', () {
+  group('Agent sets up a new project with no code', () {
     String init() => _oneLine(_pluginText('skills/init/SKILL.md'));
 
     test('set_up_and_fill_drafts E04: a code root with no folder draws no '
@@ -1584,7 +1577,8 @@ void _agentTests() {
     });
   });
 
-  group('agent_plugin/fill_missing_format', () {
+  group('Agent fills what the new format lacks after a migration or a pack '
+      'upgrade', () {
     const procedureTargetLine =
         '**Code target** (two or more `targets:`): each `new`, `get`, and '
         '`set` of a per-target doc carries '
@@ -1772,7 +1766,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E02, '
+  test('E02, '
       'sf-r3: sdd-engineer runs approve only with --dry-run, and no delete, '
       'rename, reorder, or move', () {
     expect(
@@ -1823,7 +1817,7 @@ void _agentTests() {
   });
 
   test('agent_plugin/write_prd_and_spec/write_design_and_plan E09-E12, '
-      'agent_plugin/write_prd_and_spec/audit_drafts_by_reading E10-E13: '
+      'E10-E13: '
       "design mode searches each decision's dependents, and the audit hashes "
       'its targets in one get and tags behavior findings', () {
     final design = _pluginText('skills/brainstorming-sdd/references/design.md');
@@ -1860,7 +1854,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/write_prd_and_spec/run_brainstorm_to_design E05, E06, '
+  test('E05, E06, '
       "E07, E10, E12, E13: rounds.md holds the runner's dispatch, fix-round, "
       'amend, and re-audit rules, and steps 3 and 4.3 of brainstorming-sdd '
       'point to it', () {
@@ -1907,7 +1901,7 @@ void _agentTests() {
     );
   });
 
-  test('agent_plugin/start_from_another_tools_spec/take_in_a_source '
+  test('Take in a source another tool wrote '
       'verification, E01 to E03, E05 to E07, E10 to E12; map_source_items '
       'verification, E01 to E05; domain:agent_plugin INV-23: source.md holds '
       'the take-in and Source map rules, the gate before any source read, and '
@@ -1962,7 +1956,7 @@ void _agentTests() {
     expect(nonLatinLetterLines(pluginRoot()).where(ofSource), isEmpty);
   });
 
-  test('agent_plugin/start_from_another_tools_spec/take_in_a_source E04, '
+  test('E04, '
       'verification; agent_plugin/write_prd_and_spec/run_brainstorm_to_design '
       'E26: step 1 makes the gate call, with no budget, opens no link or '
       'issue before it exits 0, and then points to source.md', () {
@@ -1986,7 +1980,7 @@ void _agentTests() {
     expect(_frontmatter.firstMatch(skill)![0], contains('another tool'));
   });
 
-  test('agent_plugin/start_from_another_tools_spec/map_source_items '
+  test('Map each source item in the design document '
       'verification; write_design_document input_output; take_in_a_source '
       'E02, E03, E08: design.md points design mode to source.md, and the '
       'runner grounds on the gate bundle plus any narrow bundle or the '
@@ -2012,7 +2006,7 @@ void _agentTests() {
     expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('source.md')));
   });
 
-  test('agent_plugin/write_prd_and_spec/write_drafts_with_coverage E01, E03, '
+  test('E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
       'through one set --batch, and sdd-engineer allows only the redirect '
@@ -2402,7 +2396,7 @@ const _droppedTextReasons = {
 };
 
 void _sizeFixTests() {
-  test('agent_plugin/fill_missing_format/fill_check_findings E06, E07, '
+  test('E06, E07, '
       'E10-E12, agent_plugin/fill_missing_format/merge_old_files E02, E07: '
       'each bootstrap procedure moves old text, marks a gap TBR, and has one '
       'finding row sending the three size findings to size-fix.md', () {
@@ -2434,8 +2428,8 @@ void _sizeFixTests() {
     }
   });
 
-  test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules E05, E06, '
-      'agent_plugin/fill_missing_format/fill_check_findings E10-E12: '
+  test('E05, E06, '
+      'E10-E12: '
       "size-fix.md names the three findings, the split proposal's ready "
       'commands in run order, and the case no split applies to', () {
     final text = _oneLine(_pluginText(_sizeFix));
@@ -2460,7 +2454,7 @@ void _sizeFixTests() {
     expect(text, isNot(contains('Never cut meaning')));
   });
 
-  test('agent_plugin/fill_missing_format/fill_check_findings E12, E13: '
+  test('E12, E13: '
       'size-fix.md asks a split answer of the two other size findings only '
       'and holds the item rewrite, each bootstrap skill batches an '
       'item_over_limit finding only in a run the Owner names it in, and '
@@ -2520,7 +2514,7 @@ void _sizeFixTests() {
   });
 
   test('agent_plugin/write_prd_and_spec/follow_cross_doc_rules, '
-      'agent_plugin/fill_missing_format/fill_check_findings: every other file '
+      'every other file '
       'points to size-fix.md and none restates its commands', () {
     final rules = _oneLine(
       _sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules'),
@@ -2585,8 +2579,8 @@ const _guideCallCountsForEach =
     'never repeats it per write.';
 
 void _batchGuideTests() {
-  test('agent_plugin/fill_missing_format/fill_check_findings E25, '
-      'agent_plugin/write_prd_and_spec/follow_cross_doc_rules: each '
+  test('E25, '
+      'each '
       'bootstrap procedure runs one guide call for every type its batch '
       'writes before the first write and its own call for a type met later, '
       'points each finding fix to it, and stays within its e8262ba est. '

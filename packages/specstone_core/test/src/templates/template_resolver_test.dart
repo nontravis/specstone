@@ -151,7 +151,7 @@ void main() {
 
     test(
       'f03/us01/s5, f03/us01/fr01/e01, f03/us01/fr02/e03, f03/us05/fr02/e05, '
-      'f03/us05/fr01/e04: no project root loads every shipped pack',
+      'no project root loads every shipped pack',
       () async {
         final working = await writeTree({});
         final home = await writeTree({});
@@ -192,7 +192,7 @@ void main() {
       );
     });
 
-    test('f03/us04/fr01/e01: a null home makes a listed personal pack '
+    test('a null home makes a listed personal pack '
         'pack_not_found', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
@@ -210,7 +210,7 @@ void main() {
       );
     });
 
-    test('f03/us04/fr01: a null home still resolves a project that lists only '
+    test('a null home still resolves a project that lists only '
         'shipped packs', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -260,7 +260,7 @@ void main() {
       },
     );
 
-    test('f03/us04/fr01/e07: a pack.yaml name unequal to the folder is '
+    test('a pack.yaml name unequal to the folder is '
         'pack_name_mismatch', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
@@ -307,32 +307,29 @@ void main() {
       expect(merged.lookup('feature'), isNotNull);
     });
 
-    test(
-      'f03/us04/fr01: a listed personal pack adds its doc types with its pack',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        });
-        final home = await writeTree({
-          '.specstone/packs/nont-software/pack.yaml':
-              'name: nont-software\nversion: 1.0.0\n',
-          '.specstone/packs/nont-software/runbook.yaml':
-              'id: runbook\ndescription: Runbook\n'
-              'path: ops/runbooks/{slug}/RUNBOOK.md\n',
-        });
-        final resolver = TemplateResolver(shippedFiles: shipped());
+    test('a listed personal pack adds its doc types with its pack', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-software/pack.yaml':
+            'name: nont-software\nversion: 1.0.0\n',
+        '.specstone/packs/nont-software/runbook.yaml':
+            'id: runbook\ndescription: Runbook\n'
+            'path: ops/runbooks/{slug}/RUNBOOK.md\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        final merged = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
 
-        expect(merged.lookup('runbook')!.pack, 'nont-software');
-        expect(merged.lookup('runbook')!.description, 'Runbook');
-      },
-    );
+      expect(merged.lookup('runbook')!.pack, 'nont-software');
+      expect(merged.lookup('runbook')!.description, 'Runbook');
+    });
 
-    test('f03/us03/fr03: a personal pack reference to a nested file resolves '
+    test('a personal pack reference to a nested file resolves '
         'against disk', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
@@ -360,7 +357,7 @@ reference:
       expect(merged.lookup('runbook')!.reference!.single.file, isNotNull);
     });
 
-    test('f03/us03/fr03: a shipped pack reference to a nested file resolves '
+    test('a shipped pack reference to a nested file resolves '
         'against the map', () async {
       final files = shipped()
         ..['prd-core/refs/handbook.md'] = _bytes('# Handbook\n');
@@ -386,63 +383,55 @@ reference:
       expect(merged.lookup('feature')!.reference!.single.file, isNotNull);
     });
 
-    test(
-      'f03/us05/fr02/e04: a template fault in the project layer is thrown',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/feature.yaml': 'bogus: x\n',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: shipped());
+    test('a template fault in the project layer is thrown', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/feature.yaml': 'bogus: x\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        expect(
-          () =>
-              resolver.resolve(workingDirectory: project, homeDirectory: home),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.unknownKey)
-                .having(
-                  (f) => f.file,
-                  'file',
-                  '.specstone/templates/feature.yaml',
-                ),
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownKey)
+              .having(
+                (f) => f.file,
+                'file',
+                '.specstone/templates/feature.yaml',
+              ),
+        ),
+      );
+    });
+
+    test('a second resolve reads the new config, no cache', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
+
+      final first = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
+      expect(first.lookup('feature'), isNotNull);
+
+      await File.fromUri(project.uri.resolve(_configPath))
+          .writeAsString('packs:\n  prd-core: 2.0.0\n');
+
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.code,
+            'code',
+            FaultCode.packPinNewer,
           ),
-        );
-      },
-    );
-
-    test(
-      'f03/us05/fr02/e07: a second resolve reads the new config, no cache',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: shipped());
-
-        final first = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
-        expect(first.lookup('feature'), isNotNull);
-
-        await File.fromUri(project.uri.resolve(_configPath))
-            .writeAsString('packs:\n  prd-core: 2.0.0\n');
-
-        expect(
-          () =>
-              resolver.resolve(workingDirectory: project, homeDirectory: home),
-          throwsA(
-            isA<TemplateFault>().having(
-              (f) => f.code,
-              'code',
-              FaultCode.packPinNewer,
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
     test('s03/inv22: two faulty project templates fault the first by code '
         'point', () async {
@@ -464,29 +453,26 @@ reference:
       );
     });
 
-    test(
-      'f03/us03/fr01: non-doc-type project files are ignored as doc types',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n',
-          '.specstone/templates/notes.md': 'notes\n',
-          '.specstone/templates/refs/x.yaml': 'x\n',
-        });
-        final home = await writeTree({});
-        final resolver = TemplateResolver(shippedFiles: shipped());
+    test('non-doc-type project files are ignored as doc types', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/notes.md': 'notes\n',
+        '.specstone/templates/refs/x.yaml': 'x\n',
+      });
+      final home = await writeTree({});
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        final merged = resolver.resolve(
-          workingDirectory: project,
-          homeDirectory: home,
-        );
+      final merged = resolver.resolve(
+        workingDirectory: project,
+        homeDirectory: home,
+      );
 
-        expect(merged.lookup('notes'), isNull);
-        expect(merged.lookup('x'), isNull);
-        expect(merged.lookup('refs'), isNull);
-      },
-    );
+      expect(merged.lookup('notes'), isNull);
+      expect(merged.lookup('x'), isNull);
+      expect(merged.lookup('refs'), isNull);
+    });
 
-    test('f03/us03/fr03/e03: a project reference to a missing file is '
+    test('a project reference to a missing file is '
         'reference_file_missing', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -522,7 +508,7 @@ reference:
       );
     });
 
-    test('f03/us05/fr02/e01: a shipped pin fault wins over a bad doc-type file '
+    test('a shipped pin fault wins over a bad doc-type file '
         'in the same pack', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.0.0\n',
@@ -542,7 +528,7 @@ reference:
       );
     });
 
-    test('f03/us04/fr01/e07: a personal pack_name_mismatch wins over a bad '
+    test('a personal pack_name_mismatch wins over a bad '
         'doc-type file', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
@@ -588,33 +574,29 @@ reference:
       );
     });
 
-    test(
-      'f03/us04/fr01/e12: an absent personal pack.yaml is missing_key',
-      () async {
-        final project = await writeTree({
-          _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
-        });
-        final home = await writeTree({
-          '.specstone/packs/nont-software/runbook.yaml': 'description: R\n',
-        });
-        final resolver = TemplateResolver(shippedFiles: shipped());
+    test('an absent personal pack.yaml is missing_key', () async {
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-software: 1.0.0\n',
+      });
+      final home = await writeTree({
+        '.specstone/packs/nont-software/runbook.yaml': 'description: R\n',
+      });
+      final resolver = TemplateResolver(shippedFiles: shipped());
 
-        expect(
-          () =>
-              resolver.resolve(workingDirectory: project, homeDirectory: home),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.missingKey)
-                .having(
-                  (f) => f.file,
-                  'file',
-                  '~/.specstone/packs/nont-software/pack.yaml',
-                )
-                .having((f) => f.key, 'key', 'name'),
-          ),
-        );
-      },
-    );
+      expect(
+        () => resolver.resolve(workingDirectory: project, homeDirectory: home),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.missingKey)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-software/pack.yaml',
+              )
+              .having((f) => f.key, 'key', 'name'),
+        ),
+      );
+    });
 
     test('f03/us04/s6, f03/us04/fr02/e01, f03/us02/fr01/e08: a personal pack '
         'and a shipped pack with one doc type id, no extends, are '
@@ -774,7 +756,7 @@ sections:
       expect(goal.description, 'What the project wants');
     });
 
-    test('f03/us04/fr01/e09: two personal packs extending one pack are '
+    test('two personal packs extending one pack are '
         'personal_pack_conflict', () async {
       final project = await writeTree({
         _configPath:
@@ -800,7 +782,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr04/e02: an extends naming no loaded pack is '
+    test('an extends naming no loaded pack is '
         'extends_target_unknown', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n  nont-a: 1.0.0\n',
@@ -826,7 +808,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr04/e01: a pack chain back to its start is '
+    test('a pack chain back to its start is '
         'extends_cycle', () async {
       final project = await writeTree({
         _configPath:
@@ -939,7 +921,7 @@ path: prds/notes/{slug}/NOTE.md
       expect(merged.lookup('memo')!.listedGenerators, isEmpty);
     });
 
-    test('f06/us02/fr01/e06: a move_to_record whose to names no doc type the '
+    test('a move_to_record whose to names no doc type the '
         'pack defines is unknown_value', () async {
       String manifest(String to) =>
           'name: software-tech\nversion: 1.1.0\nmigrations:\n'
@@ -980,7 +962,7 @@ path: prds/notes/{slug}/NOTE.md
       );
     });
 
-    test("f03/us03/fr01: an extends doc type keeps its target's "
+    test("an extends doc type keeps its target's "
         'generators', () async {
       final home = await writeTree({});
       final resolver = TemplateResolver(
@@ -1010,7 +992,7 @@ path: prds/notes/{slug}/NOTE.md
       ]);
     });
 
-    test('f03/us03/fr05/e03: a doc type extending feature carries no '
+    test('a doc type extending feature carries no '
         'max_depth', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1163,7 +1145,7 @@ path: adr/{slug}.md
       expect(adr.pack, isNull);
     });
 
-    test('template_packs/add_doc_type/read_doc_type_file Input per_target, '
+    test('Input per_target, '
         's03/inv12, tpl-s03/inv30: an extending doc type inherits the '
         'per_target of its target', () async {
       final project = await writeTree({
@@ -1192,7 +1174,7 @@ path: adr/{slug}.md
       expect(merged.lookup('adr')!.isPerTarget, isTrue);
     });
 
-    test('f03/us03/fr04/e05: an extending doc type writes its own parent and '
+    test('an extending doc type writes its own parent and '
         'lint, the target keeps its own', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1305,7 +1287,7 @@ bundle:
       expect(merged.lookup('feature')!.bundle, ['implement', 'design']);
     });
 
-    test('f03/us03/fr04: an extending doc type changes inherited lists by '
+    test('an extending doc type changes inherited lists by '
         'add and remove', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1427,7 +1409,7 @@ reference:
       );
     });
 
-    test('f03/us03/fr01/e07: an extending doc type without path is '
+    test('an extending doc type without path is '
         'missing_key; path is never inherited', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1492,7 +1474,7 @@ sections:
       ]);
     });
 
-    test('f03/us03/fr04/e03: an extending doc type changes a section of its '
+    test('an extending doc type changes a section of its '
         'target, the target keeps its own', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1531,7 +1513,7 @@ sections:
       );
     });
 
-    test('f03/us03/fr04/e04: an extending entry whose id the target lacks '
+    test('an extending entry whose id the target lacks '
         'is override_id_not_found', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1789,7 +1771,7 @@ path: epics/{slug}/EPIC.md
       expect(merged.lookup('architecture')!.description, 'Overridden');
     });
 
-    test('f03/us03/fr02/e05: a new doc type with no parent is a top-level '
+    test('a new doc type with no parent is a top-level '
         'doc type', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1937,7 +1919,7 @@ parent: nope
       );
     });
 
-    test('f03/us02/fr04/e04: overriding parent with an existing id is '
+    test('overriding parent with an existing id is '
         'accepted', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -1961,7 +1943,7 @@ parent: runbook
       expect(merged.lookup('feature')!.parent, 'runbook');
     });
 
-    test('f03/us03/fr01/e13: a parent loop is parent_cycle; a self parent '
+    test('a parent loop is parent_cycle; a self parent '
         'names one file', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2049,7 +2031,7 @@ parent: feature
       );
     });
 
-    test('f03/us03/fr01/e14: a doc_types entry naming no id is '
+    test('a doc_types entry naming no id is '
         'unknown_value', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2081,7 +2063,7 @@ fields:
       );
     });
 
-    test('f03/us04/fr02/e04: a project adr extends a pack-defined feature '
+    test('a project adr extends a pack-defined feature '
         'with no doc_type_duplicate', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 1.1.0\n',
@@ -2152,7 +2134,7 @@ path: adr/{slug}.md
   });
 
   group('TemplateResolver.availableManifests and resolveCarried', () {
-    test('f06/us01/fr05: availableManifests gives the carried prd-core and '
+    test('availableManifests gives the carried prd-core and '
         'software-tech versions', () {
       final manifests = TemplateResolver().availableManifests([
         'prd-core',
@@ -2164,7 +2146,7 @@ path: adr/{slug}.md
       }, shippedPackVersions());
     });
 
-    test("f06/us02/fr01: a personal pack's available version is its "
+    test("a personal pack's available version is its "
         'home-folder pack.yaml version', () async {
       final home = await writeTree({
         '.specstone/packs/acme/pack.yaml':
@@ -2178,7 +2160,7 @@ path: adr/{slug}.md
       expect('${manifests['acme']!.version}', '1.2.0');
     });
 
-    test('f06/us02/fr01: a pack with no shipped name and no home folder is '
+    test('a pack with no shipped name and no home folder is '
         'pack_not_found', () {
       expect(
         () => TemplateResolver().availableManifests([
@@ -2192,7 +2174,7 @@ path: adr/{slug}.md
       );
     });
 
-    test('f06/us02/fr01: a personal pack.yaml name unequal to its folder is '
+    test('a personal pack.yaml name unequal to its folder is '
         'pack_name_mismatch', () async {
       final home = await writeTree({
         '.specstone/packs/acme/pack.yaml': 'name: other\nversion: 1.0.0\n',
@@ -2212,7 +2194,7 @@ path: adr/{slug}.md
       );
     });
 
-    test('f06/us01/fr05: resolveCarried merges the named packs and the given '
+    test('resolveCarried merges the named packs and the given '
         'layers and reads no config', () async {
       final project = await writeTree({
         _configPath: 'packs:\n  prd-core: 0.1.0\n',

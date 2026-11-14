@@ -116,14 +116,20 @@ Future<CheckReport> _checkTwin({
 );
 
 void main() {
-  test("f04/us03/s1: the fixture's requirement, override, and spec agree with the PRD", () async {
-    final project = await writeCheckProject();
-    expect(checkOf(project).findings, isEmpty);
-    expect(
-      checkOf(project, target: 'fr:login/email_login/check_password').findings,
-      isEmpty,
-    );
-  });
+  test(
+    "the fixture's requirement, override, and spec agree with the PRD",
+    () async {
+      final project = await writeCheckProject();
+      expect(checkOf(project).findings, isEmpty);
+      expect(
+        checkOf(
+          project,
+          target: 'fr:login/email_login/check_password',
+        ).findings,
+        isEmpty,
+      );
+    },
+  );
 
   test('f04/us03/s2, f04/us03/fr01/e01, f04/us03/fr01/e04: a trace to a scenario the story lacks, or not in the '
       'S<N> form, is scenario_trace_unresolved', () async {
@@ -152,7 +158,7 @@ void main() {
     }
   });
 
-  test('f04/us03/fr01/e05: kind and overrides that disagree are override_kind_mismatch at the kind key', () async {
+  test('kind and overrides that disagree are override_kind_mismatch at the kind key', () async {
     final noOverride = checkOf(
       await writeCheckProject(extra: doc(loginNf, 'overrides: NFR-P01\n', '')),
     );
@@ -223,7 +229,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr01/e06: an NFR heading key is the ID the grammar reads, '
+  test('an NFR heading key is the ID the grammar reads, '
       'as item IDs read it: a tab or no-break space ends it, an unreadable '
       'one keys nothing', () async {
     final noBreakSpace = String.fromCharCode(0x00A0);
@@ -247,18 +253,15 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us03/fr01/e07: a requirement whose story is gone gets no trace rule',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: fr('  - S2\n', '  - S9\n'),
-          without: {'docs/$loginStory'},
-        ),
-      );
-      expect(spots(report, FindingKind.scenarioTraceUnresolved), isEmpty);
-    },
-  );
+  test('a requirement whose story is gone gets no trace rule', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: fr('  - S2\n', '  - S9\n'),
+        without: {'docs/$loginStory'},
+      ),
+    );
+    expect(spots(report, FindingKind.scenarioTraceUnresolved), isEmpty);
+  });
 
   test('review focus 5: a story header apart from letter case still holds its scenarios', () async {
     final report = checkOf(
@@ -276,15 +279,12 @@ void main() {
     );
   });
 
-  test(
-    'f04/us03/fr02/e01: an "As a" role with a Role entry resolves',
-    () async {
-      expect(
-        spots(checkOf(await writeCheckProject()), FindingKind.roleUnresolved),
-        isEmpty,
-      );
-    },
-  );
+  test('an "As a" role with a Role entry resolves', () async {
+    expect(
+      spots(checkOf(await writeCheckProject()), FindingKind.roleUnresolved),
+      isEmpty,
+    );
+  });
 
   test('f04/us03/s7, f04/us03/fr02/e02, f04/us03/fr02/e03: a story or persona role the project lacks', () async {
     final report = checkOf(
@@ -311,39 +311,36 @@ void main() {
     );
   });
 
-  test(
-    'f04/us03/fr02/e12: an "As an" role line reads as an "As a" one',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: doc(
-            loginStory,
-            '- **As a** Agent who signs in',
-            '- **As an** Intruder who signs in',
-          ),
+  test('an "As an" role line reads as an "As a" one', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginStory,
+          '- **As a** Agent who signs in',
+          '- **As an** Intruder who signs in',
         ),
-      );
-      expect(spots(report, FindingKind.roleUnresolved), [
-        '$loginStory:11: role_unresolved',
-      ]);
-      expect(
-        report.findings
-            .firstWhere((f) => f.kind == FindingKind.roleUnresolved)
-            .toJson()['role'],
-        'Intruder',
-      );
-      final known = checkOf(
-        await writeCheckProject(
-          extra: doc(
-            loginStory,
-            '- **As a** Agent who signs in',
-            '- **As an** Agent who signs in',
-          ),
+      ),
+    );
+    expect(spots(report, FindingKind.roleUnresolved), [
+      '$loginStory:11: role_unresolved',
+    ]);
+    expect(
+      report.findings
+          .firstWhere((f) => f.kind == FindingKind.roleUnresolved)
+          .toJson()['role'],
+      'Intruder',
+    );
+    final known = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginStory,
+          '- **As a** Agent who signs in',
+          '- **As an** Agent who signs in',
         ),
-      );
-      expect(spots(known, FindingKind.roleUnresolved), isEmpty);
-    },
-  );
+      ),
+    );
+    expect(spots(known, FindingKind.roleUnresolved), isEmpty);
+  });
 
   test('f04/us03/s5, f04/us03/fr02/e04: a story goal its feature does not cite is vision_goal_widened', () async {
     final report = checkOf(
@@ -366,17 +363,20 @@ void main() {
     );
   });
 
-  test('f04/us03/fr02/e05: an ID no project heading holds is unresolved, and widened too', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(loginStory, '  - PG-01\n', '  - PG-09\n'),
-      ),
-    );
-    expect(spots(report), [
-      '$loginStory:3: vision_goal_unresolved',
-      '$loginStory:3: vision_goal_widened',
-    ]);
-  });
+  test(
+    'an ID no project heading holds is unresolved, and widened too',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(loginStory, '  - PG-01\n', '  - PG-09\n'),
+        ),
+      );
+      expect(spots(report), [
+        '$loginStory:3: vision_goal_unresolved',
+        '$loginStory:3: vision_goal_widened',
+      ]);
+    },
+  );
 
   test("f04/us03/fr02/e06, f04/us03/fr02/e07: a subset of the feature's IDs passes; with no PROJECT.md every role "
       'and ID is unresolved', () async {
@@ -397,7 +397,7 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr02/e07: a merged set with no project doc type runs no role rule', () async {
+  test('a merged set with no project doc type runs no role rule', () async {
     final project = await fixtureProject({
       'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
           '# Sign in\n\n## Use Case\n- **As a** Stranger who signs in\n',
@@ -411,7 +411,7 @@ void main() {
     expect(spots(runCheck(session), FindingKind.roleUnresolved), isEmpty);
   });
 
-  test('f04/us03/fr02/e08: a feature vision or goals ID no project heading holds is vision_goal_unresolved at its key', () async {
+  test('a feature vision or goals ID no project heading holds is vision_goal_unresolved at its key', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: edit(loginFeature, [
@@ -432,24 +432,27 @@ void main() {
     );
   });
 
-  test('f04/us03/fr02/e09: a PG block with no Serves line is goal_serves_missing at its heading', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(projectDoc, '**Serves:** PV-01\n', ''),
-      ),
-    );
-    expect(spots(report, FindingKind.goalServesMissing), [
-      '$projectDoc:20: goal_serves_missing',
-    ]);
-    expect(
-      report.findings
-          .firstWhere((f) => f.kind == FindingKind.goalServesMissing)
-          .toJson()['goal'],
-      'PG-01',
-    );
-  });
+  test(
+    'a PG block with no Serves line is goal_serves_missing at its heading',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(projectDoc, '**Serves:** PV-01\n', ''),
+        ),
+      );
+      expect(spots(report, FindingKind.goalServesMissing), [
+        '$projectDoc:20: goal_serves_missing',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.goalServesMissing)
+            .toJson()['goal'],
+        'PG-01',
+      );
+    },
+  );
 
-  test('f04/us03/fr02/e09: prose around a Serves ID is no ID', () async {
+  test('prose around a Serves ID is no ID', () async {
     for (final line in [
       '**Serves:** PV-01 — product angle',
       '**Serves:** PV-01.',
@@ -480,25 +483,32 @@ void main() {
     );
   });
 
-  test('f04/us03/fr02/e09: a Serves ID that is no PV heading is vision_goal_unresolved at its line', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(projectDoc, '**Serves:** PV-01', '**Serves:** PV-07, PG-01'),
-      ),
-    );
-    expect(spots(report, FindingKind.visionGoalUnresolved), [
-      '$projectDoc:22: vision_goal_unresolved',
-      '$projectDoc:22: vision_goal_unresolved',
-    ]);
-    expect(
-      report.findings
-          .where((f) => f.kind == FindingKind.visionGoalUnresolved)
-          .map((f) => f.toJson()['id']),
-      ['PG-01', 'PV-07'],
-    );
-  });
+  test(
+    'a Serves ID that is no PV heading is vision_goal_unresolved at its line',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            projectDoc,
+            '**Serves:** PV-01',
+            '**Serves:** PV-07, PG-01',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.visionGoalUnresolved), [
+        '$projectDoc:22: vision_goal_unresolved',
+        '$projectDoc:22: vision_goal_unresolved',
+      ]);
+      expect(
+        report.findings
+            .where((f) => f.kind == FindingKind.visionGoalUnresolved)
+            .map((f) => f.toJson()['id']),
+        ['PG-01', 'PV-07'],
+      );
+    },
+  );
 
-  test('f04/us03/fr02/e09: a lettered or unreadable Serves ID is read '
+  test('a lettered or unreadable Serves ID is read '
       'whole through the grammar and is vision_goal_unresolved', () async {
     final unresolved = <String, List<Object?>>{};
     for (final line in [
@@ -526,7 +536,7 @@ void main() {
     });
   });
 
-  test('f04/us03/fr02/e05: a project heading ID is read through the grammar, '
+  test('a project heading ID is read through the grammar, '
       'so an unreadable heading names no goal a feature may list', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -547,69 +557,60 @@ void main() {
     );
   });
 
-  test(
-    'f04/us03/fr02/e09: a bare Serves line is goal_serves_missing',
-    () async {
-      for (final bare in ['**Serves:**', '**Serves:**  , ,']) {
-        final report = checkOf(
-          await writeCheckProject(
-            extra: doc(projectDoc, '**Serves:** PV-01', bare),
-          ),
-        );
-        expect(spots(report, FindingKind.goalServesMissing), [
-          '$projectDoc:20: goal_serves_missing',
-        ]);
-        expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
-      }
-    },
-  );
-
-  test(
-    'f04/us03/fr02/e09: a fenced Serves example counts for nothing',
-    () async {
+  test('a bare Serves line is goal_serves_missing', () async {
+    for (final bare in ['**Serves:**', '**Serves:**  , ,']) {
       final report = checkOf(
         await writeCheckProject(
-          extra: doc(
-            projectDoc,
-            '**Serves:** PV-01\n',
-            '```\n**Serves:** PV-01\n```\n',
-          ),
+          extra: doc(projectDoc, '**Serves:** PV-01', bare),
         ),
       );
       expect(spots(report, FindingKind.goalServesMissing), [
         '$projectDoc:20: goal_serves_missing',
       ]);
-    },
-  );
+      expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+    }
+  });
 
-  test('f04/us03/fr02/e08: a merged set with no project doc type runs no feature ID rule', () async {
-    final project = await fixtureProject({
-      'docs/prds/features/f01_login/FEATURE.md':
-          '---\nvision:\n  - PV-09\ngoals:\n  - PG-09\n---\n\n# Login\n',
-    });
-    final session = ReadSession.open(
-      templates: TemplateResolver(shippedFiles: fixturePackFiles()),
-      workingDirectory: project,
-      homeDirectory: null,
+  test('a fenced Serves example counts for nothing', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          projectDoc,
+          '**Serves:** PV-01\n',
+          '```\n**Serves:** PV-01\n```\n',
+        ),
+      ),
     );
-    addTearDown(session.close);
-    final report = runCheck(session);
-    expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
-    expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+    expect(spots(report, FindingKind.goalServesMissing), [
+      '$projectDoc:20: goal_serves_missing',
+    ]);
   });
 
   test(
-    'f04/us03/fr03/e01: a row naming a requirement of the feature resolves',
+    'a merged set with no project doc type runs no feature ID rule',
     () async {
-      expect(
-        spots(
-          checkOf(await writeCheckProject()),
-          FindingKind.frTraceUnresolved,
-        ),
-        isEmpty,
+      final project = await fixtureProject({
+        'docs/prds/features/f01_login/FEATURE.md':
+            '---\nvision:\n  - PV-09\ngoals:\n  - PG-09\n---\n\n# Login\n',
+      });
+      final session = ReadSession.open(
+        templates: TemplateResolver(shippedFiles: fixturePackFiles()),
+        workingDirectory: project,
+        homeDirectory: null,
       );
+      addTearDown(session.close);
+      final report = runCheck(session);
+      expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+      expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     },
   );
+
+  test('a row naming a requirement of the feature resolves', () async {
+    expect(
+      spots(checkOf(await writeCheckProject()), FindingKind.frTraceUnresolved),
+      isEmpty,
+    );
+  });
 
   test('f04/us03/s3, f04/us03/fr03/e02, f04/us03/fr03/e03: a row naming a requirement the feature lacks, or written '
       'with the feature slug, is fr_trace_unresolved', () async {
@@ -645,37 +646,43 @@ void main() {
     ]);
   });
 
-  test('f04/us03/fr03/e07: a row naming an FR by its path below the api feature resolves', () async {
-    final report = checkOf(await writeNestedProject(), docPath: shopApi);
+  test(
+    'a row naming an FR by its path below the api feature resolves',
+    () async {
+      final report = checkOf(await writeNestedProject(), docPath: shopApi);
 
-    expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
-  });
+      expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
+    },
+  );
 
-  test('f04/us03/fr03/e08: a row that drops the sub-feature slug is fr_trace_unresolved', () async {
-    final report = checkOf(
-      await writeNestedProject(
-        extra: {
-          'docs/$shopApi': nestedFiles()['docs/$shopApi']!.replaceFirst(
-            '| cart/add_item/check_stock |',
-            '| add_item/check_stock |',
-          ),
-        },
-      ),
-      docPath: shopApi,
-    );
+  test(
+    'a row that drops the sub-feature slug is fr_trace_unresolved',
+    () async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            'docs/$shopApi': nestedFiles()['docs/$shopApi']!.replaceFirst(
+              '| cart/add_item/check_stock |',
+              '| add_item/check_stock |',
+            ),
+          },
+        ),
+        docPath: shopApi,
+      );
 
-    expect(spots(report, FindingKind.frTraceUnresolved), [
-      '$shopApi:12: fr_trace_unresolved',
-    ]);
-    expect(
-      report.findings
-          .firstWhere((f) => f.kind == FindingKind.frTraceUnresolved)
-          .toJson()['fr'],
-      'add_item/check_stock',
-    );
-  });
+      expect(spots(report, FindingKind.frTraceUnresolved), [
+        '$shopApi:12: fr_trace_unresolved',
+      ]);
+      expect(
+        report.findings
+            .firstWhere((f) => f.kind == FindingKind.frTraceUnresolved)
+            .toJson()['fr'],
+        'add_item/check_stock',
+      );
+    },
+  );
 
-  test('f04/us03/fr03/e04: a record entry that names code and no architecture doc is architecture_missing on the feature', () async {
+  test('a record entry that names code and no architecture doc is architecture_missing on the feature', () async {
     final report = await _checkLogin(
       _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       without: {'docs/$loginArchitecture'},
@@ -693,7 +700,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr03/e04: the architecture doc, or a record that names no code, gives no architecture_missing', () async {
+  test('the architecture doc, or a record that names no code, gives no architecture_missing', () async {
     final withDoc = await _checkLogin(
       _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
     );
@@ -760,7 +767,7 @@ void main() {
     expect(spots(quiet, FindingKind.architectureMissing), isEmpty);
   });
 
-  test("f04/us03/fr03/e10: jaspr's record names code and jaspr holds no architecture doc of login: one architecture_missing, target jaspr", () async {
+  test("jaspr's record names code and jaspr holds no architecture doc of login: one architecture_missing, target jaspr", () async {
     final report = await _checkTwin(
       flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       jaspr: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
@@ -777,7 +784,7 @@ void main() {
     expect(finding.message, contains('jaspr'));
   });
 
-  test('f04/us03/fr03/e10: with both twins, or a jaspr record that names no code yet, there is no architecture_missing', () async {
+  test('with both twins, or a jaspr record that names no code yet, there is no architecture_missing', () async {
     final both = await _checkTwin(
       flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       jaspr: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
@@ -792,7 +799,7 @@ void main() {
     expect(spots(noCode, FindingKind.architectureMissing), isEmpty);
   });
 
-  test('f04/us03/fr03/e10: both targets lack their twin: one architecture_missing per target, each with its key', () async {
+  test('both targets lack their twin: one architecture_missing per target, each with its key', () async {
     final report = await _checkTwin(
       flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       jaspr: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
@@ -811,7 +818,7 @@ void main() {
     );
   });
 
-  test('f04/us03/fr03 trade-off: a target that skips the feature needs no architecture doc, as an item skipped by it counts no code', () async {
+  test('trade-off: a target that skips the feature needs no architecture doc, as an item skipped by it counts no code', () async {
     final report = await _checkTwin(
       flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       jaspr: _record(statuses: [':skipped:no web client'], code: [_loginCode]),
@@ -821,31 +828,28 @@ void main() {
     expect(spots(report, FindingKind.architectureMissing), isEmpty);
   });
 
-  test(
-    'f04/us03/fr03/e10: --target jaspr runs the rule for jaspr only',
-    () async {
-      final project = await writeTwinProject(
-        extra: _twinRecords(
-          flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
-          jaspr: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
-        ),
-        without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
-      );
-      final session = openSession(project);
-      addTearDown(session.close);
-      final report = runCheck(session, codeTarget: 'jaspr');
+  test('--target jaspr runs the rule for jaspr only', () async {
+    final project = await writeTwinProject(
+      extra: _twinRecords(
+        flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+        jaspr: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
+      ),
+      without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    final report = runCheck(session, codeTarget: 'jaspr');
 
-      expect(
-        [
-          for (final f in report.findings)
-            if (f.kind == FindingKind.architectureMissing) f.keys,
-        ],
-        [
-          {'target': 'jaspr'},
-        ],
-      );
-    },
-  );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.architectureMissing) f.keys,
+      ],
+      [
+        {'target': 'jaspr'},
+      ],
+    );
+  });
 
   test('f04/us03/fr03/e05, f04/us03/fr04/e05, cc-s03/inv2: a prd-core-only project runs neither rule', () async {
     final report = checkOf(
@@ -859,7 +863,7 @@ void main() {
     expect(spots(report, FindingKind.implementsMissing), isEmpty);
   });
 
-  test('f04/us03/fr03/e06: a spec doc whose feature is gone gets parent_missing and no row rule', () async {
+  test('a spec doc whose feature is gone gets parent_missing and no row rule', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -901,25 +905,31 @@ void main() {
     expect(finding.message, '$_fr is implemented and names no code path');
   });
 
-  test('f04/us03/fr04/e03: an implemented entry whose code list is empty is implements_missing', () async {
-    final report = await _checkLogin(
-      _record(statuses: ['$_fr:implemented'], emptyCode: true),
-    );
-    expect(spots(report, FindingKind.implementsMissing), [
-      '$_loginRecord:3: implements_missing',
-    ]);
-  });
+  test(
+    'an implemented entry whose code list is empty is implements_missing',
+    () async {
+      final report = await _checkLogin(
+        _record(statuses: ['$_fr:implemented'], emptyCode: true),
+      );
+      expect(spots(report, FindingKind.implementsMissing), [
+        '$_loginRecord:3: implements_missing',
+      ]);
+    },
+  );
 
-  test('f04/us03/fr04/e04: code for another item does not stand for an implemented entry', () async {
-    final report = await _checkLogin(
-      _record(statuses: ['$_story:implemented'], code: [_loginCode]),
-    );
-    expect(spots(report, FindingKind.implementsMissing), [
-      '$_loginRecord:3: implements_missing',
-    ]);
-  });
+  test(
+    'code for another item does not stand for an implemented entry',
+    () async {
+      final report = await _checkLogin(
+        _record(statuses: ['$_story:implemented'], code: [_loginCode]),
+      );
+      expect(spots(report, FindingKind.implementsMissing), [
+        '$_loginRecord:3: implements_missing',
+      ]);
+    },
+  );
 
-  test('f04/us03/fr04: a second statuses line for an item draws record_entry_duplicate alone, never implements_missing', () async {
+  test('a second statuses line for an item draws record_entry_duplicate alone, never implements_missing', () async {
     final report = await _checkLogin(
       _record(statuses: ['$_fr:planned', '$_fr:implemented']),
     );
@@ -961,12 +971,15 @@ void main() {
     );
   });
 
-  test('f04/us03/fr04/e07: a skipped entry holds no code path and gives no implements_missing', () async {
-    final report = await _checkLogin(
-      _record(statuses: ['$_fr:skipped:not in this client']),
-    );
-    expect(spots(report, FindingKind.implementsMissing), isEmpty);
-  });
+  test(
+    'a skipped entry holds no code path and gives no implements_missing',
+    () async {
+      final report = await _checkLogin(
+        _record(statuses: ['$_fr:skipped:not in this client']),
+      );
+      expect(spots(report, FindingKind.implementsMissing), isEmpty);
+    },
+  );
 
   test('an implemented FR entry verified by test and naming no test is '
       'tests_missing at its statuses line', () async {
@@ -1139,18 +1152,21 @@ void main() {
     );
   });
 
-  test('f04/us03/fr04/e05: a merged set with no record doc type runs no implemented-status rule', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.implementsMissing), isEmpty);
-  });
+  test(
+    'a merged set with no record doc type runs no implemented-status rule',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.implementsMissing), isEmpty);
+    },
+  );
 
-  test('f04/us03/fr04/e06: flutter implemented with code and jaspr implemented with none: one implements_missing, on the jaspr record, naming jaspr', () async {
+  test('flutter implemented with code and jaspr implemented with none: one implements_missing, on the jaspr record, naming jaspr', () async {
     final report = await _checkTwin(
       flutter: _record(statuses: ['$_fr:implemented'], code: [_loginCode]),
       jaspr: _record(statuses: ['$_fr:implemented']),
@@ -1168,24 +1184,21 @@ void main() {
     );
   });
 
-  test(
-    'f04/us03/fr04/e06: --target flutter leaves the jaspr record out',
-    () async {
-      final project = await writeTwinProject(
-        extra: _twinRecords(
-          flutter: _record(statuses: ['$_fr:implemented']),
-          jaspr: _record(statuses: ['$_fr:implemented']),
-        ),
-      );
-      final session = openSession(project);
-      addTearDown(session.close);
-      final report = runCheck(session, codeTarget: 'flutter');
+  test('--target flutter leaves the jaspr record out', () async {
+    final project = await writeTwinProject(
+      extra: _twinRecords(
+        flutter: _record(statuses: ['$_fr:implemented']),
+        jaspr: _record(statuses: ['$_fr:implemented']),
+      ),
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    final report = runCheck(session, codeTarget: 'flutter');
 
-      expect(spots(report, FindingKind.implementsMissing), [
-        '$_flutterRecord:3: implements_missing',
-      ]);
-    },
-  );
+    expect(spots(report, FindingKind.implementsMissing), [
+      '$_flutterRecord:3: implements_missing',
+    ]);
+  });
 
   test('f04/us03/fr02, cc-s03/inv2: a project layer that disables the roles section runs no role rule', () async {
     final report = checkOf(
@@ -1272,21 +1285,18 @@ void main() {
     ]);
   });
 
-  test(
-    'f04/us03/fr03: a fenced table in the FR trace section holds no row',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: doc(
-            loginApi,
-            '| email_login/check_password | `signIn` |\n',
-            '| email_login/check_password | `signIn` |\n\n```\n| FR | Operation |\n|----|-----------|\n| made_up | `x` |\n```\n',
-          ),
+  test('a fenced table in the FR trace section holds no row', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginApi,
+          '| email_login/check_password | `signIn` |\n',
+          '| email_login/check_password | `signIn` |\n\n```\n| FR | Operation |\n|----|-----------|\n| made_up | `x` |\n```\n',
         ),
-      );
-      expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
-    },
-  );
+      ),
+    );
+    expect(spots(report, FindingKind.frTraceUnresolved), isEmpty);
+  });
 
   group('goal sets of a nested feature', () {
     final projectWithPg02 = edit(projectDoc, [
@@ -1345,26 +1355,23 @@ void main() {
       ]);
     });
 
-    test(
-      'f04/us03/fr02/e11: shop is checked against the project only',
-      () async {
-        final report = checkOf(
-          await writeNestedProject(
-            extra: {
-              ...projectWithPg02,
-              'docs/$shopFeature': nestedFiles()['docs/$shopFeature']!
-                  .replaceFirst(
-                    'goals:\n  - PG-01',
-                    'goals:\n  - PG-01\n  - PG-02',
-                  ),
-            },
-          ),
-        );
+    test('shop is checked against the project only', () async {
+      final report = checkOf(
+        await writeNestedProject(
+          extra: {
+            ...projectWithPg02,
+            'docs/$shopFeature': nestedFiles()['docs/$shopFeature']!
+                .replaceFirst(
+                  'goals:\n  - PG-01',
+                  'goals:\n  - PG-01\n  - PG-02',
+                ),
+          },
+        ),
+      );
 
-        expect(spots(report, FindingKind.visionGoalWidened), isEmpty);
-        expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
-      },
-    );
+      expect(spots(report, FindingKind.visionGoalWidened), isEmpty);
+      expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+    });
   });
 
   group('sibling-story traces', () {
@@ -1386,33 +1393,36 @@ void main() {
       ];
     }
 
-    test('f04/us03/fr01/e08: a scenario of a sibling story resolves', () async {
+    test('a scenario of a sibling story resolves', () async {
       expect(await unresolvedWith('shop/cart/drop_item#S1'), isEmpty);
     });
 
-    test('f04/us03/fr01/e09: a story of another feature is scenario_trace_unresolved', () async {
+    test('a story of another feature is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/pay/card#S1'), [
         '$cartAddFr:3 shop/pay/card#S1',
       ]);
     });
 
-    test('f04/us03/fr01/e10: a sibling story with no such scenario is scenario_trace_unresolved', () async {
-      expect(await unresolvedWith('shop/cart/drop_item#S9'), [
-        '$cartAddFr:3 shop/cart/drop_item#S9',
-      ]);
-    });
+    test(
+      'a sibling story with no such scenario is scenario_trace_unresolved',
+      () async {
+        expect(await unresolvedWith('shop/cart/drop_item#S9'), [
+          '$cartAddFr:3 shop/cart/drop_item#S9',
+        ]);
+      },
+    );
 
-    test('f04/us03/fr01/e04: a story that no doc carries is scenario_trace_unresolved', () async {
+    test('a story that no doc carries is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('shop/cart/nothing#S1'), [
         '$cartAddFr:3 shop/cart/nothing#S1',
       ]);
     });
 
-    test('f04/us03/fr01/e04: a lettered scenario number is scenario_trace_unresolved', () async {
+    test('a lettered scenario number is scenario_trace_unresolved', () async {
       expect(await unresolvedWith('S6a'), ['$cartAddFr:3 S6a']);
     });
 
-    test('f04/us03/fr01/e09: two stories whose feature doc is gone are no siblings', () async {
+    test('two stories whose feature doc is gone are no siblings', () async {
       const other = 'prds/features/f01_login/us02_reset/USER_STORY.md';
       final report = checkOf(
         await writeCheckProject(

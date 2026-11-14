@@ -111,7 +111,7 @@ void main() {
     );
   });
 
-  test('consistency_check/find_broken_pointers/report_uncovered_code: a ./ covers entry reaches the files of a ./ code entry', () async {
+  test('a ./ covers entry reaches the files of a ./ code entry', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -183,16 +183,19 @@ void main() {
     },
   );
 
-  test('f04/us02/fr03/e05: a folder entry reaches only the files inside it, by path segment', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {...narrow('app/lib/src'), 'app/lib/srcx/a.dart': ''},
-      ),
-    );
-    expect([
-      for (final f in report.findings) f.toJson()['path'],
-    ], contains('app/lib/srcx/a.dart'));
-  });
+  test(
+    'a folder entry reaches only the files inside it, by path segment',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {...narrow('app/lib/src'), 'app/lib/srcx/a.dart': ''},
+        ),
+      );
+      expect([
+        for (final f in report.findings) f.toJson()['path'],
+      ], contains('app/lib/srcx/a.dart'));
+    },
+  );
 
   test('f04/us02/s6, f04/us02/fr03/e06: a check on one feature leaves uncovered code out', () async {
     final project = await writeCheckProject(
@@ -261,7 +264,7 @@ void main() {
   });
 
   test(
-    'f04/us02/fr03/e08: a code root that cannot be listed gives a warning and no finding',
+    'a code root that cannot be listed gives a warning and no finding',
     skip: unreadablePathSkipReason(),
     () async {
       final project = await writeCheckProject(
@@ -285,47 +288,53 @@ void main() {
     },
   );
 
-  test('consistency_check/find_broken_pointers/report_uncovered_code: a code entry that names a file is checked for covers as that file', () async {
-    final uncovered = checkOf(
-      await writeCheckProject(
-        extra: {
-          ...doc(techStack, '- app/lib/\n', '- app/lib/other.dart\n'),
-          ...narrow('app/lib/login.dart'),
-          'app/lib/other.dart': '',
-        },
-      ),
-    );
-    expect(
-      [for (final f in uncovered.findings) f.toJson()['path']],
-      ['app/lib/other.dart'],
-    );
-  });
-
-  group('the wait for the first implemented entry of a target', () {
-    test('f04/us02/fr02/e08: an architecture doc waits for an entry of its own feature, then reports', () async {
-      final waiting = checkOf(
-        await writeCheckProject(
-          extra: {..._planned(), ...narrow('app/lib/login/')},
-        ),
-      );
-      expect(spots(waiting, FindingKind.coversPathMissing), isEmpty);
-      final done = checkOf(
+  test(
+    'a code entry that names a file is checked for covers as that file',
+    () async {
+      final uncovered = checkOf(
         await writeCheckProject(
           extra: {
-            'docs/$loginRecord': _record([
-              'email_login:implemented',
-              'email_login/check_password:planned',
-            ]),
-            ...narrow('app/lib/login/'),
+            ...doc(techStack, '- app/lib/\n', '- app/lib/other.dart\n'),
+            ...narrow('app/lib/login.dart'),
+            'app/lib/other.dart': '',
           },
         ),
       );
-      expect(_of(done, FindingKind.coversPathMissing), [
-        '$loginArchitecture: app/lib/login/',
-      ]);
-    });
+      expect(
+        [for (final f in uncovered.findings) f.toJson()['path']],
+        ['app/lib/other.dart'],
+      );
+    },
+  );
 
-    test('f04/us02/fr02/e08: an entry of another feature does not end the wait of an architecture doc', () async {
+  group('the wait for the first implemented entry of a target', () {
+    test(
+      'an architecture doc waits for an entry of its own feature, then reports',
+      () async {
+        final waiting = checkOf(
+          await writeCheckProject(
+            extra: {..._planned(), ...narrow('app/lib/login/')},
+          ),
+        );
+        expect(spots(waiting, FindingKind.coversPathMissing), isEmpty);
+        final done = checkOf(
+          await writeCheckProject(
+            extra: {
+              'docs/$loginRecord': _record([
+                'email_login:implemented',
+                'email_login/check_password:planned',
+              ]),
+              ...narrow('app/lib/login/'),
+            },
+          ),
+        );
+        expect(_of(done, FindingKind.coversPathMissing), [
+          '$loginArchitecture: app/lib/login/',
+        ]);
+      },
+    );
+
+    test('an entry of another feature does not end the wait of an architecture doc', () async {
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -347,7 +356,7 @@ void main() {
       ]);
     });
 
-    test('f04/us02/fr02/e08: an entry of a nested feature ends the wait of the architecture doc above', () async {
+    test('an entry of a nested feature ends the wait of the architecture doc above', () async {
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -382,7 +391,7 @@ void main() {
       expect(_of(done, FindingKind.codeRootMissing), ['$techStack: api/lib/']);
     });
 
-    test('f04/us02/fr02/e09: a topic covers entry waits for any entry of the target', () async {
+    test('a topic covers entry waits for any entry of the target', () async {
       const topic =
           '---\ncovers:\n  - lib/gone/\n---\n\n# Doc model\n\n## Purpose\n\n'
           'One rule set.\n\n## Scope\n\nThe gone folder.\n';
@@ -402,7 +411,7 @@ void main() {
       ]);
     });
 
-    test('f04/us02/fr02/e07: a code root folder that is missing makes each covers entry and code root of an implemented target missing', () async {
+    test('a code root folder that is missing makes each covers entry and code root of an implemented target missing', () async {
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -431,7 +440,7 @@ void main() {
   });
 
   group('two targets', () {
-    test('f04/us02/fr02/e06: each target resolves its covers and code roots against its own code root', () async {
+    test('each target resolves its covers and code roots against its own code root', () async {
       final project = await _twin(
         extra: {
           'docs/$_flutterRecord': _record([_implemented]),
@@ -453,7 +462,7 @@ void main() {
       ]);
     });
 
-    test('f04/us02/fr02/e10: a target with an implemented entry resolves its paths and a target with none raises nothing', () async {
+    test('a target with an implemented entry resolves its paths and a target with none raises nothing', () async {
       final project = await _twin(
         extra: {
           'docs/$_flutterRecord': _record([_implemented]),
@@ -471,7 +480,7 @@ void main() {
       expect(_of(report, FindingKind.codeRootMissing), ['$_flutterTech: api/']);
     });
 
-    test('f04/us02/fr03/e09: each target lists its files under its own code root and matches its own covers only', () async {
+    test('each target lists its files under its own code root and matches its own covers only', () async {
       final project = await _twin(
         extra: {
           'flutter_ws/app/lib/main.dart': '',
@@ -486,34 +495,40 @@ void main() {
       ]);
     });
 
-    test('f04/us02/fr03/e09: a covers entry of one target never reaches the file of another', () async {
-      final project = await _twin(
-        extra: {
-          'flutter_ws/app/lib/main.dart': '',
-          'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
-          'docs/$jasprArchitecture': _arch('app/lib/'),
-        },
-      );
-      expect(_of(_run(project), FindingKind.codeUncovered), [
-        '$_flutterTech: app/lib/main.dart',
-      ]);
-    });
+    test(
+      'a covers entry of one target never reaches the file of another',
+      () async {
+        final project = await _twin(
+          extra: {
+            'flutter_ws/app/lib/main.dart': '',
+            'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
+            'docs/$jasprArchitecture': _arch('app/lib/'),
+          },
+        );
+        expect(_of(_run(project), FindingKind.codeUncovered), [
+          '$_flutterTech: app/lib/main.dart',
+        ]);
+      },
+    );
 
-    test('f04/us02/fr03/e10: a target with no code yet lists nothing and raises no missing root', () async {
-      final project = await _twin(
-        extra: {
-          'docs/$_flutterRecord': _record([_implemented]),
-          'docs/$_jasprTech': _tech(['web/']),
-          'docs/$flutterArchitecture': _arch('app/lib/'),
-          'docs/$jasprArchitecture': _arch('web/'),
-        },
-        without: {'jaspr_ws/app/lib/login.dart'},
-      );
-      final report = _run(project);
-      expect(_of(report, FindingKind.codeUncovered), isEmpty);
-      expect(_of(report, FindingKind.codeRootMissing), isEmpty);
-      expect(_of(report, FindingKind.coversPathMissing), isEmpty);
-    });
+    test(
+      'a target with no code yet lists nothing and raises no missing root',
+      () async {
+        final project = await _twin(
+          extra: {
+            'docs/$_flutterRecord': _record([_implemented]),
+            'docs/$_jasprTech': _tech(['web/']),
+            'docs/$flutterArchitecture': _arch('app/lib/'),
+            'docs/$jasprArchitecture': _arch('web/'),
+          },
+          without: {'jaspr_ws/app/lib/login.dart'},
+        );
+        final report = _run(project);
+        expect(_of(report, FindingKind.codeUncovered), isEmpty);
+        expect(_of(report, FindingKind.codeRootMissing), isEmpty);
+        expect(_of(report, FindingKind.coversPathMissing), isEmpty);
+      },
+    );
 
     test('cc-INV-47: a shared doc with covers in a project of two targets is shared_doc_code_path, once, at the key line', () async {
       final project = await _twin(extra: {'docs/$_sharedTopic': _sharedTopic1});
@@ -562,25 +577,22 @@ void main() {
       },
     );
 
-    test(
-      'f04/us02/fr03/e06: a --target run lists the files of that target only',
-      () async {
-        final project = await _twin(
-          extra: {
-            'flutter_ws/app/lib/main.dart': '',
-            'jaspr_ws/app/lib/web.dart': '',
-            'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
-            'docs/$jasprArchitecture': _arch('app/lib/login.dart'),
-          },
-        );
-        expect(
-          _of(_run(project, codeTarget: 'jaspr'), FindingKind.codeUncovered),
-          ['$_jasprTech: app/lib/web.dart'],
-        );
-      },
-    );
+    test('a --target run lists the files of that target only', () async {
+      final project = await _twin(
+        extra: {
+          'flutter_ws/app/lib/main.dart': '',
+          'jaspr_ws/app/lib/web.dart': '',
+          'docs/$flutterArchitecture': _arch('app/lib/login.dart'),
+          'docs/$jasprArchitecture': _arch('app/lib/login.dart'),
+        },
+      );
+      expect(
+        _of(_run(project, codeTarget: 'jaspr'), FindingKind.codeUncovered),
+        ['$_jasprTech: app/lib/web.dart'],
+      );
+    });
 
-    test('f04/us02/fr03/e09: with nested code roots a file counts for the target of the longest root only', () async {
+    test('with nested code roots a file counts for the target of the longest root only', () async {
       final project = await _twin(
         extra: {
           '.specstone/config.yaml':
@@ -607,7 +619,7 @@ void main() {
   });
 
   test(
-    'f04/us02/fr02/e01: an entry with a backslash or a name Windows trims '
+    'an entry with a backslash or a name Windows trims '
     'names nothing on any OS, though a POSIX disk holds such names',
     () async {
       final tree = await writeTree({'lib/a.dart': ''});

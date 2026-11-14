@@ -35,41 +35,38 @@ void main() {
     expect(fault.toText(), 'no doc carries the name logn');
   });
 
-  group(
-    'index_query/read_doc_section/print_doc_or_section E17: IndexFaults',
-    () {
-      final faults = IndexFaults([
-        IndexFault(IndexFaultCode.docNotFound, 'no doc carries the name logn'),
-        IndexFault(
-          IndexFaultCode.sectionNotFound,
-          'no doc named login holds a section with the key acceptance',
-        ),
-      ]);
+  group('E17: IndexFaults', () {
+    final faults = IndexFaults([
+      IndexFault(IndexFaultCode.docNotFound, 'no doc carries the name logn'),
+      IndexFault(
+        IndexFaultCode.sectionNotFound,
+        'no doc named login holds a section with the key acceptance',
+      ),
+    ]);
 
-      test('prints one line per fault, in order', () {
-        expect(
-          faults.toText(),
-          'no doc carries the name logn\n'
-          'no doc named login holds a section with the key acceptance',
-        );
-      });
+    test('prints one line per fault, in order', () {
+      expect(
+        faults.toText(),
+        'no doc carries the name logn\n'
+        'no doc named login holds a section with the key acceptance',
+      );
+    });
 
-      test("the envelope and the exit status are the first fault's", () {
-        expect(faults.toJson(), {
-          'error': {
-            'code': 'doc_not_found',
-            'message': 'no doc carries the name logn',
-          },
-        });
-        expect(faults.exitStatus, 64);
-        expect(
-          IndexFaults([
-            IndexFault(IndexFaultCode.indexBusy, 'busy'),
-            IndexFault(IndexFaultCode.docNotFound, 'x'),
-          ]).exitStatus,
-          75,
-        );
+    test("the envelope and the exit status are the first fault's", () {
+      expect(faults.toJson(), {
+        'error': {
+          'code': 'doc_not_found',
+          'message': 'no doc carries the name logn',
+        },
       });
-    },
-  );
+      expect(faults.exitStatus, 64);
+      expect(
+        IndexFaults([
+          IndexFault(IndexFaultCode.indexBusy, 'busy'),
+          IndexFault(IndexFaultCode.docNotFound, 'x'),
+        ]).exitStatus,
+        75,
+      );
+    });
+  });
 }

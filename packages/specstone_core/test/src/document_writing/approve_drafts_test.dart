@@ -170,7 +170,7 @@ void main() {
     expect(readDoc(root, signupFeature), contains('Users sign up.\n'));
   });
 
-  test('f02/us03/fr01/e07: a draft at position 2 edited while the prompt waits shows again as Draft 2/2', () async {
+  test('a draft at position 2 edited while the prompt waits shows again as Draft 2/2', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
     var calls = 0;
@@ -265,7 +265,7 @@ void main() {
   }, skip: skipGit);
 
   test(
-    'f02/us03/s3: a draft with no approved version in git shows the whole file',
+    'a draft with no approved version in git shows the whole file',
     () async {
       final root = await writeWriteProject();
       expect(git(root, ['init', '-q']).exitCode, 0);
@@ -382,7 +382,7 @@ void main() {
     expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
   });
 
-  test('f02/us03/fr01: the walk prints the view before its prompt', () async {
+  test('the walk prints the view before its prompt', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
     writeIn(
@@ -401,32 +401,35 @@ void main() {
   });
 
   group('approveDryRun', () {
-    test('f02/us03/fr05/e05: dry run prints each draft in tree order and writes nothing', () async {
-      final root = await writeWriteProject();
-      final answer = writeIn(
-        root,
-        (s) => approveDryRun(s, names: ['feature:signup']),
-      );
-      final shown = answer.text;
-      expect(shown.indexOf('### Draft 1/2 · '), isNonNegative);
-      expect(
-        shown.indexOf('### Draft 1/2 · '),
-        lessThan(shown.indexOf('### Draft 2/2 · ')),
-      );
-      expect(shown, contains('`docs/$signupFeature`'));
-      expect(
-        shown.indexOf('`docs/$signupFeature`'),
-        lessThan(shown.indexOf('`docs/$signupArch`')),
-      );
-      expect(shown, contains('`\n\n| field   | value |'));
-      expect(shown, contains('\n\n### Draft 2/2 · '));
-      expect(shown, endsWith('\n'));
-      expect(answer.json, containsPair('count', 2));
-      expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
-      expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
-    });
+    test(
+      'dry run prints each draft in tree order and writes nothing',
+      () async {
+        final root = await writeWriteProject();
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(s, names: ['feature:signup']),
+        );
+        final shown = answer.text;
+        expect(shown.indexOf('### Draft 1/2 · '), isNonNegative);
+        expect(
+          shown.indexOf('### Draft 1/2 · '),
+          lessThan(shown.indexOf('### Draft 2/2 · ')),
+        );
+        expect(shown, contains('`docs/$signupFeature`'));
+        expect(
+          shown.indexOf('`docs/$signupFeature`'),
+          lessThan(shown.indexOf('`docs/$signupArch`')),
+        );
+        expect(shown, contains('`\n\n| field   | value |'));
+        expect(shown, contains('\n\n### Draft 2/2 · '));
+        expect(shown, endsWith('\n'));
+        expect(answer.json, containsPair('count', 2));
+        expect(readDoc(root, signupFeature), startsWith('---\ndraft: true\n'));
+        expect(readDoc(root, signupArch), startsWith('---\ndraft: true\n'));
+      },
+    );
 
-    test('f02/us03/fr05/e05: a draft whose file is gone is not counted in Draft n/m', () async {
+    test('a draft whose file is gone is not counted in Draft n/m', () async {
       final root = await writeWriteProject();
       final answer = writeIn(root, (s) {
         // the index already holds both drafts; the file goes before selection
@@ -473,7 +476,7 @@ void main() {
       }
     });
 
-    test('f02/us03/fr05/e04: dry run with no draft says so', () async {
+    test('dry run with no draft says so', () async {
       final root = await writeWriteProject();
       final answer = writeIn(
         root,
@@ -483,28 +486,24 @@ void main() {
       expect(answer.json, {'drafts': <Object>[], 'count': 0});
     });
 
-    test(
-      'f02/us03/fr05/e05: a name no doc carries fails before printing',
-      () async {
-        final root = await writeWriteProject();
-        expect(
-          () => writeIn(
-            root,
-            (s) =>
-                approveDryRun(s, names: ['feature:signup', 'feature:nosuch']),
+    test('a name no doc carries fails before printing', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => approveDryRun(s, names: ['feature:signup', 'feature:nosuch']),
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.docNotFound,
           ),
-          throwsA(
-            isA<IndexFault>().having(
-              (f) => f.code,
-              'code',
-              IndexFaultCode.docNotFound,
-            ),
-          ),
-        );
-      },
-    );
+        ),
+      );
+    });
 
-    test('f02/us03/fr05/e07: colour marks the diff lines', () async {
+    test('colour marks the diff lines', () async {
       final root = await writeWriteProject();
       final answer = writeIn(
         root,
@@ -513,38 +512,31 @@ void main() {
       expect(answer.text, contains('\x1b[32m+# Signup'));
     });
 
-    test(
-      'f02/us03/fr05/e07: context sets the lines kept around a change',
-      () async {
-        final root = await writeWriteProject(
-          extra: {
-            'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
-          },
-        );
-        expect(git(root, ['init', '-q']).exitCode, 0);
-        expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
-        expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
-        expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
-        commitAll(root, 'approved');
-        File('${root.path}/docs/$signupFeature').writeAsStringSync(
-          '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\n',
-        );
-        commitAll(root, 'edited as a draft');
-        String viewWith(int? context) => writeIn(
-          root,
-          (s) => approveDryRun(s, names: ['feature:signup'], context: context),
-        ).text;
-        final whole = viewWith(null);
-        final narrow = viewWith(0);
-        expect(
-          narrow,
-          contains('-Users create an account.\n+Users sign up.\n'),
-        );
-        expect(whole, contains('-Users create an account.\n+Users sign up.\n'));
-        expect(narrow, isNot(equals(whole)));
-      },
-      skip: skipGit,
-    );
+    test('context sets the lines kept around a change', () async {
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$signupFeature': '---\napproved: true\n---\n\n# Signup\n\n## Problem\nUsers create an account.\n',
+        },
+      );
+      expect(git(root, ['init', '-q']).exitCode, 0);
+      expect(git(root, ['config', 'user.name', 't']).exitCode, 0);
+      expect(git(root, ['config', 'user.email', 't@t']).exitCode, 0);
+      expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+      commitAll(root, 'approved');
+      File('${root.path}/docs/$signupFeature').writeAsStringSync(
+        '---\ndraft: true\n---\n\n# Signup\n\n## Problem\nUsers sign up.\n',
+      );
+      commitAll(root, 'edited as a draft');
+      String viewWith(int? context) => writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['feature:signup'], context: context),
+      ).text;
+      final whole = viewWith(null);
+      final narrow = viewWith(0);
+      expect(narrow, contains('-Users create an account.\n+Users sign up.\n'));
+      expect(whole, contains('-Users create an account.\n+Users sign up.\n'));
+      expect(narrow, isNot(equals(whole)));
+    }, skip: skipGit);
   });
 
   group('approveNamed', () {
@@ -722,41 +714,35 @@ void main() {
       },
     );
 
-    test(
-      'f02/us03/fr04/e06: a bare name 2 docs carry is argument_invalid',
-      () async {
-        final root = await writeWriteProject();
-        expect(
-          () => writeIn(
-            root,
-            (s) => approveNamed(s, [(name: 'signup', hash: '000000000000')]),
-          ),
-          throwsA(
-            isA<IndexFault>().having(
-              (f) => f.code,
-              'code',
-              IndexFaultCode.argumentInvalid,
-            ),
-          ),
-        );
-      },
-    );
-
-    test(
-      'f02/us03/fr04/e06: a bare name one typed draft carries approves it',
-      () async {
-        final root = await writeWriteProject();
-        final hash = seen(root, 'user_story:login/email_login').hash;
-        writeIn(
+    test('a bare name 2 docs carry is argument_invalid', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
           root,
-          (s) => approveNamed(s, [(name: 'login/email_login', hash: hash)]),
-        );
-        expect(readDoc(root, story1), contains(approvedMark(root, story1)));
-      },
-    );
+          (s) => approveNamed(s, [(name: 'signup', hash: '000000000000')]),
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
+          ),
+        ),
+      );
+    });
+
+    test('a bare name one typed draft carries approves it', () async {
+      final root = await writeWriteProject();
+      final hash = seen(root, 'user_story:login/email_login').hash;
+      writeIn(
+        root,
+        (s) => approveNamed(s, [(name: 'login/email_login', hash: hash)]),
+      );
+      expect(readDoc(root, story1), contains(approvedMark(root, story1)));
+    });
   });
 
-  test('f02/us03/fr01/e01: no name walks every typed draft', () async {
+  test('no name walks every typed draft', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
     writeIn(
@@ -791,7 +777,7 @@ void main() {
     },
   );
 
-  test('f02/us03/fr01/e06: another answer repeats the prompt', () async {
+  test('another answer repeats the prompt', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
     writeIn(
@@ -814,7 +800,7 @@ void main() {
     );
   });
 
-  test('f02/us03/fr01/e03: no draft in scope prints one line', () async {
+  test('no draft in scope prints one line', () async {
     final root = await writeWriteProject();
     final out = StringBuffer();
     writeIn(
@@ -829,7 +815,7 @@ void main() {
     expect(out.toString(), 'no draft waits for approval\n');
   });
 
-  test('f02/us03/fr01/e08: a name no doc carries is doc_not_found', () async {
+  test('a name no doc carries is doc_not_found', () async {
     final root = await writeWriteProject();
     expect(
       () => writeIn(
@@ -851,7 +837,7 @@ void main() {
     );
   });
 
-  test('f02/us03/fr01/e09: an untyped draft is not walked', () async {
+  test('an untyped draft is not walked', () async {
     final root = await writeWriteProject(
       extra: {'docs/notes.md': '---\ndraft: true\n---\n# N\n'},
     );
@@ -887,28 +873,25 @@ void main() {
     );
   });
 
-  test(
-    'f02/us03/fr03/e04: a draft deleted while the prompt waits is skipped',
-    () async {
-      final root = await writeWriteProject();
-      final out = StringBuffer();
-      var calls = 0;
-      String? answer() {
-        if (calls++ == 0) docFile(root, signupFeature).deleteSync();
-        return calls == 1 ? 'y' : 'q';
-      }
+  test('a draft deleted while the prompt waits is skipped', () async {
+    final root = await writeWriteProject();
+    final out = StringBuffer();
+    var calls = 0;
+    String? answer() {
+      if (calls++ == 0) docFile(root, signupFeature).deleteSync();
+      return calls == 1 ? 'y' : 'q';
+    }
 
-      writeIn(
-        root,
-        (s) => approveDrafts(s, names: ['signup'], readLine: answer, out: out),
-      );
-      expect(hasDoc(root, signupFeature), isFalse);
-      expect(readDoc(root, signupArch), contains('draft: true'));
-      expect(out.toString(), contains('`docs/$signupArch`\n'));
-    },
-  );
+    writeIn(
+      root,
+      (s) => approveDrafts(s, names: ['signup'], readLine: answer, out: out),
+    );
+    expect(hasDoc(root, signupFeature), isFalse);
+    expect(readDoc(root, signupArch), contains('draft: true'));
+    expect(out.toString(), contains('`docs/$signupArch`\n'));
+  });
 
-  test('f02/us03/fr03/e05: a lock held past the busy timeout is index_busy, and approvals already written stay', () async {
+  test('a lock held past the busy timeout is index_busy, and approvals already written stay', () async {
     final root = await writeWriteProject();
     writeIn(root, (_) {}); // creates the index
     final other = sqlite3.open('${root.path}/.specstone/index.sqlite');
@@ -1020,7 +1003,7 @@ void main() {
     },
   );
 
-  test('document_writing/approve_drafts/mark_doc_approved E07: y on a draft with padded table cells writes the hash and lays the doc out', () async {
+  test('E07: y on a draft with padded table cells writes the hash and lays the doc out', () async {
     const padded =
         '---\ndraft: true\n---\n\n# Signup architecture\n\n## Components\n'
         '| Component   | Responsibility |\n|-------------|----------------|\n'
@@ -1043,7 +1026,7 @@ void main() {
     );
   });
 
-  test('document_writing/approve_drafts/mark_doc_approved E07: y on a draft the formatter refuses puts the hash at its field-order slot and keeps every other byte', () async {
+  test('E07: y on a draft the formatter refuses puts the hash at its field-order slot and keeps every other byte', () async {
     const refused =
         '---\ncovers:\n  - app/lib/src/signup/\ndraft: true\n---\n\n# Signup architecture\n\n## Bogus\nB.\n\n## Components\n'
         '| Component   | Responsibility |\n|-------------|----------------|\n'
@@ -1492,7 +1475,7 @@ void main() {
     });
   });
 
-  group('document_writing/approve_drafts/show_changes_since_approval E23', () {
+  group('E23', () {
     const approvedFeature =
         '---\napproved: true\n---\n\n# Signup\n\n## Problem\n\n'
         'Kept sentence. Dropped sentence. Moved sentence.\n';
@@ -1642,7 +1625,7 @@ void main() {
     });
   });
 
-  group('document_writing/approve_drafts/print_drafts_for_chat JSON', () {
+  group('JSON', () {
     const kept = 'Users create an account.';
 
     /// Commits `signup` as an approved doc, then as an edited draft whose
@@ -1775,7 +1758,7 @@ void main() {
     );
   });
 
-  group('document_writing/approve_drafts/print_drafts_for_chat E24', () {
+  group('E24', () {
     const dropped = 'Dropped sentence.';
     const moved = 'Moved sentence.';
 
@@ -1908,7 +1891,7 @@ void main() {
     String walked(Directory root, {String? codeTarget}) =>
         writeIn(root, (s) => approveDryRun(s, codeTarget: codeTarget).text);
 
-    test('f02/us03/fr01: a walk keeps both twins without --target and the shared docs and one target with it', () async {
+    test('a walk keeps both twins without --target and the shared docs and one target with it', () async {
       final root = await twinDrafts();
       final all = walked(root);
       expect(all, contains('`docs/$flutterArchitecture`'));
@@ -1918,7 +1901,7 @@ void main() {
       expect(jaspr, isNot(contains(flutterArchitecture)));
     });
 
-    test('f02/us03/fr01: a twin doc that tracks no status keeps no status row and no statusByTarget', () async {
+    test('a twin doc that tracks no status keeps no status row and no statusByTarget', () async {
       final root = await twinDrafts();
       final answer = writeIn(
         root,
@@ -1932,20 +1915,23 @@ void main() {
       }
     });
 
-    test('f02/us03/fr01: a walk of a named doc under --target keeps that target twin only', () async {
-      final root = await twinDrafts();
-      final answer = writeIn(
-        root,
-        (s) => approveDryRun(
-          s,
-          names: ['architecture:login'],
-          codeTarget: 'flutter',
-        ),
-      );
-      expect(answer.text, contains('`docs/$flutterArchitecture`'));
-      expect(answer.text, isNot(contains(jasprArchitecture)));
-      expect(answer.json['count'], 1);
-    });
+    test(
+      'a walk of a named doc under --target keeps that target twin only',
+      () async {
+        final root = await twinDrafts();
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(
+            s,
+            names: ['architecture:login'],
+            codeTarget: 'flutter',
+          ),
+        );
+        expect(answer.text, contains('`docs/$flutterArchitecture`'));
+        expect(answer.text, isNot(contains(jasprArchitecture)));
+        expect(answer.json['count'], 1);
+      },
+    );
 
     test('f02/us03/fr03, f02/us03/fr03/e01: y on the jaspr twin approves it and leaves the flutter twin a draft', () async {
       final root = await twinDrafts();
@@ -1968,22 +1954,29 @@ void main() {
       expect(readDoc(root, flutterArchitecture), contains('draft: true'));
     });
 
-    test('f02/us03/fr04: --yes with --target approves the named twin by its hash only', () async {
-      final root = await twinDrafts();
-      final hash =
-          (getDoc(root, jasprArchitecture)['bases']! as Map)['doc']! as String;
-      final answer = writeIn(
-        root,
-        (s) => approveNamed(s, [
-          (name: 'architecture:login', hash: hash),
-        ], codeTarget: 'jaspr'),
-      );
-      expect(answer.text, 'approved architecture:login\n');
-      expect(readDoc(root, jasprArchitecture), isNot(contains('draft: true')));
-      expect(readDoc(root, flutterArchitecture), contains('draft: true'));
-    });
+    test(
+      '--yes with --target approves the named twin by its hash only',
+      () async {
+        final root = await twinDrafts();
+        final hash =
+            (getDoc(root, jasprArchitecture)['bases']! as Map)['doc']!
+                as String;
+        final answer = writeIn(
+          root,
+          (s) => approveNamed(s, [
+            (name: 'architecture:login', hash: hash),
+          ], codeTarget: 'jaspr'),
+        );
+        expect(answer.text, 'approved architecture:login\n');
+        expect(
+          readDoc(root, jasprArchitecture),
+          isNot(contains('draft: true')),
+        );
+        expect(readDoc(root, flutterArchitecture), contains('draft: true'));
+      },
+    );
 
-    test('f02/us03/fr04/e06: --yes on a name two targets share, with no --target, is argument_invalid listing both docs and approves nothing', () async {
+    test('--yes on a name two targets share, with no --target, is argument_invalid listing both docs and approves nothing', () async {
       final root = await twinDrafts();
       final before = [
         readDoc(root, flutterArchitecture),
@@ -2011,104 +2004,55 @@ void main() {
       ], before);
     });
 
-    test(
-      'f02/us03/fr01: a --target the project does not name is argument_invalid',
-      () async {
-        final root = await twinDrafts();
-        expect(
-          () => walked(root, codeTarget: 'dart'),
-          throwsA(
-            isA<IndexFault>().having(
-              (f) => f.code,
-              'code',
-              IndexFaultCode.argumentInvalid,
-            ),
+    test('a --target the project does not name is argument_invalid', () async {
+      final root = await twinDrafts();
+      expect(
+        () => walked(root, codeTarget: 'dart'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentInvalid,
           ),
-        );
-      },
-    );
-
-    test('f02/us03/fr01: the status row of a story draft reads its record in the --target given', () async {
-      String record(String status) =>
-          '---\nstatuses:\n  - email_login:$status\n---\n\n# Record\n';
-      final root = await writeTwinProject(
-        extra: {
-          ...check.edit(check.loginStory, [
-            ('goals:\n', 'draft: true\ngoals:\n'),
-          ]),
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
-            'implemented',
-          ),
-          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': record('planned'),
-        },
+        ),
       );
-      Object? statusUnder(String target) {
-        final answer = writeIn(
-          root,
-          (s) => approveDryRun(
-            s,
-            names: ['user_story:login/email_login'],
-            codeTarget: target,
-          ),
-        );
-        return ((answer.json['drafts']! as List).single as Map)['status'];
-      }
-
-      expect(statusUnder('flutter'), 'implemented');
-      expect(statusUnder('jaspr'), 'planned');
     });
 
     test(
-      'f02/us03/fr01: the status row shows each target status with no --target',
+      'the status row of a story draft reads its record in the --target given',
       () async {
+        String record(String status) =>
+            '---\nstatuses:\n  - email_login:$status\n---\n\n# Record\n';
         final root = await writeTwinProject(
           extra: {
             ...check.edit(check.loginStory, [
               ('goals:\n', 'draft: true\ngoals:\n'),
             ]),
-            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _unstampedRecord(
-              'email_login:implemented',
+            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
+              'implemented',
             ),
+            'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': record('planned'),
           },
         );
+        Object? statusUnder(String target) {
+          final answer = writeIn(
+            root,
+            (s) => approveDryRun(
+              s,
+              names: ['user_story:login/email_login'],
+              codeTarget: target,
+            ),
+          );
+          return ((answer.json['drafts']! as List).single as Map)['status'];
+        }
 
-        final answer = writeIn(
-          root,
-          (s) => approveDryRun(s, names: ['user_story:login/email_login']),
-        );
-
-        expect(
-          answer.text,
-          contains('| status  | `flutter implemented · jaspr planned` |'),
-        );
-        final draft = (answer.json['drafts']! as List).single as Map;
-        expect(draft.containsKey('status'), isFalse);
-        final byTarget = draft['statusByTarget']! as Map;
-        expect(byTarget.keys.toList(), ['flutter', 'jaspr']);
-        expect(byTarget['flutter'], 'implemented');
-        expect(byTarget['jaspr'], 'planned');
+        expect(statusUnder('flutter'), 'implemented');
+        expect(statusUnder('jaspr'), 'planned');
       },
     );
 
-    test('f02/us03/fr01: one target and a given --target keep one status row and key', () async {
-      final oneTarget = await check.writeCheckProject(
-        extra: {
-          ...check.edit(check.loginStory, [
-            ('goals:\n', 'draft: true\ngoals:\n'),
-          ]),
-        },
-      );
-      final answer = writeIn(
-        oneTarget,
-        (s) => approveDryRun(s, names: ['user_story:login/email_login']),
-      );
-      expect(answer.text, contains('| status  | `implemented` |'));
-      expect(
-        ((answer.json['drafts']! as List).single as Map)['status'],
-        'implemented',
-      );
-
-      final twinRoot = await writeTwinProject(
+    test('the status row shows each target status with no --target', () async {
+      final root = await writeTwinProject(
         extra: {
           ...check.edit(check.loginStory, [
             ('goals:\n', 'draft: true\ngoals:\n'),
@@ -2118,19 +2062,68 @@ void main() {
           ),
         },
       );
-      final twinAnswer = writeIn(
-        twinRoot,
-        (s) => approveDryRun(
-          s,
-          names: ['user_story:login/email_login'],
-          codeTarget: 'flutter',
-        ),
+
+      final answer = writeIn(
+        root,
+        (s) => approveDryRun(s, names: ['user_story:login/email_login']),
       );
-      expect(twinAnswer.text, contains('| status  | `implemented` |'));
-      final twin = (twinAnswer.json['drafts']! as List).single as Map;
-      expect(twin['status'], 'implemented');
-      expect(twin.containsKey('statusByTarget'), isFalse);
+
+      expect(
+        answer.text,
+        contains('| status  | `flutter implemented · jaspr planned` |'),
+      );
+      final draft = (answer.json['drafts']! as List).single as Map;
+      expect(draft.containsKey('status'), isFalse);
+      final byTarget = draft['statusByTarget']! as Map;
+      expect(byTarget.keys.toList(), ['flutter', 'jaspr']);
+      expect(byTarget['flutter'], 'implemented');
+      expect(byTarget['jaspr'], 'planned');
     });
+
+    test(
+      'one target and a given --target keep one status row and key',
+      () async {
+        final oneTarget = await check.writeCheckProject(
+          extra: {
+            ...check.edit(check.loginStory, [
+              ('goals:\n', 'draft: true\ngoals:\n'),
+            ]),
+          },
+        );
+        final answer = writeIn(
+          oneTarget,
+          (s) => approveDryRun(s, names: ['user_story:login/email_login']),
+        );
+        expect(answer.text, contains('| status  | `implemented` |'));
+        expect(
+          ((answer.json['drafts']! as List).single as Map)['status'],
+          'implemented',
+        );
+
+        final twinRoot = await writeTwinProject(
+          extra: {
+            ...check.edit(check.loginStory, [
+              ('goals:\n', 'draft: true\ngoals:\n'),
+            ]),
+            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _unstampedRecord(
+              'email_login:implemented',
+            ),
+          },
+        );
+        final twinAnswer = writeIn(
+          twinRoot,
+          (s) => approveDryRun(
+            s,
+            names: ['user_story:login/email_login'],
+            codeTarget: 'flutter',
+          ),
+        );
+        expect(twinAnswer.text, contains('| status  | `implemented` |'));
+        final twin = (twinAnswer.json['drafts']! as List).single as Map;
+        expect(twin['status'], 'implemented');
+        expect(twin.containsKey('statusByTarget'), isFalse);
+      },
+    );
   });
 }
 

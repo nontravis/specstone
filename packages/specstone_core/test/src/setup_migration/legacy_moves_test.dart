@@ -95,7 +95,7 @@ ${rows.join('\n')}
 
 void main() {
   group('planLegacyMoves', () {
-    test("f06/us01/fr03: the acme moves are the dry-run example's eight "
+    test("the acme moves are the dry-run example's eight "
         'moves in order', () {
       final plan = _plan(acmeLegacy);
 
@@ -130,7 +130,7 @@ void main() {
       ]);
     });
 
-    test('f06/us01/fr03/e01: the three project docs take fixed names and '
+    test('the three project docs take fixed names and '
         'd04 stays', () {
       final plan = _plan(specEdgeLegacy);
 
@@ -142,7 +142,7 @@ void main() {
       expect(_movedTo(plan, 'prds/d04_glossary.md'), isNull);
     });
 
-    test('f06/us01/fr03/e02: a flat feature keeps its folder and its '
+    test('a flat feature keeps its folder and its '
         'requirements move up into the story folder', () {
       final plan = _plan(acmeLegacy);
       const feature = 'prds/features/f01_login/';
@@ -159,7 +159,7 @@ void main() {
       expect(_movedTo(plan, '${story}USER_STORY.md'), isNull);
     });
 
-    test('f06/us01/fr03/e02: a non-functional requirement moves up beside '
+    test('a non-functional requirement moves up beside '
         'its story and any other file of the feature stays', () {
       final tree = {
         'docs/prds/features/f01_login/FEATURE.md': '# F-01\n',
@@ -215,7 +215,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e05: a file a folder above a group holds stays', () {
+    test('a file a folder above a group holds stays', () {
       final plan = _plan(groupedLegacy);
 
       expect(plan.left, ['prds/features/brick_module/README.md']);
@@ -228,7 +228,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e07: a flat feature of a grouped tree stays whole', () {
+    test('a flat feature of a grouped tree stays whole', () {
       final plan = _plan(mixedLegacy);
 
       expect(plan.left, ['prds/features/f01_login/FEATURE.md']);
@@ -241,7 +241,7 @@ void main() {
       ]);
     });
 
-    test('f06/us01/fr03/e08: spec files map by name, never by number', () {
+    test('spec files map by name, never by number', () {
       final plan = _plan(specEdgeLegacy);
 
       expect(
@@ -260,7 +260,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e08: a spec folder of a grouped feature maps under '
+    test('a spec folder of a grouped feature maps under '
         'its group', () {
       final tree = {
         ...containerLegacy,
@@ -295,7 +295,7 @@ void main() {
         for (final file in files) 'docs/specs/ui/slot/$file': '# S\n',
       };
 
-      test('f06/us01/fr03/e08: a bare s02_api.md maps to API.md', () {
+      test('a bare s02_api.md maps to API.md', () {
         final plan = _plan(slotTree(['s02_api.md']));
 
         expect(
@@ -305,7 +305,7 @@ void main() {
         expect(plan.kindOf['specs/utilities/f01_slot/API.md'], LegacyKind.api);
       });
 
-      test('f06/us01/fr03/e08: each of the six kinds takes a suffix', () {
+      test('each of the six kinds takes a suffix', () {
         final plan = _plan(
           slotTree([
             's01_architecture_overview.md',
@@ -330,7 +330,7 @@ void main() {
         });
       });
 
-      test('f06/us01/fr03/e13: s04_authentication.md matches no kind and '
+      test('s04_authentication.md matches no kind and '
           'stays', () {
         final plan = _plan(slotTree(['s04_authentication.md']));
 
@@ -338,7 +338,7 @@ void main() {
         expect(_movedTo(plan, 'specs/ui/slot/s04_authentication.md'), isNull);
       });
 
-      test('f06/us01/fr03/e08: a bare file of each other kind maps to its '
+      test('a bare file of each other kind maps to its '
           'doc file', () {
         final plan = _plan(
           slotTree([
@@ -362,7 +362,7 @@ void main() {
         });
       });
 
-      test('f06/us01/fr03/e13: an empty suffix or a kind that does not end at '
+      test('an empty suffix or a kind that does not end at '
           '_ or .md stays', () {
         final plan = _plan(slotTree(['s02_api_.md', 's02_error.md']));
 
@@ -376,7 +376,7 @@ void main() {
         expect(plan.moves.where((m) => m.from.startsWith('specs/')), isEmpty);
       });
 
-      test('f06/us01/fr03/e10: s02_errors.md beside s02_errors_v2.md keeps '
+      test('s02_errors.md beside s02_errors_v2.md keeps '
           'both old names', () {
         final plan = _plan(slotTree(['s02_errors.md', 's02_errors_v2.md']));
 
@@ -394,7 +394,7 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e10: s02_api.md beside s02_api_login.md keeps both '
+      test('s02_api.md beside s02_api_login.md keeps both '
           'old names', () {
         final plan = _plan(slotTree(['s02_api.md', 's02_api_login.md']));
 
@@ -422,7 +422,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e11: two files of one name go under their old '
+    test('two files of one name go under their old '
         'folder names', () {
       final plan = _plan(specEdgeLegacy);
 
@@ -437,7 +437,7 @@ void main() {
       expect(plan.kindOf, isNot(contains('specs/f02_billing/ARCHITECTURE.md')));
     });
 
-    test('f06/us01/fr03/e12: architecture topics and cross-cutting folders '
+    test('architecture topics and cross-cutting folders '
         'move under specs/topics', () {
       final plan = _plan(specEdgeLegacy);
 
@@ -457,7 +457,7 @@ void main() {
       expect(plan.left, contains('specs/architecture/caching.schema.json'));
     });
 
-    test('f06/us01/fr03/e13: files no rule places stay', () {
+    test('files no rule places stay', () {
       final plan = _plan(specEdgeLegacy);
 
       expect(
@@ -472,7 +472,7 @@ void main() {
       expect(plan.left, [...plan.left]..sort());
     });
 
-    test('f06/us01/fr03: a folder of two feature_ids and a feature_id no '
+    test('a folder of two feature_ids and a feature_id no '
         'folder carries stay', () {
       final plan = _plan(specEdgeLegacy);
 
@@ -485,7 +485,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03: no move has from == to, and moves follow code point '
+    test('no move has from == to, and moves follow code point '
         'order of from', () {
       final plan = _plan(specEdgeLegacy);
       final froms = plan.moves.map((m) => m.from).toList();
@@ -494,7 +494,7 @@ void main() {
       expect(froms, [...froms]..sort());
     });
 
-    test('f06/us01/fr03/e06: a container inside a container keeps its outer '
+    test('a container inside a container keeps its outer '
         'one and takes the last folder name as its slug', () {
       final plan = _plan({
         'docs/prds/features/a/FEATURE.md': '# A\n',
@@ -510,7 +510,7 @@ void main() {
       expect(plan.kindOf, isNot(contains('prds/features/b/FEATURE.md')));
     });
 
-    test('f06/us01/fr03/e12: a cross-cutting row for the architecture folder '
+    test('a cross-cutting row for the architecture folder '
         'leaves its non-markdown file where it lands without the row', () {
       final tree = {
         ...specEdgeLegacy,
@@ -540,7 +540,7 @@ void main() {
           'docs/specs/$key': value,
       };
 
-      test('f06/us01/fr03/e11: server and client folders of one name give '
+      test('server and client folders of one name give '
           'two subfolders', () {
         final plan = _plan(
           sameName({
@@ -565,7 +565,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e11: x/ and a/x/, one a trailing run of the other, '
+      test('x/ and a/x/, one a trailing run of the other, '
           'give two distinct subfolders', () {
         final tree = sameName({
           'x/s01_architecture.md': '#',
@@ -584,7 +584,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e11: p/Q/ and r/q/ take p/Q and r/q, no fault', () {
+      test('p/Q/ and r/q/ take p/Q and r/q, no fault', () {
         final plan = _plan(
           sameName({
             'p/Q/s01_architecture.md': '#',
@@ -602,7 +602,7 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e11: one name in another letter case in two '
+      test('one name in another letter case in two '
           'folders is still one name', () {
         final plan = _plan(
           sameName({
@@ -672,7 +672,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e11: a Spec map row of specs/ itself beside one of '
+      test('a Spec map row of specs/ itself beside one of '
           'specs/server/ plans, the specs/ file keeping its old name in the '
           'feature spec folder', () {
         final tree = {
@@ -697,7 +697,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e11: three files where two share a trailing run '
+      test('three files where two share a trailing run '
           'take a/x, b/x, and y', () {
         final plan = _plan(
           sameName({
@@ -714,7 +714,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e11: x/, a/x/, and b/a/x/ take x, a/x, and '
+      test('x/, a/x/, and b/a/x/ take x, a/x, and '
           'b/a/x', () {
         final plan = _plan(
           sameName({
@@ -764,7 +764,7 @@ void main() {
     });
 
     group('trailingRunNames', () {
-      test('f06/us01/fr03/e11: the shortest run that differs names each '
+      test('the shortest run that differs names each '
           'folder', () {
         expect(
           trailingRunNames([
@@ -779,17 +779,17 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e11: a folder whose whole path is a trailing run '
+      test('a folder whose whole path is a trailing run '
           'of another takes its whole path', () {
         expect(trailingRunNames(['specs/x/', 'specs/a/x/']), ['x', 'a/x']);
       });
 
-      test('f06/us01/fr03/e11: runs compare ignoring letter case', () {
+      test('runs compare ignoring letter case', () {
         expect(trailingRunNames(['specs/p/Q/', 'specs/r/q/']), ['p/Q', 'r/q']);
         expect(trailingRunNames(['specs/p/x/', 'specs/r/X/']), ['p/x', 'r/X']);
       });
 
-      test('f06/us01/fr03/e11: entries compare by position, so a folder '
+      test('entries compare by position, so a folder '
           'listed twice takes its whole path beside one listed once', () {
         expect(trailingRunNames(['specs/a/x/', 'specs/a/x/', 'specs/b/x/']), [
           'a/x',
@@ -798,12 +798,12 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e11: the bare specs/ folder takes no subfolder '
+      test('the bare specs/ folder takes no subfolder '
           'name', () {
         expect(trailingRunNames(['specs/', 'specs/server/']), ['', 'server']);
       });
 
-      test('f06/us01/fr03/e11: an entry outside specs/ breaks the '
+      test('an entry outside specs/ breaks the '
           'precondition', () {
         expect(
           () => trailingRunNames(['x/api/', 'specs/a/api/']),
@@ -813,7 +813,7 @@ void main() {
     });
 
     group('e12 cross-cutting folders', () {
-      test('f06/us01/fr03/e12: folders sharing a last segment each move '
+      test('folders sharing a last segment each move '
           'under their trailing run and none stays', () {
         final tree = {
           'docs/specs/INDEX.md': _specIndex([
@@ -845,7 +845,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e12: last segments that match only in letter case '
+      test('last segments that match only in letter case '
           'move under their whole paths, no fault', () {
         final plan = _plan({
           'docs/specs/INDEX.md': _specIndex([
@@ -862,7 +862,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e12: cross-cutting rows outside specs/ or sharing '
+      test('cross-cutting rows outside specs/ or sharing '
           'a last segment with no file plan without a throw', () {
         for (final rows in [
           ['auth/', 'lib/auth/'],
@@ -884,7 +884,7 @@ void main() {
         }
       });
 
-      test('f06/us01/fr03/e12: a cross-cutting row of specs/ moves its files '
+      test('a cross-cutting row of specs/ moves its files '
           'to specs/topics/specs/, beside a row of x/specs/ that plans', () {
         final tree = {
           'docs/specs/INDEX.md': _specIndex([
@@ -917,7 +917,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e12: a cross-cutting row with no file does not '
+      test('a cross-cutting row with no file does not '
           'count as sharing a last segment', () {
         final plan = _plan({
           'docs/specs/INDEX.md': _specIndex([
@@ -934,7 +934,7 @@ void main() {
     });
 
     group('e14 collisions', () {
-      test('f06/us01/fr03/e14: a move onto a file that stays refuses with '
+      test('a move onto a file that stays refuses with '
           'the target as file and says the file stays', () {
         final lines = _refusal({
           ...acmeLegacy,
@@ -952,7 +952,7 @@ void main() {
         expect(lines.single.exitStatus, 65);
       });
 
-      test('f06/us01/fr03/e14: two moves onto one path refuse and each '
+      test('two moves onto one path refuse and each '
           'old path is named', () {
         final tree = {
           'docs/prds/features/co01_utilities/co01_01_slot/FEATURE.md': '# A\n',
@@ -976,7 +976,7 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e14: two targets give the fault and one more '
+      test('two targets give the fault and one more '
           'entry in code point order', () {
         final lines = _refusal({
           ...acmeLegacy,
@@ -990,7 +990,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e14: a move onto a path a later move leaves runs '
+      test('a move onto a path a later move leaves runs '
           'after it, and the other moves keep code point order', () {
         final tree = {
           ..._threeFeatures,
@@ -1018,7 +1018,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e14: a cycle refuses with one line per target in '
+      test('a cycle refuses with one line per target in '
           'the cycle', () {
         final lines = _refusal(
           _specTree(
@@ -1038,7 +1038,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e14: a chain of three moves, each onto the next '
+      test('a chain of three moves, each onto the next '
           "one's old path, runs last first", () {
         final tree = {
           ..._specTree(
@@ -1067,7 +1067,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e14: a cycle of three moves refuses with one line '
+      test('a cycle of three moves refuses with one line '
           'per target', () {
         final lines = _refusal(
           _specTree(
@@ -1090,7 +1090,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e14: moves that lead from one cycle to another lie '
+      test('moves that lead from one cycle to another lie '
           'on no cycle', () {
         expect(movesOnCycles(_twoCyclesAndABridge), [
           (from: 'a', to: 'b'),
@@ -1100,7 +1100,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e14: d01_context.md moving onto a staying '
+      test('d01_context.md moving onto a staying '
           'PROJECT.md or project.md refuses and says it stays', () {
         for (final staying in ['PROJECT.md', 'project.md']) {
           final lines = _refusal({
@@ -1119,7 +1119,7 @@ void main() {
         }
       });
 
-      test('f06/us01/fr03/e14: an FR moving up onto a staying fr01_x.md or '
+      test('an FR moving up onto a staying fr01_x.md or '
           'FR01_X.md refuses and says it stays', () {
         const story = 'prds/features/f01_login/us01_email';
         for (final staying in ['fr01_x.md', 'FR01_X.md']) {
@@ -1141,7 +1141,7 @@ void main() {
         }
       });
 
-      test('f06/us01/fr03/e14: an empty specs/ holding one file leaves it '
+      test('an empty specs/ holding one file leaves it '
           'where it is', () {
         final tree = {'docs/specs/INDEX.md': '# Index\n'};
         final plan = _plan(tree);
@@ -1151,7 +1151,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e14: a tree with no file plans nothing', () {
+      test('a tree with no file plans nothing', () {
         final plan = _plan({});
 
         expect(plan.moves, isEmpty);
@@ -1160,7 +1160,7 @@ void main() {
     });
 
     group('e14 case-blind', () {
-      test('f06/us01/fr03/e14: a move onto ARCHITECTURE.md beside a staying '
+      test('a move onto ARCHITECTURE.md beside a staying '
           'architecture.md refuses and says it stays', () {
         final lines = _refusal(
           _specTree(
@@ -1182,7 +1182,7 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e14: two targets that differ only in case form '
+      test('two targets that differ only in case form '
           'one line naming both old paths', () {
         final lines = _refusal({
           'docs/specs/INDEX.md': _specIndex([
@@ -1200,7 +1200,7 @@ void main() {
         );
       });
 
-      test('f06/us01/fr03/e14: a move onto a path another move leaves in '
+      test('a move onto a path another move leaves in '
           'another letter case runs after that move', () {
         final tree = _specTree(
           {
@@ -1220,7 +1220,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e14: a cycle that closes only ignoring letter '
+      test('a cycle that closes only ignoring letter '
           'case refuses', () {
         final lines = _refusal(
           _specTree(
@@ -1240,7 +1240,7 @@ void main() {
         ]);
       });
 
-      test('f06/us01/fr03/e14: a move onto its own old path in another '
+      test('a move onto its own old path in another '
           'letter case is a move, no collision and no cycle', () {
         final tree = {
           'docs/specs/INDEX.md': _specIndex([
@@ -1256,7 +1256,7 @@ void main() {
         _expectNoDrop(tree, plan);
       });
 
-      test('f06/us01/fr03/e14: a non-ASCII pair refuses too', () {
+      test('a non-ASCII pair refuses too', () {
         final lines = _refusal({
           'docs/specs/architecture/Ä.md': '# A\n',
           'docs/specs/topics/ä.md': '# B\n',
@@ -1267,7 +1267,7 @@ void main() {
       });
     });
 
-    test('f06/us01/fr03/e14: for every planned fixture the moved, staying, '
+    test('for every planned fixture the moved, staying, '
         'and left paths are the input paths', () {
       for (final tree in [
         acmeLegacy,
@@ -1279,7 +1279,7 @@ void main() {
       }
     });
 
-    test('f06/us01/fr03/e08: a cross-cutting row beside one feature_id for '
+    test('a cross-cutting row beside one feature_id for '
         'the same folder places the folder by that one id', () {
       final tree = {
         'docs/prds/features/f01_login/FEATURE.md': '# F-01 — Login\n',
@@ -1298,7 +1298,7 @@ void main() {
       );
     });
 
-    test('f06/us01/fr03/e08: a feature_id two feature folders carry places '
+    test('a feature_id two feature folders carry places '
         'nothing', () {
       final tree = {
         'docs/prds/features/g1/f01_login/FEATURE.md': '# F-01 — Login\n',

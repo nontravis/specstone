@@ -117,7 +117,7 @@ void main() {
     expect(_unresolvedSteps(root), 1);
   });
 
-  test('document_writing/rename_doc/rewrite_link_labels E01: rename of shop/set_up_cart rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
+  test('E01: rename of shop/set_up_cart rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
     String shop(String text) => text
         .replaceAll('email_login', 'set_up_cart')
         .replaceAll('login', 'shop');
@@ -139,7 +139,7 @@ void main() {
     expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
   });
 
-  test('f02/us06/fr03/e02: rename of a feature rewrites every step naming its stories', () async {
+  test('rename of a feature rewrites every step naming its stories', () async {
     final root = await _project();
     _rename(root, 'feature:login', 'signin');
     final text = readDoc(root, _journeyPath);
@@ -161,33 +161,36 @@ void main() {
     expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
   });
 
+  test('rename of an fr rewrites the row and the entry', () async {
+    final root = await _project();
+    _rename(root, 'fr:login/email_login/check_password', 'verify_password');
+    final api = readDoc(root, loginApi);
+    expect(api, contains('| email_login/verify_password | `signIn` |'));
+    expect(api, contains('  - email_login/verify_password $_fpStatement\n'));
+  });
+
   test(
-    'f02/us06/fr03/e04: rename of an fr rewrites the row and the entry',
+    'rename of a feature leaves the api rows and entries as written',
     () async {
       final root = await _project();
-      _rename(root, 'fr:login/email_login/check_password', 'verify_password');
-      final api = readDoc(root, loginApi);
-      expect(api, contains('| email_login/verify_password | `signIn` |'));
-      expect(api, contains('  - email_login/verify_password $_fpStatement\n'));
+      _rename(root, 'feature:login', 'signin');
+      final api = readDoc(root, 'specs/f01_signin/API.md');
+      expect(api, contains('| email_login/check_password | `signIn` |'));
+      expect(api, contains('  - email_login/check_password $_fpStatement\n'));
     },
   );
 
-  test('f02/us06/fr03/e05: rename of a feature leaves the api rows and entries as written', () async {
-    final root = await _project();
-    _rename(root, 'feature:login', 'signin');
-    final api = readDoc(root, 'specs/f01_signin/API.md');
-    expect(api, contains('| email_login/check_password | `signIn` |'));
-    expect(api, contains('  - email_login/check_password $_fpStatement\n'));
-  });
+  test(
+    'an approved journey or api doc rewritten gets no draft: true',
+    () async {
+      final root = await _project();
+      _rename(root, 'user_story:login/email_login', 'password_login');
+      expect(readDoc(root, _journeyPath), isNot(contains('draft:')));
+      expect(readDoc(root, loginApi), isNot(contains('draft:')));
+    },
+  );
 
-  test('f02/us06/fr03/e06: an approved journey or api doc rewritten gets no draft: true', () async {
-    final root = await _project();
-    _rename(root, 'user_story:login/email_login', 'password_login');
-    expect(readDoc(root, _journeyPath), isNot(contains('draft:')));
-    expect(readDoc(root, loginApi), isNot(contains('draft:')));
-  });
-
-  test('f02/us06/fr03/e07: a step or FR cell naming a doc not renamed is unchanged', () async {
+  test('a step or FR cell naming a doc not renamed is unchanged', () async {
     final root = await _project();
     _rename(root, 'user_story:login/email_login', 'password_login');
     final text = readDoc(root, _journeyPath);
@@ -195,7 +198,7 @@ void main() {
     expect(text, contains('  - other/story#S2 $_fp2\n'));
   });
 
-  test('f02/us06/fr03/e08: an fr entry S2 and an nf entry NFR-P01 are unchanged', () async {
+  test('an fr entry S2 and an nf entry NFR-P01 are unchanged', () async {
     final root = await writeCheckProject(
       extra: {
         'docs/$loginFr':
@@ -212,13 +215,13 @@ void main() {
     expect(readDoc(root, moved(loginNf)), nfBefore);
   });
 
-  test('f02/us06/fr03/e09: the pasted copy is unchanged', () async {
+  test('the pasted copy is unchanged', () async {
     final root = await _project();
     _rename(root, 'user_story:login/email_login', 'password_login');
     expect(readDoc(root, _journeyPath), contains(_copy));
   });
 
-  test('f02/us06/fr03: each rewritten doc prints among rewritten', () async {
+  test('each rewritten doc prints among rewritten', () async {
     final root = await _project();
     final answer = _rename(
       root,
@@ -228,21 +231,18 @@ void main() {
     expect(answer.json['rewritten'], containsAll([_journeyPath, loginApi]));
   });
 
-  test(
-    'f02/us06/fr01: rename journey:sign_in --to sign_up moves its folder',
-    () async {
-      final root = await _project();
-      expect(_rename(root, 'journey:sign_in', 'sign_up').json['moved'], [
-        {'from': 'prds/journeys/sign_in/', 'to': 'prds/journeys/sign_up/'},
-      ]);
-      expect(
-        docFile(root, 'prds/journeys/sign_up/JOURNEY.md').existsSync(),
-        isTrue,
-      );
-    },
-  );
+  test('rename journey:sign_in --to sign_up moves its folder', () async {
+    final root = await _project();
+    expect(_rename(root, 'journey:sign_in', 'sign_up').json['moved'], [
+      {'from': 'prds/journeys/sign_in/', 'to': 'prds/journeys/sign_up/'},
+    ]);
+    expect(
+      docFile(root, 'prds/journeys/sign_up/JOURNEY.md').existsSync(),
+      isTrue,
+    );
+  });
 
-  test('f02/us05/fr02: reorder rewrites no step line and no label', () async {
+  test('reorder rewrites no step line and no label', () async {
     final root = await _project();
     final journey = readDoc(root, _journeyPath);
     final api = readDoc(root, loginApi);
@@ -254,59 +254,51 @@ void main() {
     expect(readDoc(root, loginApi), api);
   });
 
-  test(
-    'f02/us06/fr03: an unrelated non-UTF-8 api doc does not block a rename',
-    () async {
-      final root = await _project();
-      final api = docFile(root, loginApi);
-      api.writeAsBytesSync([...utf8.encode(api.readAsStringSync()), 0xff]);
-      // A feature rename leaves every FR cell as written, so the api names no
-      // renamed label.
-      expect(
-        _rename(root, 'feature:login', 'signin').json['moved'],
-        isNotEmpty,
-      );
-    },
-  );
-
-  test(
-    'f02/us06/fr03: an unrelated non-UTF-8 journey does not block a rename',
-    () async {
-      final root = await _project();
-      docFile(root, _journeyPath).writeAsBytesSync([
-        ...utf8.encode(
-          _journey().replaceAll('login/email_login', 'other/story'),
-        ),
-        0xff,
-      ]);
-      expect(
-        _rename(
-          root,
-          'user_story:login/email_login',
-          'password_login',
-        ).json['moved'],
-        isNotEmpty,
-      );
-    },
-  );
-
-  test('f02/us06/fr03: a non-UTF-8 journey that names a renamed story refuses the rename', () async {
+  test('an unrelated non-UTF-8 api doc does not block a rename', () async {
     final root = await _project();
-    final journey = docFile(root, _journeyPath);
-    journey.writeAsBytesSync([...journey.readAsBytesSync(), 0xff]);
+    final api = docFile(root, loginApi);
+    api.writeAsBytesSync([...utf8.encode(api.readAsStringSync()), 0xff]);
+    // A feature rename leaves every FR cell as written, so the api names no
+    // renamed label.
+    expect(_rename(root, 'feature:login', 'signin').json['moved'], isNotEmpty);
+  });
+
+  test('an unrelated non-UTF-8 journey does not block a rename', () async {
+    final root = await _project();
+    docFile(root, _journeyPath).writeAsBytesSync([
+      ...utf8.encode(_journey().replaceAll('login/email_login', 'other/story')),
+      0xff,
+    ]);
     expect(
-      () => _rename(root, 'user_story:login/email_login', 'password_login'),
-      throwsA(
-        isA<RenderFault>().having(
-          (e) => e.code,
-          'code',
-          RenderFaultCode.outputNotWritable,
-        ),
-      ),
+      _rename(
+        root,
+        'user_story:login/email_login',
+        'password_login',
+      ).json['moved'],
+      isNotEmpty,
     );
   });
 
-  test('f02/us06/fr03: a journey with no frontmatter or a leading blank line gets its step lines rewritten', () async {
+  test(
+    'a non-UTF-8 journey that names a renamed story refuses the rename',
+    () async {
+      final root = await _project();
+      final journey = docFile(root, _journeyPath);
+      journey.writeAsBytesSync([...journey.readAsBytesSync(), 0xff]);
+      expect(
+        () => _rename(root, 'user_story:login/email_login', 'password_login'),
+        throwsA(
+          isA<RenderFault>().having(
+            (e) => e.code,
+            'code',
+            RenderFaultCode.outputNotWritable,
+          ),
+        ),
+      );
+    },
+  );
+
+  test('a journey with no frontmatter or a leading blank line gets its step lines rewritten', () async {
     for (final lead in ['', '\n']) {
       final root = await writeCheckProject(
         extra: {
@@ -328,55 +320,62 @@ void main() {
     }
   });
 
-  test('f02/us06/fr03/e10: rename of a sub-feature rewrites its parent api cell and entry', () async {
+  test(
+    'rename of a sub-feature rewrites its parent api cell and entry',
+    () async {
+      final root = await _nestedWithCartApi();
+      _rename(root, 'feature:shop/cart', 'basket');
+      final api = readDoc(root, shopApi);
+      expect(api, contains('| basket/add_item/check_stock | `addItem` |'));
+      expect(api, contains('  - basket/add_item/check_stock $_fpCheckStock\n'));
+      final kinds = _kindsOf(root, shopApi);
+      expect(kinds, isNot(contains(FindingKind.frTraceUnresolved)));
+      expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
+      expect(kinds, isNot(contains(FindingKind.confirmedEntryMalformed)));
+    },
+  );
+
+  test('rename of a top feature keeps every cell of its api', () async {
     final root = await _nestedWithCartApi();
-    _rename(root, 'feature:shop/cart', 'basket');
-    final api = readDoc(root, shopApi);
-    expect(api, contains('| basket/add_item/check_stock | `addItem` |'));
-    expect(api, contains('  - basket/add_item/check_stock $_fpCheckStock\n'));
-    final kinds = _kindsOf(root, shopApi);
-    expect(kinds, isNot(contains(FindingKind.frTraceUnresolved)));
-    expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
-    expect(kinds, isNot(contains(FindingKind.confirmedEntryMalformed)));
+    _rename(root, 'feature:shop', 'market');
+    final api = readDoc(root, 'specs/f02_market/API.md');
+    expect(api, contains('| cart/add_item/check_stock | `addItem` |'));
+    expect(api, contains('  - cart/add_item/check_stock $_fpCheckStock\n'));
+    final cartApi = readDoc(root, 'specs/f02_market/f01_cart/API.md');
+    expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
+  });
+
+  test('rename of a sub-feature keeps the cells of its own api', () async {
+    final root = await _nestedWithCartApi();
+    final answer = _rename(root, 'feature:shop/cart', 'basket');
+    expect(
+      answer.json['rewritten'],
+      isNot(contains('specs/f02_shop/f01_basket/API.md')),
+    );
+    final cartApi = readDoc(root, 'specs/f02_shop/f01_basket/API.md');
+    expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
+    expect(cartApi, contains('  - add_item/check_stock $_fpCheckStock\n'));
   });
 
   test(
-    'f02/us06/fr03/e11: rename of a top feature keeps every cell of its api',
+    'rename of a story under a group feature cuts the cell at the feature name',
     () async {
-      final root = await _nestedWithCartApi();
-      _rename(root, 'feature:shop', 'market');
-      final api = readDoc(root, 'specs/f02_market/API.md');
-      expect(api, contains('| cart/add_item/check_stock | `addItem` |'));
-      expect(api, contains('  - cart/add_item/check_stock $_fpCheckStock\n'));
-      final cartApi = readDoc(root, 'specs/f02_market/f01_cart/API.md');
-      expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
-    },
-  );
-
-  test(
-    'f02/us06/fr03/e12: rename of a sub-feature keeps the cells of its own api',
-    () async {
-      final root = await _nestedWithCartApi();
-      final answer = _rename(root, 'feature:shop/cart', 'basket');
-      expect(
-        answer.json['rewritten'],
-        isNot(contains('specs/f02_shop/f01_basket/API.md')),
+      final root = await _groupedProject();
+      _rename(
+        root,
+        'user_story:foundation/layout/email_login',
+        'password_login',
       );
-      final cartApi = readDoc(root, 'specs/f02_shop/f01_basket/API.md');
-      expect(cartApi, contains('| add_item/check_stock | `addItem` |'));
-      expect(cartApi, contains('  - add_item/check_stock $_fpCheckStock\n'));
+      final api = readDoc(root, 'specs/foundation/f01_layout/API.md');
+      expect(api, contains('| password_login/check_password | `signIn` |'));
+      expect(
+        api,
+        contains('  - password_login/check_password $_fpStatement\n'),
+      );
     },
   );
 
-  test('f02/us06/fr03/e13: rename of a story under a group feature cuts the cell at the feature name', () async {
-    final root = await _groupedProject();
-    _rename(root, 'user_story:foundation/layout/email_login', 'password_login');
-    final api = readDoc(root, 'specs/foundation/f01_layout/API.md');
-    expect(api, contains('| password_login/check_password | `signIn` |'));
-    expect(api, contains('  - password_login/check_password $_fpStatement\n'));
-  });
-
-  test('document_writing/rename_doc/rewrite_link_labels E15: rename of a story rewrites the traced_from entry and confirmed label of an fr', () async {
+  test('E15: rename of a story rewrites the traced_from entry and confirmed label of an fr', () async {
     final root = await _frTraceProject();
     _rename(root, 'user_story:login/reset_password', 'recover_password');
     final fr = readDoc(root, loginFr);
@@ -391,33 +390,27 @@ void main() {
     'login/reset_password#S3 $_fp3',
     '"login/reset_password#S3 $_fp3"',
   ]) {
-    test(
-      'document_writing/rename_doc/rewrite_link_labels E15: a flow-list confirmed label $entry rewrites as a '
-      'block-list one does',
-      () async {
-        final root = await _frTraceProject();
-        final file = File('${root.path}/docs/$loginFr');
-        file.writeAsStringSync(
-          file.readAsStringSync().replaceFirst(
-            'confirmed:\n  - S1 $_fp1\n  - login/reset_password#S3 $_fp3\n',
-            'confirmed: [S1 $_fp1, $entry]\n',
-          ),
-        );
-        _rename(root, 'user_story:login/reset_password', 'recover_password');
-        final renamed = entry.replaceFirst(
-          'reset_password',
-          'recover_password',
-        );
-        expect(
-          readDoc(root, loginFr),
-          contains('confirmed: [S1 $_fp1, $renamed]\n'),
-        );
-        expect(_frKinds(root), isEmpty);
-      },
-    );
+    test('E15: a flow-list confirmed label $entry rewrites as a '
+        'block-list one does', () async {
+      final root = await _frTraceProject();
+      final file = File('${root.path}/docs/$loginFr');
+      file.writeAsStringSync(
+        file.readAsStringSync().replaceFirst(
+          'confirmed:\n  - S1 $_fp1\n  - login/reset_password#S3 $_fp3\n',
+          'confirmed: [S1 $_fp1, $entry]\n',
+        ),
+      );
+      _rename(root, 'user_story:login/reset_password', 'recover_password');
+      final renamed = entry.replaceFirst('reset_password', 'recover_password');
+      expect(
+        readDoc(root, loginFr),
+        contains('confirmed: [S1 $_fp1, $renamed]\n'),
+      );
+      expect(_frKinds(root), isEmpty);
+    });
   }
 
-  test('document_writing/rename_doc/rewrite_link_labels E15: a block-list traced_from rewrites and the other entries keep their text', () async {
+  test('E15: a block-list traced_from rewrites and the other entries keep their text', () async {
     final root = await _frTraceProject(
       tracedFrom: 'traced_from:\n  - S1\n  - "login/reset_password#S3" # why\n',
     );
@@ -444,29 +437,29 @@ void main() {
       'traced_from: [S1,\n  login/reset_password#S3]\n',
     ),
   ]) {
-    test(
-      'document_writing/rename_doc/rewrite_link_labels E15: traced_from with $shape rewrites with confirmed',
-      () async {
-        final root = await _frTraceProject(tracedFrom: tracedFrom);
-        _rename(root, 'user_story:login/reset_password', 'recover_password');
-        final fr = readDoc(root, loginFr);
-        expect(fr, contains('login/recover_password#S3'));
-        expect(fr, isNot(contains('reset_password')));
-        expect(fr, contains('  - login/recover_password#S3 $_fp3\n'));
-        expect(_frKinds(root), isEmpty);
-      },
-    );
+    test('E15: traced_from with $shape rewrites with confirmed', () async {
+      final root = await _frTraceProject(tracedFrom: tracedFrom);
+      _rename(root, 'user_story:login/reset_password', 'recover_password');
+      final fr = readDoc(root, loginFr);
+      expect(fr, contains('login/recover_password#S3'));
+      expect(fr, isNot(contains('reset_password')));
+      expect(fr, contains('  - login/recover_password#S3 $_fp3\n'));
+      expect(_frKinds(root), isEmpty);
+    });
   }
 
-  test('document_writing/rename_doc/rewrite_link_labels E15: an own-story label S<N> and an unrenamed story label keep their text', () async {
-    final root = await _frTraceProject();
-    final before = readDoc(root, loginFr);
-    _rename(root, 'user_story:login/email_login', 'password_login');
-    final renamedFr = loginFr.replaceFirst('email_login', 'password_login');
-    expect(readDoc(root, renamedFr), before);
-  });
+  test(
+    'E15: an own-story label S<N> and an unrenamed story label keep their text',
+    () async {
+      final root = await _frTraceProject();
+      final before = readDoc(root, loginFr);
+      _rename(root, 'user_story:login/email_login', 'password_login');
+      final renamedFr = loginFr.replaceFirst('email_login', 'password_login');
+      expect(readDoc(root, renamedFr), before);
+    },
+  );
 
-  test('document_writing/move_story/rewrite_moved_story_references E04: move of a story rewrites the traced_from entry and confirmed label of an fr', () async {
+  test('E04: move of a story rewrites the traced_from entry and confirmed label of an fr', () async {
     final root = await _frTraceProject();
     writeIn(
       root,
@@ -480,7 +473,7 @@ void main() {
     expect(_frKinds(root), contains(FindingKind.scenarioTraceUnresolved));
   });
 
-  test('document_writing/move_story/rewrite_moved_story_references E05: an fr under the moved story keeps the entry naming a story that stays', () async {
+  test('E05: an fr under the moved story keeps the entry naming a story that stays', () async {
     final root = await _frTraceProject();
     final before = readDoc(root, _resetFr);
     writeIn(

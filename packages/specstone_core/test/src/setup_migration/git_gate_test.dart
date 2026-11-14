@@ -41,7 +41,7 @@ void main() {
     );
   });
 
-  test('f06/us01/fr02/e03: a repository with no commit is '
+  test('a repository with no commit is '
       'git_work_tree_required', () async {
     final root = await gitFixture(acmeLegacy);
     expect(git(root, ['update-ref', '-d', 'HEAD']).exitCode, 0);
@@ -58,7 +58,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e03: git missing is git_work_tree_required, naming why '
+  test('git missing is git_work_tree_required, naming why '
       'git cannot start', () async {
     final root = await writeTree(acmeLegacy);
     const workTreeText =
@@ -86,7 +86,7 @@ void main() {
     }
   });
 
-  group('f06/us01/fr02/e03: the git version floor', () {
+  group('the git version floor', () {
     /// A `RunGit` that prints [version] for `git --version` and runs the real
     /// `git` for every other call.
     RunGit gitAt(String version) =>
@@ -95,7 +95,7 @@ void main() {
             ? ProcessResult(0, 0, '$version\n', '')
             : runRealGit(arguments, workingDirectory: workingDirectory);
 
-    test('f06/us01/fr02/e03: a git older than 2.25 is git_work_tree_required '
+    test('a git older than 2.25 is git_work_tree_required '
         'naming 2.25', () async {
       final root = await gitFixture(acmeLegacy);
 
@@ -122,7 +122,7 @@ void main() {
       );
     }, skip: hasGit ? null : 'git is not available');
 
-    test('f06/us01/fr02/e03: git 2.25 or later passes, vendor suffixes '
+    test('git 2.25 or later passes, vendor suffixes '
         'included', () async {
       final root = await gitFixture(acmeLegacy);
 
@@ -182,7 +182,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e04: an untracked file is working_tree_dirty when '
+  test('an untracked file is working_tree_dirty when '
       'the git config hides untracked files', () async {
     final root = await gitFixture(acmeLegacy);
     expect(
@@ -203,7 +203,7 @@ void main() {
     );
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr02/e04: a git status that fails is '
+  test('a git status that fails is '
       'git_work_tree_required', () async {
     final root = await writeTree(acmeLegacy);
     ProcessResult failing(
@@ -224,7 +224,7 @@ void main() {
     );
   });
 
-  test('f06/us01/fr07: headSha returns the full HEAD sha; commitsSince '
+  test('headSha returns the full HEAD sha; commitsSince '
       'lists commits since a base with short shas', () async {
     final root = await gitFixture(acmeLegacy);
     final base = headSha(root, runRealGit);
@@ -240,7 +240,7 @@ void main() {
     expect(commits.single.sha, matches(RegExp(r'^[0-9a-f]{7,}$')));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('f06/us01/fr07: commitsSince returns the whole message beside the '
+  test('commitsSince returns the whole message beside the '
       'subject, so a prepended paragraph still shows the step line', () async {
     final root = await gitFixture(acmeLegacy);
     final base = headSha(root, runRealGit);

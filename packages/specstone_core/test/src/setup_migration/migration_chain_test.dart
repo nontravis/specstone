@@ -33,7 +33,7 @@ List<String> _froms(PackUpgrade upgrade) => [
 ];
 
 void main() {
-  test('f06/us02/fr01: entries from the pin up to below the available version '
+  test('entries from the pin up to below the available version '
       'are chained, oldest first', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.0.0')},
@@ -57,7 +57,7 @@ void main() {
     expect(_froms(upgrades.single), ['1.0.0', '1.1.0']);
   });
 
-  test('f06/us02/fr01: steps of one entry keep their list order', () {
+  test('steps of one entry keep their list order', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.0.0')},
       {
@@ -80,7 +80,7 @@ migrations:
     expect(_froms(upgrades.single), ['1.0.0', '1.0.0']);
   });
 
-  test('f06/us02/fr01/e10: a pin at or below the from of a move_to_record '
+  test('a pin at or below the from of a move_to_record '
       'entry selects its step; a pin above it selects none', () {
     PackManifest pack() => PackManifest.parse('''
 name: acme
@@ -120,7 +120,7 @@ migrations:
     expect(upgrades.single.target.toString(), '1.2.0');
   });
 
-  test('f06/us02/fr01/e02: a pack with no migrations list changes the pin '
+  test('a pack with no migrations list changes the pin '
       'only', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.0.0')},
@@ -145,7 +145,7 @@ migrations:
     expect(_froms(upgrades.single), ['1.0.0', '1.1.0']);
   });
 
-  test('f06/us02/fr01/e05: a pin at any past version finds every step '
+  test('a pin at any past version finds every step '
       'after it', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.1.0')},
@@ -160,7 +160,7 @@ migrations:
     expect(_froms(upgrades.single), ['1.1.0']);
   });
 
-  test('f06/us02/fr01: a pin equal to the available version gives no upgrade '
+  test('a pin equal to the available version gives no upgrade '
       'for that pack', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.2.0')},
@@ -172,7 +172,7 @@ migrations:
     expect(upgrades, isEmpty);
   });
 
-  test('f06/us02/fr01: a pin newer than the available version gives no '
+  test('a pin newer than the available version gives no '
       'upgrade for that pack', () {
     final upgrades = selectUpgrades(
       {'acme': _v('1.3.0')},
@@ -184,7 +184,7 @@ migrations:
     expect(upgrades, isEmpty);
   });
 
-  test('f06/us02/fr01: upgrades come in code point order of the pack name', () {
+  test('upgrades come in code point order of the pack name', () {
     final upgrades = selectUpgrades(
       {'zeta': _v('1.0.0'), 'alpha': _v('1.0.0')},
       {
@@ -196,7 +196,7 @@ migrations:
     expect([for (final u in upgrades) u.pack], ['alpha', 'zeta']);
   });
 
-  test('f06/us02/fr01: a pin with no available pack throws a StateError '
+  test('a pin with no available pack throws a StateError '
       'naming the pack', () {
     expect(
       () => selectUpgrades(

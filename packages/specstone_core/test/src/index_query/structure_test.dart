@@ -192,7 +192,7 @@ void main() {
     );
   });
 
-  group('index_query/view_docs_tree/print_docs_tree', () {
+  group('Print the docs tree', () {
     late DocIndex e09;
     setUpAll(
       () async => e09 = await indexWith({...loginRecords, _frKey: _e09Fr}),

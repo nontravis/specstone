@@ -726,7 +726,7 @@ void main() {
     );
   });
 
-  test('f06/us03/fr02: skeletonOf writes draft true, each required field '
+  test('skeletonOf writes draft true, each required field '
       'empty, the title, and each required section', () {
     final set = TemplateResolver().resolveCarried(
       packNames: ['prd-core', 'software-tech'],
@@ -756,7 +756,7 @@ void main() {
     }
   });
 
-  test('document_writing/create_doc_from_template/fill_new_doc E08: keys reordered, text laid out, draft at its field slot', () async {
+  test('E08: keys reordered, text laid out, draft at its field slot', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -789,7 +789,7 @@ void main() {
     );
   });
 
-  test('document_writing/create_doc_from_template/fill_new_doc E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
+  test('E05: stdin that lacks a required section is written without it, an undeclared key kept after the declared ones', () async {
     final root = await writeWriteProject();
     writeIn(
       root,
@@ -808,48 +808,54 @@ void main() {
     );
   });
 
-  test('document_writing/create_doc_from_template/fill_new_doc E08: stdin with text right under a heading is written laid out', () async {
-    final root = await writeWriteProject();
-    final answer = writeIn(
-      root,
-      (s) => answerNew(
-        s,
-        docTypeId: 'user_story',
-        parent: 'login',
-        slug: 'a',
-        text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
-      ),
-    );
-    const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
-    expect(
-      readDoc(root, path),
-      '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
-      '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
-    );
-    expect(answer.json['path'], path);
-  });
+  test(
+    'E08: stdin with text right under a heading is written laid out',
+    () async {
+      final root = await writeWriteProject();
+      final answer = writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'a',
+          text: '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Use Case\nSign in.\n\n## Acceptance Criteria\n- **Given** x\n',
+        ),
+      );
+      const path = 'prds/features/f01_login/us04_a/USER_STORY.md';
+      expect(
+        readDoc(root, path),
+        '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Mine\n\n'
+        '## Use Case\n\nSign in.\n\n## Acceptance Criteria\n\n- **Given** x\n',
+      );
+      expect(answer.json['path'], path);
+    },
+  );
 
-  test('document_writing/create_doc_from_template/fill_new_doc E08: stdin the format command refuses is written as given, draft aside', () async {
-    final root = await writeWriteProject();
-    const given =
-        '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Not a section\nx\n';
-    writeIn(
-      root,
-      (s) => answerNew(
-        s,
-        docTypeId: 'user_story',
-        parent: 'login',
-        slug: 'a',
-        text: given,
-      ),
-    );
-    expect(
-      readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
-      given.replaceFirst('---\nvision', '---\ndraft: true\nvision'),
-    );
-  });
+  test(
+    'E08: stdin the format command refuses is written as given, draft aside',
+    () async {
+      final root = await writeWriteProject();
+      const given =
+          '---\nvision:\n  - PV-01\n---\n\n# Mine\n\n## Not a section\nx\n';
+      writeIn(
+        root,
+        (s) => answerNew(
+          s,
+          docTypeId: 'user_story',
+          parent: 'login',
+          slug: 'a',
+          text: given,
+        ),
+      );
+      expect(
+        readDoc(root, 'prds/features/f01_login/us04_a/USER_STORY.md'),
+        given.replaceFirst('---\nvision', '---\ndraft: true\nvision'),
+      );
+    },
+  );
 
-  test('document_writing/create_doc_from_template/fill_new_doc: a text holding a column-0 naming line outside a fence is refused and nothing is created', () async {
+  test('a text holding a column-0 naming line outside a fence is refused and nothing is created', () async {
     final root = await writeWriteProject();
     const naming =
         '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
@@ -883,7 +889,7 @@ void main() {
     );
   });
 
-  test('document_writing/create_doc_from_template/fill_new_doc: a naming line inside a fence or indented is written as text', () async {
+  test('a naming line inside a fence or indented is written as text', () async {
     final root = await writeWriteProject();
     const naming =
         '==> other (feature) · prds/features/f01_other/FEATURE.md#problem · base 55884d229b07 <==';
@@ -903,7 +909,7 @@ void main() {
     );
   });
 
-  group('document_writing/create_doc_from_template/place_new_doc with code targets', () {
+  group('with code targets', () {
     const feedback = 'prds/features/f02_feedback/FEATURE.md';
     const toast = 'prds/features/f02_feedback/f03_toast/FEATURE.md';
 
@@ -924,7 +930,7 @@ void main() {
         if (entity is File) entity.path,
     ]..sort();
 
-    test('document_writing/create_doc_from_template/place_new_doc E24: --target jaspr places the doc in the jaspr spec folder under the shared feature', () async {
+    test('E24: --target jaspr places the doc in the jaspr spec folder under the shared feature', () async {
       final root = await twinWithToast(
         without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
       );
@@ -947,7 +953,7 @@ void main() {
       );
     });
 
-    test('document_writing/create_doc_from_template/place_new_doc E25: a per-target doc type with two targets and no --target is argument_missing naming the targets, and creates nothing', () async {
+    test('E25: a per-target doc type with two targets and no --target is argument_missing naming the targets, and creates nothing', () async {
       final root = await twinWithToast();
       final before = docFiles(root);
       expect(
@@ -969,7 +975,7 @@ void main() {
       expect(docFiles(root), before);
     });
 
-    test('document_writing/create_doc_from_template/place_new_doc E25: a --target the project does not name is argument_invalid, and creates nothing', () async {
+    test('E25: a --target the project does not name is argument_invalid, and creates nothing', () async {
       final root = await twinWithToast();
       final before = docFiles(root);
       expect(
@@ -994,7 +1000,7 @@ void main() {
 
     for (final codeTarget in <String?>[null, 'flutter']) {
       test(
-        'document_writing/create_doc_from_template/place_new_doc E26: one target, ${codeTarget == null ? 'unnamed on the command line' : 'named'}, places a per-target doc at its one-target path',
+        'E26: one target, ${codeTarget == null ? 'unnamed on the command line' : 'named'}, places a per-target doc at its one-target path',
         () async {
           final root = await writeTwinProject(
             without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},
@@ -1020,7 +1026,7 @@ void main() {
       );
     }
 
-    test('document_writing/create_doc_from_template/place_new_doc E24: the same --parent places the flutter doc in the flutter spec folder', () async {
+    test('E24: the same --parent places the flutter doc in the flutter spec folder', () async {
       final root = await twinWithToast();
       writeIn(
         root,
@@ -1037,7 +1043,7 @@ void main() {
       );
     });
 
-    test('document_writing/create_doc_from_template/place_new_doc E24: a twin already there is doc_exists naming the doc, not its target folder', () async {
+    test('E24: a twin already there is doc_exists naming the doc, not its target folder', () async {
       final root = await writeTwinProject();
       expect(
         () => writeIn(

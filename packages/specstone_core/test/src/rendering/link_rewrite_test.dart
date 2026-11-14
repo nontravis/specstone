@@ -75,7 +75,7 @@ String _rewritten(
 }
 
 void main() {
-  test('f05/us02/fr03/e01: a relative link to a doc in the build, with or '
+  test('a relative link to a doc in the build, with or '
       'without a fragment, jumps to that doc', () async {
     final html = await _build({
       _storyA: _story('Story one'),
@@ -91,7 +91,7 @@ void main() {
     expect(html, isNot(contains('USER_STORY.md#s1')));
   });
 
-  test('f05/us02/fr03/e02: a link to a doc outside the build becomes an '
+  test('a link to a doc outside the build becomes an '
       'outside-link span with its docs-root path', () async {
     final html = await _build({
       _storyA: _story('Story one'),
@@ -123,7 +123,7 @@ void main() {
     expect(html, isNot(contains('<span class="outside-link"')));
   });
 
-  test('f05/us02/fr03: a bare #fragment names the doc itself', () async {
+  test('a bare #fragment names the doc itself', () async {
     final html = await _build({
       _storyA: _story('Story one'),
       _storyB: _story('Story two', 'See [scenario](#scenario-1).'),
@@ -133,7 +133,7 @@ void main() {
     expect(html, contains('<a href="#$anchor">scenario</a>'));
   });
 
-  test('f05/us02/fr03: a scheme other than http or https and a pop past the '
+  test('a scheme other than http or https and a pop past the '
       'docs root become spans with the href as written', () async {
     final html = await _build({
       _storyA: _story(
@@ -158,7 +158,7 @@ void main() {
   });
 
   group('rewriteLinks', () {
-    test('f05/us02/fr03: a query is dropped and a percent escape decoded', () {
+    test('a query is dropped and a percent escape decoded', () {
       expect(
         _rewritten('[x](../d.md?v=1#top)', docPath: 'a/b/c.md'),
         '<p><a href="#doc-2">x</a></p>',
@@ -173,7 +173,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr03: an encoded slash never separates segments, so the '
+    test('an encoded slash never separates segments, so the '
         'link stays an outside-link span with the href as written', () {
       const anchors = {'x/c.md': 'doc-1', 'x/a/b.md': 'doc-2', 'd.md': 'doc-3'};
 
@@ -189,7 +189,7 @@ void main() {
       );
     });
 
-    test('f05/us02/fr03: "." and empty segments resolve away', () {
+    test('"." and empty segments resolve away', () {
       expect(_rewritten('[x](./../d.md)'), '<p><a href="#doc-2">x</a></p>');
       expect(_rewritten('[x](c.md)'), '<p><a href="#doc-1">x</a></p>');
     });
@@ -203,14 +203,14 @@ void main() {
       );
     });
 
-    test('f05/us02/fr03: an unknown doc shows the resolved path, escaped', () {
+    test('an unknown doc shows the resolved path, escaped', () {
       expect(
         _rewritten('[x](../e&f.md)'),
         '<p><span class="outside-link">x (<code>a/e&amp;f.md</code>)</span></p>',
       );
     });
 
-    test('f05/us02/fr03: an absolute path and a network path stay as '
+    test('an absolute path and a network path stay as '
         'written in a span', () {
       expect(
         _rewritten('[x](/etc/hosts)'),
@@ -219,7 +219,7 @@ void main() {
       expect(_rewritten('[x](//host/p)'), contains('(<code>//host/p</code>)'));
     });
 
-    test('f05/us02/fr03: links inside lists and tables are rewritten', () {
+    test('links inside lists and tables are rewritten', () {
       final html = _rewritten('- [x](../d.md)\n- [y](https://e.com)');
       expect(html, contains('<a href="#doc-2">x</a>'));
       expect(html, contains('<a href="https://e.com">y</a>'));
@@ -384,7 +384,7 @@ void main() {
       expect(html, contains('<a href="#doc-2">x</a>'));
     });
 
-    test('f05/us02/fr03: every id is prefixed with the doc anchor, and the '
+    test('every id is prefixed with the doc anchor, and the '
         'footnote links follow', () {
       final html = body(footnote);
 
@@ -398,7 +398,7 @@ void main() {
       expect(html, isNot(contains('id="fnref-1"')));
     });
 
-    test('f05/us02/fr03: a raw html id is prefixed and a bare fragment naming '
+    test('a raw html id is prefixed and a bare fragment naming '
         'it points at the prefixed id', () {
       final html = body('<div id="box">x</div>\n\n$rawTop');
 
@@ -407,7 +407,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-top">up</a>'));
     });
 
-    test('f05/us02/fr03: a bare fragment that names no id stays on the doc '
+    test('a bare fragment that names no id stays on the doc '
         'anchor', () {
       final html = body('$footnote\n[a](#fn-1) [b](#nope) [c](#)');
 
@@ -416,7 +416,7 @@ void main() {
       expect(html, contains('<a href="#doc-1">c</a>'));
     });
 
-    test('f05/us02/fr03: a percent-encoded fragment names the id it decodes '
+    test('a percent-encoded fragment names the id it decodes '
         'to', () {
       final html = body('<a id="caf\u00e9"></a>\n\n[a](#caf%C3%A9)\n');
 
@@ -424,7 +424,7 @@ void main() {
       expect(html, contains('<a href="#doc-1-caf%C3%A9">a</a>'));
     });
 
-    test('f05/us02/fr03: a fragment with broken percent-encoding names no id '
+    test('a fragment with broken percent-encoding names no id '
         'and goes to the doc anchor', () {
       final html = body('<a id="x"></a>\n\n[a](#x%zz) [b](#%FF) [c](#x%)\n');
 
@@ -432,7 +432,7 @@ void main() {
       expect('href="#doc-1"'.allMatches(html), hasLength(3));
     });
 
-    test('f05/us02/fr03: a link to another doc drops its fragment even when '
+    test('a link to another doc drops its fragment even when '
         'it names an id', () {
       final html = body('$footnote\n[a](../d.md#fn-1) [b](c.md#fn-1)');
 
@@ -440,7 +440,7 @@ void main() {
       expect(html, contains('<a href="#doc-1">b</a>'));
     });
 
-    test('f05/us02/fr03: an id written in code or inline code is shown as '
+    test('an id written in code or inline code is shown as '
         'written and no link follows it', () {
       final html = body(
         '<a id="top"></a>\n\n```html\n<a id="x" href="#top">\n```\n\n'
@@ -461,7 +461,7 @@ void main() {
       expect(html, isNot(contains('doc-1-y')));
     });
 
-    test('f05/us02/fr03: a doc with no anchor keeps its ids and its bare '
+    test('a doc with no anchor keeps its ids and its bare '
         'fragment becomes an outside-link span', () {
       final html = body(
         '<a id="top"></a>\n\n[up](#top)\n',
@@ -605,7 +605,7 @@ void main() {
     });
 
     test(
-      'f05/us02/fr03: two docs with a footnote [^1] and a raw id get '
+      'two docs with a footnote [^1] and a raw id get '
       'distinct ids and every in-page link lands on an id of the page',
       () async {
         const both = '$footnote\n$rawTop';

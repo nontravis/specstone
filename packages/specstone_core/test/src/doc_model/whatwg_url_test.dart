@@ -54,7 +54,7 @@ void main() {
     });
   });
 
-  group('consistency_check/find_broken_pointers/resolve_doc_links E21', () {
+  group('E21', () {
     test('http://h:abc/x.md fails: the port is not digits', () {
       expect(whatwgParseFails('http://h:abc/x.md'), isTrue);
     });

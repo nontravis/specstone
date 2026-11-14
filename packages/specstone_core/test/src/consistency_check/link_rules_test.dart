@@ -59,7 +59,7 @@ void main() {
     );
   });
 
-  test('f04/us02/fr04/e02: a persona value no persona carries is doc_ref_unresolved', () async {
+  test('a persona value no persona carries is doc_ref_unresolved', () async {
     final story = doc(
       loginStory,
       'goals:\n  - PG-01\n',
@@ -83,7 +83,7 @@ void main() {
     expect(spots(withBuyer, FindingKind.docRefUnresolved), isEmpty);
   });
 
-  test('consistency_check/find_broken_pointers/resolve_doc_links E02: an empty '
+  test('E02: an empty '
       'depends_on list reports nothing', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -97,7 +97,7 @@ void main() {
     expect(report.findings, isEmpty);
   });
 
-  test('consistency_check/find_broken_pointers/resolve_doc_links E02: a scalar '
+  test('E02: a scalar '
       'depends_on is field_value_mismatch at the key line', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -114,7 +114,7 @@ void main() {
     ]);
   });
 
-  test('consistency_check/find_broken_pointers/resolve_doc_links E02: an empty '
+  test('E02: an empty '
       'depends_on item is doc_ref_unresolved at the item line', () async {
     final report = checkOf(
       await writeCheckProject(
@@ -129,7 +129,7 @@ void main() {
   });
 
   test(
-    'consistency_check/find_broken_pointers/resolve_doc_links E02: a depends_on value '
+    'E02: a depends_on value '
     'no feature carries is doc_ref_unresolved; a feature resolves only',
     () async {
       final dependsOn = doc(
@@ -233,21 +233,18 @@ void main() {
       ]);
     });
 
-    test(
-      'f04/us02/fr04/e11: a picture whose file is there is no finding',
-      () async {
-        final project = await writeCheckProject(
-          extra: {
-            ...linking('![flow](flow.png)'),
-            'docs/prds/features/f01_login/flow.png': 'png',
-          },
-        );
-        expect(missingOf(project), isEmpty);
-      },
-    );
+    test('a picture whose file is there is no finding', () async {
+      final project = await writeCheckProject(
+        extra: {
+          ...linking('![flow](flow.png)'),
+          'docs/prds/features/f01_login/flow.png': 'png',
+        },
+      );
+      expect(missingOf(project), isEmpty);
+    });
 
     test(
-      'f04/us02/fr04/e11: a picture whose name holds a backslash or ends '
+      'a picture whose name holds a backslash or ends '
       'in a dot is missing on any OS, though a POSIX disk holds the file',
       () async {
         for (final (href, name) in [
@@ -279,7 +276,7 @@ void main() {
       expect(missingOf(present), isEmpty);
     });
 
-    test('f04/us02/fr04/e11: a query is left out of the checked path', () async {
+    test('a query is left out of the checked path', () async {
       final missing = await writeCheckProject(
         extra: linking('![a](a.png?raw=1)'),
       );
@@ -305,7 +302,7 @@ void main() {
       expect(missingOf(project), isEmpty);
     });
 
-    test('f04/us02/fr04/e12: a link to an existing file outside the project is no finding', () async {
+    test('a link to an existing file outside the project is no finding', () async {
       final outside = File(
         '${Directory.systemTemp.path}${Platform.pathSeparator}specstone_e12_${DateTime.now().microsecondsSinceEpoch}.txt',
       )..writeAsStringSync('x');
@@ -317,7 +314,7 @@ void main() {
       expect(missingOf(project), isEmpty);
     });
 
-    test('f04/us02/fr04/e13: a web address, mailto, and a rooted path are no finding', () async {
+    test('a web address, mailto, and a rooted path are no finding', () async {
       final project = await writeCheckProject(
         extra: linking(
           '[w](https://example.com/a.png) [m](mailto:a@b.c) [r](/abs/x.md) [s](#top)',
@@ -348,26 +345,23 @@ void main() {
     expect(spots(checkOf(project, target: 'prds/d01_context.md')), expected);
   });
 
-  test(
-    'f04/us02/fr04: two links to one deleted doc are two findings',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: doc(
-            loginFeature,
-            'Users forget passwords.',
-            'See [a](gone.md).\nSee [b](gone.md) again.',
-          ),
+  test('two links to one deleted doc are two findings', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(
+          loginFeature,
+          'Users forget passwords.',
+          'See [a](gone.md).\nSee [b](gone.md) again.',
         ),
-      );
-      expect(spots(report), [
-        '$loginFeature:13: link_unresolved',
-        '$loginFeature:14: link_unresolved',
-      ]);
-    },
-  );
+      ),
+    );
+    expect(spots(report), [
+      '$loginFeature:13: link_unresolved',
+      '$loginFeature:14: link_unresolved',
+    ]);
+  });
 
-  test('f04/us01/fr06/e03: a broken link to a file outside the checked folders is reported', () async {
+  test('a broken link to a file outside the checked folders is reported', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: doc(
@@ -383,23 +377,26 @@ void main() {
     );
   });
 
-  test('f04/us02/fr04: an angle-bracket destination with a space is shown as written', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(
-          loginFeature,
-          'Users forget passwords.',
-          'See [a](<gone one.md>).',
+  test(
+    'an angle-bracket destination with a space is shown as written',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginFeature,
+            'Users forget passwords.',
+            'See [a](<gone one.md>).',
+          ),
         ),
-      ),
-    );
-    expect(
-      report.findings.single.textLine,
-      '$loginFeature:13: link_unresolved: link target gone one.md is no doc',
-    );
-  });
+      );
+      expect(
+        report.findings.single.textLine,
+        '$loginFeature:13: link_unresolved: link target gone one.md is no doc',
+      );
+    },
+  );
 
-  test('f04/us02/fr04: a non-ASCII destination is shown as written', () async {
+  test('a non-ASCII destination is shown as written', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: doc(
@@ -415,65 +412,68 @@ void main() {
     );
   });
 
-  test('f04/us02/fr04: reference links sit on the line of their use, definitions in any order', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: doc(
-          loginFeature,
-          'Users forget passwords.',
-          'See [a][r2].\nAnd [b][r1].\n\n[r1]: x.md\n[r2]: y.md\n\n```\n[c](fenced.md)\n```',
-        ),
-      ),
-    );
-    expect(
-      [for (final f in report.findings) f.textLine],
-      [
-        '$loginFeature:13: link_unresolved: link target y.md is no doc',
-        '$loginFeature:14: link_unresolved: link target x.md is no doc',
-      ],
-    );
-  });
-
   test(
-    'f04/us02/fr04: wrapped link text does not displace the next broken link',
+    'reference links sit on the line of their use, definitions in any order',
     () async {
       final report = checkOf(
         await writeCheckProject(
           extra: doc(
             loginFeature,
             'Users forget passwords.',
-            'See [long\ntext](gone-a.md).\n\nAnd [b](gone-b.md).',
+            'See [a][r2].\nAnd [b][r1].\n\n[r1]: x.md\n[r2]: y.md\n\n```\n[c](fenced.md)\n```',
           ),
         ),
       );
       expect(
         [for (final f in report.findings) f.textLine],
         [
-          '$loginFeature:13: link_unresolved: link target gone-a.md is no doc',
-          '$loginFeature:16: link_unresolved: link target gone-b.md is no doc',
+          '$loginFeature:13: link_unresolved: link target y.md is no doc',
+          '$loginFeature:14: link_unresolved: link target x.md is no doc',
         ],
       );
     },
   );
 
-  test('f04/us02/fr04: a balanced () in a destination and [] in link text are placed', () async {
+  test('wrapped link text does not displace the next broken link', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
           'Users forget passwords.',
-          'See [a](x(1).md).\nAnd [see [x]](gone.md).',
+          'See [long\ntext](gone-a.md).\n\nAnd [b](gone-b.md).',
         ),
       ),
     );
     expect(
       [for (final f in report.findings) f.textLine],
       [
-        '$loginFeature:13: link_unresolved: link target x(1).md is no doc',
-        '$loginFeature:14: link_unresolved: link target gone.md is no doc',
+        '$loginFeature:13: link_unresolved: link target gone-a.md is no doc',
+        '$loginFeature:16: link_unresolved: link target gone-b.md is no doc',
       ],
     );
   });
+
+  test(
+    'a balanced () in a destination and [] in link text are placed',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: doc(
+            loginFeature,
+            'Users forget passwords.',
+            'See [a](x(1).md).\nAnd [see [x]](gone.md).',
+          ),
+        ),
+      );
+      expect(
+        [for (final f in report.findings) f.textLine],
+        [
+          '$loginFeature:13: link_unresolved: link target x(1).md is no doc',
+          '$loginFeature:14: link_unresolved: link target gone.md is no doc',
+        ],
+      );
+    },
+  );
 
   test('f04/us02/fr04/e09, cc-s03/inv15, LP4: a doc the parser fails on gets markdown_unparsed at line 1', () async {
     final report = checkOf(
@@ -529,7 +529,7 @@ void main() {
     Map<String, String> gnfrLinking(String text) =>
         doc(gnfrDoc, 'N/A — none applies.', text);
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E03: an anchor that is the slug of a heading of '
+    test('E03: an anchor that is the slug of a heading of '
         'its target resolves', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -544,7 +544,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E15: an anchor no heading, id, or name of its '
+    test('E15: an anchor no heading, id, or name of its '
         'target carries is link_anchor_missing; a link to no doc is link_unresolved only', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -569,7 +569,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E16: a bare #anchor resolves against the linking '
+    test('E16: a bare #anchor resolves against the linking '
         "doc's own headings, ids, and names; one it lacks, a footnote's id included, is link_anchor_missing", () async {
       const rules = 'prds/d02_rules.md';
       const notes = 'prds/d04_notes.md';
@@ -594,7 +594,7 @@ void main() {
       ]);
     });
 
-    test("consistency_check/find_broken_pointers/resolve_doc_links E17: a heading's anchor is its rendered text's "
+    test("E17: a heading's anchor is its rendered text's "
         'slug, a repeat suffixed', () async {
       const moves = 'prds/d05_moves.md';
       final findings = pointersOf(
@@ -611,7 +611,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E18: a link to its own doc with no anchor is '
+    test('E18: a link to its own doc with no anchor is '
         'link_self; with a heading anchor it resolves', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -628,7 +628,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E18: an empty link target is link_self, its '
+    test('E18: an empty link target is link_self, its '
         'message showing (empty) for the target', () async {
       final findings = pointersOf(
         await writeCheckProject(extra: gnfrLinking('[TBD]() here.')),
@@ -641,7 +641,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E19: a doc_ref value one list field holds a '
+    test('E19: a doc_ref value one list field holds a '
         'second time is doc_ref_duplicate at the second value; another field is its own list', () async {
       const checkout = 'prds/features/f02_checkout/FEATURE.md';
       final report = checkOf(
@@ -668,7 +668,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E20: a doc_ref value naming the doc that holds '
+    test('E20: a doc_ref value naming the doc that holds '
         'it is doc_ref_self; a value naming a doc of another type is not', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -690,7 +690,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E21: a link target the URL parser fails on is '
+    test('E21: a link target the URL parser fails on is '
         'reference_malformed; a lone % stays in the path', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -707,7 +707,7 @@ void main() {
       ]);
     });
 
-    test("consistency_check/find_broken_pointers/resolve_doc_links E22: an empty fragment names its doc's top, so "
+    test("E22: an empty fragment names its doc's top, so "
         'it is neither link_self nor link_anchor_missing; a self link with no # is link_self', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -721,7 +721,7 @@ void main() {
       ]);
     });
 
-    test("consistency_check/find_broken_pointers/resolve_doc_links: a web link's fragment is never read; a doc "
+    test("a web link's fragment is never read; a doc "
         "link's anchor is read past its query", () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -738,7 +738,7 @@ void main() {
       ]);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links: an anchor of a doc whose anchor set is unknown '
+    test('an anchor of a doc whose anchor set is unknown '
         'is no link_anchor_missing', () async {
       final findings = pointersOf(
         await writeCheckProject(
@@ -764,7 +764,7 @@ void main() {
       'Users forget passwords; $text',
     );
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E25: a typed '
+    test('E25: a typed '
         'name one letter short under a top-level feature is '
         'doc_name_unresolved, the name as written', () async {
       final findings = mentionsOf(
@@ -788,7 +788,7 @@ void main() {
       );
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E26: a '
+    test('E26: a '
         'name whose first slug names no top-level feature, a git ref, and a '
         'skill name raise nothing', () async {
       final findings = mentionsOf(
@@ -802,7 +802,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E27: names '
+    test('E27: names '
         'that resolve raise nothing, and a section key the doc lacks is '
         'never read', () async {
       final findings = mentionsOf(
@@ -816,7 +816,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E07: a name '
+    test('E07: a name '
         'in plain text and one in fenced code raise nothing', () async {
       final findings = mentionsOf(
         await writeCheckProject(
@@ -829,7 +829,7 @@ void main() {
       expect(findings, isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links S14: an '
+    test('S14: an '
         'untyped doc is checked and the finding names the doc, the line, and '
         'the name', () async {
       const notes = 'prds/d07_notes.md';
@@ -883,7 +883,7 @@ void main() {
         if (f.kind == kind && (at == null || f.path == at)) f,
     ];
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         'shared doc naming a per-target doc by name gets '
         'per_target_reference at the mention', () async {
       final project = await writeTwinProject(
@@ -906,7 +906,7 @@ void main() {
       );
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         'mention a shared doc resolves too gives none', () async {
       final project = await writeTwinProject(
         extra: shared('See `feature:login` and `login/email_login`.'),
@@ -915,7 +915,7 @@ void main() {
       expect(found(project, FindingKind.perTargetReference), isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         '.md link to a per-target doc is reported as written', () async {
       const written = '../../../../specs/flutter/f01_login/ARCHITECTURE.md';
       final project = await writeTwinProject(
@@ -934,7 +934,7 @@ void main() {
       expect(found(project, FindingKind.linkUnresolved, at: loginNf), isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         'DocPath in text is reported once, a shared doc path never', () async {
       const path = 'specs/jaspr/f01_login/ARCHITECTURE.md';
       final project = await writeTwinProject(
@@ -952,7 +952,7 @@ void main() {
       expect(findings.single.line, lineOf(project, loginNf, path));
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         'DocPath with a #anchor, one closing a sentence, and a docs/ path '
         'are reported; a fenced one is not', () async {
       const path = 'specs/jaspr/f01_login/ARCHITECTURE.md';
@@ -971,7 +971,7 @@ void main() {
       );
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         'link whose text is the path it points to is reported once', () async {
       const path = 'specs/flutter/f01_login/ARCHITECTURE.md';
       final project = await writeTwinProject(
@@ -981,7 +981,7 @@ void main() {
       expect(found(project, FindingKind.perTargetReference), hasLength(1));
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+    test('E30: a '
         'link whose destination runs onto a later line is reported once', () async {
       final project = await writeTwinProject(
         extra: shared(
@@ -993,7 +993,7 @@ void main() {
     });
 
     test(
-      'consistency_check/find_broken_pointers/resolve_doc_links E30: a '
+      'E30: a '
       'doc_ref value naming a per-target doc is reported at the value',
       () async {
         final project = await writeTwinProject(
@@ -1028,7 +1028,7 @@ void main() {
       },
     );
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E29: a '
+    test('E29: a '
         'per-target doc names another target by path or link and gets no '
         'finding', () async {
       final project = await writeTwinProject(
@@ -1049,7 +1049,7 @@ void main() {
       }
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E28: a '
+    test('E28: a '
         'name only another target holds is doc_name_unresolved in a '
         'per-target doc', () async {
       final mention = twin('See `implementation:login`.');
@@ -1074,7 +1074,7 @@ void main() {
       expect(found(lone, FindingKind.perTargetReference), isEmpty);
     });
 
-    test('consistency_check/find_broken_pointers/resolve_doc_links E28: a '
+    test('E28: a '
         'doc_ref value only another target holds is doc_ref_unresolved in a '
         'per-target doc', () async {
       final related = twin('', related: 'related:\n  - login\n');
@@ -1121,7 +1121,7 @@ void main() {
       },
     };
     for (final MapEntry(key: name, value: files) in configs.entries) {
-      test('consistency_check/find_broken_pointers/resolve_doc_links E31: a '
+      test('E31: a '
           'shared doc names a per-target doc, $name target, and gets no '
           'per_target_reference', () async {
         final project = await writeCheckProject(

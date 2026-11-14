@@ -71,7 +71,7 @@ String _read(Directory root) =>
 int _count(String text, String needle) => needle.allMatches(text).length;
 
 void main() {
-  test('f10/us01/s2: format draws two paths for a branched journey', () async {
+  test('format draws two paths for a branched journey', () async {
     final root = await _project(_branched);
 
     _format(root);
@@ -129,7 +129,7 @@ void main() {
     expect(after, contains('draft: false'));
   });
 
-  test('f10/us01/s2: a second format of a branched journey changes '
+  test('a second format of a branched journey changes '
       'nothing', () async {
     final root = await _project(_branched);
     _format(root);
@@ -142,7 +142,7 @@ void main() {
     expect(_format(root, check: true).exitStatus, 0);
   });
 
-  test('f10/us01/fr03/e06: an html build of a journey holds its flowchart '
+  test('an html build of a journey holds its flowchart '
       'and no network source', () async {
     final root = await _project(
       _journey([_step('1', 'Open', 'S1'), _step('2', 'Type', 'S1')]),
@@ -226,7 +226,7 @@ void main() {
       expect(check(root), isEmpty);
     });
 
-    test('f10/us01/s3: a step added by hand stays unconfirmed until the '
+    test('a step added by hand stays unconfirmed until the '
         'Agent confirms it and the Owner approves', () async {
       final root = await _project(
         _journey([

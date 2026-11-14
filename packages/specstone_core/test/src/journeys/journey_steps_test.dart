@@ -14,7 +14,7 @@ List<String> _pathNumbers(JourneySteps steps, List<int> path) => [
 
 void main() {
   group('constants', () {
-    test('f10/us01/fr02: the journey ids and generated kinds', () {
+    test('the journey ids and generated kinds', () {
       expect(journeyTypeId, 'journey');
       expect(flowSectionId, 'flow');
       expect(stepsSectionId, 'steps');
@@ -24,7 +24,7 @@ void main() {
   });
 
   group('paths', () {
-    test('f10/us01/fr02/e01: steps 1 to 5 and 3x after 2 give the paths '
+    test('steps 1 to 5 and 3x after 2 give the paths '
         '5 and 3x', () {
       final steps = _read([
         '### 1. Start',
@@ -46,7 +46,7 @@ void main() {
       expect(steps.offPathIndexes, isEmpty);
     });
 
-    test('f10/us01/fr02/e02: 3x written before 4 makes 4 follow 3x', () {
+    test('3x written before 4 makes 4 follow 3x', () {
       final steps = _read([
         '### 1. One',
         '### 2. Two',
@@ -62,7 +62,7 @@ void main() {
       expect(steps.paths.map((p) => _pathNumbers(steps, p).last), ['3', '5']);
     });
 
-    test('f10/us01/fr02/e03: an after: naming the step directly above is the '
+    test('an after: naming the step directly above is the '
         'same as none', () {
       final withAfter = _read([
         '### 1. A',
@@ -78,7 +78,7 @@ void main() {
       expect(withAfter.unresolvedAfterIndexes, isEmpty);
     });
 
-    test('f10/us01/fr02/e05: an after: naming no step, or a step below, is '
+    test('an after: naming no step, or a step below, is '
         'unresolved and its step is on no path', () {
       final none = _read(['### 1. A', '### 2. B', 'step: a/b S1', 'after: 7']);
       expect(none.unresolvedAfterIndexes, [1]);
@@ -102,7 +102,7 @@ void main() {
       ]);
     });
 
-    test('f10/us01/fr02/e05: a step below an off-path step with no after: is '
+    test('a step below an off-path step with no after: is '
         'off path too', () {
       final steps = _read([
         '### 1. A',
@@ -117,7 +117,7 @@ void main() {
       expect(steps.edges, isEmpty);
     });
 
-    test('f10/us01/fr02/e08: a second ### 3. heading is a duplicate, and an '
+    test('a second ### 3. heading is a duplicate, and an '
         'after: 3 below it follows the first step 3', () {
       final steps = _read([
         '### 1. A',
@@ -133,7 +133,7 @@ void main() {
       expect(steps.unresolvedAfterIndexes, isEmpty);
     });
 
-    test('f10/us01/fr02/e05: an after: on the first step names no step above '
+    test('an after: on the first step names no step above '
         'it', () {
       final steps = _read(['### 1. A', 'step: a/b S1', 'after: 1', '### 2. B']);
 
@@ -143,7 +143,7 @@ void main() {
       ]);
     });
 
-    test('f10/us01/fr02: one step gives one path and no step gives none', () {
+    test('one step gives one path and no step gives none', () {
       final one = _read(['### 1. Only']);
       expect(one.paths, [
         [0],
@@ -157,7 +157,7 @@ void main() {
       expect(none.offPathIndexes, isEmpty);
     });
 
-    test('f10/us01/fr02: text above the first heading is no step', () {
+    test('text above the first heading is no step', () {
       final steps = _read(['step: a/b S1', 'after: 1', '### 1. A']);
 
       expect(_numbers(steps), ['1']);
@@ -167,7 +167,7 @@ void main() {
   });
 
   group('step lines', () {
-    test('f10/us01/fr02/e04: step: setup_migration/set_up_new_project S1 reads '
+    test('step: setup_migration/set_up_new_project S1 reads '
         'as that story and Scenario 1', () {
       final step = _read([
         '### 1. Set up',
@@ -184,7 +184,7 @@ void main() {
       expect(step.stepIndex, 1);
     });
 
-    test('f10/us01/fr02/e06: a value that does not read as <story identity> '
+    test('a value that does not read as <story identity> '
         'S<N> gives no target', () {
       expect(readStepTarget('login'), isNull);
       expect(readStepTarget('login/email_login'), isNull);
@@ -194,42 +194,39 @@ void main() {
       expect(readStepTarget('login/email S2')!.label, 'login/email#S2');
     });
 
-    test('f10/us01/fr02/e10: a lettered scenario number gives no target', () {
+    test('a lettered scenario number gives no target', () {
       expect(readStepTarget('setup_migration/set_up_new_project S1a'), isNull);
     });
 
-    test('f10/us01/fr02: a step number keeps its letters', () {
+    test('a step number keeps its letters', () {
       final steps = _read(['### 3x. Branch', 'step: a/b S1']).steps;
 
       expect(steps.single.number, '3x');
       expect(steps.single.target!.label, 'a/b#S1');
     });
 
-    test(
-      'f10/us01/fr02/e07: free text in a step is kept and read by nothing',
-      () {
-        final steps = _read([
-          '### 1. A',
-          'Some prose about the step.',
-          '- a bullet',
-          'step: a/b S1',
-          'more prose with step: inside',
-          'after: 1',
-          '### 2. B',
-          'step: a/b S2',
-          'after: 1',
-        ]);
+    test('free text in a step is kept and read by nothing', () {
+      final steps = _read([
+        '### 1. A',
+        'Some prose about the step.',
+        '- a bullet',
+        'step: a/b S1',
+        'more prose with step: inside',
+        'after: 1',
+        '### 2. B',
+        'step: a/b S2',
+        'after: 1',
+      ]);
 
-        expect(steps.steps[0].stepIndex, 3);
-        expect(steps.steps[0].afterIndex, 5);
-        expect(steps.steps[1].afterIndex, 8);
-        expect(steps.paths, [
-          [0, 1],
-        ]);
-      },
-    );
+      expect(steps.steps[0].stepIndex, 3);
+      expect(steps.steps[0].afterIndex, 5);
+      expect(steps.steps[1].afterIndex, 8);
+      expect(steps.paths, [
+        [0, 1],
+      ]);
+    });
 
-    test('f10/us01/fr02: a heading with no step: line has no stepValue and no '
+    test('a heading with no step: line has no stepValue and no '
         'target', () {
       final step = _read(['### 1. A', 'after: 1']).steps.single;
 
@@ -240,7 +237,7 @@ void main() {
       expect(step.anchorIndex, 0);
     });
 
-    test('f10/us01/fr02: anchorIndex is after, then step, then heading', () {
+    test('anchorIndex is after, then step, then heading', () {
       final steps = _read(['### 1. A', 'step: a/b S1', 'after: 1']).steps;
       expect(steps.single.anchorIndex, 1 + 1);
 
@@ -248,7 +245,7 @@ void main() {
       expect(stepOnly.anchorIndex, 1);
     });
 
-    test('f10/us01/fr02: two spaces before S1 do not read, a trailing space '
+    test('two spaces before S1 do not read, a trailing space '
         'does', () {
       final two = _read(['### 1. A', 'step: a/b  S1']).steps.single;
       expect(two.target, isNull);
@@ -259,7 +256,7 @@ void main() {
       expect(trailing.target!.label, 'a/b#S1');
     });
 
-    test('f10/us01/fr02: the after: below the step: line is the branch', () {
+    test('the after: below the step: line is the branch', () {
       final steps = _read(['### 1. A', 'after: 9', 'step: a/b S1', 'after: 1'])
           .steps;
 
@@ -269,19 +266,19 @@ void main() {
   });
 
   group('skipped lines', () {
-    test('f10/us01/fr02: a ### 1. line in a code fence is no step', () {
+    test('a ### 1. line in a code fence is no step', () {
       final steps = _read(['### 1. A', '```', '### 2. B', '```', '### 3. C']);
 
       expect(_numbers(steps), ['1', '3']);
     });
 
-    test('f10/us01/fr02: a step: line in a code fence is not read', () {
+    test('a step: line in a code fence is not read', () {
       final steps = _read(['### 1. A', '```', 'step: a/b S1', '```']);
 
       expect(steps.steps.single.stepValue, isNull);
     });
 
-    test('f10/us01/fr02: the lines of a scenario_copy block are skipped', () {
+    test('the lines of a scenario_copy block are skipped', () {
       final lines = [
         '### 1. A',
         'step: a/b S1',
@@ -302,7 +299,7 @@ void main() {
       expect(_numbers(read), ['1', '9', '2']);
     });
 
-    test('f10/us01/fr02: a steps body led by --- skips a pasted block between '
+    test('a steps body led by --- skips a pasted block between '
         'two --- lines', () {
       final lines = [
         '---',

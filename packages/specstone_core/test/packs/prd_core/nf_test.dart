@@ -17,7 +17,7 @@ void main() {
     nf = prdCoreDocType(await resolvePrdCore(), 'nf');
   });
 
-  test('f03/us06/fr01: nf sits under its story folder with parent user_story, '
+  test('nf sits under its story folder with parent user_story, '
       'its fields, and four sections', () {
     expect(
       nf.path,
@@ -52,7 +52,7 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr02/e03, '
-      'f03/us06/fr03/e04: titled # <Name>, naming the -ly and -ize words', () {
+      'titled # <Name>, naming the -ly and -ize words', () {
     expectGuideShape(nf, title: '# <Name>');
     expect(nf.description, allOf(contains('-ly'), contains('-ize')));
   });
@@ -62,7 +62,7 @@ void main() {
     expectNasaLint(nf, sections: ['statement']);
   });
 
-  test('f03/us06/fr02: the templates hold the requirement forms, free of the '
+  test('the templates hold the requirement forms, free of the '
       'listed words', () {
     for (final MapEntry(:key, :value) in _templates.entries) {
       expect(sectionOf(nf, key).template, value, reason: key);
@@ -70,7 +70,7 @@ void main() {
     expectTemplatesFreeOfListedWords(nf);
   });
 
-  test('f03/us06/fr01: kind names its three values', () {
+  test('kind names its three values', () {
     expect(
       fieldOf(nf, 'kind').description,
       allOf(contains('tighten'), contains('relax'), contains('add')),
@@ -87,18 +87,15 @@ void main() {
     );
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        nf,
-        'Write one rule per ID, keep its bound in the Statement, '
-        'and leave mechanics to the spec docs.\n'
-        'Keep the trace in `traced_from` alone, never in the '
-        'Statement.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      nf,
+      'Write one rule per ID, keep its bound in the Statement, '
+      'and leave mechanics to the spec docs.\n'
+      'Keep the trace in `traced_from` alone, never in the '
+      'Statement.',
+    );
+  });
 }

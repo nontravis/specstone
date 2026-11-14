@@ -104,7 +104,7 @@ void main() {
       });
     });
 
-    test('f03/us01/fr01/e04: JSON of a fault with no file has only code and '
+    test('JSON of a fault with no file has only code and '
         'message', () {
       final fault = TemplateFault(
         FaultCode.docTypeUnknown,
@@ -119,7 +119,7 @@ void main() {
       });
     });
 
-    test('f03/us01/fr01/e04: getters expose every constructor argument', () {
+    test('getters expose every constructor argument', () {
       final fault = TemplateFault(
         FaultCode.unknownKey,
         'the doc-type format defines no key prefixId',
@@ -162,7 +162,7 @@ void main() {
       expect(asFault.toText(), 'a.yaml:2: bad');
     });
 
-    test('f03/us01/fr01/e04: toText of a yaml fault is file:line: message', () {
+    test('toText of a yaml fault is file:line: message', () {
       final fault = TemplateFault(
         FaultCode.yamlSyntax,
         'mapping values are not allowed here',
@@ -177,7 +177,7 @@ void main() {
       );
     });
 
-    test('f03/us01/fr01/e04: toText with a key is file: key: message', () {
+    test('toText with a key is file: key: message', () {
       final fault = TemplateFault(
         FaultCode.unknownKey,
         'the doc-type format defines no key prefixId',
@@ -192,7 +192,7 @@ void main() {
       );
     });
 
-    test('f03/us01/fr01/e04: toText names related files after "also"', () {
+    test('toText names related files after "also"', () {
       final fault = TemplateFault(
         FaultCode.parentCycle,
         'parent chain returns to its start: epic, story, epic',
@@ -212,7 +212,7 @@ void main() {
       );
     });
 
-    test('f03/us01/fr01/e04: toText with no file is the message alone', () {
+    test('toText with no file is the message alone', () {
       final fault = TemplateFault(
         FaultCode.docTypeUnknown,
         'no doc type named widget',
@@ -221,7 +221,7 @@ void main() {
       expect(fault.toText(), 'no doc type named widget');
     });
 
-    test('f03/us01/fr01/e04: toString is the text form', () {
+    test('toString is the text form', () {
       final fault = TemplateFault(
         FaultCode.yamlSyntax,
         'bad',

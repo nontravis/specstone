@@ -38,7 +38,7 @@ void main() {
     fr = prdCoreDocType(await resolvePrdCore(), 'fr');
   });
 
-  test('f03/us06/fr01: fr sits under its story folder with parent user_story, '
+  test('fr sits under its story folder with parent user_story, '
       'its fields, and seven sections', () {
     expect(
       fr.path,
@@ -69,7 +69,7 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr02/e03, '
-      'f03/us06/fr03/e04: titled # <Name>, naming the -ly and -ize words', () {
+      'titled # <Name>, naming the -ly and -ize words', () {
     expectGuideShape(fr, title: '# <Name>');
     expect(fr.description, allOf(contains('-ly'), contains('-ize')));
   });
@@ -85,7 +85,7 @@ void main() {
     );
   });
 
-  test('f03/us06/fr02: the templates hold the requirement forms, free of the '
+  test('the templates hold the requirement forms, free of the '
       'listed words', () {
     for (final MapEntry(:key, :value) in _templates.entries) {
       expect(sectionOf(fr, key).template, value, reason: key);
@@ -93,7 +93,7 @@ void main() {
     expectTemplatesFreeOfListedWords(fr);
   });
 
-  test('f03/us06/fr02: the behavior guide ends with the Mermaid quoting '
+  test('the behavior guide ends with the Mermaid quoting '
       'sentence', () {
     expect(
       sectionOf(fr, 'behavior').description,
@@ -101,7 +101,7 @@ void main() {
     );
   });
 
-  test('f03/us06/fr02: Edge cases asks for detect, report, handle, and '
+  test('Edge cases asks for detect, report, handle, and '
       'recover', () {
     expect(
       sectionOf(fr, 'edge_cases').description,
@@ -124,23 +124,20 @@ void main() {
     );
   });
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E06: the guide states the item shape: Statement, Edge cases, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        fr,
-        'Write the Statement as one sentence with one "shall", '
-        'stated positively, with a quantified value kept in it, '
-        'such as `within 2 s`.\n'
-        'State what the product does, never how: leave mechanics '
-        'to the spec docs, and never assign a task to a person.\n'
-        'Write one Edge cases item per case; a case the system '
-        'does not handle goes there too, with what happens then.\n'
-        'Keep the trace in `traced_from` alone, never in the '
-        'Statement or an edge case.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E06: the guide states the item shape: Statement, Edge cases, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      fr,
+      'Write the Statement as one sentence with one "shall", '
+      'stated positively, with a quantified value kept in it, '
+      'such as `within 2 s`.\n'
+      'State what the product does, never how: leave mechanics '
+      'to the spec docs, and never assign a task to a person.\n'
+      'Write one Edge cases item per case; a case the system '
+      'does not handle goes there too, with what happens then.\n'
+      'Keep the trace in `traced_from` alone, never in the '
+      'Statement or an edge case.',
+    );
+  });
 }

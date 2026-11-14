@@ -140,7 +140,7 @@ void main() {
     expect(agentFilesSince['software-tech'].toString(), '1.4.0');
   });
 
-  test('f06/us02/fr02/e08: a move onto a staying doc refuses before anything '
+  test('a move onto a staying doc refuses before anything '
       'prints', () async {
     const packYaml = '''
 name: acme
@@ -194,7 +194,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e08: two docs moved onto one path refuse once, each on '
+  test('two docs moved onto one path refuse once, each on '
       'its own line', () async {
     const packYaml = '''
 name: acme
@@ -257,7 +257,7 @@ sections:
         for (final next in fault.more) next.file,
       ];
 
-      test('f06/us02/fr02/e08: three docs moved onto one path print one line '
+      test('three docs moved onto one path print one line '
           'each', () async {
         const packYaml = '''
 name: acme
@@ -300,7 +300,7 @@ sections:
         );
       });
 
-      test('f06/us02/fr02/e08: a doc whose section and field renames both '
+      test('a doc whose section and field renames both '
           'collide prints one line', () async {
         final fixture = await _fixture(
           overrides: const {},
@@ -400,7 +400,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e05: a chained move_file path ends at the last step, '
+  test('a chained move_file path ends at the last step, '
       'one move from the original path', () async {
     const packYaml = '''
 name: acme
@@ -438,10 +438,8 @@ sections:
     ]);
   });
 
-  test(
-    'f06/us02/fr02/e08: a swap composes onto one path and refuses',
-    () async {
-      const packYaml = '''
+  test('a swap composes onto one path and refuses', () async {
+    const packYaml = '''
 name: acme
 version: 1.2.0
 extends: software-tech
@@ -451,36 +449,35 @@ migrations:
       - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/RUNBOOK.md", to: "prds/runbooks/{slug}/NOTES.md"}
       - move_file: {doc_type: runbook, from: "prds/runbooks/{slug}/NOTES.md", to: "prds/runbooks/{slug}/RUNBOOK.md"}
 ''';
-      const type = '''
+    const type = '''
 id: runbook
 description: A runbook.
 path: prds/runbooks/{slug}/RUNBOOK.md
 sections:
   - {id: steps, header: Steps, required: true}
 ''';
-      final fixture = await _fixture(
-        packYaml: packYaml,
-        runbookType: type,
-        overrides: const {},
-        docs: const {
-          'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
-          'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
-        },
-      );
-      await expectLater(
-        () => _plan(fixture),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.upgradeCollision,
-          ),
+    final fixture = await _fixture(
+      packYaml: packYaml,
+      runbookType: type,
+      overrides: const {},
+      docs: const {
+        'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Steps\n\nx\n',
+        'prds/runbooks/deploy/NOTES.md': '# Notes\n\n## Steps\n\ny\n',
+      },
+    );
+    await expectLater(
+      () => _plan(fixture),
+      throwsA(
+        isA<MigrateFault>().having(
+          (f) => f.code,
+          'code',
+          MigrateFaultCode.upgradeCollision,
         ),
-      );
-    },
-  );
+      ),
+    );
+  });
 
-  test('f06/us02/fr02/e08: Scenario B orders a move onto the old path of '
+  test('Scenario B orders a move onto the old path of '
       'another doc after the move that frees it', () async {
     const swapPack = '''
 name: acme
@@ -574,7 +571,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e08: one refusal lists a move collision and a rename '
+  test('one refusal lists a move collision and a rename '
       'collision together', () async {
     const packYaml = '''
 name: acme
@@ -700,7 +697,7 @@ sections:
     expect(plan.left, isEmpty);
   });
 
-  test('f06/us02/fr02/e02: the override takes the new id and keeps every '
+  test('the override takes the new id and keeps every '
       'other key', () async {
     final plan = _plan(await _fixture());
 
@@ -710,7 +707,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e02: an after naming the renamed id takes the new id, '
+  test('an after naming the renamed id takes the new id, '
       'every other byte stays', () async {
     final plan = _plan(
       await _fixture(
@@ -739,7 +736,7 @@ sections:
     );
   });
 
-  test('f06/us02/fr02/e03: an override field with the old id takes the new '
+  test('an override field with the old id takes the new '
       'id and keeps every other key', () async {
     final plan = _plan(
       await _fixture(
@@ -811,7 +808,7 @@ sections:
     );
   }, skip: unreadablePathSkipReason());
 
-  test('f06/us02/fr02/e03: a renamed field keeps its value', () async {
+  test('a renamed field keeps its value', () async {
     final plan = _plan(await _fixture());
 
     final text = _rewriteAt(plan, 'docs/prds/runbooks/deploy/RUNBOOK.md').text;
@@ -820,7 +817,7 @@ sections:
     expect(text, contains('## Procedure\n'));
   });
 
-  test('f06/us02/fr02/e05: two chained renames end in the last name, written '
+  test('two chained renames end in the last name, written '
       'once', () async {
     const packYaml = '''
 name: acme
@@ -859,27 +856,24 @@ sections:
     expect(writes.single.text, '# Deploy\n\n## C\n\nx\n');
   });
 
-  test(
-    'f06/us02/fr02/e07: a doc already lacking the section is unchanged',
-    () async {
-      final plan = _plan(
-        await _fixture(
-          overrides: const {},
-          docs: const {
-            'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Rollback\n\nx\n',
-          },
-        ),
-      );
+  test('a doc already lacking the section is unchanged', () async {
+    final plan = _plan(
+      await _fixture(
+        overrides: const {},
+        docs: const {
+          'prds/runbooks/deploy/RUNBOOK.md': '# Deploy\n\n## Rollback\n\nx\n',
+        },
+      ),
+    );
 
-      expect(plan.rewrites.map((rewrite) => rewrite.path), [
-        '.specstone/config.yaml',
-      ]);
-      expect(
-        plan.toText(),
-        contains('rename_section runbook steps -> procedure: 0 docs\n'),
-      );
-    },
-  );
+    expect(plan.rewrites.map((rewrite) => rewrite.path), [
+      '.specstone/config.yaml',
+    ]);
+    expect(
+      plan.toText(),
+      contains('rename_section runbook steps -> procedure: 0 docs\n'),
+    );
+  });
 
   test("f06/us02/fr01/e04, f06/us02/s4: the older release's steps print "
       'first', () async {
@@ -892,28 +886,25 @@ sections:
     expect(newer, contains('from 1.1.0: rename_field'));
   });
 
-  test(
-    'f06/us02/fr02/e01: a release with no step changes the pin only',
-    () async {
-      final plan = _plan(
-        await _fixture(
-          packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
-          overrides: const {},
-        ),
-      );
+  test('a release with no step changes the pin only', () async {
+    final plan = _plan(
+      await _fixture(
+        packYaml: 'name: acme\nversion: 1.2.0\nextends: software-tech\n',
+        overrides: const {},
+      ),
+    );
 
-      expect(plan.toText(), '''
+    expect(plan.toText(), '''
 pack upgrade: acme 1.0.0 -> 1.2.0
 commit 2, rewrites:
   .specstone/config.yaml: acme 1.2.0
 ''');
-      expect(_rewriteAt(plan, '.specstone/config.yaml').text, _config('1.2.0'));
-      expect(plan.moves, isEmpty);
-      expect(plan.prunes, isEmpty);
-    },
-  );
+    expect(_rewriteAt(plan, '.specstone/config.yaml').text, _config('1.2.0'));
+    expect(plan.moves, isEmpty);
+    expect(plan.prunes, isEmpty);
+  });
 
-  test('f06/us02/fr02/e04: a move_file step keeps the placeholder values and '
+  test('a move_file step keeps the placeholder values and '
       'points links at the new path', () async {
     const packYaml = '''
 name: acme
@@ -1003,7 +994,7 @@ sections:
       overrides: files,
     );
 
-    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a path '
+    test('a path '
         'mention in an agent file and one in a code file that a move stops '
         'resolving print one count line after the agent files line, and the '
         'files stay as they are', () async {
@@ -1081,7 +1072,7 @@ sections:
       },
     );
 
-    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a mention '
+    test('a mention '
         'of a doc no move touches prints no count line', () async {
       final fixture = await fixtureWith({
         'CLAUDE.md': 'Read prds/notes.md first.\n',
@@ -1094,7 +1085,7 @@ sections:
       expect(plan.lists.mentions, isEmpty);
     });
 
-    test('setup_migration/upgrade_pack_pins/chain_migration_steps: a run '
+    test('a run '
         'with no move reads no code file and prints no count line', () async {
       final plan = _plan(
         await _fixture(
@@ -1130,7 +1121,7 @@ sections:
     });
   });
 
-  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins verification: '
+  test('verification: '
       'no plan line joins several paths', () async {
     final plan = _planAt(await _belowSinceTree(_e18Docs()));
 
@@ -1159,7 +1150,7 @@ sections:
     }
   });
 
-  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E11: pins equal '
+  test('E11: pins equal '
       'and two docs off their layout plan the layout pass alone', () async {
     final plan = _plan(
       await _fixture(
@@ -1189,7 +1180,7 @@ sections:
     ]);
   });
 
-  test('setup_migration/upgrade_pack_pins/chain_migration_steps E07: a doc a '
+  test('E07: a doc a '
       'step renames and a doc no step touches are each laid out once, a '
       'laid-out doc is not rewritten, a refused doc is left', () async {
     final plan = _plan(
@@ -1234,7 +1225,7 @@ sections:
     );
   });
 
-  test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E01: an older '
+  test('E01: an older '
       'pin with no selected step lays out an off-layout doc beside the new '
       'pin', () async {
     final plan = _plan(

@@ -33,24 +33,21 @@ Future<LoadedPack> personal(String name, String? extendsPack) async {
 
 void main() {
   group('orderPacks', () {
-    test(
-      'f03/us04/fr01: shipped packs stay first by name, personal last',
-      () async {
-        final ordered = orderPacks([
-          await personal('nont-b', null),
-          shipped('software-tech', null),
-          shipped('prd-core', null),
-          await personal('nont-a', null),
-        ], configFile: _configFile);
+    test('shipped packs stay first by name, personal last', () async {
+      final ordered = orderPacks([
+        await personal('nont-b', null),
+        shipped('software-tech', null),
+        shipped('prd-core', null),
+        await personal('nont-a', null),
+      ], configFile: _configFile);
 
-        expect(ordered.map((p) => p.manifest.name), [
-          'prd-core',
-          'software-tech',
-          'nont-a',
-          'nont-b',
-        ]);
-      },
-    );
+      expect(ordered.map((p) => p.manifest.name), [
+        'prd-core',
+        'software-tech',
+        'nont-a',
+        'nont-b',
+      ]);
+    });
 
     test('s03/inv18: a shipped pack sits above every shipped pack its chain '
         'reaches, and below every personal pack', () async {
@@ -69,7 +66,7 @@ void main() {
       ]);
     });
 
-    test('f03/us04/fr01/e10: a personal pack sits above every pack its chain '
+    test('a personal pack sits above every pack its chain '
         'reaches', () async {
       final ordered = orderPacks([
         await personal('nont-flutter', 'nont-software'),
@@ -84,7 +81,7 @@ void main() {
       ]);
     });
 
-    test('f03/us03/fr04/e02: an extends naming no loaded pack is '
+    test('an extends naming no loaded pack is '
         'extends_target_unknown', () async {
       final pack = await personal('nont-a', 'missing-pack');
       expect(
@@ -103,30 +100,27 @@ void main() {
       );
     });
 
-    test(
-      'f03/us03/fr04/e01: a chain back to its start is extends_cycle',
-      () async {
-        final nontA = await personal('nont-a', 'nont-b');
-        final nontB = await personal('nont-b', 'nont-a');
-        expect(
-          () => orderPacks([nontA, nontB], configFile: _configFile),
-          throwsA(
-            isA<TemplateFault>()
-                .having((f) => f.code, 'code', FaultCode.extendsCycle)
-                .having(
-                  (f) => f.file,
-                  'file',
-                  '~/.specstone/packs/nont-b/pack.yaml',
-                )
-                .having((f) => f.relatedFiles, 'relatedFiles', [
-                  '~/.specstone/packs/nont-a/pack.yaml',
-                ]),
-          ),
-        );
-      },
-    );
+    test('a chain back to its start is extends_cycle', () async {
+      final nontA = await personal('nont-a', 'nont-b');
+      final nontB = await personal('nont-b', 'nont-a');
+      expect(
+        () => orderPacks([nontA, nontB], configFile: _configFile),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.extendsCycle)
+              .having(
+                (f) => f.file,
+                'file',
+                '~/.specstone/packs/nont-b/pack.yaml',
+              )
+              .having((f) => f.relatedFiles, 'relatedFiles', [
+                '~/.specstone/packs/nont-a/pack.yaml',
+              ]),
+        ),
+      );
+    });
 
-    test('f03/us04/fr01/e09: two personal packs with one extends target are '
+    test('two personal packs with one extends target are '
         'personal_pack_conflict', () async {
       final nontA = await personal('nont-a', 'prd-core');
       final nontB = await personal('nont-b', 'prd-core');
@@ -156,23 +150,20 @@ void main() {
   });
 
   group('reaches', () {
-    test(
-      'f03/us04/fr02/e05: true along a chain, false across branches',
-      () async {
-        final flutter = await personal('nont-flutter', 'nont-software');
-        final software = await personal('nont-software', 'software-tech');
-        final tech = shipped('software-tech', null);
-        final other = await personal('nont-x', null);
-        final extendsOf = extendsMapOf([flutter, software, tech, other]);
+    test('true along a chain, false across branches', () async {
+      final flutter = await personal('nont-flutter', 'nont-software');
+      final software = await personal('nont-software', 'software-tech');
+      final tech = shipped('software-tech', null);
+      final other = await personal('nont-x', null);
+      final extendsOf = extendsMapOf([flutter, software, tech, other]);
 
-        expect(reaches(flutter, software, extendsOf: extendsOf), isTrue);
-        expect(reaches(flutter, tech, extendsOf: extendsOf), isTrue);
-        expect(reaches(software, tech, extendsOf: extendsOf), isTrue);
-        expect(reaches(tech, flutter, extendsOf: extendsOf), isFalse);
-        expect(reaches(other, tech, extendsOf: extendsOf), isFalse);
-        expect(reaches(flutter, flutter, extendsOf: extendsOf), isFalse);
-      },
-    );
+      expect(reaches(flutter, software, extendsOf: extendsOf), isTrue);
+      expect(reaches(flutter, tech, extendsOf: extendsOf), isTrue);
+      expect(reaches(software, tech, extendsOf: extendsOf), isTrue);
+      expect(reaches(tech, flutter, extendsOf: extendsOf), isFalse);
+      expect(reaches(other, tech, extendsOf: extendsOf), isFalse);
+      expect(reaches(flutter, flutter, extendsOf: extendsOf), isFalse);
+    });
 
     test(
       's03/inv5: a loop that never returns to the start ends, not hangs',

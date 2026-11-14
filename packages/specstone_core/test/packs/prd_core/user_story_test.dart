@@ -29,7 +29,7 @@ void main() {
     story = prdCoreDocType(await resolvePrdCore(), 'user_story');
   });
 
-  test('f03/us06/fr01: user_story sits under its feature folder with parent '
+  test('user_story sits under its feature folder with parent '
       'feature, its fields, and four sections', () {
     expect(
       story.path,
@@ -51,7 +51,7 @@ void main() {
   });
 
   test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'f03/us06/fr03/e04: titled # <Name>, no NASA list', () {
+      'titled # <Name>, no NASA list', () {
     expectGuideShape(story, title: '# <Name>');
     expectNoNasaLint(story);
     expectSources(story, [
@@ -88,7 +88,7 @@ void main() {
     expect(at, orderedEquals(List.of(at)..sort()));
   });
 
-  test('f03/us06/fr02: the templates hold the story form', () {
+  test('the templates hold the story form', () {
     for (final MapEntry(:key, :value) in _templates.entries) {
       expect(sectionOf(story, key).template, value, reason: key);
     }
@@ -111,18 +111,15 @@ void main() {
     },
   );
 
-  test(
-    'template_packs/write_prd_docs_from_prd_core/write_shipped_writing_guides '
-    'E07: the guide states the item shape: rule per ID, bound, '
-    'mechanics, and trace',
-    () {
-      expectItemShape(
-        story,
-        'Write one rule per ID: each `BR-*` rule states one '
-        'thing, with mechanics left to the spec docs.\n'
-        'Keep a bound in the rule it limits, and the trace in '
-        '`vision:` and `goals:`, never in the prose.',
-      );
-    },
-  );
+  test('Write the shipped writing guides '
+      'E07: the guide states the item shape: rule per ID, bound, '
+      'mechanics, and trace', () {
+    expectItemShape(
+      story,
+      'Write one rule per ID: each `BR-*` rule states one '
+      'thing, with mechanics left to the spec docs.\n'
+      'Keep a bound in the rule it limits, and the trace in '
+      '`vision:` and `goals:`, never in the prose.',
+    );
+  });
 }
