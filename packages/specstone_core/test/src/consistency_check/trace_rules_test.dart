@@ -715,6 +715,28 @@ void main() {
       expect(spots(report, FindingKind.architectureMissing), [
         '$loginFeature:1: architecture_missing',
       ]);
+
+      // An entry of another feature ends the wait of a doc built on
+      // architecture, which an architecture doc itself would not get.
+      final covers = await _checkLogin(
+        _record(statuses: ['$_story:planned']),
+        extra: {
+          '.specstone/templates/edge_architecture.yaml': 'id: edge_architecture\nextends: architecture\npath: specs/f{nn}_{slug}/EDGE_ARCHITECTURE.md\n',
+          'docs/$built':
+              '---\ncovers:\n  - app/lib/login/\n---\n\n# Edge architecture\n',
+          'docs/prds/features/f02_shop/FEATURE.md':
+              checkProjectFiles()['docs/$loginFeature']!,
+          'docs/prds/features/f02_shop/us01_email_login/USER_STORY.md':
+              checkProjectFiles()['docs/$loginStory']!,
+          'docs/specs/f02_shop/IMPLEMENTATION.md': _record(
+            statuses: ['$_story:implemented'],
+          ),
+        },
+        without: {'docs/$loginArchitecture'},
+      );
+      expect(spots(covers, FindingKind.coversPathMissing), [
+        '$built:4: covers_path_missing',
+      ]);
     },
   );
 

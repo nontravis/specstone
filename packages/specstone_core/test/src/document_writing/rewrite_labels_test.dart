@@ -525,6 +525,39 @@ void main() {
       },
     );
 
+    test('an override entry naming a nested spec doc keeps the whole name '
+        'path in step with the rename', () async {
+      const cartRule = '- **INV-9** A cart is small.';
+      const lineDomain = 'specs/f02_shop/f01_cart/f01_line/DOMAIN.md';
+      final cartFingerprint = fingerprintFor(cartRule);
+      final root = await writeCheckProject(
+        extra: overrideFiles(
+          extra: {
+            'docs/prds/features/f02_shop/FEATURE.md': '# Shop\n',
+            'docs/prds/features/f02_shop/f01_cart/FEATURE.md': '# Cart\n',
+            'docs/prds/features/f02_shop/f01_cart/f01_line/FEATURE.md':
+                '# Line\n',
+            'docs/$_shopDomain': domainDoc([_shopRule]),
+            'docs/$_cartDomain': domainDoc([cartRule]),
+            'docs/$lineDomain': domainDoc(
+              [
+                '- Overrides: [INV-9](../DOMAIN.md#invariants) — tiny, because stock',
+              ],
+              entries: ['domain:shop/cart#INV-9 $cartFingerprint'],
+            ),
+          },
+        ),
+      );
+      expect(linkKindsOf(root, lineDomain), isEmpty);
+      _rename(root, 'feature:shop', 'store');
+      final moved = lineDomain.replaceFirst('f02_shop', 'f02_store');
+      expect(
+        readDoc(root, moved),
+        contains('  - domain:store/cart#INV-9 $cartFingerprint\n'),
+      );
+      expect(linkKindsOf(root, moved), isEmpty);
+    });
+
     test('a rename leaves override entries of other docs untouched', () async {
       final root = await project();
       final before = readDoc(root, _cartDomain);

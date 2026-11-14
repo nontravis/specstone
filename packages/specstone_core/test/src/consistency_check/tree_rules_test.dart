@@ -270,6 +270,8 @@ void main() {
         ], contains(FindingKind.parentMissing));
         expect(spots(report, FindingKind.overrideLineMalformed), isEmpty);
         expect(spots(report, FindingKind.overrideNotInChain), isEmpty);
+        expect(spots(report, FindingKind.suspect), isEmpty);
+        expect(spots(report, FindingKind.unconfirmed), isEmpty);
       },
     );
 

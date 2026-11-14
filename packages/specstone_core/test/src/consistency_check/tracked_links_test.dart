@@ -1211,6 +1211,67 @@ void main() {
       );
     });
 
+    test(
+      'the fix text of an override link names the overrides field',
+      () async {
+        final unconfirmed = (await findings(
+          loginFiles([overrideOfRoot]),
+          loginDomain,
+        )).single;
+        expect(
+          unconfirmed.message,
+          contains(
+            'then record $rootAddress in `overrides` with the '
+            'fingerprint after it',
+          ),
+        );
+        final suspect = (await findings(
+          loginFiles([overrideOfRoot], entries: [rootEntry], root: editedRule),
+          loginDomain,
+        )).single;
+        expect(
+          suspect.message,
+          contains(
+            'then record $rootAddress in `overrides` with the '
+            'fingerprint after it',
+          ),
+        );
+      },
+    );
+
+    test('an override address written into confirmed is told to move to '
+        'overrides', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr('  - S2 ${fp(loginScenario2)}', '  - $rootEntry'),
+        ),
+        docPath: loginFr,
+      );
+      final malformed = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.confirmedEntryMalformed,
+      );
+      expect(malformed.message, contains('belongs in `overrides`'));
+      expect(malformed.keys['entry'], rootEntry);
+    });
+
+    test('a malformed confirmed entry that is no override address keeps '
+        'its form hint', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr('  - S2 ${fp(loginScenario2)}', '  - S2'),
+        ),
+        docPath: loginFr,
+      );
+      final malformed = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.confirmedEntryMalformed,
+      );
+      expect(
+        malformed.message,
+        'S2 is not a confirmed entry; write '
+        '"<link> <12 lowercase hex characters>"',
+      );
+    });
+
     test('two lines of one id in two docs pair by address', () async {
       final items = [
         '- Overrides: [INV-3](../DOMAIN.md#invariants) — a cart holds stock, because stock',

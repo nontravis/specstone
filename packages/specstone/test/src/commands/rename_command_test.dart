@@ -159,6 +159,10 @@ void main() {
       ),
     );
     final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      readDoc(root, 'specs/f02_shop/f01_cart/DOMAIN.md'),
+      contains(RegExp(r'^approved: ', multiLine: true)),
+    );
     // The fixture's own template findings stay; the rename adds no other.
     await runner.run(['check', 'domain:shop/cart']);
     final before = out.toString();
@@ -172,7 +176,11 @@ void main() {
     expect(err.toString(), isEmpty);
     expect(
       readDoc(root, 'specs/f02_store/f01_cart/DOMAIN.md'),
-      allOf(contains('domain:store#INV-3'), isNot(contains('draft: true'))),
+      allOf(
+        contains('domain:store#INV-3'),
+        contains(RegExp(r'^approved: ', multiLine: true)),
+        isNot(contains('draft: true')),
+      ),
     );
   });
 

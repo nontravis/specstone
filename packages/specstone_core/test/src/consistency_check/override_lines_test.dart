@@ -184,6 +184,7 @@ void main() {
     final finding = read.findings.single;
     expect(finding.kind, FindingKind.overrideNotInChain);
     expect(finding.line, _firstItemLine);
+    expect(finding.waitsFor, WaitsFor.agent);
     expect(finding.keys, {
       'target': '../../jaspr/DOMAIN.md#invariants',
       'doc': jasprRoot,
@@ -217,6 +218,17 @@ void main() {
     expect(
       [for (final f in read.findings) f.line],
       [_firstItemLine + 1, _firstItemLine + 2, _firstItemLine + 3],
+    );
+    expect([
+      for (final f in read.findings) f.waitsFor,
+    ], everyElement(WaitsFor.agent));
+    expect(
+      [for (final f in read.findings) f.keys['target']],
+      [
+        '../topics/rules.md#rules',
+        '../../prds/features/f01_login/FEATURE.md#problem',
+        'DOMAIN.md#invariants',
+      ],
     );
     expect(read.lines.map((l) => l.address), everyElement(isNull));
   });
@@ -253,7 +265,11 @@ void main() {
     expect(findings.single.kind, FindingKind.overrideNotInChain);
     expect(findings.single.path, _topic);
     expect(findings.single.line, _firstTopicItemLine + 2);
-    expect(findings.single.keys['doc'], _loginDomain);
+    expect(findings.single.waitsFor, WaitsFor.agent);
+    expect(findings.single.keys, {
+      'target': '../f01_login/DOMAIN.md#invariants',
+      'doc': _loginDomain,
+    });
     final read = await _read(files, _topic);
     expect(read.lines.first.address, _rootAddress);
   });
@@ -358,6 +374,34 @@ void main() {
       isTrue,
     );
     expect(carriesOverrides(null), isFalse);
+  });
+
+  test('a type built on nf keeps its scalar overrides field out of '
+      'override checks', () async {
+    const strictNf = 'prds/features/f01_login/us01_email_login/sn01_strict.md';
+    final files = {
+      ..._base,
+      '.specstone/templates/strict_nf.yaml':
+          'id: strict_nf\nextends: nf\n'
+          'path: prds/features/f{nn}_{slug}/us{nn}_{slug}/sn{nn}_{slug}.md\n',
+      'docs/$strictNf':
+          '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\n---\n\n'
+          '# Strict\n\n## Statement\n\nThe system shall sign in within 1 s.\n\n'
+          '## Rationale\n\nUsers wait.\n\n## Verification\n\nTest: a timed sign-in.\n',
+    };
+    final session = openSession(await _write(files));
+    addTearDown(session.close);
+    final context = CheckContext(session);
+    final type = context.typeOf(context.index.at(strictNf)!);
+    expect(type?.id, 'strict_nf');
+    expect(carriesOverrides(type), isFalse);
+    final report = checkOf(await _write(files), docPath: strictNf);
+    expect(
+      report.findings.where(
+        (f) => f.kind == FindingKind.confirmedEntryMalformed,
+      ),
+      isEmpty,
+    );
   });
 
   test(
