@@ -3,7 +3,7 @@ As `specstone-sdd-engineer`, ask the Owner nothing: each step with the Owner goe
 
 Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming
 canonicalization sections go to `specstone-bootstrap-spec`.
-Follow `specstone-expert-sdd` for every write; before the first, run `specstone guide <type> …` once, naming every
+Follow the `specstone-expert-sdd` skill for every write; before the first, run `specstone guide <type> …` once, naming every
 type you write; a type met later gets its own call before its first write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target

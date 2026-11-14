@@ -1,11 +1,11 @@
 ---
 name: specstone-plan-sdd
-description: Use when approved docs in a Specstone project have no implementation plan yet, such as an approved story, FR, NFR, or spec doc to build, the user stories still `planned`, or a brainstorm's approved drafts, or when another `specstone:` skill names `specstone:plan-sdd`.
+description: Use when approved docs in a Specstone project have no implementation plan yet, such as an approved story, FR, NFR, or spec doc to build, the user stories still `planned`, or a brainstorm's approved drafts, or when another Specstone skill names `specstone-plan-sdd`.
 ---
 
 # Plan approved docs, then ask how to run the plan
 
-One agent, `specstone:plan-engineer`, holds every plan rule and writes the plan. You gate, pick the targets, hand them
+One agent, `specstone-plan-engineer`, holds every plan rule and writes the plan. You gate, pick the targets, hand them
 over by name, relay the reply, and ask the Owner how to run the plan. You write no plan text and run no task.
 
 ## 1. Gate: the first call
@@ -20,7 +20,7 @@ specstone check
   or they keep using the old skills. Stop: run nothing more, and read or write no doc.
 - **0 or 1:** the project is on the new format, even from a subfolder, since the CLI looks for
   `.specstone/config.yaml` here and in each folder above. Act on the exit status alone; read no finding, nor a file
-  the host saved them to: `specstone:plan-engineer`'s own `check` is the baseline.
+  the host saved them to: `specstone-plan-engineer`'s own `check` is the baseline.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 2. List the stories, ask the code target, pick the targets
@@ -36,9 +36,9 @@ targets, ask the Owner which code target the plan is for, given target names and
 `code target:` in step 3, and `--target <name>` on a rerun of this list when no target is given. A one-target project's list refuses nothing: ask
 nothing, pass none. Learn it from the refusal, never from `.specstone/config.yaml`.
 
-- **From `specstone:brainstorming-sdd`:** its last step invokes this skill with the approved drafts list and the
+- **From `specstone-brainstorming-sdd`:** its last step follows this skill with the approved drafts list and the
   design document's path. Take the list whole and filter out no doc type, a project or feature doc included:
-  which docs a task builds is `specstone:plan-engineer`'s call alone.
+  which docs a task builds is `specstone-plan-engineer`'s call alone.
 - **Target names given:** each an approved story, FR, NFR, or spec doc. Take them as named.
 - **No target, outside a brainstorm:** Offer the Owner each story of the list, rerun with `--target <name>` after the
   ask, whose `draft` is `false`, by name and title; leave out every draft. When none is left, say so and ask the
@@ -48,7 +48,8 @@ A target that already has a plan gets a new one at the Owner's word: search for 
 
 ## 3. Hand off
 
-With the `Agent` tool, dispatch one `specstone:plan-engineer` with these inputs, and no doc text:
+Dispatch one `specstone-plan-engineer` as `../specstone-expert-sdd/references/dispatch.md` gives, with these
+inputs and no doc text:
 
 - `targets:` the target names, or the approved drafts list whole;
 - `code target:` the Owner's answer; leave the line out when none was asked;
@@ -56,11 +57,10 @@ With the `Agent` tool, dispatch one `specstone:plan-engineer` with these inputs,
 - `report:` `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints, run
   once after step 2, `XXXXXX` six `a-z0-9` characters, picked again while that file exists; each round reuses it.
 
-Work no step of the plan yourself. Without the tool, or when the dispatch fails, read
-`${CLAUDE_PLUGIN_ROOT}/agents/plan-engineer.md` and follow it yourself under the same inputs, writing its one plan
-file and its report; that report stands in for the reply. After a failed dispatch, before you first save the plan,
-look in the folder that file's step 8 saves it to for a plan file written after the dispatch began whose tasks name
-one of these targets. When one is there, take it as the `plan path`, name it in the report, and write no second plan.
+Work no step of the plan yourself while a dispatch can run. The main session follows
+`../../agents/specstone-plan-engineer.md` under the same inputs, writing its one plan file and its report; that
+report stands in for the reply. After a failed dispatch, before you first save the plan, look in the folder that
+file's step 8 saves it to for a plan file written after the dispatch began whose tasks name one of these targets. When one is there, take it as the `plan path`, name it in the report, and write no second plan.
 Amend no other file, since another session wrote it; with no match, pick a new path by step 8's rule.
 
 ## 4. Relay the reply
@@ -88,8 +88,8 @@ any file of this plugin holds.
 
 - **One or more qualify:** offer every one, each by its name and its description's words, and ask which runs the
   plan. With two or more, pick none for the Owner.
-- **The Owner picks one:** load it with `Skill` and hand it the plan's path.
+- **The Owner picks one:** follow it and hand it the plan's path.
 - **None qualifies, or the Owner picks none:** say the plan is ready to run, and name its path.
 
 Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names, by
-its read line, `specstone context <target> --for implement --out`, per `specstone:read-sdd`.
+its read line, `specstone context <target> --for implement --out`, per the `specstone-read-sdd` skill.

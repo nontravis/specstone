@@ -20,14 +20,14 @@ touches, the trade-off behind each choice, and its test.
 
 - **Prompt only**: take your inputs from the dispatch prompt; open no file but the `report` file before the Ground's
   first call.
-- **Same steps everywhere**: a direct dispatch with these inputs, and `specstone:plan-sdd`'s runner following this
+- **Same steps everywhere**: a direct dispatch with these inputs, and `specstone-plan-sdd`'s runner following this
   file itself, run the same steps under the same file rules.
 
 ## Input Contract
 
 - **`targets`** (required): names, each a story, FR, NFR, or spec doc, or, from a brainstorm, the approved drafts
   list whole. Workflow step 1 sorts them.
-- **`code target`** (optional): `specstone:plan-sdd`'s answer, given when the project has two or more code targets;
+- **`code target`** (optional): `specstone-plan-sdd`'s answer, given when the project has two or more code targets;
   absent in a one-target project. Ground and Workflow step 7 carry it.
 - **`design document`** (optional): a path, read in Workflow step 4; no ground source.
 - **`plan path`** (optional): the plan an earlier run reported, or a failed one left, for the same targets, amended in
@@ -78,7 +78,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    spec doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own.
    The first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the
    binary.
-   - **0**: the saved file is the docs, as they stand: read it per `specstone:read-sdd`, in parts, searching it with
+   - **0**: the saved file is the docs, as they stand: read it per the `specstone-read-sdd` skill, in parts, searching it with
      `Grep` before any `get`.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
@@ -105,12 +105,12 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 6. **Plan format**: when steps 1 to 5 took no target or made each one `NOT PLANNED`, load no skill and go to step 8.
    Else, when your skill list holds a skill whose description says it writes an implementation plan from a spec,
    load it as the plan's format; where it conflicts, Specstone's rules win; none, follow the own procedure; when two
-   qualify, the one the project's CLAUDE.md names, else the first listed. A Specstone skill, `specstone:plan-sdd`
-   included, never qualifies.
-   - **A skill qualifies**: load it with `Skill` after steps 1 to 5, and follow it for the header, the file map, the
-     task size, and the steps; its own self-review still runs, its own save step never: the plan is saved only at
+   qualify, the one the project's instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed. A
+   Specstone skill, `specstone-plan-sdd` included, never qualifies.
+   - **A skill qualifies**: follow it after steps 1 to 5 for the header, the file map, the task size, and the steps;
+     its own self-review still runs, its own save step never: the plan is saved only at
      step 8's path. Specstone's rules win where they differ: the Ground's order and rules, no doc text in a task, the
-     last `specstone:sync-sdd` task, and the one plan file outside the CheckedFolders. At its execution hand-off, stop
+     last `specstone-sync-sdd` task, and the one plan file outside the CheckedFolders. At its execution hand-off, stop
      and invoke nothing; steps 7 and 8 still bind the plan; then go to step 9.
    - **None qualifies, the own procedure**: write a header (the goal, the design document's path when there is one,
      the constraints every task keeps), then numbered tasks with test-first steps: write the failing test, run it and
@@ -128,7 +128,8 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      its target's record: `specstone set implementation:<feature> --field tests`, with `--target <code target>` when
      one is given. The sync writes no new `tests` line.
 
-   The plan's last task runs `specstone:sync-sdd` with no path list; it builds no doc, so it carries no read line.
+   The plan's last task runs the `specstone-sync-sdd` skill with no path list; it builds no doc, so it carries no read
+   line.
 8. **Write**, either format, taking the first case that holds:
    - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
      the sync task; `Plan:` reads `none`.
@@ -138,8 +139,8 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      Owner for a new `plan path`.
    - **Else**: the one plan file, at a given `plan path`, else as `<YYYY-MM-DD>-<slug>.md` in the plans folder the
      project's instruction files (`CLAUDE.md`, `AGENTS.md`) name, else the plan skill's own path, else
-     `docs/plans/<YYYY-MM-DD>-<slug>.md`. `Read` a file already there, such as one an earlier run wrote, and amend
-     it with `Edit`; make a new one with `Write`. When the Owner's new `plan path` moves a plan already written, write
+     `docs/plans/<YYYY-MM-DD>-<slug>.md`. Read a file already there, such as one an earlier run wrote, with the
+     host's file read, and amend it with the host's file write; make a new one with the host's file write. When the Owner's new `plan path` moves a plan already written, write
      the plan at the new path and name the old file under `Findings:`; delete no file. Write no other plan file.
 9. **Check before reporting**, and fix the plan until all four hold:
    - **Coverage**: each approved FR of a target that gets a task is built by a task.
@@ -159,9 +160,9 @@ With no `report`, run `specstone folder` once, after the Ground's calls or at a 
 `specstone folder` prints, and name your own `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
 characters, picked again while that file exists; every round reuses it.
 
-`Read` the `report` file before each `Write` to it, in every round, not only the first: `Write` refuses a file it has
-not read, and a missing file's `Read` error is no stop. Write the report, the block below, with `Write` to that file.
-Then reply `Report: <path>` and, under it, the same block, the relay block.
+Read the `report` file with the host's file read before each write to it, in every round, not only the first: a
+write refuses a file it has not read, and a missing file's read error is no stop. Write the report, the block below,
+with the host's file write to that file. Then reply `Report: <path>` and, under it, the same block, the relay block.
 
 ```
 Plan: <path>, written or amended; none when no plan was written
@@ -192,8 +193,8 @@ Findings: <items, or none>
 - Run `specstone context` for the Ground, `specstone get` only after searching its saved file with `Grep`, and one
   `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), `specstone folder`
   once with no `report` (Output Format), and no other specstone command.
-- Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
-- Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
+- Read code, instruction files, and library docs read-only; follow the plan skill.
+- Beyond the `report:` file, write only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.
 
 **DON'T:**

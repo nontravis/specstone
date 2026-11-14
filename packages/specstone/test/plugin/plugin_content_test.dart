@@ -242,6 +242,8 @@ void main() {
   _groundInitUpdateTests();
   _brainstormTests();
   _syncBootstrapTests();
+  _planFilesTests();
+  _shippedTreeTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -408,13 +410,8 @@ Future<List<String>> _skillProblemsOf(String markdown) async {
 const _otherSkill = "specstone-x/SKILL.md: a:b is another plugin's skill";
 
 /// The other-plugin problems of every shipped source and render.
-///
-/// WORKAROUND: the shipped text still names `specstone:<name>`; remove the
-/// filter when the skill and agent rewrites land.
-List<String> _shippedOtherPluginSkills() => otherPluginSkillNames(
-  contentFiles(),
-  shippedDocTypes(),
-).where((problem) => !problem.contains(' specstone:')).toList();
+List<String> _shippedOtherPluginSkills() =>
+    otherPluginSkillNames(contentFiles(), shippedDocTypes());
 
 void _codeParseTests() {
   test('$_nameOnly: a span wrapped over two lines is read whole, and the span '
@@ -1626,12 +1623,7 @@ void _agentTests() {
       if (!_isSkillFile(file) || file == 'specstone-read-sdd/SKILL.md') {
         continue;
       }
-      final skill =
-          file.startsWith('specstone-brainstorming-sdd/') ||
-              file.startsWith('specstone-sync-sdd/')
-          ? '`specstone-read-sdd`'
-          : '`specstone:read-sdd`';
-      expect(_pluginText(file), contains(skill), reason: file);
+      expect(_pluginText(file), contains('`specstone-read-sdd`'), reason: file);
     }
     final engineer = _pluginText('specstone-sdd-engineer.md');
     expect(_toolsOf(engineer, 'tools'), contains('Grep'));
@@ -1646,9 +1638,9 @@ void _agentTests() {
     expect(
       _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
       contains(
-        'the saved file is the docs, as they stand: read it per '
-        '`specstone:read-sdd`, in parts, searching it with `Grep` before any '
-        '`get`.',
+        'the saved file is the docs, as they stand: read it per the '
+        '`specstone-read-sdd` skill, in parts, searching it with `Grep` '
+        'before any `get`.',
       ),
     );
   });
@@ -4040,7 +4032,7 @@ const _planSkill = 'specstone-plan-sdd/SKILL.md';
 const _planAgent = 'specstone-plan-engineer.md';
 
 /// [_planAgent] by the path the plan skill's runner reads it from.
-const _planAgentPath = r'${CLAUDE_PLUGIN_ROOT}/agents/plan-engineer.md';
+const _planAgentPath = '../../agents/specstone-plan-engineer.md';
 
 /// The lead and source 1 of the plan agent's `## Ground`, as the plan-sdd
 /// design's ground ruling words them, cut at line width.
@@ -4116,21 +4108,25 @@ void _planTests() {
   });
 
   test('$_runPlanSkill E05, E07, verification: plan-sdd dispatches '
-      'specstone:plan-engineer with a report: file under the reports folder, '
-      'shows the Report: line, follows the agent file itself, loads the '
-      "Owner's pick with Skill, and names no plan mode", () {
+      'specstone-plan-engineer as the dispatch file gives, with a report: file '
+      'under the reports folder, shows the Report: line, follows the agent '
+      "file itself, follows the Owner's pick, and names no plan mode", () {
     final text = _oneLine(_pluginText(_planSkill));
     for (final point in [
-      'specstone:plan-engineer',
+      '`specstone-plan-engineer`',
+      '`../specstone-expert-sdd/references/dispatch.md`',
       '`report:`',
       '`<folder>/reports/plan-engineer.plan.<XXXXXX>.md`',
       '`Report:`',
-      '`Skill`',
-      _planAgentPath,
+      '`$_planAgentPath`',
+      "follow it and hand it the plan's path",
     ]) {
       expect(text, contains(point), reason: point);
     }
     expect(text, isNot(contains('mode: plan')));
+    expect(text, isNot(contains('`Agent` tool')));
+    expect(text, isNot(contains('`Skill`')));
+    expect(text, isNot(contains('rung')));
   });
 
   test('$_writePlan statement, E16, verification: the Ground section of '
@@ -4160,7 +4156,7 @@ void _planTests() {
     final agent = _oneLine(_pluginText(_planAgent));
     for (final point in [
       '`specstone check`',
-      'specstone:sync-sdd',
+      '`specstone-sync-sdd`',
       'docs/plans/<YYYY-MM-DD>-<slug>.md',
       'NOT PLANNED',
       'Report: <path>',
@@ -4207,14 +4203,14 @@ void _planTests() {
     );
   });
 
-  test('the last task of a plan runs specstone:sync-sdd with '
+  test('the last task of a plan runs the specstone-sync-sdd skill with '
       'no path list and carries no read line', () {
     final workflow = _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow'));
     expect(
       workflow,
       contains(
-        "The plan's last task runs `specstone:sync-sdd` with no path list; it "
-        'builds no doc, so it carries no read line.',
+        "The plan's last task runs the `specstone-sync-sdd` skill with no path "
+        'list; it builds no doc, so it carries no read line.',
       ),
     );
     expect(workflow, isNot(contains('paths the plan changed')));
@@ -4314,7 +4310,7 @@ void _planTests() {
     expect(
       _oneLine(_sectionOf(agent, 'Input Contract')),
       contains(
-        "**`code target`** (optional): `specstone:plan-sdd`'s answer, given "
+        "**`code target`** (optional): `specstone-plan-sdd`'s answer, given "
         'when the project has two or more code targets',
       ),
     );
@@ -5110,6 +5106,91 @@ void _syncBootstrapTests() {
 
     test('each of the six skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_syncBootstrapContent()), isEmpty);
+    });
+  });
+}
+
+const _planFiles = ['specstone-plan-sdd/', 'specstone-plan-engineer.'];
+
+/// The plan skill and the plan agent, in the source and in each host's render.
+List<ContentFile> _planContent() => [
+  for (final file in contentFiles())
+    if (_planFiles.any(file.path.contains)) file,
+];
+
+void _planFilesTests() {
+  group('the plan skill and the plan engineer', () {
+    test('each of the two reaches the source and every host render', () {
+      final paths = _planContent().map((file) => file.path);
+      expect(paths, hasLength(3 + 5));
+    });
+
+    test("they name no host tool, no CLAUDE_ variable, no other host's skills "
+        'folder, no specstone:<name> skill, and every relative path '
+        'resolves', () {
+      final files = _planContent();
+      expect(hostTiedText(files), isEmpty);
+      expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);
+      expect(skillHeadProblems(files), isEmpty);
+      expect(
+        unresolvedPaths(contentFiles())
+            .where((problem) => _planFiles.any(problem.contains)),
+        isEmpty,
+      );
+    });
+
+    test('the skill takes the dispatch steps from expert-sdd and reaches the '
+        'agent file by its path from the skill', () {
+      final skill = _oneLine(_pluginText(_planSkill));
+      expect(
+        skill,
+        contains('`../specstone-expert-sdd/references/dispatch.md`'),
+      );
+      expect(skill, contains('`../../agents/specstone-plan-engineer.md`'));
+    });
+
+    test('the agent reads and writes files through the host and names the '
+        "project's instruction file by both of its names", () {
+      final agent = _oneLine(_pluginText(_planAgent));
+      expect(agent, contains("with the host's file read"));
+      expect(agent, contains("with the host's file write"));
+      expect(
+        agent,
+        contains(
+          "the one the project's instruction file (`CLAUDE.md`, `AGENTS.md`) "
+          'names',
+        ),
+      );
+      expect(agent, isNot(contains("the project's CLAUDE.md")));
+    });
+
+    test('the plan skill file stays within 1,500 est. tokens', () {
+      expect(oversizedSkillFiles(_planContent()), isEmpty);
+    });
+
+    test('each bootstrap procedure hands its writes over by following the '
+        'expert skill', () {
+      for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+        expect(
+          _oneLine(_pluginText('specstone-$skill/references/procedure.md')),
+          contains('Follow the `specstone-expert-sdd` skill for every write'),
+          reason: skill,
+        );
+      }
+    });
+  });
+}
+
+void _shippedTreeTests() {
+  group('every shipped source and render', () {
+    test("they name no host tool, no CLAUDE_ variable, no other host's skills "
+        'folder, no specstone:<name> skill, and every skill head and '
+        'relative path holds', () {
+      final files = contentFiles();
+      expect(hostTiedText(files), isEmpty);
+      expect(otherPluginSkillNames(files, shippedDocTypes()), isEmpty);
+      expect(skillHeadProblems(files), isEmpty);
+      expect(unresolvedPaths(files), isEmpty);
     });
   });
 }
