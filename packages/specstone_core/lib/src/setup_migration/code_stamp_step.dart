@@ -142,7 +142,7 @@ List<_Stamp> _stampsOf(
   final type = doc.type;
   final target = indexed == null ? null : work.targetOf(indexed);
   if (indexed == null || type == null || target == null) return const [];
-  final codeRoot = codeRootFolderOf(reader.projectRoot, target);
+  final codeRoot = reader.codeRootOf(target);
   final links = codeLinksOf(
     read.tree,
     work,
@@ -155,7 +155,7 @@ List<_Stamp> _stampsOf(
   return [
     for (final link in links)
       if (link.status != RecordStatus.planned)
-        if (reader.fingerprintOf(target, link.path, codeRoot) case final fp?)
+        if (reader.fingerprintOf(target, link.path) case final fp?)
           if (_stampedValue(link, fp) case final stamped
               when stamped != link.value)
             (
@@ -215,29 +215,43 @@ final class _ReadDocs {
 /// Reads each code file once, through [readPlanInput], and keeps each file
 /// it could not read.
 final class _CodeReader {
-  new(this.projectRoot, this._targets);
+  new(this.projectRoot, List<CodeTarget> targets)
+    : _codeRoots = {
+        for (final target in targets)
+          target: codeRootFolderOf(projectRoot, target),
+      } {
+    _nestedRoots = nestedRootsByTarget(_codeRoots);
+  }
 
   /// The project root the code roots resolve from.
   final Directory projectRoot;
 
-  final List<CodeTarget> _targets;
+  final Map<CodeTarget, Directory> _codeRoots;
+  late final Map<CodeTarget, List<String>> _nestedRoots;
   final _bytes = <(CodeTarget, String), List<int>?>{};
 
   /// Each code file a read failed on, as a path from the project root.
   final unreadable = <String>{};
 
+  /// Returns the code root of [target], resolved once.
+  Directory codeRootOf(CodeTarget target) =>
+      _codeRoots[target] ?? (throw _unknownTarget(target));
+
   /// Returns the current fingerprint of [path] of [target], as the check
   /// reads it, null when its code cannot be read.
-  String? fingerprintOf(CodeTarget target, String path, Directory codeRoot) =>
-      currentCodeFingerprint(
-        projectRoot,
-        target,
-        path,
-        codeRoot: codeRoot,
-        targets: _targets,
-        bytesOf: (file) => _read(target, codeRoot, file),
-        onUnlistable: (_) {},
-      );
+  String? fingerprintOf(CodeTarget target, String path) {
+    final codeRoot = codeRootOf(target);
+    return currentCodeFingerprint(
+      path,
+      codeRoot: codeRoot,
+      nestedRoots: _nestedRoots[target] ?? (throw _unknownTarget(target)),
+      bytesOf: (file) => _read(target, codeRoot, file),
+      onUnlistable: (_) {},
+    );
+  }
+
+  ArgumentError _unknownTarget(CodeTarget target) =>
+      ArgumentError.value(target, 'target', 'is not a target of the run');
 
   List<int>? _read(CodeTarget target, Directory codeRoot, String file) =>
       _bytes.putIfAbsent((target, file), () {

@@ -29,7 +29,7 @@ import 'package:specstone_core/src/templates/code_target.dart'
     show
         CodeTarget,
         codeRootFolderOf,
-        nestedRootsOf,
+        nestedRootsByTarget,
         targetNamesOf,
         twinNamesOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -325,8 +325,12 @@ List<_Name> _scan({
   required RunGit runGit,
 }) {
   final names = <_Name>[];
+  final codeRoots = {
+    for (final target in targets) target: codeRootFolderOf(root, target),
+  };
+  final nestedRoots = nestedRootsByTarget(codeRoots);
   for (final file in _trackedFilesOf(root, agentFileRoots, runGit)) {
-    final owner = _ownerOf(root, targets, file.path);
+    final owner = _ownerOf(root, codeRoots, nestedRoots, file.path);
     if (owner == null) continue;
     final DocText text;
     try {
@@ -443,7 +447,8 @@ List<String> _trackedIn(Directory folder, RunGit runGit) {
 /// own.
 ({CodeTarget target, String path})? _ownerOf(
   Directory root,
-  List<CodeTarget> targets,
+  Map<CodeTarget, Directory> codeRoots,
+  Map<CodeTarget, List<String>> nestedRoots,
   String absolute,
 ) {
   final fromProject = pathInside(root.path, absolute);
@@ -452,10 +457,11 @@ List<String> _trackedIn(Directory folder, RunGit runGit) {
           fromProject.startsWith(_specstoneFolder))) {
     return null;
   }
-  for (final target in targets) {
-    final path = pathInside(codeRootFolderOf(root, target).path, absolute);
+  for (final MapEntry(key: target, value: codeRoot) in codeRoots.entries) {
+    final path = pathInside(codeRoot.path, absolute);
     if (path == null) continue;
-    final nested = nestedRootsOf(root, target, targets);
+    final nested = nestedRoots[target];
+    if (nested == null) continue;
     if (nested.any((own) => path == own || path.startsWith('$own/'))) {
       continue;
     }

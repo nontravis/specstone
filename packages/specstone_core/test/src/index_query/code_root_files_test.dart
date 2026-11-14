@@ -177,21 +177,17 @@ void main() {
       final files = filesUnderCodeRoot(root, 'lib/../docs/');
       expect(files, ['docs/x.md']);
       expect(
-        projectPathOfCodeFile(
-          files.single,
+        ProjectPathReader(
           projectRoot: root,
           docsRoot: docsRoot,
-          codeRoot: root,
-        ),
+        ).projectPathOf(files.single, root),
         isNull,
       );
       expect(
-        projectPathOfCodeFile(
-          'lib/a.dart',
+        ProjectPathReader(
           projectRoot: root,
           docsRoot: docsRoot,
-          codeRoot: root,
-        ),
+        ).projectPathOf('lib/a.dart', root),
         'lib/a.dart',
       );
     });
@@ -204,12 +200,10 @@ void main() {
         return;
       }
       expect(
-        projectPathOfCodeFile(
-          'Docs/x.md',
+        ProjectPathReader(
           projectRoot: root,
           docsRoot: Directory('${root.path}/docs'),
-          codeRoot: root,
-        ),
+        ).projectPathOf('Docs/x.md', root),
         isNull,
       );
     });
@@ -221,21 +215,17 @@ void main() {
       final project = Directory('${root.path}/specs');
       final docsRoot = Directory('${project.path}/docs');
       expect(
-        projectPathOfCodeFile(
-          'lib/a.dart',
+        ProjectPathReader(
           projectRoot: project,
           docsRoot: docsRoot,
-          codeRoot: root,
-        ),
+        ).projectPathOf('lib/a.dart', root),
         '../lib/a.dart',
       );
       expect(
-        projectPathOfCodeFile(
-          'specs/docs/x.md',
+        ProjectPathReader(
           projectRoot: project,
           docsRoot: docsRoot,
-          codeRoot: root,
-        ),
+        ).projectPathOf('specs/docs/x.md', root),
         isNull,
       );
     });

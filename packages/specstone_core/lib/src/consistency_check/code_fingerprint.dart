@@ -5,7 +5,6 @@ import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/templates/code_target.dart';
 
 const _fingerprintLength = 12;
 const _bomChar = '\uFEFF';
@@ -45,22 +44,22 @@ String folderCodeFingerprint(List<({String path, String fingerprint})> files) =>
           .join(),
     );
 
-/// Returns the files a code link [path] of [target] names, as paths from the
-/// target's code root, sorted by code point.
+/// Returns the files a code link [path] names, as paths from [codeRoot],
+/// sorted by code point.
 ///
 /// [path] is a file or a folder, as written in a record entry or a `covers:`
-/// entry. Leaves out the code root of every other target of [targets] nested
-/// in [target]'s, and passes a folder that cannot be listed to [onUnlistable].
-/// The one lister the check and the migrate stamp both read.
+/// entry, read from [codeRoot]. Leaves out each of [nestedRoots], the code
+/// roots of the other targets nested in this one, and passes a folder that
+/// cannot be listed to [onUnlistable]. The one lister the check and the
+/// migrate stamp both read.
 List<String> codeLinkFiles(
-  Directory projectRoot,
-  CodeTarget target,
+  Directory codeRoot,
   String path, {
-  List<CodeTarget> targets = const [],
+  List<String> nestedRoots = const [],
   void Function(String folder)? onUnlistable,
 }) => filesUnderCodeRoot(
-  codeRootFolderOf(projectRoot, target),
+  codeRoot,
   path,
-  skipFolders: nestedRootsOf(projectRoot, target, targets),
+  skipFolders: nestedRoots,
   onUnlistable: onUnlistable,
 );
