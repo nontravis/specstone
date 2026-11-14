@@ -13,6 +13,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/override_link_fixture.dart';
 import '../../helpers/write_fixture.dart' show docFile, readDoc, writeIn;
 
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -473,6 +474,65 @@ void main() {
     expect(_frKinds(root), contains(FindingKind.scenarioTraceUnresolved));
   });
 
+  group('override entries', () {
+    final shopFingerprint = fingerprintFor(_shopRule);
+    final entries = [
+      '$_shopAddress $shopFingerprint',
+      '$rootAddress $rootFingerprint',
+    ];
+
+    Future<Directory> project() => writeCheckProject(
+      extra: overrideFiles(
+        extra: {
+          'docs/prds/features/f02_shop/FEATURE.md': '# Shop\n',
+          'docs/prds/features/f02_shop/f01_cart/FEATURE.md': '# Cart\n',
+          'docs/$_shopDomain': domainDoc([_shopRule]),
+          'docs/$_cartDomain': domainDoc([
+            '- **INV-9** A cart is small.',
+            '- Overrides: [INV-3](../DOMAIN.md#invariants) — stock, because stock',
+            '- Overrides: [INV-3](../../DOMAIN.md#invariants) — expire, because stock',
+          ], entries: entries),
+        },
+      ),
+    );
+
+    Set<FindingKind> linkKindsOf(Directory root, String docPath) => {
+      for (final f in checkOf(root, docPath: docPath).findings)
+        if (linkKinds.contains(f.kind)) f.kind,
+    };
+
+    test('a feature rename rewrites the name of an override entry and keeps '
+        'type, id, and fingerprint', () async {
+      final root = await project();
+      expect(linkKindsOf(root, _cartDomain), isEmpty);
+      final answer = _rename(root, 'feature:shop', 'store');
+      expect(answer.json['rewritten'], contains(_cartDomainOf('store')));
+      final text = readDoc(root, _cartDomainOf('store'));
+      expect(text, contains('  - domain:store#INV-3 $shopFingerprint\n'));
+      expect(text, isNot(contains('domain:shop#')));
+      expect(linkKindsOf(root, _cartDomainOf('store')), isEmpty);
+    });
+
+    test(
+      'an override entry naming a root spec doc is never rewritten',
+      () async {
+        final root = await project();
+        _rename(root, 'feature:shop', 'project_domain');
+        expect(
+          readDoc(root, _cartDomainOf('project_domain')),
+          contains('  - $rootAddress $rootFingerprint\n'),
+        );
+      },
+    );
+
+    test('a rename leaves override entries of other docs untouched', () async {
+      final root = await project();
+      final before = readDoc(root, _cartDomain);
+      _rename(root, 'feature:login', 'signin');
+      expect(readDoc(root, _cartDomain), before);
+    });
+  });
+
   test('E05: an fr under the moved story keeps the entry naming a story that stays', () async {
     final root = await _frTraceProject();
     final before = readDoc(root, _resetFr);
@@ -538,6 +598,13 @@ Future<Directory> _frTraceProject({
     },
   );
 }
+
+const _shopDomain = 'specs/f02_shop/DOMAIN.md';
+const _cartDomain = 'specs/f02_shop/f01_cart/DOMAIN.md';
+String _cartDomainOf(String shop) => 'specs/f02_$shop/f01_cart/DOMAIN.md';
+
+const _shopAddress = 'domain:shop#INV-3';
+const _shopRule = '- **INV-3** A cart holds stock.';
 
 const Set<FindingKind> _frKindSet = {
   ..._storyKinds,

@@ -627,7 +627,9 @@ bool _namesRenamedLabel(
   IndexedDoc doc,
   Map<(String, String), String> renamed,
 ) {
-  if (renamed.isEmpty || !carriesLinkLabels(doc.docTypeId)) return false;
+  if (renamed.isEmpty || !carriesLinkLabels(session.docTypeAt(doc.docPath))) {
+    return false;
+  }
   final String text;
   try {
     text = utf8.decode(
