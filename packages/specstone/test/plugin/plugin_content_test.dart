@@ -1464,8 +1464,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          'A record code-path or `covers:` write leaves the draft flag '
-          'untouched: an approved doc keeps its approval.',
+          "Write by outcome through step 4.3's `set --field`, which leaves "
+          'the draft flag as it was.',
         ),
       );
     });
@@ -1475,8 +1475,7 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          "A changed path's target alone: compare and fix its record and "
-          "`covers:` entries, never another target's.",
+          "Compare and fix only that target's record and `covers:` entries.",
         ),
       );
     });
@@ -1515,8 +1514,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          '`specstone new <type>` (`--parent <name>`, `--slug <slug>`, '
-          "`--target <name>`, the path's code target, as the type takes them)",
+          "`specstone new <type>` (`--target <name>`, the path's code target, "
+          'as the type takes it)',
         ),
       );
     });
@@ -1530,7 +1529,7 @@ void _agentTests() {
           'Write no record code path or `covers:` entry that names this code '
           'until the Owner approves the draft. Then add the entry at once '
           "with the step 4.3 `specstone set --field` write, on the path's "
-          "target's record:",
+          "target's record.",
         ),
       );
     });
@@ -1595,13 +1594,14 @@ void _agentTests() {
         procedure(),
         contains(
           "For each listed code path but a `tests_unresolved` line's (step "
-          '4), run: ``` specstone context --code <path> --for implement ```',
+          '4.4), run `specstone context --code <path> --for implement`.',
         ),
       );
       expect(
         procedure(),
         contains(
-          "a `code_suspect` folder's files changed under it since its stamp: "
+          "A `code_suspect` folder's code is the files changed under it since "
+          'its stamp: '
           "`git log -1 --format=%H -S '<recorded>' -- docs/<DocPath>` gives "
           '`<base>`, then `git diff --name-only <base> -- <prefix>` and '
           '`git ls-files --others --exclude-standard -- <prefix>`; with no '
@@ -1616,7 +1616,7 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          'Your gate `check` gives it, whoever wrote the code: each '
+          'Your gate `check` gives it: each '
           '`code_suspect`, `code_unconfirmed`, `implements_path_unresolved`, '
           '`implements_symbol_unresolved`, `covers_path_missing`, '
           '`code_uncovered`, and `tests_unresolved` finding, never a '
@@ -1635,6 +1635,151 @@ void _agentTests() {
           expect(text, isNot(contains(input)), reason: input);
         }
       }
+    });
+
+    test(
+      'the sync procedure compares each link with the approved text of '
+      'every covering doc and takes a doc printing draft: true as pending',
+      () {
+        expect(
+          procedure(),
+          contains(
+            "Compare the approved text of every covering doc with each link's "
+            'code, its file; a doc printing `draft: true` is a pending draft.',
+          ),
+        );
+      },
+    );
+
+    test('the sync procedure writes on a match the finding fingerprint, any '
+        "pointer fix, and a planned entry's implemented status, never "
+        'skipped or deprecated, and none for a clean link', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          "A named feature's `clean` link takes no fingerprint, only a "
+          "`planned` entry's `implemented`:",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          "**Match:** the finding's `fingerprint` ending the link's entry, "
+          'any pointer fix, and for a `planned` entry `implemented` in its '
+          '`statuses`; never `skipped` or `deprecated`.',
+        ),
+      );
+    });
+
+    test('the sync procedure writes nothing for a link while a covering doc '
+        'is a pending draft and lists a match as a waiting pointer', () {
+      expect(
+        procedure(),
+        contains(
+          '**A pending draft among the covering docs:** nothing for the '
+          'link; a match is a waiting pointer.',
+        ),
+      );
+    });
+
+    test('the sync procedure writes the fingerprint alone for a planned entry '
+        'whose code lacks its planned behavior and asks nothing', () {
+      expect(
+        procedure(),
+        contains(
+          "**A `planned` entry's code lacking its planned behavior yet** is "
+          'no mismatch, no question: the fingerprint alone; the entry stays '
+          '`planned`.',
+        ),
+      );
+    });
+
+    test('the sync procedure writes nothing on a mismatch, reports each '
+        'point under Mismatches:, and drafts a spec only on the fix-the-spec '
+        'pick, a story or FR going to the brainstorm', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          '**Mismatch**, code behavior the approved text contradicts: '
+          'nothing for the link; report each point under `Mismatches:`: doc '
+          'and section, what the spec states, what the code does. A '
+          'fix-the-spec pick sent to you: write each stale section as a spec '
+          'draft (step 5); the fingerprint waits for its approval.',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          "On the Owner's write-a-spec or fix-the-spec pick sent to you, a "
+          'story or FR it needs goes to `specstone:brainstorming-sdd`.',
+        ),
+      );
+    });
+
+    test('the sync procedure repoints a moved file found by git rename '
+        'detection with no fingerprint, and a tests_unresolved line with no '
+        'new tests line', () {
+      final text = procedure();
+      expect(
+        text,
+        contains(
+          'find the pair with `git log -1 -M --diff-filter=R --name-status '
+          '--format= -- <old path>`, or `git diff -M --name-status HEAD` '
+          'while the move is uncommitted; write no fingerprint;',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'A `tests_unresolved` line: repoint it with `specstone set '
+          'implementation:<feature> --field tests --target <name> --base '
+          "<hash>` to the moved file of step 4.3 or the test's current name "
+          'in it; one you cannot place stays as written, among the waiting '
+          'pointers. Write no `tests` line for a test a change adds or '
+          'moves.',
+        ),
+      );
+    });
+
+    test('the sync procedure reports each draft by name with one sentence on '
+        'why it changed, never its text', () {
+      expect(
+        _oneLine(
+          _sectionOf(
+            _pluginText('skills/sync-sdd/references/procedure.md'),
+            'Report to the Owner',
+          ),
+        ),
+        contains(
+          "each one's dropped and new sentence counts, and one sentence on "
+          'why it changed, never its text;',
+        ),
+      );
+    });
+
+    test("the sync skill asks the Owner's pick on each mismatch and routes a "
+        'fix that lands in a spec doc to an agent, one that lands in a PRD '
+        'doc to the brainstorm', () {
+      expect(
+        skill(),
+        contains(
+          'Ask the Owner, per point under `Mismatches:`, fix the code or fix '
+          'the spec. Fix the code writes nothing: the next `check` lists the '
+          'link again. Send a fix-the-spec pick to the same agent while it is '
+          'live, else to a new one with the answers, when the fix lands in a '
+          'spec doc.',
+        ),
+      );
+      expect(
+        skill(),
+        contains(
+          'Run `specstone:brainstorming-sdd` for each behavior the report '
+          'hands over and each pick that lands in a story or FR, since the '
+          'sync writes no PRD doc.',
+        ),
+      );
     });
   });
 

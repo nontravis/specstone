@@ -43,12 +43,14 @@ When you followed the procedure yourself, its report stands in for item 1.
 
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone:expert-sdd`'s Owner confirmation.
-3. Ask the Owner each open question; send the answers to the same agent while it is live, else dispatch a new one
-   with them.
+3. Ask the Owner, per point under `Mismatches:`, fix the code or fix the spec. Fix the code writes nothing: the next
+   `check` lists the link again. Send a fix-the-spec pick to the same agent while it is live, else to a new one with the
+   answers, when the fix lands in a spec doc.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
    list to `specstone set implementation:<feature> --field implements --base <hash>` (or
    `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the target the report
    gives for that pointer, when the project has two or more, the hash from
    `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <doc> --json` for the same doc, with the
    same `--target`.
-5. Run `specstone:brainstorming-sdd` for each behavior the report hands over.
+5. Run `specstone:brainstorming-sdd` for each behavior the report hands over and each pick that lands in a story or FR,
+   since the sync writes no PRD doc.
