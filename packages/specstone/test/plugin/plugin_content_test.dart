@@ -1361,7 +1361,7 @@ void _agentTests() {
   });
 
   test('design mode links every design a doc still states: the design '
-      "references row names no link count and takes the guide's row", () {
+      "references line names no link count and takes the guide's section", () {
     final design = _oneLine(
       _pluginText('skills/brainstorming-sdd/references/design.md'),
     );
@@ -1375,7 +1375,7 @@ void _agentTests() {
       design,
       contains(
         'a link to this document, kept or dropped as the `Design references` '
-        'row of `specstone guide architecture` says.',
+        'section of `specstone guide architecture` says.',
       ),
     );
   });
@@ -1920,8 +1920,9 @@ void _agentTests() {
         input,
         contains(
           '- **`picks`** (sync, bootstrap, optional): each Owner pick whose '
-          'fix lands in a spec doc, a fix-the-spec pick per `Mismatches:` '
-          'point or a write-a-spec pick per `Uncovered:` file.',
+          'fix lands in a spec doc. Sync: a fix-the-spec pick per '
+          '`Mismatches:` point or a write-a-spec pick per `Uncovered:` file. '
+          'Bootstrap: a write-a-spec pick per `Uncovered:` file.',
         ),
       );
       for (final phrase in ['changed paths', 'base commit', 'given paths']) {
@@ -1937,6 +1938,19 @@ void _agentTests() {
           '2. **Sync**: follow the On-Demand procedure from its step 2, on '
           "your gate `check`'s work list, or on every code link of `feature`; "
           'write each of `picks` by its step 5. Then Workflow step 5.',
+        ),
+      );
+    });
+
+    test('sdd-engineer writes each pick in bootstrap mode by the procedure '
+        'step that covers code, as it does in sync mode', () {
+      expect(
+        _oneLine(_sectionOf(_pluginText('agents/sdd-engineer.md'), 'Workflow')),
+        contains(
+          '3. **Bootstrap**: follow the On-Demand procedure from its step 2 '
+          'on `batch`, its step 6 only for docs `batch` names, each write '
+          'through `--base`; write each of `picks` by its step 3; list other '
+          'findings. Then Workflow step 5.',
         ),
       );
     });
@@ -2219,6 +2233,17 @@ void _agentTests() {
           contains(
             "`batch:` the batch's paths, `picks:` each write-a-spec pick of "
             "step 3 for the batch's files, and `report:`",
+          ),
+        );
+      });
+
+      test('the rest batch runs in a later round while a write-a-spec pick '
+          'awaits its file, even with no other finding', () {
+        expect(
+          text('skills/bootstrap-spec/SKILL.md'),
+          contains(
+            'In a later round it runs only when findings it owns remain or a '
+            'write-a-spec pick awaits.',
           ),
         );
       });
@@ -3334,6 +3359,16 @@ void _planTests() {
     expect(cliCommands(_sectionOf(agent, 'Ground')).toSet(), {
       'context',
     }, reason: 'the Ground section names no write command');
+    final testsLine = RegExp(
+      r'^ +- \*\*Tests line\*\*.*(?:\n {5}.*)*',
+      multiLine: true,
+    ).firstMatch(sections)?[0];
+    expect(testsLine, isNotNull);
+    expect(cliCommands(testsLine!).toSet(), {'set'});
+    expect(cliCommands(sections.replaceFirst(testsLine, '')).toSet(), {
+      'context',
+      'check',
+    }, reason: 'only the tests-line step names set');
   });
 
   test('plan-engineer has each task that adds or moves a '

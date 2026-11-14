@@ -28,12 +28,13 @@ Dispatch only once no `specstone:bootstrap-prd` batch is still running: this ski
 PROJECT's Tech stack, that `specstone:bootstrap-prd` leaves for it.
 
 With the `Agent` tool, split the gate's findings this skill takes by doc path: one batch per feature folder, each
-`architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included except a file the Owner answered in this run. In the first
-round the rest batch always runs, even with no finding, and names each target's tech stack doc, the doc the procedure's
-step 6 fills; no feature batch fills it. In a later round it runs only when findings it owns remain. Dispatch one
-`specstone:sdd-engineer` per batch with `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, `picks:` each write-a-spec pick of step 3 for the batch's files, and
-`report:`, one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work
-no step of the procedure yourself.
+`architecture_missing` finding in its feature's batch, and one for the rest, `code_uncovered` included except a file
+the Owner answered in this run. In the first round the rest batch always runs, even with no finding, and names each
+target's tech stack doc, the doc the procedure's step 6 fills; no feature batch fills it. In a later round it runs only
+when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specstone:sdd-engineer` per batch with
+`mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, `picks:` each write-a-spec pick of step 3
+for the batch's files, and `report:`, one file `mktemp` makes per batch outside the repository; batches may run at
+once. Send no doc text, and work no step of the procedure yourself.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
