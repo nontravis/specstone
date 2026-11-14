@@ -193,6 +193,40 @@ void main() {
     expect(findings, isEmpty);
   });
 
+  test('f04/us02/fr08/e11: a bare S<N> to the doc own story, plain or in a code span, gives none', () async {
+    final findings = await _citeFindings(
+      fr(
+        'A wrong password must not sign in.',
+        'A wrong password must not sign in (S2, `S1`).',
+      ),
+    );
+    expect(findings, isEmpty);
+  });
+
+  test('f04/us02/fr08/e01: item IDs one doc holds in two sections name one item link each, never a missing part', () async {
+    final findings = await _citeFindings({
+      ...doc(
+        loginFeature,
+        _line,
+        'Users forget; `gnfr` NFR-P01 and NFR-Sec01.',
+      ),
+      ...doc(
+        gnfrDoc,
+        '## Security\n\nN/A — none applies.\n',
+        '## Security\n\n### NFR-Sec01 — No plain text\n\nHashed.\n',
+      ),
+    });
+    expect(findings, hasLength(1));
+    expect(
+      findings.single.message,
+      contains(
+        '[NFR-P01](../../GNFR.md#performance), '
+        '[NFR-Sec01](../../GNFR.md#security)',
+      ),
+    );
+    expect(findings.single.message, isNot(contains('lacks')));
+  });
+
   test('f04/us02/fr08/e12: an untyped doc gives no finding', () async {
     final findings = await _citeFindings({
       'docs/prds/notes.md': '# Notes\n\nSee `gnfr` and `domain:login` INV-6.\n',

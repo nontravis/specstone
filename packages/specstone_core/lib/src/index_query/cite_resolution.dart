@@ -26,27 +26,32 @@ sealed class CiteResolution {
   const new();
 }
 
-/// One doc, section, or item: the cite's link (doc_model RULE-45).
+/// One item a cite names: its ID as written, and the key and heading anchor
+/// of the `##` section that holds it.
+typedef CiteItem = ({String itemId, String sectionKey, String anchor});
+
+/// One doc, section, or set of items: the cite's links (doc_model RULE-45).
 final class CiteLink extends CiteResolution {
   const new({
     required this.docPath,
     this.sectionKey,
     this.anchor,
-    this.itemIds = const [],
+    this.items = const [],
     required this.linkText,
   });
 
   final String docPath;
 
-  /// The key of the `##` section the link names; null for a doc link.
+  /// The key of the `##` section the cite's `#key` names; null without one.
   final String? sectionKey;
 
-  /// The anchor of that section's heading, which the link's fragment carries.
+  /// The anchor of that section's heading, which a section link's fragment
+  /// carries.
   final String? anchor;
 
-  /// The item IDs as written, one item link each; empty for a doc or section
-  /// link.
-  final List<String> itemIds;
+  /// The items the cite names, in its order, each with its own section; one
+  /// item link each, and empty for a doc or section link.
+  final List<CiteItem> items;
 
   /// The text of a doc or section link (apply_steps_and_pins E81).
   final String linkText;
@@ -59,8 +64,7 @@ final class CiteAmbiguous extends CiteResolution {
   final List<String> docPaths;
 }
 
-/// The one doc named holds no section of the `#key`, or no one section that
-/// holds every item ID.
+/// The one doc named holds no section of the `#key`, or not every item ID.
 final class CiteMissingPart extends CiteResolution {
   const new({required this.docPath});
 
@@ -111,12 +115,14 @@ CiteResolution resolveCite(
       : CiteAmbiguous(docPaths: [for (final doc in docs) doc.docPath]);
 }
 
-/// Returns [link] as markdown, its path relative to the doc at
-/// [citingDocPath]: one item link per item ID, joined by `, `, else one doc
+/// Returns [link] as markdown links, each path relative to the doc at
+/// [citingDocPath]: one item link per item, in the cite's order, else one doc
 /// or section link.
 ///
-/// A link into the citing doc itself is a bare `#anchor`.
-String citeLinkMarkdown(String citingDocPath, CiteLink link) {
+/// The caller joins item links with the cite's own words, such as ` and `
+/// (E79) or the ` to ` of a range (E80). A link into the citing doc itself is
+/// a bare `#anchor`.
+List<String> citeLinkMarkdown(String citingDocPath, CiteLink link) {
   final isSelf = link.docPath == citingDocPath;
   final path = isSelf
       ? ''
@@ -124,12 +130,17 @@ String citeLinkMarkdown(String citingDocPath, CiteLink link) {
           citingDocPath,
           link.docPath,
         ).split('/').map(Uri.encodeComponent).join('/');
-  final destination = switch (link.anchor) {
+  String destination(String? anchor) => switch (anchor) {
     final anchor? => '$path#$anchor',
     null => isSelf ? '#' : path,
   };
-  if (link.itemIds.isEmpty) return '[${link.linkText}]($destination)';
-  return [for (final id in link.itemIds) '[$id]($destination)'].join(', ');
+  if (link.items.isEmpty) {
+    return ['[${link.linkText}](${destination(link.anchor)})'];
+  }
+  return [
+    for (final (:itemId, sectionKey: _, :anchor) in link.items)
+      '[$itemId](${destination(anchor)})',
+  ];
 }
 
 CiteDoc? _docAtPath(CiteTree tree, String citingDocPath, String written) {
@@ -146,7 +157,10 @@ String _typedNameOf(CiteDoc doc) => switch (doc.docTypeId) {
 };
 
 /// Returns the link [candidate] makes to [doc], or null when [doc] holds no
-/// section of its `#key` or no one section that holds every item ID.
+/// section of its `#key` or not every item ID.
+///
+/// Each item takes the section that holds it, inside the `#key`'s section
+/// when the cite writes one.
 CiteLink? _linkTo(
   CiteTree tree,
   CiteDoc doc,
@@ -154,24 +168,27 @@ CiteLink? _linkTo(
   required String linkText,
 }) {
   final key = candidate.sectionKey;
-  final ids = candidate.itemIds;
-  if (key == null && ids.isEmpty) {
+  if (key == null && candidate.itemIds.isEmpty) {
     return CiteLink(docPath: doc.docPath, linkText: linkText);
   }
-  bool holdsAll(CiteSection section) =>
-      ids.every((id) => section.itemKeys.contains(_itemKeyOf(id, section)));
-  final section = tree
-      .sectionsOf(doc.docPath)
-      .where(
-        (section) => (key == null || section.key == key) && holdsAll(section),
-      )
-      .firstOrNull;
-  if (section == null) return null;
+  final sections = tree.sectionsOf(doc.docPath);
+  final keyed = key == null
+      ? null
+      : sections.where((section) => section.key == key).firstOrNull;
+  if (key != null && keyed == null) return null;
+  final items = <CiteItem>[];
+  for (final id in candidate.itemIds) {
+    final holder = (keyed == null ? sections : [keyed])
+        .where((section) => section.itemKeys.contains(_itemKeyOf(id, section)))
+        .firstOrNull;
+    if (holder == null) return null;
+    items.add((itemId: id, sectionKey: holder.key, anchor: holder.anchor));
+  }
   return CiteLink(
     docPath: doc.docPath,
-    sectionKey: section.key,
-    anchor: section.anchor,
-    itemIds: ids,
+    sectionKey: keyed?.key,
+    anchor: keyed?.anchor,
+    items: items,
     linkText: linkText,
   );
 }

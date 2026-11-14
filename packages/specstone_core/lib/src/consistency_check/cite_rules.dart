@@ -54,13 +54,15 @@ String? _messageOf(
   final cite = 'cite ${candidate.written} is no link';
   return switch (resolved) {
     CiteNoDoc() => null,
-    final CiteLink link =>
-      '$cite; write it as ${citeLinkMarkdown(doc.docPath, link)}',
+    final CiteLink link => switch (citeLinkMarkdown(doc.docPath, link)) {
+      [final one] => '$cite; write it as $one',
+      final links => '$cite; write each item as its link: ${links.join(', ')}',
+    },
     CiteAmbiguous(:final docPaths) =>
       '$cite and names ${countWord(docPaths.length)} docs; write a link to '
           'the one it means, $_linkForm',
     CiteMissingPart(:final docPath) =>
-      '$cite, and $docPath holds no ${_partOf(candidate)}; write a link to '
+      '$cite, and $docPath lacks ${_partOf(candidate)}; write a link to '
           'the part it means, $_linkForm',
   };
 }
@@ -72,7 +74,7 @@ String _partOf(CiteCandidate candidate) {
   if (ids.isEmpty) return 'section $key';
   final items = ids.length == 1
       ? 'item ${ids.single}'
-      : 'one section with items ${ids.join(', ')}';
+      : 'one of items ${ids.join(', ')}';
   return key == null ? items : '$items in section $key';
 }
 

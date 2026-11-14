@@ -30,6 +30,10 @@ Future<DocIndex> _index() => indexWith(_domainWithInvariants);
 CiteResolution _resolve(DocIndex index, String citing, CiteCandidate cite) =>
     resolveCite(IndexCiteTree(index), citing, cite);
 
+/// The one markdown link [link] makes from [citing].
+String _markdown(String citing, CiteLink link) =>
+    citeLinkMarkdown(citing, link).single;
+
 void main() {
   group('resolveCite', () {
     test('f04/us02/fr08/e01: a typed name with an item ID its one doc holds is a link to that item', () async {
@@ -41,12 +45,76 @@ void main() {
       );
       final link = resolved as CiteLink;
       expect(link.docPath, _domain);
-      expect(link.sectionKey, 'invariants');
-      expect(link.itemIds, ['INV-6']);
+      expect(link.sectionKey, isNull);
+      expect(link.items, [
+        (itemId: 'INV-6', sectionKey: 'invariants', anchor: 'invariants'),
+      ]);
       expect(link.linkText, 'domain:login');
       expect(
-        citeLinkMarkdown(_signupArchitecture, link),
+        _markdown(_signupArchitecture, link),
         '[INV-6](../f01_login/DOMAIN.md#invariants)',
+      );
+    });
+
+    test('f04/us02/fr08: item IDs one doc holds in two sections link each item to its own section', () async {
+      final index = await indexWith({
+        'docs/prds/GNFR.md':
+            '# Global non-functional requirements\n\n## Performance\n\n'
+            '### NFR-P03 — Check time\n\nFast.\n\n'
+            '## Security\n\n### NFR-Sec01 — No plain text\n\nHashed.\n',
+      });
+      final link = _resolve(
+        index,
+        _signupArchitecture,
+        _cite('gnfr', itemIds: ['NFR-P03', 'NFR-Sec01']),
+      ) as CiteLink;
+      expect(
+        [for (final item in link.items) item.sectionKey],
+        ['performance', 'security'],
+      );
+      expect(citeLinkMarkdown(_signupArchitecture, link), [
+        '[NFR-P03](../../prds/GNFR.md#performance)',
+        '[NFR-Sec01](../../prds/GNFR.md#security)',
+      ]);
+    });
+
+    test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E79: two item IDs give one item link each, which the caller joins with the cite words', () async {
+      final index = await indexWith({
+        'docs/$_domain':
+            '# Login domain\n\n## Entities\n- Account\n\n## Invariants\n\n'
+            '- **INV-6** An account holds one email.\n'
+            '- **INV-7** An email names one account.\n',
+      });
+      final link = _resolve(
+        index,
+        _signupArchitecture,
+        _cite('domain:login', itemIds: ['INV-6', 'INV-7']),
+      ) as CiteLink;
+      expect(
+        citeLinkMarkdown(_signupArchitecture, link).join(' and '),
+        '[INV-6](../f01_login/DOMAIN.md#invariants) and [INV-7](../f01_login/DOMAIN.md#invariants)',
+      );
+    });
+
+    test('setup_migration/upgrade_pack_pins/apply_steps_and_pins E80: a range gives two item links, which the caller joins with its to', () async {
+      final index = await indexWith({
+        'docs/specs/topics/doc_model.md':
+            '# Doc model\n\n## Purpose\nModel docs.\n\n## Rules\n\n'
+            '- **RULE-14** One.\n- **RULE-19** Two.\n',
+      });
+      final link = _resolve(
+        index,
+        _signupArchitecture,
+        _cite(
+          'topic:doc_model',
+          sectionKey: 'rules',
+          itemIds: ['RULE-14', 'RULE-19'],
+        ),
+      ) as CiteLink;
+      expect(link.sectionKey, 'rules');
+      expect(
+        citeLinkMarkdown(_signupArchitecture, link).join(' to '),
+        '[RULE-14](../topics/doc_model.md#rules) to [RULE-19](../topics/doc_model.md#rules)',
       );
     });
 
@@ -60,7 +128,7 @@ void main() {
       expect(link.docPath, 'prds/references/password_rules/REFERENCE.md');
       expect(link.sectionKey, isNull);
       expect(
-        citeLinkMarkdown(_signupArchitecture, link),
+        _markdown(_signupArchitecture, link),
         '[password_rules](../../prds/references/password_rules/REFERENCE.md)',
       );
     });
@@ -80,7 +148,7 @@ void main() {
         _cite('../f01_login/DOMAIN.md'),
       ) as CiteLink;
       expect(
-        citeLinkMarkdown(_signupArchitecture, whole),
+        _markdown(_signupArchitecture, whole),
         '[domain:login](../f01_login/DOMAIN.md)',
       );
     });
@@ -93,10 +161,7 @@ void main() {
         _cite('DOMAIN.md', itemIds: ['INV-6']),
       ) as CiteLink;
       expect(link.docPath, _domain);
-      expect(
-        citeLinkMarkdown(_loginApi, link),
-        '[INV-6](DOMAIN.md#invariants)',
-      );
+      expect(_markdown(_loginApi, link), '[INV-6](DOMAIN.md#invariants)');
     });
 
     test('f04/us02/fr08/e03: a path no doc folder reaches resolves by its deepest alignment', () async {
@@ -119,7 +184,7 @@ void main() {
       ) as CiteLink;
       expect(link.docPath, _domain);
       expect(
-        citeLinkMarkdown(_signupArchitecture, link),
+        _markdown(_signupArchitecture, link),
         '[INV-6](../f01_login/DOMAIN.md#invariants)',
       );
     });
@@ -134,7 +199,7 @@ void main() {
       expect(link.docPath, 'prds/features/f01_login/FEATURE.md');
       expect(link.sectionKey, 'problem');
       expect(
-        citeLinkMarkdown(_signupArchitecture, link),
+        _markdown(_signupArchitecture, link),
         '[login](../../prds/features/f01_login/FEATURE.md#problem)',
       );
     });
@@ -186,7 +251,7 @@ void main() {
           _resolve(index, _signupArchitecture, _cite('gnfr')) as CiteLink;
       expect(link.docPath, 'prds/GNFR.md');
       expect(
-        citeLinkMarkdown(_signupArchitecture, link),
+        _markdown(_signupArchitecture, link),
         '[gnfr](../../prds/GNFR.md)',
       );
     });
@@ -204,7 +269,7 @@ void main() {
       ) as CiteLink;
       expect(link.sectionKey, 'fr_trace');
       expect(
-        citeLinkMarkdown(_signupArchitecture, link),
+        _markdown(_signupArchitecture, link),
         '[api:login](../f01_login/API.md#fr-trace)',
       );
     });
@@ -219,7 +284,7 @@ void main() {
           _cite('ERROR.md', sectionKey: 'error_catalog'),
         ) as CiteLink;
         expect(
-          citeLinkMarkdown(_loginApi, link),
+          _markdown(_loginApi, link),
           '[error:login](ERROR.md#error-catalog)',
         );
       },
@@ -255,7 +320,7 @@ void main() {
           _cite('login/email_login', itemIds: ['S1']),
         ) as CiteLink;
         expect(
-          citeLinkMarkdown(_signupArchitecture, link),
+          _markdown(_signupArchitecture, link),
           '[S1](../../prds/features/f01_login/us01_email_login/USER_STORY.md#acceptance-criteria)',
         );
       },
@@ -268,7 +333,7 @@ void main() {
         _domain,
         _cite('domain:login', itemIds: ['INV-6']),
       ) as CiteLink;
-      expect(citeLinkMarkdown(_domain, link), '[INV-6](#invariants)');
+      expect(_markdown(_domain, link), '[INV-6](#invariants)');
     });
   });
 }
