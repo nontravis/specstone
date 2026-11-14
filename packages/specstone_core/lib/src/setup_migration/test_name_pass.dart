@@ -44,6 +44,8 @@ const _separator = '/';
 const _listSeparator = '\x00';
 const _change = 'move test-name ids';
 
+const _declaringCalls = ['test', 'testWidgets', 'group', 'it', 'describe'];
+
 /// The text after a test name's ID that is the separator, longest first; the
 /// text after the separator is the name.
 const _nameSeparators = [': ', ' — ', ' - ', ' '];
@@ -327,8 +329,13 @@ List<_Name> _scan({
     final shown = projectPath ?? file.path;
     final lines = text.lf.split('\n');
     final before = names.length;
+    final nameQuotes = _nameQuoteOffsets(text.lf);
+    var lineStart = 0;
     for (final (index, line) in lines.indexed) {
+      final lineOffset = lineStart;
+      lineStart += line.length + 1;
       for (final literal in _literalsOf(line)) {
+        if (!nameQuotes.contains(lineOffset + literal.start - 1)) continue;
         final read = _readOpening(literal.text, tree, resolveLabel);
         if (read == null) continue;
         names.add(
@@ -439,6 +446,19 @@ List<String> _trackedIn(Directory folder, RunGit runGit) {
   }
   return null;
 }
+
+/// Returns the offsets in [lf] of the quote that opens the name argument of a
+/// call that declares a test or group, the call's first argument on the same
+/// line or a later one.
+Set<int> _nameQuoteOffsets(String lf) => {
+  for (final call in _declaringCall.allMatches(lf)) call.end,
+};
+
+/// A call that declares a test or group, matched through the quote that opens
+/// its name; a call after `.` or a letter is another call.
+final _declaringCall = RegExp(
+  '(?<![\\w.\$])(?:${_declaringCalls.join('|')})(?:\\.\\w+)?\\s*\\(\\s*(?=[\'"])',
+);
 
 /// A string literal of one line: the offsets of its text, the text, and the
 /// quote that opens it.

@@ -359,6 +359,65 @@ void main() {
       expect(pass.left, 0);
     });
 
+    test('a literal that is no test or group name is not read, whatever it '
+        'opens with', () async {
+      const source =
+          "const _fr = 'f01/us01/fr01 rejects';\n"
+          "void main() {\n  test('plain', () {}, tags: 'f01/us01/fr01');\n"
+          "  expect(read('f01/us01/fr01 input'), 'login/email_login: out');\n"
+          '}\n';
+      final project = await _project(files: {_testPath: source});
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(pass.planLine, isNull);
+      expect(pass.fileRewrites, isEmpty);
+      expect(pass.recordCreates, isEmpty);
+      expect(pass.left, 0);
+    });
+
+    test('the name of a test or group call is read, whatever the call is '
+        'named', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  group('f01/us01/fr01 g', () {});\n"
+              "  it('f01/us01/fr01 i', () {});\n"
+              "  describe('f01/us01/fr01 d', () {});\n"
+              "  testWidgets('f01/us01/fr01 w', (t) async {});\n}\n",
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        _fileText(pass, _testPath),
+        "void main() {\n  group('g', () {});\n  it('i', () {});\n"
+        "  describe('d', () {});\n  testWidgets('w', (t) async {});\n}\n",
+      );
+      expect(pass.recordLines, hasLength(1));
+    });
+
+    test('a name split over adjacent literals, or a call over several '
+        'lines, is read at its first literal', () async {
+      final project = await _project(
+        files: {
+          _testPath:
+              "void main() {\n  test('f01/us01/fr01 one '\n"
+              "      'two', () {});\n  test(\n    'f01/us01/fr01 three',\n"
+              '    () {},\n  );\n}\n',
+        },
+      );
+
+      final pass = _run(project, home: await _home()).pass;
+
+      expect(
+        _fileText(pass, _testPath),
+        "void main() {\n  test('one '\n      'two', () {});\n  test(\n"
+        "    'three',\n    () {},\n  );\n}\n",
+      );
+    });
+
     test('a project whose merged set holds no record doc type runs no '
         'pass', () async {
       final project = await _project(
@@ -614,11 +673,11 @@ void main() {
 
       final rewritten = pass.json['rewritten']! as List;
       final left = pass.json['left']! as List;
-      expect(rewritten, hasLength(3));
+      expect(rewritten, hasLength(2));
       expect(left, hasLength(1));
       expect(
         pass.planLine,
-        'tests: 3 lines in 1 records; names: 3 rewritten in 1 files; '
+        'tests: 3 lines in 1 records; names: 2 rewritten in 1 files; '
         'left: ${left.length}',
       );
       expect(pass.left, left.length);
