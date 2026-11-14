@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
-    show relativeFilePathOf;
+    show DocTarget, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
@@ -164,8 +164,10 @@ List<({int start, int end, String text})> _linkTextEdits(
   RenamedDocs renamedDocs,
 ) {
   if (href == null) return null;
-  final target = relativeFilePathOf(href, docPath);
-  return target == null ? null : renamedDocs[target];
+  return switch (resolveDocLink(href, docPath)) {
+    DocTarget(:final docPath) => renamedDocs[docPath],
+    _ => null,
+  };
 }
 
 /// Returns the edit of [source]'s text, or null when [source] is no link whose

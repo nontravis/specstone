@@ -216,18 +216,51 @@ void main() {
       );
     });
 
-    test('f02/us06/fr02/e14: a bare text that two renamed docs call differently keeps its text', () {
-      expect(
-        rewrite(
-          '[login](x.md)\n',
-          moves: const [],
-          names: const {
-            ('feature', 'login'): 'signin',
-            ('persona', 'login'): 'access',
-          },
-        ),
-        isNull,
+    test('f02/us06/fr02/e14: a bare text that two renamed docs call alike takes the new Name of the doc its link reaches', () {
+      const twins = <(String, String), String>{
+        ('feature', 'login'): 'signin',
+        ('persona', 'login'): 'access',
+      };
+      const twinDocs = <String, (String, String)>{
+        'prds/features/f01_login/FEATURE.md': ('feature', 'login'),
+        'personas/p01_login/PERSONA.md': ('persona', 'login'),
+      };
+      String? twin(String text) => rewriteDocLinks(
+        text,
+        docPath: docPath,
+        moves: const [],
+        renamed: twins,
+        renamedDocs: twinDocs,
       );
+
+      expect(twin('[login](x.md)\n'), isNull);
+      expect(
+        twin(
+          '[login](../f01_login/FEATURE.md) '
+          '[login](../../../personas/p01_login/PERSONA.md)\n',
+        ),
+        '[signin](../f01_login/FEATURE.md) '
+        '[access](../../../personas/p01_login/PERSONA.md)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e19: a self anchor link in the renamed doc reaches it, its bare text takes the new Name', () {
+      expect(
+        rewriteDocLinks(
+          '[login](#problem) [login](#) [login](?q) [login](other.md#problem)\n',
+          docPath: 'prds/features/f01_login/FEATURE.md',
+          moves: renameMoves,
+          renamed: renamed,
+          renamedDocs: renamedDocs,
+        ),
+        '[signin](#problem) [signin](#) [signin](?q) [login](other.md#problem)\n',
+      );
+    });
+
+    test('f02/us06/fr02/e19: a bare text keeps its text when no href of the body is known, markdown failing on it', () {
+      // `markdown` fails on the unterminated definition, so no link has an
+      // href and none can be said to reach a renamed doc.
+      expect(rewrite('[login](../f01_login/FEATURE.md)\n\n[a]:<b\\'), isNull);
     });
 
     test('f02/us07/fr02/e11: a moved story link text takes its new Name, an item link text stays', () {
@@ -248,6 +281,33 @@ void main() {
         ),
         '[user_story:shop/pay/add_item](us03_add_item/USER_STORY.md#acceptance_criteria) '
         '[AC-1](us03_add_item/USER_STORY.md#acceptance_criteria)\n',
+      );
+    });
+
+    test('f02/us07/fr02/e11: a moved story bare text takes its new Name on a link to the story, not on another link', () {
+      expect(
+        rewriteDocLinks(
+          '[shop/cart/add_item](../f01_cart/us01_add_item/USER_STORY.md) '
+          '[shop/cart/add_item](notes.md)\n',
+          docPath: 'prds/features/f02_shop/f02_pay/FEATURE.md',
+          moves: const [
+            (
+              from: 'prds/features/f02_shop/f01_cart/us01_add_item/',
+              to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
+            ),
+          ],
+          renamed: const {
+            ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
+          },
+          renamedDocs: const {
+            'prds/features/f02_shop/f01_cart/us01_add_item/USER_STORY.md': (
+              'user_story',
+              'shop/cart/add_item',
+            ),
+          },
+        ),
+        '[shop/pay/add_item](us03_add_item/USER_STORY.md) '
+        '[shop/cart/add_item](notes.md)\n',
       );
     });
 

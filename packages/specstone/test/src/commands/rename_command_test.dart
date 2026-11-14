@@ -169,7 +169,8 @@ void main() {
             '[user_story:login/reset_password](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n'
             '[login/reset_password](../prds/features/f01_login/us03_reset_password/USER_STORY.md)\n'
             '[the reset rules](../prds/features/f01_login/us03_reset_password/USER_STORY.md)\n'
-            '[INV-6](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n',
+            '[INV-6](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n'
+            '[login/reset_password](https://example.com/x)\n',
       },
     );
     final (:runner, :out, :err) = writeRunner(root);
@@ -189,7 +190,8 @@ void main() {
       '[user_story:login/recover_account]($folder/USER_STORY.md#use-case)\n'
       '[login/recover_account]($folder/USER_STORY.md)\n'
       '[the reset rules]($folder/USER_STORY.md)\n'
-      '[INV-6]($folder/USER_STORY.md#use-case)\n',
+      '[INV-6]($folder/USER_STORY.md#use-case)\n'
+      '[login/reset_password](https://example.com/x)\n',
     );
     expect(out.toString(), contains('rewrote notes/links.md\n'));
   });
