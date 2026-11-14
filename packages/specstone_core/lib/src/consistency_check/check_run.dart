@@ -22,6 +22,7 @@ import 'package:specstone_core/src/consistency_check/journey_rules.dart';
 import 'package:specstone_core/src/consistency_check/label_rules.dart';
 import 'package:specstone_core/src/consistency_check/link_rules.dart';
 import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
+import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/record_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
@@ -80,6 +81,7 @@ CheckReport runCheck(
         ..addAll(checkImplementedStatus(context, doc))
         ..addAll(checkRecordEntries(context, doc))
         ..addAll(checkTrackedLinks(context, doc))
+        ..addAll(checkOverrideLines(context, doc))
         ..addAll(checkConfirmedEntries(context, doc))
         ..addAll(checkCrossDocGuideRules(context, doc));
     }
