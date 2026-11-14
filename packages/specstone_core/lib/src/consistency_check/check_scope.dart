@@ -88,12 +88,16 @@ final class CheckScope {
 
   /// Whether the file at [docPath] is in scope, read or not, typed or not.
   bool contains(String docPath) {
-    if (_otherTargetFolders.any(docPath.startsWith)) return false;
+    if (!inTargets(docPath)) return false;
     final docs = _docPaths;
     return docs == null ||
         docs.contains(docPath) ||
         _folders.any(docPath.startsWith);
   }
+
+  /// Whether [docPath] is no doc of a code target the run does not keep.
+  bool inTargets(String docPath) =>
+      !_otherTargetFolders.any(docPath.startsWith);
 }
 
 List<CodeTarget> _targetsOf(CheckContext context, String? codeTarget) {

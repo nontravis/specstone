@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart'
+    show DocTarget, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
@@ -17,8 +19,9 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
-    show hrefDestinationsOf;
-import 'package:specstone_core/src/index_query/link_scan.dart' show linkScanOf;
+    show hrefDestinationsOf, sourceHrefsOf;
+import 'package:specstone_core/src/index_query/link_scan.dart'
+    show LinkScan, LinkSource, linkScanOf;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart'
@@ -32,9 +35,17 @@ export 'package:specstone_core/src/document_writing/moved_paths.dart'
 /// Rewrites the LF text of a doc; null when nothing changes.
 typedef TextEdit = String? Function(String lfText);
 
+/// The `(doc type id, old name)` key in a `renamed` map of each doc whose Name
+/// changes, by the DocPath the doc has before the moves.
+typedef RenamedDocs = Map<String, (String, String)>;
+
+/// One replacement in a text: the units from `start` up to `end` take `text`.
+typedef _TextEdit = ({int start, int end, String text});
+
 const _backslash = 0x5C;
 const _openParen = 0x28;
 const _closeParen = 0x29;
+const _openBracket = 0x5B;
 const _lessThan = 0x3C;
 const _encodedOpenParen = '%28';
 const _encodedCloseParen = '%29';
@@ -56,11 +67,27 @@ const _encodedCloseParen = '%29';
 /// block keeps every byte; only the path it is written with changes, its `?`
 /// or `#` part kept as written (see [destinationPartsOf]). All of them change
 /// in one pass.
+///
+/// [renamed] maps `(doc type id, old name)` to the new name. A link text equal
+/// to a renamed doc's old Name takes the new Name: after its `<doc type>:`
+/// prefix, the prefix kept, on any link; bare, only on a link that reaches
+/// that doc, which [renamedDocs] names by its DocPath before the moves. Only
+/// the text of an inline link and of a full reference link changes: a shortcut
+/// or collapsed link's text is its label, which a definition names, and an
+/// image description is no link text.
 String? rewriteDocLinks(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
-}) => rewriteDocLinksCounted(lfText, docPath: docPath, moves: moves)?.lfText;
+  Map<(String, String), String> renamed = const {},
+  RenamedDocs renamedDocs = const {},
+}) => rewriteDocLinksCounted(
+  lfText,
+  docPath: docPath,
+  moves: moves,
+  renamed: renamed,
+  renamedDocs: renamedDocs,
+)?.lfText;
 
 /// Returns [rewriteDocLinks]'s text with the number of link destinations it
 /// changed, or null when no link changes.
@@ -68,17 +95,75 @@ String? rewriteDocLinks(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
+  Map<(String, String), String> renamed = const {},
+  RenamedDocs renamedDocs = const {},
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
-  if (!body.contains('](') && !body.contains(']:')) return null;
-  final (:destinations, linksRead: _) = hrefDestinationsOf(
+  if (!_mayHoldLink(body)) return null;
+  final scan = linkScanOf(body, firstLine: 1);
+  final pathEdits = _pathEdits(
     body,
-    linkScanOf(body, firstLine: 1),
-    canMove: (href) => _movedPath(href, docPath, moves) != null,
+    scan,
+    (href) => _movedPath(href, docPath, moves),
   );
   final edits = [
+    ...pathEdits,
+    ..._linkTextEdits(body, scan.sources, docPath, renamed, renamedDocs),
+  ];
+  if (edits.isEmpty) return null;
+  return (
+    lfText:
+        lfText.substring(0, lfText.length - body.length) +
+        _withEdits(body, edits),
+    count: pathEdits.length,
+  );
+}
+
+/// Returns [lfBody], text written in the doc at [fromDocPath], with each
+/// relative link's path set to reach from [toDocPath] the file or folder it
+/// reaches from [fromDocPath] (see [rebasedHref]); a link with an empty
+/// path, such as `#rules`, takes the path of [fromDocPath] itself.
+///
+/// A link keeps its `?` and `#` part, and every other text stays, as
+/// [rewriteDocLinks] keeps it: a web address, another scheme, a rooted path,
+/// and an href in a code span or a fenced block.
+String rebaseDocLinks(
+  String lfBody, {
+  required String fromDocPath,
+  required String toDocPath,
+}) {
+  if (!_mayHoldLink(lfBody)) return lfBody;
+  String? newPathOf(String href) => switch (readLinkTarget(href)) {
+    RelativeLink(:final pathEnd) => rebasedHref(
+      href.substring(0, pathEnd),
+      fromDocPath,
+      toDocPath,
+    ),
+    _ => null,
+  };
+  final scan = linkScanOf(lfBody, firstLine: 1);
+  return _withEdits(lfBody, _pathEdits(lfBody, scan, newPathOf));
+}
+
+/// Whether [body] may hold an inline link or a link definition.
+bool _mayHoldLink(String body) => body.contains('](') || body.contains(']:');
+
+/// Returns the edits that set the path of each link destination in [body],
+/// scanned as [scan], to the one [newPathOf] gives its href, when it gives
+/// one.
+List<_TextEdit> _pathEdits(
+  String body,
+  LinkScan scan,
+  String? Function(String href) newPathOf,
+) {
+  final (:destinations, linksRead: _) = hrefDestinationsOf(
+    body,
+    scan,
+    canMove: (href) => newPathOf(href) != null,
+  );
+  return [
     for (final (:start, :end, :href, :kind) in destinations)
-      if (_movedPath(href, docPath, moves) case final newPath?)
+      if (newPathOf(href) case final newPath?)
         (
           start: start,
           end: end,
@@ -90,17 +175,93 @@ String? rewriteDocLinks(
           ),
         ),
   ];
-  if (edits.isEmpty) return null;
-  edits.sort((a, b) => b.start.compareTo(a.start));
+}
+
+/// Returns [body] with each of [edits], which never overlap, applied.
+String _withEdits(String body, List<_TextEdit> edits) {
+  final rightFirst = [...edits]..sort((a, b) => b.start.compareTo(a.start));
   var result = body;
-  for (final edit in edits) {
+  for (final edit in rightFirst) {
     result = result.replaceRange(edit.start, edit.end, edit.text);
   }
-  return (
-    lfText: lfText.substring(0, lfText.length - body.length) + result,
-    count: edits.length,
-  );
+  return result;
 }
+
+/// Returns the edits that set the text of each inline or full reference link
+/// in [body] equal to a renamed doc's old Name, after its `<doc type>:` prefix
+/// or bare on a link that reaches that doc, to the new Name.
+List<_TextEdit> _linkTextEdits(
+  String body,
+  List<LinkSource> sources,
+  String docPath,
+  Map<(String, String), String> renamed,
+  RenamedDocs renamedDocs,
+) {
+  if (renamed.isEmpty) return const [];
+  late final hrefs = sourceHrefsOf(body, sources);
+  return [
+    for (final (index, source) in sources.indexed)
+      ?_namedLinkText(
+        body,
+        source,
+        renamed,
+        () => _reachedDoc(hrefs?[index], docPath, renamedDocs),
+      ),
+  ];
+}
+
+/// Returns the key of the renamed doc that [href], written in the doc at
+/// [docPath], reaches, or null when it reaches none.
+(String, String)? _reachedDoc(
+  String? href,
+  String docPath,
+  RenamedDocs renamedDocs,
+) {
+  if (href == null) return null;
+  return switch (resolveDocLink(href, docPath)) {
+    DocTarget(:final docPath) => renamedDocs[docPath],
+    _ => null,
+  };
+}
+
+/// Returns the edit of [source]'s text, or null when [source] is no link whose
+/// text is a renamed doc's old Name.
+///
+/// A bare Name counts only when [reached], the renamed doc the link reaches,
+/// is the doc it names.
+_TextEdit? _namedLinkText(
+  String body,
+  LinkSource source,
+  Map<(String, String), String> renamed,
+  (String, String)? Function() reached,
+) {
+  final textEnd = source.textEnd;
+  if (textEnd == null || body.codeUnitAt(source.offset) != _openBracket) {
+    return null;
+  }
+  if (!_isInlineOrFullReference(body, source, textEnd)) return null;
+  final start = source.offset + 1;
+  final address = readDocAddress(body.substring(start, textEnd));
+  if (address.sectionKey != null) return null;
+  final typeId = address.typeId;
+  final String? name;
+  if (typeId != null) {
+    name = renamedNameOf(address, renamed);
+  } else {
+    final key = reached();
+    name = key != null && key.$2 == address.body ? renamed[key] : null;
+  }
+  if (name == null) return null;
+  final prefix = typeId == null ? '' : '$typeId:';
+  return (start: start, end: textEnd, text: '$prefix$name');
+}
+
+/// Whether [source], whose text ends at [textEnd], is an inline or full
+/// reference link, so its text is no label.
+///
+/// A shortcut link ends right after its `]`, and a collapsed one after `[]`.
+bool _isInlineOrFullReference(String body, LinkSource source, int textEnd) =>
+    source.end > textEnd + 1 && !body.startsWith('[]', textEnd + 1);
 
 /// Returns [written], a [kind] destination as written, with [path] in place
 /// of the path it is written with, its `?` or `#` part kept (see
@@ -232,6 +393,7 @@ List<WriteStep> planRewrites(
   Map<String, TextEdit> recordEdits = const {},
 }) {
   final index = session.index;
+  final renamedDocs = _renamedDocsOf(index, moves, renamed);
   final candidates = <String, IndexedDoc>{};
   for (final doc in index.docs) {
     if (movedPath(doc.docPath, moves) != doc.docPath) {
@@ -246,7 +408,8 @@ List<WriteStep> planRewrites(
     }
     if (_namesRenamedDoc(index, doc, renamed) ||
         _mentionsRenamedDoc(index, doc, renamed) ||
-        _namesRenamedLabel(session, doc, renamed)) {
+        _namesRenamedLabel(session, doc, renamed) ||
+        _textsRenamedDoc(index, doc, moves, renamed, renamedDocs)) {
       candidates[doc.docPath] = doc;
     }
   }
@@ -258,10 +421,31 @@ List<WriteStep> planRewrites(
   }
   final steps = [
     for (final doc in candidates.values)
-      ?_stepFor(session, doc, moves, renamed, recordEdits[doc.docPath]),
+      ?_stepFor(
+        session,
+        doc,
+        moves,
+        renamed,
+        renamedDocs,
+        recordEdits[doc.docPath],
+      ),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
 }
+
+/// Returns the docs of [index] whose Name [renamed] changes under [moves], by
+/// their DocPath before the moves.
+RenamedDocs _renamedDocsOf(
+  DocIndex index,
+  List<PathMove> moves,
+  Map<(String, String), String> renamed,
+) => {
+  for (final doc in index.docs)
+    if (doc.docTypeId case final typeId?)
+      if (movedPath(doc.docPath, moves) != doc.docPath &&
+          renamed.containsKey((typeId, doc.name)))
+        doc.docPath: (typeId, doc.name),
+};
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path
 /// that [moves] move.
@@ -286,6 +470,29 @@ bool _movesWithChangedLink(
           moves: moves,
         ) !=
         null;
+
+/// Whether [doc] holds a link whose text [rewriteDocLinks] sets to the new
+/// Name of a doc in [renamed].
+bool _textsRenamedDoc(
+  DocIndex index,
+  IndexedDoc doc,
+  List<PathMove> moves,
+  Map<(String, String), String> renamed,
+  RenamedDocs renamedDocs,
+) {
+  if (renamed.isEmpty) return false;
+  final text = toLf(index.contentOf(doc).text);
+  // A link text names an old Name, so a doc without one needs no parse.
+  if (!renamed.keys.any((key) => text.contains(key.$2))) return false;
+  return rewriteDocLinks(
+        text,
+        docPath: doc.docPath,
+        moves: moves,
+        renamed: renamed,
+        renamedDocs: renamedDocs,
+      ) !=
+      null;
+}
 
 /// Whether [doc] holds a path mention that [moves] change.
 bool _mentionsMovedFile(
@@ -325,13 +532,20 @@ WriteStep? _stepFor(
   IndexedDoc doc,
   List<PathMove> moves,
   Map<(String, String), String> renamed,
+  RenamedDocs renamedDocs,
   TextEdit? recordEdit,
 ) {
   final bytes = session.readDocBytes(doc.docPath);
   if (bytes == null) return null;
   final raw = utf8.decode(bytes);
   final lfText = toLf(raw);
-  final linked = rewriteDocLinks(lfText, docPath: doc.docPath, moves: moves);
+  final linked = rewriteDocLinks(
+    lfText,
+    docPath: doc.docPath,
+    moves: moves,
+    renamed: renamed,
+    renamedDocs: renamedDocs,
+  );
   final mentioned =
       rewritePathMentions(
         linked ?? lfText,

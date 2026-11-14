@@ -7,7 +7,8 @@ description: |-
   The target's record holds each story's and FR's status and code paths; `covers` names the target's own code only.
   Write no code samples; this doc describes structure, and the implementation belongs in code.
   Write one rule per ID: one Components row per component, each rule one sentence.
-  A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, such as `architecture:rendering#components`.
+  A DOMAIN cites its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: specs/f{nn}_{slug}/ARCHITECTURE.md
 parent: feature
 per_target: true

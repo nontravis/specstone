@@ -11,21 +11,23 @@ question in your report.
 
 ## 2. Ground each claim
 
-Run `specstone context <target> --for design` on the smallest doc that holds the brief's whole change: the story
-for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story, and
-the project doc to add a feature. Pass no `--target`: a design read spans every code target.
+Run `specstone context <target> --for design --out` on the smallest doc that holds the brief's whole change: the
+story for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story,
+and the project doc to add a feature. Pass no `--budget`. Pass no `--target`: a design read spans every code target.
+Read the saved file per `specstone:read-sdd`, searching it before any `get`.
 As the skill's runner, run no other call: your ground is what its step 1 gave, the bundle or `specstone:sdd-reader`'s
 sections, and, for a change from a source, the gate call's bundle plus any `--no-project` call's or the reader's
 sections.
 
-- **0:** the bundle is your ground. Cite only what your ground holds.
+- **0:** the saved bundle is your ground. Cite only what your ground holds.
 - **Any other exit:** report the CLI's error and stop.
 
 Before any write, judge the design path by that bundle:
 
-- **A design path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
-  docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or spec
-  doc named as the file: write nothing but the agent's `report:` file; report the path as an open question.
+- **A design path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
+  right under the docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside),
+  or a PRD or spec doc named as the file: write nothing but the agent's `report:` file; report the path as an open
+  question.
 - **Any other design path**: the file to write, at the host brainstorm skill's design document path, else
   `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole.
 
@@ -60,8 +62,8 @@ Before the Docs to change table closes, search each decision's dependents:
 - Name the owner doc of the decision's rule (`specstone:expert-sdd` rule 7). Run `specstone refs <owner>` for the
   docs that cite it, and `specstone search` on the decision's terms and on the wording it supersedes. A per-target owner
   goes to `refs` by its DocPath.
-- Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change cites the
-  owner by name, or rewrites the doc when that doc owns a rule that reads the decision's rule.
+- Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change links the
+  owner's item that holds the rule, or rewrites the doc when that doc owns a rule that reads the decision's rule.
 - When `refs` lists no typed citer, as in a tree that still cites by number labels, the search carries the decision,
   as it does for the limit of `refs` that rule 7 names. Record the searched terms either way, so the audit sees what
   was searched.

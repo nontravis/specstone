@@ -10,6 +10,7 @@ description: |-
   Keep one behavior in each requirement; split joined behaviors into separate requirements.
   An FR never records results: the verification matrix points to the evidence.
   State the present truth; history lives in git.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
 parent: user_story
 fields:

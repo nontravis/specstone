@@ -24,6 +24,10 @@ const _prdCoreIds = <String>[
   'user_story',
 ];
 
+const _citeRule =
+    'Cite a rule another doc owns by a link to the item that holds it, '
+    'never restate it.';
+
 /// The `software-tech` doc type ids (US-07 FR-01).
 const _softwareTechIds = <String>[
   'tech_stack',
@@ -322,6 +326,16 @@ void main() {
         ),
       );
       expect(err.toString(), isEmpty);
+    });
+
+    test('f03/us06/fr02/e11: every prd-core guide says to cite a rule another '
+        'doc owns by a link to its item, never restate it', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      for (final id in _prdCoreIds) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains(_citeRule), reason: id);
+      }
     });
 
     test('guide journey prints no sources', () async {

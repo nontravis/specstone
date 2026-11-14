@@ -164,11 +164,14 @@ const _unresolved = 'it cannot be resolved';
 ///
 /// A path the disk cannot resolve (a link loop, a dangling chain longer than
 /// the OS follows, a folder it may not enter, a `.` or `..` after a name that
-/// does not exist) is refused with its reason, never thrown.
+/// does not exist) is refused with its reason, never thrown. With
+/// [mayLeaveProject], a path outside both roots passes; one inside is still
+/// refused below `.git`.
 String? writeRefusalOf(
   String path, {
   required Directory projectRoot,
   Directory? docsRoot,
+  bool mayLeaveProject = false,
 }) {
   final String real;
   final List<String> roots;
@@ -187,7 +190,7 @@ String? writeRefusalOf(
       if (real.startsWith('$root$separator'))
         real.substring(root.length + 1).split(separator),
   ];
-  if (inside.isEmpty) return _leavesProject;
+  if (inside.isEmpty) return mayLeaveProject ? null : _leavesProject;
   return inside.any((below) => below.any(_isGitEntry)) ? _underGit : null;
 }
 
@@ -203,8 +206,9 @@ String skippedLineOf(String path, [String? reason]) {
 }
 
 /// Throws [RenderFault] `output_not_writable` unless [trust], when given, holds
-/// the roots trusted and [writeRefusalOf] finds [path] writable; the fault's
-/// `file` is [path] from the project root.
+/// the roots trusted and [writeRefusalOf] finds [path] writable, as
+/// [mayLeaveProject] tells it; the fault's `file` is [path] from the project
+/// root.
 ///
 /// Call it before every write, create, rename, or delete a command makes in a
 /// project outside the journal, which checks its own steps. Pass the [trust]
@@ -215,10 +219,16 @@ void requireWritableTarget(
   required Directory projectRoot,
   Directory? docsRoot,
   RootTrust? trust,
+  bool mayLeaveProject = false,
 }) {
   final reason =
       trust?.refusal ??
-      writeRefusalOf(path, projectRoot: projectRoot, docsRoot: docsRoot);
+      writeRefusalOf(
+        path,
+        projectRoot: projectRoot,
+        docsRoot: docsRoot,
+        mayLeaveProject: mayLeaveProject,
+      );
   if (reason == null) return;
   final shown = pathFromProjectRoot(path, projectRoot, docsRoot);
   throw RenderFault(

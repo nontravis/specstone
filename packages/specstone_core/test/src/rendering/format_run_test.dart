@@ -104,7 +104,7 @@ GeneratorRun<String> _tocRun(
   bool noBlocks = false,
 }) => GeneratorRun<String>(
   registry: GeneratorRegistry<String>({
-    'note_toc': (doc, type, r) => noBlocks
+    'note_toc': (doc, docPath, type, r) => noBlocks
         ? const []
         : [
             GeneratedBlock(

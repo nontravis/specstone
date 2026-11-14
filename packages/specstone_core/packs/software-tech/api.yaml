@@ -6,6 +6,7 @@ description: |-
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Copy no request or response schema; the source of truth owns it.
   Write one rule per ID: one `###` per operation, each rule one sentence.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: specs/f{nn}_{slug}/API.md
 parent: feature
 per_target: true

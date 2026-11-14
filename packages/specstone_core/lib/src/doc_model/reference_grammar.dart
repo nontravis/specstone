@@ -163,6 +163,43 @@ IdRead? readItemIdAt(String text, int at, String prefix) {
   return _readIdAt(text, prefix, at + prefix.length);
 }
 
+/// Returns each item ID of [prefixes] written in [prose], in order, with its
+/// offset.
+///
+/// An ID is a token of one of [prefixes], the longest first, so `SHA256` is
+/// no ID unless a doc type's section holds the prefix `SHA`. The digits are
+/// read by [readItemIdAt]: a lettered or unreadable form (RULE-33) is no ID.
+List<({int at, ItemId id})> itemIdsInProse(
+  String prose, {
+  required Set<String> prefixes,
+}) {
+  final found = <({int at, ItemId id})>[];
+  final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
+  for (final prefix in longestFirst) {
+    for (
+      var at = prose.indexOf(prefix);
+      at >= 0;
+      at = prose.indexOf(prefix, at + 1)
+    ) {
+      if (at > 0 && _endsWord(prose, at)) continue;
+      if (readItemIdAt(prose, at, prefix) case final ItemId id) {
+        final end = at + id.written.length;
+        final overlaps = found.any(
+          (f) => at < f.at + f.id.written.length && f.at < end,
+        );
+        if (!overlaps) found.add((at: at, id: id));
+      }
+    }
+  }
+  return found..sort((a, b) => a.at - b.at);
+}
+
+/// Whether the character before [at] in [text] is a letter or digit.
+bool _endsWord(String text, int at) {
+  final unit = text.codeUnitAt(at - 1);
+  return _isDigit(unit) || _letters.hasMatch(text[at - 1]);
+}
+
 /// Returns the key `check` holds an item by: `Scenario <n>` for the number
 /// value of a scenario heading (`Scenario 01` repeats `Scenario 1`), else the
 /// ID as written.

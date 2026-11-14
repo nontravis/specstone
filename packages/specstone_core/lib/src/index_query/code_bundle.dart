@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show pathInside;
+import 'package:specstone_core/src/canonical_path.dart'
+    show absoluteFrom, pathInside;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -40,9 +41,7 @@ CodePath resolveCodePath(
   required List<CodeTarget> targets,
   required Directory Function(CodeTarget target) codeRootOf,
 }) {
-  final absolute = File(given).isAbsolute
-      ? given
-      : '${workingDirectory.path}${Platform.pathSeparator}$given';
+  final absolute = absoluteFrom(workingDirectory, given);
   final type = FileSystemEntity.typeSync(absolute);
   if (type == FileSystemEntityType.notFound) {
     throw IndexFault(

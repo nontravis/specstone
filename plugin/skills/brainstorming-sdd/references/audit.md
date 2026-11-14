@@ -16,9 +16,10 @@ report what the author's own coverage table cannot show.
    `Outside the drafts:`, with no `Audited:` line. Any other refusal, such as `doc_type_unknown` or a section fault,
    is a finding and drops each name it names too. Run the call again on the rest; when no target is left, skip the
    rerun and the steps below. A dropped name is no target for the steps below: no bundle and no `check` for it.
-3. **Bundles**: run `specstone context <target> --for design` once for each feature the targets fall under
-   (the project doc for a project-level one), not once per target: a design bundle already holds the whole feature. Pass no
-   `--target`: the bundle takes every code target's spec docs. Read each bundle whole.
+3. **Bundles**: run `specstone context <target> --for design --out` once for each feature the targets fall under
+   (the project doc for a project-level one), not once per target: a design bundle already holds the whole feature.
+   Pass no `--budget`. Pass no `--target`: the bundle takes every code target's spec docs. Read each saved file whole,
+   per `specstone:read-sdd`.
    - **0:** the bundle is what you audit.
    - **Any other exit:** report the CLI's error for that call as a finding, and go on with the rest.
 4. **Design document**, when given: read it whole, and list each decision and ruling by its ID or label. Then run
@@ -41,7 +42,7 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 | Statement untested   | an FR statement, or a clause of one, that no scenario of its story and no edge case covers   |
 | Rule restated        | a draft stating a rule another doc owns instead of citing it (`specstone:expert-sdd` rule 7) |
 
-- **Rule restated:** name the owner doc and the item; its fix is a citation in the draft.
+- **Rule restated:** name the owner doc and the item; its fix is an item link in the draft.
 - **No design document:** skip the first two rows; every other comparison and `check` still run.
 - **A gap you could fix:** report it and fix nothing. The author fixes it in a fix round, or the Owner decides.
 

@@ -33,8 +33,10 @@ the Owner answered in this run. In the first round the rest batch always runs, e
 target's tech stack doc, the doc the procedure's step 6 fills; no feature batch fills it. In a later round it runs only
 when findings it owns remain or a write-a-spec pick awaits. Dispatch one `specstone:sdd-engineer` per batch with
 `mode: bootstrap`, `procedure: bootstrap-spec`, `batch:` the batch's paths, `picks:` each write-a-spec pick of step 3
-for the batch's files, and `report:`, one file `mktemp` makes per batch outside the repository; batches may run at
-once. Send no doc text, and work no step of the procedure yourself.
+for the batch's files, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch;
+batches may run at once. Send no doc text, and work no step of the procedure yourself. Take `<folder>` the path
+`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file
+exists.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
@@ -70,7 +72,11 @@ in for item 4.
    `(waits for the Owner)`, the last reports name it as one that clears with no write, it is an answered
    `code_uncovered` file, which starts a round only through a write-a-spec pick, or it waits on
    `specstone:bootstrap-prd`, such as a finding on a file that a `prds/` untyped doc it left still names. With none
-   left, stop; first, name once each answered `code_uncovered` file the last `check` still lists, with what it waits
-   on: the code change, the brainstorm, or the approval of its draft, and, in a run that did not name
-   `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit` finding no report's
-   `Waits on the Owner:` line named.
+   left, go to item 6.
+6. Once per run, after the last round and `specstone:bootstrap-prd`'s repeats batch, run `specstone check --repeats`,
+   then dispatch the repeats batch (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md`) as in step 2
+   with `batch: repeats` and each group with an item under `specs/`, if any; work items 1 and 2 on its report. A
+   group it keeps stays listed and never starts a round. Then stop; first, name once each answered `code_uncovered`
+   file the last `check` still lists, with what it waits on: the code change, the brainstorm, or the approval of its
+   draft, and, in a run that did not name `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit`
+   finding no report's `Waits on the Owner:` line named.

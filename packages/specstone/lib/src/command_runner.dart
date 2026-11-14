@@ -8,6 +8,7 @@ import 'package:specstone/src/commands/build_command.dart';
 import 'package:specstone/src/commands/check_command.dart';
 import 'package:specstone/src/commands/context_command.dart';
 import 'package:specstone/src/commands/delete_command.dart';
+import 'package:specstone/src/commands/folder_command.dart';
 import 'package:specstone/src/commands/format_command.dart';
 import 'package:specstone/src/commands/get_command.dart';
 import 'package:specstone/src/commands/guide_command.dart';
@@ -113,6 +114,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     addCommand(RefsCommand());
     addCommand(ContextCommand());
     addCommand(McpCommand());
+    addCommand(FolderCommand());
     addCommand(CheckCommand());
     addCommand(SetCommand());
     addCommand(NewCommand());
@@ -185,7 +187,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   @override
   Future<int> run(Iterable<String> args) async {
     try {
-      return await super.run(_withTargetValue(args)) ?? 0;
+      return await super.run(_withTargetValue(withBareOut(args))) ?? 0;
     } on UsageException catch (error) {
       _err
         ..writeln(error.message)

@@ -35,7 +35,8 @@ touches, the trade-off behind each choice, and its test.
   (Workflow step 8).
 - **`answers`** (optional): the Owner's answers on `NOT PLANNED` rows, spec gaps, and open questions. Run every step
   again on them: the Ground shows each doc as it now stands.
-- **`report`** (optional): the file for the whole report, outside the repository; absent, make one with `mktemp`.
+- **`report`** (optional): the file for the whole report, `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`; absent,
+  name your own there (Output Format).
 - **Missing `targets`**: write the report with the gap under `Open questions:`, and stop.
 - **Doc text in the prompt**: no source; the Ground's calls print each doc as it stands now.
 
@@ -43,12 +44,12 @@ touches, the trade-off behind each choice, and its test.
 
 Read sources in this order; read a later source only for what the earlier ones leave out.
 
-1. Specstone, always first: `specstone context <story> --for implement` for each story the plan builds. The bundle
-   holds the story, its FRs, NFR overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open a doc file
-   by path.
+1. Specstone, always first: `specstone context <story> --for implement --out` for each story the plan builds. The
+   bundle holds the story, its FRs, NFR overrides, and specs (ARCHITECTURE, API, DOMAIN, TECH_STACK). Never open a doc
+   file by path.
 
-   For a target that is no story, an NFR or a spec doc, `specstone context <target> --for implement` on that doc
-   itself. An FR target grounds through its story's step-1 call, so
+   For a target that is no story, an NFR or a spec doc, `specstone context <target> --for implement --out` on that
+   doc itself. An FR target grounds through its story's step-1 call, so
    a task citing a story and its FRs grounds once.
 2. The code the specs point at: each `implements` and `covers` path, then its direct callers.
 3. The project's own instruction files (`CLAUDE.md`, `AGENTS.md`): commands, branch flow, gotchas.
@@ -72,12 +73,13 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    `<type>:` prefix, else the `(<type>)` its bundle header prints. Every other doc, such as a project, feature,
    persona, or journey doc, gets a row with no task that names why no task builds its type; a project or
    feature doc's row reads that its stories carry the change.
-2. **Ground**: follow `## Ground` in order. Run source 1's calls through Bash, neither with `--budget`, so you hold
-   each bundle whole: first one per story target or FR target's story, then one per NFR or spec doc target. A spec
-   doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own. The
-   first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the binary.
-   - **0**: the bundle is the docs, as printed. When the host cuts it short and saves it to a file, `Read` that file
-     in parts through its closing `==> bundle:` line.
+2. **Ground**: follow `## Ground` in order. Run source 1's calls through Bash, each with `--out` bare and last and
+   neither with `--budget`: first one per story target or FR target's story, then one per NFR or spec doc target. A
+   spec doc an earlier bundle of this round already printed whole, its header line naming it, gets no call of its own.
+   The first call is `specstone context`, the project gate: probe nothing before it, neither `.specstone/` nor the
+   binary.
+   - **0**: the saved file is the docs, as they stand: read it per `specstone:read-sdd`, in parts, searching it with
+     `Grep` before any `get`.
    - **78 with `project_not_found`**: stop with Output Format's old-format reply; run nothing else.
    - **Any other non-zero**: that target gets a `NOT PLANNED` row and its CLI error under `Findings:`; ground the
      other targets.
@@ -85,7 +87,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    `{ specstone check 2>&1; echo "exit=$?"; } | grep -E 'approval_stale|^exit='`, and read only those lines. Exit 0 or
    1 is a finished check: no `approval_stale` line means no doc is stale, and no finding is a stop. Any other exit is
    an error, not findings: stop, name that exit under `Findings:`, and plan no target on a check you could not read.
-   Match each `approval_stale` line to a doc by the file path a Ground bundle header printed
+   Match each `approval_stale` line to a doc by the file path a `==> ` header of a Ground saved bundle holds
    (`==> <name> (<type>) · <path> <==`).
 4. **Design document**: when given, read it whole for what changed and why; the docs, never the document, say what
    each change now is.
@@ -117,8 +119,8 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    steps in the task itself: never "as Task N", a pointer to another task's line, or one line set for a whole phase.
    - **No doc text**: it holds none of its doc's text (no statement, scenario, edge case, or table), and tells its
      implementer to read the doc fresh before writing code by its own read line:
-     `specstone context <target> --for implement`, with `--target <code target>` when one is given, the FR's story as
-     `<target>` for an FR, then the doc to read in that bundle.
+     `specstone context <target> --for implement --out`, with `--target <code target>` before `--out` when one is
+     given, the FR's story as `<target>` for an FR, then the doc to read in that bundle.
    - **Critical files**: it names each file it touches, each existing file and symbol one you opened.
    - **Trade-off**: it states its own trade-off behind each implementation choice, such as a doc that can be built
      more than one way.
@@ -130,10 +132,10 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 8. **Write**, either format, taking the first case that holds:
    - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
      the sync task; `Plan:` reads `none`.
-   - **A plan path inside the CheckedFolders** (the first folder of a doc path a bundle header prints, right under the
-     docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is outside), or a PRD or
-     spec doc named as the file: write no plan; list the path under open questions, asking the Owner for a new
-     `plan path`.
+   - **A plan path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
+     right under the docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is
+     outside), or a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the
+     Owner for a new `plan path`.
    - **Else**: the one plan file, at a given `plan path`, else as `<YYYY-MM-DD>-<slug>.md` in the plans folder the
      project's instruction files (`CLAUDE.md`, `AGENTS.md`) name, else the plan skill's own path, else
      `docs/plans/<YYYY-MM-DD>-<slug>.md`. `Read` a file already there, such as one an earlier run wrote, and amend
@@ -142,9 +144,9 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 9. **Check before reporting**, and fix the plan until all four hold:
    - **Coverage**: each approved FR of a target that gets a task is built by a task.
    - **No doc text**: no line in any section of the plan, its header, constraints, and step lists included, quotes a
-     doc's text. `Grep` the files the host saved the bundles to, case-insensitive, with `multiline` and `\s+` between
-     words, for each constraint's longest phrase (its longest run of words between punctuation) and each step phrase
-     that restates a doc's point; check a bundle printed inline against its printed text. Rewrite each hit as a
+     doc's text. `Grep` the Ground's saved bundle files, case-insensitive, with `multiline` and `\s+` between words,
+     for each constraint's longest phrase (its longest run of words between punctuation) and each step phrase that
+     restates a doc's point. Rewrite each hit as a
      citation of the doc name and its ID or section anchor (`BR-02`, `E05`, `#verification`).
    - **Own lines**: each task that builds a doc writes out its own read line, trade-off, and steps (step 7).
    - **Printed names**: each name a task cites is one a Ground bundle printed. List each name no bundle printed, and
@@ -152,6 +154,10 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
 10. **Report**: per Output Format.
 
 ## Output Format
+
+With no `report`, run `specstone folder` once, after the Ground's calls or at a stop before them, `<folder>` the path
+`specstone folder` prints, and name your own `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `XXXXXX` six `a-z0-9`
+characters, picked again while that file exists; every round reuses it.
 
 `Read` the `report` file before each `Write` to it, in every round, not only the first: `Write` refuses a file it has
 not read, and a missing file's `Read` error is no stop. Write the report, the block below, with `Write` to that file.
@@ -183,8 +189,9 @@ Findings: <items, or none>
 
 **DO:**
 
-- Run `specstone context` for the Ground and one `specstone check`, read through its `approval_stale` lines and its
-  exit code (Workflow step 3), and no other specstone command.
+- Run `specstone context` for the Ground, `specstone get` only after searching its saved file with `Grep`, and one
+  `specstone check`, read through its `approval_stale` lines and its exit code (Workflow step 3), `specstone folder`
+  once with no `report` (Output Format), and no other specstone command.
 - Read code, instruction files, and library docs read-only; load the plan skill with `Skill`.
 - Beyond the `report:` file, `Write` or `Edit` only the one plan file, at the path Workflow step 8 picks, a given
   `plan path` such as the Owner's new one included, outside the CheckedFolders.

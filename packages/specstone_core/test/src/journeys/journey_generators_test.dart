@@ -14,6 +14,13 @@ import '../../helpers/index_fixture.dart';
 const _journeyPath = 'prds/journeys/onboarding/JOURNEY.md';
 const _story = 'login/email_login';
 
+/// The login story, from the journey's folder.
+const _ownStory = '../../features/f01_login/us01_email_login/USER_STORY.md';
+
+/// The sign-out story's acceptance criteria, from the journey's folder.
+const _signOut =
+    '../../features/f01_login/us02_sign_out/USER_STORY.md#acceptance-criteria';
+
 String _journeyText(List<String> stepLines) =>
     '# Onboarding\n\n## Flow\n\n## Steps\n${stepLines.join('\n')}\n';
 
@@ -38,10 +45,28 @@ Future<_Fixture> _open(
 }
 
 List<GeneratedBlock> _flow(_Fixture f) =>
-    journeyFlowBlocks(f.doc, f.type, f.index);
+    journeyFlowBlocks(f.doc, _journeyPath, f.type, f.index);
 
 List<GeneratedBlock> _copy(_Fixture f) =>
-    scenarioCopyBlocks(f.doc, f.type, f.index);
+    scenarioCopyBlocks(f.doc, _journeyPath, f.type, f.index);
+
+/// The login story with [tail] after the Then line of its Scenario 1.
+Map<String, String> _thenHolds(String tail) => edit(loginStory, [
+  (
+    '- **Then** the Agent sees the home page',
+    '- **Then** the Agent sees the home page $tail',
+  ),
+]);
+
+/// The copy of Scenario 1 for a journey whose step names it, the story's Then
+/// line ending in [tail].
+Future<String> _copiedThen(String tail) async {
+  final f = await _open([
+    '### 1. Start',
+    'step: $_story S1',
+  ], extra: _thenHolds(tail));
+  return _copy(f).single.text.split('\n').last;
+}
 
 int _below(GeneratedBlock block) => (block.place as BelowBodyLine).index;
 
@@ -237,6 +262,72 @@ void main() {
       final f = await _open(['### 1. Start', 'step: no/such_story S1']);
 
       expect(_copy(f), isEmpty);
+    });
+
+    test('f10/us01/fr04/e08: a relative link takes the path from the '
+        "journey's folder, its text and fragment kept", () async {
+      expect(
+        await _copiedThen(
+          '[sign out](../us02_sign_out/USER_STORY.md#acceptance-criteria)',
+        ),
+        '- **Then** the Agent sees the home page [sign out]($_signOut)',
+      );
+    });
+
+    test("f10/us01/fr04/e09: a fragment-only link takes the story's path "
+        'before the fragment', () async {
+      expect(
+        await _copiedThen('[rules](#rules)'),
+        '- **Then** the Agent sees the home page [rules]($_ownStory#rules)',
+      );
+    });
+
+    test('f10/us01/fr04/e08: a link that leaves the docs root still reaches '
+        'its file, and a definition moves too', () async {
+      final f = await _open(
+        ['### 1. Start', 'step: $_story S1'],
+        extra: _thenHolds(
+          '[code](../../../../../lib/a.dart) and [spec][s]\n\n'
+          '[s]: <../FEATURE.md>',
+        ),
+      );
+
+      final text = _copy(f).single.text;
+
+      expect(text, contains('[code](../../../../lib/a.dart)'));
+      expect(text, endsWith('[s]: <../../features/f01_login/FEATURE.md>'));
+    });
+
+    test('f10/us01/fr04/e08: a folder link and a docs-root link reach from '
+        "the journey's folder what they reach from the story", () async {
+      expect(
+        await _copiedThen('[out](../us02_sign_out/) [docs](../../../../)'),
+        '- **Then** the Agent sees the home page '
+        '[out](../../features/f01_login/us02_sign_out/) [docs](../../../)',
+      );
+    });
+
+    test('f10/us01/fr04/e10: a web address, another scheme, and a rooted '
+        'path are copied as written', () async {
+      const tail =
+          '[web](https://example.com/a.md#x) [mail](mailto:a@example.com) '
+          '[root](/docs/a.md)';
+
+      expect(
+        await _copiedThen(tail),
+        '- **Then** the Agent sees the home page $tail',
+      );
+    });
+
+    test('f10/us01/fr04/e11: a path in a code span is copied as '
+        'written', () async {
+      const tail =
+          '`../us02_sign_out/USER_STORY.md` and `[x](../us02_sign_out/a.md)`';
+
+      expect(
+        await _copiedThen(tail),
+        '- **Then** the Agent sees the home page $tail',
+      );
     });
   });
 

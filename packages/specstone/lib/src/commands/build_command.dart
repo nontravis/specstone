@@ -86,7 +86,7 @@ class BuildCommand extends SpecstoneCommand {
       );
       final output = outputOption == null
           ? defaultOutputFile(project, target, format)
-          : _outputFile(outputOption, runner.workingDirectory);
+          : File(absoluteFrom(runner.workingDirectory, outputOption));
       final displayPath = outputOption != null && File(outputOption).isAbsolute
           ? outputOption
           : project.displayPath(output);
@@ -118,12 +118,4 @@ class BuildCommand extends SpecstoneCommand {
     }
     return 0;
   }
-}
-
-File _outputFile(String option, Directory workingDirectory) {
-  final file = File(option);
-  if (file.isAbsolute) return file;
-  return File(
-    '${workingDirectory.absolute.path}${Platform.pathSeparator}$option',
-  );
 }

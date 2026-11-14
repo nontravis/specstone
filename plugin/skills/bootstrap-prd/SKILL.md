@@ -26,9 +26,10 @@ specstone check
 With the `Agent` tool, split the gate's findings this skill takes by doc path: one batch per feature folder, and one for
 the rest. In the first round the rest batch always runs, even with no finding, and names the project, features, and gnfr docs, the skeletons the procedure's step 6 fills; no feature batch fills them. In a
 later round it runs only when findings it owns remain. Dispatch one `specstone:sdd-engineer` per batch with
-`mode: bootstrap`, `procedure: bootstrap-prd`, `batch:` the batch's paths, and `report:`,
-one file `mktemp` makes per batch outside the repository; batches may run at once. Send no doc text, and work no step of
-the procedure yourself.
+`mode: bootstrap`, `procedure: bootstrap-prd`, `batch:` the batch's paths, and `report:`
+`<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches may run at once. Send no doc
+text, and work no step of the procedure yourself. Take `<folder>` the path `specstone folder` prints, run once after
+the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file exists.
 
 **Code target** (two or more `targets:`): a finding's code target is its DocPath's, and an
 old file whose path names none merges into the first listed one, so a batch never asks the Owner.
@@ -59,6 +60,9 @@ in for item 4.
    those referrers.
 5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
    `(waits for the Owner)`, the last reports name it as one that clears with no write, or it waits on
-   `specstone:bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, stop; first, in a
-   run that did not name `item_over_limit`, list under `Waits on the Owner:` each `item_over_limit` finding no
-   report's `Waits on the Owner:` line named.
+   `specstone:bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, go to item 6.
+6. Once per run, after the last round, run `specstone check --repeats`, then dispatch the repeats batch
+   (`${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each
+   group with an item under `prds/`, if any; work items 1 and 2 on its report. A group it keeps stays listed and never
+   starts a round. Then stop; first, in a run that did not name `item_over_limit`, list under `Waits on the Owner:`
+   each `item_over_limit` finding no report's `Waits on the Owner:` line named.

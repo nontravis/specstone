@@ -510,6 +510,61 @@ void main() {
       expect(answer['codeTarget'], 'jaspr');
     });
 
+    test('f01/us05/fr07/e10: --code --out with two targets prints the code '
+        'target line first on stdout, and the file keeps it first', () async {
+      final project = await writeToastProject(
+        extra: {'jaspr_lib/lib/toast.dart': ''},
+      );
+      final args = [
+        'context',
+        '--code',
+        'jaspr_lib/lib/toast.dart',
+        '--for',
+        'implement',
+        '--out',
+      ];
+      final text = readRunner(project);
+      expect(await text.runner.run(args), 0, reason: text.err.toString());
+      final lines = text.out.toString().split('\n');
+      expect(lines[0], '==> code target: jaspr <==');
+      expect(lines[1], startsWith('==> bundle: '));
+      expect(lines[2], startsWith('- '));
+      final file = File(
+        '${project.path}/.specstone/bundles/'
+        'code-jaspr_lib-lib-toast.dart.implement.txt',
+      );
+      expect(
+        file.readAsStringSync(),
+        startsWith('==> code target: jaspr <==\n'),
+      );
+      final json = readRunner(project);
+      expect(await json.runner.run([...args, '--json']), 0);
+      final answer = jsonDecode(json.out.toString()) as Map<String, Object?>;
+      expect(answer['codeTarget'], 'jaspr');
+      expect(answer['out'], isA<String>());
+    });
+
+    test('f01/us05/fr07/e10: --code --out with one target prints no code '
+        'target', () async {
+      final project = await writeReadProject(extra: {'app/lib/main.dart': ''});
+      final args = [
+        'context',
+        '--code',
+        'app/lib/main.dart',
+        '--for',
+        'implement',
+        '--out',
+      ];
+      final text = readRunner(project);
+      expect(await text.runner.run(args), 0);
+      expect(text.out.toString(), startsWith('==> bundle: '));
+      expect(text.out.toString(), isNot(contains('code target')));
+      final json = readRunner(project);
+      expect(await json.runner.run([...args, '--json']), 0);
+      final answer = jsonDecode(json.out.toString()) as Map<String, Object?>;
+      expect(answer.containsKey('codeTarget'), isFalse);
+    });
+
     test('--code with one target prints no code target', () async {
       final project = await writeReadProject(extra: {'app/lib/main.dart': ''});
       final text = readRunner(project);
@@ -747,5 +802,527 @@ void main() {
         'the code path lib/main.dart lies in the code target app, not web\n',
       );
     });
+
+    test('f01/us05/fr07/e12: --out with --target ends the name with .<target>.txt', () async {
+      final project = await writeToastProject();
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run([
+          'context',
+          'feedback/toast/show',
+          '--for',
+          'implement',
+          '--target',
+          'jaspr',
+          '--out',
+        ]),
+        0,
+        reason: '$err',
+      );
+      expect(
+        File(
+          '${project.path}/.specstone/bundles/feedback-toast-show.implement.jaspr.txt',
+        ).existsSync(),
+        isTrue,
+      );
+    });
   });
+
+  group('f01/us05/fr07, context --out', () {
+    const story = 'login/email_login';
+    const storyFile = 'login-email_login.implement.txt';
+    final header = RegExp(
+      r'^==> bundle: (\d+) docs, (\d+) tokens, (\d+) lines · (.+) <==$',
+    );
+    final linksUnavailable = Platform.isWindows
+        ? 'a link needs a privilege on Windows'
+        : null;
+
+    File bundleFile(Directory project, String name) =>
+        File('${project.path}/.specstone/bundles/$name');
+
+    /// Returns the bundle text `context` prints for [args] with no `--out`.
+    Future<String> printed(Directory project, List<String> args) async {
+      final run = readRunner(project);
+      expect(await run.runner.run(['context', ...args]), 0);
+      return run.out.toString();
+    }
+
+    /// Runs `context` with [args] in [folder] and returns its stdout, after
+    /// checking it exits 0 with stderr empty.
+    Future<String> saved(Directory folder, List<String> args) async {
+      final run = readRunner(folder);
+      expect(
+        await run.runner.run(['context', ...args]),
+        0,
+        reason: run.err.toString(),
+      );
+      expect(run.err.toString(), isEmpty);
+      return run.out.toString();
+    }
+
+    test('f01/us05/s20, f01/us05/fr07/e01, e03: a bare --out at the root makes .specstone/bundles/, writes the whole bundle, and prints its header and index', () async {
+      final project = await writeReadProject();
+      expect(
+        Directory('${project.path}/.specstone/bundles').existsSync(),
+        isFalse,
+      );
+      final stdout = await saved(project, [
+        story,
+        '--for',
+        'implement',
+        '--out',
+      ]);
+      final file = bundleFile(project, storyFile);
+      final bundle = await printed(project, [story, '--for', 'implement']);
+      expect(file.readAsStringSync(), bundle);
+      final lines = const LineSplitter().convert(stdout);
+      final head = header.firstMatch(lines.first)!;
+      final closing = RegExp(
+        r'^==> bundle: (\d+) docs, (\d+) tokens <==$',
+        multiLine: true,
+      ).firstMatch(bundle)!;
+      expect(head.group(1), closing.group(1));
+      expect(head.group(2), closing.group(2));
+      final fileLines = file.readAsLinesSync();
+      expect(head.group(3), '${fileLines.length}');
+      expect(head.group(4), file.resolveSymbolicLinksSync());
+      expect(lines.skip(1), everyElement(startsWith('- ')));
+      final storyLine = lines.singleWhere(
+        (line) => line.startsWith('- $story (user_story) · '),
+      );
+      final range = RegExp(
+        r'· (\d+)-(\d+) · use_case (\d+), acceptance_criteria (\d+)$',
+      ).firstMatch(storyLine)!;
+      expect(
+        fileLines[int.parse(range.group(1)!) - 1],
+        startsWith('==> $story (user_story) · '),
+      );
+      expect(fileLines[int.parse(range.group(3)!) - 1], '## Use Case');
+      expect(
+        fileLines[int.parse(range.group(4)!) - 1],
+        '## Acceptance Criteria',
+      );
+    });
+
+    test('f01/us05/s21, f01/us05/fr07/e02, e10: a bare --out from a subfolder writes under the root and prints the same absolute path, text and --json', () async {
+      final project = await writeReadProject(extra: {'app/lib/.keep': ''});
+      final nested = Directory('${project.path}/app/lib');
+      final args = [story, '--for', 'implement', '--out'];
+      final paths = <String>[];
+      for (final folder in [project, nested]) {
+        final text = await saved(folder, args);
+        paths.add(header.firstMatch(text.split('\n').first)!.group(4)!);
+        final json =
+            jsonDecode(await saved(folder, [...args, '--json'])) as Map;
+        expect(json.keys.toList(), [
+          'out',
+          'tokens',
+          'lines',
+          'docs',
+          'warnings',
+        ]);
+        paths.add(json['out']! as String);
+        final docs = (json['docs']! as List).cast<Map<String, Object?>>();
+        expect(docs.first.keys.toList(), [
+          'name',
+          'docType',
+          'docPath',
+          'lines',
+          'summary',
+          'cited',
+          'sections',
+        ]);
+      }
+      final file = bundleFile(project, storyFile);
+      expect(paths.toSet(), {file.resolveSymbolicLinksSync()});
+      expect(File(paths.first).isAbsolute, isTrue);
+      expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
+      expect(
+        file.readAsStringSync(),
+        await printed(project, [story, '--for', 'implement']),
+        reason: 'under --json the file still holds the text bundle',
+      );
+    });
+
+    test('f01/us05/fr07, review focus 4: a bare --out before --for, or before --json, stays bare', () async {
+      final project = await writeReadProject();
+      final before = await saved(project, [
+        story,
+        '--out',
+        '--for',
+        'implement',
+      ]);
+      expect(before, startsWith('==> bundle: '));
+      expect(bundleFile(project, storyFile).existsSync(), isTrue);
+      final json = await saved(project, [
+        story,
+        '--for',
+        'design',
+        '--out',
+        '--json',
+      ]);
+      expect(
+        (jsonDecode(json) as Map)['out'],
+        bundleFile(
+          project,
+          'login-email_login.design.txt',
+        ).resolveSymbolicLinksSync(),
+      );
+    });
+
+    test('f01/us05/fr07/e06, review focus 4: --out= and --out "" are argument_invalid, exit 64, before anything is written', () async {
+      for (final args in [
+        ['--out='],
+        ['--out', ''],
+      ]) {
+        final project = await writeReadProject();
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            story,
+            '--for',
+            'implement',
+            ...args,
+          ]),
+          64,
+          reason: '$args',
+        );
+        expect(run.err.toString(), '--out takes a file path, not ""\n');
+        expect(run.out.toString(), isEmpty);
+        expect(
+          Directory('${project.path}/.specstone/bundles').existsSync(),
+          isFalse,
+        );
+        expect(
+          File('${project.path}/.specstone/index.sqlite').existsSync(),
+          isFalse,
+        );
+      }
+    });
+
+    test('f01/us05/s23, f01/us05/fr07/e07, f01/us05/fr03/e10: --out with --budget is argument_conflict, exit 64, and writes no file', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--budget',
+          '10',
+          '--out',
+        ]),
+        64,
+      );
+      expect(run.err.toString(), 'give --out or --budget, not both\n');
+      expect(
+        Directory('${project.path}/.specstone/bundles').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('f01/us05/fr07/e04, e14: a file of the same name is replaced whole; another name stays', () async {
+      final project = await writeReadProject();
+      final file = bundleFile(project, storyFile)
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('old bundle\n');
+      final other = bundleFile(project, 'login.query.txt')
+        ..writeAsStringSync('kept\n');
+      await saved(project, [story, '--for', 'implement', '--out']);
+      expect(
+        file.readAsStringSync(),
+        await printed(project, [story, '--for', 'implement']),
+      );
+      expect(other.readAsStringSync(), 'kept\n');
+    });
+
+    test('f01/us05/s24, f01/us05/fr07/e08: an --out path inside the docs root is output_not_writable, exit 73, before anything is written', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'docs/prds/bundle.txt',
+        ]),
+        73,
+      );
+      expect(
+        run.err.toString(),
+        endsWith('the output path is inside the docs root\n'),
+      );
+      expect(run.out.toString(), isEmpty);
+      expect(
+        File('${project.path}/docs/prds/bundle.txt').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('f01/us05/fr07/e08: an --out path through a link into the docs root is refused too', () async {
+      final project = await writeReadProject();
+      Link('${project.path}/notes').createSync('${project.path}/docs/prds');
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'notes/bundle.txt',
+        ]),
+        73,
+      );
+      expect(
+        run.err.toString(),
+        endsWith('the output path is inside the docs root\n'),
+      );
+      expect(
+        File('${project.path}/docs/prds/bundle.txt').existsSync(),
+        isFalse,
+      );
+    }, skip: linksUnavailable);
+
+    test('f01/us05/fr07/e09: an --out folder that cannot be made is output_not_writable, exit 73', () async {
+      final project = await writeReadProject(extra: {'blocker': 'a file\n'});
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'blocker/bundle.txt',
+        ]),
+        73,
+      );
+      expect(run.err.toString(), endsWith('the output path is not writable\n'));
+      expect(File('${project.path}/blocker').readAsStringSync(), 'a file\n');
+    });
+
+    test('f01/us05/fr07/e09: an --out folder that refuses the write keeps the file there whole', () async {
+      final project = await writeReadProject(
+        extra: {'locked/bundle.txt': 'old\n'},
+      );
+      final locked = Directory('${project.path}/locked');
+      await Process.run('chmod', ['555', locked.path]);
+      addTearDown(() => Process.run('chmod', ['755', locked.path]));
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'locked/bundle.txt',
+        ]),
+        73,
+      );
+      expect(File('${locked.path}/bundle.txt').readAsStringSync(), 'old\n');
+    }, skip: readOnlySkipReason());
+
+    test('f01/us05/fr07/e11: --out with --code names the file code-<path>; --for query writes the query bundle', () async {
+      final project = await writeReadProject(extra: {'app/lib/main.dart': ''});
+      for (final mode in ['implement', 'query']) {
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            '--code',
+            'app/lib/main.dart',
+            '--for',
+            mode,
+            '--out',
+          ]),
+          0,
+        );
+        final plain = readRunner(project);
+        await plain.runner.run([
+          'context',
+          '--code',
+          'app/lib/main.dart',
+          '--for',
+          mode,
+        ]);
+        expect(
+          bundleFile(
+            project,
+            'code-app-lib-main.dart.$mode.txt',
+          ).readAsStringSync(),
+          plain.out.toString(),
+        );
+      }
+    });
+
+    test('f01/us05/fr07/e11: a --code path names one file from the root and from a subfolder', () async {
+      final project = await writeReadProject(
+        extra: {'app/lib/src/login/form.dart': ''},
+      );
+      final bundles = Directory('${project.path}/.specstone/bundles');
+      for (final (folder, code) in [
+        ('', 'app/lib/src/login/form.dart'),
+        ('/app', 'lib/src/login/form.dart'),
+        ('/app/lib/src/login', './form.dart'),
+      ]) {
+        await saved(Directory('${project.path}$folder'), [
+          '--code',
+          code,
+          '--for',
+          'implement',
+          '--out',
+        ]);
+      }
+      expect(
+        [for (final file in bundles.listSync()) file.uri.pathSegments.last],
+        ['code-app-lib-src-login-form.dart.implement.txt'],
+      );
+    });
+
+    test('f01/us05/fr07/e09: a named --out path under the project .git is output_not_writable, exit 73', () async {
+      final project = await writeReadProject(
+        extra: {'.git/config': '[core]\n'},
+      );
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          '.git/bundle.txt',
+        ]),
+        73,
+      );
+      expect(run.err.toString(), contains('it lies under .git'));
+      expect(File('${project.path}/.git/bundle.txt').existsSync(), isFalse);
+    });
+
+    test('f01/us05/fr07/e13: --for design --summary --no-project names <target>.design-summary-no-project.txt', () async {
+      final project = await writeReadProject();
+      await saved(project, [
+        'login',
+        '--for',
+        'design',
+        '--summary',
+        '--no-project',
+        '--out',
+      ]);
+      expect(
+        bundleFile(project, 'login.design-summary-no-project.txt').existsSync(),
+        isTrue,
+      );
+    });
+
+    test('f01/us05/fr07/e15: a relative --out from a subfolder is read from it and printed canonical and absolute', () async {
+      final project = await writeReadProject(extra: {'app/.keep': ''});
+      final nested = Directory('${project.path}/app');
+      final text = await saved(nested, [
+        story,
+        '--for',
+        'implement',
+        '--out',
+        '../out/b.txt',
+      ]);
+      final file = File('${project.path}/out/b.txt');
+      expect(file.existsSync(), isTrue);
+      expect(
+        header.firstMatch(text.split('\n').first)!.group(4),
+        file.resolveSymbolicLinksSync(),
+      );
+      final json = jsonDecode(
+        await saved(nested, [
+          story,
+          '--for',
+          'implement',
+          '--out=../out/b.txt',
+          '--json',
+        ]),
+      ) as Map;
+      expect(json['out'], file.resolveSymbolicLinksSync());
+    });
+
+    test('f01/us05/fr07: an --out path through a linked folder prints the canonical path of the written file', () async {
+      final project = await writeReadProject();
+      final outside = await writeTree({'.keep': ''});
+      Link('${project.path}/linked').createSync(outside.path);
+      final text = await saved(project, [
+        story,
+        '--for',
+        'implement',
+        '--out',
+        'linked/b.txt',
+      ]);
+      final file = File('${outside.path}/b.txt');
+      expect(file.existsSync(), isTrue);
+      final shown = header.firstMatch(text.split('\n').first)!.group(4)!;
+      expect(shown, file.resolveSymbolicLinksSync());
+      expect(shown, isNot(contains('linked')));
+    }, skip: linksUnavailable);
+  });
+
+  group(
+    'f01/us05/s5, f01/us05/fr03: the over-budget next step names --out',
+    () {
+      test('without --summary', () async {
+        final project = await writeReadProject();
+        final text = readRunner(project);
+        final args = [
+          'context',
+          'login/email_login',
+          '--for',
+          'implement',
+          '--budget',
+          '1',
+        ];
+        expect(await text.runner.run(args), 1);
+        expect(
+          text.out.toString(),
+          endsWith(
+            'Next step: narrow the target, or run it again with --out and no --budget.\n',
+          ),
+        );
+        final json = readRunner(project);
+        expect(await json.runner.run([...args, '--json']), 1);
+        expect(
+          (jsonDecode(json.out.toString()) as Map)['next'],
+          'narrow the target, or run it again with --out and no --budget',
+        );
+      });
+      test('e09: with --summary the next step keeps --summary', () async {
+        final project = await writeReadProject();
+        final text = readRunner(project);
+        final args = [
+          'context',
+          'login',
+          '--for',
+          'design',
+          '--summary',
+          '--budget',
+          '1',
+        ];
+        expect(await text.runner.run(args), 1);
+        expect(
+          text.out.toString(),
+          endsWith(
+            'Next step: narrow the target, or run it again with --summary --out and no --budget.\n',
+          ),
+        );
+        final json = readRunner(project);
+        expect(await json.runner.run([...args, '--json']), 1);
+        expect(
+          (jsonDecode(json.out.toString()) as Map)['next'],
+          'narrow the target, or run it again with --summary --out and no --budget',
+        );
+      });
+    },
+  );
 }

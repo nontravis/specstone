@@ -53,7 +53,8 @@ With the `Agent` tool, dispatch one `specstone:plan-engineer` with these inputs,
 - `targets:` the target names, or the approved drafts list whole;
 - `code target:` the Owner's answer; leave the line out when none was asked;
 - `design document:` its path, when a brainstorm passed one;
-- `report:` a file `mktemp` makes outside the repository.
+- `report:` `<folder>/reports/plan-engineer.plan.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints, run
+  once after step 2, `XXXXXX` six `a-z0-9` characters, picked again while that file exists; each round reuses it.
 
 Work no step of the plan yourself. Without the tool, or when the dispatch fails, read
 `${CLAUDE_PLUGIN_ROOT}/agents/plan-engineer.md` and follow it yourself under the same inputs, writing its one plan
@@ -90,4 +91,5 @@ any file of this plugin holds.
 - **The Owner picks one:** load it with `Skill` and hand it the plan's path.
 - **None qualifies, or the Owner picks none:** say the plan is ready to run, and name its path.
 
-Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names.
+Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names, by
+its read line, `specstone context <target> --for implement --out`, per `specstone:read-sdd`.

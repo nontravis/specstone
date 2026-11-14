@@ -19,18 +19,18 @@ type's writing guide says it needs; a gap goes to the Owner.
 
 ## Take in the source
 
-1. **The gate.** Make `specstone context project --for design` your first CLI call, with no `--budget`, with or
-   without the `Agent` tool: a call over its budget prints no doc path to judge the source by. Read no source and
+1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`, with
+   or without the `Agent` tool: a call over its budget prints no doc path to judge the source by. Read no source and
    open no link or issue before it. Its exits are the skill's step 1's; on 78 the source stays unread.
-2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the gate's bundle headers
-   print, right under the docs folder) is no source. Read none of it with any tool; make item 4's call with its path
-   as the target and no `--summary`. Its exit decides:
+2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the `==> ` headers of the
+   gate's saved bundle hold, right under the docs folder) is no source. Read none of it with any tool; make item 4's
+   call with its path as the target and no `--summary`. Its exit decides:
    - **64, `untyped_target`:** tell the Owner in one line it is the project's own old doc, and name
      `specstone:bootstrap-prd` or `specstone:bootstrap-spec`, which merge it into typed docs. Run no other command on
      its path; the brief never names it.
-   - **0, or 1 over its budget:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's
-     name, which the bundle prints, as the brief's `context` target: no source, no copy, no Source map. That call was
-     your narrow call: read its exit by item 4's `0` and `1`, and run no further `context` call.
+   - **0:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's name, which the bundle
+     prints, as the brief's `context` target: no source, no copy, no Source map. That call was your narrow call: read
+     its exit by item 4's `0`, and run no further `context` call.
    - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
 3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
    conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
@@ -41,21 +41,19 @@ type's writing guide says it needs; a gap goes to the Owner.
    `--no-project` leaves out the project's docs, which the gate's bundle already holds:
 
    ```
-   specstone context <target> --for design --no-project --budget 20000
+   specstone context <target> --for design --no-project --out
    ```
 
-   - **0:** both bundles are the grounding.
-   - **1:** over budget: hand `specstone:sdd-reader` the target IDs, as step 1 says; the grounding is the gate's
-     bundle plus the whole sections it returns.
+   - **0:** both saved bundles are the grounding, whatever their size: read them per `specstone:read-sdd`, searching
+     them before any `get`.
    - **Any other exit:** report the CLI's error and stop.
-
-   Without the `Agent` tool, pass no `--budget` and take both whole bundles.
 5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
    question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's
    unit; invent nothing.
 6. **The copy and the brief.** Write both after every `context` call. For a link, an issue, or the conversation,
-   write its text, or the conversation's source items, word for word to a `mktemp` file outside the repository; the
-   copy is no source. Add two lines to the brief:
+   write its text, or the conversation's source items, word for word to
+   `<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints, named as
+   the skill's step 3 names the brief; the copy is no source. Add two lines to the brief:
    - **Source:** the file's path, the link, or "the current conversation" and its date; never the copy's path.
    - **Re-read:** the source itself for a file path, else the copy.
 

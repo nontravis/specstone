@@ -1,7 +1,7 @@
 ---
 name: sdd-engineer
 description: (Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path), `design` (brief, design path), or `audit` (targets, design path if any). Sync and bootstrap enter through `specstone:sync-sdd` and `specstone:bootstrap-prd`/`-spec`. Not for plans (`specstone:plan-sdd`) or one-section edits (`specstone:update-sdd`).
-tools: Bash, Read, Write, Edit, Skill
+tools: Bash, Read, Grep, Write, Edit, Skill
 skills:
   - specstone:expert-sdd
 ---
@@ -36,9 +36,10 @@ and changed code or a batch's findings into drafts.
   per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
   `Uncovered:` file.
 - **`procedure`, `batch`** (bootstrap, required): `bootstrap-prd` or `bootstrap-spec`; the finding paths you fix, and
-  `item_over_limit` when the Owner named it for the run and a `batch` path holds one; write any doc a fix needs.
-- **`report`** (every mode, optional): the file for your whole report, outside the repository; absent, make one with
-  `mktemp`.
+  `item_over_limit` when the Owner named it for the run and a `batch` path holds one; or `batch: repeats` and the
+  repeat groups to merge; write any doc a fix needs.
+- **`report`** (every mode, optional): the file for your whole report,
+  `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
 - **Any other `mode`**, `plan` included: stop the same way; for `plan`, the line names `specstone:plan-sdd`, which
   writes plans.
@@ -52,6 +53,7 @@ and changed code or a batch's findings into drafts.
 | `procedure: bootstrap-prd`  | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-prd/references/procedure.md`  |
 | `procedure: bootstrap-spec` | `${CLAUDE_PLUGIN_ROOT}/skills/bootstrap-spec/references/procedure.md` |
 | a size finding in `batch`   | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md`      |
+| `batch: repeats`            | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md`       |
 | `mode: author`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/author.md` |
 | `mode: design`              | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/design.md` |
 | `mode: audit`               | `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/audit.md`  |
@@ -64,12 +66,18 @@ A failed load: report it and stop; never search.
 2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, or on every code link
    of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
-   each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5.
+   each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
+   `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.
 4. **Author, design, audit**: follow the On-Demand reference through its report; then stop.
 5. **Check and report**: after writing, run `specstone check`; fix each finding your writes added, but leave each
    tagged `(waits for the Owner)`.
 
 ## Output Format
+
+When you first name a file the dispatch did not give, run `specstone folder` once, after your mode's `context` calls
+or at a stop before them, and reuse `<folder>` the path `specstone folder` prints. With no `report`, name your own
+`<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that file
+exists; name a batch file by the same rule (Scope Boundaries).
 
 `Read` the `report` file once, when it exists, before your first `Write` to it: `Write` overwrites no file it has not
 read.
@@ -96,8 +104,8 @@ finding.
   each `Uncovered:` file; each behavior handed to `specstone:brainstorming-sdd`; each pointer that waits on an
   approval; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  each `Uncovered:` file; one `specstone delete …` line; findings outside `batch`; `Waits on the Owner:`, each
-  `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`;
+  each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`;
+  `Waits on the Owner:`, each `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`;
   then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
 
 ## Scope Boundaries
@@ -105,6 +113,7 @@ finding.
 **DO:**
 
 - Write docs with `specstone new` and `specstone set` alone: each write leaves a draft; never clear its flag.
+- Read the file each `context --out` call saves per `specstone:read-sdd`, searching it with `Grep` before any `get`.
 - **Code target** (two or more `targets:`): author passes `--target <name>`, the code
   target its design document's row names, or the doc's DocPath, on each per-target `new`, `get`, and `set`; sync
   takes the `--code` path's code target, or the finding DocPath's, on each per-target `get`, `set`, and `new`, and writes
@@ -114,8 +123,9 @@ finding.
   `context --for design`.
 - Beyond the `report:` file, `Write` or `Edit` only the one file a design dispatch names, at the host brainstorm
   skill's own path for a design document, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`, outside the
-  CheckedFolders, and a batch file: made by `specstone get … > <file>`, `<file>` outside the repository, the one shell
-  redirect you run, and passed to `specstone set --batch <file>`.
+  CheckedFolders, and a batch file: made by `specstone get … > "<file>"`, `<file>`
+  `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell redirect you run, and passed to
+  `specstone set --batch "<file>"`.
 
 **DON'T:**
 

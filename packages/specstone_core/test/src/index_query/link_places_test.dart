@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show parseMarkdownTree;
+    show maxMarkdownDepth, parseMarkdownTree;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
@@ -107,6 +107,23 @@ void main() {
           's.md': DestinationKind.definition,
         },
       );
+    });
+
+    List<String?> shownOf(String body) => [
+      for (final source in linkScanOf(body, firstLine: 1).sources) source.shown,
+    ];
+
+    test('LP2: a blockquote nested past maxMarkdownDepth reads as no inline '
+        'text, and the links outside it still scan', () {
+      final body = '[a](a.md)\n\n${'> ' * 2000}[c](c.md)\n';
+
+      expect(shownOf(body), ['a.md']);
+    });
+
+    test('LP2: a blockquote nested maxMarkdownDepth deep still scans', () {
+      final body = '${'> ' * maxMarkdownDepth}[c](c.md)\n';
+
+      expect(shownOf(body), ['c.md']);
     });
   });
 

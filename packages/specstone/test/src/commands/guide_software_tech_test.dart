@@ -17,6 +17,12 @@ const _twentyIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
     'fr\ngnfr\nimplementation\nintegration\njourney\nnf\npersona\nproject\n'
     'reference\ntech_stack\ntopic\nuser_story\n';
+const _citeRule =
+    'Cite a rule another doc owns by a link to the item that holds it, '
+    'never restate it.';
+const _domainCitesArchitecture =
+    'A DOMAIN cites its own ARCHITECTURE by a section link, such as '
+    '`[architecture:rendering](ARCHITECTURE.md#components)`.';
 const _softwareTechIds = <String>[
   'api',
   'architecture',
@@ -585,6 +591,29 @@ void main() {
         ),
       );
       expect(out.toString(), isEmpty);
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides E16: every software-tech guide says to '
+        'cite a rule another doc owns by a link to its item, never restate '
+        'it', () async {
+      final runner = await runnerFor(_bothPacks);
+      for (final id in _softwareTechIds) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains(_citeRule), reason: id);
+      }
+    });
+
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'write_spec_writing_guides E13: the domain and architecture guides '
+        'say a DOMAIN cites its own ARCHITECTURE by a section link', () async {
+      final runner = await runnerFor(_bothPacks);
+      for (final id in ['domain', 'architecture']) {
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        expect(out.toString(), contains(_domainCitesArchitecture), reason: id);
+      }
     });
 
     test('with only prd-core and --json the refusal is '

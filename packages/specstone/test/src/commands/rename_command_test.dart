@@ -160,6 +160,42 @@ void main() {
     expect(text, contains('draft: true\n'));
   });
 
+  test('f02/us06/fr02/e14: rename sets each link text equal to the old Name '
+      'to the new Name and keeps every other link text', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/notes/links.md':
+            '# Links\n\n'
+            '[user_story:login/reset_password](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n'
+            '[login/reset_password](../prds/features/f01_login/us03_reset_password/USER_STORY.md)\n'
+            '[the reset rules](../prds/features/f01_login/us03_reset_password/USER_STORY.md)\n'
+            '[INV-6](../prds/features/f01_login/us03_reset_password/USER_STORY.md#use-case)\n'
+            '[login/reset_password](https://example.com/x)\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      await runner.run([
+        'rename',
+        'user_story:login/reset_password',
+        '--to',
+        'recover_account',
+      ]),
+      0,
+    );
+    const folder = '../prds/features/f01_login/us03_recover_account';
+    expect(
+      readDoc(root, 'notes/links.md'),
+      '# Links\n\n'
+      '[user_story:login/recover_account]($folder/USER_STORY.md#use-case)\n'
+      '[login/recover_account]($folder/USER_STORY.md)\n'
+      '[the reset rules]($folder/USER_STORY.md)\n'
+      '[INV-6]($folder/USER_STORY.md#use-case)\n'
+      '[login/reset_password](https://example.com/x)\n',
+    );
+    expect(out.toString(), contains('rewrote notes/links.md\n'));
+  });
+
   test(
     'E15: rename rewrites an fr traced_from entry and confirmed label',
     () async {

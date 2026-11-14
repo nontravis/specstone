@@ -24,7 +24,13 @@ const damagedIndexWarning =
     'the index was damaged and was rebuilt from the markdown files';
 
 /// The lines of `.specstone/.gitignore`, one per ignored path.
-const specstoneGitignoreLines = ['index.sqlite*', 'build/', 'trash/'];
+const specstoneGitignoreLines = [
+  'index.sqlite*',
+  'build/',
+  'trash/',
+  'bundles/',
+  'reports/',
+];
 
 /// The message of the fault raised when another call holds the index.
 const indexBusyMessage =
@@ -44,10 +50,13 @@ const _notWritableMessage =
 /// `target_names`: an index of layout 13 holds neither, so it is rebuilt
 /// instead of read as one with none. Layout 15 counts the doc's non-blank body
 /// lines and a section's non-blank lines, so an index of layout 14, whose
-/// counts cover blank lines and frontmatter, is rebuilt. Layout 16 hashes a
-/// record's statuses by the project's statuses rule, so an index of layout
-/// 15, whose approval hashes always count them, is rebuilt.
-const _layoutVersion = 16;
+/// counts cover blank lines and frontmatter, is rebuilt. Two builds took
+/// layouts 16 and 17 apart: one hashes a record's statuses by the project's
+/// statuses rule; the other stores the cite candidates, link texts with each
+/// destination as written, and heading levels and lines in the line facts and
+/// the `item_words` table. Layout 18 holds both, so an index of any earlier
+/// layout, which lacks one or the other, is rebuilt.
+const indexLayoutVersion = 18;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -100,6 +109,14 @@ CREATE TABLE links (
   target TEXT NOT NULL,
   PRIMARY KEY (source, position)
 );
+CREATE TABLE item_words (
+  doc_path TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  line INTEGER NOT NULL,
+  item_id TEXT,
+  words TEXT NOT NULL,
+  PRIMARY KEY (doc_path, position)
+);
 CREATE VIRTUAL TABLE doc_search USING fts5(
   text, path UNINDEXED, section_key UNINDEXED, tokenize = 'trigram'
 );
@@ -109,7 +126,14 @@ CREATE VIRTUAL TABLE doc_search USING fts5(
 /// plus a counter below this limit.
 const int _searchRowsPerDoc = 1 << 32;
 
-const _tables = ['meta', 'docs', 'sections', 'links', 'doc_search'];
+const _tables = [
+  'meta',
+  'docs',
+  'sections',
+  'links',
+  'item_words',
+  'doc_search',
+];
 
 /// The stat values of a file that stand in for its content between refreshes.
 ///
@@ -188,7 +212,7 @@ final class SearchRow {
 
 /// The per-checkout SQLite index under `.specstone/`.
 final class IndexStore {
-  new _(this._db, this.warnings);
+  new _(this._db, this._specstoneFolder, this.warnings);
 
   /// Opens the index of [projectRoot], creating it when none exists.
   ///
@@ -238,7 +262,11 @@ final class IndexStore {
     try {
       if (!discard) {
         try {
-          return IndexStore._(_connect(file, busyTimeout), warnings);
+          return IndexStore._(
+            _connect(file, busyTimeout),
+            file.parent,
+            warnings,
+          );
         } on _NotAnIndex {
           // Falls through to the rebuild below.
         } on SqliteException catch (e) {
@@ -247,7 +275,7 @@ final class IndexStore {
       }
       _deleteFiles(file);
       warnings.add(damagedIndexWarning);
-      return IndexStore._(_connect(file, busyTimeout), warnings);
+      return IndexStore._(_connect(file, busyTimeout), file.parent, warnings);
     } on SqliteException catch (e) {
       throw _faultOf(e) ?? e;
     } on FileSystemException {
@@ -256,6 +284,8 @@ final class IndexStore {
   }
 
   final Database _db;
+
+  final Directory _specstoneFolder;
 
   /// What went wrong while opening, one sentence each.
   final List<String> warnings;
@@ -285,7 +315,7 @@ final class IndexStore {
     final row = _db.select('SELECT * FROM meta').firstOrNull;
     if (row == null) return null;
     final hasTargetNames = row.keys.any((k) => k == 'target_names');
-    if (!hasTargetNames || _layoutVersion != row['layout']) return null;
+    if (!hasTargetNames || indexLayoutVersion != row['layout']) return null;
     if (row['target_names'] case final String text) {
       final names = _namesOf(text);
       if (names == null) return null;
@@ -384,9 +414,17 @@ final class IndexStore {
     }
   }
 
-  /// Drops every table, recreates them empty in this layout, and stores
-  /// [stamp].
+  /// Checks the `.gitignore` lines, drops every table, recreates them empty in
+  /// this layout, and stores [stamp].
+  ///
+  /// Throws [IndexFault] when `.specstone/.gitignore` cannot be written; no
+  /// table is touched then.
   void reset(IndexStamp stamp) {
+    try {
+      ensureSpecstoneGitignore(_specstoneFolder);
+    } on FileSystemException {
+      throw IndexFault(IndexFaultCode.indexNotWritable, _notWritableMessage);
+    }
     for (final table in _tables) {
       _db.execute('DROP TABLE IF EXISTS $table');
     }
@@ -399,7 +437,7 @@ final class IndexStore {
           stamp.binaryVersion,
           stamp.docTypes,
           jsonEncode(stamp.targetNames),
-          _layoutVersion,
+          indexLayoutVersion,
         ],
       );
   }
@@ -478,6 +516,13 @@ final class IndexStore {
         [doc.docPath, position, target],
       );
     }
+    for (final (position, item) in content.itemWords.indexed) {
+      _db.execute(
+        'INSERT INTO item_words (doc_path, position, line, item_id, words) '
+        'VALUES (?, ?, ?, ?, ?)',
+        [doc.docPath, position, item.line, item.itemId, item.words.join(' ')],
+      );
+    }
   }
 
   /// Removes every row of the doc at [docPath]; an unknown path is a no-op.
@@ -492,7 +537,8 @@ final class IndexStore {
       ])
       ..execute('DELETE FROM docs WHERE doc_path = ?', [docPath])
       ..execute('DELETE FROM sections WHERE doc_path = ?', [docPath])
-      ..execute('DELETE FROM links WHERE source = ?', [docPath]);
+      ..execute('DELETE FROM links WHERE source = ?', [docPath])
+      ..execute('DELETE FROM item_words WHERE doc_path = ?', [docPath]);
   }
 
   /// Stores the parent of each doc and the order of the docs.
@@ -637,6 +683,24 @@ final class IndexStore {
       (source: row['source'] as String, target: row['target'] as String),
   ];
 
+  /// Returns the normalized words of every item of a rule-bearing section,
+  /// by docPath and then item order.
+  ///
+  /// Only `check --repeats` reads them, so no other read decodes them.
+  Iterable<({String docPath, int line, String? itemId, List<String> words})>
+  ruleItemWords() => [
+    for (final row in _db.select(
+      'SELECT doc_path, line, item_id, words FROM item_words '
+      'ORDER BY doc_path, position',
+    ))
+      (
+        docPath: row['doc_path'] as String,
+        line: row['line'] as int,
+        itemId: row['item_id'] as String?,
+        words: (row['words'] as String).split(' '),
+      ),
+  ];
+
   /// Closes the prepared statements, then the connection.
   ///
   /// An open statement keeps the file open past `Database.close`, so a
@@ -759,8 +823,8 @@ IndexFault? _faultOf(SqliteException e) => switch (e.resultCode) {
   _ => null,
 };
 
-/// Adds each missing line of `index.sqlite*`, `build/`, and `trash/` to
-/// `.gitignore` in [specstoneFolder].
+/// Appends each missing line of [specstoneGitignoreLines] to `.gitignore` in
+/// [specstoneFolder], keeping every line it holds in place.
 ///
 /// Throws [FileSystemException] when a line is missing and the file is
 /// read-only: a rename would replace it whatever its mode, and `RenderFault`

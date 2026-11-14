@@ -79,15 +79,22 @@ typedef WrittenPath = ({int line, String written, IndexedDoc named});
 /// one read per index, since an index is one read snapshot.
 final _namesakesOf = Expando<Map<String, Map<String, List<String>>>>();
 
-Map<String, Map<String, List<String>>> _namesakesIn(DocIndex index) =>
-    _namesakesOf[index] ??= _readNamesakes(index);
+/// Returns [namesakesByFileName] of [index]'s docs, read once per index.
+Map<String, Map<String, List<String>>> namesakesIn(DocIndex index) =>
+    _namesakesOf[index] ??= namesakesByFileName([
+      for (final doc in index.docs) doc.docPath,
+    ]);
 
-Map<String, Map<String, List<String>>> _readNamesakes(DocIndex index) {
+/// Returns [docPaths] by file name, each DocPath with its segments, the
+/// namesakes [docNamedBy] picks from.
+Map<String, Map<String, List<String>>> namesakesByFileName(
+  Iterable<String> docPaths,
+) {
   final byFileName = <String, Map<String, List<String>>>{};
-  for (final doc in index.docs) {
-    final segments = _segmentsOf(doc.docPath);
+  for (final docPath in docPaths) {
+    final segments = _segmentsOf(docPath);
     if (segments.isEmpty) continue;
-    (byFileName[segments.last] ??= {})[doc.docPath] = segments;
+    (byFileName[segments.last] ??= {})[docPath] = segments;
   }
   return byFileName;
 }
@@ -101,7 +108,7 @@ Map<String, Map<String, List<String>>> _readNamesakes(DocIndex index) {
 List<WrittenPath> pathsWrittenIn(DocIndex index, IndexedDoc doc) {
   final content = index.contentOf(doc);
   final lines = lfLinesOf(_withoutDestinations(toLf(content.text)));
-  final namesakes = _namesakesIn(index);
+  final namesakes = namesakesIn(index);
   final linked = {
     for (final link in content.lineFacts.links) (link.line, link.target),
   };
@@ -140,7 +147,7 @@ Iterable<({String written, IndexedDoc named})> _pathsOnLine(
     final fileName = written.substring(written.lastIndexOf('/') + 1);
     final candidates = namesakes[fileName];
     if (candidates == null) continue;
-    final docPath = _docNamedBy(written, from.docPath, candidates);
+    final docPath = docNamedBy(written, from.docPath, candidates);
     if (index.at(docPath ?? '') case final named?) {
       yield (written: written, named: named);
     }
@@ -241,7 +248,7 @@ bool _names(
       start--;
     }
     final written = line.substring(start, end);
-    if (_docNamedBy(written, from, namesakes) == target) return true;
+    if (docNamedBy(written, from, namesakes) == target) return true;
   }
   return false;
 }
@@ -252,7 +259,7 @@ bool _names(
 /// The doc [written] reaches from [from], as a link would, wins; else the doc
 /// whose segments align with it deepest (see [_alignedLength]), and a tie at
 /// that depth names none.
-String? _docNamedBy(
+String? docNamedBy(
   String written,
   String from,
   Map<String, List<String>> namesakes,

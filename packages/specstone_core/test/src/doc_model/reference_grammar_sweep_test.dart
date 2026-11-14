@@ -470,6 +470,9 @@ final _rules = <_Rule>[
       _lib('index_query/item_facts.dart'),
       // The one context accessor every check rule reads items by.
       _lib('consistency_check/check_context.dart'),
+      // Walks the item structure only, to span an item (RULE-46); an item's
+      // ID is read by item_facts' `itemKeyOfHead`, never here.
+      _lib('index_query/item_links.dart'),
     },
     allowed: [],
     appliesTo: _everySource,

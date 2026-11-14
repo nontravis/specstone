@@ -168,6 +168,22 @@ void main() {
     );
   });
 
+  test('NFR-P01, f01/us05/fr06/e09: specstone context --for design, with its '
+      'cited-by lines, answers within 500 ms in the fastest of five calls', () {
+    const call = ['context', 'feature_1/story_1', '--for', 'design'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 0, reason: '${first.stderr}');
+    expect(first.stdout.toString(), contains('  · cited by '));
+    expect(
+      bestOf(timingRuns, () => timed(call), label: 'design context calls'),
+      lessThanOrEqualTo(const Duration(milliseconds: 500)),
+    );
+  });
+
   test('NFR-P03, f04/us01/fr01/e01: a whole-project specstone check, with a '
       'current index, finishes within 2 s in the fastest of five calls', () {
     const call = ['check'];
@@ -219,6 +235,23 @@ void main() {
         () => timed(call, exitCodes: {0, 1}),
         label: 'check calls',
       ),
+      lessThanOrEqualTo(const Duration(seconds: 2)),
+    );
+  });
+
+  test('NFR-P03, f04/us05/fr01/e12: a whole-project specstone check --repeats, '
+      'with a current index, finishes within 2 s in the fastest of five '
+      'calls', () {
+    const call = ['check', '--repeats'];
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 0, reason: '${first.stderr}');
+    expect(first.stdout.toString(), matches(RegExp(r'\d+ repeat groups?\n$')));
+    expect(
+      bestOf(timingRuns, () => timed(call), label: 'check --repeats calls'),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });

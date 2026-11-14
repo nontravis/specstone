@@ -73,6 +73,20 @@ void main() {
       expect(out.toString(), contains('upgrade'));
     });
 
+    test("f01/us08/fr01/e11: --help lists folder as `Print the project's "
+        '.specstone folder.`', () async {
+      expect(await runner.run(['--help']), 0);
+      expect(
+        out.toString(),
+        matches(
+          RegExp(
+            r"^\s+folder\s+Print the project's \.specstone folder\.$",
+            multiLine: true,
+          ),
+        ),
+      );
+    });
+
     test('mcp --help prints the mcp usage to out and exits 0', () async {
       expect(await runner.run(['mcp', '--help']), 0);
       expect(

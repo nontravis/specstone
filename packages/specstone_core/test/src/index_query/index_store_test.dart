@@ -7,20 +7,20 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/refresh.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
-
-/// The layout the current build writes; a test that rebuilds the meta row by
-/// hand uses it, so a layout bump moves with the code.
-const _layoutVersionForTest = 16;
 
 void main() {
   Future<Directory> root() => writeTree({'.specstone/config.yaml': ''});
@@ -38,7 +38,7 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
       expect(file(r, '.specstone/index.sqlite').existsSync(), isTrue);
     });
@@ -52,7 +52,7 @@ void main() {
         ]);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\ntrash/\n',
+          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         );
       }
     });
@@ -99,13 +99,14 @@ void main() {
       IndexStore.open(r).close();
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\n',
+        '*.tmp\nindex.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
     });
     test(
-      'f01/us01/fr04/e05: a file holding all three lines is left untouched',
+      'f01/us01/fr04/e05: a file holding all five lines is left untouched',
       () async {
-        const text = 'build/\n# mine\ntrash/\nindex.sqlite*\n';
+        const text =
+            'reports/\nbuild/\n# mine\ntrash/\nbundles/\nindex.sqlite*\n';
         final r = await writeTree({
           '.specstone/config.yaml': '',
           '.specstone/.gitignore': text,
@@ -114,7 +115,7 @@ void main() {
         expect(file(r, '.specstone/.gitignore').readAsStringSync(), text);
       },
     );
-    test('f01/us01/fr04/e05, f02/us04/fr03/e06: a file holding the two F-01 lines gains trash/ at its end', () async {
+    test('f01/us01/fr04/e05, f02/us04/fr03/e06: a file holding the two F-01 lines gains trash/, bundles/, and reports/ at its end', () async {
       final r = await writeTree({
         '.specstone/config.yaml': '',
         '.specstone/.gitignore': 'index.sqlite*\nbuild/\n',
@@ -122,9 +123,102 @@ void main() {
       ensureSpecstoneGitignore(Directory('${r.path}/.specstone'));
       expect(
         file(r, '.specstone/.gitignore').readAsStringSync(),
-        'index.sqlite*\nbuild/\ntrash/\n',
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
       );
     });
+    for (final (tag, staleMeta) in [
+      (
+        'f01/us01/fr04/e13, s03/inv22: a layout-version rebuild',
+        'layout = ${indexLayoutVersion - 1}',
+      ),
+      (
+        'f01/us01/fr04/e13, f01/us01/s14: a binary-version rebuild',
+        "binary_version = 'older'",
+      ),
+    ]) {
+      test(
+        '$tag appends bundles/ and reports/ and keeps the Owner lines in their order',
+        () async {
+          const older = 'trash/\n# mine\n*.tmp\nindex.sqlite*\nbuild/\n';
+          final project = await writeLoginProject();
+          final docs = DocsProject.open(
+            templates: TemplateResolver(),
+            workingDirectory: project,
+            homeDirectory: null,
+          );
+          final first = IndexStore.open(docs.projectRoot);
+          expect(refreshIndex(first, docs).fullBuild, isTrue);
+          first.close();
+          final raw = sqlite3.open('${project.path}/$indexFilePath')
+            ..execute('UPDATE meta SET $staleMeta');
+          expect(raw.updatedRows, 1);
+          raw.close();
+          file(project, '.specstone/.gitignore').writeAsStringSync(older);
+
+          final store = IndexStore.open(docs.projectRoot);
+          addTearDown(store.close);
+          final result = refreshIndex(store, docs);
+
+          expect(result.fullBuild, isTrue);
+          expect(
+            file(project, '.specstone/.gitignore').readAsStringSync(),
+            '${older}bundles/\nreports/\n',
+          );
+        },
+      );
+    }
+    test('f01/us01/fr04/e13, s03/inv22: a rebuild for a changed stamp checks the five lines', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      file(r, '.specstone/.gitignore').writeAsStringSync('index.sqlite*\n');
+      store.write(
+        () => store.reset(
+          const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+        ),
+      );
+      expect(
+        file(r, '.specstone/.gitignore').readAsStringSync(),
+        'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+      );
+    });
+    test(
+      'f01/us01/fr04/e06, f01/us01/fr04/e13, s03/inv23: a read-only .specstone/.gitignore at a full rebuild is index_not_writable, exit 73, and leaves the index and the file as they were',
+      skip: unreadablePathSkipReason(),
+      () async {
+        final r = await writeTree({
+          '.specstone/config.yaml': '',
+          '.specstone/.gitignore':
+              'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
+        });
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        store.write(
+          () => store.reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'old'),
+          ),
+        );
+        final ignore = file(r, '.specstone/.gitignore')
+          ..writeAsStringSync('*.tmp\n');
+        Process.runSync('chmod', ['444', ignore.path]);
+        addTearDown(() => Process.runSync('chmod', ['644', ignore.path]));
+
+        expect(
+          () => store.write(
+            () => store.reset(
+              const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.indexNotWritable)
+                .having((f) => f.exitStatus, 'exit', 73),
+          ),
+        );
+        expect(ignore.readAsStringSync(), '*.tmp\n');
+        expect(store.readStamp()?.docTypes, 'old');
+      },
+    );
     test(
       'f01/us01/fr04/e06, s03/inv23: a read-only .specstone/ is index_not_writable, exit 73, and writes nothing',
       skip: unreadablePathSkipReason(),
@@ -200,7 +294,7 @@ void main() {
         expect(store.readStamp(), isNull);
         expect(
           file(r, '.specstone/.gitignore').readAsStringSync(),
-          'index.sqlite*\nbuild/\ntrash/\n',
+          'index.sqlite*\nbuild/\ntrash/\nbundles/\nreports/\n',
         );
       },
     );
@@ -378,7 +472,7 @@ void main() {
         ..execute('INSERT INTO meta VALUES (?, ?, ?)', [
           specstoneVersion,
           'x',
-          _layoutVersionForTest,
+          indexLayoutVersion,
         ]);
       expect(store.readStamp(), isNull);
     });
@@ -820,6 +914,240 @@ void main() {
         {for (final d in store.loadDocs()) d.docPath: d.target},
         {'specs/jaspr/f01_login/ARCHITECTURE.md': 'jaspr', 'README.md': null},
       );
+    });
+    test('domain:index_query INV-2: an index of layout 15 has no stamp, so '
+        'it is rebuilt', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      raw.execute('UPDATE meta SET layout = 15');
+      expect(store.readStamp(), isNull);
+    });
+  });
+
+  test('domain:index_query INV-2: an index of layout 16 has no stamp, so '
+      'it is rebuilt', () async {
+    final r = await root();
+    final store = IndexStore.open(r);
+    addTearDown(store.close);
+    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+    store.write(() => store.reset(stamp));
+    final raw = sqlite3.open(file(r, indexFilePath).path);
+    addTearDown(raw.close);
+    raw.execute('UPDATE meta SET layout = 16');
+    expect(store.readStamp(), isNull);
+  });
+
+  group('IndexStore rule item words', () {
+    const frPath =
+        'prds/features/f01_login/us01_email_login/'
+        'fr01_validate_credentials.md';
+    const frKey = 'docs/$frPath';
+    const fr =
+        '---\nverify_method: test\n---\n\n# Validate credentials\n\n'
+        '## Statement\n'
+        'The system shall **check** the [email](x.md) and the `password`.\n\n'
+        '## Edge cases\n'
+        '<!-- fill in later -->\n'
+        '1. E01 — A wrong password → refused.\n'
+        '2. Given a stray given line.\n'
+        '3. E03 — The context call: first,\n'
+        '   then second.\n'
+        '\n'
+        '| a | b |\n'
+        '|---|---|\n'
+        '| row cell text | b |\n'
+        '\n'
+        '```\n'
+        'fenced code words\n'
+        '```\n\n'
+        '## Rationale\n'
+        'Not a rule-bearing section.\n';
+
+    IndexStore refreshed(Directory project) {
+      final docs = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      final store = IndexStore.open(docs.projectRoot);
+      addTearDown(store.close);
+      refreshIndex(store, docs);
+      return store;
+    }
+
+    List<(int, String?, String)> wordsOf(IndexStore store, String docPath) => [
+      for (final item in store.ruleItemWords())
+        if (item.docPath == docPath)
+          (item.line, item.itemId, item.words.join(' ')),
+    ];
+
+    test(
+      'list_repeat_groups E01, E06: a refresh stores the normalized words '
+      'of the items of the rule-bearing sections, and none of a Given '
+      'line, a table row, fenced code, a comment, or another section',
+      () async {
+        final project = await writeLoginProject(extra: {frKey: fr});
+        final store = refreshed(project);
+
+        expect(wordsOf(store, frPath), [
+          (8, null, 'the system shall check the email and the password'),
+          (12, 'E01', 'a wrong password refused'),
+          (14, 'E03', 'the context call first then second'),
+        ]);
+      },
+    );
+
+    test('list_repeat_groups E01: items worded alike but written with another '
+        'ID, bold, link, or punctuation read the same words', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey: fr,
+          'docs/prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md':
+              '---\nverify_method: test\n---\n\n# Lock after failures\n\n'
+              '## Edge cases\n'
+              '1. **E05** — The [context](x.md) call: FIRST, then second\n',
+        },
+      );
+      final store = refreshed(project);
+
+      final other = wordsOf(
+        store,
+        'prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md',
+      );
+      expect(other.single.$3, 'the context call first then second');
+      expect(other.single.$2, 'E05');
+    });
+
+    test('list_repeat_groups E01: items that restate a rule while citing '
+        'INV-6 and INV-7 read the same words, every item ID dropped', () async {
+      const other =
+          'prds/features/f01_login/us01_email_login/'
+          'fr02_lock_after_failures.md';
+      String edge(String id) =>
+          '---\nverify_method: test\n---\n\n# X\n\n## Edge cases\n'
+          '1. E01 — The token check follows $id for every request of the '
+          'login flow.\n';
+      final project = await writeLoginProject(
+        extra: {frKey: edge('INV-6'), 'docs/$other': edge('INV-7')},
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath).single.$3, wordsOf(store, other).single.$3);
+      expect(
+        wordsOf(store, frPath).single.$3,
+        'the token check follows for every request of the login flow',
+      );
+    });
+
+    test('list_repeat_groups E06: only the comment is not read, whether it '
+        'spans lines or closes in the middle of a line', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Edge cases\n'
+              '1. E02 — foo <!-- note\n'
+              '   more --> bar\n'
+              '2. E03 — <!-- tip --> The system shall X\n'
+              '<!--\n'
+              '\n'
+              'a hidden rule\n'
+              '-->\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath), [
+        (8, 'E02', 'foo bar'),
+        (10, 'E03', 'the system shall x'),
+      ]);
+    });
+
+    test('list_repeat_groups E01: a link is read as its text as the link '
+        'scan reads it, a `]` in a code span of the text included', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+              'Press [the `]` key](x.md) and ![alt text](a.png) now.\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(
+        wordsOf(store, frPath).single.$3,
+        'press the key and alt text now',
+      );
+    });
+
+    test('list_repeat_groups E06: a <!-- in a code span opens no comment, so '
+        'the items after it keep their words', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Edge cases\n'
+              '1. E02 — Write `<!--` to open.\n'
+              '2. E03 — The next rule.\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath), [
+        (8, 'E02', 'write to open'),
+        (9, 'E03', 'the next rule'),
+      ]);
+    });
+
+    test('list_repeat_groups E01: a reference link reads as its text against '
+        'the definitions of its doc', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+              'See [the rule][r] and [again].\n\n## Rationale\n'
+              'N/A\n\n[r]: x.md\n[again]: y.md\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath).single.$3, 'see the rule and again');
+    });
+
+    test('list_repeat_groups E01: only a token of an item ID prefix of the '
+        'merged set is dropped, so UTF-8 and HTTP2 stay words', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+              'It follows INV-6 and S2 over UTF-8 with HTTP2.\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(
+        wordsOf(store, frPath).single.$3,
+        'it follows and over utf8 with http2',
+      );
+    });
+
+    test('domain:index_query INV-86: a doc stored again keeps only its new '
+        'words, and a deleted doc drops them all', () async {
+      final project = await writeLoginProject(extra: {frKey: fr});
+      expect(wordsOf(refreshed(project), frPath), hasLength(3));
+      File('${project.path}/$frKey').writeAsStringSync(
+        '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+        'Only this one remains.\n',
+      );
+
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath), [(8, null, 'only this one remains')]);
+      store.write(() => store.deleteDoc(frPath));
+      expect(wordsOf(store, frPath), isEmpty);
     });
   });
 }

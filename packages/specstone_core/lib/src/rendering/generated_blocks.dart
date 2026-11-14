@@ -51,13 +51,15 @@ final class GeneratedBlock {
   final String text;
 }
 
-/// A function that returns the generated blocks of [doc].
+/// A function that returns the generated blocks of [doc], the doc at
+/// [docPath].
 ///
 /// [R] is whatever the composition root hands every generator. When a
 /// generator returns several blocks of one kind for one place, only the first
 /// is written.
 typedef Generator<R> = List<GeneratedBlock> Function(
   Doc doc,
+  String docPath,
   MergedDocType docType,
   R resolver,
 );
@@ -137,16 +139,17 @@ OpenBlock? openBlockOf(Doc doc, Set<String> kinds) {
   return _scan(lines, kinds, bodyStart: 0).openBlock;
 }
 
-/// Runs the generators [docType] lists, in list order, and returns their
-/// blocks.
+/// Runs the generators [docType] lists on [doc], the doc at [docPath], in
+/// list order, and returns their blocks.
 List<GeneratedBlock> runGenerators<R>(
   Doc doc,
   MergedDocType docType,
   GeneratorRegistry<R> registry,
-  R resolver,
-) => [
+  R resolver, {
+  required String docPath,
+}) => [
   for (final kind in docType.listedGenerators)
-    ...?registry[kind]?.call(doc, docType, resolver),
+    ...?registry[kind]?.call(doc, docPath, docType, resolver),
 ];
 
 /// Writes [blocks] into [lfText].
@@ -163,7 +166,8 @@ BlockWrite writeGeneratedBlocks(
   List<GeneratedBlock> blocks,
 ) => _writeBlocks(lfText, Doc.parse(lfText), docType, blocks);
 
-/// Returns [lfText] with the blocks of [docType]'s listed generators written.
+/// Returns [lfText], the doc at [docPath], with the blocks of [docType]'s
+/// listed generators written.
 ///
 /// [lfText] comes back unchanged when [docType] lists no generator and when
 /// it holds an opening marker with no end marker.
@@ -171,11 +175,18 @@ String fillGeneratedBlocks<R>(
   String lfText,
   MergedDocType docType,
   GeneratorRegistry<R> registry,
-  R resolver,
-) {
+  R resolver, {
+  required String docPath,
+}) {
   if (docType.listedGenerators.isEmpty) return lfText;
   final doc = Doc.parse(lfText);
-  final blocks = runGenerators(doc, docType, registry, resolver);
+  final blocks = runGenerators(
+    doc,
+    docType,
+    registry,
+    resolver,
+    docPath: docPath,
+  );
   return switch (_writeBlocks(lfText, doc, docType, blocks)) {
     BlocksWritten(lfText: final written) => written,
     OpenBlock() => lfText,

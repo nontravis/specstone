@@ -1,8 +1,8 @@
-Step 1, the gate, already ran in the skill or agent that sent you here.
+Step 1, the gate, ran before you were sent here.
 As `specstone:sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-This skill takes `specstone check` findings under `prds/`; those under `specs/`, `architecture_missing`,
-`code_uncovered`, and PROJECT's Tech stack and Naming canonicalization sections go to `specstone:bootstrap-spec`.
+Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming
+canonicalization sections go to `specstone:bootstrap-spec`.
 Follow `specstone:expert-sdd` for every write; before the first, run `specstone guide <type> …` once, naming every
 type you write; a type met later gets its own call before its first write.
 
@@ -38,6 +38,7 @@ whole section.
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
+| `cite_unlinked`, a repeats batch | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md` |
 | any other under `prds/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
@@ -49,8 +50,8 @@ proposal named in step 6. Pipe that record's whole new list, as YAML `- item` li
 
 ## 4. Merge an old file, or split a full one
 
-An `untyped_doc` is an old file the migration left, such as a group's container `FEATURE.md`.
-Merge its content into the doc that takes it, else a new one from `specstone new <type>`. Skip only a sentence that
+Merge an `untyped_doc`, an old file the migration left such as a group's container `FEATURE.md`, into the doc that
+takes it, else a new one from `specstone new <type>`. Skip only a sentence that
 doc holds word for word, and never target the untyped file: a write refuses it. Add its path to this run's retire set.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
@@ -68,14 +69,10 @@ its new doc. Name in step 6 each waiver and each mention in a section kept uncha
    files it merged; list each untyped referrer outside it, with the file it names, for its owner to merge. Leave any
    other untyped file as history. Repoint each other link or mention to the doc holding the content,
    or drop one nothing replaces.
-3. Name the set in one `specstone delete` line, quoting each path with a space:
-
-```
-specstone delete <path> <path> …
-```
+3. Name the set in one line, `specstone delete <path> <path> …`, quoting each path with a space.
 
 On a batch, delete nothing: hand that line to `specstone:bootstrap-prd`'s step 3.4.
-With no batch, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
+Else, run it through `specstone:expert-sdd`'s Owner confirmation. Never run `git rm`: links break unseen.
 Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval

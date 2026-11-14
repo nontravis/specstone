@@ -1,50 +1,142 @@
-import 'package:specstone_core/src/doc_model/code_spans.dart';
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_follow.dart';
+import 'package:specstone_core/src/index_query/bundle_trim.dart';
+import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_links.dart'
+    show citedSectionsOf;
 import 'package:specstone_core/src/index_query/read_answer.dart';
-import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
 
 const _summaryNextStep =
     'Read a summary doc whole with: specstone context <name> --for implement';
 
-String _overBudgetLine(IndexedDoc doc, bool summary, int tokens) =>
-    '- ${_listName(doc, summary)} · $tokens tokens\n';
+const _overBudgetNextStep =
+    'narrow the target, or run it again with --out and no --budget';
+
+const _overBudgetSummaryNextStep =
+    'narrow the target, or run it again with --summary --out and no --budget';
+
+/// One doc or appended part a bundle text prints, with the lines it spans
+/// there, counted from 1: its naming line `first` to its `last` line, and
+/// the header line of each `##` section it prints whole. A cited part names
+/// the `##` section that holds it and its item ID, when it has them.
+typedef BundleEntry = ({
+  IndexedDoc doc,
+  bool summary,
+  bool cited,
+  String? sectionKey,
+  String? itemId,
+  int first,
+  int last,
+  List<({String key, int first})> sections,
+});
+
+/// A `context` answer, with where each doc and part sits in its text.
+final class ContextAnswer extends ReadAnswer {
+  const new({
+    required super.text,
+    required super.json,
+    super.warnings,
+    super.exitStatus,
+    required this.entries,
+    required this.tokens,
+    this.codeTarget,
+  });
+
+  /// Each doc and appended part [text] prints, in print order; empty when
+  /// it prints no doc text, as over budget.
+  final List<BundleEntry> entries;
+
+  /// The bundle's est. token size, as its closing line gives it.
+  final int tokens;
+
+  /// The code target [text] names first, for a `--code` call in a project
+  /// with two or more; null otherwise.
+  final String? codeTarget;
+}
+
+String _overBudgetLine(String listName, int tokens) =>
+    '- $listName · $tokens tokens\n';
 
 /// Returns the closing-list name of [doc], marked ` · summary` when [summary].
 String _listName(IndexedDoc doc, bool summary) =>
     summary ? '${nameWithType(doc)} · summary' : nameWithType(doc);
 
+/// Returns the closing-list name of [part],
+/// `<name> (<doc type>) · cited <section key> [<ID>]`; a summary doc's is
+/// marked ` · summary` before ` · cited` (`trim_and_order_bundle` E15), and
+/// a path's is `<DocPath> · cited`.
+String _partListName(AppendedPart part) =>
+    '${part.pathOnly ? part.doc.docPath : _listName(part.doc, part.summary)}'
+    ' · cited'
+    '${part.sectionKey == null ? '' : ' ${part.sectionKey}'}'
+    '${part.itemId == null ? '' : ' [${part.itemId}]'}';
+
+/// Returns the block of [part]: its naming line, `<DocPath>#<section key>`
+/// (`#<anchor>` for a `###` block that starts no item) with ` · item <ID>`
+/// for an item, or `<DocPath> · summary` for a doc, then ` · cited`, then its
+/// text; a path prints as `==> <DocPath> · cited <==` alone.
+String _partBlock(AppendedPart part) {
+  final doc = part.doc;
+  if (part.pathOnly) return '==> ${doc.docPath} · cited <==';
+  final key = part.heading ?? part.sectionKey;
+  final path = key == null ? doc.docPath : '${doc.docPath}#$key';
+  final item = part.itemId == null ? '' : ' · item ${part.itemId}';
+  final summary = part.summary ? ' · summary' : '';
+  return '==> ${nameWithType(doc)} · $path$item$summary · cited <==\n'
+      '${part.text}';
+}
+
+/// Returns the `citedBy` key of a doc object, an empty list when [items] holds
+/// no line; none outside a design bundle, which has no [citedBy].
+Map<String, Object> _citedByKey(List<CitedItem> items, CitedByIndex? citedBy) =>
+    {if (citedBy != null) 'citedBy': citedByJson(items)};
+
+/// Returns the JSON keys that mark [part], after its `text` or `tokens`.
+Map<String, Object> _partKeys(AppendedPart part) => {
+  if (part.summary) 'summary': true,
+  'cited': true,
+  'section': ?part.sectionKey,
+  'heading': ?part.heading,
+  'item': ?part.itemId,
+};
+
 /// Returns the header line that names the code target a `--code` path lies
 /// in, or '' when there is none to name (one target).
-String _codeTargetLine(String? name) =>
+String codeTargetLine(String? name) =>
     name == null ? '' : '==> code target: $name <==\n';
 
 /// Renders [bundle]'s docs as one `context` answer.
 ///
-/// [label] is the target as given, or the code path for `--code`; [byCode]
-/// prints it under the JSON key `code` instead of `target`, with the picked
-/// `codeTarget` when the project has two or more. A bundle larger than [budget]
-/// prints its sizes and the next step instead of doc text, with exit status 1;
-/// an equal one prints whole.
-ReadAnswer answerContext(
+/// The parts the bundle's links cite print after its docs. [label] is the
+/// target as given, or the code path for `--code`; [byCode] prints it under the
+/// JSON key `code` instead of `target`, with the picked `codeTarget` when the
+/// project has two or more. A bundle larger than [budget] prints its sizes and
+/// the next step instead of doc text, with exit status 1; an equal one prints
+/// whole. The answer places each doc and part in its text, for `--out`'s index.
+ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
   required String label,
   required bool byCode,
   int? budget,
 }) {
-  final ordered = _orderedDocs(index, bundle);
+  final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
   bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
-  final docBlocks = [
+  final citedBy = bundle.mode == BundleMode.design ? citedByIndex(index) : null;
+  final docPrints = [
     for (final doc in ordered)
-      _docBlock(index, doc, bundle.mode, summary: inSummary(doc)),
+      _docBlock(
+        index,
+        doc,
+        bundle.mode,
+        summary: inSummary(doc),
+        citedBy: citedBy,
+      ),
   ];
+  final docBlocks = [for (final print in docPrints) print.block];
   final mapBlocks = [
     for (final top in _byTreeOrder(index, bundle.mapTops))
       _mapBlock(index, index.at(top)!, bundle.codeTarget),
@@ -53,7 +145,14 @@ ReadAnswer answerContext(
     for (final top in _byTreeOrder(index, bundle.nameListTops))
       _namesBlock(index, index.at(top)!, bundle.codeTarget),
   ];
-  final shown = [...docBlocks, ...mapBlocks, ...namesBlocks].join('\n\n');
+  final parts = followLinks(index, bundle, citedBy: citedBy);
+  final partBlocks = [for (final part in parts) _partBlock(part)];
+  final shown = [
+    ...docBlocks,
+    ...mapBlocks,
+    ...namesBlocks,
+    ...partBlocks,
+  ].join('\n\n');
   final tokens = tokenSizeOf(shown);
   final named = byCode && index.hasTwins ? bundle.codeTarget : null;
   if (budget != null && tokens > budget) {
@@ -62,6 +161,8 @@ ReadAnswer answerContext(
       docBlocks,
       summaryOnly,
       bundle,
+      parts: parts,
+      partBlocks: partBlocks,
       label: label,
       byCode: byCode,
       budget: budget,
@@ -71,13 +172,45 @@ ReadAnswer answerContext(
   }
   final list = [
     for (final doc in ordered) '- ${_listName(doc, inSummary(doc))}\n',
+    for (final part in parts) '- ${_partListName(part)}\n',
+  ];
+  final listsSummary =
+      summaryOnly.isNotEmpty || parts.any((part) => part.summary);
+  final starts = _blockStarts([
+    ...docBlocks,
+    ...mapBlocks,
+    ...namesBlocks,
+    ...partBlocks,
+  ], firstLine: named == null ? 1 : 2);
+  final partsFrom = docBlocks.length + mapBlocks.length + namesBlocks.length;
+  final entries = <BundleEntry>[
+    for (final (i, doc) in ordered.indexed)
+      _entry(
+        doc,
+        docBlocks[i],
+        docPrints[i].sections,
+        first: starts[i],
+        summary: inSummary(doc),
+      ),
+    for (final (i, part) in parts.indexed)
+      _entry(
+        part.doc,
+        partBlocks[i],
+        [
+          for (final section in part.sections)
+            (key: section.key, line: section.line + 1),
+        ],
+        first: starts[partsFrom + i],
+        summary: part.summary,
+        cited: (sectionKey: part.sectionKey, itemId: part.itemId),
+      ),
   ];
   final text =
-      '${_codeTargetLine(named)}'
+      '${codeTargetLine(named)}'
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
       '${list.join()}'
-      '${summaryOnly.isEmpty ? '' : '$_summaryNextStep\n'}';
+      '${listsSummary ? '$_summaryNextStep\n' : ''}';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
     'codeTarget': ?named,
@@ -92,36 +225,109 @@ ReadAnswer answerContext(
           'tokens': tokenSizeOf(block),
           'text': _blockBody(block),
           if (inSummary(ordered[doc])) 'summary': true,
+          ..._citedByKey(docPrints[doc].cited, citedBy),
+        },
+      for (final (i, part) in parts.indexed)
+        {
+          ..._partDocJson(part, partBlocks[i]),
+          if (!part.pathOnly) 'text': _blockBody(partBlocks[i]),
+          ..._partKeys(part),
+          ..._citedByKey(part.cited, citedBy),
         },
     ],
     ..._mapJson(index, bundle.mapTops, bundle.codeTarget),
     ..._namesJson(index, bundle.nameListTops, bundle.codeTarget),
   };
-  return ReadAnswer(text: text, json: json, warnings: [...bundle.warnings]);
+  return ContextAnswer(
+    text: text,
+    json: json,
+    warnings: [...bundle.warnings],
+    entries: entries,
+    tokens: tokens,
+    codeTarget: named,
+  );
 }
 
+/// Returns the line, from [firstLine], where each of [blocks] starts once
+/// they are joined by one blank line.
+List<int> _blockStarts(List<String> blocks, {required int firstLine}) {
+  final starts = <int>[];
+  var line = firstLine;
+  for (final block in blocks) {
+    starts.add(line);
+    line += lineCountOf(block) + 1;
+  }
+  return starts;
+}
+
+/// Returns the entry of a doc or part whose printed [block] starts on line
+/// [first], its [sections] counted from that line.
+///
+/// - [cited]: an appended part's section key and item ID; null for a picked
+///   doc.
+BundleEntry _entry(
+  IndexedDoc doc,
+  String block,
+  List<SectionLine> sections, {
+  required int first,
+  required bool summary,
+  ({String? sectionKey, String? itemId})? cited,
+}) => (
+  doc: doc,
+  summary: summary,
+  cited: cited != null,
+  sectionKey: cited?.sectionKey,
+  itemId: cited?.itemId,
+  first: first,
+  last: first + lineCountOf(block) - 1,
+  sections: [
+    for (final section in sections)
+      (key: section.key, first: first + section.line),
+  ],
+);
+
+/// Returns the name, doc type, path, and printed size of [part], whose block
+/// is [block]; a path gives its path and size alone.
+Map<String, Object> _partDocJson(AppendedPart part, String block) => {
+  if (!part.pathOnly) ...{
+    'name': part.doc.name,
+    'docType': ?part.doc.docTypeId,
+  },
+  'path': part.doc.docPath,
+  'tokens': tokenSizeOf(block),
+};
+
 /// Returns the reply for a bundle of [tokens] est. tokens that exceeds
-/// [budget]: each doc's size, no doc text, and the next step.
-ReadAnswer _overBudget(
+/// [budget]: each doc's and part's size, no doc text, and the next step,
+/// which keeps `--summary` when the bundle has it.
+ContextAnswer _overBudget(
   List<IndexedDoc> ordered,
   List<String> docBlocks,
   Set<String> summaryOnly,
   Bundle bundle, {
+  required List<AppendedPart> parts,
+  required List<String> partBlocks,
   required String label,
   required bool byCode,
   required int budget,
   required int tokens,
   required String? codeTarget,
 }) {
-  final handOver = bundle.summary ? '$label with --summary' : label;
-  final next = 'narrow the target, or hand $handOver to specstone:sdd-reader';
+  final next = bundle.summary
+      ? _overBudgetSummaryNextStep
+      : _overBudgetNextStep;
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
     for (final (i, doc) in ordered.indexed)
-      _overBudgetLine(doc, summaryOnly.contains(doc.docPath), sizes[i]),
+      _overBudgetLine(
+        _listName(doc, summaryOnly.contains(doc.docPath)),
+        sizes[i],
+      ),
+    for (final (i, part) in parts.indexed)
+      _overBudgetLine(_partListName(part), tokenSizeOf(partBlocks[i])),
   ];
   final text =
-      '${_codeTargetLine(codeTarget)}'
+      '${codeTargetLine(codeTarget)}'
       'The bundle holds $tokens est. tokens, over the budget of $budget; '
       'no doc text is printed.\n'
       'Docs it would hold:\n'
@@ -143,208 +349,67 @@ ReadAnswer _overBudget(
           'tokens': sizes[i],
           if (summaryOnly.contains(doc.docPath)) 'summary': true,
         },
+      for (final (i, part) in parts.indexed)
+        {..._partDocJson(part, partBlocks[i]), ..._partKeys(part)},
     ],
     'next': next,
   };
-  return ReadAnswer(
+  return ContextAnswer(
     text: text,
     json: json,
     warnings: [...bundle.warnings],
     exitStatus: 1,
+    entries: const [],
+    tokens: tokens,
+    codeTarget: codeTarget,
   );
 }
 
-/// Returns [bundle]'s docs in bundle order: the joined docs in tree order,
-/// then a pre-order walk from each doc of `docPaths` and `summaryPaths` whose
-/// parent is outside both, children inside both sorted by chain type first,
-/// then doc type id, then DocPath, by code point (INV-15). The walk drops a
-/// joined doc, which prints once, whole.
-List<IndexedDoc> _orderedDocs(DocIndex index, Bundle bundle) {
-  final inDocPaths = {...bundle.docPaths, ...bundle.summaryPaths};
-  final roots = [
-    for (final doc in index.docs)
-      if (inDocPaths.contains(doc.docPath) &&
-          (doc.parentPath == null || !inDocPaths.contains(doc.parentPath)))
-        doc,
-  ];
-  final walkOrder = <IndexedDoc>[];
-  for (final root in roots) {
-    _walk(index, root, inDocPaths, walkOrder);
-  }
-  return [
-    for (final doc in index.docs)
-      if (bundle.joinedPaths.contains(doc.docPath)) doc,
-    for (final doc in walkOrder)
-      if (!bundle.joinedPaths.contains(doc.docPath)) doc,
-  ];
-}
-
-void _walk(
-  DocIndex index,
-  IndexedDoc doc,
-  Set<String> inDocPaths,
-  List<IndexedDoc> out,
-) {
-  out.add(doc);
-  final children = [
-    for (final child in index.childrenOf(doc))
-      if (inDocPaths.contains(child.docPath)) child,
-  ]..sort(_compareSiblings(index));
-  for (final child in children) {
-    _walk(index, child, inDocPaths, out);
-  }
-}
-
-int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
-    (a, b) {
-      final aChain = index.isChainDoc(a) ? 0 : 1;
-      final bChain = index.isChainDoc(b) ? 0 : 1;
-      if (aChain != bChain) return aChain - bChain;
-      final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
-      if (byType != 0) return byType;
-      return compareCodePoints(a.docPath, b.docPath);
-    };
-
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
-/// joined by one blank line (Plan decision 21, INV-14).
-String _docBlock(
+/// joined by one blank line (Plan decision 21, INV-14), with the lines
+/// [citedBy] holds for its items printed after them, and the line each kept
+/// section starts on in the block.
+({String block, List<CitedItem> cited, List<SectionLine> sections}) _docBlock(
   DocIndex index,
   IndexedDoc doc,
   BundleMode mode, {
   required bool summary,
+  required CitedByIndex? citedBy,
 }) {
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
-  final parts = <String>[];
   if (summary) {
-    final title = doc.title;
-    if (title != null) parts.add('# $title');
-    parts.addAll(_summaryBlocks(content, docType, mode));
-    return '${namingLine(doc, summary: true)}\n${parts.join('\n\n')}';
+    final print = summaryPrintOf(doc, content, docType, mode, citedBy);
+    final block = '${namingLine(doc, summary: true)}\n${print.text}';
+    final sections = [
+      for (final section in print.sections)
+        (key: section.key, line: section.line + 1),
+    ];
+    return (block: block, cited: print.cited, sections: sections);
   }
+  final parts = <String>[];
   if (mode != BundleMode.query) {
     final frontmatter = content.frontmatterText;
     if (frontmatter != null) parts.add(frontmatter.trimRight());
-    final head = _removeComments(content.head);
+    final head = removeHtmlComments(content.head);
     if (head.trim().isNotEmpty) parts.add(head.trimRight());
   }
-  for (final section in _keptSections(content, docType, mode)) {
-    parts.add(_sectionBlock(section));
+  final cited = <CitedItem>[];
+  final sections = <SectionLine>[];
+  final held = citedSectionsOf(content, docType);
+  // The naming line is the block's line 0.
+  var line = 1 + lineAfterBlocks(parts);
+  for (final section in keptSectionsOf(content, docType, mode)) {
+    final print = sectionPrintOf(doc, content, held, section, citedBy);
+    cited.addAll(print.cited);
+    sections.add((key: section.key, line: line));
+    line += lineAfterBlocks([print.block]);
+    parts.add(print.block);
   }
-  return '${namingLine(doc)}\n${parts.join('\n\n')}';
+  final block = '${namingLine(doc)}\n${parts.join('\n\n')}';
+  return (block: block, cited: cited, sections: sections);
 }
-
-/// Returns the kept sections of a summary doc whose merged section is a
-/// summary section, in section order (INV-25).
-Iterable<String> _summaryBlocks(
-  DocContent content,
-  MergedDocType? docType,
-  BundleMode mode,
-) {
-  final summaryIds = {
-    for (final section in docType?.sections ?? const <MergedSection>[])
-      if (section.summary == true) section.id,
-  };
-  return [
-    for (final section in _keptSections(content, docType, mode))
-      if (summaryIds.contains(section.key)) _sectionBlock(section),
-  ];
-}
-
-String _sectionBlock(IndexedSection section) =>
-    '${section.headerLine}\n${_removeComments(section.body).trimRight()}';
-
-/// Returns the sections [content] keeps for [mode], in its doc type's section
-/// order, a section the type does not define after them in file order
-/// (INV-15). A section is kept unless, with HTML comments removed and both
-/// ends trimmed, its body equals its merged section's `template` likewise
-/// cleaned, or is `N/A`, or starts with `N/A —`; in `query` only the sections
-/// whose merged section is a query section stay (INV-14).
-List<IndexedSection> _keptSections(
-  DocContent content,
-  MergedDocType? docType,
-  BundleMode mode,
-) {
-  final merged = {
-    for (final section in docType?.sections ?? const <MergedSection>[])
-      section.id: section,
-  };
-  final kept = <IndexedSection>[];
-  final undefined = <IndexedSection>[];
-  for (final section in content.sections) {
-    if (_kept(section, merged[section.key], mode)) {
-      (merged.containsKey(section.key) ? kept : undefined).add(section);
-    }
-  }
-  final inTemplateOrder = [
-    for (final section in docType?.sections ?? const <MergedSection>[])
-      for (final candidate in kept)
-        if (candidate.key == section.id) candidate,
-  ];
-  return [...inTemplateOrder, ...undefined];
-}
-
-bool _kept(IndexedSection section, MergedSection? merged, BundleMode mode) {
-  if (mode == BundleMode.query && merged?.query != true) return false;
-  if (merged == null) return _naChecked(section.body);
-  final body = _cleaned(section.body);
-  final template = merged.template;
-  if (template != null && body == _cleaned(template)) return false;
-  return _naChecked(section.body);
-}
-
-bool _naChecked(String body) {
-  final cleaned = _cleaned(body);
-  return cleaned != 'N/A' && !cleaned.startsWith('N/A —');
-}
-
-/// Returns [text] with every HTML comment removed, except one whose `<!--`
-/// sits in fenced code or an inline code span.
-///
-/// A comment runs to the first `-->` whatever it holds, so a backtick or a
-/// fence line inside a comment never hides it.
-String _removeComments(String text) {
-  final code = _codeRanges(text);
-  final kept = StringBuffer();
-  var from = 0;
-  var search = 0;
-  while (true) {
-    final comment = _htmlComment.allMatches(text, search).firstOrNull;
-    if (comment == null) break;
-    if (code.any((r) => r.start <= comment.start && comment.start < r.end)) {
-      search = comment.start + 1;
-      continue;
-    }
-    kept.write(text.substring(from, comment.start));
-    from = search = comment.end;
-  }
-  return (kept..write(text.substring(from))).toString();
-}
-
-/// Returns the offsets of each fenced line and each inline code span of [text].
-List<({int start, int end})> _codeRanges(String text) {
-  final lines = text.split('\n');
-  final fenced = fencedLines([
-    for (final line in lines) line.replaceFirst(RegExp(r'\r$'), ''),
-  ]);
-  final ranges = <({int start, int end})>[];
-  var offset = 0;
-  for (var i = 0; i < lines.length; i++) {
-    if (fenced[i]) {
-      ranges.add((start: offset, end: offset + lines[i].length));
-    } else {
-      for (final (:start, :end, ticks: _) in codeSpansOf(lines[i])) {
-        ranges.add((start: offset + start, end: offset + end));
-      }
-    }
-    offset += lines[i].length + 1;
-  }
-  return ranges;
-}
-
-/// Returns [text] with HTML comments removed and both ends trimmed.
-String _cleaned(String text) => _removeComments(text).trim();
 
 /// Returns the map block of [top]: its subtree, one line per doc with its
 /// name, doc type, and token size, indented two spaces per depth below [top]

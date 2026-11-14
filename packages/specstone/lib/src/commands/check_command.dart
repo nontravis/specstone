@@ -9,11 +9,13 @@ import 'package:specstone_core/specstone_core.dart';
 /// [CheckReport] and returns `report.exitStatus` (PD2).
 class CheckCommand extends SpecstoneCommand {
   new() {
-    argParser.addFlag(
-      'json',
-      negatable: false,
-      help: 'Print JSON instead of text.',
-    );
+    argParser
+      ..addFlag('json', negatable: false, help: 'Print JSON instead of text.')
+      ..addFlag(
+        'repeats',
+        negatable: false,
+        help: 'List the text repeated across docs, and no finding.',
+      );
     addTargetOption();
   }
 
@@ -26,7 +28,7 @@ class CheckCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone check [<target>] [--target <name>] [--json]';
+      'specstone check [<target>] [--target <name>] [--repeats] [--json]';
 
   @override
   Future<int> run() async {
@@ -37,16 +39,23 @@ class CheckCommand extends SpecstoneCommand {
     final asJson = args.flag('json');
     final runner = specstoneRunner;
     var sessionWarnings = const <String>[];
-    final CheckReport report;
+    final RepeatReport? repeats;
+    final CheckReport? report;
     try {
-      report = ReadSession.run(
+      (repeats, report) = ReadSession.run(
         (session) {
           sessionWarnings = session.warnings;
-          return runCheck(
-            session,
-            target: args.rest.firstOrNull,
-            codeTarget: targetOf(args),
-          );
+          final target = args.rest.firstOrNull;
+          final codeTarget = targetOf(args);
+          return args.flag('repeats')
+              ? (
+                  runRepeats(session, target: target, codeTarget: codeTarget),
+                  null,
+                )
+              : (
+                  null,
+                  runCheck(session, target: target, codeTarget: codeTarget),
+                );
         },
         templates: runner.templates,
         workingDirectory: runner.workingDirectory,
@@ -56,12 +65,25 @@ class CheckCommand extends SpecstoneCommand {
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);
     }
+    if (repeats != null) return _printRepeats(repeats, asJson: asJson);
     if (asJson) {
-      runner.out.write('${SpecstoneCommand.pretty.convert(report.json)}\n');
+      runner.out.write('${SpecstoneCommand.pretty.convert(report!.json)}\n');
     } else {
-      warn(report.warnings);
+      warn(report!.warnings);
       runner.out.write(report.text);
     }
     return report.exitStatus;
+  }
+
+  int _printRepeats(RepeatReport repeats, {required bool asJson}) {
+    if (asJson) {
+      specstoneRunner.out.write(
+        '${SpecstoneCommand.pretty.convert(repeats.json)}\n',
+      );
+    } else {
+      warn(repeats.warnings);
+      specstoneRunner.out.write(repeats.text);
+    }
+    return 0;
   }
 }

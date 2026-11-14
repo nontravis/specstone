@@ -111,7 +111,7 @@ final class _DocAnchorSets {
     if (read == null) return null;
     return _sets[docPath] =
         anchorsOfBody(read.doc.afterFrontmatter) ??
-        const DocAnchors(headingSlugs: [], htmlIds: {});
+        const DocAnchors(headingSlugs: [], headingLevels: [], htmlIds: {});
   }
 
   /// Keeps [anchors], read by the render of the doc at [docPath].

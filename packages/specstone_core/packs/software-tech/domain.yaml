@@ -5,7 +5,8 @@ description: |-
   Aim for about 150 to 200 lines; keep one file per feature spec folder.
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Write one rule per ID: one bullet per invariant, each rule one sentence.
-  A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, such as `architecture:rendering#components`.
+  A DOMAIN cites its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
 per_target: true

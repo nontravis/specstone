@@ -100,13 +100,9 @@ class PostEditCommand extends SpecstoneCommand {
   /// Returns the DocPath of [filePath] when it names a markdown file in a
   /// checked folder of the docs root, else null.
   String? _checkedDocPath(DocsProject project, String filePath) {
-    final file = File(filePath);
-    final resolved = file.isAbsolute
-        ? file
-        : File(
-            '${specstoneRunner.workingDirectory.absolute.path}'
-            '${Platform.pathSeparator}$filePath',
-          );
+    final resolved = File(
+      absoluteFrom(specstoneRunner.workingDirectory, filePath),
+    );
     if (!project.isInsideDocsRoot(resolved)) return null;
     final shown = project.displayPath(resolved);
     if (!shown.startsWith(_docsFolder)) return null;

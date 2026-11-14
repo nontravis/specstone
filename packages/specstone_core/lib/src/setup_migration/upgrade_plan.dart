@@ -10,9 +10,12 @@ import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show IndexedDoc;
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
@@ -65,6 +68,7 @@ const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 const _testsChange = 'add test lines';
 const _codeStampChange = 'stamp code fingerprints';
+const _citeChange = 'convert cites';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
 
@@ -75,9 +79,9 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// two or more are listed, the pack's moves, the section and field renames in
 /// the docs and the overrides, the link and path mention rewrites, the
 /// renumber pass, the label pass, the values a `move_to_record` step moves
-/// into the records it adds to or creates, the test-name pass, each typed doc
-/// laid out as
-/// `format` lays it out, the agent files step, and the new pins. With every
+/// into the records it adds to or creates, the test-name pass, the cite pass,
+/// each typed doc laid out as `format` lays it out, the agent files step, and
+/// the new pins. With every
 /// pin equal the plan holds the layout pass, the agent files step, and the
 /// tree move alone. Writes nothing. Throws `MigrateFault` `override_dangling`,
 /// `MigrateFault` `upgrade_collision` listing every move and rename collision
@@ -87,9 +91,9 @@ typedef _Step = ({PackVersion from, MigrationStep step});
 /// refused run prints nothing. When [runsOneTimePasses] holds, the renumber
 /// and label passes run and the agent files step is the full upsert;
 /// otherwise the step refreshes what exists. When [runsTestNamePass] holds and
-/// the merged set holds the record doc type, the test-name pass runs too.
-/// [homeDirectory] is the personal pack home, or null. The plan's `inputs`
-/// hold every file it read.
+/// the merged set holds the record doc type, the test-name pass runs too, and
+/// when [runsCitePass] holds, the cite pass. [homeDirectory] is the personal
+/// pack home, or null. The plan's `inputs` hold every file it read.
 RunPlan planUpgradeRun(
   Directory root, {
   required TemplateResolver templates,
@@ -368,13 +372,35 @@ RunPlan _upgradeRunOf(
           isTaken: (docPath) => taken('$_docsFolder$docPath'),
         )
       : null;
-  final laidOutPaths = <String>[];
-  final laidOut = <String>[];
+  final recorded = <String>[];
   for (final (index, work) in works.indexed) {
     var text = converted[index];
     if (tests?.recordEdits[work.plannedPath] case final edited?) {
       text = edited;
       work.changes.add(_testsChange);
+    }
+    recorded.add(text);
+  }
+  final cites = runsCitePass(upgrades)
+      ? CitePass.plan([
+          for (final (index, work) in works.indexed)
+            (
+              docPath: work.plannedPath,
+              lf: recorded[index],
+              type: work.docType,
+              target: work.target,
+            ),
+        ], idPrefixes: itemIdPrefixesOf(finalSet.docTypes))
+      : null;
+  final citedFrom = <String, String>{};
+  final laidOutPaths = <String>[];
+  final laidOut = <String>[];
+  for (final (index, work) in works.indexed) {
+    final text =
+        cites?.apply(work.plannedPath, recorded[index]) ?? recorded[index];
+    if (text != recorded[index]) {
+      citedFrom[work.plannedPath] = recorded[index];
+      work.changes.add(_citeChange);
     }
     final lf = layOutDoc(text, work.docType);
     if (lf != text) laidOutPaths.add(work.plannedPath);
@@ -402,6 +428,7 @@ RunPlan _upgradeRunOf(
       for (final upgrade in upgrades) upgrade.pack: upgrade.target,
     },
     restampsFingerprints: isOneTime,
+    citedFrom: citedFrom,
   );
   final docRewrites = <PlannedRewrite>[];
   final writtenLf = <String, String>{};
@@ -512,6 +539,7 @@ RunPlan _upgradeRunOf(
       ?renumber?.planLine,
       ?labels?.planLine,
       ?tests?.planLine,
+      ?cites?.planLine,
       ?formatLayoutLine(laidOutPaths),
       ?stamps.planLine,
       if (agentFiles.line.isNotEmpty) agentFiles.line,
@@ -523,6 +551,8 @@ RunPlan _upgradeRunOf(
       formatLayout: [...laidOutPaths]..sort(compareCodePoints),
       numberLabelsRewritten: labels?.pathsOn(writtenLf) ?? const [],
       numberLabelsLeft: labels?.leftOn(writtenLf) ?? const [],
+      citesRewritten: cites?.paths ?? const [],
+      citesLeft: cites?.leftOn(writtenLf) ?? const [],
       renumberIds: renumber?.paths ?? const [],
       agentFiles: agentFiles.paths,
       stampsSkipped: stamps.paths,

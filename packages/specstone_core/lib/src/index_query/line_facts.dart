@@ -2,10 +2,14 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseLinkFreeBody, parseMarkdownTree;
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/doc_model/text_scan.dart';
+import 'package:specstone_core/src/index_query/cite_candidates.dart'
+    show CiteCandidate;
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
@@ -16,6 +20,7 @@ const _cr = 0x0D;
 const _space = 0x20;
 const _backtick = 0x60;
 const _tilde = 0x7E;
+const _hash = 0x23;
 
 /// The warning for [docPath] whose markdown the parser fails on.
 String markdownUnparsedWarning(String docPath) =>
@@ -92,10 +97,13 @@ final class LineFacts {
     required this.fileLinks,
     required this.selfLinks,
     required this.unreadableLinks,
+    required this.linkTexts,
     required this.nameMentions,
     required this.numberLabels,
     required this.tbrMarkers,
+    required this.citeCandidates,
     required this.anchors,
+    required this.headingLines,
     required this.sectionLines,
     required this.sectionCounts,
     required this.fenced,
@@ -112,7 +120,8 @@ final class LineFacts {
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
   /// frontmatter. [bodyNumberLabels] are the number labels of the body, by
   /// 0-based body line, and [bodyTbrMarkers] its TBR markers, by the same
-  /// line. A body whose parse fails has no links and an unknown
+  /// line; [citeCandidates] are the cite candidates of a typed doc, none for
+  /// an untyped one. A body whose parse fails has no links and an unknown
   /// anchor set; [markdownUnparsedWarning] joins [warnings] only when the body
   /// holds link syntax, as at base — a body with no link syntax is never
   /// parsed for links, so it never warns. [linkWarningOf] gives the warning.
@@ -125,6 +134,7 @@ final class LineFacts {
     required int? frontmatterErrorLine,
     required List<({int line, String written})> bodyNumberLabels,
     required List<({int line, String rest})> bodyTbrMarkers,
+    required List<CiteCandidate> citeCandidates,
     required List<String> warnings,
   }) {
     final bodyStart = linesBeforeBodyOf(doc, lfText);
@@ -150,11 +160,14 @@ final class LineFacts {
       warnings.add(warning);
     }
     final anchorNodes = hasLinks ? linkTree?.nodes : parseLinkFreeBody(body);
+    final anchors = anchorNodes == null ? null : anchorsOf(anchorNodes);
+    final fenced = _fencedRanges(doc.afterFrontmatter, bodyStart);
     return LineFacts(
       links: links?.docLinks ?? const [],
       fileLinks: links?.fileLinks ?? const [],
       selfLinks: links?.selfLinks ?? const [],
       unreadableLinks: links?.unreadableLinks ?? const [],
+      linkTexts: links?.texts ?? const [],
       nameMentions: _mentionsFrom(doc.afterFrontmatter, bodyStart),
       numberLabels: [
         for (final (:line, :written) in bodyNumberLabels)
@@ -164,10 +177,14 @@ final class LineFacts {
         for (final (:line, :rest) in bodyTbrMarkers)
           (line: bodyStart + line + 1, rest: rest),
       ],
-      anchors: anchorNodes == null ? null : anchorsOf(anchorNodes),
+      citeCandidates: citeCandidates,
+      anchors: anchors,
+      headingLines: anchors == null
+          ? null
+          : _headingLinesOf(body, bodyStart, fenced, anchors),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
-      fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
+      fenced: fenced,
       lineCount: _lineCount(countedText, fromLine: bodyStart + 1),
       charCount: countedText.length - whole.pairs,
       frontmatterErrorLine: frontmatterErrorLine,
@@ -188,10 +205,13 @@ final class LineFacts {
       fileLinks: const [],
       selfLinks: const [],
       unreadableLinks: const [],
+      linkTexts: const [],
       nameMentions: const [],
       numberLabels: const [],
       tbrMarkers: const [],
+      citeCandidates: const [],
       anchors: null,
+      headingLines: null,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: const [],
       fenced: _fencedRanges(doc.afterFrontmatter, bodyStart),
@@ -214,6 +234,7 @@ final class LineFacts {
       fileLinks: _placesOfJson(json['file_links']!),
       selfLinks: _placesOfJson(json['self_links']!),
       unreadableLinks: _placesOfJson(json['unreadable_links']!),
+      linkTexts: _linkTextsOfJson(json['link_texts']!),
       nameMentions: _mentionsOfJson(json['name_mentions']!),
       numberLabels: [
         for (final label
@@ -225,15 +246,18 @@ final class LineFacts {
             in (json['tbr_markers']! as List<Object?>).cast<List<Object?>>())
           (line: marker[0]! as int, rest: marker[1]! as String),
       ],
+      citeCandidates: _citeCandidatesOfJson(json['cite_candidates']!),
       anchors: anchors == null
           ? null
           : DocAnchors(
               headingSlugs: (anchors['headings']! as List<Object?>)
                   .cast<String>(),
+              headingLevels: (anchors['levels']! as List<Object?>).cast<int>(),
               htmlIds: (anchors['ids']! as List<Object?>)
                   .cast<String>()
                   .toSet(),
             ),
+      headingLines: (json['heading_lines'] as List<Object?>?)?.cast<int>(),
       sectionLines: (json['sections']! as List<Object?>).cast<int>(),
       sectionCounts: sectionCounts,
       fenced: [
@@ -262,6 +286,10 @@ final class LineFacts {
   /// target is the href as written.
   final List<LinkPlace> unreadableLinks;
 
+  /// The text and place of each doc link and self link whose text reads as an
+  /// item ID (RULE-45), in source order.
+  final List<LinkText> linkTexts;
+
   /// The doc-name mentions of the body, in source order (RULE-11); `line` is
   /// the file line.
   final List<NameMention> nameMentions;
@@ -275,9 +303,18 @@ final class LineFacts {
   /// the marker, trimmed.
   final List<TbrMarkerPlace> tbrMarkers;
 
+  /// The cite candidates of the body (RULE-48), in source order; none for an
+  /// untyped doc.
+  final List<CiteCandidate> citeCandidates;
+
   /// The doc's anchor set (doc_model RULE-13); null when the anchor set cannot
   /// be computed, never a stand-in for an empty one.
   final DocAnchors? anchors;
+
+  /// The file line of each heading of [anchors], in the order of its
+  /// `headingSlugs`; null when [anchors] is null or a heading is no ATX line
+  /// outside fenced code, so the lines cannot be paired with the slugs.
+  final List<int>? headingLines;
 
   /// The header line of each section, in the order of `Doc.sections`.
   final List<int> sectionLines;
@@ -307,22 +344,7 @@ final class LineFacts {
   /// Whether file [line] (1-based) is fenced code content or a fence line.
   ///
   /// False for a line the file does not have.
-  bool isFenced(int line) {
-    var low = 0;
-    var high = fenced.length - 1;
-    while (low <= high) {
-      final mid = (low + high) >> 1;
-      final range = fenced[mid];
-      if (line < range.first) {
-        high = mid - 1;
-      } else if (line > range.last) {
-        low = mid + 1;
-      } else {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool isFenced(int line) => _isFencedIn(fenced, line);
 
   /// Returns the facts as JSON values, apart from [sectionCounts].
   Map<String, Object?> toJson() => {
@@ -330,6 +352,19 @@ final class LineFacts {
     'file_links': _placesToJson(fileLinks),
     'self_links': _placesToJson(selfLinks),
     'unreadable_links': _placesToJson(unreadableLinks),
+    'link_texts': [
+      for (final t in linkTexts)
+        [
+          t.line,
+          t.column,
+          t.endLine,
+          t.endColumn,
+          t.text,
+          t.target,
+          t.anchor,
+          t.shown,
+        ],
+    ],
     'name_mentions': [
       for (final m in nameMentions) [m.line, m.column, m.text],
     ],
@@ -339,7 +374,12 @@ final class LineFacts {
     'tbr_markers': [
       for (final marker in tbrMarkers) [marker.line, marker.rest],
     ],
+    'cite_candidates': [
+      for (final c in citeCandidates)
+        [c.line, c.written, c.sectionKey, c.itemIds],
+    ],
     'anchors': anchors?.toJson(),
+    'heading_lines': headingLines,
     'sections': sectionLines,
     'fenced': [
       for (final range in fenced) [range.first, range.last],
@@ -376,6 +416,32 @@ List<NameMention> _mentionsOfJson(Object json) => [
       column: m[1]! as int,
       text: m[2]! as String,
       address: readDocAddress(m[2]! as String),
+    ),
+];
+
+/// Returns the link texts [json] holds, as `LineFacts.toJson` wrote them.
+List<LinkText> _linkTextsOfJson(Object json) => [
+  for (final t in (json as List<Object?>).cast<List<Object?>>())
+    (
+      line: t[0]! as int,
+      column: t[1]! as int,
+      endLine: t[2]! as int,
+      endColumn: t[3]! as int,
+      text: t[4]! as String,
+      target: t[5]! as String,
+      anchor: t[6] as String?,
+      shown: t[7]! as String,
+    ),
+];
+
+/// Returns the cite candidates [json] holds, as `LineFacts.toJson` wrote them.
+List<CiteCandidate> _citeCandidatesOfJson(Object json) => [
+  for (final c in (json as List<Object?>).cast<List<Object?>>())
+    (
+      line: c[0]! as int,
+      written: c[1]! as String,
+      sectionKey: c[2] as String?,
+      itemIds: (c[3]! as List<Object?>).cast<String>().toList(),
     ),
 ];
 
@@ -446,6 +512,83 @@ List<LineRange> _fencedRanges(String body, int bodyStart) {
     ranges.add((first: first, last: bodyStart + fenced.length));
   }
   return ranges;
+}
+
+/// Whether file [line] is inside one of the [ranges] of fenced lines.
+bool _isFencedIn(List<LineRange> ranges, int line) {
+  var low = 0;
+  var high = ranges.length - 1;
+  while (low <= high) {
+    final mid = (low + high) >> 1;
+    final range = ranges[mid];
+    if (line < range.first) {
+      high = mid - 1;
+    } else if (line > range.last) {
+      low = mid + 1;
+    } else {
+      return true;
+    }
+  }
+  return false;
+}
+
+/// Returns the file line of each ATX heading of [body] outside the [fenced]
+/// lines, whose first line is file line `bodyStart + 1`, when each pairs with
+/// a heading `markdown` read in [anchors]: the same level, and, for a heading
+/// text with no inline markup, the same slug; else null.
+///
+/// A setext heading or a heading inside a quote or a list is a heading to
+/// `markdown` and no line here, and a `##` line inside an HTML block is a
+/// line here and no heading to `markdown`, so a doc where the two disagree
+/// keeps no line.
+List<int>? _headingLinesOf(
+  String body,
+  int bodyStart,
+  List<LineRange> fenced,
+  DocAnchors anchors,
+) {
+  final levels = anchors.headingLevels;
+  final lines = <int>[];
+  final found = <int>[];
+  final texts = <String>[];
+  for (final (i, text) in lfLinesOf(body).indexed) {
+    final line = bodyStart + i + 1;
+    if (text.isEmpty ||
+        (text.codeUnitAt(0) != _hash && text.codeUnitAt(0) != _space)) {
+      continue;
+    }
+    if (_isFencedIn(fenced, line)) continue;
+    final heading = atxHeadingOf(text);
+    if (heading == null) continue;
+    lines.add(line);
+    found.add(heading.level);
+    texts.add(heading.text);
+  }
+  if (found.length != levels.length) return null;
+  for (var i = 0; i < levels.length; i++) {
+    if (found[i] != levels[i]) return null;
+    if (!_sameSlug(anchors.headingSlugs[i], texts[i], levels[i])) return null;
+  }
+  return lines;
+}
+
+/// The characters that start inline markup, which make a heading's slug
+/// differ from the slug of its written text.
+final _inlineMarkup = RegExp(r'[`*_\[<&\\!~]');
+
+/// Whether [parsed], a slug `markdown` gave a heading, is the slug of the
+/// heading of [level] written as [text], bar a `-1`, `-2` repeat suffix.
+///
+/// A text with inline markup is parsed as a heading alone, for the slug the
+/// parser gives it.
+bool _sameSlug(String parsed, String text, int level) {
+  final slug = _inlineMarkup.hasMatch(text)
+      ? anchorsOfBody('${'#' * level} $text')?.headingSlugs.firstOrNull
+      : headingSlugOf(text);
+  if (slug == null) return false;
+  if (parsed == slug) return true;
+  return parsed.startsWith('$slug-') &&
+      int.tryParse(parsed.substring(slug.length + 1)) != null;
 }
 
 /// Whether a line of [text] opens, after up to three spaces, with a backtick

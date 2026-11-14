@@ -24,9 +24,10 @@ typedef StampDoc = ({String docPath, String lf, MergedDocType? type});
 // MARK: - StampPass
 
 /// The last step of a pack upgrade: it stamps the approval hash on each doc
-/// that counted as approved before the run (R81) and, in the one-time run
-/// alone, re-stamps each `confirmed` entry that matched before the run
-/// (apply_steps_and_pins E30, E31).
+/// that counted as approved before the run (R81) and re-stamps each
+/// `confirmed` entry that matched before the run, every one in the one-time
+/// run, else each whose block the cite pass rewrote (apply_steps_and_pins
+/// E30, E31, E83).
 ///
 /// One pass computes every after-hash, over the text each doc has after every
 /// other step, so no earlier step stamps a value a later one changes.
@@ -53,15 +54,19 @@ final class StampPass {
   /// [statusesOutsideApproval] rule. The stamped hash follows the rule of
   /// [pinsAfter], the pins the run leaves, so a record approved while its
   /// statuses counted takes the hash that leaves them out.
-  /// [restampsFingerprints] holds for the one-time run alone. A typed doc
-  /// whose frontmatter is not valid YAML, before or after, is skipped and
-  /// named on the plan line.
+  /// [restampsFingerprints] holds for the one-time run alone, which
+  /// re-stamps every matched entry. [citedFrom] holds, for each doc the cite
+  /// pass rewrote, its text before that pass; an entry whose block that
+  /// rewrite changed is re-stamped too, and no other (E83). A typed doc whose
+  /// frontmatter is not valid YAML, before or after, is skipped and named on
+  /// the plan line.
   factory plan(
     List<StampDoc> before,
     List<StampDoc> after, {
     required Map<String, PackVersion> pins,
     required Map<String, PackVersion> pinsAfter,
     required bool restampsFingerprints,
+    Map<String, String> citedFrom = const {},
   }) {
     final ran = stampsHaveRun(pins);
     final statusesOutside = statusesOutsideApproval(pins);
@@ -70,6 +75,12 @@ final class StampPass {
     final beforeAt = {for (final doc in before) doc.docPath: doc};
     final world = _World(after);
     final beforeWorld = _World(before);
+    final restamps = _restampRule(
+      after,
+      world,
+      everyMatched: restampsFingerprints,
+      citedFrom: citedFrom,
+    );
     final planned = <String, String>{};
     final stamped = <String, String>{};
     var approvals = 0;
@@ -94,9 +105,9 @@ final class StampPass {
         continue;
       }
       planned[doc.docPath] = doc.lf;
-      final entries = restampsFingerprints
-          ? _restamped(doc, old, beforeWorld, world)
-          : (lf: doc.lf, count: 0);
+      final entries = restamps == null
+          ? (lf: doc.lf, count: 0)
+          : _restamped(doc, old, beforeWorld, world, restamps);
       var lf = entries.lf;
       // A doc that did not await approval before the run counts as approved;
       // one `check` flagged then (a stale hash, a bad value) stays (G32).
@@ -168,10 +179,45 @@ String? stampsPlanLine(
 /// changed.
 typedef _Restamped = ({String lf, int count});
 
+/// Whether the matched entry [label] of the doc at [docPath] takes its
+/// block's fingerprint after the run.
+typedef _Restamps = bool Function(String docPath, String label);
+
+/// Returns which matched entries the pass re-stamps: every one when
+/// [everyMatched] holds, else each whose block the cite pass changed, its
+/// fingerprint over the [citedFrom] texts differing from the one in [world];
+/// null when it re-stamps none.
+_Restamps? _restampRule(
+  List<StampDoc> after,
+  _World world, {
+  required bool everyMatched,
+  required Map<String, String> citedFrom,
+}) {
+  if (everyMatched) return (_, _) => true;
+  if (citedFrom.isEmpty) return null;
+  final uncited = _World([
+    for (final doc in after)
+      (
+        docPath: doc.docPath,
+        lf: citedFrom[doc.docPath] ?? doc.lf,
+        type: doc.type,
+      ),
+  ]);
+  return (docPath, label) =>
+      uncited.currentFingerprint(docPath, label) !=
+      world.currentFingerprint(docPath, label);
+}
+
 /// Re-stamps each entry of [doc] whose fingerprint matched its upstream block
-/// in [old], the doc before the run, with the block's fingerprint in
-/// [after].
-_Restamped _restamped(StampDoc doc, StampDoc old, _World before, _World after) {
+/// in [old], the doc before the run, and that [restamps] picks, with the
+/// block's fingerprint in [after].
+_Restamped _restamped(
+  StampDoc doc,
+  StampDoc old,
+  _World before,
+  _World after,
+  _Restamps restamps,
+) {
   final unchanged = (lf: doc.lf, count: 0);
   if (!_holdsConfirmed(doc.type!)) return unchanged;
   final matched = <bool>[];
@@ -198,7 +244,7 @@ _Restamped _restamped(StampDoc doc, StampDoc old, _World before, _World after) {
     doc.lf,
     _confirmedKey,
     _EntryWalk((index, label, fingerprint) {
-      if (!matched[index]) return null;
+      if (!matched[index] || !restamps(doc.docPath, label)) return null;
       final now = after.currentFingerprint(doc.docPath, label);
       if (now == null || now == fingerprint) return null;
       count++;

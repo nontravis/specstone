@@ -5,12 +5,14 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show schemeEndOf;
 
 /// The deepest tree [parseMarkdown] returns, counted in element levels from a
-/// top-level node (a paragraph is level 1).
+/// top-level node (a paragraph is level 1), and the deepest container the
+/// link scan's block pass reads (`leafTextOf`).
 ///
 /// Every consumer of the nodes walks them recursively: the link walkers and
 /// the `markdown` package's `renderToHtml`. Those overflow the stack near
-/// 15,000 levels, and the parse itself fails near 4,100. A bound of 1,000 sits
-/// well below both, and no real doc nests that deep.
+/// 15,000 levels, the parse itself near 4,100, and the block pass between
+/// 1,500 and 2,000. A bound of 1,000 sits below all three, and no real doc
+/// nests that deep.
 const maxMarkdownDepth = 1000;
 
 /// Returns the nodes the `markdown` package parses [text] into, or null when

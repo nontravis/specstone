@@ -9,7 +9,10 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/tbr_marker.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
+import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show RuleItemWords;
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
@@ -209,6 +212,7 @@ final class DocContent {
     required this.lineFacts,
     required List<BannedMatch> Function() readBannedMatches,
     required ItemFacts Function() readItemFacts,
+    this.itemWords = const [],
   }) : _readText = readText,
        _readBannedMatches = readBannedMatches,
        _readItemFacts = readItemFacts;
@@ -244,6 +248,11 @@ final class DocContent {
   late final ItemFacts itemFacts = _readItemFacts();
 
   final ItemFacts Function() _readItemFacts;
+
+  /// The words of each item of a rule-bearing section, which the refresh that
+  /// parsed the doc writes to the `item_words` table; empty for an untyped
+  /// doc and for content read back from the index.
+  final List<RuleItemWords> itemWords;
 }
 
 /// One parsed file: its index entry, its content, and its content hash.
@@ -269,13 +278,17 @@ final class ParsedDoc {
 /// invalid frontmatter YAML leaves no values; each adds a warning instead of
 /// failing. A doc that is not UTF-8, which format skips, is not laid out and
 /// has no `formatted` value. [statusesOutside] is the rule its approval hash
-/// follows (`comparedApprovalHash`).
+/// follows (`comparedApprovalHash`). [idPrefixes] are the item ID prefixes of
+/// the merged doc type set (see `itemIdPrefixesOf`); a typed doc's rule item
+/// words drop the tokens of those prefixes alone, and its cite candidates read
+/// those tokens alone as item IDs.
 ParsedDoc parseIndexedDoc({
   required String docPath,
   required List<int> bytes,
   required DocTypeMatch match,
   required bool statusesOutside,
   String? codeTarget,
+  Set<String> idPrefixes = const {},
 }) {
   final warnings = <String>[];
   final (:text, :isUtf8) = _decode(bytes, docPath, warnings);
@@ -317,6 +330,9 @@ ParsedDoc parseIndexedDoc({
     frontmatterErrorLine: yaml?.errorLine,
     bodyNumberLabels: numberLabelLinesInMarkdown(doc.afterFrontmatter),
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
+    citeCandidates: docType == null
+        ? const []
+        : citeCandidatesOf(lfText, idPrefixes: idPrefixes),
     warnings: warnings,
   );
   final itemFacts = itemFactsOf(
@@ -337,6 +353,16 @@ ParsedDoc parseIndexedDoc({
     lineFacts: lineFacts,
     readBannedMatches: () => bannedMatchesOf(sections, lineFacts, docType),
     readItemFacts: () => itemFacts,
+    itemWords: docType == null
+        ? const []
+        : ruleItemWordsOf(
+            doc: doc,
+            lfText: lfText,
+            sections: sections,
+            lineFacts: lineFacts,
+            type: docType,
+            idPrefixes: idPrefixes,
+          ),
   );
   final indexed = IndexedDoc(
     docPath: docPath,

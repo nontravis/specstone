@@ -97,11 +97,11 @@ void main() {
 
   test('template_packs/write_spec_docs_from_software_tech/'
       'write_spec_writing_guides E13: the guide says a DOMAIN cites its own '
-      'ARCHITECTURE by doc name plus an anchor', () {
+      'ARCHITECTURE by a section link', () {
     expectItemShape(
       domain,
-      'A DOMAIN cites its own ARCHITECTURE by doc name plus `#anchor`, '
-      'such as `architecture:rendering#components`.',
+      'A DOMAIN cites its own ARCHITECTURE by a section link, '
+      'such as `[architecture:rendering](ARCHITECTURE.md#components)`.',
     );
   });
 

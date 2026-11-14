@@ -6,7 +6,8 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show indexedSectionsOf;
+    show IndexedSection, indexedSectionsOf;
+import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
@@ -108,6 +109,47 @@ ItemFacts itemFactsOf({
   );
 }
 
+/// Returns the items of the rule-bearing sections of [doc], a typed doc of
+/// [type] parsed from [lfText], each as [RuleItemWords], in file order.
+///
+/// [sections] are the held sections of [doc] and [lineFacts] its facts, so
+/// each line is a line of the file. Fenced code, a generated block, and an
+/// HTML comment hold no item; see [wordsOfItem] for the items left out.
+List<RuleItemWords> ruleItemWordsOf({
+  required Doc doc,
+  required String lfText,
+  required List<IndexedSection> sections,
+  required LineFacts lineFacts,
+  required MergedDocType type,
+  required Set<String> idPrefixes,
+}) {
+  final templates = heldTemplatesOf(sections, type);
+  final definitions = definitionLinesOf(doc.afterFrontmatter);
+  final isGenerated = generatedLineTest(
+    doc,
+    lfText,
+    type.listedGenerators.toSet(),
+  );
+  return [
+    for (var i = 0; i < sections.length; i++)
+      if (ruleBearingSectionKeys.contains(sections[i].key))
+        for (final item in sectionItemsOf(
+          withCommentsBlanked(
+            withGeneratedFenced(
+              sectionBodyLines(sections, lineFacts, i),
+              isGenerated,
+            ),
+          ),
+        ))
+          ?wordsOfItem(
+            item,
+            templates[i]?.prefixId,
+            idPrefixes: idPrefixes,
+            definitions: definitions,
+          ),
+  ];
+}
+
 /// Returns a test of whether a file line of [text] is a marker line or inner
 /// line of a closed generated block of one of [kinds].
 ///
@@ -191,14 +233,31 @@ List<ItemFact> _itemFactsIn(List<BodyLine> body, MergedSection? template) => [
 ///
 /// A letter right after the digits makes no ID (RULE-12), so a lettered or
 /// unreadable form holds none.
-String? _itemIdOf(DocItem item, MergedSection? template) {
-  if (item.heading && template?.id == acceptanceSectionId) {
-    final scenario = readScenarioHeading('$itemHeadingMarker${item.text}');
+String? _itemIdOf(DocItem item, MergedSection? template) => itemKeyOfHead(
+  item.text,
+  isHeading: item.heading,
+  prefixId: template?.prefixId,
+  isAcceptanceCriteria: template?.id == acceptanceSectionId,
+);
+
+/// Returns the key `check` holds an item by, read from its [head] (the
+/// item's first line after any marker), or null when it holds none.
+///
+/// The one reader of an item's ID: a `### Scenario <N>` heading of an
+/// `acceptance_criteria` section keys by the number's value; any other item
+/// keys by the ID of [prefixId] at its start, as RULE-19 reads it.
+String? itemKeyOfHead(
+  String head, {
+  required bool isHeading,
+  required String? prefixId,
+  required bool isAcceptanceCriteria,
+}) {
+  if (isHeading && isAcceptanceCriteria) {
+    final scenario = readScenarioHeading('$itemHeadingMarker$head');
     if (scenario is ItemId) return itemKeyOf(scenario, isScenario: true);
   }
-  final prefix = template?.prefixId;
-  if (prefix == null) return null;
-  return switch (readItemId(item.text, prefix)) {
+  if (prefixId == null) return null;
+  return switch (readItemId(head, prefixId)) {
     final ItemId id => itemKeyOf(id, isScenario: false),
     _ => null,
   };

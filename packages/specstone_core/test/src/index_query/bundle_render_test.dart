@@ -49,7 +49,8 @@ void main() {
         '- project (project)\n- tech_stack (tech_stack)\n- login (feature)\n- login/email_login (user_story)\n'
         '- login/email_login/validate_credentials (fr)\n- login/email_login/lock_after_failures (fr)\n'
         '- login/email_login/login_latency (nf)\n- login (api)\n- login (architecture)\n- login (domain)\n'
-        '- login (error)\n',
+        '- login (error)\n- password_rules (reference) · summary · cited\n'
+        'Read a summary doc whole with: specstone context <name> --for implement\n',
       ),
     );
     expect(a.json.keys.toList(), ['target', 'for', 'tokens', 'docs']);
@@ -97,7 +98,7 @@ void main() {
       endsWith(
         '- login/reset_password (user_story) · summary\n'
         '- login/reset_password/send_reset_link (fr) · summary\n- login (api)\n- login (architecture)\n'
-        '- login (domain)\n- login (error)\n'
+        '- login (domain)\n- login (error)\n- password_rules (reference) · summary · cited\n'
         'Read a summary doc whole with: specstone context <name> --for implement\n',
       ),
     );
@@ -107,7 +108,11 @@ void main() {
         for (final d in docs)
           if (d['summary'] == true) d['name'],
       ],
-      ['login/reset_password', 'login/reset_password/send_reset_link'],
+      [
+        'login/reset_password',
+        'login/reset_password/send_reset_link',
+        'password_rules',
+      ],
     );
   });
   test('f01/us05/fr02/e09: a summary section still holding its starter text leaves banner and title', () async {
@@ -399,6 +404,419 @@ void main() {
       isNot(contains('## Rationale')),
     );
   });
+  group('appended parts', () {
+    const fr =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const specs = '../../../../specs';
+    const inv14 = '[INV-14]($specs/f02_signup/DOMAIN.md#invariants)';
+    Future<DocIndex> citing(String statement) => indexWith({
+      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+          '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+      fr: '# Validate credentials\n\n## Statement\n$statement\n',
+      'docs/specs/f02_signup/DOMAIN.md':
+          '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+          '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
+          '  - **Enforcer:** the lock service\n- **INV-15** Mails the owner.\n',
+      'docs/specs/topics/rules.md': '# Rules\n\n## Purpose\nHold the rules.\n',
+      'docs/specs/topics/terms.md': '# Terms\n\n## Purpose\nName things.\n\n## Examples\n### A note\nShort.\n',
+    });
+    ReadAnswer implement(DocIndex i, {int? budget}) => ctxIn(
+      i,
+      'login/email_login/validate_credentials',
+      BundleMode.implement,
+      budget: budget,
+    );
+
+    test('f01/us05/fr02/e15, f01/us05/s17: an item part prints after the picked docs, named, with its own lines, and closes the list', () async {
+      final a = implement(await citing('Lock, by $inv14.'));
+      expect(
+        a.text,
+        contains(
+          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
+          '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
+          '  - **Enforcer:** the lock service\n\n'
+          '==> rules (topic) · specs/topics/rules.md#purpose · cited <==\n## Purpose\nHold the rules.\n'
+          '==> bundle: ',
+        ),
+      );
+      expect(
+        a.text.indexOf('· cited <=='),
+        greaterThan(a.text.indexOf('==> login (error)')),
+      );
+      expect(
+        a.text,
+        endsWith(
+          '- login (error)\n- signup (domain) · cited invariants [INV-14]\n'
+          '- rules (topic) · cited purpose\n',
+        ),
+      );
+      expect(a.text, isNot(contains('INV-13')));
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+    });
+    test('f01/us05/fr02/e16: a part reached only through another part prints after every part the picked docs reach', () async {
+      final a = implement(
+        await citing(
+          'Lock, by $inv14; see [terms]($specs/topics/terms.md#purpose).',
+        ),
+      );
+      final parts = RegExp(
+        r'^==> (\S+) \S+ · (\S+) .*· cited <==$',
+        multiLine: true,
+      ).allMatches(a.text).map((m) => m[2]).toList();
+      expect(parts, [
+        'specs/f02_signup/DOMAIN.md#invariants',
+        'specs/topics/terms.md#purpose',
+        'specs/topics/rules.md#purpose',
+      ]);
+    });
+    test('f01/us05/fr02: a doc part prints marked summary and cited, and the list names it with the next step', () async {
+      final a = implement(await citing('See [terms]($specs/topics/terms.md).'));
+      expect(
+        a.text,
+        contains(
+          '==> terms (topic) · specs/topics/terms.md · summary · cited <==\n# Terms\n==> bundle: ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith(
+          '- terms (topic) · summary · cited\n'
+          'Read a summary doc whole with: specstone context <name> --for implement\n',
+        ),
+      );
+    });
+    test('f01/us05/fr02/e17: a bundle with no part prints no cited naming line and no cited list line', () async {
+      final a = implement(await citing('Check the password.'));
+      expect(a.text, isNot(contains(' · cited')));
+      expect(
+        (a.json['docs']! as List).cast<Map<String, Object?>>().where(
+          (d) => d.containsKey('cited'),
+        ),
+        isEmpty,
+      );
+    });
+    test('f01/us05/fr02: under --json each part is a docs object with cited, section, and item after text', () async {
+      final a = implement(await citing('Lock, by $inv14.'));
+      final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
+      final item = docs.firstWhere((d) => d['cited'] == true);
+      expect(item.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'text',
+        'cited',
+        'section',
+        'item',
+      ]);
+      expect(item['name'], 'signup');
+      expect(item['path'], 'specs/f02_signup/DOMAIN.md');
+      expect(item['section'], 'invariants');
+      expect(item['item'], 'INV-14');
+      expect(
+        item['text'],
+        '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
+        '  - **Enforcer:** the lock service',
+      );
+      final section = docs.last;
+      expect(section['section'], 'purpose');
+      expect(section.containsKey('item'), isFalse);
+      final summary =
+          (implement(await citing('See [terms]($specs/topics/terms.md).'))
+                      .json['docs']!
+                  as List)
+              .cast<Map<String, Object?>>()
+              .last;
+      expect(summary.keys.skip(5).toList(), ['summary', 'cited']);
+    });
+    test('f01/us05/fr03/e11, f01/us05/fr05/e15: parts that take a bundle over the budget refuse it', () async {
+      final a = implement(await citing('Lock, by $inv14.'));
+      final docsOnly = tokenSizeOf(
+        a.text.substring(0, a.text.indexOf('\n\n==> signup (domain)')),
+      );
+      final over = implement(
+        await citing('Lock, by $inv14.'),
+        budget: docsOnly,
+      );
+      expect(over.exitStatus, 1);
+      expect(
+        over.text,
+        contains('- signup (domain) · cited invariants [INV-14] · '),
+      );
+      final listed = (over.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['cited'] == true);
+      expect(listed.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'cited',
+        'section',
+        'item',
+      ]);
+    });
+    test('f01/us05/fr05/e14: a query bundle appends no part', () async {
+      final a = ctxIn(
+        await citing('Lock, by $inv14.'),
+        'login',
+        BundleMode.query,
+      );
+      expect(a.text, isNot(contains(' · cited')));
+    });
+    test('f01/us05/fr05/e10: a link to an untyped doc prints its path alone, listed, and under --json a path with no text', () async {
+      final a = implement(
+        await citing('See [the old context](../../../d01_context.md).'),
+      );
+      expect(
+        a.text,
+        contains(
+          '\n\n==> prds/d01_context.md · cited <==\n==> bundle: 11 docs, ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith('- login (error)\n- prds/d01_context.md · cited\n'),
+      );
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+      final path = (a.json['docs']! as List).cast<Map<String, Object?>>().last;
+      expect(path, {
+        'path': 'prds/d01_context.md',
+        'tokens': tokenSizeOf('==> prds/d01_context.md · cited <=='),
+        'cited': true,
+      });
+    });
+    test('f01/us05/fr05/e10: a link to a file that is no .md doc prints its path alone, listed, and under --json a path with no text', () async {
+      final a = implement(
+        await citing('See [the schema]($specs/schema.dbml).'),
+      );
+      expect(
+        a.text,
+        contains(
+          '\n\n==> specs/schema.dbml · cited <==\n==> bundle: 11 docs, ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith('- login (error)\n- specs/schema.dbml · cited\n'),
+      );
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+      expect((a.json['docs']! as List).last, {
+        'path': 'specs/schema.dbml',
+        'tokens': tokenSizeOf('==> specs/schema.dbml · cited <=='),
+        'cited': true,
+      });
+    });
+    test('f01/us05/fr05/e03: a ### block that starts no item names its anchor; --json gives its section and heading', () async {
+      final a = implement(
+        await citing('See [a note]($specs/topics/terms.md#a-note).'),
+      );
+      expect(
+        a.text,
+        contains(
+          '==> terms (topic) · specs/topics/terms.md#a-note · cited <==\n### A note\nShort.\n',
+        ),
+      );
+      expect(a.text, endsWith('- terms (topic) · cited examples\n'));
+      final block = (a.json['docs']! as List).cast<Map<String, Object?>>().last;
+      expect(block.keys.skip(5).toList(), ['cited', 'section', 'heading']);
+      expect(block['section'], 'examples');
+      expect(block['heading'], 'a-note');
+    });
+  });
+  group('cited by', () {
+    const specs = '../../../../specs';
+    const fr =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const frName = 'login/email_login/validate_credentials';
+    const inv14 = '[INV-14]($specs/f02_signup/DOMAIN.md#invariants)';
+    const e01 = '1. E01 — A wrong password → refused, by $inv14.';
+    const guideLine =
+        'See [E02](../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md#edge-cases).';
+    String frWith(String statement) =>
+        '---\nverify_method: test\n---\n\n# Validate credentials\n\n'
+        '## Statement\n$statement\n\n## Edge cases\n<!-- fill in later -->\n'
+        '$e01\n2. E02 — A locked account → refused.\n';
+    Future<DocIndex> citedIndex([
+      String statement = 'The system shall check the email.',
+      Map<String, String> extra = const {},
+    ]) => indexWith({
+      fr: frWith(statement),
+      'docs/specs/f02_signup/DOMAIN.md':
+          '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+          '- **INV-14** Locks after five failures.\n',
+      'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$guideLine\n',
+      ...extra,
+    });
+    ReadAnswer design(DocIndex i, {int? budget}) => ctxIn(
+      i,
+      'login/email_login/validate_credentials',
+      BundleMode.design,
+      budget: budget,
+    );
+    List<Map<String, Object?>> docsOf(ReadAnswer a) =>
+        (a.json['docs']! as List).cast<Map<String, Object?>>();
+
+    test('f01/us05/fr06/e01: a picked item prints its cited-by line right after it, past a removed comment', () async {
+      final a = design(await citedIndex());
+      expect(
+        a.text,
+        contains(
+          '## Edge cases\n\n$e01\n2. E02 — A locked account → refused.\n'
+          '  · cited by guide (topic) —: $guideLine\n',
+        ),
+      );
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+    });
+    test('f01/us05/fr06/e01: an appended item prints its cited-by line, with the citing item', () async {
+      final a = design(await citedIndex());
+      expect(
+        a.text,
+        contains(
+          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
+          '- **INV-14** Locks after five failures.\n'
+          '  · cited by $frName (fr) E01: $e01\n',
+        ),
+      );
+    });
+    test('f01/us05/fr06/e06: an implement or query bundle prints no cited-by line and no citedBy key', () async {
+      final i = await citedIndex();
+      for (final mode in [BundleMode.implement, BundleMode.query]) {
+        final a = ctxIn(i, 'login/email_login/validate_credentials', mode);
+        expect(a.text, isNot(contains('cited by')), reason: mode.wire);
+        expect(
+          docsOf(a).where((d) => d.containsKey('citedBy')),
+          isEmpty,
+          reason: mode.wire,
+        );
+      }
+    });
+    test('f01/us05/fr06/e04: an item of a doc that joins through bundle: prints no cited-by line', () async {
+      final a = design(
+        await citedIndex('Cites [PV-01](../../../PROJECT.md#project-vision).', {
+          'docs/prds/PROJECT.md': '---\nowner: Owner\n---\n\n# Project context\n\n## Project vision\n### PV-01 — One system\nText.\n',
+        }),
+      );
+      expect(a.text, contains('### PV-01 — One system'));
+      expect(a.text, isNot(contains('PV-01 — One system\nText.\n  · cited')));
+      expect(a.text, isNot(contains('cited by $frName (fr) —: Cites')));
+    });
+    test('f01/us05/fr06: under --json a doc object gains citedBy, one object per line, after its other keys', () async {
+      final a = design(await citedIndex());
+      final docs = docsOf(a);
+      final picked = docs.firstWhere((d) => d['name'] == frName);
+      expect(picked.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'text',
+        'citedBy',
+      ]);
+      expect(picked['citedBy'], [
+        {
+          'item': 'E02',
+          'name': 'guide',
+          'docType': 'topic',
+          'byItem': null,
+          'line': guideLine,
+        },
+      ]);
+      final part = docs.firstWhere((d) => d['item'] == 'INV-14');
+      expect(part.keys.last, 'citedBy');
+      expect(part['citedBy'], [
+        {
+          'item': 'INV-14',
+          'name': frName,
+          'docType': 'fr',
+          'byItem': 'E01',
+          'line': e01,
+        },
+      ]);
+      final feature = docs.firstWhere(
+        (d) => d['name'] == 'login' && d['docType'] == 'feature',
+      );
+      expect(feature['citedBy'], isEmpty);
+      expect(
+        docs.where((d) => !d.containsKey('citedBy')),
+        isEmpty,
+        reason: 'each doc object of a design bundle carries citedBy',
+      );
+    });
+    test('f01/us05/fr06: a nested item that ends on its cited parent last line keeps its line in the text', () async {
+      final a = design(
+        await citedIndex('Lock, by $inv14.', {
+          'docs/specs/f02_signup/DOMAIN.md':
+              '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+              '- **INV-14** Locks after five failures.\n'
+              '  - **INV-15** Mails its owner.\n',
+          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [INV-14](../f02_signup/DOMAIN.md#invariants) and [INV-15](../f02_signup/DOMAIN.md#invariants).\n',
+        }),
+      );
+      final text = a.text;
+      expect(
+        text,
+        contains(
+          '  - **INV-15** Mails its owner.\n  · cited by guide (topic) —: See [INV-14]',
+        ),
+      );
+      expect(
+        RegExp('  · cited by guide').allMatches(text).length,
+        2,
+        reason: 'one line for INV-14 and one for INV-15',
+      );
+      final part = docsOf(a).firstWhere((d) => d['item'] == 'INV-14');
+      expect(part['citedBy']! as List, hasLength(4));
+    });
+    test('f01/us05/fr06: a summary doc prints its whole-printed items with their cited-by lines', () async {
+      final a = design(
+        await citedIndex(
+          'Resets, by [BR-1](../us02_reset_password/USER_STORY.md#rules).',
+          {
+            'docs/prds/features/f01_login/us02_reset_password/USER_STORY.md': '---\nslug:\n  - reset\n---\n\n# Agent resets a password\n\n## Use Case\nReset it.\n\n## Rules\n- **BR-1** Links expire.\n',
+          },
+        ),
+      );
+      expect(
+        a.text,
+        contains(
+          '## Rules\n- **BR-1** Links expire.\n'
+          '  · cited by $frName (fr) —: Resets, by [BR-1]',
+        ),
+      );
+      final summary = docsOf(a).firstWhere(
+        (d) => d['summary'] == true && d['name'] == 'login/reset_password',
+      );
+      expect(
+        (summary['citedBy']! as List).single,
+        containsPair('item', 'BR-1'),
+      );
+    });
+    test('f01/us05/fr06: an appended summary doc part prints its items with their cited-by lines', () async {
+      final a = design(
+        await citedIndex(
+          'See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).',
+          {
+            'docs/prds/features/f02_signup/us01_create_account/USER_STORY.md': '---\nslug:\n  - signup\n---\n\n# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n',
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [BR-1](../../prds/features/f02_signup/us01_create_account/USER_STORY.md#rules).\n',
+          },
+        ),
+      );
+      expect(
+        a.text,
+        contains(
+          '· summary · cited <==\n# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
+          '  · cited by guide (topic) —: See [BR-1]',
+        ),
+      );
+    });
+    test('f01/us05/fr06/e07: the lines count toward the budget', () async {
+      final i = await citedIndex();
+      final tokens = design(i).json['tokens']! as int;
+      expect(design(i, budget: tokens).exitStatus, 0);
+      expect(design(i, budget: tokens - 1).exitStatus, 1);
+    });
+  });
   group('budget', () {
     test('f01/us05/s5, f01/us05/fr03, f01/us05/fr03/e01, f01/us05/fr03/e03: over budget prints sizes and the next step, no doc text, exit 1', () async {
       final tokens =
@@ -419,7 +837,7 @@ void main() {
       expect(
         a.text,
         endsWith(
-          'Next step: narrow the target, or hand login/email_login to specstone:sdd-reader.\n',
+          'Next step: narrow the target, or run it again with --out and no --budget.\n',
         ),
       );
       expect(a.text, isNot(contains('## Statement')));
@@ -478,16 +896,16 @@ void main() {
       expect(json['overBudget'], isTrue);
       expect(
         json['next'],
-        'narrow the target, or hand login/email_login to specstone:sdd-reader',
+        'narrow the target, or run it again with --out and no --budget',
       );
       expect(
         ((json['docs']! as List).first as Map).containsKey('text'),
         isFalse,
       );
     });
-    test('f01/us05/fr03/e09, db-r6: over budget with --summary, the next step names --summary for the reader', () {
+    test('f01/us05/fr03/e09, db-r6: over budget with --summary, the next step keeps --summary on the --out call', () {
       const next =
-          'narrow the target, or hand login with --summary to specstone:sdd-reader';
+          'narrow the target, or run it again with --summary --out and no --budget';
       final answer = answerContext(
         index,
         pickBundle(

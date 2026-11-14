@@ -8,6 +8,7 @@ description: |-
   Write one rule per ID; in a section with no IDs, one rule per item, with mechanics left to the spec docs.
   Keep a bound in the item it limits, and the trace to the source in `source:` and `files:`, never in the summary.
   Add a new card for a new edition, and mark the older one superseded; do not edit a card to hide its history.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: prds/references/{slug}/REFERENCE.md
 fields:
   - id: source

@@ -139,6 +139,7 @@ void main() {
   _planInputTests();
   _testNameTests();
   _codeStampTests();
+  _citeTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -1635,14 +1636,19 @@ void _renumberTests() {
             '---\ntraced_from:\n  - S9\nconfirmed:\n'
             '  - S9 ${fingerprintOf(_renumbered)}\n---\n',
           ),
-          contains('`doc_model` RULE-31\n`other_topic` RULE-7a\n'),
+          // The cite pass after the renumber pass links the renumbered ID; a
+          // lettered ID is no item ID, so its cite links the doc alone.
+          contains(
+            '[RULE-31](../../../../specs/topics/doc_model.md#rules)\n'
+            '[other_topic](../../../../specs/topics/other_topic.md) RULE-7a\n',
+          ),
         ),
       );
       expect(
         _docText(plan, 'specs/f01_a/DOMAIN.md'),
         contains(
           '[rules](../topics/doc_model.md) RULE-31\n'
-          '`../topics/doc_model.md` RULE-31\n',
+          '[RULE-31](../topics/doc_model.md#rules)\n',
         ),
       );
     });
@@ -1882,7 +1888,9 @@ void _labelTests() {
       final text = plan.toText();
       expect(
         _docText(plan, 'specs/topics/labelled.md'),
-        contains('See `a/b/c` and FR-09.'),
+        contains(
+          'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and FR-09.',
+        ),
       );
       final lines = text.split('\n');
       final renumber = lines.indexWhere((l) => l.startsWith('  renumber ids:'));
@@ -1909,7 +1917,7 @@ void _labelTests() {
 
       expect(
         text,
-        '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[`a/b`](../../prds/features/f01_a/us01_b/USER_STORY.md) and `feature:a`.\r\n',
+        '\uFEFF# L\r\n\r\n## Rules\r\n\r\n[`a/b`](../../prds/features/f01_a/us01_b/USER_STORY.md) and [feature:a](../../prds/features/f01_a/FEATURE.md).\r\n',
       );
     });
 
@@ -3652,6 +3660,183 @@ void _codeStampTests() {
       expect(
         plan.toText(),
         contains('  from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
+      );
+    });
+  });
+}
+
+const _citePins = 'packs:\n  prd-core: 1.8.0\n  software-tech: 1.6.0\n';
+const _citeDomainPath = 'specs/f01_login/DOMAIN.md';
+const _citeDomain =
+    '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n'
+    '- **INV-7** One account.\n';
+const _citeTopicPath = 'specs/topics/cites.md';
+
+/// A project pinned below the cite rule, holding [docs] beside the login
+/// feature and its domain doc.
+Future<Directory> _citeTree(
+  Map<String, String> docs, {
+  String pins = _citePins,
+}) => writeTree({
+  '.specstone/config.yaml': pins,
+  'docs/$_featurePath': '# Login\n',
+  'docs/$_citeDomainPath': _citeDomain,
+  for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+});
+
+void _citeTests() {
+  group('cite pass', () {
+    test('f06/us02/fr01: the pass converts the label pass names after it, its '
+        'line between the number labels line and the stamps line', () async {
+      final project = await _labelTree({
+        'specs/f01_a/DOMAIN.md': '# A\n\n## Invariants\n\n- **INV-1** One.\n',
+        'specs/topics/labelled.md':
+            '# Labelled\n\n## Rules\n\nSee F-01 US-01 FR-01 and `domain:a` '
+            'INV-1.\n',
+      });
+
+      final plan = _planWith(project);
+
+      expect(
+        _docText(plan, 'specs/topics/labelled.md'),
+        contains(
+          'See [a/b/c](../../prds/features/f01_a/us01_b/fr01_c.md) and '
+          '[INV-1](../f01_a/DOMAIN.md#invariants).\n',
+        ),
+      );
+      final text = plan.toText();
+      final labels = text.indexOf('  number labels: ');
+      final cites = text.indexOf('  cites: 2 rewrites in 1 docs; left: 0\n');
+      final layout = text.indexOf('  format layout: ');
+      expect(labels, isNonNegative);
+      expect(cites, greaterThan(labels));
+      if (layout >= 0) expect(layout, greaterThan(cites));
+      expect(text.indexOf('  stamps: '), greaterThan(cites));
+    });
+
+    test('f06/us02/fr01: the tests line comes before the cites line', () async {
+      final project = await _testNameProject(
+        docs: {
+          ..._plainLoginDocs,
+          _citeTopicPath: '# Cites\n\n## Rules\n\n`feature:login`\n',
+        },
+        files: {_testFile: _testSource('f01/us01/fr01 rejects')},
+      );
+
+      final text = _planTestNames(project).toText();
+
+      final tests = text.indexOf('  tests: ');
+      expect(tests, isNonNegative);
+      expect(text.indexOf('  cites: '), greaterThan(tests));
+    });
+
+    test('f06/us02/fr02/e82: the cites line counts each form once, the docs it '
+        'rewrites, and each form it keeps, listed under the cites JSON key '
+        'right after numberLabels', () async {
+      final project = await _citeTree({
+        _citeTopicPath:
+            '# Cites\n\n## Rules\n\n`domain:login` INV-6 and INV-7\n\n'
+            'See `domain:login` INV-99.\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        plan.toText(),
+        contains('  cites: 1 rewrites in 1 docs; left: 1\n'),
+      );
+      final written = _stampedDocText(plan, _citeTopicPath);
+      final line =
+          written.split('\n').indexWhere((l) => l.contains('INV-99')) + 1;
+      final json = plan.lists.toJson();
+      expect(json['cites'], {
+        'rewritten': [_citeTopicPath],
+        'left': ['$_citeTopicPath:$line domain:login'],
+      });
+      final keys = json.keys.toList();
+      expect(keys.indexOf('cites'), keys.indexOf('numberLabels') + 1);
+    });
+
+    test('f06/us02/fr02/e82: a tree with no old cite form prints no cites line '
+        'and an empty cites object', () async {
+      final project = await _citeTree({
+        _citeTopicPath: '# Cites\n\n## Rules\n\nNo cites here.\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.toText(), isNot(contains('cites:')));
+      expect(plan.lists.toJson()['cites'], {
+        'rewritten': <Object?>[],
+        'left': <Object?>[],
+      });
+    });
+
+    test('f06/us02/fr02/e83: the stamp pass re-stamps a matched entry whose '
+        'block the pass rewrote, keeps a suspect one, and stamps the approval '
+        'of the doc it rewrote', () async {
+      const scenario =
+          '### Scenario 1 — [happy] Sign in\n\n'
+          '- **Given** the rule `domain:login` INV-6\n';
+      const linked =
+          '### Scenario 1 — [happy] Sign in\n\n'
+          '- **Given** the rule '
+          '[INV-6](../../../../specs/f01_login/DOMAIN.md#invariants)\n';
+      const lockPath = 'prds/features/f01_login/us01_email_login/fr02_lock.md';
+      final storyType = TemplateResolver()
+          .resolveCarried(
+            packNames: const ['prd-core', 'software-tech'],
+            homeDirectory: null,
+          )
+          .lookup('user_story');
+      final project = await _citeTree({
+        _loginStoryPath: withApprovalHash(
+          '# Email login\n\n## Acceptance Criteria\n\n$scenario',
+          storyType,
+          statusesOutside: false,
+        ),
+        _loginFrPath:
+            '---\ntraced_from: [S1]\nconfirmed:\n'
+            '  - S1 ${fingerprintOf(scenario)}\n---\n# Validate\n',
+        lockPath:
+            '---\ntraced_from: [S1]\nconfirmed:\n  - S1 000000000000\n---\n'
+            '# Lock\n',
+      });
+
+      final plan = _planAt(project);
+
+      final story = _stampedDocText(plan, _loginStoryPath);
+      expect(story, contains(linked.split('\n\n').last));
+      expect(withApprovalHash(story, storyType, statusesOutside: true), story);
+      expect(
+        _stampedDocText(plan, _loginFrPath),
+        contains('  - S1 ${fingerprintOf(linked)}\n'),
+      );
+      expect(
+        plan.rewrites.where((rewrite) => rewrite.path == 'docs/$lockPath'),
+        isEmpty,
+      );
+      expect(plan.toText(), contains(', 1 fingerprints'));
+    });
+
+    test('f06/us02/fr02/e86: an upgrade from the cite rule version or later '
+        'runs no cite pass', () async {
+      final fixture = await _fixture(
+        docs: {
+          'prds/runbooks/deploy/RUNBOOK.md': _runbookDoc,
+          _citeDomainPath: _citeDomain,
+          _citeTopicPath: '# Cites\n\n## Rules\n\n`domain:login` INV-6\n',
+        },
+      );
+
+      final plan = _plan(fixture);
+
+      expect(plan.toText(), isNot(contains('cites:')));
+      expect(
+        plan.rewrites.where(
+          (rewrite) => rewrite.path == 'docs/$_citeTopicPath',
+        ),
+        isEmpty,
       );
     });
   });

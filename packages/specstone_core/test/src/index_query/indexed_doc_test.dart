@@ -275,6 +275,7 @@ void main() {
         fileLinks: <LinkPlace>[],
         selfLinks: <LinkPlace>[],
         unreadableLinks: <LinkPlace>[],
+        texts: <LinkText>[],
         readersAgree: true,
       );
       final disagreeing = (
@@ -282,6 +283,7 @@ void main() {
         fileLinks: agreeing.fileLinks,
         selfLinks: agreeing.selfLinks,
         unreadableLinks: agreeing.unreadableLinks,
+        texts: agreeing.texts,
         readersAgree: false,
       );
 

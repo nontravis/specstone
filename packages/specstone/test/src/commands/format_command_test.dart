@@ -397,7 +397,7 @@ sections:
             generatorKinds: {...shippedGeneratorKinds, 'note_toc'},
           ),
           generators: GeneratorRegistry<DocIndex>({
-            'note_toc': (doc, type, index) => [
+            'note_toc': (doc, docPath, type, index) => [
               const GeneratedBlock(
                 kind: 'note_toc',
                 sectionId: 'contents',

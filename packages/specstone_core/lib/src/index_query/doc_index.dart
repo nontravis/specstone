@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
@@ -28,6 +30,7 @@ final class DocIndex {
     this.docs,
     this._store,
     this._docPathOfFile, {
+    required this.docsRoot,
     List<String> targetNames = const [],
   }) : statusTree = StatusTree(set, docs, targetNames: targetNames),
        _byName = _groupBy(docs, (doc) => doc.name),
@@ -39,6 +42,9 @@ final class DocIndex {
 
   /// Every doc in tree order.
   final List<IndexedDoc> docs;
+
+  /// The docs root on disk, which a file link's path is read under.
+  final Directory docsRoot;
 
   /// The config's target names, in config order; empty with one unnamed
   /// target.
@@ -284,6 +290,11 @@ final class DocIndex {
 
   /// Returns the text and structure of [doc].
   DocContent contentOf(IndexedDoc doc) => _store.loadContent(doc.docPath);
+
+  /// Returns the normalized words of every item of a rule-bearing section,
+  /// by docPath and then item order.
+  Iterable<({String docPath, int line, String? itemId, List<String> words})>
+  ruleItemWords() => _store.ruleItemWords();
 
   /// Returns the rows of the full-text index that match [matchExpression].
   List<SearchRow> search(String matchExpression) =>

@@ -261,6 +261,7 @@ FileResult _formatReadable<R>(
           read.docType,
           blocks.run.registry,
           blocks.resolver,
+          docPath: read.docPath,
         );
       }
       if (finalText == toLf(read.text)) {

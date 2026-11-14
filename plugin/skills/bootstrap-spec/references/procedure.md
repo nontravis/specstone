@@ -35,6 +35,7 @@ the Owner only when no text bears on a whole section.
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md` |
+| `cite_unlinked`, a repeats batch | `${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md` |
 | any other of this skill | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
 ## 3. Point and cover code
@@ -61,18 +62,17 @@ An `untyped_doc` under `specs/`: merge it into the doc that takes it, else a new
   API docs, a cross-cutting statement to the tech stack's `## Constraints` or a topic doc; quote in step 6 each line
   only about the old index, as a line with no home.
 
-Skip only a sentence its new doc holds word for word, and never target the old file: a write refuses it. Add its path
-to this run's retire set.
+Skip only a sentence its new doc holds word for word, and never target the old file. Add its path to this run's
+retire set.
 
 ## 5. Retire the old files
 
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
-2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
-   repoints it: merge it first (`specstone:bootstrap-prd` takes one under `prds/`). A batch's set holds only
-   files it merged; list each untyped referrer outside it, with the file it names, for its owner to merge. Leave any
-   other untyped file as history. Repoint each other link or mention to the doc holding the content, or drop one
-   nothing replaces.
+2. Referrers inside the set never block. An old untyped doc under `specs/` joins the set: merge it first.
+   A batch's set holds only files it merged; list each untyped referrer outside it, with the file it names, for its
+   owner to merge. Leave any other untyped file as history. Repoint each other link or mention to the doc holding the
+   content, or drop one nothing replaces.
 3. Name the set in one line, `specstone delete <path> <path> …`, quoting each path with a space.
 
 On a batch, delete nothing: hand that line to `specstone:bootstrap-spec`'s step 3.4.

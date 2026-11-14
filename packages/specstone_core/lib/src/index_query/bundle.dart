@@ -2,6 +2,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/templates/code_point_order.dart';
 
 /// The mode a bundle's docs are picked for; [wire] is the `--for` word.
 enum BundleMode {
@@ -56,6 +57,10 @@ final class Bundle {
   /// The docs that join only through their doc type's `bundle:` list.
   final Set<String> joinedPaths = {};
 
+  /// The docs `--no-project` drops: those [joinedPaths] would hold without
+  /// it; a link into one is not followed (follow_cited_links E11).
+  final Set<String> droppedPaths = {};
+
   /// The docs that print in summary only: [summaryPaths] that no target picks
   /// whole and no `bundle:` join adds (DB-C9).
   Set<String> get summaryOnly =>
@@ -99,16 +104,40 @@ final class Bundle {
   /// Adds every typed doc whose doc type's `bundle:` list holds the mode,
   /// unless [noProject] drops it (INV-13).
   void join(DocIndex index, {required bool noProject}) {
-    if (noProject) return;
     for (final doc in index.docs) {
       final bundle = index.typeOf(doc)?.bundle;
       if (bundle != null &&
           bundle.contains(mode.wire) &&
           keepsTarget(doc) &&
           !docPaths.contains(doc.docPath)) {
-        joinedPaths.add(doc.docPath);
+        (noProject ? droppedPaths : joinedPaths).add(doc.docPath);
       }
     }
+  }
+
+  /// Returns the docs in print order: the joined docs in tree order, then a
+  /// pre-order walk from each doc of [docPaths] and [summaryPaths] whose
+  /// parent is outside both, children inside both sorted by chain type first,
+  /// then doc type id, then DocPath, by code point (INV-15). The walk drops a
+  /// joined doc, which prints once, whole.
+  List<IndexedDoc> printOrder(DocIndex index) {
+    final inDocPaths = {...docPaths, ...summaryPaths};
+    final roots = [
+      for (final doc in index.docs)
+        if (inDocPaths.contains(doc.docPath) &&
+            (doc.parentPath == null || !inDocPaths.contains(doc.parentPath)))
+          doc,
+    ];
+    final walkOrder = <IndexedDoc>[];
+    for (final root in roots) {
+      _walk(index, root, inDocPaths, walkOrder);
+    }
+    return [
+      for (final doc in index.docs)
+        if (joinedPaths.contains(doc.docPath)) doc,
+      for (final doc in walkOrder)
+        if (!joinedPaths.contains(doc.docPath)) doc,
+    ];
   }
 
   /// Adds the design docs of [target] read from its nearest nesting doc.
@@ -210,6 +239,32 @@ final class Bundle {
     return top;
   }
 }
+
+void _walk(
+  DocIndex index,
+  IndexedDoc doc,
+  Set<String> inDocPaths,
+  List<IndexedDoc> out,
+) {
+  out.add(doc);
+  final children = [
+    for (final child in index.childrenOf(doc))
+      if (inDocPaths.contains(child.docPath)) child,
+  ]..sort(_compareSiblings(index));
+  for (final child in children) {
+    _walk(index, child, inDocPaths, out);
+  }
+}
+
+int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
+    (a, b) {
+      final aChain = index.isChainDoc(a) ? 0 : 1;
+      final bChain = index.isChainDoc(b) ? 0 : 1;
+      if (aChain != bChain) return aChain - bChain;
+      final byType = compareCodePoints(a.docTypeId ?? '', b.docTypeId ?? '');
+      if (byType != 0) return byType;
+      return compareCodePoints(a.docPath, b.docPath);
+    };
 
 /// Returns the bundle [target] holds for [mode].
 ///

@@ -102,7 +102,7 @@ _JourneyPart _pathsOf(
 ) {
   final resolved = [
     for (final step in steps.steps)
-      _ResolvedStep(index, step, codeTarget: codeTarget),
+      _ResolvedStep(index, journey, step, codeTarget: codeTarget),
   ];
   final lines = <String>[];
   final pathsJson = <Object>[];
@@ -199,7 +199,12 @@ _JourneyPart _codeOf(
   final stepsJson = <Object>[];
   final warnings = <String>[];
   for (final step in steps.steps) {
-    final resolved = _ResolvedStep(index, step, codeTarget: codeTarget);
+    final resolved = _ResolvedStep(
+      index,
+      journey,
+      step,
+      codeTarget: codeTarget,
+    );
     lines.add(resolved.line);
     final target = resolved.target;
     final story = target == null
@@ -300,14 +305,20 @@ Map<String, Object> _codeJson(
 
 /// One journey step with the scenario its target names, read from the Index.
 final class _ResolvedStep {
-  new(DocIndex index, this.step, {String? codeTarget})
+  new(DocIndex index, IndexedDoc journey, this.step, {String? codeTarget})
     : target = step.target,
-      scenario = _scenarioOf(index, step.target, codeTarget: codeTarget);
+      scenario = _scenarioOf(
+        index,
+        journey,
+        step.target,
+        codeTarget: codeTarget,
+      );
 
   final JourneyStep step;
   final StepTarget? target;
 
-  /// The lines of the scenario block after its heading; null when unresolved.
+  /// The lines of the scenario block after its heading, as the journey's
+  /// block holds them; null when unresolved.
   final String? scenario;
 
   /// `<number>. <heading>`, then ` — <step:>` when the step has one.
@@ -333,12 +344,15 @@ final class _ResolvedStep {
 
   static String? _scenarioOf(
     DocIndex index,
+    IndexedDoc journey,
     StepTarget? target, {
     String? codeTarget,
-  }) {
-    final block = target == null
-        ? null
-        : scenarioBlockOf(index, target, codeTarget: codeTarget);
-    return block == null ? null : scenarioCopyOf(block);
-  }
+  }) => target == null
+      ? null
+      : scenarioCopyFor(
+          index,
+          target,
+          journeyPath: journey.docPath,
+          codeTarget: codeTarget,
+        );
 }

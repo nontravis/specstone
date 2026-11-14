@@ -198,6 +198,7 @@ final class ReadSession {
     docs,
     store,
     (path) => project.docPathAt(path, workingDirectory: workingDirectory),
+    docsRoot: project.docsRoot,
     targetNames: project.targetNames,
   );
 

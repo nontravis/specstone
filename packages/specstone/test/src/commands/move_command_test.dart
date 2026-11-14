@@ -284,6 +284,27 @@ void main() {
     expect(readDoc(root, shopApi), isNot(contains('\n\n\n')));
   });
 
+  test('f02/us07/fr02/e11: move sets a link text equal to the old Name to the '
+      'new Name and keeps an item link text', () async {
+    final root = await writeNestedProject(
+      extra: {
+        'docs/notes/links.md':
+            '# Links\n\n'
+            '[user_story:shop/cart/add_item](../$addItemFolder/USER_STORY.md#acceptance_criteria)\n'
+            '[AC-1](../$addItemFolder/USER_STORY.md#acceptance_criteria)\n',
+      },
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 0);
+    expect(
+      readDoc(root, 'notes/links.md'),
+      '# Links\n\n'
+      '[user_story:shop/pay/add_item](../$movedFolder/USER_STORY.md#acceptance_criteria)\n'
+      '[AC-1](../$movedFolder/USER_STORY.md#acceptance_criteria)\n',
+    );
+    expect(out.toString(), contains('rewrote notes/links.md\n'));
+  });
+
   test(
     'E04: move rewrites an fr traced_from entry and confirmed label',
     () async {
