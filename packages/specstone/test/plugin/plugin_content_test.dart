@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
+import 'package:specstone_core/src/setup_migration/agent_assets.dart';
+import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:test/test.dart';
 
 import '../helpers/hook_command.dart';
@@ -10,7 +12,7 @@ import '../helpers/temp_tree.dart';
 
 Future<List<String>> _problemsOf(Map<String, String> files) async {
   final root = await writeTree(files);
-  return unknownCliNames(root, SpecstoneCommandRunner());
+  return unknownCliNames(contentFilesOf(root), SpecstoneCommandRunner());
 }
 
 void main() {
@@ -83,7 +85,7 @@ void main() {
       'specstone-x/SKILL.md': 'a' * 4000,
       'specstone-x/reference.md': 'b' * 6480,
     });
-    expect(oversizedSkillFiles(root), [
+    expect(oversizedSkillFiles(contentFilesOf(root)), [
       'specstone-x/reference.md: 1620 est. tokens, over 1500',
     ]);
   });
@@ -94,7 +96,7 @@ void main() {
       'specstone-x/SKILL.md': 'a' * 4000,
       'specstone-x/reference.md': 'b' * 4000,
     });
-    expect(oversizedSkillFiles(root), isEmpty);
+    expect(oversizedSkillFiles(contentFilesOf(root)), isEmpty);
   });
 
   test('an agent file is name-checked and never sized', () async {
@@ -102,10 +104,12 @@ void main() {
     expect(await _problemsOf({'specstone-a.md': valid}), isEmpty);
     expect(
       oversizedSkillFiles(
-        await writeTree({
-          'specstone-x/SKILL.md': 'small',
-          'specstone-a.md': valid,
-        }),
+        contentFilesOf(
+          await writeTree({
+            'specstone-x/SKILL.md': 'small',
+            'specstone-a.md': valid,
+          }),
+        ),
       ),
       isEmpty,
     );
@@ -123,7 +127,7 @@ void main() {
       'specstone-y/c.txt': 'a' * 6004,
       'specstone-y/d.md': 'a' * 6000,
     });
-    expect(oversizedSkillFiles(root), [
+    expect(oversizedSkillFiles(contentFilesOf(root)), [
       'specstone-y/a.md: 1501 est. tokens, over 1500',
       'specstone-y/b.md: 1501 est. tokens, over 1500',
       'specstone-y/c.txt: 1501 est. tokens, over 1500',
@@ -133,7 +137,7 @@ void main() {
 
   test('no skills folder means no oversized skill file', () async {
     final root = await writeTree({'specstone-a.md': 'text'});
-    expect(oversizedSkillFiles(root), isEmpty);
+    expect(oversizedSkillFiles(contentFilesOf(root)), isEmpty);
   });
 
   test('CRLF line ends count as LF', () async {
@@ -141,22 +145,19 @@ void main() {
       'specstone-x/at_limit.md': 'a\r\n' * 3000,
       'specstone-x/over.md': 'a\r\n' * 3002,
     });
-    expect(oversizedSkillFiles(root), [
+    expect(oversizedSkillFiles(contentFilesOf(root)), [
       'specstone-x/over.md: 1501 est. tokens, over 1500',
     ]);
   });
 
   test('f08/us01/fr04, f08/us01/s5: every shipped skill and agent names only '
       'commands and flags the CLI has', () {
-    expect(
-      unknownCliNames(agentAssetsRoot(), SpecstoneCommandRunner()),
-      isEmpty,
-    );
+    expect(unknownCliNames(contentFiles(), SpecstoneCommandRunner()), isEmpty);
   });
 
   test('f08/us01/fr04, nfr-te01: every shipped skill file stays within '
       '1,500 est. tokens', () {
-    expect(oversizedSkillFiles(agentAssetsRoot()), isEmpty);
+    expect(oversizedSkillFiles(contentFiles()), isEmpty);
   });
 
   test(
@@ -236,6 +237,7 @@ void main() {
   _planTests();
   _codeParseTests();
   _agentFileTests();
+  _hostRenderTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -396,10 +398,19 @@ const _nameOnly = 'agent_plugin/ground_a_task/name_only_existing_commands';
 
 Future<List<String>> _skillProblemsOf(String markdown) async {
   final root = await writeTree({'specstone-x/SKILL.md': markdown});
-  return otherPluginSkillNames(root, shippedDocTypes());
+  return otherPluginSkillNames(contentFilesOf(root), shippedDocTypes());
 }
 
 const _otherSkill = "specstone-x/SKILL.md: a:b is another plugin's skill";
+
+/// The other-plugin problems of every shipped source and render.
+///
+/// WORKAROUND: the shipped text still names `specstone:<name>`; remove the
+/// filter when the skill and agent rewrites land.
+List<String> _shippedOtherPluginSkills() => otherPluginSkillNames(
+  contentFiles(),
+  shippedDocTypes(),
+).where((problem) => !problem.contains(' specstone:')).toList();
 
 void _codeParseTests() {
   test('$_nameOnly: a span wrapped over two lines is read whole, and the span '
@@ -473,7 +484,7 @@ const _docCitations = [
   '`project:project`',
   '`gnfr:gnfr`',
   '`features:features`',
-  '`specstone:plan-sdd`',
+  '`specstone-plan-sdd`',
 ];
 
 void _otherPluginSkillTests() {
@@ -482,7 +493,7 @@ void _otherPluginSkillTests() {
     final root = await writeTree({
       'specstone-x/SKILL.md': 'Then run `superpowers:writing-plans`.',
     });
-    expect(otherPluginSkillNames(root, shippedDocTypes()), [
+    expect(otherPluginSkillNames(contentFilesOf(root), shippedDocTypes()), [
       "specstone-x/SKILL.md: superpowers:writing-plans is another plugin's skill",
     ]);
   });
@@ -492,18 +503,21 @@ void _otherPluginSkillTests() {
     final root = await writeTree({
       'specstone-a.md': 'Cite each hit as `path:line`.',
     });
-    expect(otherPluginSkillNames(root, shippedDocTypes()), [
+    expect(otherPluginSkillNames(contentFilesOf(root), shippedDocTypes()), [
       "specstone-a.md: path:line is another plugin's skill",
     ]);
   });
 
   test('$_nameOnly E06: a doc citation, a placeholder, a doc-type prefix, and '
-      'a specstone skill pass', () async {
+      'a hyphenated specstone skill name pass', () async {
     final root = await writeTree({
       'specstone-x/SKILL.md': 'Cite ${_docCitations.join(', ')}.',
       'specstone-a.md': 'Cite ${_docCitations.join(', ')}.',
     });
-    expect(otherPluginSkillNames(root, shippedDocTypes()), isEmpty);
+    expect(
+      otherPluginSkillNames(contentFilesOf(root), shippedDocTypes()),
+      isEmpty,
+    );
   });
 
   test('$_nameOnly: shippedDocTypes holds the doc types the packs define, '
@@ -521,16 +535,13 @@ void _otherPluginSkillTests() {
           '```\nsuperpowers:writing-plans\n```\n'
           '`superpowers:writing-plans now` `a:b` `a:b`\n',
     });
-    expect(otherPluginSkillNames(root, shippedDocTypes()), [
+    expect(otherPluginSkillNames(contentFilesOf(root), shippedDocTypes()), [
       "specstone-x/SKILL.md: a:b is another plugin's skill",
     ]);
   });
 
   test("$_nameOnly: no shipped plugin file names another plugin's skill", () {
-    expect(
-      otherPluginSkillNames(agentAssetsRoot(), shippedDocTypes()),
-      isEmpty,
-    );
+    expect(_shippedOtherPluginSkills(), isEmpty);
   });
 }
 
@@ -789,10 +800,10 @@ void _procedureTests() {
       );
       bool ofThisFile(String problem) =>
           problem.startsWith('${procedure.file}:');
-      expect(oversizedSkillFiles(agentAssetsRoot()).where(ofThisFile), isEmpty);
+      expect(oversizedSkillFiles(contentFiles()).where(ofThisFile), isEmpty);
       expect(
         unknownCliNames(
-          agentAssetsRoot(),
+          contentFiles(),
           SpecstoneCommandRunner(),
         ).where(ofThisFile),
         isEmpty,
@@ -3082,12 +3093,9 @@ void _agentTests() {
     }
     expect(cliCommands(_pluginText(_rounds)), contains('get'));
     bool ofRounds(String problem) => problem.startsWith('$_rounds:');
-    expect(oversizedSkillFiles(agentAssetsRoot()).where(ofRounds), isEmpty);
+    expect(oversizedSkillFiles(contentFiles()).where(ofRounds), isEmpty);
     expect(
-      unknownCliNames(
-        agentAssetsRoot(),
-        SpecstoneCommandRunner(),
-      ).where(ofRounds),
+      unknownCliNames(contentFiles(), SpecstoneCommandRunner()).where(ofRounds),
       isEmpty,
     );
   });
@@ -3139,12 +3147,9 @@ void _agentTests() {
     expect(text, isNot(contains('context project --for design --budget')));
     expect(_procedures.map((p) => p.file), isNot(contains(_source)));
     bool ofSource(String problem) => problem.startsWith('$_source:');
-    expect(oversizedSkillFiles(agentAssetsRoot()).where(ofSource), isEmpty);
+    expect(oversizedSkillFiles(contentFiles()).where(ofSource), isEmpty);
     expect(
-      unknownCliNames(
-        agentAssetsRoot(),
-        SpecstoneCommandRunner(),
-      ).where(ofSource),
+      unknownCliNames(contentFiles(), SpecstoneCommandRunner()).where(ofSource),
       isEmpty,
     );
     expect(nonLatinLetterLines(agentAssetsRoot()).where(ofSource), isEmpty);
@@ -3258,10 +3263,10 @@ void _agentTests() {
       contains('- Write a file by any other shell redirect, or a PRD or spec'),
     );
     bool ofAuthor(String problem) => problem.startsWith('$_author:');
-    expect(oversizedSkillFiles(agentAssetsRoot()).where(ofAuthor), isEmpty);
+    expect(oversizedSkillFiles(contentFiles()).where(ofAuthor), isEmpty);
     expect(
       unknownCliNames(
-        agentAssetsRoot(),
+        contentFiles(),
         SpecstoneCommandRunner(),
       ).where((problem) => problem.startsWith('specstone-sdd-engineer.md:')),
       isEmpty,
@@ -3826,7 +3831,7 @@ void _batchGuideTests() {
       expect(_oneLine(text), isNot(contains('per its guide')), reason: file);
       expect(
         oversizedSkillFiles(
-          agentAssetsRoot(),
+          contentFiles(),
           limit: tokens,
         ).where((problem) => problem.startsWith('$file:')),
         isEmpty,
@@ -4324,12 +4329,356 @@ void _planTests() {
       expect(shipped.existsSync(), isTrue, reason: '$file is missing');
     }
     expect(
-      otherPluginSkillNames(agentAssetsRoot(), shippedDocTypes()).where(
+      _shippedOtherPluginSkills().where(
         (problem) =>
             problem.startsWith('specstone-plan-sdd/') ||
             problem.startsWith('$_planAgent:'),
       ),
       isEmpty,
     );
+  });
+}
+
+ContentFile _file(
+  String path,
+  String body, {
+  String? frontmatter,
+  bool isSkillFile = false,
+}) => (
+  path: path,
+  body: body,
+  frontmatter: frontmatter,
+  isSkillFile: isSkillFile,
+);
+
+String _skillHead(String name, String description) =>
+    '---\nname: $name\ndescription: $description\n---\n';
+
+String _unresolved(String file, String span) =>
+    '$file: $span names no rendered file';
+
+AgentAsset _asset(String path, String text) => (path: path, text: text);
+
+List<ContentFile> _rendersOf(List<AgentAsset> assets) =>
+    renderedContentFiles(renderHostFilesOf(assets));
+
+const _agentHead =
+    '---\nname: specstone-a\ndescription: An agent.\ntools: Read, Grep\n---\n';
+
+void _hostRenderTests() {
+  group('host-tied text', () {
+    test('a CLAUDE_ variable in a body fails naming it', () {
+      expect(
+        hostTiedText([
+          _file(
+            'specstone-x/SKILL.md',
+            r'Read ${CLAUDE_PLUGIN_ROOT}/skills/a/references/b.md.',
+            isSkillFile: true,
+          ),
+        ]),
+        [r'specstone-x/SKILL.md: ${CLAUDE_PLUGIN_ROOT}'],
+      );
+    });
+
+    test('a backticked host tool name in a body fails, any of the five', () {
+      for (final tool in ['Skill', 'Agent', 'Write', 'Edit', 'Read']) {
+        expect(
+          hostTiedText([_file('specstone-a.md', 'Change it with `$tool`.')]),
+          ['specstone-a.md: `$tool`'],
+          reason: tool,
+        );
+      }
+    });
+
+    test('the tool names Grep, Glob, and Bash, a sentence opening on Read, '
+        'and a fenced line pass', () {
+      expect(
+        hostTiedText([
+          _file(
+            'specstone-a.md',
+            'Read the file.\nSearch it with `Grep`, `Glob`, or `Bash`.\n'
+                '```\nEdit\n```\n',
+          ),
+        ]),
+        isEmpty,
+      );
+    });
+
+    test('a tools list in a Claude Code frontmatter passes', () {
+      final files = _rendersOf([
+        _asset('specstone-a.md', '${_agentHead}Follow the steps.\n'),
+      ]);
+      expect(
+        files.map((file) => file.frontmatter),
+        contains(contains('tools: "Read, Grep"')),
+        reason: 'the Claude Code render keeps the tools',
+      );
+      expect(hostTiedText(files), isEmpty);
+    });
+
+    test('a path of the Claude Code skills folder passes in a .claude/ render '
+        'and fails in every other file', () {
+      final files = [
+        ..._rendersOf([
+          _asset(
+            'specstone-a.md',
+            '${_agentHead}Read `.agents/skills/specstone-x/SKILL.md`.\n',
+          ),
+        ]),
+        _file('specstone-b.md', 'Read `.claude/skills/specstone-x/SKILL.md`.'),
+        _file(
+          '.codex/agents/specstone-b.toml',
+          'Read `.claude/skills/specstone-x/SKILL.md`.',
+        ),
+        _file(
+          '.claude/agents/specstone-b.md',
+          'Read `.claude/skills/specstone-x/SKILL.md`.',
+        ),
+      ];
+      expect(hostTiedText(files), [
+        '.codex/agents/specstone-b.toml: .claude/skills/',
+        'specstone-b.md: .claude/skills/',
+      ]);
+    });
+
+    test('a render that fails names its own path while the others pass', () {
+      final files = _rendersOf([
+        _asset(
+          'specstone-a.md',
+          '${_agentHead}Read `.claude/skills/specstone-x/SKILL.md`.\n',
+        ),
+      ]);
+      expect(hostTiedText(files), [
+        '.agents/agents/specstone-a.md: .claude/skills/',
+        '.codex/agents/specstone-a.toml: .claude/skills/',
+        '.cursor/agents/specstone-a.md: .claude/skills/',
+      ]);
+      expect(
+        hostTiedText([
+          _file(
+            '.cursor/agents/specstone-a.md',
+            r'Read ${CLAUDE_PLUGIN_ROOT}/skills/x/SKILL.md.',
+          ),
+        ]),
+        [r'.cursor/agents/specstone-a.md: ${CLAUDE_PLUGIN_ROOT}'],
+      );
+    });
+
+    test('a Codex file holds its developer_instructions value unescaped, as '
+        'the Cursor file holds the body', () {
+      const body = 'Quote "a" and \\b, then `specstone check`.\n\ttab\n';
+      final files = _rendersOf([_asset('specstone-a.md', '$_agentHead$body')]);
+      ContentFile at(String path) =>
+          files.singleWhere((file) => file.path == path);
+
+      expect(at('.codex/agents/specstone-a.toml').body, body);
+      expect(at('.cursor/agents/specstone-a.md').body, body);
+      expect(at('.codex/agents/specstone-a.toml').frontmatter, isNotNull);
+    });
+  });
+
+  group('skill head', () {
+    test('a name other than its folder fails naming the SKILL.md', () {
+      expect(
+        skillHeadProblems([
+          _file(
+            'specstone-read-sdd/SKILL.md',
+            'Body.',
+            frontmatter: _skillHead('read-sdd', 'Reads.'),
+            isSkillFile: true,
+          ),
+        ]),
+        ['specstone-read-sdd/SKILL.md: name read-sdd is not specstone-read-sdd'],
+      );
+    });
+
+    test('a description of 1,100 characters fails and 1,024 passes', () {
+      List<String> problemsOf(int length) => skillHeadProblems([
+        _file(
+          'specstone-x/SKILL.md',
+          'Body.',
+          frontmatter: _skillHead('specstone-x', 'a' * length),
+          isSkillFile: true,
+        ),
+      ]);
+
+      expect(problemsOf(1100), [
+        'specstone-x/SKILL.md: description is 1100 characters, over 1024',
+      ]);
+      expect(problemsOf(1024), isEmpty);
+    });
+
+    test('a SKILL.md with no frontmatter fails, and a reference file and an '
+        'agent file are not read', () {
+      expect(
+        skillHeadProblems([
+          _file('specstone-x/SKILL.md', 'Body.', isSkillFile: true),
+          _file('specstone-x/references/a.md', 'Body.', isSkillFile: true),
+          _file('specstone-a.md', 'Body.'),
+        ]),
+        ['specstone-x/SKILL.md: no name'],
+      );
+    });
+  });
+
+  group('relative paths', () {
+    final assets = [
+      _asset('specstone-x/SKILL.md', _skillHead('specstone-x', 'Skill.')),
+      _asset('specstone-y/SKILL.md', _skillHead('specstone-y', 'Skill.')),
+      _asset('specstone-y/references/y.md', 'Reference.\n'),
+      _asset('specstone-a.md', '${_agentHead}Agent.\n'),
+    ];
+
+    List<String> problemsOf(Map<String, String> changed) => unresolvedPaths(
+      _rendersOf([
+        for (final asset in assets)
+          _asset(asset.path, changed[asset.path] ?? asset.text),
+      ]),
+    );
+
+    test('a reference file that names a sibling skill from the wrong depth '
+        'fails in each skill folder, and the right depth passes', () {
+      final withReference = [
+        ...assets,
+        _asset('specstone-x/references/x.md', 'See `../specstone-y/SKILL.md`.'),
+      ];
+      expect(unresolvedPaths(_rendersOf(withReference)), [
+        _unresolved(
+          '.agents/skills/specstone-x/references/x.md',
+          '../specstone-y/SKILL.md',
+        ),
+        _unresolved(
+          '.claude/skills/specstone-x/references/x.md',
+          '../specstone-y/SKILL.md',
+        ),
+      ]);
+      expect(
+        unresolvedPaths(
+          _rendersOf([
+            ...assets,
+            _asset(
+              'specstone-x/references/x.md',
+              'See `../../specstone-y/references/y.md`.',
+            ),
+          ]),
+        ),
+        isEmpty,
+      );
+    });
+
+    test(
+      'a skill names an agent file by the path both agent folders share',
+      () {
+        expect(
+          problemsOf({
+            'specstone-x/SKILL.md':
+                '${_skillHead('specstone-x', 'Skill.')}Follow '
+                '`../../agents/specstone-a.md`.',
+          }),
+          isEmpty,
+        );
+        expect(
+          problemsOf({
+            'specstone-x/SKILL.md':
+                '${_skillHead('specstone-x', 'Skill.')}Follow '
+                '`../../agents/specstone-b.md`.',
+          }),
+          [
+            _unresolved(
+              '.agents/skills/specstone-x/SKILL.md',
+              '../../agents/specstone-b.md',
+            ),
+            _unresolved(
+              '.claude/skills/specstone-x/SKILL.md',
+              '../../agents/specstone-b.md',
+            ),
+          ],
+        );
+      },
+    );
+
+    test('an agent joins a project-root path to the root of its render', () {
+      expect(
+        problemsOf({
+          'specstone-a.md':
+              '${_agentHead}Read `.agents/skills/specstone-y/SKILL.md`.\n',
+        }),
+        isEmpty,
+      );
+      expect(
+        problemsOf({
+          'specstone-a.md':
+              '${_agentHead}Read `.agents/skills/specstone-z/SKILL.md`.\n',
+        }),
+        [
+          _unresolved(
+            '.agents/agents/specstone-a.md',
+            '.agents/skills/specstone-z/SKILL.md',
+          ),
+          _unresolved(
+            '.claude/agents/specstone-a.md',
+            '.claude/skills/specstone-z/SKILL.md',
+          ),
+          _unresolved(
+            '.codex/agents/specstone-a.toml',
+            '.agents/skills/specstone-z/SKILL.md',
+          ),
+          _unresolved(
+            '.cursor/agents/specstone-a.md',
+            '.agents/skills/specstone-z/SKILL.md',
+          ),
+        ],
+      );
+    });
+
+    test('a placeholder, a name with no folder, and a path that climbs out of '
+        'the root are read as written', () {
+      expect(
+        problemsOf({
+          'specstone-a.md':
+              '${_agentHead}Write `<folder>/reports/a.<XXXXXX>.md`, then '
+              '`CLAUDE.md`, not `docs/x y.md`.\n',
+        }),
+        isEmpty,
+      );
+      expect(
+        problemsOf({'specstone-a.md': '${_agentHead}Read `../../x/a.md`.\n'}),
+        hasLength(4),
+      );
+    });
+  });
+
+  group('shipped files', () {
+    test('the sources and every host render are read', () {
+      final paths = contentFiles().map((file) => file.path);
+      expect(
+        paths,
+        containsAll([
+          'specstone-read-sdd/SKILL.md',
+          'specstone-sdd-reader.md',
+          '.claude/skills/specstone-read-sdd/SKILL.md',
+          '.agents/skills/specstone-read-sdd/SKILL.md',
+          '.claude/agents/specstone-sdd-reader.md',
+          '.cursor/agents/specstone-sdd-reader.md',
+          '.codex/agents/specstone-sdd-reader.toml',
+          '.agents/agents/specstone-sdd-reader.md',
+        ]),
+      );
+    });
+
+    test('a Codex file holds the body its Cursor file holds', () {
+      final files = {for (final file in contentFiles()) file.path: file};
+      for (final path in files.keys.where((p) => p.endsWith('.toml'))) {
+        final cursor = path
+            .replaceFirst('.codex/', '.cursor/')
+            .replaceFirst('.toml', '.md');
+        expect(files[path]!.body, files[cursor]!.body, reason: path);
+      }
+    });
+
+    test('each SKILL.md names its folder and holds a description within 1,024 '
+        'characters', () {
+      expect(skillHeadProblems(contentFiles()), isEmpty);
+    });
   });
 }
