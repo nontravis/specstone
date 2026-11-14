@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show isPortableCodeEntry;
@@ -19,8 +20,6 @@ const _scopesSection = 'scopes';
 const _requiredForColumn = 'Required for';
 const _scopeSection = 'scope';
 const _coversField = 'covers';
-
-final _hex12 = RegExp(r'^[0-9a-f]{12}$');
 
 /// Returns the cross-doc guide findings of a typed [doc]; an untyped doc has
 /// none.
@@ -223,7 +222,7 @@ Iterable<Finding> _scopePathFindings(
   final covers = [
     for (final (:value, line: _, text: _)
         in context.linesOf(topic).entriesOf(_coversField))
-      if (value is String) normalCodeEntry(_withoutFingerprint(value)),
+      if (value is String) normalCodeEntry(CodeLinkEntry(value).pointer),
   ];
   final index = context.heldIndexOf(topic, _scopeSection);
   if (index == null) return;
@@ -248,14 +247,6 @@ Iterable<Finding> _scopePathFindings(
 /// segment.
 bool _reaches(String entry, String path) =>
     entry.isEmpty || path == entry || path.startsWith('$entry/');
-
-String _withoutFingerprint(String entry) {
-  final lastSpace = entry.lastIndexOf(' ');
-  if (lastSpace > 0 && _hex12.hasMatch(entry.substring(lastSpace + 1))) {
-    return entry.substring(0, lastSpace);
-  }
-  return entry;
-}
 
 /// Returns each table of [body]: its header cells and body rows.
 List<({List<String> header, List<BodyLine> rows})> _tablesOf(
