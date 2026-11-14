@@ -170,6 +170,7 @@ void main() {
       final error =
           (jsonDecode(result.stderr as String) as Map)['error']! as Map;
       expect(error['code'], 'argument_invalid');
+      expect(error['message'], 'folder takes no argument: login');
       expect(
         Directory('${root.path}/.specstone/reports').existsSync(),
         isFalse,

@@ -30,7 +30,7 @@ class FolderCommand extends SpecstoneCommand {
       if (rest.isNotEmpty) {
         throw IndexFault(
           IndexFaultCode.argumentInvalid,
-          'folder takes no argument, got ${rest.length}',
+          'folder takes no argument: ${rest.join(' ')}',
         );
       }
       final folder = _specstoneFolder(specstoneRunner.workingDirectory);
