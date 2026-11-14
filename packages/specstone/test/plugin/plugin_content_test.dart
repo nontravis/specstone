@@ -17,8 +17,10 @@ void main() {
   test('f08/us01/fr04/e01, f08/us01/s5: a skill naming specstone check --fix '
       'fails naming its file and --fix', () async {
     expect(
-      await _problemsOf({'skills/x/SKILL.md': 'Run `specstone check --fix`.'}),
-      ['skills/x/SKILL.md: specstone check has no --fix'],
+      await _problemsOf({
+        'specstone-x/SKILL.md': 'Run `specstone check --fix`.',
+      }),
+      ['specstone-x/SKILL.md: specstone check has no --fix'],
     );
   });
 
@@ -26,8 +28,10 @@ void main() {
     'f08/us01/fr04, f08/us01/s5: a command the CLI lacks fails naming it',
     () async {
       expect(
-        await _problemsOf({'skills/x/SKILL.md': 'Run `specstone lint docs`.'}),
-        ['skills/x/SKILL.md: specstone has no command lint'],
+        await _problemsOf({
+          'specstone-x/SKILL.md': 'Run `specstone lint docs`.',
+        }),
+        ['specstone-x/SKILL.md: specstone has no command lint'],
       );
     },
   );
@@ -36,7 +40,7 @@ void main() {
       'placeholder, and prose pass', () async {
     expect(
       await _problemsOf({
-        'skills/x/SKILL.md':
+        'specstone-x/SKILL.md':
             'Use `git diff --name-only`, `specstone:read-sdd`, and '
             '`specstone <command>` with the specstone CLI.',
       }),
@@ -48,16 +52,16 @@ void main() {
       'command path', () async {
     expect(
       await _problemsOf({
-        'skills/x/SKILL.md': 'Run `specstone hook post-edit --x`.',
+        'specstone-x/SKILL.md': 'Run `specstone hook post-edit --x`.',
       }),
-      ['skills/x/SKILL.md: specstone hook post-edit has no --x'],
+      ['specstone-x/SKILL.md: specstone hook post-edit has no --x'],
     );
   });
 
   test('an end-of-options -- names no flag', () async {
     expect(
       await _problemsOf({
-        'skills/x/SKILL.md': 'Run `specstone set -- <path>`.',
+        'specstone-x/SKILL.md': 'Run `specstone set -- <path>`.',
       }),
       isEmpty,
     );
@@ -66,87 +70,93 @@ void main() {
   test('fenced lines and subcommands are checked', () async {
     expect(
       await _problemsOf({
-        'skills/x/SKILL.md':
+        'specstone-x/SKILL.md':
             '```sh\nspecstone hook post-edit\nspecstone hook nope\n```\n',
       }),
-      ['skills/x/SKILL.md: specstone hook has no command nope'],
+      ['specstone-x/SKILL.md: specstone hook has no command nope'],
     );
   });
 
   test('f08/us01/fr04/e02, nfr-te01: a reference file of 1,620 est. tokens '
       'fails alone naming it', () async {
     final root = await writeTree({
-      'skills/x/SKILL.md': 'a' * 4000,
-      'skills/x/reference.md': 'b' * 6480,
+      'specstone-x/SKILL.md': 'a' * 4000,
+      'specstone-x/reference.md': 'b' * 6480,
     });
     expect(oversizedSkillFiles(root), [
-      'skills/x/reference.md: 1620 est. tokens, over 1500',
+      'specstone-x/reference.md: 1620 est. tokens, over 1500',
     ]);
   });
 
   test('f08/us01/fr04, nfr-te01: files of one skill that sum past 1,500 est. '
       'tokens pass when each stays within it', () async {
     final root = await writeTree({
-      'skills/x/SKILL.md': 'a' * 4000,
-      'skills/x/reference.md': 'b' * 4000,
+      'specstone-x/SKILL.md': 'a' * 4000,
+      'specstone-x/reference.md': 'b' * 4000,
     });
     expect(oversizedSkillFiles(root), isEmpty);
   });
 
   test('an agent file is name-checked and never sized', () async {
     final valid = '${'a' * 8000}\n`specstone check` `specstone hook post-edit`';
-    expect(await _problemsOf({'agents/a.md': valid}), isEmpty);
+    expect(await _problemsOf({'specstone-a.md': valid}), isEmpty);
     expect(
       oversizedSkillFiles(
-        await writeTree({'skills/x/SKILL.md': 'small', 'agents/a.md': valid}),
+        await writeTree({
+          'specstone-x/SKILL.md': 'small',
+          'specstone-a.md': valid,
+        }),
       ),
       isEmpty,
     );
-    expect(await _problemsOf({'agents/a.md': '$valid `specstone nope`'}), [
-      'agents/a.md: specstone has no command nope',
+    expect(await _problemsOf({'specstone-a.md': '$valid `specstone nope`'}), [
+      'specstone-a.md: specstone has no command nope',
     ]);
   });
 
   test('f08/us01/fr04, nfr-te01: oversized skill files list sorted, nested '
       'and non-md files are sized, exactly-limit files pass', () async {
     final root = await writeTree({
-      'skills/y/b.md': 'a' * 6004,
-      'skills/y/a.md': 'a' * 6004,
-      'skills/y/sub/e.md': 'a' * 6004,
-      'skills/y/c.txt': 'a' * 6004,
-      'skills/y/d.md': 'a' * 6000,
+      'specstone-y/b.md': 'a' * 6004,
+      'specstone-y/a.md': 'a' * 6004,
+      'specstone-y/sub/e.md': 'a' * 6004,
+      'specstone-y/c.txt': 'a' * 6004,
+      'specstone-y/d.md': 'a' * 6000,
     });
     expect(oversizedSkillFiles(root), [
-      'skills/y/a.md: 1501 est. tokens, over 1500',
-      'skills/y/b.md: 1501 est. tokens, over 1500',
-      'skills/y/c.txt: 1501 est. tokens, over 1500',
-      'skills/y/sub/e.md: 1501 est. tokens, over 1500',
+      'specstone-y/a.md: 1501 est. tokens, over 1500',
+      'specstone-y/b.md: 1501 est. tokens, over 1500',
+      'specstone-y/c.txt: 1501 est. tokens, over 1500',
+      'specstone-y/sub/e.md: 1501 est. tokens, over 1500',
     ]);
   });
 
   test('no skills folder means no oversized skill file', () async {
-    final root = await writeTree({'agents/a.md': 'text'});
+    final root = await writeTree({'specstone-a.md': 'text'});
     expect(oversizedSkillFiles(root), isEmpty);
   });
 
   test('CRLF line ends count as LF', () async {
     final root = await writeTree({
-      'skills/x/at_limit.md': 'a\r\n' * 3000,
-      'skills/x/over.md': 'a\r\n' * 3002,
+      'specstone-x/at_limit.md': 'a\r\n' * 3000,
+      'specstone-x/over.md': 'a\r\n' * 3002,
     });
     expect(oversizedSkillFiles(root), [
-      'skills/x/over.md: 1501 est. tokens, over 1500',
+      'specstone-x/over.md: 1501 est. tokens, over 1500',
     ]);
   });
 
   test('f08/us01/fr04, f08/us01/s5: every shipped skill and agent names only '
       'commands and flags the CLI has', () {
-    expect(unknownCliNames(pluginRoot(), SpecstoneCommandRunner()), isEmpty);
+    expect(
+      unknownCliNames(agentAssetsRoot(), SpecstoneCommandRunner()),
+      isEmpty,
+    );
   });
 
   test('f08/us01/fr04, nfr-te01: every shipped skill file stays within '
       '1,500 est. tokens', () {
-    expect(oversizedSkillFiles(pluginRoot()), isEmpty);
+    expect(oversizedSkillFiles(agentAssetsRoot()), isEmpty);
   });
 
   test(
@@ -154,19 +164,20 @@ void main() {
     'fails naming its file and line; accents, emoji, and symbols pass',
     () async {
       final root = await writeTree({
-        'skills/x/SKILL.md': 'Old text, café.\nMark it `เดิม:`.\n📜 ⊆ … —\n',
+        'specstone-x/SKILL.md': 'Old text, café.\nMark it `เดิม:`.\n📜 ⊆ … —\n',
         'hooks/h.sh': '# 日本\n',
       });
 
       expect(nonLatinLetterLines(root), [
         'hooks/h.sh:1',
-        'skills/x/SKILL.md:2',
+        'specstone-x/SKILL.md:2',
       ]);
     },
   );
 
   test("no shipped plugin file presumes the Owner's "
       'language with a letter outside the Latin script', () {
+    expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
     expect(nonLatinLetterLines(pluginRoot()), isEmpty);
   });
 
@@ -212,6 +223,7 @@ void main() {
     }
   });
 
+  _assetLayoutTests();
   _shippedFileTests();
   _procedureTests();
   _handOffTests();
@@ -230,25 +242,25 @@ void main() {
 /// AgentFileName forms it names under `<folder>/reports/`
 /// (`domain:agent_plugin` INV-10, INV-19, INV-26).
 const _agentFileNames = {
-  'agents/plan-engineer.md': ['plan-engineer.plan.<XXXXXX>.md'],
-  'agents/sdd-engineer.md': [
+  'specstone-plan-engineer.md': ['plan-engineer.plan.<XXXXXX>.md'],
+  'specstone-sdd-engineer.md': [
     'sdd-engineer.<mode>.<XXXXXX>.md',
     'sdd-engineer.<mode>.batch.<XXXXXX>.txt',
   ],
-  'skills/bootstrap-prd/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
-  'skills/bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
-  'skills/brainstorming-sdd/SKILL.md': [
+  'specstone-bootstrap-prd/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
+  'specstone-bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
+  'specstone-brainstorming-sdd/SKILL.md': [
     'sdd-engineer.<mode>.<XXXXXX>.md',
     'sdd-engineer.design.brief.<XXXXXX>.md',
   ],
-  'skills/brainstorming-sdd/references/author.md': [
+  'specstone-brainstorming-sdd/references/author.md': [
     'sdd-engineer.author.batch.<XXXXXX>.txt',
   ],
-  'skills/brainstorming-sdd/references/source.md': [
+  'specstone-brainstorming-sdd/references/source.md': [
     'sdd-engineer.design.source.<XXXXXX>.md',
   ],
-  'skills/plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
-  'skills/sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
+  'specstone-plan-sdd/SKILL.md': ['plan-engineer.plan.<XXXXXX>.md'],
+  'specstone-sync-sdd/SKILL.md': ['sdd-engineer.sync.<XXXXXX>.md'],
 };
 
 const _reportsFolder = '<folder>/reports/';
@@ -299,11 +311,9 @@ List<int> _callOffsets(String markdown, RegExp call) => [
 void _agentFileTests() {
   test('domain:agent_plugin INV-10, INV-19, INV-26: no plugin file names '
       'mktemp or a file outside the repository', () {
-    final root = pluginRoot().uri.toFilePath(windows: false);
     final problems = <String>[];
-    for (final file
-        in pluginRoot().listSync(recursive: true).whereType<File>()) {
-      final path = file.uri.toFilePath(windows: false).substring(root.length);
+    for (final file in shippedFiles()) {
+      final path = shippedPathOf(file);
       final text = _oneLine(file.readAsStringSync());
       for (final banned in ['mktemp', 'outside the repository']) {
         if (text.contains(banned)) problems.add('$path: $banned');
@@ -385,11 +395,11 @@ void _agentFileTests() {
 const _nameOnly = 'agent_plugin/ground_a_task/name_only_existing_commands';
 
 Future<List<String>> _skillProblemsOf(String markdown) async {
-  final root = await writeTree({'skills/x/SKILL.md': markdown});
+  final root = await writeTree({'specstone-x/SKILL.md': markdown});
   return otherPluginSkillNames(root, shippedDocTypes());
 }
 
-const _otherSkill = "skills/x/SKILL.md: a:b is another plugin's skill";
+const _otherSkill = "specstone-x/SKILL.md: a:b is another plugin's skill";
 
 void _codeParseTests() {
   test('$_nameOnly: a span wrapped over two lines is read whole, and the span '
@@ -398,8 +408,10 @@ void _codeParseTests() {
       _otherSkill,
     ]);
     expect(
-      await _problemsOf({'skills/x/SKILL.md': 'Run `specstone check\n--fix`.'}),
-      ['skills/x/SKILL.md: specstone check has no --fix'],
+      await _problemsOf({
+        'specstone-x/SKILL.md': 'Run `specstone check\n--fix`.',
+      }),
+      ['specstone-x/SKILL.md: specstone check has no --fix'],
     );
   });
 
@@ -407,8 +419,10 @@ void _codeParseTests() {
       'span and its lines are checked', () async {
     expect(await _skillProblemsOf('~~~\n`a:b`\n~~~\n'), isEmpty);
     expect(
-      await _problemsOf({'skills/x/SKILL.md': '~~~sh\nspecstone nope\n~~~\n'}),
-      ['skills/x/SKILL.md: specstone has no command nope'],
+      await _problemsOf({
+        'specstone-x/SKILL.md': '~~~sh\nspecstone nope\n~~~\n',
+      }),
+      ['specstone-x/SKILL.md: specstone has no command nope'],
     );
   });
 
@@ -419,15 +433,15 @@ void _codeParseTests() {
       expect(await _skillProblemsOf('> ```\n> `a:b`\n> ```\n'), isEmpty);
       expect(
         await _problemsOf({
-          'skills/x/SKILL.md': '- ```sh\n  specstone nope\n  ```\n',
+          'specstone-x/SKILL.md': '- ```sh\n  specstone nope\n  ```\n',
         }),
-        ['skills/x/SKILL.md: specstone has no command nope'],
+        ['specstone-x/SKILL.md: specstone has no command nope'],
       );
       expect(
         await _problemsOf({
-          'skills/x/SKILL.md': '> ```sh\n> specstone nope\n> ```\n',
+          'specstone-x/SKILL.md': '> ```sh\n> specstone nope\n> ```\n',
         }),
-        ['skills/x/SKILL.md: specstone has no command nope'],
+        ['specstone-x/SKILL.md: specstone has no command nope'],
       );
     },
   );
@@ -441,8 +455,10 @@ void _codeParseTests() {
   test('$_nameOnly: an unclosed fence runs to the end of the file', () async {
     expect(await _skillProblemsOf('`a:b`\n```\n`c:d`\n'), [_otherSkill]);
     expect(
-      await _problemsOf({'skills/x/SKILL.md': '- ```sh\n  specstone nope\n'}),
-      ['skills/x/SKILL.md: specstone has no command nope'],
+      await _problemsOf({
+        'specstone-x/SKILL.md': '- ```sh\n  specstone nope\n',
+      }),
+      ['specstone-x/SKILL.md: specstone has no command nope'],
     );
   });
 }
@@ -464,28 +480,28 @@ void _otherPluginSkillTests() {
   test('$_nameOnly E05: a skill file naming superpowers:writing-plans fails '
       'naming the file and the span', () async {
     final root = await writeTree({
-      'skills/x/SKILL.md': 'Then run `superpowers:writing-plans`.',
+      'specstone-x/SKILL.md': 'Then run `superpowers:writing-plans`.',
     });
     expect(otherPluginSkillNames(root, shippedDocTypes()), [
-      "skills/x/SKILL.md: superpowers:writing-plans is another plugin's skill",
+      "specstone-x/SKILL.md: superpowers:writing-plans is another plugin's skill",
     ]);
   });
 
   test('$_nameOnly E03: an agent file holding path:line fails naming the '
       'file and the span', () async {
     final root = await writeTree({
-      'agents/a.md': 'Cite each hit as `path:line`.',
+      'specstone-a.md': 'Cite each hit as `path:line`.',
     });
     expect(otherPluginSkillNames(root, shippedDocTypes()), [
-      "agents/a.md: path:line is another plugin's skill",
+      "specstone-a.md: path:line is another plugin's skill",
     ]);
   });
 
   test('$_nameOnly E06: a doc citation, a placeholder, a doc-type prefix, and '
       'a specstone skill pass', () async {
     final root = await writeTree({
-      'skills/x/SKILL.md': 'Cite ${_docCitations.join(', ')}.',
-      'agents/a.md': 'Cite ${_docCitations.join(', ')}.',
+      'specstone-x/SKILL.md': 'Cite ${_docCitations.join(', ')}.',
+      'specstone-a.md': 'Cite ${_docCitations.join(', ')}.',
     });
     expect(otherPluginSkillNames(root, shippedDocTypes()), isEmpty);
   });
@@ -501,17 +517,114 @@ void _otherPluginSkillTests() {
   test('$_nameOnly: a fenced line and a span holding a space never have the '
       'form, and a repeated span lists once', () async {
     final root = await writeTree({
-      'skills/x/SKILL.md':
+      'specstone-x/SKILL.md':
           '```\nsuperpowers:writing-plans\n```\n'
           '`superpowers:writing-plans now` `a:b` `a:b`\n',
     });
     expect(otherPluginSkillNames(root, shippedDocTypes()), [
-      "skills/x/SKILL.md: a:b is another plugin's skill",
+      "specstone-x/SKILL.md: a:b is another plugin's skill",
     ]);
   });
 
   test("$_nameOnly: no shipped plugin file names another plugin's skill", () {
-    expect(otherPluginSkillNames(pluginRoot(), shippedDocTypes()), isEmpty);
+    expect(
+      otherPluginSkillNames(agentAssetsRoot(), shippedDocTypes()),
+      isEmpty,
+    );
+  });
+}
+
+const _skillNames = [
+  'bootstrap-prd',
+  'bootstrap-spec',
+  'brainstorming-sdd',
+  'expert-sdd',
+  'init',
+  'plan-sdd',
+  'read-sdd',
+  'sync-sdd',
+  'update-sdd',
+];
+
+const _agentNames = ['plan-engineer', 'sdd-engineer', 'sdd-reader'];
+
+/// The base name of [entity]'s path, its `.md` ending cut.
+String _baseNameOf(FileSystemEntity entity) {
+  final segments = entity.uri.pathSegments.where((s) => s.isNotEmpty);
+  return segments.last.replaceFirst(RegExp(r'\.md$'), '');
+}
+
+void _assetLayoutTests() {
+  final assets = agentAssetsRoot().listSync();
+  final skillFolders = assets.whereType<Directory>().where(
+    (folder) => _baseNameOf(folder).startsWith('specstone-'),
+  );
+  final agentFiles = assets.whereType<File>().where(
+    (file) => RegExp(r'/specstone-[^/]+\.md$').hasMatch(file.path),
+  );
+
+  test('the plugin folder holds no skills folder and no agents folder', () {
+    for (final folder in const ['skills', 'agents']) {
+      final shipped = Directory.fromUri(pluginRoot().uri.resolve('$folder/'));
+      expect(shipped.existsSync(), isFalse, reason: '$folder/ is shipped');
+    }
+  });
+
+  test('each specstone-<name> folder holds a SKILL.md named as the folder', () {
+    expect(skillFolders, isNotEmpty);
+    for (final folder in skillFolders) {
+      final skill = File.fromUri(folder.uri.resolve('SKILL.md'));
+      expect(skill.existsSync(), isTrue, reason: '${folder.path} has no skill');
+      expect(
+        _frontmatterName.firstMatch(skill.readAsStringSync())?.group(1),
+        _baseNameOf(folder),
+      );
+    }
+  });
+
+  test('each specstone-<name>.md agent file is named as its base name', () {
+    expect(agentFiles, isNotEmpty);
+    for (final file in agentFiles) {
+      expect(
+        _frontmatterName.firstMatch(file.readAsStringSync())?.group(1),
+        _baseNameOf(file),
+      );
+    }
+  });
+
+  test('the source walk sees the twelve sources, leaves AGENT.md out, and '
+      'the shipped walk adds the hooks', () async {
+    final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
+    expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
+    expect(
+      seen.where((path) => !path.contains('/')),
+      unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
+    );
+    expect(seen, isNot(contains('AGENT.md')));
+    expect(shippedFiles().map(shippedPathOf), contains('hooks/hooks.json'));
+
+    final root = await writeTree({
+      'AGENT.md': 'text',
+      'specstone-x/SKILL.md': 'text',
+      'specstone-y.md': 'text',
+      'other/SKILL.md': 'text',
+      'other.md': 'text',
+    });
+    expect(agentSourceFiles(root).map((file) => file.uri.pathSegments.last), [
+      'SKILL.md',
+      'specstone-y.md',
+    ]);
+  });
+
+  test('the nine skills and three agents are all there', () {
+    expect(
+      skillFolders.map(_baseNameOf),
+      unorderedEquals([for (final name in _skillNames) 'specstone-$name']),
+    );
+    expect(
+      agentFiles.map(_baseNameOf),
+      unorderedEquals([for (final name in _agentNames) 'specstone-$name']),
+    );
   });
 }
 
@@ -524,82 +637,82 @@ typedef _Shipped = ({
 
 const _shipped = <_Shipped>[
   (
-    file: 'skills/expert-sdd/SKILL.md',
-    name: 'expert-sdd',
+    file: 'specstone-expert-sdd/SKILL.md',
+    name: 'specstone-expert-sdd',
     tags: 'f08/us02/fr04, f08/us01/fr03, f08/us02/s5',
     commands: ['guide', 'set', 'check'],
   ),
   (
-    file: 'skills/read-sdd/SKILL.md',
-    name: 'read-sdd',
+    file: 'specstone-read-sdd/SKILL.md',
+    name: 'specstone-read-sdd',
     tags: 'f08/us01/fr01, f08/us01/fr03, f08/us01/s1',
     commands: ['context'],
   ),
   (
-    file: 'agents/sdd-reader.md',
-    name: 'sdd-reader',
+    file: 'specstone-sdd-reader.md',
+    name: 'specstone-sdd-reader',
     tags: 'f08/us01/fr02, f08/us01/fr03, f08/us01/s1',
     commands: ['context'],
   ),
   (
-    file: 'skills/sync-sdd/SKILL.md',
-    name: 'sync-sdd',
+    file: 'specstone-sync-sdd/SKILL.md',
+    name: 'specstone-sync-sdd',
     tags:
         'f08/us03/fr01, f08/us03/fr02, f08/us03/fr03, f08/us01/fr03, '
         'f08/us03/s1',
     commands: ['check', 'get', 'set'],
   ),
   (
-    file: 'agents/sdd-engineer.md',
-    name: 'sdd-engineer',
+    file: 'specstone-sdd-engineer.md',
+    name: 'specstone-sdd-engineer',
     tags:
         'f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
         'f08/us05/fr01, f08/us01/fr03, f08/us02/s1, f08/us03/s2',
     commands: ['new', 'set', 'check'],
   ),
   (
-    file: 'skills/brainstorming-sdd/SKILL.md',
-    name: 'brainstorming-sdd',
+    file: 'specstone-brainstorming-sdd/SKILL.md',
+    name: 'specstone-brainstorming-sdd',
     tags: 'f08/us02/fr01, f08/us01/fr03, f08/us02/s4',
     commands: ['context'],
   ),
   (
-    file: 'skills/update-sdd/SKILL.md',
-    name: 'update-sdd',
+    file: 'specstone-update-sdd/SKILL.md',
+    name: 'specstone-update-sdd',
     tags: 'f08/us02/fr03, f08/us01/fr03, f08/us02/s2',
     commands: ['check', 'get', 'set', 'approve'],
   ),
   (
-    file: 'skills/init/SKILL.md',
-    name: 'init',
+    file: 'specstone-init/SKILL.md',
+    name: 'specstone-init',
     tags: 'f08/us04/fr01, f08/us04/s1',
     commands: ['init', 'guide', 'set', 'approve'],
   ),
   (
-    file: 'skills/bootstrap-prd/SKILL.md',
-    name: 'bootstrap-prd',
+    file: 'specstone-bootstrap-prd/SKILL.md',
+    name: 'specstone-bootstrap-prd',
     tags:
         'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
         'f08/us05/s1',
     commands: ['check'],
   ),
   (
-    file: 'skills/bootstrap-spec/SKILL.md',
-    name: 'bootstrap-spec',
+    file: 'specstone-bootstrap-spec/SKILL.md',
+    name: 'specstone-bootstrap-spec',
     tags:
         'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03, f08/us01/fr03, '
         'f08/us05/s1',
     commands: ['check'],
   ),
   (
-    file: 'skills/plan-sdd/SKILL.md',
-    name: 'plan-sdd',
+    file: 'specstone-plan-sdd/SKILL.md',
+    name: 'specstone-plan-sdd',
     tags: 'agent_plugin/plan_approved_stories/run_plan_skill',
     commands: ['check', 'list'],
   ),
   (
-    file: 'agents/plan-engineer.md',
-    name: 'plan-engineer',
+    file: 'specstone-plan-engineer.md',
+    name: 'specstone-plan-engineer',
     tags: 'agent_plugin/plan_approved_stories/write_grounded_plan',
     commands: ['context', 'check'],
   ),
@@ -611,15 +724,15 @@ void _shippedFileTests() {
   for (final shipped in _shipped) {
     test('${shipped.tags}: ${shipped.file} carries its frontmatter name and '
         'row commands, and a skill opens on a specstone command', () {
-      final file = File.fromUri(pluginRoot().uri.resolve(shipped.file));
+      final file = File.fromUri(agentAssetsRoot().uri.resolve(shipped.file));
       expect(file.existsSync(), isTrue, reason: '${shipped.file} is missing');
       final text = file.readAsStringSync();
       expect(_frontmatterName.firstMatch(text)?.group(1), shipped.name);
       final commands = cliCommands(text);
       expect(commands, containsAll(shipped.commands));
-      if (shipped.file.startsWith('skills/')) {
+      if (_isSkillFile(shipped.file)) {
         final first = commands.first;
-        if (shipped.name == 'init') {
+        if (shipped.name == 'specstone-init') {
           expect(first, 'init');
         } else {
           expect(SpecstoneCommandRunner().commands, contains(first));
@@ -633,32 +746,32 @@ typedef _Procedure = ({String file, String tags, List<String> commands});
 
 const _procedures = <_Procedure>[
   (
-    file: 'skills/sync-sdd/references/procedure.md',
+    file: 'specstone-sync-sdd/references/procedure.md',
     tags: 'f08/us03/fr01, f08/us03/fr02, f08/us03/fr03',
     commands: ['context', 'set', 'check'],
   ),
   (
-    file: 'skills/bootstrap-prd/references/procedure.md',
+    file: 'specstone-bootstrap-prd/references/procedure.md',
     tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
     commands: ['check', 'guide', 'new', 'set', 'delete'],
   ),
   (
-    file: 'skills/bootstrap-spec/references/procedure.md',
+    file: 'specstone-bootstrap-spec/references/procedure.md',
     tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
     commands: ['check', 'guide', 'new', 'set', 'delete'],
   ),
   (
-    file: 'skills/brainstorming-sdd/references/author.md',
+    file: 'specstone-brainstorming-sdd/references/author.md',
     tags: 'f08/us02/fr01, f08/us02/fr02',
     commands: ['guide', 'new', 'get', 'set', 'search', 'check'],
   ),
   (
-    file: 'skills/brainstorming-sdd/references/design.md',
+    file: 'specstone-brainstorming-sdd/references/design.md',
     tags: 'f08/us02/fr01, f08/us02/fr06',
     commands: ['context', 'refs', 'search'],
   ),
   (
-    file: 'skills/brainstorming-sdd/references/audit.md',
+    file: 'specstone-brainstorming-sdd/references/audit.md',
     tags: 'f08/us02/fr01, f08/us02/fr07',
     commands: ['get', 'context', 'list', 'check'],
   ),
@@ -669,7 +782,7 @@ void _procedureTests() {
     test('${procedure.tags}, nfr-te01: ${procedure.file} exists, names its '
         'row commands, stays within 1,500 est. tokens, and names only '
         'commands and flags the CLI has', () {
-      final file = File.fromUri(pluginRoot().uri.resolve(procedure.file));
+      final file = File.fromUri(agentAssetsRoot().uri.resolve(procedure.file));
       expect(file.existsSync(), isTrue, reason: '${procedure.file} is missing');
       expect(
         cliCommands(file.readAsStringSync()),
@@ -677,10 +790,10 @@ void _procedureTests() {
       );
       bool ofThisFile(String problem) =>
           problem.startsWith('${procedure.file}:');
-      expect(oversizedSkillFiles(pluginRoot()).where(ofThisFile), isEmpty);
+      expect(oversizedSkillFiles(agentAssetsRoot()).where(ofThisFile), isEmpty);
       expect(
         unknownCliNames(
-          pluginRoot(),
+          agentAssetsRoot(),
           SpecstoneCommandRunner(),
         ).where(ofThisFile),
         isEmpty,
@@ -702,7 +815,7 @@ const _leadSentence =
 
 void _leadAndMermaidTests() {
   for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
-    final file = 'skills/$skill/references/procedure.md';
+    final file = 'specstone-$skill/references/procedure.md';
     test('d-ps2: $file holds the Mermaid quoting sentence and names the '
         '`#_lead` target of `specstone set`', () {
       final text = _oneLine(_pluginText(file));
@@ -713,7 +826,7 @@ void _leadAndMermaidTests() {
 
   test('d-ps2: update-sdd names the `#_lead` target', () {
     expect(
-      _oneLine(_pluginText('skills/update-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-update-sdd/SKILL.md')),
       contains(_leadSentence),
     );
   });
@@ -726,7 +839,7 @@ const _handOffs = ['sync-sdd', 'bootstrap-prd', 'bootstrap-spec'];
 /// The text of plugin [file] with `\n` line ends, as a Windows checkout's
 /// `\r\n` would otherwise fail every multi-line match.
 String _pluginText(String file) =>
-    File.fromUri(pluginRoot().uri.resolve(file))
+    File.fromUri(agentAssetsRoot().uri.resolve(file))
         .readAsStringSync()
         .replaceAll('\r\n', '\n');
 
@@ -740,38 +853,45 @@ void _handOffTests() {
   test('f08/us03/fr01, f08/us05/fr01: a hand-off skill opens on check, '
       'dispatches specstone:sdd-engineer, and names the procedure the agent '
       'reads', () {
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     for (final skill in _handOffs) {
       final path =
           '\${CLAUDE_PLUGIN_ROOT}/skills/$skill/references/procedure.md';
-      final text = _pluginText('skills/$skill/SKILL.md');
+      final text = _pluginText('specstone-$skill/SKILL.md');
       expect(text, contains('`specstone:sdd-engineer`'), reason: skill);
       expect(text, contains(path), reason: skill);
       expect(cliCommands(_bodyOf(text)).first, 'check', reason: skill);
-      expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $skill');
+      expect(
+        agent,
+        contains(path),
+        reason: 'specstone-sdd-engineer.md, $skill',
+      );
     }
   });
 
   test('approval flows paste the printed view', () {
     for (final skill in _handOffs) {
       expect(
-        _pluginText('skills/$skill/SKILL.md'),
+        _pluginText('specstone-$skill/SKILL.md'),
         isNot(contains("Owner's language")),
         reason: skill,
       );
     }
     expect(
-      _pluginText('agents/sdd-engineer.md'),
+      _pluginText('specstone-sdd-engineer.md'),
       isNot(contains("Owner's language")),
     );
-    expect(_pluginText('agents/sdd-engineer.md'), contains('never their text'));
+    expect(
+      _pluginText('specstone-sdd-engineer.md'),
+      contains('never their text'),
+    );
     for (final skill in ['expert-sdd', 'update-sdd']) {
-      final text = _pluginText('skills/$skill/SKILL.md');
+      final text = _pluginText('specstone-$skill/SKILL.md');
       expect(text, contains('--dry-run'), reason: skill);
       expect(text, contains('`Why:`'), reason: skill);
     }
     expect(
-      _pluginText('skills/expert-sdd/SKILL.md'),
+      _pluginText('specstone-expert-sdd/SKILL.md'),
       contains('pasted verbatim'),
     );
   });
@@ -780,7 +900,7 @@ void _handOffTests() {
       'passes a report file under the reports folder and shows the reply '
       'word for word', () {
     for (final skill in [..._handOffs, 'brainstorming-sdd']) {
-      final text = _pluginText('skills/$skill/SKILL.md');
+      final text = _pluginText('specstone-$skill/SKILL.md');
       expect(text, contains('`report:`'), reason: skill);
       expect(text, contains('`$_reportsFolder'), reason: skill);
       expect(text, contains('`Report:` line'), reason: skill);
@@ -793,12 +913,12 @@ void _handOffTests() {
     }
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
       expect(
-        _pluginText('skills/$skill/SKILL.md'),
+        _pluginText('specstone-$skill/SKILL.md'),
         contains('a new name per batch'),
         reason: skill,
       );
       expect(
-        _pluginText('skills/$skill/SKILL.md'),
+        _pluginText('specstone-$skill/SKILL.md'),
         contains('`mode: bootstrap`'),
         reason: skill,
       );
@@ -808,22 +928,22 @@ void _handOffTests() {
   test('f08/us02/fr01, f08/us02/fr06, f08/us02/fr07: brainstorming-sdd '
       'dispatches specstone:sdd-engineer in each of its modes and names the '
       'reference of each mode it can run itself, as the agent does', () {
-    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     expect(skill, contains('`specstone:sdd-engineer`'));
     for (final mode in _brainstormModes) {
       expect(skill, contains('`mode: $mode`'), reason: mode);
       final path =
           '\${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/$mode.md';
       expect(skill, contains(path), reason: 'brainstorming-sdd, $mode');
-      expect(agent, contains(path), reason: 'agents/sdd-engineer.md, $mode');
+      expect(agent, contains(path), reason: 'specstone-sdd-engineer.md, $mode');
     }
   });
 
   test('f08/us02/fr02, f08/us02/fr06, f08/us02/fr07, f08/us03/fr02, '
       'sdd-engineer writes its whole report to the report file '
       'and replies with the Report line and the relay block', () {
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     final input = _sectionOf(agent, 'Input Contract');
     expect(input, contains('**`report`**'));
     expect(
@@ -869,8 +989,7 @@ void _handOffTests() {
 
   test('no shipped plugin file holds the relay line or '
       'routed by', () {
-    for (final file
-        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+    for (final file in shippedFiles()) {
       final text = file.readAsStringSync();
       expect(text, isNot(contains(_relayLine)), reason: file.path);
       expect(text, isNot(contains('routed by')), reason: file.path);
@@ -881,7 +1000,7 @@ void _handOffTests() {
       'Waits on the Owner, and Outside the drafts, and only Findings drives '
       'a fix round', () {
     final report = _sectionOf(
-      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      _pluginText('specstone-brainstorming-sdd/references/audit.md'),
       '3. Report',
     );
     for (final heading in [
@@ -892,7 +1011,7 @@ void _handOffTests() {
       expect(report, contains('\n$heading\n'), reason: heading);
     }
     expect(
-      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      _pluginText('specstone-brainstorming-sdd/SKILL.md'),
       contains('`Findings:` lines'),
     );
   });
@@ -920,7 +1039,7 @@ void _handOffTests() {
     }
     final waits = _oneLine(
       _sectionOf(
-        _pluginText('skills/brainstorming-sdd/references/audit.md'),
+        _pluginText('specstone-brainstorming-sdd/references/audit.md'),
         '3. Report',
       ),
     );
@@ -931,8 +1050,7 @@ void _handOffTests() {
         '(waits for the Owner), as printed>',
       ),
     );
-    for (final file
-        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+    for (final file in shippedFiles()) {
       expect(
         _oneLine(file.readAsStringSync().replaceAll('`', '')),
         isNot(contains('unconfirmed link on a draft')),
@@ -944,7 +1062,7 @@ void _handOffTests() {
   test('author mode runs a bare specstone check before its '
       'first write and after its last', () {
     final check = _sectionOf(
-      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
       '4. Check',
     );
     expect(check, contains('`specstone check`'));
@@ -956,7 +1074,7 @@ void _handOffTests() {
       'author report holds the ready move command, and the skill runner runs '
       'it before the audit', () {
     final report = _sectionOf(
-      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
       '5. Report',
     );
     expect(
@@ -982,7 +1100,7 @@ void _handOffTests() {
       ),
     );
     final drafts = _sectionOf(
-      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      _pluginText('specstone-brainstorming-sdd/SKILL.md'),
       '4. Write the drafts, then audit them',
     );
     final move = drafts.indexOf("Run the author's `Move:` commands");
@@ -1014,15 +1132,15 @@ void _handOffTests() {
       expect(text, contains('shows as no draft'), reason: where);
     }
     for (final (file, section) in [
-      ('agents/sdd-engineer.md', 'Output Format'),
-      ('skills/brainstorming-sdd/references/author.md', '5. Report'),
+      ('specstone-sdd-engineer.md', 'Output Format'),
+      ('specstone-brainstorming-sdd/references/author.md', '5. Report'),
     ]) {
       final text = _oneLine(_sectionOf(_pluginText(file), section));
       expect(text, contains('never your own tally'), reason: '$file#$section');
     }
     final moved = _oneLine(
       _sectionOf(
-        _pluginText('skills/brainstorming-sdd/references/author.md'),
+        _pluginText('specstone-brainstorming-sdd/references/author.md'),
         '5. Report',
       ),
     );
@@ -1034,7 +1152,9 @@ void _handOffTests() {
       ),
     );
     expect(
-      _oneLine(_sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules')),
+      _oneLine(
+        _sectionOf(_pluginText('specstone-expert-sdd/SKILL.md'), 'Rules'),
+      ),
       contains(
         'Run `specstone approve` only with `--dry-run`, or with `--yes` as '
         'Owner confirmation below says',
@@ -1047,7 +1167,7 @@ void _handOffTests() {
       "report's Drafts line stays a bare list of names that the audit "
       'dispatch and plan-sdd take as it is, its counts on their own line', () {
     final report = _sectionOf(
-      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
       '5. Report',
     );
     expect(
@@ -1059,7 +1179,7 @@ void _handOffTests() {
       ),
     );
     expect(
-      _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+      _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Output Format'),
       contains(
         "the `Drafts for the Owner's specstone approve` line, the `Counts:` "
         'line,',
@@ -1070,7 +1190,7 @@ void _handOffTests() {
   test("Run an Owner-gated command only after the Owner's ok: "
       'the Rules and Owner confirmation sections of expert-sdd gate the '
       'delete of a guarded doc', () {
-    final skill = _pluginText('skills/expert-sdd/SKILL.md');
+    final skill = _pluginText('specstone-expert-sdd/SKILL.md');
     for (final heading in ['Rules', 'Owner confirmation']) {
       expect(
         _sectionOf(skill, heading).replaceAll(RegExp(r'\s+'), ' '),
@@ -1088,7 +1208,7 @@ void _handOffTests() {
       "the Owner's own terminal", () {
     final section = _oneLine(
       _sectionOf(
-        _pluginText('skills/expert-sdd/SKILL.md'),
+        _pluginText('specstone-expert-sdd/SKILL.md'),
         'Owner confirmation',
       ),
     );
@@ -1107,7 +1227,7 @@ void _handOffTests() {
       'the Rules section of expert-sdd holds the one-owner rule and its '
       'citation form and points to confirm-links.md, which alone holds the '
       'steps that confirm a traced link', () {
-    final skill = _pluginText('skills/expert-sdd/SKILL.md');
+    final skill = _pluginText('specstone-expert-sdd/SKILL.md');
     final rules = _oneLine(_sectionOf(skill, 'Rules'));
     for (final point in _oneOwnerPoints) {
       expect(rules, contains(point), reason: point);
@@ -1133,11 +1253,9 @@ void _handOffTests() {
 
   test('f08/us02/fr04/e08, f08/us02/fr04/e09, f08/us02/fr07/e10: no plugin '
       'file tells an agent to cite a rule by doc name', () {
-    final root = pluginRoot().uri.toFilePath(windows: false);
     final hits = <String>[];
-    for (final file
-        in pluginRoot().listSync(recursive: true).whereType<File>()) {
-      final path = file.uri.toFilePath(windows: false).substring(root.length);
+    for (final file in shippedFiles()) {
+      final path = shippedPathOf(file);
       final text = _oneLine(file.readAsStringSync());
       for (final match in _nameCite.allMatches(text)) {
         hits.add('$path: ${match[0]}');
@@ -1159,12 +1277,12 @@ final _nameCite = RegExp(
 /// a design document or plan is no Specstone doc, so the item-link rule of
 /// `follow_cross_doc_rules` E08 never binds its own text.
 const _ownTextNameCites = {
-  'skills/brainstorming-sdd/references/design.md: Cite each story, FR, and '
+  'specstone-brainstorming-sdd/references/design.md: Cite each story, FR, and '
           'section by its Specstone name':
       "the design document's own cites (`write_design_document` Statement)",
-  'skills/brainstorming-sdd/references/design.md: cited by name':
+  'specstone-brainstorming-sdd/references/design.md: cited by name':
       "the design document's Constraints list",
-  'agents/plan-engineer.md: citation of the doc name':
+  'specstone-plan-engineer.md: citation of the doc name':
       "a plan step's own cite of the point it would restate",
 };
 
@@ -1190,7 +1308,7 @@ const _citedLinkPoints = [
 ];
 
 /// The one home of expert-sdd's steps for confirming a traced link.
-const _confirmLinks = 'skills/expert-sdd/references/confirm-links.md';
+const _confirmLinks = 'specstone-expert-sdd/references/confirm-links.md';
 
 /// Rule 4 of expert-sdd as it read before its steps moved to [_confirmLinks].
 const _confirmLinkSteps =
@@ -1215,31 +1333,37 @@ const _brainstormModes = ['author', 'design', 'audit'];
 /// Each plugin file and `## ` section that says which `check` finding waits for
 /// the Owner (`consistency_check/find_template_breaks/print_findings`).
 const _ownerFindingReaders = [
-  ('skills/expert-sdd/SKILL.md', 'Rules'),
-  ('skills/brainstorming-sdd/references/author.md', '4. Check'),
-  ('skills/brainstorming-sdd/references/audit.md', '1. Read'),
-  ('skills/brainstorming-sdd/references/audit.md', '3. Report'),
-  ('skills/bootstrap-prd/references/procedure.md', '2. One finding at a time'),
-  ('skills/bootstrap-spec/references/procedure.md', '2. One finding at a time'),
-  ('skills/bootstrap-prd/SKILL.md', '3. After the reports'),
-  ('skills/bootstrap-spec/SKILL.md', '3. After the reports'),
-  ('agents/sdd-engineer.md', 'Workflow'),
-  ('agents/sdd-engineer.md', 'Output Format'),
+  ('specstone-expert-sdd/SKILL.md', 'Rules'),
+  ('specstone-brainstorming-sdd/references/author.md', '4. Check'),
+  ('specstone-brainstorming-sdd/references/audit.md', '1. Read'),
+  ('specstone-brainstorming-sdd/references/audit.md', '3. Report'),
+  (
+    'specstone-bootstrap-prd/references/procedure.md',
+    '2. One finding at a time',
+  ),
+  (
+    'specstone-bootstrap-spec/references/procedure.md',
+    '2. One finding at a time',
+  ),
+  ('specstone-bootstrap-prd/SKILL.md', '3. After the reports'),
+  ('specstone-bootstrap-spec/SKILL.md', '3. After the reports'),
+  ('specstone-sdd-engineer.md', 'Workflow'),
+  ('specstone-sdd-engineer.md', 'Output Format'),
 ];
 
 /// Each plugin file and `## ` section that says where a writing mode's drafts
 /// list and counts come from
 /// (`agent_plugin/write_prd_and_spec/write_drafts_with_coverage` E10).
 const _draftCountReaders = [
-  ('agents/sdd-engineer.md', 'Output Format'),
-  ('skills/brainstorming-sdd/references/author.md', '5. Report'),
-  ('skills/sync-sdd/references/procedure.md', 'Report to the Owner'),
+  ('specstone-sdd-engineer.md', 'Output Format'),
+  ('specstone-brainstorming-sdd/references/author.md', '5. Report'),
+  ('specstone-sync-sdd/references/procedure.md', 'Report to the Owner'),
   (
-    'skills/bootstrap-prd/references/procedure.md',
+    'specstone-bootstrap-prd/references/procedure.md',
     '6. Fill the skeletons, then ask for approval',
   ),
   (
-    'skills/bootstrap-spec/references/procedure.md',
+    'specstone-bootstrap-spec/references/procedure.md',
     '6. Fill the tech stack, then ask for approval',
   ),
 ];
@@ -1272,32 +1396,27 @@ final _fencedBlock = RegExp(r'^ *```[^\n]*\n([\s\S]*?)^ *```', multiLine: true);
 
 final _contextCall = RegExp(r'specstone context\b(.*?)(?=specstone |$)');
 
-/// Each `.md` file under the plugin's `skills/` and `agents/`, relative to
-/// the plugin folder with `/` separators, sorted.
-List<String> _skillAndAgentFiles() {
-  final root = pluginRoot().uri.toFilePath(windows: false);
-  return [
-      for (final file
-          in pluginRoot().listSync(recursive: true).whereType<File>())
-        file.uri.toFilePath(windows: false).substring(root.length),
-    ].where((path) {
-      final top = path.split('/').first;
-      return (top == 'skills' || top == 'agents') && path.endsWith('.md');
-    }).toList()
-    ..sort();
-}
+/// Each `.md` file of the skill and agent sources, relative to the assets
+/// folder with `/` separators, sorted.
+List<String> _skillAndAgentFiles() => [
+  for (final file in agentSourceFiles(agentAssetsRoot()))
+    if (file.path.endsWith('.md')) shippedPathOf(file),
+];
+
+/// Whether [path] of the skill and agent sources is a file in a skill folder.
+bool _isSkillFile(String path) => path.contains('/');
 
 /// The skill and agent files that ground through their own `context` call.
 const _groundingFiles = [
-  'skills/read-sdd/SKILL.md',
-  'agents/sdd-reader.md',
-  'skills/brainstorming-sdd/SKILL.md',
-  'skills/brainstorming-sdd/references/design.md',
-  'skills/brainstorming-sdd/references/audit.md',
-  'skills/brainstorming-sdd/references/source.md',
-  'skills/plan-sdd/SKILL.md',
-  'agents/plan-engineer.md',
-  'skills/sync-sdd/references/procedure.md',
+  'specstone-read-sdd/SKILL.md',
+  'specstone-sdd-reader.md',
+  'specstone-brainstorming-sdd/SKILL.md',
+  'specstone-brainstorming-sdd/references/design.md',
+  'specstone-brainstorming-sdd/references/audit.md',
+  'specstone-brainstorming-sdd/references/source.md',
+  'specstone-plan-sdd/SKILL.md',
+  'specstone-plan-engineer.md',
+  'specstone-sync-sdd/references/procedure.md',
 ];
 
 /// The words after `specstone context` of each call with arguments in
@@ -1327,7 +1446,7 @@ void _agentTests() {
     'sd-r9: the sdd-engineer Input Contract names exactly its five modes',
     () {
       final contract = _sectionOf(
-        _pluginText('agents/sdd-engineer.md'),
+        _pluginText('specstone-sdd-engineer.md'),
         'Input Contract',
       );
       final bullet = _modeBullet.firstMatch(contract)?.group(1) ?? '';
@@ -1344,7 +1463,7 @@ void _agentTests() {
     );
     for (final agent in ['sdd-engineer', 'sdd-reader']) {
       expect(
-        _pluginText('agents/$agent.md'),
+        _pluginText('specstone-$agent.md'),
         matches(proactive),
         reason: agent,
       );
@@ -1359,7 +1478,7 @@ void _agentTests() {
       final description = RegExp(
         r'^description:(.*)$',
         multiLine: true,
-      ).firstMatch(_pluginText('agents/sdd-engineer.md'))?.group(1);
+      ).firstMatch(_pluginText('specstone-sdd-engineer.md'))?.group(1);
       expect(description, contains('`specstone:sync-sdd`'));
       expect(description, contains('`specstone:bootstrap-prd`'));
       for (final mode in _brainstormModes) {
@@ -1374,26 +1493,28 @@ void _agentTests() {
       'the one design document a design dispatch names, audit and design mode '
       'write no other file but the report file, and no file names '
       'docs/superpowers/', () {
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     final tools = RegExp(
       r'^tools:(.*)$',
       multiLine: true,
     ).firstMatch(agent)?.group(1)?.split(',').map((tool) => tool.trim());
     expect(tools, containsAll(['Write', 'Edit']));
     expect(
-      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      _pluginText('specstone-brainstorming-sdd/references/audit.md'),
       contains("Write nothing but the agent's `report:`"),
     );
-    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    final design = _pluginText(
+      'specstone-brainstorming-sdd/references/design.md',
+    );
     expect(
       design,
       contains("Write no other file but the agent's `report:` file"),
     );
     expect(design, contains("write nothing but the agent's `report:` file"));
-    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
     for (final (file, text) in [
       (
-        'agents/sdd-engineer.md Scope Boundaries',
+        'specstone-sdd-engineer.md Scope Boundaries',
         _sectionOf(agent, 'Scope Boundaries'),
       ),
       ('references/design.md', design),
@@ -1403,7 +1524,7 @@ void _agentTests() {
     }
     for (final (file, text) in [
       (
-        'agents/sdd-engineer.md Scope Boundaries',
+        'specstone-sdd-engineer.md Scope Boundaries',
         _sectionOf(agent, 'Scope Boundaries'),
       ),
       ('references/design.md', design),
@@ -1416,17 +1537,17 @@ void _agentTests() {
   test('statement, '
       'E03, E14, E15: brainstorming-sdd hands the approved drafts to '
       'specstone:plan-sdd through Skill and runs no plan mode', () {
-    final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-brainstorming-sdd/SKILL.md'));
     expect(skill, contains('`specstone:plan-sdd`'));
     expect(skill, contains('`Skill`'));
     expect(skill, isNot(contains('mode: plan')));
     expect(skill, isNot(contains('references/plan.md')));
     expect(
-      _pluginText('agents/sdd-engineer.md'),
+      _pluginText('specstone-sdd-engineer.md'),
       isNot(contains('references/plan.md')),
     );
     expect(
-      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
       isNot(contains('plan mode')),
     );
   });
@@ -1434,14 +1555,16 @@ void _agentTests() {
   test('E04: the '
       'plan procedure file is gone, as plan-engineer holds the steps', () {
     final plan = File.fromUri(
-      pluginRoot().uri.resolve('skills/brainstorming-sdd/references/plan.md'),
+      agentAssetsRoot().uri.resolve(
+        'specstone-brainstorming-sdd/references/plan.md',
+      ),
     );
     expect(plan.existsSync(), isFalse);
   });
 
   test('E06: read-sdd names '
       'the context call it runs per cited story, NFR, and spec doc', () {
-    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
     expect(skill, contains('specstone context <story> --for implement --out'));
     expect(skill, contains('specstone context <target> --for implement --out'));
   });
@@ -1470,12 +1593,12 @@ void _agentTests() {
       'grounds through a saved bundle names read-sdd for its read, and each '
       'agent that reads one holds Grep for the search', () {
     for (final file in _groundingFiles) {
-      if (!file.startsWith('skills/') || file == 'skills/read-sdd/SKILL.md') {
+      if (!_isSkillFile(file) || file == 'specstone-read-sdd/SKILL.md') {
         continue;
       }
       expect(_pluginText(file), contains('`specstone:read-sdd`'), reason: file);
     }
-    final engineer = _pluginText('agents/sdd-engineer.md');
+    final engineer = _pluginText('specstone-sdd-engineer.md');
     expect(_toolsOf(engineer, 'tools'), contains('Grep'));
     expect(
       _oneLine(_sectionOf(engineer, 'Scope Boundaries')),
@@ -1531,7 +1654,7 @@ void _agentTests() {
 
   test('f08/us01/fr01: read-sdd names no mktemp, no budget figure, and no '
       'hand-off by bundle size', () {
-    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
     expect(skill, isNot(contains('mktemp')));
     expect(skill, isNot(contains('20000')));
     expect(skill, isNot(contains('over the budget')));
@@ -1540,7 +1663,7 @@ void _agentTests() {
 
   test('f08/us01/fr01/e19, f08/us01/fr01/e20: read-sdd searches the saved '
       'file before any get and finds a section by its header', () {
-    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
     expect(
       skill,
       contains(
@@ -1556,7 +1679,7 @@ void _agentTests() {
 
   test('f08/us01/fr02/e08, f08/us01/s3: sdd-reader reads the saved file its '
       'hand-off names and runs no context of its own', () {
-    final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
+    final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
     expect(
       reader,
       contains(
@@ -1572,14 +1695,14 @@ void _agentTests() {
       ),
     );
     expect(
-      _sectionOf(_pluginText('agents/sdd-reader.md'), 'Scope Boundaries'),
+      _sectionOf(_pluginText('specstone-sdd-reader.md'), 'Scope Boundaries'),
       contains('- Run `context` when the hand-off names a saved file.\n'),
     );
   });
 
   test('f08/us01/fr02/e08, f08/us01/fr01/e20: sdd-reader holds the search '
       'tool its read path names, and stays read-only', () {
-    final reader = _pluginText('agents/sdd-reader.md');
+    final reader = _pluginText('specstone-sdd-reader.md');
     final tools = _toolsOf(reader, 'tools');
     expect(tools, containsAll(['Read', 'Grep']));
     expect(tools, isNot(anyOf(contains('Write'), contains('Edit'))));
@@ -1610,7 +1733,7 @@ void _agentTests() {
 
   test('E14: read-sdd runs a '
       "plan task's read line with its --target as written", () {
-    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
     expect(
       skill,
       contains('specstone context <story> --for implement --target <name>'),
@@ -1621,7 +1744,7 @@ void _agentTests() {
   test('E15: read-sdd gives '
       'a task no plan wrote no --target in query or design mode', () {
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains('none in `query` or `design`'),
     );
   });
@@ -1629,7 +1752,7 @@ void _agentTests() {
   test('E16: read-sdd has a '
       'main session ask the Owner after argument_missing and rerun with '
       '--target', () {
-    final skill = _oneLine(_pluginText('skills/read-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
     expect(
       skill,
       contains(
@@ -1643,7 +1766,7 @@ void _agentTests() {
   test('E17: read-sdd has a '
       'Subagent stop and report the missing target to its dispatcher', () {
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains(
         'a Subagent runs no further call and reports the missing target, '
         'naming them, to its dispatcher',
@@ -1654,7 +1777,7 @@ void _agentTests() {
   test('E18: read-sdd '
       "hands sdd-reader the saved file's path as the header printed it", () {
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains(
         "Hand it the saved file's path exactly as the header printed it, the "
         'mode, and the task: no doc text, no index lines, and no path you '
@@ -1667,18 +1790,18 @@ void _agentTests() {
       'bounds one target at three tool calls, a refusal and part reads '
       'included', () {
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains(
         "One target takes three tool calls at most up to the task's first "
         'other action',
       ),
     );
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains('an `argument_missing` refusal counts among them'),
     );
     expect(
-      _oneLine(_pluginText('skills/read-sdd/SKILL.md')),
+      _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains(
         'the `context` call and each search or part read before that '
         'action',
@@ -1688,7 +1811,7 @@ void _agentTests() {
 
   test('E06: sdd-reader runs '
       "context with the hand-off's --target in implement mode", () {
-    final reader = _oneLine(_pluginText('agents/sdd-reader.md'));
+    final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
     expect(
       reader,
       contains('specstone context <target> --for <mode> [--summary] '),
@@ -1705,7 +1828,7 @@ void _agentTests() {
   test('E07: sdd-reader '
       'passes no --target in query or design mode', () {
     expect(
-      _oneLine(_pluginText('agents/sdd-reader.md')),
+      _oneLine(_pluginText('specstone-sdd-reader.md')),
       contains('none in `query` or `design` mode'),
     );
   });
@@ -1713,7 +1836,7 @@ void _agentTests() {
   test('E17: the '
       'first design call keeps a bare --out last and passes no --budget, '
       'with or without the Agent tool, and no --target', () {
-    final skill = _oneLine(_pluginText('skills/brainstorming-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-brainstorming-sdd/SKILL.md'));
     expect(
       skill,
       contains(
@@ -1731,7 +1854,7 @@ void _agentTests() {
       'author takes a per-target doc from the design row, or its DocPath, and '
       'keeps the drafts list free of --target', () {
     final author = _oneLine(
-      _pluginText('skills/brainstorming-sdd/references/author.md'),
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
     );
     expect(
       author,
@@ -1748,11 +1871,11 @@ void _agentTests() {
       contains('hit in a doc the design changes, as step 2 writes.'),
     );
     expect(
-      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      _oneLine(_pluginText('specstone-sdd-engineer.md')),
       contains('each write leaves a draft; never clear its flag'),
     );
     expect(
-      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      _oneLine(_pluginText('specstone-sdd-engineer.md')),
       contains(
         '**Code target** (two or more `targets:`): author passes '
         '`--target <name>`, the code target its '
@@ -1765,7 +1888,7 @@ void _agentTests() {
   test('E07: '
       'update-sdd asks which code target for a name in two or more, then '
       "reads and writes on the doc's DocPath", () {
-    final skill = _oneLine(_pluginText('skills/update-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-update-sdd/SKILL.md'));
     expect(
       skill,
       contains(
@@ -1783,7 +1906,7 @@ void _agentTests() {
       'expert-sdd gives set (a confirmed write included), structure, and refs '
       'the target of its loader, with no Owner question, and approve and '
       'delete none', () {
-    final skill = _oneLine(_pluginText('skills/expert-sdd/SKILL.md'));
+    final skill = _oneLine(_pluginText('specstone-expert-sdd/SKILL.md'));
     expect(
       skill,
       contains(
@@ -1798,7 +1921,7 @@ void _agentTests() {
   test('E17: design '
       'mode runs refs on a per-target owner by its DocPath', () {
     expect(
-      _oneLine(_pluginText('skills/brainstorming-sdd/references/design.md')),
+      _oneLine(_pluginText('specstone-brainstorming-sdd/references/design.md')),
       contains('A per-target owner goes to `refs` by its DocPath.'),
     );
   });
@@ -1806,7 +1929,7 @@ void _agentTests() {
   test('design mode links every design a doc still states: the design '
       "references line names no link count and takes the guide's section", () {
     final design = _oneLine(
-      _pluginText('skills/brainstorming-sdd/references/design.md'),
+      _pluginText('specstone-brainstorming-sdd/references/design.md'),
     );
     expect(
       design,
@@ -1827,7 +1950,7 @@ void _agentTests() {
       'mode grounds with no --target and names a code target on each '
       'per-target row', () {
     final design = _oneLine(
-      _pluginText('skills/brainstorming-sdd/references/design.md'),
+      _pluginText('specstone-brainstorming-sdd/references/design.md'),
     );
     expect(
       design,
@@ -1845,7 +1968,7 @@ void _agentTests() {
   test('E16: audit '
       'mode passes no --target on its design bundles or its drafts get', () {
     final audit = _oneLine(
-      _pluginText('skills/brainstorming-sdd/references/audit.md'),
+      _pluginText('specstone-brainstorming-sdd/references/audit.md'),
     );
     expect(
       audit,
@@ -1855,7 +1978,7 @@ void _agentTests() {
     );
     expect(audit, contains("The drafts list's names need no `--target`."));
     expect(
-      _oneLine(_pluginText('agents/sdd-engineer.md')),
+      _oneLine(_pluginText('specstone-sdd-engineer.md')),
       contains(
         'design writes a code target on each per-target spec doc row; design '
         'and audit pass no `--target` on `context --for design`.',
@@ -1866,7 +1989,7 @@ void _agentTests() {
   test('E13: the '
       're-audit get of the drafts list needs no --target', () {
     expect(
-      _oneLine(_pluginText('skills/brainstorming-sdd/references/rounds.md')),
+      _oneLine(_pluginText('specstone-brainstorming-sdd/references/rounds.md')),
       contains("The drafts list's names need no `--target`."),
     );
   });
@@ -1884,7 +2007,7 @@ void _agentTests() {
         '--target <name> --base <hash>`';
 
     String procedure() =>
-        _oneLine(_pluginText('skills/sync-sdd/references/procedure.md'));
+        _oneLine(_pluginText('specstone-sync-sdd/references/procedure.md'));
 
     test('find_specs_for_changed_code E02: a deleted file shows as a record '
         'entry in check, fixed in step 4.3', () {
@@ -1943,7 +2066,7 @@ void _agentTests() {
 
     test("update_covering_docs pointers row: the skill's waiting pointer "
         'goes to the target record, each form with its base and --target', () {
-      final skill = _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
+      final skill = _oneLine(_pluginText('specstone-sync-sdd/SKILL.md'));
       expect(
         skill,
         contains(
@@ -1997,7 +2120,7 @@ void _agentTests() {
     test('sdd-engineer names the sync target source and the record entry '
         'write on its Code target line', () {
       expect(
-        _oneLine(_pluginText('agents/sdd-engineer.md')),
+        _oneLine(_pluginText('specstone-sdd-engineer.md')),
         contains(
           "sync takes the `--code` path's code target, or the finding "
           "DocPath's, on each per-target `get`, `set`, and `new`, and writes "
@@ -2006,7 +2129,7 @@ void _agentTests() {
       );
     });
 
-    String skill() => _oneLine(_pluginText('skills/sync-sdd/SKILL.md'));
+    String skill() => _oneLine(_pluginText('specstone-sync-sdd/SKILL.md'));
 
     test('the sync skill runs the check as its gate and takes its work list '
         "from the check's code findings or from a named feature", () {
@@ -2088,7 +2211,7 @@ void _agentTests() {
       );
       final step = _oneLine(
         _sectionOf(
-          _pluginText('skills/sync-sdd/references/procedure.md'),
+          _pluginText('specstone-sync-sdd/references/procedure.md'),
           '3. Find the covering docs',
         ),
       );
@@ -2218,7 +2341,7 @@ void _agentTests() {
         'loops the check only until no pointer finding of those docs is '
         'left', () {
       for (final line in _pluginText(
-        'skills/sync-sdd/references/procedure.md',
+        'specstone-sync-sdd/references/procedure.md',
       ).split('\n')) {
         expect('`'.allMatches(line).length.isEven, isTrue, reason: line);
       }
@@ -2293,7 +2416,7 @@ void _agentTests() {
       expect(
         _oneLine(
           _sectionOf(
-            _pluginText('skills/sync-sdd/references/procedure.md'),
+            _pluginText('specstone-sync-sdd/references/procedure.md'),
             'Report to the Owner',
           ),
         ),
@@ -2342,7 +2465,7 @@ void _agentTests() {
       expect(
         _oneLine(
           _sectionOf(
-            _pluginText('skills/sync-sdd/references/procedure.md'),
+            _pluginText('specstone-sync-sdd/references/procedure.md'),
             'Report to the Owner',
           ),
         ),
@@ -2385,9 +2508,9 @@ void _agentTests() {
 
     test('sdd-engineer takes a feature name and the Owner picks in sync mode '
         'and names no changed-path or base-commit input', () {
-      final agent = _oneLine(_pluginText('agents/sdd-engineer.md'));
+      final agent = _oneLine(_pluginText('specstone-sdd-engineer.md'));
       final input = _oneLine(
-        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Input Contract'),
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Input Contract'),
       );
       expect(
         input,
@@ -2413,7 +2536,9 @@ void _agentTests() {
     test('sdd-engineer syncs on its gate check work list or a named feature '
         "and writes each pick by the procedure's step 5", () {
       expect(
-        _oneLine(_sectionOf(_pluginText('agents/sdd-engineer.md'), 'Workflow')),
+        _oneLine(
+          _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Workflow'),
+        ),
         contains(
           '2. **Sync**: follow the On-Demand procedure from its step 2, on '
           "your gate `check`'s work list, or on every code link of `feature`; "
@@ -2425,7 +2550,9 @@ void _agentTests() {
     test('sdd-engineer writes each pick in bootstrap mode by the procedure '
         'step that covers code, as it does in sync mode', () {
       expect(
-        _oneLine(_sectionOf(_pluginText('agents/sdd-engineer.md'), 'Workflow')),
+        _oneLine(
+          _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Workflow'),
+        ),
         contains(
           '3. **Bootstrap**: follow the On-Demand procedure from its step 2 '
           'on `batch`, its step 6 only for docs `batch` names, each write '
@@ -2439,7 +2566,7 @@ void _agentTests() {
         'and each waiting pointer in sync mode, and each Uncovered: file in '
         'bootstrap mode', () {
       final output = _oneLine(
-        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Output Format'),
       );
       expect(
         output,
@@ -2461,7 +2588,7 @@ void _agentTests() {
   });
 
   group('Agent sets up a new project with no code', () {
-    String init() => _oneLine(_pluginText('skills/init/SKILL.md'));
+    String init() => _oneLine(_pluginText('specstone-init/SKILL.md'));
 
     test('set_up_and_fill_drafts E04: a code root with no folder draws no '
         'finding until a record entry is implemented', () {
@@ -2504,7 +2631,7 @@ void _agentTests() {
           "procedure takes each write's target from the finding DocPath, else "
           'the first listed', () {
         expect(
-          text('skills/$skill/references/procedure.md'),
+          text('specstone-$skill/references/procedure.md'),
           contains(procedureTargetLine),
         );
       });
@@ -2512,7 +2639,7 @@ void _agentTests() {
       test('fill_check_findings: $skill names the batch target '
           'source, so a bootstrap batch never asks the Owner', () {
         expect(
-          text('skills/$skill/SKILL.md'),
+          text('specstone-$skill/SKILL.md'),
           contains(
             "**Code target** (two or more `targets:`): a finding's code "
             "target is its DocPath's, and an old "
@@ -2527,7 +2654,7 @@ void _agentTests() {
         "the first target's record entry, and is not written again when the "
         'entry holds it', () {
       expect(
-        text('skills/bootstrap-prd/references/procedure.md'),
+        text('specstone-bootstrap-prd/references/procedure.md'),
         contains(
           'Give each `implements:` entry of a `FEATURE.md` to the record '
           'entry of the story or FR whose behavior that code does, in the '
@@ -2535,7 +2662,7 @@ void _agentTests() {
         ),
       );
       expect(
-        text('skills/bootstrap-prd/references/procedure.md'),
+        text('specstone-bootstrap-prd/references/procedure.md'),
         contains(
           'to `specstone set implementation:<feature> --field implements '
           '--base <hash>`.',
@@ -2546,7 +2673,7 @@ void _agentTests() {
     test('fill_check_findings: a spec doc implements pointer goes to the '
         'record entry of its story or FR', () {
       expect(
-        text('skills/bootstrap-spec/references/procedure.md'),
+        text('specstone-bootstrap-spec/references/procedure.md'),
         contains('move each entry to the record entry of the story or FR'),
       );
     });
@@ -2554,14 +2681,14 @@ void _agentTests() {
     test("R-T33-1: bootstrap-spec fills each target's tech stack doc, its "
         'rest batch naming each', () {
       expect(
-        text('skills/bootstrap-spec/references/procedure.md'),
+        text('specstone-bootstrap-spec/references/procedure.md'),
         contains(
           "fill each target's tech stack doc per the guide you "
           'loaded, and its `code`,',
         ),
       );
       expect(
-        text('skills/bootstrap-spec/SKILL.md'),
+        text('specstone-bootstrap-spec/SKILL.md'),
         contains("names each target's tech stack doc"),
       );
     });
@@ -2569,7 +2696,7 @@ void _agentTests() {
     test('fill_check_findings: a spec doc implements pointer is written with '
         'the record command', () {
       expect(
-        text('skills/bootstrap-spec/references/procedure.md'),
+        text('specstone-bootstrap-spec/references/procedure.md'),
         contains(
           'with `specstone set implementation:<feature> --field implements '
           '--base <hash>`, then drop the key.',
@@ -2580,7 +2707,7 @@ void _agentTests() {
     test("R-T33-1: bootstrap-spec takes each target's tech stack code roots "
         "from that target's code root", () {
       expect(
-        text('skills/bootstrap-spec/references/procedure.md'),
+        text('specstone-bootstrap-spec/references/procedure.md'),
         contains(
           "each code folder under that target's code root in the "
           "config's `targets:`, or `code_root` for an unnamed one, else the "
@@ -2593,7 +2720,7 @@ void _agentTests() {
       test('retire_old_files E09: $skill lists each untyped referrer outside '
           'the batch with the file it names', () {
         expect(
-          text('skills/$skill/references/procedure.md'),
+          text('specstone-$skill/references/procedure.md'),
           contains(
             'list each untyped referrer outside it, with the file it names, '
             'for its owner to merge.',
@@ -2603,7 +2730,7 @@ void _agentTests() {
 
       test('Code target line of $skill starts its own block', () {
         expect(
-          _pluginText('skills/$skill/references/procedure.md'),
+          _pluginText('specstone-$skill/references/procedure.md'),
           contains('\n\n**Code target** (two or more'),
         );
       });
@@ -2613,7 +2740,7 @@ void _agentTests() {
         expect(
           _oneLine(
             _sectionOf(
-              _pluginText('skills/$skill/references/procedure.md'),
+              _pluginText('specstone-$skill/references/procedure.md'),
               '2. One finding at a time',
             ),
           ),
@@ -2625,7 +2752,7 @@ void _agentTests() {
     test('sdd-engineer names the bootstrap target source on its Code target '
         'line', () {
       expect(
-        text('agents/sdd-engineer.md'),
+        text('specstone-sdd-engineer.md'),
         contains(
           "bootstrap takes the finding DocPath's code target on each "
           'per-target `new`, `get`, and `set`, else the first listed one for a '
@@ -2635,11 +2762,11 @@ void _agentTests() {
     });
 
     group('uncovered code in a fill run', () {
-      const procedureFile = 'skills/bootstrap-spec/references/procedure.md';
+      const procedureFile = 'specstone-bootstrap-spec/references/procedure.md';
 
       String afterReports() => _oneLine(
         _sectionOf(
-          _pluginText('skills/bootstrap-spec/SKILL.md'),
+          _pluginText('specstone-bootstrap-spec/SKILL.md'),
           '3. After the reports',
         ),
       );
@@ -2709,7 +2836,7 @@ void _agentTests() {
           ),
         );
         expect(
-          text('skills/bootstrap-spec/SKILL.md'),
+          text('specstone-bootstrap-spec/SKILL.md'),
           contains(
             "`batch:` the batch's paths, `picks:` each write-a-spec pick of "
             "step 3 for the batch's files, and `report:`",
@@ -2720,7 +2847,7 @@ void _agentTests() {
       test('the rest batch runs in a later round while a write-a-spec pick '
           'awaits its file, even with no other finding', () {
         expect(
-          text('skills/bootstrap-spec/SKILL.md'),
+          text('specstone-bootstrap-spec/SKILL.md'),
           contains(
             'In a later round it runs only when findings it owns remain or a '
             'write-a-spec pick awaits.',
@@ -2731,7 +2858,7 @@ void _agentTests() {
       test("the skill keeps each answered file out of the run's later "
           'reports and questions, and names it once at the end with what it '
           'waits on', () {
-        final skill = text('skills/bootstrap-spec/SKILL.md');
+        final skill = text('specstone-bootstrap-spec/SKILL.md');
         expect(
           afterReports(),
           contains(
@@ -2766,7 +2893,7 @@ void _agentTests() {
       test('the sibling merge and retire clauses stay in both bootstrap '
           'procedures', () {
         for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
-          final procedure = text('skills/$skill/references/procedure.md');
+          final procedure = text('specstone-$skill/references/procedure.md');
           expect(procedure, contains('Name the set in one '), reason: skill);
           expect(
             procedure,
@@ -2785,7 +2912,7 @@ void _agentTests() {
 
   test('f08/us02/fr01, db-r5, db-r6: brainstorming-sdd targets the smallest '
       'doc and adds a story with --summary', () {
-    final text = _pluginText('skills/brainstorming-sdd/SKILL.md')
+    final text = _pluginText('specstone-brainstorming-sdd/SKILL.md')
         .replaceAll(RegExp(r'\s+'), ' ');
     expect(
       text,
@@ -2797,7 +2924,7 @@ void _agentTests() {
   test('f08/us02/fr01/e11, sf-r8: brainstorming-sdd step 1 runs specstone '
       'guide feature for a new story or feature', () {
     final step = _sectionOf(
-      _pluginText('skills/brainstorming-sdd/SKILL.md'),
+      _pluginText('specstone-brainstorming-sdd/SKILL.md'),
       '1. Ground: the first call',
     ).replaceAll(RegExp(r'\s+'), ' ');
     expect(
@@ -2812,13 +2939,13 @@ void _agentTests() {
 
   test('f08/us01/fr02/e05, db-r1: sdd-reader still pulls a target an earlier '
       'bundle listed in summary', () {
-    expect(_pluginText('agents/sdd-reader.md'), contains('· summary'));
+    expect(_pluginText('specstone-sdd-reader.md'), contains('· summary'));
   });
 
   test('f08/us01/fr02/e02, sf-r3: sdd-reader runs no write command, move '
       'included', () {
     expect(
-      _sectionOf(_pluginText('agents/sdd-reader.md'), 'Scope Boundaries'),
+      _sectionOf(_pluginText('specstone-sdd-reader.md'), 'Scope Boundaries'),
       contains(
         "**DON'T:**\n\n- Run a write command: `new`, `set`, `approve`, "
         '`delete`, `reorder`, `rename`, or `move`.\n',
@@ -2830,7 +2957,7 @@ void _agentTests() {
       'sf-r3: sdd-engineer runs approve only with --dry-run, and no delete, '
       'rename, reorder, or move', () {
     expect(
-      _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Scope Boundaries'),
+      _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Scope Boundaries'),
       contains(
         "**DON'T:**\n\n- Run `specstone approve` without `--dry-run` "
         "(approving is the Owner's), `delete`, `rename`, `reorder`, or "
@@ -2843,7 +2970,7 @@ void _agentTests() {
       'per target, and no design caller hands it targets on an over-budget '
       'route', () {
     String flat(String f) => _pluginText(f).replaceAll(RegExp(r'\s+'), ' ');
-    final reader = flat('agents/sdd-reader.md');
+    final reader = flat('specstone-sdd-reader.md');
     expect(reader, contains('Each may come marked `--summary`'));
     expect(reader, contains('[--summary]'));
     expect(
@@ -2852,8 +2979,8 @@ void _agentTests() {
     );
     expect(reader, isNot(contains('**`--summary`** (optional)')));
     for (final file in [
-      'skills/brainstorming-sdd/SKILL.md',
-      'skills/brainstorming-sdd/references/source.md',
+      'specstone-brainstorming-sdd/SKILL.md',
+      'specstone-brainstorming-sdd/references/source.md',
     ]) {
       expect(flat(file), isNot(contains('over budget')), reason: file);
     }
@@ -2861,7 +2988,7 @@ void _agentTests() {
 
   test('f08/us02/fr01, db-r5: design.md names the smallest doc itself, as the '
       'design-mode agent never reads SKILL.md', () {
-    final text = _pluginText('skills/brainstorming-sdd/references/design.md')
+    final text = _pluginText('specstone-brainstorming-sdd/references/design.md')
         .replaceAll(RegExp(r'\s+'), ' ');
     expect(
       text,
@@ -2878,12 +3005,16 @@ void _agentTests() {
       'E10-E13: '
       "design mode searches each decision's dependents, and the audit hashes "
       'its targets in one get and tags behavior findings', () {
-    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    final design = _pluginText(
+      'specstone-brainstorming-sdd/references/design.md',
+    );
     final write = _oneLine(_sectionOf(design, '3. Write the document'));
     for (final point in _dependentsSearchPoints) {
       expect(write, contains(point), reason: point);
     }
-    final audit = _pluginText('skills/brainstorming-sdd/references/audit.md');
+    final audit = _pluginText(
+      'specstone-brainstorming-sdd/references/audit.md',
+    );
     final read = _oneLine(_sectionOf(audit, '1. Read'));
     for (final point in _auditReadPoints) {
       expect(read, contains(point), reason: point);
@@ -2906,7 +3037,7 @@ void _agentTests() {
     }
     expect(
       _oneLine(
-        _sectionOf(_pluginText('agents/sdd-engineer.md'), 'Output Format'),
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Output Format'),
       ),
       contains('- **Audit**: the `Audited:` lines, `Findings:`,'),
     );
@@ -2930,7 +3061,7 @@ void _agentTests() {
           "rounds.md names its own parts as sections; only the skill's "
           'steps are steps',
     );
-    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
     final design = _sectionOf(skill, '3. Write the document: design mode');
     expect(design, contains('`$_roundsPath`'));
     expect(_oneLine(design), contains('Dispatch `mode: design` once'));
@@ -2945,16 +3076,19 @@ void _agentTests() {
     expect(_oneLine(skill), isNot(contains('two fix rounds')));
     for (final file in ['SKILL.md', 'references/rounds.md']) {
       expect(
-        _pluginText('skills/brainstorming-sdd/$file'),
+        _pluginText('specstone-brainstorming-sdd/$file'),
         isNot(contains('while it is live')),
         reason: file,
       );
     }
     expect(cliCommands(_pluginText(_rounds)), contains('get'));
     bool ofRounds(String problem) => problem.startsWith('$_rounds:');
-    expect(oversizedSkillFiles(pluginRoot()).where(ofRounds), isEmpty);
+    expect(oversizedSkillFiles(agentAssetsRoot()).where(ofRounds), isEmpty);
     expect(
-      unknownCliNames(pluginRoot(), SpecstoneCommandRunner()).where(ofRounds),
+      unknownCliNames(
+        agentAssetsRoot(),
+        SpecstoneCommandRunner(),
+      ).where(ofRounds),
       isEmpty,
     );
   });
@@ -3006,19 +3140,22 @@ void _agentTests() {
     expect(text, isNot(contains('context project --for design --budget')));
     expect(_procedures.map((p) => p.file), isNot(contains(_source)));
     bool ofSource(String problem) => problem.startsWith('$_source:');
-    expect(oversizedSkillFiles(pluginRoot()).where(ofSource), isEmpty);
+    expect(oversizedSkillFiles(agentAssetsRoot()).where(ofSource), isEmpty);
     expect(
-      unknownCliNames(pluginRoot(), SpecstoneCommandRunner()).where(ofSource),
+      unknownCliNames(
+        agentAssetsRoot(),
+        SpecstoneCommandRunner(),
+      ).where(ofSource),
       isEmpty,
     );
-    expect(nonLatinLetterLines(pluginRoot()).where(ofSource), isEmpty);
+    expect(nonLatinLetterLines(agentAssetsRoot()).where(ofSource), isEmpty);
   });
 
   test('E04, '
       'verification; agent_plugin/write_prd_and_spec/run_brainstorm_to_design '
       'E26: step 1 makes the gate call, with no budget, opens no link or '
       'issue before it exits 0, and then points to source.md', () {
-    final skill = _pluginText('skills/brainstorming-sdd/SKILL.md');
+    final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
     final step = _oneLine(_sectionOf(skill, '1. Ground: the first call'));
     const gate = 'specstone context project --for design';
     const pointer =
@@ -3043,7 +3180,9 @@ void _agentTests() {
       'E02, E03, E08: design.md points design mode to source.md, and the '
       'runner grounds on the gate bundle plus any narrow bundle or the '
       "reader's sections", () {
-    final design = _pluginText('skills/brainstorming-sdd/references/design.md');
+    final design = _pluginText(
+      'specstone-brainstorming-sdd/references/design.md',
+    );
     expect(
       _oneLine(_sectionOf(design, '1. Check the inputs')),
       contains(
@@ -3061,7 +3200,10 @@ void _agentTests() {
       expect(ground, contains(point), reason: point);
     }
     expect(ground, isNot(contains('--for design --no-project')));
-    expect(_pluginText('agents/sdd-engineer.md'), isNot(contains('source.md')));
+    expect(
+      _pluginText('specstone-sdd-engineer.md'),
+      isNot(contains('source.md')),
+    );
   });
 
   test('E01, E03, '
@@ -3097,7 +3239,7 @@ void _agentTests() {
     for (final restated in _batchTableText) {
       expect(author, isNot(contains(restated)), reason: restated);
     }
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     final contract = _oneLine(_sectionOf(agent, 'Input Contract'));
     for (final input in _laterPassInputs) {
       expect(contract, contains(input), reason: input);
@@ -3117,12 +3259,12 @@ void _agentTests() {
       contains('- Write a file by any other shell redirect, or a PRD or spec'),
     );
     bool ofAuthor(String problem) => problem.startsWith('$_author:');
-    expect(oversizedSkillFiles(pluginRoot()).where(ofAuthor), isEmpty);
+    expect(oversizedSkillFiles(agentAssetsRoot()).where(ofAuthor), isEmpty);
     expect(
       unknownCliNames(
-        pluginRoot(),
+        agentAssetsRoot(),
         SpecstoneCommandRunner(),
-      ).where((problem) => problem.startsWith('agents/sdd-engineer.md:')),
+      ).where((problem) => problem.startsWith('specstone-sdd-engineer.md:')),
       isEmpty,
     );
   });
@@ -3210,14 +3352,15 @@ const _ownedElsewhere = [
 
 /// The runner's fix-round and ruling procedure of `brainstorming-sdd`, under
 /// the plugin folder.
-const _rounds = 'skills/brainstorming-sdd/references/rounds.md';
+const _rounds = 'specstone-brainstorming-sdd/references/rounds.md';
 
 /// [_rounds] by the path the skill's runner reads it from.
-const _roundsPath = '\${CLAUDE_PLUGIN_ROOT}/$_rounds';
+const _roundsPath =
+    r'${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md';
 
 /// The take-in and Source map reference file of `brainstorming-sdd`, which
 /// its runner and design mode both read, under the plugin folder.
-const _source = 'skills/brainstorming-sdd/references/source.md';
+const _source = 'specstone-brainstorming-sdd/references/source.md';
 
 /// Each rule of `take_in_a_source` and `map_source_items` as source.md words
 /// it, tagged with the edge case it proves.
@@ -3330,7 +3473,7 @@ const _roundsOwnedElsewhere = [
 
 /// The author's procedure for `sdd-engineer`'s author mode, under the plugin
 /// folder.
-const _author = 'skills/brainstorming-sdd/references/author.md';
+const _author = 'specstone-brainstorming-sdd/references/author.md';
 
 /// Each point of `write_drafts_with_coverage`'s re-read clause and E12, as
 /// step 1 of author.md words it, cut at line width.
@@ -3403,10 +3546,11 @@ const _batchFileRedirect =
 final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
 
 /// The one home of the size-fix rule, under the plugin folder.
-const _sizeFix = 'skills/expert-sdd/references/size-fix.md';
+const _sizeFix = 'specstone-expert-sdd/references/size-fix.md';
 
 /// [_sizeFix] by the path a dispatched agent reads it from.
-const _sizeFixPath = '\${CLAUDE_PLUGIN_ROOT}/$_sizeFix';
+const _sizeFixPath =
+    r'${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/size-fix.md';
 
 const _sizeFindings = [
   '`chars_over_limit`',
@@ -3443,12 +3587,12 @@ const _itemBatchRule =
 /// Each bootstrap procedure and the sentences by which it skipped or dropped
 /// old text on judgement, or wrote its own proposal for a gap.
 const _droppedTextReasons = {
-  'skills/bootstrap-prd/references/procedure.md': [
+  'specstone-bootstrap-prd/references/procedure.md': [
     "propose it from the project's own text",
     'unless a project doc holds it already',
     'Write nothing it holds already',
   ],
-  'skills/bootstrap-spec/references/procedure.md': [
+  'specstone-bootstrap-spec/references/procedure.md': [
     "propose it from the project's own text",
     'write nothing a project doc holds already',
     'drop, as a step 6 proposal, what only describes the old index',
@@ -3532,7 +3676,7 @@ void _sizeFixTests() {
     expect(item, contains('`Waits on the Owner:`'));
     expect(item, contains('a dispatched agent sees the name in `batch:`'));
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
-      final text = _pluginText('skills/$skill/SKILL.md');
+      final text = _pluginText('specstone-$skill/SKILL.md');
       final handOff = _oneLine(_sectionOf(text, '2. Hand off in batches'));
       expect(handOff, contains(_itemBatchRule), reason: skill);
       expect(handOff, isNot(contains('`Waits on the Owner:`')), reason: skill);
@@ -3552,7 +3696,7 @@ void _sizeFixTests() {
         );
       }
     }
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     expect(
       _oneLine(_sectionOf(agent, 'Input Contract')),
       contains(
@@ -3577,7 +3721,7 @@ void _sizeFixTests() {
       'every other file '
       'points to size-fix.md and none restates its commands', () {
     final rules = _oneLine(
-      _sectionOf(_pluginText('skills/expert-sdd/SKILL.md'), 'Rules'),
+      _sectionOf(_pluginText('specstone-expert-sdd/SKILL.md'), 'Rules'),
     );
     expect(rules, contains('`references/size-fix.md`'));
     expect(
@@ -3598,16 +3742,18 @@ void _sizeFixTests() {
     for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
       final after = _oneLine(
         _sectionOf(
-          _pluginText('skills/$skill/SKILL.md'),
+          _pluginText('specstone-$skill/SKILL.md'),
           '3. After the reports',
         ),
       );
       expect(after, contains('`$_sizeFixPath`'), reason: skill);
       expect(after, contains('in run order'), reason: skill);
     }
-    expect(_pluginText('agents/sdd-engineer.md'), contains('`$_sizeFixPath`'));
-    for (final file
-        in pluginRoot().listSync(recursive: true).whereType<File>()) {
+    expect(
+      _pluginText('specstone-sdd-engineer.md'),
+      contains('`$_sizeFixPath`'),
+    );
+    for (final file in shippedFiles()) {
       if (file.uri.path.endsWith(_sizeFix)) continue;
       expect(
         _oneLine(file.readAsStringSync()),
@@ -3621,8 +3767,8 @@ void _sizeFixTests() {
 /// Each bootstrap procedure and its est. tokens at `e8262ba`, which its one
 /// guide call per batch leaves no higher.
 const _bootstrapProcedureTokens = {
-  'skills/bootstrap-prd/references/procedure.md': 1497,
-  'skills/bootstrap-spec/references/procedure.md': 1499,
+  'specstone-bootstrap-prd/references/procedure.md': 1497,
+  'specstone-bootstrap-spec/references/procedure.md': 1499,
 };
 
 /// The one guide call of a bootstrap batch
@@ -3645,7 +3791,7 @@ void _batchGuideTests() {
       'writes before the first write and its own call for a type met later, '
       'points each finding fix to it, and stays within its e8262ba est. '
       'tokens; expert-sdd counts one call for each type it names', () {
-    final expert = _pluginText('skills/expert-sdd/SKILL.md');
+    final expert = _pluginText('specstone-expert-sdd/SKILL.md');
     final rules = _oneLine(_sectionOf(expert, 'Rules'));
     expect(rules, contains(_guideCallCountsForEach));
     expect(rules, isNot(contains('earlier in the session')));
@@ -3681,7 +3827,7 @@ void _batchGuideTests() {
       expect(_oneLine(text), isNot(contains('per its guide')), reason: file);
       expect(
         oversizedSkillFiles(
-          pluginRoot(),
+          agentAssetsRoot(),
           limit: tokens,
         ).where((problem) => problem.startsWith('$file:')),
         isEmpty,
@@ -3695,8 +3841,9 @@ void _batchGuideTests() {
 const _repeatsTrees = {'bootstrap-prd': 'prds', 'bootstrap-spec': 'specs'};
 
 /// The shared repeats-batch reference both fill skills point to.
-const _repeats = 'skills/expert-sdd/references/repeats.md';
-const _repeatsPath = '\${CLAUDE_PLUGIN_ROOT}/$_repeats';
+const _repeats = 'specstone-expert-sdd/references/repeats.md';
+const _repeatsPath =
+    r'${CLAUDE_PLUGIN_ROOT}/skills/expert-sdd/references/repeats.md';
 
 /// How the repeats batch's agent merges one group or keeps it
 /// (`agent_plugin/fill_missing_format/fill_check_findings` E26, E28, E29).
@@ -3732,7 +3879,7 @@ void _repeatsBatchTests() {
     test('f08/us05/fr01/e27, e29, e31: $skill runs one check --repeats after '
         'the last round, right before its one repeats batch, keeps the groups '
         'with an item under $tree/, and points to repeats.md', () {
-      final text = _pluginText('skills/$skill/SKILL.md');
+      final text = _pluginText('specstone-$skill/SKILL.md');
       expect(
         'specstone check --repeats'.allMatches(_bodyOf(text)),
         hasLength(1),
@@ -3760,7 +3907,7 @@ void _repeatsBatchTests() {
 
     test('f08/us05/fr01/e26, e30: the $skill procedure points cite_unlinked '
         'and a repeats batch to repeats.md in one row and copies no step', () {
-      final text = _pluginText('skills/$skill/references/procedure.md');
+      final text = _pluginText('specstone-$skill/references/procedure.md');
       final findings = _sectionOf(text, '2. One finding at a time');
       expect(
         findings.split('\n').where((line) => line.contains('`cite_unlinked`')),
@@ -3777,7 +3924,7 @@ void _repeatsBatchTests() {
       "tree's untyped referrers and leaves the other tree's to its owner", () {
     final spec = _oneLine(
       _sectionOf(
-        _pluginText('skills/bootstrap-spec/references/procedure.md'),
+        _pluginText('specstone-bootstrap-spec/references/procedure.md'),
         '5. Retire the old files',
       ),
     );
@@ -3791,7 +3938,7 @@ void _repeatsBatchTests() {
     expect(
       _oneLine(
         _sectionOf(
-          _pluginText('skills/bootstrap-prd/references/procedure.md'),
+          _pluginText('specstone-bootstrap-prd/references/procedure.md'),
           '5. Retire the old files',
         ),
       ),
@@ -3804,7 +3951,7 @@ void _repeatsBatchTests() {
   test("f08/us05/fr01/e27: bootstrap-spec's repeats batch runs after "
       "bootstrap-prd's", () {
     expect(
-      _oneLine(_pluginText('skills/bootstrap-spec/SKILL.md')),
+      _oneLine(_pluginText('specstone-bootstrap-spec/SKILL.md')),
       contains(
         '6. Once per run, after the last round and '
         "`specstone:bootstrap-prd`'s repeats batch,",
@@ -3814,7 +3961,7 @@ void _repeatsBatchTests() {
 
   test('f08/us05/fr01/e26, e28: sdd-engineer takes batch: repeats, loads '
       'repeats.md for it, and reports each kept group', () {
-    final agent = _pluginText('agents/sdd-engineer.md');
+    final agent = _pluginText('specstone-sdd-engineer.md');
     expect(
       _oneLine(_sectionOf(agent, 'Input Contract')),
       contains('or `batch: repeats` and the repeat groups to merge;'),
@@ -3850,11 +3997,11 @@ const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
 const _writePlan = 'agent_plugin/plan_approved_stories/write_grounded_plan';
 
 /// The plan skill and the plan agent, under the plugin folder.
-const _planSkill = 'skills/plan-sdd/SKILL.md';
-const _planAgent = 'agents/plan-engineer.md';
+const _planSkill = 'specstone-plan-sdd/SKILL.md';
+const _planAgent = 'specstone-plan-engineer.md';
 
 /// [_planAgent] by the path the plan skill's runner reads it from.
-const _planAgentPath = '\${CLAUDE_PLUGIN_ROOT}/$_planAgent';
+const _planAgentPath = r'${CLAUDE_PLUGIN_ROOT}/agents/plan-engineer.md';
 
 /// The lead and source 1 of the plan agent's `## Ground`, as the plan-sdd
 /// design's ground ruling words them, cut at line width.
@@ -4174,13 +4321,13 @@ void _planTests() {
   test('$_runPlanSkill, $_writePlan: neither plan-sdd nor plan-engineer names '
       "another plugin's skill", () {
     for (final file in [_planSkill, _planAgent]) {
-      final shipped = File.fromUri(pluginRoot().uri.resolve(file));
+      final shipped = File.fromUri(agentAssetsRoot().uri.resolve(file));
       expect(shipped.existsSync(), isTrue, reason: '$file is missing');
     }
     expect(
-      otherPluginSkillNames(pluginRoot(), shippedDocTypes()).where(
+      otherPluginSkillNames(agentAssetsRoot(), shippedDocTypes()).where(
         (problem) =>
-            problem.startsWith('skills/plan-sdd/') ||
+            problem.startsWith('specstone-plan-sdd/') ||
             problem.startsWith('$_planAgent:'),
       ),
       isEmpty,

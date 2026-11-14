@@ -1,5 +1,5 @@
 ---
-name: read-sdd
+name: specstone-read-sdd
 description: Use when a task in a Specstone project needs its PRD or spec docs, such as a plan task that names the story, FR, NFR, or spec doc it builds, a question about a feature's docs, or design work on a feature, or when another `specstone:` skill names `specstone:read-sdd`.
 ---
 

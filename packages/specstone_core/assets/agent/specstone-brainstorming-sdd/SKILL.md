@@ -1,5 +1,5 @@
 ---
-name: brainstorming-sdd
+name: specstone-brainstorming-sdd
 description: Use when a change to a Specstone project adds a feature, a user story, or an FR, or reaches more than one PRD or spec doc, such as brainstorming a new feature, reshaping an existing one, or taking in a spec or design another tool wrote, or when another `specstone:` skill names `specstone:brainstorming-sdd`.
 ---
 
@@ -70,7 +70,7 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 
 ## 4. Write the drafts, then audit them
 
-1. After the approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt.
+1. After the approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
    list as its targets.
 3. Run fix rounds on its `Findings:` lines per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.

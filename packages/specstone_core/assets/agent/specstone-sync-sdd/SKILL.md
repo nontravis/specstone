@@ -1,5 +1,5 @@
 ---
-name: sync-sdd
+name: specstone-sync-sdd
 description: Use when code in a Specstone project changed and its spec docs must catch up, such as after a plan task's commit, when a code file moved or was deleted and a record code path or `covers:` pointer may break, when new code does something no spec states, or when another `specstone:` skill or agent names `specstone:sync-sdd`.
 ---
 

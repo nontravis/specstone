@@ -1,5 +1,5 @@
 ---
-name: sdd-reader
+name: specstone-sdd-reader
 description: (Reader) Read-only Specstone doc specialist; returns the sections a task needs, whole and cited. Use proactively in a Specstone project when a task wants whole doc sections; send the saved bundle file's path as the `context --out` header printed it, or target IDs, plus the `--for` mode and the task.
 tools: Bash, Read, Grep
 ---

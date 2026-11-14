@@ -1,5 +1,5 @@
 ---
-name: update-sdd
+name: specstone-update-sdd
 description: Use when the Owner asks to change one value or passage in a PRD or spec doc that already exists, such as raising a timeout an FR states, rewording one section, setting one field, or confirming a requirement again after the doc it traces changed, or when another `specstone:` skill names `specstone:update-sdd`.
 ---
 

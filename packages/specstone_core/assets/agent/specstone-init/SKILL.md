@@ -1,5 +1,5 @@
 ---
-name: init
+name: specstone-init
 description: Use when the Owner wants a new Specstone project in a folder that holds no code, no docs, and no `.specstone/config.yaml`, such as starting a product from nothing.
 ---
 

@@ -1,5 +1,5 @@
 ---
-name: plan-sdd
+name: specstone-plan-sdd
 description: Use when approved docs in a Specstone project have no implementation plan yet, such as an approved story, FR, NFR, or spec doc to build, the user stories still `planned`, or a brainstorm's approved drafts, or when another `specstone:` skill names `specstone:plan-sdd`.
 ---
 

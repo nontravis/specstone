@@ -1,5 +1,5 @@
 ---
-name: bootstrap-prd
+name: specstone-bootstrap-prd
 description: Use when the PRD docs of a Specstone project lag behind its format after `specstone migrate`, a new pack version, or an edited template, such as when `specstone check` reports paths under `prds/` (a missing or leftover section or field, an untyped old file), or when another `specstone:` skill names `specstone:bootstrap-prd`.
 ---
 

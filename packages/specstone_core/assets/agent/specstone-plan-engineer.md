@@ -1,5 +1,5 @@
 ---
-name: plan-engineer
+name: specstone-plan-engineer
 description: (Planner) Specstone plan writer, grounded in the docs first. Use proactively in a Specstone project to plan approved docs with no plan; send `targets` (story, FR, NFR, or spec doc names, or a brainstorm's approved drafts list), `report:`, and any design document, plan path, or answers.
 disallowedTools: Agent, NotebookEdit
 ---

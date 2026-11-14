@@ -15,8 +15,51 @@ final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
 Directory pluginRoot() =>
     Directory.fromUri(packageRoot().uri.resolve('../../plugin/'));
 
-/// Returns the problems in every CLI call that `.md` files under `skills/` and
-/// `agents/` of [plugin] name, sorted.
+/// Returns every file of the skill folders `specstone-<name>/` and the agent
+/// files `specstone-<name>.md` under [root], sorted by path.
+///
+/// Any other entry of [root], the `AGENT.md` asset among them, is left out.
+List<File> agentSourceFiles(Directory root) {
+  final files = <File>[];
+  for (final entity in root.listSync()) {
+    final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+    if (!name.startsWith('specstone-')) continue;
+    if (entity is Directory) {
+      files.addAll(entity.listSync(recursive: true).whereType<File>());
+    } else if (entity is File && name.endsWith('.md')) {
+      files.add(entity);
+    }
+  }
+  return files..sort((a, b) => a.path.compareTo(b.path));
+}
+
+/// Returns every shipped file, the skill and agent sources first and the
+/// plugin folder's files after them.
+List<File> shippedFiles() => [
+  ...agentSourceFiles(agentAssetsRoot()),
+  ...pluginRoot().listSync(recursive: true).whereType<File>(),
+];
+
+/// Returns the path of [file] below the folder it ships from, [agentAssetsRoot]
+/// or [pluginRoot], with `/` separators.
+String shippedPathOf(File file) {
+  final path = file.uri.toFilePath(windows: false);
+  for (final root in [agentAssetsRoot(), pluginRoot()]) {
+    if (path.startsWith(root.uri.toFilePath(windows: false))) {
+      return _relativePath(root, file);
+    }
+  }
+  throw ArgumentError('not a shipped file: $path');
+}
+
+/// Returns the folder that holds the skill and agent sources, beside the
+/// `AGENT.md` asset in the core package.
+Directory agentAssetsRoot() => Directory.fromUri(
+  packageRoot().uri.resolve('../specstone_core/assets/agent/'),
+);
+
+/// Returns the problems in every CLI call that `.md` files of the skill and
+/// agent sources under [plugin] name, sorted.
 ///
 /// Scans inline code spans and code block lines. A `specstone <word>` must
 /// name a command of [runner], then one of its subcommands when it has any;
@@ -60,8 +103,8 @@ Set<String> shippedDocTypes() {
   }
 }
 
-/// Returns one problem per inline code span in a `.md` file under `skills/` and
-/// `agents/` of [plugin] that names another plugin's skill, sorted.
+/// Returns one problem per inline code span in a `.md` file of the skill and
+/// agent sources under [plugin] that names another plugin's skill, sorted.
 ///
 /// A span names a skill when its whole text is `<prefix>:<name>`, two words of
 /// lowercase letters, digits, and hyphens, and the prefix is neither
@@ -87,17 +130,16 @@ List<String> otherPluginSkillNames(Directory plugin, Set<String> docTypes) {
 int _codePointsOf(File file) =>
     file.readAsStringSync().replaceAll('\r\n', '\n').runes.length;
 
-/// Returns one problem per file under `skills/` of [plugin] over [limit]
-/// estimated tokens, each file sized alone, sorted; empty when the folder is
-/// absent. Agent files are never sized.
+/// Returns one problem per file of a skill folder under [plugin] over [limit]
+/// estimated tokens, each file sized alone, sorted. Agent files are never
+/// sized.
 ///
 /// A file's estimated tokens are its code points, with `\r\n` folded to `\n`,
 /// divided by 4 and rounded down.
 List<String> oversizedSkillFiles(Directory plugin, {int limit = 1500}) {
-  final skills = Directory.fromUri(plugin.uri.resolve('skills/'));
-  if (!skills.existsSync()) return [];
   final problems = <String>[];
-  for (final file in skills.listSync(recursive: true).whereType<File>()) {
+  for (final file in agentSourceFiles(plugin)) {
+    if (!_relativePath(plugin, file).contains('/')) continue;
     final tokens = _codePointsOf(file) ~/ 4;
     if (tokens > limit) {
       problems.add(
@@ -126,16 +168,8 @@ List<String> nonLatinLetterLines(Directory plugin) {
   return problems..sort();
 }
 
-Iterable<File> _markdownFiles(Directory plugin) sync* {
-  for (final top in const ['skills', 'agents']) {
-    final folder = Directory.fromUri(plugin.uri.resolve('$top/'));
-    if (!folder.existsSync()) continue;
-    yield* folder
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.md'));
-  }
-}
+Iterable<File> _markdownFiles(Directory plugin) =>
+    agentSourceFiles(plugin).where((file) => file.path.endsWith('.md'));
 
 String _relativePath(Directory plugin, FileSystemEntity entity) {
   final path = entity.uri

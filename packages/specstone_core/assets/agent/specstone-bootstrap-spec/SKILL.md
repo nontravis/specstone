@@ -1,5 +1,5 @@
 ---
-name: bootstrap-spec
+name: specstone-bootstrap-spec
 description: Use when the spec docs of a Specstone project lag behind its format after `specstone migrate`, a new pack version, or an edited template, such as `specstone check` findings under `specs/`, `architecture_missing`, `code_uncovered`, a still-empty `TECH_STACK.md` draft, or another `specstone:` skill naming `specstone:bootstrap-spec`.
 ---
 
