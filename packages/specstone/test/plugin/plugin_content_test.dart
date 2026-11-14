@@ -267,6 +267,13 @@ const _implementerReadLine = 'specstone context <target> --for implement --out';
 
 final _folderRun = RegExp(r'specstone folder\b');
 
+/// A code line run in a shell: a `specstone` call or a redirect.
+final _shellLine = RegExp(r'^\s*specstone |\s>>?\s');
+
+/// An agent file placeholder, `<file>` or a `<folder>` path, with no `"`
+/// before it.
+final _unquotedAgentFile = RegExp('(?<!")<(?:file|folder)>');
+
 /// Each inline code span of [markdown] outside its fenced blocks, a span
 /// wrapped over lines read whole, with its offset in [markdown].
 List<({int offset, String code})> _inlineSpans(String markdown) {
@@ -333,6 +340,24 @@ void _agentFileTests() {
         reason: file,
       );
     }
+  });
+
+  test('domain:agent_plugin INV-19: each shell line quotes the agent file '
+      'it names, an absolute path that may hold a space', () {
+    final problems = <String>[];
+    for (final file in _skillAndAgentFiles()) {
+      final text = _pluginText(file);
+      final codes = [
+        for (final block in _fencedBlock.allMatches(text))
+          ...block.group(1)!.split('\n'),
+        for (final span in _inlineSpans(text)) span.code,
+      ];
+      for (final code in codes) {
+        if (!_shellLine.hasMatch(code)) continue;
+        if (_unquotedAgentFile.hasMatch(code)) problems.add('$file: $code');
+      }
+    }
+    expect(problems, isEmpty);
   });
 
   test('domain:agent_plugin INV-26: each file that names an agent file runs '
@@ -3034,7 +3059,7 @@ void _agentTests() {
     final scope = _sectionOf(agent, 'Scope Boundaries');
     expect(_oneLine(scope), contains(_batchFileRedirect));
     expect(_redirectSpan.allMatches(scope).map((span) => span[0]), [
-      '`specstone get … > <file>`',
+      '`specstone get … > "<file>"`',
     ]);
     expect(
       _oneLine(scope),
@@ -3277,10 +3302,10 @@ const _authorBatchPoints = [
   'A decision no doc can take is not landed: flag it, never force it.',
   '**Guide**: before your first write, run `specstone guide <type> …` once,',
   'naming every type you write.',
-  '**Several docs in one step**: run `specstone get <names> > <file>`,',
+  '**Several docs in one step**: run `specstone get <names> > "<file>"`,',
   '`<file>` `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`,',
   '`<folder>` the path `specstone folder` prints; edit its blocks with',
-  '`Edit`, each naming line kept; then run `specstone set --batch <file>`.',
+  '`Edit`, each naming line kept; then run `specstone set --batch "<file>"`.',
   'A block printed ` · unchanged` wrote nothing and adds no draft.',
   '**A refused batch** writes nothing, but exit 73',
   'leaves docs half written until a write command ends its journal: run',
@@ -3318,9 +3343,9 @@ const _laterPassInputs = [
 /// The one shell redirect sdd-engineer may run (`domain:agent_plugin` INV-19),
 /// as its Scope Boundaries word it.
 const _batchFileRedirect =
-    'and a batch file: made by `specstone get … > <file>`, `<file>` '
+    'and a batch file: made by `specstone get … > "<file>"`, `<file>` '
     '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell '
-    'redirect you run, and passed to `specstone set --batch <file>`.';
+    'redirect you run, and passed to `specstone set --batch "<file>"`.';
 
 /// A code span that redirects output into a file.
 final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
