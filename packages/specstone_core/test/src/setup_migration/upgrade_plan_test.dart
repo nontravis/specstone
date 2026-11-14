@@ -3306,6 +3306,21 @@ void _testNameTests() {
         _testSource('rejects a wrong key'),
       );
       expect(tests!.rewrittenFiles, [_testFile]);
+      expect(plan.lists.toJson()['tests'], tests.json);
+    });
+
+    test('a run that finds no test name holds an empty tests object', () async {
+      final project = await _testNameProject(
+        files: {_testFile: _testSource('rejects a wrong key')},
+      );
+
+      final plan = _planTestNames(project).plan;
+
+      expect(plan.lists.toJson()['tests'], {
+        'written': <Object?>[],
+        'rewritten': <Object?>[],
+        'left': <Object?>[],
+      });
     });
 
     test('the tests line follows the number labels line and comes '
@@ -3365,8 +3380,7 @@ void _testNameTests() {
       expect(tests!.planLine, isNull);
     });
 
-    test('a pin below the release but an available version below it '
-        'too, runs no pass', () async {
+    test('an available version below the release runs no pass', () async {
       final project = await _testNameProject(
         files: {_testFile: _testSource('f01/us01/fr01 rejects')},
       );
@@ -3375,9 +3389,15 @@ void _testNameTests() {
         project,
         templates: TemplateResolver(),
         homeDirectory: null,
+        testNamesSince: PackVersion.parse(
+          '99.0.0',
+          file: 'upgrade_plan_test.dart',
+          key: 'software-tech',
+        ),
       );
 
       expect(plan.toText(), isNot(contains('tests:')));
+      expect(plan.lists.toJson(), isNot(contains('tests')));
       expect(
         plan.rewrites.map((rewrite) => rewrite.path),
         isNot(contains(_testFile)),
@@ -3393,6 +3413,7 @@ void _testNameTests() {
       final plan = _planTestNames(project).plan;
 
       expect(plan.toText(), isNot(contains('tests:')));
+      expect(plan.lists.toJson(), isNot(contains('tests')));
     });
 
     test('the plan hash binds each test file the pass reads', () async {

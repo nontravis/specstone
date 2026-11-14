@@ -373,8 +373,8 @@ void main() {
       expect(pass.fileRewrites, isEmpty);
     });
 
-    test('the plan inputs bind each file the pass reads, tracked files '
-        'only', () async {
+    test('the plan inputs bind each tracked file holding a test name, and '
+        'no other', () async {
       final project = await _project(
         files: {
           _testPath: _test('f01/us01/fr01 rejects'),
@@ -389,7 +389,7 @@ void main() {
       final run = _run(project, home: await _home());
 
       expect(run.inputs.lines, contains('app/test/auth_test.dart '));
-      expect(run.inputs.lines, contains('app/lib/a.dart '));
+      expect(run.inputs.lines, isNot(contains('app/lib/a.dart')));
       expect(run.inputs.lines, isNot(contains('untracked_test')));
       expect(run.inputs.lines, isNot(contains('ignored.dart')));
       expect(run.pass.fileRewrites.map((rewrite) => rewrite.path), [_testPath]);
@@ -592,6 +592,12 @@ void main() {
 Map<String, Object?> _valuesOf(String text) =>
     frontmatterValuesOf(Doc.parse(text));
 
+final PackVersion _farRelease = PackVersion.parse(
+  '99.0.0',
+  file: 'test_name_pass_test.dart',
+  key: 'software-tech',
+);
+
 void _legacyTests() {
   group('test-name pass in a legacy run', () {
     final since = PackVersion.parse(
@@ -659,25 +665,47 @@ void _legacyTests() {
       expect(plan.toText(), isNot(contains('tests:')));
     });
 
-    test(
-      'a legacy run before the release that names tests runs no pass',
-      () async {
-        final root = await legacyProject({
-          'test/auth_test.dart': _test('f01/us01/fr01 rejects'),
-        });
+    test('a legacy plan holds the pass object under tests, and none when the '
+        'pass does not run', () async {
+      final root = await legacyProject({
+        'test/auth_test.dart': _test('f01/us01/fr01 rejects'),
+      });
 
-        final plan = planLegacyRun(
-          root,
-          templates: TemplateResolver(),
-          homeDirectory: null,
-        );
+      final ran = planLegacy(
+        root,
+        templates: TemplateResolver(),
+        homeDirectory: null,
+        testNamesSince: since,
+      );
+      final skipped = planLegacyRun(
+        root,
+        templates: TemplateResolver(),
+        homeDirectory: null,
+        testNamesSince: _farRelease,
+      );
 
-        expect(plan.toText(), isNot(contains('tests:')));
-        expect(
-          plan.rewrites.map((rewrite) => rewrite.path),
-          isNot(contains('test/auth_test.dart')),
-        );
-      },
-    );
+      expect(ran.plan.lists.toJson()['tests'], ran.tests!.json);
+      expect(skipped.lists.toJson(), isNot(contains('tests')));
+    });
+
+    test('a legacy run whose pins stay below the release that names tests '
+        'runs no pass', () async {
+      final root = await legacyProject({
+        'test/auth_test.dart': _test('f01/us01/fr01 rejects'),
+      });
+
+      final plan = planLegacyRun(
+        root,
+        templates: TemplateResolver(),
+        homeDirectory: null,
+        testNamesSince: _farRelease,
+      );
+
+      expect(plan.toText(), isNot(contains('tests:')));
+      expect(
+        plan.rewrites.map((rewrite) => rewrite.path),
+        isNot(contains('test/auth_test.dart')),
+      );
+    });
   });
 }

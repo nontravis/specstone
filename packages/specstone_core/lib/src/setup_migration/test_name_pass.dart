@@ -13,7 +13,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart'
-    show recordTestLineOf, recordTestsKey;
+    show recordTestFieldOf, recordTestLineOf;
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
@@ -91,7 +91,7 @@ final class TestNamePass {
   /// are the typed docs of the run; [resolveLabel] gives the DocPath one label
   /// names, or null. [isTaken] says whether a DocPath holds an entry once the
   /// run's moves ran, and [pendingCreates] are the records the run already
-  /// creates. Each file read is a plan input.
+  /// creates. Each file holding a test name is a plan input.
   ///
   /// Throws `MigrateFault` `git_failed` when `git ls-files` fails in a
   /// repository.
@@ -108,6 +108,8 @@ final class TestNamePass {
   }) {
     final recordType = set.recordDocType;
     if (recordType == null) return _empty();
+    final testsKey = recordTestFieldOf(recordType)?.id;
+    if (testsKey == null) return _empty();
     final tree = _ItemTree(set, recordType, docs, [
       for (final create in pendingCreates)
         (docPath: create.path.substring(_docsFolder.length), text: create.text),
@@ -123,6 +125,7 @@ final class TestNamePass {
     if (names.isEmpty) return _empty();
     final records = _RecordWriter(
       recordType,
+      testsKey,
       tree,
       twinNamesOf(targetNamesOf(targets)).isNotEmpty,
     )..write(names);
@@ -314,7 +317,7 @@ List<_Name> _scan({
     if (owner == null) continue;
     final DocText text;
     try {
-      text = readDocText(readPlanInput(File(file.path)));
+      text = readDocText(File(file.path).readAsBytesSync());
     } on FormatException {
       continue;
     } on FileSystemException {
@@ -323,6 +326,7 @@ List<_Name> _scan({
     final projectPath = pathInside(root.path, file.path);
     final shown = projectPath ?? file.path;
     final lines = text.lf.split('\n');
+    final before = names.length;
     for (final (index, line) in lines.indexed) {
       for (final literal in _literalsOf(line)) {
         final read = _readOpening(literal.text, tree, resolveLabel);
@@ -345,6 +349,7 @@ List<_Name> _scan({
         );
       }
     }
+    if (names.length > before) readPlanInput(File(file.path));
   }
   return names;
 }
@@ -742,9 +747,10 @@ final class _ItemTree {
 
 /// Writes the `tests` lines of the names into their records.
 final class _RecordWriter {
-  new(this._recordType, this._tree, this._hasTwins);
+  new(this._recordType, this._testsKey, this._tree, this._hasTwins);
 
   final MergedDocType _recordType;
+  final String _testsKey;
   final _ItemTree _tree;
   final bool _hasTwins;
 
@@ -805,7 +811,7 @@ final class _RecordWriter {
         isNew = true;
       }
     }
-    final added = _withTests(text!, wanted);
+    final added = _withTests(text!, wanted, _testsKey);
     if (added == null) return _block(names);
     if (added.lines.isEmpty) return;
     final path = docPath;
@@ -824,9 +830,10 @@ final class _RecordWriter {
 ({String text, List<String> lines})? _withTests(
   String lf,
   List<String> wanted,
+  String testsKey,
 ) {
   final blocks = Doc.parse(lf).frontmatter ?? const <KeyBlock>[];
-  final block = blocks.where((b) => b.name == recordTestsKey).firstOrNull;
+  final block = blocks.where((b) => b.name == testsKey).firstOrNull;
   final held = <Object?>[];
   if (block != null) {
     final Object? parsed;
@@ -835,7 +842,7 @@ final class _RecordWriter {
     } on YamlException {
       return null;
     }
-    final value = parsed is YamlMap ? parsed[recordTestsKey] : null;
+    final value = parsed is YamlMap ? parsed[testsKey] : null;
     switch (value) {
       case null:
         break;
@@ -862,11 +869,7 @@ final class _RecordWriter {
     for (final line in [...held, ...added]) '  - ${_yamlOf(line)}\n',
   ].join();
   return (
-    text: withKeyBlock(
-      lf,
-      recordTestsKey,
-      '${block?.key ?? recordTestsKey}:\n$listed',
-    ),
+    text: withKeyBlock(lf, testsKey, '${block?.key ?? testsKey}:\n$listed'),
     lines: added,
   );
 }

@@ -84,6 +84,7 @@ final class PlanLists {
     this.stampsSkipped = const [],
     this.steps = const [],
     this.mentions = const [],
+    this.tests,
   });
 
   /// The DocPath of each doc the layout pass rewrites, in code point order.
@@ -112,6 +113,10 @@ final class PlanLists {
   /// Each mention in a code or agent file the run's moves stop resolving.
   final List<StaleMention> mentions;
 
+  /// The test-name pass's `tests` object (`written`, `rewritten`, `left`), or
+  /// null when the run holds no such pass.
+  final Map<String, Object?>? tests;
+
   /// The lists as the keys of the JSON plan.
   Map<String, Object> toJson() => {
     'formatLayout': formatLayout,
@@ -127,6 +132,7 @@ final class PlanLists {
         {'from': step.from, 'step': step.step, 'paths': step.paths},
     ],
     'mentions': mentionsJsonOf(mentions),
+    'tests': ?tests,
   };
 }
 

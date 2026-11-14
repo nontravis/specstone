@@ -297,6 +297,7 @@ void main() {
         'stamps',
         'steps',
         'mentions',
+        'tests',
       ]);
       expect(object, isNot(contains('planHash')));
       expect(text.toString(), startsWith(object['plan']! as String));
@@ -311,6 +312,11 @@ void main() {
         'left': isA<List<Object?>>(),
       });
       expect(object['stamps'], {'skipped': <Object?>[]});
+      expect(object['tests'], {
+        'written': <Object?>[],
+        'rewritten': <Object?>[],
+        'left': <Object?>[],
+      });
       expect(json.toString().trim().split('\n').first, '{');
     }, skip: skipGit);
 

@@ -518,6 +518,7 @@ RunPlan planUpgradeRun(
       stampsSkipped: stamps.paths,
       steps: stepLines,
       mentions: mentions,
+      tests: tests?.json,
     ),
   );
   return (plan: plan, tests: tests);

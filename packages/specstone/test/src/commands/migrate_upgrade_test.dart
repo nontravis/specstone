@@ -208,18 +208,6 @@ Matcher _endingWith(String commitLine) => matches(
   ),
 );
 
-const _noRelease =
-    'the shipped software-tech does not carry the release that names tests '
-    'in the records yet';
-
-/// Returns [version], `major.minor.patch`, as one number: `1.6.0` is 1006000.
-int _versionOf(String version) {
-  final [major, minor, patch] = [
-    for (final part in version.split('.')) int.parse(part),
-  ];
-  return major * 1000000 + minor * 1000 + patch;
-}
-
 void main() {
   group('f06/us02: upgrade a pack pin', () {
     test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
@@ -1693,10 +1681,6 @@ void main() {
       String source(String name) =>
           "void main() {\n  test('$name', () {});\n}\n";
 
-      // The release that names tests in the records is not carried yet.
-      final carriesRelease =
-          _versionOf(shippedPackVersions()['software-tech']!) >= 1006000;
-
       test(
         'a project pinned before the release gets each '
         'requirement test file in its record, the test names keep their '
@@ -1736,6 +1720,18 @@ void main() {
             dry.out,
             contains('  specs/f01_login/IMPLEMENTATION.md (draft)'),
           );
+          final json = await _run(root, home, [
+            'migrate',
+            '--dry-run',
+            '--json',
+          ]);
+          expect(json.status, 0, reason: json.err);
+          final tests =
+              (jsonDecode(json.out) as Map<String, Object?>)['tests']!
+                  as Map<String, Object?>;
+          expect(tests['written'], hasLength(2));
+          expect(tests['rewritten'], hasLength(1));
+          expect(tests['left'], hasLength(1));
           final lines = dry.out.split('\n');
           final applied = await _run(root, home, [
             'migrate',
@@ -1760,7 +1756,6 @@ void main() {
           expect(_read(root, testPath), source('rejects a wrong password'));
           expect(_read(root, otherPath), source('f01/us01/fr01 dep'));
         },
-        skip: carriesRelease ? null : _noRelease,
       );
     });
   }, skip: hasGit ? null : 'git is not available');

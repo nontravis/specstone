@@ -283,6 +283,7 @@ RunPlan planLegacyRun(
       numberLabelsLeft: rewrites.labelsLeft,
       agentFiles: agentFiles.paths,
       mentions: mentions,
+      tests: rewrites.tests?.json,
     ),
     creates: [
       if (existing == null)
