@@ -163,6 +163,24 @@ IdRead? readItemIdAt(String text, int at, String prefix) {
   return _readIdAt(text, prefix, at + prefix.length);
 }
 
+/// A prefix of an item ID written in prose: capital-led words joined by `-`,
+/// then an optional `-`, before a digit; the digits are read by the grammar.
+final _proseIdPrefix = RegExp(
+  r'(?<![\p{L}\p{N}])[A-Z][A-Za-z]*(?:-[A-Z][A-Za-z]*)*-?(?=\d)',
+  unicode: true,
+);
+
+/// Returns each item ID written in [prose], in order, with its offset.
+///
+/// The prefix is not known in prose, so a prefix shape is tried and the
+/// digits are read by [readItemIdAt]: a lettered or unreadable form (RULE-33)
+/// is no ID.
+List<({int at, ItemId id})> itemIdsInProse(String prose) => [
+  for (final match in _proseIdPrefix.allMatches(prose))
+    if (readItemIdAt(prose, match.start, match.group(0)!) case final ItemId id)
+      (at: match.start, id: id),
+];
+
 /// Returns the key `check` holds an item by: `Scenario <n>` for the number
 /// value of a scenario heading (`Scenario 01` repeats `Scenario 1`), else the
 /// ID as written.

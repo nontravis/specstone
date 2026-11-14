@@ -557,7 +557,7 @@ void main() {
           for (final item in rebuilt.ruleItemWords())
             if (item.docPath == frPath) item.words.join(' '),
         ],
-        ['the system shall follow domainlogin inv6'],
+        ['the system shall follow domainlogin'],
       );
     });
     test(

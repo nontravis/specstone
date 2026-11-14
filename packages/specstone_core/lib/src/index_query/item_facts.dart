@@ -132,7 +132,7 @@ List<RuleItemWords> ruleItemWordsOf({
     for (var i = 0; i < sections.length; i++)
       if (ruleBearingSectionKeys.contains(sections[i].key))
         for (final item in sectionItemsOf(
-          withCommentsFenced(
+          withCommentsBlanked(
             withGeneratedFenced(
               sectionBodyLines(sections, lineFacts, i),
               isGenerated,

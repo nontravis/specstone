@@ -75,6 +75,21 @@ void main() {
       ]);
     });
 
+    test('apply_steps_and_pins E47: a file link, an image, and a web address '
+        'end no citation, but a link to a doc does', () {
+      final read = _readAll(
+        _doc(
+          '`domain:login` INV-6, see ![d](d.png) INV-7 [f](f.dart) INV-8 '
+          '<https://x.dev> INV-9\n'
+          '`a/b` INV-1 [l](../x.md) INV-2 [s](#top) INV-3\n',
+        ),
+      );
+      expect(read, [
+        (6, 'domain:login', null, 'INV-6 INV-7 INV-8 INV-9'),
+        (7, 'a/b', null, 'INV-1'),
+      ]);
+    });
+
     test('topic:doc_model#rules RULE-33: a lettered ID makes no item ID', () {
       expect(_readAll(_doc('`a/b` RULE-7a and RULE-8\n')), [
         (6, 'a/b', null, 'RULE-8'),

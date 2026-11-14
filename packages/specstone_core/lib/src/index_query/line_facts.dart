@@ -181,7 +181,7 @@ final class LineFacts {
       anchors: anchors,
       headingLines: anchors == null
           ? null
-          : _headingLinesOf(body, bodyStart, fenced, anchors.headingLevels),
+          : _headingLinesOf(body, bodyStart, fenced, anchors),
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
       sectionCounts: sectionCounts,
       fenced: fenced,
@@ -523,19 +523,24 @@ bool _isFencedIn(List<LineRange> ranges, int line) {
 }
 
 /// Returns the file line of each ATX heading of [body] outside the [fenced]
-/// lines, whose first line is file line `bodyStart + 1`, when their levels are
-/// the [levels] of the headings `markdown` reads; else null.
+/// lines, whose first line is file line `bodyStart + 1`, when each pairs with
+/// a heading `markdown` read in [anchors]: the same level, and, for a heading
+/// text with no inline markup, the same slug; else null.
 ///
 /// A setext heading or a heading inside a quote or a list is a heading to
-/// `markdown` and no line here, so the two lists differ and no line is kept.
+/// `markdown` and no line here, and a `##` line inside an HTML block is a
+/// line here and no heading to `markdown`, so a doc where the two disagree
+/// keeps no line.
 List<int>? _headingLinesOf(
   String body,
   int bodyStart,
   List<LineRange> fenced,
-  List<int> levels,
+  DocAnchors anchors,
 ) {
+  final levels = anchors.headingLevels;
   final lines = <int>[];
   final found = <int>[];
+  final texts = <String>[];
   for (final (i, text) in lfLinesOf(body).indexed) {
     final line = bodyStart + i + 1;
     if (text.isEmpty ||
@@ -547,12 +552,29 @@ List<int>? _headingLinesOf(
     if (heading == null) continue;
     lines.add(line);
     found.add(heading.level);
+    texts.add(heading.text);
   }
   if (found.length != levels.length) return null;
   for (var i = 0; i < levels.length; i++) {
     if (found[i] != levels[i]) return null;
+    if (!_sameSlug(anchors.headingSlugs[i], texts[i])) return null;
   }
   return lines;
+}
+
+/// The characters that start inline markup, which make a heading's slug
+/// differ from the slug of its written text.
+final _inlineMarkup = RegExp(r'[`*_\[<&\\!~]');
+
+/// Whether [parsed], a slug `markdown` gave a heading, can be the slug of the
+/// heading written as [text]: the slug of [text] with a `-1`, `-2` repeat
+/// suffix, or any slug when [text] holds inline markup.
+bool _sameSlug(String parsed, String text) {
+  if (_inlineMarkup.hasMatch(text)) return true;
+  final slug = headingSlugOf(text);
+  if (parsed == slug) return true;
+  return parsed.startsWith('$slug-') &&
+      int.tryParse(parsed.substring(slug.length + 1)) != null;
 }
 
 /// Whether a line of [text] opens, after up to three spaces, with a backtick

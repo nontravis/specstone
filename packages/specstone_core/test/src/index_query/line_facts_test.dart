@@ -509,6 +509,24 @@ void main() {
       expect(roundTrip(setext).headingLines, isNull);
       expect(_factsOf('# T\n\n> ## Quoted\n').headingLines, isNull);
     });
+
+    test(
+      'topic:doc_model#rules RULE-13: a quoted heading that cancels a '
+      '## line inside an HTML block keeps no line, since the slugs differ',
+      () {
+        final facts = _factsOf('# T\n> ## Note\n\n<!--\n## guide\n-->\n');
+
+        expect(facts.anchors!.headingSlugs, ['t', 'note']);
+        expect(facts.headingLines, isNull);
+      },
+    );
+
+    test('topic:doc_model#rules RULE-13: a repeated heading and one with '
+        'inline markup still pair with their lines', () {
+      final facts = _factsOf('# T\n\n## A\n\n## A\n\n## `code` _x_\n');
+
+      expect(facts.headingLines, [1, 3, 5, 7]);
+    });
   });
 
   group('LineFacts.of counted text', () {

@@ -132,11 +132,6 @@ final _allowed = <_Allowed>[
     'Bare web address autolink, no doc reference.',
   ),
   _core(
-    'index_query/item_words.dart',
-    r"""RegExp( r'\[([^\[\]]*)\](?:\((?:[^()]|\([^()]*\))*\)|\[[^\[\]]*\])'""",
-    'Reads a link as its text for word normalization, no reference.',
-  ),
-  _core(
     'journeys/journey_steps.dart',
     r"""RegExp(r'^### ([0-9]+[a-z]*)\. (.+)$'""",
     '`_stepHeading`: a StepNumber is no item ID.',

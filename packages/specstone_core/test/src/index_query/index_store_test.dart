@@ -808,9 +808,8 @@ void main() {
         {'specs/jaspr/f01_login/ARCHITECTURE.md': 'jaspr', 'README.md': null},
       );
     });
-    test('domain:index_query INV-2: an index of layout 15, whose line facts '
-        'hold no cite candidates and which has no item_words table, has no '
-        'stamp, so it is rebuilt', () async {
+    test('domain:index_query INV-2: an index of layout 15 has no stamp, so '
+        'it is rebuilt', () async {
       final r = await root();
       final store = IndexStore.open(r);
       addTearDown(store.close);
@@ -904,14 +903,80 @@ void main() {
       expect(other.single.$2, 'E05');
     });
 
-    test('domain:index_query INV-86: a doc stored again drops its old words, '
-        'and a deleted doc drops them all', () async {
-      final project = await writeLoginProject(extra: {frKey: fr});
+    test('list_repeat_groups E01: items that restate a rule while citing '
+        'INV-6 and INV-7 read the same words, every item ID dropped', () async {
+      const other =
+          'prds/features/f01_login/us01_email_login/'
+          'fr02_lock_after_failures.md';
+      String edge(String id) =>
+          '---\nverify_method: test\n---\n\n# X\n\n## Edge cases\n'
+          '1. E01 — The token check follows $id for every request of the '
+          'login flow.\n';
+      final project = await writeLoginProject(
+        extra: {frKey: edge('INV-6'), 'docs/$other': edge('INV-7')},
+      );
       final store = refreshed(project);
-      expect(wordsOf(store, frPath), isNotEmpty);
 
+      expect(wordsOf(store, frPath).single.$3, wordsOf(store, other).single.$3);
+      expect(
+        wordsOf(store, frPath).single.$3,
+        'the token check follows for every request of the login flow',
+      );
+    });
+
+    test('list_repeat_groups E06: only the comment is not read, whether it '
+        'spans lines or closes in the middle of a line', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Edge cases\n'
+              '1. E02 — foo <!-- note\n'
+              '   more --> bar\n'
+              '2. E03 — <!-- tip --> The system shall X\n'
+              '<!--\n'
+              '\n'
+              'a hidden rule\n'
+              '-->\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath), [
+        (8, 'E02', 'foo bar'),
+        (10, 'E03', 'the system shall x'),
+      ]);
+    });
+
+    test('list_repeat_groups E01: a link is read as its text as the link '
+        'scan reads it, a `]` in a code span of the text included', () async {
+      final project = await writeLoginProject(
+        extra: {
+          frKey:
+              '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+              'Press [the `]` key](x.md) and ![alt text](a.png) now.\n',
+        },
+      );
+      final store = refreshed(project);
+
+      expect(
+        wordsOf(store, frPath).single.$3,
+        'press the key and alt text now',
+      );
+    });
+
+    test('domain:index_query INV-86: a doc stored again keeps only its new '
+        'words, and a deleted doc drops them all', () async {
+      final project = await writeLoginProject(extra: {frKey: fr});
+      expect(wordsOf(refreshed(project), frPath), hasLength(3));
+      File('${project.path}/$frKey').writeAsStringSync(
+        '---\nverify_method: test\n---\n\n# X\n\n## Statement\n'
+        'Only this one remains.\n',
+      );
+
+      final store = refreshed(project);
+
+      expect(wordsOf(store, frPath), [(8, null, 'only this one remains')]);
       store.write(() => store.deleteDoc(frPath));
-
       expect(wordsOf(store, frPath), isEmpty);
     });
   });

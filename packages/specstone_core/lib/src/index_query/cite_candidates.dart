@@ -6,7 +6,12 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DestinationKind, ItemId, proseTrimmedPath, readItemIdAt;
+    show
+        DestinationKind,
+        RelativeLink,
+        itemIdsInProse,
+        proseTrimmedPath,
+        readLinkTarget;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -145,21 +150,12 @@ String _proseOf(String line, List<CodeSpan> spans, {required int from}) {
   return prose;
 }
 
-/// A prefix of an item ID in prose: capital-led words joined by `-`, then an
-/// optional `-`, before a digit; the grammar reads the digits.
-final _idPrefix = RegExp(
-  r'(?<![\p{L}\p{N}])[A-Z][A-Za-z]*(?:-[A-Z][A-Za-z]*)*-?(?=\d)',
-  unicode: true,
-);
-
-List<String> _itemIdsIn(String prose) {
-  final ids = <String>[];
-  for (final match in _idPrefix.allMatches(prose)) {
-    final id = readItemIdAt(prose, match.start, match.group(0)!);
-    if (id is ItemId && !ids.contains(id.written)) ids.add(id.written);
-  }
-  return ids;
-}
+List<String> _itemIdsIn(String prose) => [
+  for (final written in {
+    for (final (at: _, :id) in itemIdsInProse(prose)) id.written,
+  })
+    written,
+];
 
 /// The offset of the first element of the sorted [offsets] after [offset].
 int? _firstAfter(List<int> offsets, int offset) {
@@ -178,8 +174,8 @@ int? _firstAfter(List<int> offsets, int offset) {
 
 /// The body ranges a link or a link reference's destination takes.
 final class _LinkRanges {
-  new(List<BodyRange> ranges)
-    : starts = [for (final r in ranges) r.start]..sort(),
+  new(List<BodyRange> ranges, {required List<int> citationStarts})
+    : starts = [...citationStarts]..sort(),
       _sorted = [...ranges]..sort((a, b) => a.start - b.start) {
     var furthest = 0;
     for (final range in _sorted) {
@@ -188,7 +184,9 @@ final class _LinkRanges {
     }
   }
 
-  /// The start of each range, sorted.
+  /// The start of each link to a doc, sorted: the links that end the item IDs
+  /// of the citation before them. A file link, an image, and a web address
+  /// are no citation.
   final List<int> starts;
 
   final List<BodyRange> _sorted;
@@ -211,15 +209,37 @@ final class _LinkRanges {
 }
 
 _LinkRanges _linkRangesOf(String body, int firstLine) {
-  if (!holdsLinkSyntax(body)) return _LinkRanges(const []);
+  if (!holdsLinkSyntax(body)) {
+    return _LinkRanges(const [], citationStarts: const []);
+  }
   final scan = linkScanOf(body, firstLine: firstLine);
-  return _LinkRanges([
-    for (final (:offset, :end, line: _, shown: _, angle: _, textEnd: _)
-        in scan.sources)
-      (start: offset, end: end),
-    for (final (:start, :end, link: _, :kind) in scan.destinations)
-      if (kind == DestinationKind.definition) (start: start, end: end),
-  ]);
+  return _LinkRanges(
+    [
+      for (final source in scan.sources)
+        (start: source.offset, end: source.end),
+      for (final (:start, :end, link: _, :kind) in scan.destinations)
+        if (kind == DestinationKind.definition) (start: start, end: end),
+    ],
+    citationStarts: [
+      for (final source in scan.sources)
+        if (_isDocLink(
+          source.shown,
+          isImage: body.startsWith('!', source.offset),
+        ))
+          source.offset,
+    ],
+  );
+}
+
+/// Whether a link written with the destination [shown] cites a doc: a
+/// relative path to a `.md` file, or a bare `#anchor` into the doc itself.
+bool _isDocLink(String? shown, {required bool isImage}) {
+  if (shown == null || isImage) return false;
+  return switch (readLinkTarget(shown)) {
+    RelativeLink(:final segments) =>
+      segments.isEmpty || segments.last.endsWith(markdownExtension),
+    _ => false,
+  };
 }
 
 /// The lines of a body, by index, and where each starts.
