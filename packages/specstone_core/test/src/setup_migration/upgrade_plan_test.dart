@@ -1468,9 +1468,10 @@ void _agentFilesTests() {
       ];
       expect(plan.agentFiles!.trash, trash);
       expect(plan.agentFiles!.topTrash, ['code/.claude/skills/specstone-old']);
-      expect(plan.lists.agentFiles, trash);
+      final files = [for (final path in trash) '$path/SKILL.md'];
+      expect(plan.lists.agentFiles, files);
       expect(plan.toText(), contains('  agent files: 2 files\n'));
-      expect(plan.lists.toJson()['agentFiles'], trash);
+      expect(plan.lists.toJson()['agentFiles'], files);
     });
 
     test('$_fr E14: a pin equal to agentFilesSince refreshes, never the '

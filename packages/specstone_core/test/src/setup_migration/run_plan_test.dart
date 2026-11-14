@@ -477,6 +477,198 @@ void main() {
         expect(paths, ['rules/rules/x.mdc', specstoneGitignorePath]);
       }, skip: Platform.isWindows ? skipLinks : null);
     });
+
+    group('the trash steps of unshipped agent files', () {
+      const skipLinks = 'symbolic links need a privilege';
+      const oldSkill = '.claude/skills/specstone-old';
+      const trashed = '.specstone/trash/files';
+
+      /// A project folder holding [files], each under its path.
+      Directory projectWith(Map<String, String> files) {
+        final project = Directory.systemTemp.createTempSync('run_plan_trash');
+        addTearDown(() => project.deleteSync(recursive: true));
+        for (final MapEntry(:key, :value) in files.entries) {
+          File('${project.path}/$key')
+            ..createSync(recursive: true)
+            ..writeAsStringSync(value);
+        }
+        return project;
+      }
+
+      RunPlan trashPlan({
+        required List<String> trash,
+        List<String> topTrash = const [],
+        Map<String, List<String>> contents = const {},
+      }) => RunPlan(
+        header: 'migrate',
+        moves: const [],
+        prunes: const [],
+        rewrites: const [],
+        creates: const [],
+        left: const [],
+        commit1Message: 'move',
+        commit2Message: 'pin',
+        inputs: _noInputs(),
+        agentFiles: AgentWritePlan(
+          rootWrites: const [],
+          topWrites: const [],
+          agentFileRoots: const [],
+          addedRoots: const [],
+          writeSet: const {},
+          trash: trash,
+          topTrash: topTrash,
+          trashContents: contents,
+        ),
+      );
+
+      test('a skill folder moves whole to the trash before commit 2, whose '
+          'paths hold each file under it', () {
+        final project = projectWith({
+          '$oldSkill/SKILL.md': 'old\n',
+          '$oldSkill/references/more.md': 'old\n',
+        });
+        final plan = trashPlan(
+          trash: [oldSkill],
+          contents: {
+            oldSkill: ['$oldSkill/SKILL.md', '$oldSkill/references/more.md'],
+          },
+        );
+
+        final steps = plan.journalSteps(base: 'abc', projectRoot: project);
+
+        final move = steps.whereType<MoveStep>().single;
+        expect(move.describe(), 'move $oldSkill -> $trashed/$oldSkill');
+        final commit = steps.whereType<CommitStep>().single;
+        expect(steps.indexOf(move), lessThan(steps.indexOf(commit)));
+        expect(commit.paths, [
+          '$oldSkill/SKILL.md',
+          '$oldSkill/references/more.md',
+          specstoneGitignorePath,
+        ]);
+      });
+
+      test('a file inside a shipped skill folder moves alone', () {
+        const extra = '.claude/skills/specstone-read/extra.md';
+        final project = projectWith({extra: 'old\n'});
+        final plan = trashPlan(trash: [extra]);
+
+        final steps = plan.journalSteps(base: 'abc', projectRoot: project);
+
+        expect(steps.whereType<MoveStep>().single.describe(), contains(extra));
+        expect(steps.whereType<CommitStep>().single.paths, [
+          extra,
+          specstoneGitignorePath,
+        ]);
+      });
+
+      test('an entry at a repository top moves but joins no commit', () {
+        const topEntry = 'lib/.claude/skills/specstone-old';
+        final project = projectWith({'$topEntry/SKILL.md': 'old\n'});
+        final plan = trashPlan(
+          trash: [topEntry],
+          topTrash: [topEntry],
+          contents: {
+            topEntry: ['$topEntry/SKILL.md'],
+          },
+        );
+
+        final steps = plan.journalSteps(base: 'abc', projectRoot: project);
+
+        expect(
+          steps.whereType<MoveStep>().single.describe(),
+          'move $topEntry -> $trashed/$topEntry',
+        );
+        expect(steps.whereType<CommitStep>().single.paths, [
+          specstoneGitignorePath,
+        ]);
+      });
+
+      test('an entry below a linked folder moves from the folder real '
+          'place, and the commit names that place', () {
+        final project = projectWith({'$oldSkill/SKILL.md': 'old\n'});
+        Directory('${project.path}/.agents').createSync();
+        Link('${project.path}/.agents/skills').createSync('../.claude/skills');
+        const linked = '.agents/skills/specstone-old';
+        final plan = trashPlan(
+          trash: [linked],
+          contents: {
+            linked: ['$linked/SKILL.md'],
+          },
+        );
+
+        final steps = plan.journalSteps(base: 'abc', projectRoot: project);
+
+        expect(
+          steps.whereType<MoveStep>().single.describe(),
+          'move $oldSkill -> $trashed/$oldSkill',
+        );
+        expect(steps.whereType<CommitStep>().single.paths, [
+          '$oldSkill/SKILL.md',
+          specstoneGitignorePath,
+        ]);
+      }, skip: Platform.isWindows ? skipLinks : null);
+
+      test('a link entry moves as the link, never its target', () {
+        final project = projectWith({'shared/SKILL.md': 'shared\n'});
+        Directory('${project.path}/.claude/skills').createSync(recursive: true);
+        Link('${project.path}/$oldSkill').createSync('../../shared');
+        final plan = trashPlan(trash: [oldSkill]);
+        final target = JournalTarget(
+          projectRoot: project,
+          docsRoot: project,
+          homeDirectory: testHome(),
+        );
+
+        for (final step
+            in plan
+                .journalSteps(base: 'abc', projectRoot: project)
+                .whereType<MoveStep>()) {
+          step.apply(target);
+        }
+
+        expect(File('${project.path}/shared/SKILL.md').existsSync(), isTrue);
+        expect(
+          FileSystemEntity.isLinkSync('${project.path}/$trashed/$oldSkill'),
+          isTrue,
+        );
+        expect(
+          FileSystemEntity.typeSync(
+            '${project.path}/$oldSkill',
+            followLinks: false,
+          ),
+          FileSystemEntityType.notFound,
+        );
+      }, skip: Platform.isWindows ? skipLinks : null);
+
+      test('a move that ran is not run again', () {
+        final project = projectWith({'$oldSkill/SKILL.md': 'old\n'});
+        final plan = trashPlan(
+          trash: [oldSkill],
+          contents: {
+            oldSkill: ['$oldSkill/SKILL.md'],
+          },
+        );
+        final target = JournalTarget(
+          projectRoot: project,
+          docsRoot: project,
+          homeDirectory: testHome(),
+        );
+        final move =
+            plan
+                .journalSteps(base: 'abc', projectRoot: project)
+                .whereType<MoveStep>()
+                .single
+              ..apply(target);
+
+        expect(move.isDone(target), isTrue);
+        expect(() => move.apply(target), returnsNormally);
+        expect(
+          File('${project.path}/$trashed/$oldSkill/SKILL.md')
+              .readAsStringSync(),
+          'old\n',
+        );
+      });
+    });
   });
 
   test('E11: the layout '

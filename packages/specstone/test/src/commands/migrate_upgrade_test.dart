@@ -1007,6 +1007,171 @@ void main() {
         );
       });
 
+      group('an unshipped skill or agent file', () {
+        const oldSkill = '.claude/skills/specstone-old';
+        const refreshMessage = 'refresh the Specstone agent files';
+
+        /// The fixture files: every shipped file, an unshipped skill folder
+        /// with two files, an extra file inside a shipped skill folder, and
+        /// two files the Owner owns.
+        ({Map<String, String> files, List<String> unshipped}) fixture() {
+          final texts = skillFileTexts();
+          final shipped = texts.keys.firstWhere(
+            (path) => path.startsWith('.claude/skills/'),
+          );
+          final extra =
+              '${shipped.substring(0, shipped.lastIndexOf('/'))}/extra.md';
+          final unshipped = [
+            '$oldSkill/SKILL.md',
+            '$oldSkill/references/more.md',
+            extra,
+          ];
+          return (
+            files: {
+              ...texts,
+              for (final path in unshipped) path: 'old\n',
+              '.claude/skills/own-skill/SKILL.md': 'own\n',
+              '.claude/agents/own-agent.md': 'own\n',
+            },
+            unshipped: unshipped,
+          );
+        }
+
+        File refuseRefresh(Directory root) {
+          final hook = File('${root.path}/.git/hooks/commit-msg')
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync(
+              '#!/bin/sh\ngrep -q "$refreshMessage" "\$1" && exit 1\nexit 0\n',
+            );
+          expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
+          return hook;
+        }
+
+        test('moves to the trash, counted on the line, and no other file '
+            'is deleted', () async {
+          final (:files, :unshipped) = fixture();
+          final root = await agentProject(files, shippedPinsConfig());
+          final home = await writeTree({});
+
+          final dry = await _run(root, home, [
+            'migrate',
+            '--dry-run',
+            '--json',
+          ]);
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(dry.status, 0, reason: dry.err);
+          expect(
+            (jsonDecode(dry.out) as Map<String, Object?>)['agentFiles'],
+            unorderedEquals(unshipped),
+          );
+          expect(result.status, 0, reason: result.err);
+          expect(result.out, contains('  agent files: 3 files\n'));
+          for (final path in unshipped) {
+            expect(
+              File('${root.path}/$path').existsSync(),
+              isFalse,
+              reason: path,
+            );
+          }
+          expect(Directory('${root.path}/$oldSkill').existsSync(), isFalse);
+          for (final path in [
+            ...files.keys.where((path) => !unshipped.contains(path)),
+          ]) {
+            expect(_read(root, path), files[path], reason: path);
+          }
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n'),
+            unorderedEquals(unshipped),
+          );
+          expect(
+            Directory('${root.path}/.specstone/trash').existsSync(),
+            isFalse,
+          );
+          expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.out, 'nothing to migrate\n');
+        });
+
+        test('at a listed repository top moves outside both commits', () async {
+          final root = await agentProject({}, '''
+${shippedPinsConfig()}code_root: code
+agent_file_roots:
+  - code
+''');
+          final top = Directory('${root.path}/code')..createSync();
+          Directory('${top.path}/.git').createSync();
+          File('${top.path}/.git/HEAD')
+              .writeAsStringSync('ref: refs/heads/main\n');
+          for (final MapEntry(:key, :value) in {
+            ...skillFileTexts('code/'),
+            'code/$oldSkill/SKILL.md': 'old\n',
+          }.entries) {
+            File('${root.path}/$key')
+              ..createSync(recursive: true)
+              ..writeAsStringSync(value);
+          }
+          final home = await writeTree({});
+          final before = _subjects(root);
+
+          final result = await _run(root, home, ['migrate'], console: _owner());
+
+          expect(result.status, 0, reason: result.err);
+          expect(result.out, contains('  agent files: 1 files\n'));
+          expect(
+            Directory('${root.path}/code/$oldSkill').existsSync(),
+            isFalse,
+          );
+          expect(_subjects(root), before);
+          final rerun = await _run(root, home, ['migrate'], console: _owner());
+          expect(rerun.out, 'nothing to migrate\n');
+        });
+
+        test('a run stopped after the move resumes without moving it '
+            'again', () async {
+          final (:files, :unshipped) = fixture();
+          final root = await agentProject(files, shippedPinsConfig());
+          final home = await writeTree({});
+          final hook = refuseRefresh(root);
+
+          final stopped = await _run(root, home, [
+            'migrate',
+          ], console: _owner());
+          expect(stopped.status, 75, reason: stopped.err);
+          expect(Directory('${root.path}/$oldSkill').existsSync(), isFalse);
+          expect(
+            File('${root.path}/.specstone/trash/files/$oldSkill/SKILL.md')
+                .existsSync(),
+            isTrue,
+          );
+          hook.deleteSync();
+
+          final pending = await _run(root, home, ['migrate', '--dry-run']);
+          final resumed = await _run(root, home, [
+            'migrate',
+          ], console: _owner());
+
+          expect(pending.out, contains('remaining steps:'));
+          expect(pending.out, isNot(contains('move ')));
+          expect(resumed.status, 0, reason: resumed.err);
+          expect(
+            _gitOut(root, [
+              'show',
+              '--name-only',
+              '--format=',
+              'HEAD',
+            ]).trim().split('\n'),
+            unorderedEquals(unshipped),
+          );
+          expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+        }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
+      });
+
       test('a group none of whose folders holds a specstone entry starts '
           'no run', () async {
         final root = await agentProject({

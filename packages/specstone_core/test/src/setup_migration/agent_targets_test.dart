@@ -218,10 +218,58 @@ void main() {
       final plan = planAgentWrites(_inputs(base), full: false);
 
       expect(plan.trash, ['.claude/skills/specstone-old']);
+      expect(plan.trashFiles, ['.claude/skills/specstone-old/SKILL.md']);
       expect(_paths(plan), isEmpty);
       expect(plan.line, 'agent files: 1 files');
       expect(plan.isEmpty, isFalse);
     });
+
+    test('an unshipped folder counts each file under it once', () async {
+      final base = await _base(
+        settled({
+          'proj/.claude/skills/specstone-old/SKILL.md': 'old\n',
+          'proj/.claude/skills/specstone-old/references/more.md': 'old\n',
+          'proj/.claude/skills/specstone-old/references/less.md': 'old\n',
+        }),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, ['.claude/skills/specstone-old']);
+      expect(plan.trashFiles, [
+        '.claude/skills/specstone-old/SKILL.md',
+        '.claude/skills/specstone-old/references/less.md',
+        '.claude/skills/specstone-old/references/more.md',
+      ]);
+      expect(plan.line, 'agent files: 3 files');
+      expect(plan.listed, plan.trashFiles);
+    });
+
+    test('the write set holds the place of each entry it moves', () async {
+      final base = await _base(
+        settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.writeSet, {_real(base, '.claude/skills/specstone-old')});
+    });
+
+    test('two links to one folder are two entries, both listed', () async {
+      final base = await _base(settled({'proj/shared/SKILL.md': 'shared\n'}));
+      for (final name in ['specstone-a', 'specstone-b']) {
+        Link(_at(base, 'proj/.claude/skills/$name').path)
+            .createSync('../../shared');
+      }
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, [
+        '.claude/skills/specstone-a',
+        '.claude/skills/specstone-b',
+      ]);
+      expect(plan.trashFiles, plan.trash);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('a plan with nothing to trash has an empty trash', () async {
       final base = await _base(settled({}));

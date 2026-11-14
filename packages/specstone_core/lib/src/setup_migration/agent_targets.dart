@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/canonical_path.dart' show canonicalPath;
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
@@ -358,6 +357,7 @@ final class AgentWritePlan {
     required this.writeSet,
     this.trash = const [],
     this.topTrash = const [],
+    this.trashContents = const {},
     this.skipped = const [],
   });
 
@@ -373,19 +373,24 @@ final class AgentWritePlan {
   /// The tops this run lists for the first time, in [agentFileRoots] order.
   final List<String> addedRoots;
 
-  /// The canonical path of every agent file the plan lists, each inside the
-  /// project root.
+  /// The canonical path of every agent file the plan writes and the place of
+  /// every entry or file it moves to the trash, each inside the project root.
   ///
   /// A migrate records it with its journal, so a replay admits these paths
   /// and no others.
   final Set<String> writeSet;
 
   /// The path from the project root of each skill or agent entry or file the
-  /// run moves to the trash, each real file once.
+  /// run moves to the trash, each place once.
   final List<String> trash;
 
   /// The paths of [trash] at a repository top, outside the project's commits.
   final List<String> topTrash;
+
+  /// The files under each entry of [trash], by the entry's path.
+  ///
+  /// An entry missing here is one file.
+  final Map<String, List<String>> trashContents;
 
   /// The warning line for each agent file the run would write but leaves,
   /// because its real path lies outside the project root or under `.git`.
@@ -397,8 +402,17 @@ final class AgentWritePlan {
     for (final write in [...rootWrites, ...topWrites]) write.path,
   ];
 
+  /// The path of each file under [trash], an entry's files in code point
+  /// order.
+  List<String> get trashFiles => [
+    for (final entry in trash) ...trashFilesOf(entry),
+  ];
+
+  /// The path of each file under the [trash] entry [entry].
+  List<String> trashFilesOf(String entry) => trashContents[entry] ?? [entry];
+
   /// The path of each file the run writes, then of each it moves to the trash.
-  List<String> get listed => [...paths, ...trash];
+  List<String> get listed => [...paths, ...trashFiles];
 
   /// The plan's `agent files:` line, empty when no file is written or trashed.
   String get line =>
@@ -486,8 +500,10 @@ AgentWritePlan planAgentWrites(
   for (final write in skills.writes) {
     (write.isAtTop ? topWrites : rootWrites).add(write);
   }
+  final trash = _eachPlaceOnce(root, skills.trash);
   writeSet.addAll([
     for (final path in skills.writeSet) _realPathOf(_fileIn(root, path)),
+    for (final path in trash) _placeOf(root, path),
   ]);
   return AgentWritePlan(
     rootWrites: rootWrites,
@@ -495,19 +511,55 @@ AgentWritePlan planAgentWrites(
     agentFileRoots: [...inputs.agentFileRoots, ...added],
     addedRoots: added,
     writeSet: writeSet,
-    trash: _eachRealPathOnce(root, skills.trash),
-    topTrash: _eachRealPathOnce(root, skills.topTrash),
+    trash: trash,
+    topTrash: [
+      for (final path in trash)
+        if (skills.topTrash.contains(path)) path,
+    ],
+    trashContents: {for (final path in trash) path: _filesUnder(root, path)},
     skipped: [...skipped, ...skills.skipped],
   );
 }
 
-/// Returns [paths] from [root] without the second name of one real path.
-List<String> _eachRealPathOnce(Directory root, List<String> paths) {
+/// Returns [paths] from [root] without the second name of one place.
+///
+/// A place is the entry itself, not what a link entry leads to, so two links
+/// to one folder stay two entries and a linked folder above one entry names
+/// it once.
+List<String> _eachPlaceOnce(Directory root, List<String> paths) {
   final seen = <String>{};
   return [
     for (final path in paths)
-      if (seen.add(canonicalPath(_fileIn(root, path).path))) path,
+      if (seen.add(_placeOf(root, path))) path,
   ];
+}
+
+/// Returns the canonical path of the folder above [path], from [root], with
+/// its name, so a link entry is never followed.
+String _placeOf(Directory root, String path) {
+  final file = _fileIn(root, path);
+  return _fileIn(_canonicalOf(file.parent), file.uri.pathSegments.last).path;
+}
+
+/// Returns each file under the entry [path] from [root], by code point, or
+/// [path] itself when it is a file, a link, or a folder holding none.
+///
+/// A link inside a folder counts as a file, and no link is followed.
+List<String> _filesUnder(Directory root, String path) {
+  final folder = _fileIn(root, path).path;
+  if (FileSystemEntity.typeSync(folder, followLinks: false) !=
+      FileSystemEntityType.directory) {
+    return [path];
+  }
+  final prefixLength = Directory(folder).uri.path.length;
+  final files = [
+    for (final entity in Directory(
+      folder,
+    ).listSync(recursive: true, followLinks: false))
+      if (entity is! Directory)
+        '$path/${Uri.decodeComponent(entity.uri.path.substring(prefixLength))}',
+  ]..sort(compareCodePoints);
+  return files.isEmpty ? [path] : files;
 }
 
 /// The state of `.specstone/AGENT.md`.
