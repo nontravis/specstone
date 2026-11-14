@@ -49,7 +49,8 @@ void main() {
         '- project (project)\n- tech_stack (tech_stack)\n- login (feature)\n- login/email_login (user_story)\n'
         '- login/email_login/validate_credentials (fr)\n- login/email_login/lock_after_failures (fr)\n'
         '- login/email_login/login_latency (nf)\n- login (api)\n- login (architecture)\n- login (domain)\n'
-        '- login (error)\n',
+        '- login (error)\n- password_rules (reference) · summary · cited\n'
+        'Read a summary doc whole with: specstone context <name> --for implement\n',
       ),
     );
     expect(a.json.keys.toList(), ['target', 'for', 'tokens', 'docs']);
@@ -97,7 +98,7 @@ void main() {
       endsWith(
         '- login/reset_password (user_story) · summary\n'
         '- login/reset_password/send_reset_link (fr) · summary\n- login (api)\n- login (architecture)\n'
-        '- login (domain)\n- login (error)\n'
+        '- login (domain)\n- login (error)\n- password_rules (reference) · summary · cited\n'
         'Read a summary doc whole with: specstone context <name> --for implement\n',
       ),
     );
@@ -107,7 +108,11 @@ void main() {
         for (final d in docs)
           if (d['summary'] == true) d['name'],
       ],
-      ['login/reset_password', 'login/reset_password/send_reset_link'],
+      [
+        'login/reset_password',
+        'login/reset_password/send_reset_link',
+        'password_rules',
+      ],
     );
   });
   test('f01/us05/fr02/e09: a summary section still holding its starter text leaves banner and title', () async {
@@ -405,6 +410,167 @@ void main() {
       block.substring(0, block.indexOf('\n==> ')),
       isNot(contains('## Rationale')),
     );
+  });
+  group('appended parts', () {
+    const fr =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const specs = '../../../../specs';
+    const inv14 = '[INV-14]($specs/f02_signup/DOMAIN.md#invariants)';
+    Future<DocIndex> citing(String statement) => indexWith({
+      'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+          '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+      fr: '# Validate credentials\n\n## Statement\n$statement\n',
+      'docs/specs/f02_signup/DOMAIN.md':
+          '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+          '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
+          '  - **Enforcer:** the lock service\n- **INV-15** Mails the owner.\n',
+      'docs/specs/topics/rules.md': '# Rules\n\n## Purpose\nHold the rules.\n',
+      'docs/specs/topics/terms.md': '# Terms\n\n## Purpose\nName things.\n',
+    });
+    ReadAnswer implement(DocIndex i, {int? budget}) => ctxIn(
+      i,
+      'login/email_login/validate_credentials',
+      BundleMode.implement,
+      budget: budget,
+    );
+
+    test('f01/us05/fr02/e15, f01/us05/s17: an item part prints after the picked docs, named, with its own lines, and closes the list', () async {
+      final a = implement(await citing('Lock, by $inv14.'));
+      expect(
+        a.text,
+        contains(
+          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==\n'
+          '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
+          '  - **Enforcer:** the lock service\n\n'
+          '==> rules (topic) · specs/topics/rules.md#purpose · cited <==\n## Purpose\nHold the rules.\n'
+          '==> bundle: ',
+        ),
+      );
+      expect(
+        a.text.indexOf('· cited <=='),
+        greaterThan(a.text.indexOf('==> login (error)')),
+      );
+      expect(
+        a.text,
+        endsWith(
+          '- login (error)\n- signup (domain) · cited invariants [INV-14]\n'
+          '- rules (topic) · cited purpose\n',
+        ),
+      );
+      expect(a.text, isNot(contains('INV-13')));
+      expect(a.json['tokens'], tokenSizeOf(shown(a)));
+    });
+    test('f01/us05/fr02/e16: a part reached only through another part prints after every part the picked docs reach', () async {
+      final a = implement(
+        await citing(
+          'Lock, by $inv14; see [terms]($specs/topics/terms.md#purpose).',
+        ),
+      );
+      final parts = RegExp(
+        r'^==> (\S+) \S+ · (\S+) .*· cited <==$',
+        multiLine: true,
+      ).allMatches(a.text).map((m) => m[2]).toList();
+      expect(parts, [
+        'specs/f02_signup/DOMAIN.md#invariants',
+        'specs/topics/terms.md#purpose',
+        'specs/topics/rules.md#purpose',
+      ]);
+    });
+    test('f01/us05/fr02: a doc part prints marked summary and cited, and the list names it with the next step', () async {
+      final a = implement(await citing('See [terms]($specs/topics/terms.md).'));
+      expect(
+        a.text,
+        contains(
+          '==> terms (topic) · specs/topics/terms.md · summary · cited <==\n# Terms\n==> bundle: ',
+        ),
+      );
+      expect(
+        a.text,
+        endsWith(
+          '- terms (topic) · summary · cited\n'
+          'Read a summary doc whole with: specstone context <name> --for implement\n',
+        ),
+      );
+    });
+    test('f01/us05/fr02/e17: a bundle with no part prints no cited naming line and no cited list line', () async {
+      final a = implement(await citing('Check the password.'));
+      expect(a.text, isNot(contains(' · cited')));
+      expect(
+        (a.json['docs']! as List).cast<Map<String, Object?>>().where(
+          (d) => d.containsKey('cited'),
+        ),
+        isEmpty,
+      );
+    });
+    test('f01/us05/fr02: under --json each part is a docs object with cited, section, and item after text', () async {
+      final a = implement(await citing('Lock, by $inv14.'));
+      final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
+      final item = docs.firstWhere((d) => d['cited'] == true);
+      expect(item.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'text',
+        'cited',
+        'section',
+        'item',
+      ]);
+      expect(item['name'], 'signup');
+      expect(item['path'], 'specs/f02_signup/DOMAIN.md');
+      expect(item['section'], 'invariants');
+      expect(item['item'], 'INV-14');
+      expect(
+        item['text'],
+        '- **INV-14** Locks after five failures; see [purpose](../topics/rules.md#purpose).\n'
+        '  - **Enforcer:** the lock service',
+      );
+      final section = docs.last;
+      expect(section['section'], 'purpose');
+      expect(section.containsKey('item'), isFalse);
+      final summary =
+          (implement(await citing('See [terms]($specs/topics/terms.md).'))
+                      .json['docs']!
+                  as List)
+              .cast<Map<String, Object?>>()
+              .last;
+      expect(summary.keys.skip(5).toList(), ['summary', 'cited']);
+    });
+    test('f01/us05/fr03/e11, f01/us05/fr05/e15: parts that take a bundle over the budget refuse it', () async {
+      final a = implement(await citing('Lock, by $inv14.'));
+      final docsOnly = tokenSizeOf(
+        a.text.substring(0, a.text.indexOf('\n\n==> signup (domain)')),
+      );
+      final over = implement(
+        await citing('Lock, by $inv14.'),
+        budget: docsOnly,
+      );
+      expect(over.exitStatus, 1);
+      expect(
+        over.text,
+        contains('- signup (domain) · cited invariants [INV-14] · '),
+      );
+      final listed = (over.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['cited'] == true);
+      expect(listed.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'cited',
+        'section',
+        'item',
+      ]);
+    });
+    test('f01/us05/fr05/e14: a query bundle appends no part', () async {
+      final a = ctxIn(
+        await citing('Lock, by $inv14.'),
+        'login',
+        BundleMode.query,
+      );
+      expect(a.text, isNot(contains(' · cited')));
+    });
   });
   group('budget', () {
     test('f01/us05/s5, f01/us05/fr03, f01/us05/fr03/e01, f01/us05/fr03/e03: over budget prints sizes and the next step, no doc text, exit 1', () async {
