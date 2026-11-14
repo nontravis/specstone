@@ -1144,8 +1144,7 @@ void _handOffTests() {
     );
   });
 
-  test('E29: '
-      'step 2 of brainstorming-sdd has the design document propose each '
+  test('step 2 of brainstorming-sdd has the design document propose each '
       "new or reshaped feature's patterns from guide --pattern", () {
     final step = _oneLine(
       _sectionOf(

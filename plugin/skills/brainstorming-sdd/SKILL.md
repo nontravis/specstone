@@ -11,7 +11,7 @@ only rewrites one section or field of an existing doc, and adds no story or FR, 
 
 ## 1. Ground: the first call
 
-Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
+Make this call, the gate, your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
 change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
 with `--summary` to add a story, and the project doc to add a feature. Keep `--out` bare and last, and pass no
 `--budget`, with or without the `Agent` tool. Pass no `--target`: a design read spans every code target.
@@ -49,7 +49,7 @@ The design document proposes each new or reshaped feature's `patterns:` value, p
   Owner approves the document, go to step 4. Specstone's rules win on a conflict.
 - **None qualifies:** run this flow; it ends at the same document and approval.
   1. Ask the Owner one question per message until scope, behavior, edge cases, and exclusions are clear.
-  2. Offer two or three approaches with trade-offs, and recommend one.
+  2. Offer two or three approaches with trade-offs; recommend one.
   3. Write the document through step 3.
   4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
 
@@ -72,7 +72,7 @@ Route each later Owner answer or change per `${CLAUDE_PLUGIN_ROOT}/skills/brains
 
 ## 4. Write the drafts, then audit them
 
-1. After the approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt.
+1. After approval, dispatch `mode: author` with the document's path. Put no doc or design text in the prompt.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
    list as its targets.
 3. Run fix rounds on its `Findings:` lines per `${CLAUDE_PLUGIN_ROOT}/skills/brainstorming-sdd/references/rounds.md`.
