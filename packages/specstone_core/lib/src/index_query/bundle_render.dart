@@ -29,7 +29,7 @@ String _codeTargetLine(String? name) =>
 /// [label] is the target as given, or the code path for `--code`; [byCode]
 /// prints it under the JSON key `code` instead of `target`, with the picked
 /// `codeTarget` when the project has two or more. A bundle larger than [budget]
-/// prints its sizes and the next step instead of doc text, with exit status 1
+/// prints its sizes and the next step instead of doc text, with exit status 1;
 /// an equal one prints whole.
 ReadAnswer answerContext(
   DocIndex index,

@@ -33,7 +33,7 @@ String _valueMessage(String value) {
 /// An open TBR is each `tbr` section an `fr` or `nf` doc holds, each
 /// `**TBR:**` bullet of a gnfr doc whose value is not `none`, and each
 /// stored marker that lies in neither; one inside a section or on a bullet is
-/// that section's or bullet's one finding (`report_open_tbrs`).
+/// that section's or bullet's one finding.
 Iterable<Finding> checkOpenTbrs(CheckContext context, IndexedDoc doc) sync* {
   final claimed = <int>{};
   for (final (:line, :message, :form) in _sectionsOf(context, doc, claimed)) {

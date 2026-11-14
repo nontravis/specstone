@@ -66,7 +66,7 @@ Outside the drafts:
 - **`Audited:`**: one line per target that names a doc, a draft or not, its hash that doc's `bases.doc` from the
   `get` of step 1; each replaces the line an earlier audit wrote for that draft.
 - **`Findings:`**: each gap or `check` finding a write inside a draft fixes, so a fix round can act on it. End a
-  `Findings:` line with `[behavior]` when its fix needs behavior the design does not state; a line whose fix only corrects text
+  `Findings:` line with `[behavior]` when its fix brings a new state, input, output, edge case, error, or reader of a rule the design does not state; a line whose fix only corrects text
   against the design stays untagged.
 - **`Waits on the Owner:`**: each `check` finding whose `waitsFor` is `owner`, its line ending
   `(waits for the Owner)`; only the Owner clears it.

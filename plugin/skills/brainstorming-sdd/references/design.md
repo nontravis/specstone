@@ -65,7 +65,7 @@ Before the Docs to change table closes, search each decision's dependents:
 - When `refs` lists no typed citer, as in a tree that still cites by number labels, the search carries the decision,
   as it does for the limit of `refs` that rule 7 names. Record the searched terms either way, so the audit sees what
   was searched.
-- An amend for an Owner decision that adds or changes behavior, runs the same search on that decision's
+- An amend for an Owner decision that adds or changes behavior runs the same search on that decision's
   terms and adds its rows and searched terms before the author writes it.
 
 Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or an

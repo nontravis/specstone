@@ -1,15 +1,18 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/document_writing/agent_file_walk.dart'
+    show isAgentFile;
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:test/test.dart';
 
-import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/index_fixture.dart' show indexWith, openSession;
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
-/// The `code:` entries of the workspace's `tech_stack` that Specstone's own
+/// The `code:` entries of the tech stack doc that Specstone's own
 /// repository holds, as paths from the repository root.
 const _codeRoots = [
   'packages/specstone_core/lib/',
@@ -105,8 +108,43 @@ bool _namesDoc(DocIndex index, NameMention mention) {
       : index.ofTypeNamed(typeId, address.body).isNotEmpty;
 }
 
+/// The `file:line: mention` of each doc mention in the comment lines and
+/// markdown files under [codeRoots] of [root], an agent file left out as
+/// `check` leaves it out.
+List<String> _mentionsUnder(
+  Directory root,
+  List<String> codeRoots,
+  DocIndex index,
+) {
+  final found = <String>[];
+  for (final path in codeRootFiles(root, codeRoots)) {
+    final extension = _extensionOf(path);
+    if (!readsNameMentions(extension) || isAgentFile(path)) continue;
+    final lf = _readLf(File.fromUri(root.uri.resolve(path)));
+    if (lf == null) continue;
+    for (final mention in docMentionsInFile(lf, extension)) {
+      if (_namesDoc(index, mention)) {
+        found.add('$path:${mention.line}: ${mention.text}');
+      }
+    }
+  }
+  return found;
+}
+
 void main() {
   final workspace = _workspaceAbove(_repositoryRoot());
+
+  test('code_root_docs: an agent file naming a doc is left out, any other '
+      'file is not', () async {
+    final index = await indexWith();
+    final root = await writeTree({
+      'plugin/CLAUDE.md': 'Read `auth_tokens`.\n',
+      'plugin/notes.md': 'Read `auth_tokens`.\n',
+    });
+    expect(_mentionsUnder(root, const ['plugin/'], index), [
+      'plugin/notes.md:1: auth_tokens',
+    ]);
+  });
 
   test(
     'code_root_docs: no comment line or markdown file under the code roots '
@@ -115,18 +153,7 @@ void main() {
       final root = _repositoryRoot();
       final session = openSession(_copyOf(workspace!));
       addTearDown(session.close);
-      final found = <String>[];
-      for (final path in codeRootFiles(root, _codeRoots)) {
-        final extension = _extensionOf(path);
-        if (!readsNameMentions(extension)) continue;
-        final lf = _readLf(File.fromUri(root.uri.resolve(path)));
-        if (lf == null) continue;
-        for (final mention in docMentionsInFile(lf, extension)) {
-          if (_namesDoc(session.index, mention)) {
-            found.add('$path:${mention.line}: ${mention.text}');
-          }
-        }
-      }
+      final found = _mentionsUnder(root, _codeRoots, session.index);
       expect(
         found,
         isEmpty,
