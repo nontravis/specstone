@@ -138,8 +138,10 @@ final class ShimSandbox {
   /// as `PATH` and a minimal environment plus [extra].
   ///
   /// cmd reads the lines as a cmd window would (`cmd /d /q /k`, fed through
-  /// stdin); PowerShell runs them as one `-Command`. The exit status is the
-  /// last line's. The run fails after [timeout].
+  /// stdin), and prints its prompt before each line, `/q` or not, so its
+  /// `PROMPT` is a bare line break, a blank line a case skips; PowerShell runs
+  /// them as one `-Command`. The exit status is the last line's. The run
+  /// fails after [timeout].
   Future<ProcessResult> typeStn(
     List<String> lines, {
     required StnShell shell,
@@ -155,7 +157,7 @@ final class ShimSandbox {
       StnShell.cmd => _run(
         _cmd,
         ['/d', '/q', '/k', 'rem'],
-        environment: environment,
+        environment: {...environment, 'PROMPT': r'$_'},
         stdinText: '${[...lines, 'exit %ERRORLEVEL%'].join('\r\n')}\r\n',
         timeout: timeout,
       ),

@@ -2518,11 +2518,14 @@ if ($env:HARNESS_MODE -eq 'iex') {
       String pathWith(ScriptSandbox sb, List<String> entries) =>
           [sb.stubs.path, ...entries, systemEntries].join(';');
 
+      // The version the fake archive's specstone.exe prints.
+      const shimArchiveVersion = '0.2.0';
+
       // The fake archive stages the repo's stn.cmd beside specstone.exe; the
       // built bundle holds no shim.
       Future<ScriptSandbox> sandboxWithShim() async {
         final sb = await createScriptSandbox();
-        await sb.writeArchive('windows-x64');
+        await sb.writeArchive('windows-x64', version: shimArchiveVersion);
         return sb;
       }
 
@@ -2781,7 +2784,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
       pathTest('api install step 5: a run at the installed Version prints the '
           'notice too', () async {
         final sb = await sandboxWithShim();
-        sb.installFake(version: specstoneVersion);
+        sb.installFake(version: shimArchiveVersion);
         final tools = Directory('${sb.root.path}\\tools')..createSync();
         final found = otherStn(tools.path, 'exe');
 
