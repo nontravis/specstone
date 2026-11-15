@@ -251,7 +251,7 @@ RunPlan _legacyRunOf(
       formatLayout: [...rewrites.layoutOnly]..sort(compareCodePoints),
       numberLabelsRewritten: rewrites.labelsRewritten,
       numberLabelsLeft: rewrites.labelsLeft,
-      agentFiles: agentFiles.paths,
+      agentFiles: agentFiles.listed,
       mentions: mentions,
       tests: rewrites.tests?.json,
     ),

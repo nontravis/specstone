@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
 const _stale =
@@ -401,5 +402,113 @@ void main() {
         expect(found, isEmpty);
       },
     );
+  });
+
+  group('skill and agent files', () {
+    const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
+    const procedure =
+        '.agents/skills/specstone-sync-sdd/references/procedure.md';
+    const planAgent = '.claude/agents/specstone-plan-engineer.md';
+
+    /// The `path:line` of each finding of a check over the fixture project
+    /// holding every shipped file but for [changes], where a null text drops
+    /// the file.
+    Future<List<Finding>> staleSkillFiles(
+      Map<String, String?> changes, {
+      String? target,
+    }) async {
+      final files = {...skillFileTexts(), ...changes}
+        ..removeWhere((_, text) => text == null);
+      final project = await writeCheckProject(
+        extra: {for (final e in files.entries) e.key: e.value!},
+      );
+      return [
+        for (final f in checkOf(project, target: target).findings)
+          if (f.kind == FindingKind.agentBlockStale) f,
+      ];
+    }
+
+    String where(Finding f) => '${f.path}:${f.line}';
+
+    test('files as the CLI writes them have no finding', () async {
+      expect(await staleSkillFiles({}), isEmpty);
+    });
+
+    test('a hand-edited Codex agent file is one finding on '
+        'line 1', () async {
+      final found = await staleSkillFiles({codexToml: 'hand edit\n'});
+
+      expect(found.map(where), ['$codexToml:1']);
+      expect(found.single.name, isNull);
+      expect(found.single.waitsFor, WaitsFor.owner);
+      expect(
+        found.single.message,
+        'the Specstone skill or agent file differs from what the running CLI '
+        'writes; $_migrate',
+      );
+    });
+
+    test('a file missing inside a skill folder is one finding at '
+        'its path', () async {
+      expect(skillFileTexts(), contains(procedure));
+
+      final found = await staleSkillFiles({procedure: null});
+
+      expect(found.map(where), ['$procedure:1']);
+      expect(found.single.waitsFor, WaitsFor.owner);
+      expect(
+        found.single.message,
+        'the Specstone skill or agent file is missing; $_migrate',
+      );
+    });
+
+    test('an agent file missing while the skills folder is '
+        'filled is one finding', () async {
+      expect(skillFileTexts(), contains(planAgent));
+
+      final found = await staleSkillFiles({planAgent: null});
+
+      expect(found.map(where), ['$planAgent:1']);
+    });
+
+    test('both Claude Code folders emptied give no finding for '
+        'them', () async {
+      final emptied = {
+        for (final path in skillFileTexts().keys)
+          if (path.startsWith('.claude/')) path: null,
+      };
+      expect(emptied, isNotEmpty);
+
+      expect(await staleSkillFiles(emptied), isEmpty);
+    });
+
+    test('an entry the CLI does not ship is one finding at the '
+        'entry', () async {
+      final found = await staleSkillFiles({
+        '.claude/skills/specstone-old/SKILL.md': 'old\n',
+      });
+
+      expect(found.map(where), ['.claude/skills/specstone-old:1']);
+      expect(found.single.waitsFor, WaitsFor.owner);
+      expect(
+        found.single.message,
+        'the running CLI does not ship this Specstone file; $_migrate',
+      );
+    });
+
+    test('an entry not named for Specstone has no finding', () async {
+      expect(
+        await staleSkillFiles({'.claude/skills/own-skill/SKILL.md': 'own\n'}),
+        isEmpty,
+      );
+    });
+
+    test('a check with a target reports no skill or agent '
+        'file', () async {
+      expect(
+        await staleSkillFiles({codexToml: 'hand edit\n'}, target: 'login'),
+        isEmpty,
+      );
+    });
   });
 }

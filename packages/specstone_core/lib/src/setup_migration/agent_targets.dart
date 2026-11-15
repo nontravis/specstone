@@ -18,6 +18,8 @@ import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show planSkillAndAgentFiles;
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -29,6 +31,7 @@ import 'package:specstone_core/src/templates/project_config.dart'
 
 const _agentMdPath = '.specstone/AGENT.md';
 const _cursorFolder = '.cursor';
+const _specstoneEntryPrefix = 'specstone-';
 const _gitEntry = '.git';
 const _codeField = 'code';
 const _docsFolder = 'docs/';
@@ -352,6 +355,9 @@ final class AgentWritePlan {
     required this.agentFileRoots,
     required this.addedRoots,
     required this.writeSet,
+    this.trash = const [],
+    this.topTrash = const [],
+    this.trashContents = const {},
     this.skipped = const [],
   });
 
@@ -367,12 +373,24 @@ final class AgentWritePlan {
   /// The tops this run lists for the first time, in [agentFileRoots] order.
   final List<String> addedRoots;
 
-  /// The canonical path of every agent file the plan lists, each inside the
-  /// project root.
+  /// The canonical path of every agent file the plan writes and the place of
+  /// every entry or file it moves to the trash, each inside the project root.
   ///
-  /// A migrate records it with its journal, so a replay admits these paths
-  /// and no others.
+  /// A migrate records it with its journal, so a replay also admits these
+  /// paths outside the journal's roots.
   final Set<String> writeSet;
+
+  /// The path from the project root of each skill or agent entry or file the
+  /// run moves to the trash, each place once.
+  final List<String> trash;
+
+  /// The paths of [trash] at a repository top, outside the project's commits.
+  final List<String> topTrash;
+
+  /// The files under each entry of [trash], by the entry's path.
+  ///
+  /// An entry missing here is one file.
+  final Map<String, List<String>> trashContents;
 
   /// The warning line for each agent file the run would write but leaves,
   /// because its real path lies outside the project root or under `.git`.
@@ -384,26 +402,45 @@ final class AgentWritePlan {
     for (final write in [...rootWrites, ...topWrites]) write.path,
   ];
 
-  /// The plan's `agent files:` line, empty when no file is written.
-  String get line {
-    final count = paths.length;
-    return count == 0 ? '' : '$_agentsLinePrefix$count files';
-  }
+  /// The path of each file under [trash], an entry's files in code point
+  /// order.
+  List<String> get trashFiles => [
+    for (final entry in trash) ...trashFilesOf(entry),
+  ];
 
-  /// Whether the run writes no file and lists no new top.
+  /// The path of each file under the [trash] entry [entry].
+  List<String> trashFilesOf(String entry) => trashContents[entry] ?? [entry];
+
+  /// The path of each file the run writes, then of each it moves to the trash.
+  List<String> get listed => [...paths, ...trashFiles];
+
+  /// The plan's `agent files:` line, empty when no file is written or trashed.
+  String get line =>
+      listed.isEmpty ? '' : '$_agentsLinePrefix${listed.length} files';
+
+  /// Whether the run writes or trashes no file and lists no new top.
   bool get isEmpty =>
-      rootWrites.isEmpty && topWrites.isEmpty && addedRoots.isEmpty;
+      rootWrites.isEmpty &&
+      topWrites.isEmpty &&
+      trash.isEmpty &&
+      addedRoots.isEmpty;
 }
 
 /// Plans the agent file writes of [inputs].
 ///
 /// [full] is the `init`, legacy, and one-time upgrade upsert at the project
 /// root; otherwise the root and each listed top only refresh what exists. An
-/// unlisted top always takes the full upsert once. Reads every file first.
+/// unlisted top always takes the full upsert once. [shipsSkills] is the run
+/// that first ships the skill and agent files: it writes all of them at the
+/// root and at each listed top too. Reads every file first.
 ///
 /// Throws `MigrateFault` `agent_block_malformed`, naming every malformed file
 /// with its first marker line, before it returns.
-AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
+AgentWritePlan planAgentWrites(
+  AgentFileInputs inputs, {
+  required bool full,
+  bool shipsSkills = false,
+}) {
   final survey = _Survey.of(inputs)..throwIfMalformed();
   final root = _canonicalOf(inputs.projectRoot);
   final rootWrites = <AgentWrite>[];
@@ -455,14 +492,77 @@ AgentWritePlan planAgentWrites(AgentFileInputs inputs, {required bool full}) {
       skipped.insert(0, skippedLineOf(_agentMdPath, refusal));
     }
   }
+  final skills = planSkillAndAgentFiles(
+    inputs,
+    full: full || shipsSkills,
+    includesListedTops: shipsSkills,
+  );
+  for (final write in skills.writes) {
+    (write.isAtTop ? topWrites : rootWrites).add(write);
+  }
+  final trash = _eachPlaceOnce(root, skills.trash);
+  writeSet.addAll([
+    for (final path in skills.writeSet) _realPathOf(_fileIn(root, path)),
+    for (final path in trash) _placeOf(root, path),
+  ]);
   return AgentWritePlan(
     rootWrites: rootWrites,
     topWrites: topWrites,
     agentFileRoots: [...inputs.agentFileRoots, ...added],
     addedRoots: added,
     writeSet: writeSet,
-    skipped: skipped,
+    trash: trash,
+    topTrash: [
+      for (final path in trash)
+        if (skills.topTrash.contains(path)) path,
+    ],
+    trashContents: {for (final path in trash) path: _filesUnder(root, path)},
+    skipped: [...skipped, ...skills.skipped],
   );
+}
+
+/// Returns [paths] from [root] without the second name of one place.
+///
+/// A place is the entry itself, not what a link entry leads to, so two links
+/// to one folder stay two entries and a linked folder above one entry names
+/// it once.
+List<String> _eachPlaceOnce(Directory root, List<String> paths) {
+  final seen = <String>{};
+  return [
+    for (final path in paths)
+      if (seen.add(_placeOf(root, path))) path,
+  ];
+}
+
+/// Returns the canonical path of the folder above [path], from [root], with
+/// its name, so a link entry is never followed.
+String _placeOf(Directory root, String path) {
+  final file = _fileIn(root, path);
+  return _fileIn(_canonicalOf(file.parent), file.uri.pathSegments.last).path;
+}
+
+/// Returns each file under the entry [path] from [root], by code point, or
+/// [path] itself when it is a file, a link, or a folder holding none.
+///
+/// A link inside a folder counts as a file, and no link is followed.
+List<String> _filesUnder(Directory root, String path) {
+  final folder = _fileIn(root, path).path;
+  if (FileSystemEntity.typeSync(folder, followLinks: false) !=
+      FileSystemEntityType.directory) {
+    return [path];
+  }
+  final prefixLength = Directory(folder).uri.path.length;
+  final files = <String>[];
+  for (final entity in Directory(
+    folder,
+  ).listSync(recursive: true, followLinks: false)) {
+    if (entity is Directory) continue;
+    files.add(
+      '$path/${Uri.decodeComponent(entity.uri.path.substring(prefixLength))}',
+    );
+  }
+  files.sort(compareCodePoints);
+  return files.isEmpty ? [path] : files;
 }
 
 /// The state of `.specstone/AGENT.md`.
@@ -593,30 +693,70 @@ final class _AgentFile {
 }
 
 /// One folder that takes agent files: the project root or a repository top.
-final class _Folder {
+final class AgentFileBase {
   const new({
     required this.path,
+    required this.directory,
     required this.isTop,
     required this.isListed,
-    required this.files,
   });
 
   /// The path from the project root, empty for the root.
   final String path;
+
+  /// The folder on disk, canonical for the root and each top.
+  final Directory directory;
   final bool isTop;
   final bool isListed;
-  final List<_AgentFile> files;
 
   bool get isUnlisted => isTop && !isListed;
 
-  /// Whether the run may create files and blocks here.
+  /// Whether the run may create files here.
   ///
   /// The root follows [full]; a listed top only refreshes; an unlisted top
   /// takes the full upsert once.
   bool isUpsert({required bool full}) => isTop ? !isListed : full;
+}
+
+/// Returns the project root first, then each qualifying repository top, in
+/// code point order.
+List<AgentFileBase> agentFileBasesOf(AgentFileInputs inputs) {
+  final root = _canonicalOf(inputs.projectRoot);
+  final listed = {
+    for (final entry in inputs.agentFileRoots)
+      _canonicalOf(Directory.fromUri(root.uri.resolveUri(Uri(path: '$entry/'))))
+          .path,
+  };
+  return [
+    AgentFileBase(path: '', directory: root, isTop: false, isListed: true),
+    for (final MapEntry(key: path, value: top) in _qualifyingTops(
+      root,
+      inputs.codeRootFolders,
+    ).entries)
+      AgentFileBase(
+        path: path,
+        directory: top,
+        isTop: true,
+        isListed: listed.contains(top.path),
+      ),
+  ];
+}
+
+/// The agent files of one [AgentFileBase].
+final class _Folder {
+  const new({required this.base, required this.files});
+
+  final AgentFileBase base;
+  final List<_AgentFile> files;
+
+  String get path => base.path;
+  bool get isTop => base.isTop;
+  bool get isUnlisted => base.isUnlisted;
+
+  bool isUpsert({required bool full}) => base.isUpsert(full: full);
 
   _Folder withFiles(List<_AgentFile> files) =>
-      _Folder(path: path, isTop: isTop, isListed: isListed, files: files);
+      _Folder(base: base, files: files);
 }
 
 /// The agent files of a run, read once, each real file once.
@@ -627,26 +767,16 @@ final class _Survey {
   /// reach keeps its first name only, so no two writes land on it.
   factory of(AgentFileInputs inputs) {
     final root = _canonicalOf(inputs.projectRoot);
-    final listed = {
-      for (final entry in inputs.agentFileRoots)
-        _canonicalOf(
-          Directory.fromUri(root.uri.resolveUri(Uri(path: '$entry/'))),
-        ).path,
-    };
-    final tops = _qualifyingTops(root, inputs.codeRootFolders);
     final (:folders, :topUpserted) = _eachFileOnce([
-      _Folder(
-        path: '',
-        isTop: false,
-        isListed: true,
-        files: _filesIn(root, '', root: root, cliVersion: inputs.cliVersion),
-      ),
-      for (final MapEntry(key: path, value: top) in tops.entries)
+      for (final base in agentFileBasesOf(inputs))
         _Folder(
-          path: path,
-          isTop: true,
-          isListed: listed.contains(top.path),
-          files: _filesIn(top, path, root: root, cliVersion: inputs.cliVersion),
+          base: base,
+          files: _filesIn(
+            base.directory,
+            base.path,
+            root: root,
+            cliVersion: inputs.cliVersion,
+          ),
         ),
     ]);
     return _Survey(folders, _agentMdOf(root), topUpserted);
@@ -742,6 +872,26 @@ bool _isOutside(String path) => path == '..' || path.startsWith('../');
 bool _isWritable(Directory root, String path) =>
     writeRefusalOf(path, projectRoot: root) == null;
 
+/// Whether the `.cursor` folder at [path] holds something besides what
+/// Specstone writes: its `specstone-*` entries in `agents/` and the folders
+/// they leave empty.
+bool _holdsOwnerCursorContent(String path) {
+  if (FileSystemEntity.typeSync(path) != FileSystemEntityType.directory) {
+    return false;
+  }
+  return Directory(path).listSync(followLinks: false).any((entity) {
+    final isAgents = entity is Directory && _nameOf(entity) == 'agents';
+    return !isAgents || _holdsOwnerEntry(entity);
+  });
+}
+
+bool _holdsOwnerEntry(Directory agents) => agents
+    .listSync(followLinks: false)
+    .any((entry) => !_nameOf(entry).startsWith(_specstoneEntryPrefix));
+
+String _nameOf(FileSystemEntity entity) =>
+    entity.uri.pathSegments.lastWhere((segment) => segment.isNotEmpty);
+
 /// Returns the agent files of [folder], an existing file once per real file,
 /// and the file a full upsert would create.
 List<_AgentFile> _filesIn(
@@ -786,9 +936,9 @@ List<_AgentFile> _filesIn(
     );
   }
   final hasInstruction = namesByFile.isNotEmpty;
-  final hasCursorFolder =
-      FileSystemEntity.typeSync(_fileIn(folder, _cursorFolder).path) ==
-      FileSystemEntityType.directory;
+  final hasCursorFolder = _holdsOwnerCursorContent(
+    _fileIn(folder, _cursorFolder).path,
+  );
   if (!hasInstruction && !hasCursorFolder) {
     files.add(
       _AgentFile(
@@ -844,7 +994,7 @@ bool _sameBytes(List<int> left, List<int> right) {
 }
 
 File _fileIn(Directory folder, String relative) =>
-    File.fromUri(folder.uri.resolve(relative));
+    File.fromUri(folder.uri.resolveUri(Uri(pathSegments: relative.split('/'))));
 
 /// Returns the real path of [file], every link on it resolved; a missing
 /// file keeps its name under its folder's canonical path.

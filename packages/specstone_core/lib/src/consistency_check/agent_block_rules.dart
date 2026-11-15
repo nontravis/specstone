@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/version.dart';
 
@@ -26,6 +27,16 @@ String _messageOf(AgentDriftKind kind) => switch (kind) {
         'line',
 };
 
+String _skillMessageOf(SkillFileDriftKind kind) => switch (kind) {
+  SkillFileDriftKind.differs =>
+    'the Specstone skill or agent file differs from what the running CLI '
+        'writes; $_migrateHint',
+  SkillFileDriftKind.missing =>
+    'the Specstone skill or agent file is missing; $_migrateHint',
+  SkillFileDriftKind.unshipped =>
+    'the running CLI does not ship this Specstone file; $_migrateHint',
+};
+
 // `migrate` runs on the Owner's word; a malformed marker or an open code fence
 // is a hand repair the Agent makes.
 WaitsFor _waitsForOf(AgentDriftKind kind) => switch (kind) {
@@ -37,24 +48,25 @@ WaitsFor _waitsForOf(AgentDriftKind kind) => switch (kind) {
   AgentDriftKind.codeFenceOpen => WaitsFor.agent,
 };
 
-/// Returns one `agent_block_stale` finding per drift `agentFileDrifts` finds.
+/// Returns one `agent_block_stale` finding per drift `agentFileDrifts` and
+/// `skillAndAgentFileDrifts` find.
 ///
-/// Each finding carries the file's path from the project root and no `name`.
+/// Each finding carries the file's path from the project root and no `name`;
+/// a skill or agent file's sits on line 1.
 /// The code roots come from `codeFoldersOf`, as `migrate` reads them.
 Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
   final config = ProjectConfig.read(context.projectRoot);
-  final drifts = agentFileDrifts(
-    AgentFileInputs(
-      projectRoot: context.projectRoot,
-      cliVersion: specstoneVersion,
-      codeRootFolders: codeFoldersOf(
-        context.projectRoot,
-        context.set,
-        targets: config.targets,
-      ),
-      agentFileRoots: config.agentFileRoots,
+  final inputs = AgentFileInputs(
+    projectRoot: context.projectRoot,
+    cliVersion: specstoneVersion,
+    codeRootFolders: codeFoldersOf(
+      context.projectRoot,
+      context.set,
+      targets: config.targets,
     ),
+    agentFileRoots: config.agentFileRoots,
   );
+  final drifts = agentFileDrifts(inputs);
   for (final (:path, :line, :kind) in drifts) {
     yield Finding(
       kind: FindingKind.agentBlockStale,
@@ -62,6 +74,21 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
       line: line,
       message: _messageOf(kind),
       waitsFor: _waitsForOf(kind),
+    );
+  }
+  // An unlisted top is one finding whatever its files hold.
+  final unlistedTops = {
+    for (final drift in drifts)
+      if (drift.kind == AgentDriftKind.topUnlisted) '${drift.path}/',
+  };
+  for (final (:path, :kind) in skillAndAgentFileDrifts(inputs)) {
+    if (unlistedTops.any(path.startsWith)) continue;
+    yield Finding(
+      kind: FindingKind.agentBlockStale,
+      path: path,
+      line: 1,
+      message: _skillMessageOf(kind),
+      waitsFor: WaitsFor.owner,
     );
   }
 }

@@ -1,6 +1,7 @@
 @TestOn('windows')
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -38,6 +39,48 @@ void main() {
   // Git Bash needs its own tools (uname, tr, sed, head) on the PATH, and that
   // folder must not hold specstone.
   String gitUsrBin() => '${File(bash!).parent.parent.path}\\usr\\bin';
+
+  test('Git Bash walks up to a project root and names specstone migrate '
+      'until one skill or agent entry is there', () async {
+    final sb = await createScriptSandbox();
+    final pluginDir = writePlugin(sb);
+    // Git Bash runs a file that starts with `#!` without an execute bit.
+    File('${sb.stubs.path}\\specstone')
+      ..createSync()
+      ..writeAsStringSync('#!/bin/sh\necho 0.2.0\n');
+    File('${sb.root.path}\\my proj\\.specstone\\config.yaml')
+      ..createSync(recursive: true)
+      ..writeAsStringSync('code_root: .\n');
+    final nested = Directory('${sb.root.path}\\my proj\\a\\b')
+      ..createSync(recursive: true);
+    final env = sb.env({
+      'PATH': '${gitUsrBin()};${sb.env()['PATH']}',
+      'CLAUDE_PLUGIN_ROOT': _forward(pluginDir),
+    });
+    Future<ProcessResult> hook() => Process.run(
+      bash!,
+      ['-c', hookCommandOf('SessionStart')],
+      environment: env,
+      includeParentEnvironment: false,
+      workingDirectory: nested.path,
+    );
+
+    final before = await hook();
+
+    expect(before.exitCode, 0, reason: '${before.stderr}');
+    expect(
+      before.stdout,
+      contains('this project holds no Specstone skills or agents'),
+    );
+    expect(LineSplitter.split('${before.stdout}'), hasLength(1));
+
+    File('${sb.root.path}\\my proj\\.codex\\agents\\specstone-x')
+        .createSync(recursive: true);
+    final after = await hook();
+
+    expect(after.exitCode, 0, reason: '${after.stderr}');
+    expect(after.stdout, isEmpty);
+  }, skip: skip);
 
   for (final MapEntry(key: label, value: spell) in _rootSpellings.entries) {
     test('Git Bash reads the appended line and resolves specstone.exe '

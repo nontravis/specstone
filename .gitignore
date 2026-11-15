@@ -68,6 +68,9 @@ benchmarks/
 # AI agent artifacts and private docs: never pushed to this public repo
 # ---------------------------------------------------------------------------
 .claude/
+/.agents/
+/.codex/
+/.cursor/
 CLAUDE.md
 CLAUDE.local.md
 .claude.local.md

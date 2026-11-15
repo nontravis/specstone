@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
@@ -7,6 +8,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../../../specstone_core/test/helpers/skill_files.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
 import '../../helpers/write_runner.dart';
 
@@ -76,9 +78,17 @@ void main() {
       endsWith(
         'created .specstone/AGENT.md\n'
         'updated CLAUDE.md\n'
+        '${skillCountLines().join('\n')}\n'
         '${_configLine()}',
       ),
     );
+    for (final file in renderHostFiles()) {
+      expect(
+        File('${root.path}/${file.path}').readAsStringSync(),
+        file.text,
+        reason: file.path,
+      );
+    }
   });
 
   test('init writes '
