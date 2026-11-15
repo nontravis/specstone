@@ -22,6 +22,9 @@ const _twentySixIds =
 const _citeRule =
     'Cite a rule another doc owns by a link to the item that holds it, '
     'never restate it.';
+const _citeProjectAndAncestor =
+    "This includes a rule of a project spec doc or of an ancestor feature's "
+    'spec doc.';
 const _domainCitesArchitecture =
     'A DOMAIN cites its own ARCHITECTURE by a section link, such as '
     '`[architecture:rendering](ARCHITECTURE.md#components)`.';
@@ -329,6 +332,12 @@ void main() {
         'implementation': '`# <Feature name> implementation`',
         'topic': '`# <Topic name>`',
         'tech_stack': '`# Tech stack`',
+        'project_architecture': '`# <Project name> architecture`',
+        'project_domain': '`# <Project name> domain`',
+        'project_api': '`# <Project name> API`',
+        'project_integration': '`# <Project name> integrations`',
+        'project_error': '`# <Project name> errors`',
+        'project_auth': '`# <Project name> auth`',
       };
       final runner = await runnerFor(_bothPacks);
       for (final MapEntry(key: id, value: title) in titles.entries) {
@@ -374,6 +383,12 @@ void main() {
         'implementation':
             'one line per entry in `statuses`, one per code path in '
             '`implements`, and one per test file in `tests`',
+        'project_architecture': 'under 150 lines',
+        'project_domain': 'about 150 to 200 lines',
+        'project_api': 'about 150 to 200 lines',
+        'project_integration': 'about 150 to 200 lines',
+        'project_error': 'about 150 to 200 lines',
+        'project_auth': 'about 150 to 200 lines',
       };
       final runner = await runnerFor(_bothPacks);
       for (final MapEntry(key: id, value: target) in targets.entries) {
@@ -395,6 +410,12 @@ void main() {
         'auth': 'one matrix row per resource and operation',
         'topic': 'one bullet per rule',
         'implementation': 'one entry per story and FR',
+        'project_architecture': 'one Components row per component',
+        'project_domain': 'one bullet per invariant',
+        'project_api': 'one bullet per convention',
+        'project_integration': 'one `###` per system',
+        'project_error': 'one catalog row per code',
+        'project_auth': 'one matrix row per resource and operation',
       };
       final runner = await runnerFor(_bothPacks);
       for (final MapEntry(key: id, value: shape) in shapes.entries) {
@@ -647,6 +668,7 @@ void main() {
         out.clear();
         expect(await runner.run(['guide', id]), 0, reason: id);
         expect(out.toString(), contains(_citeRule), reason: id);
+        expect(out.toString(), contains(_citeProjectAndAncestor), reason: id);
       }
     });
 

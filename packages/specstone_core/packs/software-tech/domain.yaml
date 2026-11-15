@@ -7,6 +7,9 @@ description: |-
   Write one rule per ID: one bullet per invariant, each rule one sentence.
   A DOMAIN cites its own ARCHITECTURE by a section link, such as `[architecture:rendering](ARCHITECTURE.md#components)`.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
+  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
+  This doc holds one feature's spec; a rule every feature uses goes to the project's DOMAIN doc.
+  Write an `Overrides:` line right after an item that departs from a rule above, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
 per_target: true

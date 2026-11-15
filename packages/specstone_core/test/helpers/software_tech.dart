@@ -306,6 +306,16 @@ void expectSectionsSay(MergedDocType docType, Map<String, List<String>> says) {
   }
 }
 
+/// Expects the description of [docType] to say each listed phrase.
+///
+/// Both sides compare lower-cased with each whitespace run as one space.
+void expectDescriptionSays(MergedDocType docType, List<String> phrases) {
+  final text = _squash(docType.description ?? '');
+  for (final phrase in phrases) {
+    expect(text, contains(_squash(phrase)), reason: '${docType.id}: $phrase');
+  }
+}
+
 /// Expects the 400-line cap, the [maxChars] cap, and the four research
 /// sources on [docType].
 void expectSpecLint(MergedDocType docType, {int? maxChars}) {

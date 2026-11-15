@@ -8,6 +8,9 @@ description: |-
   Write tables and ID'd bullets in the order of the code's own structure, and point at code instead of copying it.
   Write one rule per ID: one bullet per rule, each rule one sentence.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
+  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
+  This doc holds code or a rule set that two or more features share and none owns, never a rule every feature uses.
+  A topic departs only from a rule of a project spec doc: write an `Overrides:` line right after the departing item, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
 path: specs/topics/{slug}.md
 per_target: true
 fields:

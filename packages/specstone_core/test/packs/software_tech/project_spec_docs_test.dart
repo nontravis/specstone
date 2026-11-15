@@ -44,6 +44,48 @@ const _overridesCarriers = [
   'topic',
 ];
 
+/// Each project spec doc type's title form and its own example title.
+const _projectTitles = <String, ({String form, String example})>{
+  'project_architecture': (
+    form: '# <Project name> architecture',
+    example: '# Specstone architecture',
+  ),
+  'project_domain': (
+    form: '# <Project name> domain',
+    example: '# Specstone domain',
+  ),
+  'project_api': (form: '# <Project name> API', example: '# Specstone API'),
+  'project_integration': (
+    form: '# <Project name> integrations',
+    example: '# Specstone integrations',
+  ),
+  'project_error': (
+    form: '# <Project name> errors',
+    example: '# Specstone errors',
+  ),
+  'project_auth': (form: '# <Project name> auth', example: '# Specstone auth'),
+};
+
+/// The item shape each project spec doc type's guide states.
+const _projectItemShapes = <String, String>{
+  'project_architecture': 'one Components row per component',
+  'project_domain': 'one bullet per invariant',
+  'project_api': 'one bullet per convention',
+  'project_integration': 'one `###` per system',
+  'project_error': 'one catalog row per code',
+  'project_auth': 'one matrix row per resource and operation',
+};
+
+const _domainCitesArchitecture =
+    "The project's DOMAIN cites the project's ARCHITECTURE by a section link, "
+    'such as `[architecture](ARCHITECTURE.md#components)`.';
+
+/// Names one feature: "the feature", "this feature", "one feature", and so on.
+final _namesOneFeature = RegExp(
+  r'\b(?:the|this|that|one|its)\s+feature\b',
+  caseSensitive: false,
+);
+
 Future<MergedSet> _resolveWith({
   Map<String, String> templates = const {},
   String config = '',
@@ -199,6 +241,91 @@ void main() {
     ).maxSentences;
     expect(limits, hasLength(1));
     expect(limits!.single.count, 1);
+  });
+
+  test("each project spec doc type guide titles its doc with the project's "
+      "name and states its base type's line target", () {
+    for (final MapEntry(key: id, value: title) in _projectTitles.entries) {
+      final type = prdCoreDocType(set, id);
+      expectSpecGuide(
+        type,
+        title: title.form,
+        says: [
+          'such as `${title.example}`',
+          "lives in that target's record, its `implementation` docs, only",
+        ],
+        maxChars: prdCoreDocType(set, _projectTypes[id]!.base).lint.maxChars,
+      );
+    }
+  });
+
+  test('each project spec doc type guide states where its rules belong', () {
+    for (final id in _projectTypes.keys) {
+      expectDescriptionSays(prdCoreDocType(set, id), const [
+        'only rules every feature uses',
+        'a per-feature spec doc',
+        'a `topic` when two or more features share it',
+      ]);
+    }
+  });
+
+  test('project_integration and project_auth guides say when the doc is '
+      'written', () {
+    expectDescriptionSays(prdCoreDocType(set, 'project_integration'), const [
+      'only when every feature follows one rule for outside calls',
+    ]);
+    expectDescriptionSays(prdCoreDocType(set, 'project_auth'), const [
+      'only when every feature follows one access rule',
+    ]);
+  });
+
+  test('project_api guide states its item shape', () {
+    expectItemShape(
+      prdCoreDocType(set, 'project_api'),
+      'Write one rule per ID: one bullet per convention, each rule one '
+      'sentence.',
+    );
+  });
+
+  test("each other project spec doc type guide states its base type's item "
+      'shape', () {
+    for (final MapEntry(key: id, value: shape) in _projectItemShapes.entries) {
+      expectItemShape(
+        prdCoreDocType(set, id),
+        'Write one rule per ID: $shape, each rule one sentence.',
+      );
+    }
+  });
+
+  test('project_domain and project_architecture guides carry the '
+      'domain-to-architecture cite line', () {
+    for (final id in ['project_domain', 'project_architecture']) {
+      expectItemShape(prdCoreDocType(set, id), _domainCitesArchitecture);
+    }
+  });
+
+  test('each project spec doc type guide extends the cite rule to project and '
+      'ancestor rules', () {
+    for (final id in _projectTypes.keys) {
+      expectDescriptionSays(prdCoreDocType(set, id), const [
+        'by a link to the item that holds it, never restate it',
+        "a rule of a project spec doc or of an ancestor feature's spec doc",
+      ]);
+    }
+  });
+
+  test('no project spec doc type guide names one feature', () {
+    for (final id in _projectTypes.keys) {
+      final type = prdCoreDocType(set, id);
+      expect(type.description, isNot(contains(_namesOneFeature)), reason: id);
+      for (final section in type.sections) {
+        expect(
+          section.description ?? '',
+          isNot(contains(_namesOneFeature)),
+          reason: '$id.${section.id}',
+        );
+      }
+    }
   });
 
   test('with two targets each project spec doc type reads the target '

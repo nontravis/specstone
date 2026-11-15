@@ -1,5 +1,15 @@
 id: project_error
 extends: error
+description: |-
+  The project's error taxonomy: the codes every feature raises, how a client acts on each, and when a call retries.
+  Title it `# <Project name> errors`, such as `# Specstone errors`, with no number.
+  Aim for about 150 to 200 lines; keep one file per spec folder.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
+  Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
+  Put no stack trace or internals in any error body.
+  Write one rule per ID: one catalog row per code, each rule one sentence.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
+  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
 path: specs/ERROR.md
 parent:
 bundle: [implement, design]
@@ -12,3 +22,15 @@ sections:
     description: |-
       Write the project's one error envelope, and show its shape.
       A feature's `error_envelope` departs from it only with its reason.
+  - id: error_catalog
+    description: |-
+      Write a table with the columns Code, Exit/HTTP, Category, Triggered by, Implemented by, Client guidance.
+      Add an optional Details column holding machine fields per code, such as `file`, `key`, `retry_after`.
+      Write one row per code; keep codes stable and never reused for a different error.
+      Write Triggered by as the general condition that raises the code in the project, such as a flag out of range.
+      List no raising site there. Write Client guidance as one line: the action the client takes, not user copy.
+  - id: fallback
+    description: |-
+      Omit this section when the project has no graceful-degradation path.
+      Write the code and its trigger, such as persisting past max retries.
+      Write the degraded behavior as bullets, such as a read-only mode, a disabled control, or an emitted metric.

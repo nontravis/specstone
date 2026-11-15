@@ -108,6 +108,27 @@ void main() {
     );
   });
 
+  test('the guide extends the cite rule to project and ancestor rules', () {
+    expectDescriptionSays(domain, const [
+      'by a link to the item that holds it, never restate it',
+      "a rule of a project spec doc or of an ancestor feature's spec doc",
+    ]);
+  });
+
+  test('the guide states where its rules belong', () {
+    expectDescriptionSays(domain, const [
+      "holds one feature's spec",
+      "a rule every feature uses goes to the project's DOMAIN",
+    ]);
+  });
+
+  test('the guide asks an Overrides line and its entry', () {
+    expectDescriptionSays(domain, const [
+      '`Overrides:` line',
+      '`overrides` entry',
+    ]);
+  });
+
   test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: domain caps 400 lines and '
       '60000 characters, bans no word, and cites its four sources', () {
     expectSpecLint(domain, maxChars: 60000);

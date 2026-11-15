@@ -7,6 +7,9 @@ description: |-
   Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
   Write one rule per ID: one `###` per system, each rule one sentence.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
+  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
+  This doc holds one feature's spec; a rule every feature uses goes to the project's INTEGRATION doc.
+  Write an `Overrides:` line right after an item that departs from a rule above, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
 path: specs/f{nn}_{slug}/INTEGRATION.md
 parent: feature
 per_target: true
