@@ -27,6 +27,9 @@ const _nameSeparators = ['/', r'\', ':'];
 /// What a refs file's name carries before its extension.
 const _refsMark = '.refs';
 
+/// The `/`-separated path of the bundles folder below a project root.
+const _bundlesBelowRoot = '.specstone/bundles';
+
 const _refsIsReadFirst = 'the refs file is the read-first file';
 
 // MARK: - Name
@@ -142,11 +145,16 @@ ReadAnswer answerBundleFile(
 /// A `bundles/` that is a link, or lies below one, is left alone: its real
 /// folder is not the project's own.
 void _pruneBundlesOf(Directory projectRoot, {required Set<String> keep}) {
-  final folder = bundlesFolderOf(Directory(canonicalPath(projectRoot.path)));
   final real = canonicalPath(bundlesFolderOf(projectRoot).path);
-  if (real != folder.path) return;
-  pruneBundles(folder, keep: keep, now: DateTime.now());
+  if (!isBundlesFolderOf(canonicalPath(projectRoot.path), real)) return;
+  pruneBundles(Directory(real), keep: keep, now: DateTime.now());
 }
+
+/// Whether [path] is `.specstone/bundles` right below [root], both canonical.
+///
+/// [isWindows] picks the path style; it defaults to the running platform.
+bool isBundlesFolderOf(String root, String path, {bool? isWindows}) =>
+    pathInside(root, path, isWindows: isWindows) == _bundlesBelowRoot;
 
 // MARK: - Index
 

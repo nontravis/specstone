@@ -126,6 +126,43 @@ ContextAnswer _splitOf(int readFirst, int refs) {
 }
 
 void main() {
+  group('isBundlesFolderOf, the bundles folder right below a project root', () {
+    test('a folder below a project root is the own folder', () {
+      expect(
+        isBundlesFolderOf('/p', '/p/.specstone/bundles', isWindows: false),
+        isTrue,
+      );
+    });
+    test('a project at a volume root has one separator before .specstone', () {
+      expect(
+        isBundlesFolderOf('/', '/.specstone/bundles', isWindows: false),
+        isTrue,
+      );
+      expect(
+        isBundlesFolderOf(r'C:\', r'C:\.specstone\bundles', isWindows: true),
+        isTrue,
+      );
+    });
+    test(
+      'a folder a link leads elsewhere, or deeper, is not the own folder',
+      () {
+        expect(
+          isBundlesFolderOf('/p', '/home/me/Documents', isWindows: false),
+          isFalse,
+        );
+        expect(
+          isBundlesFolderOf(
+            '/p',
+            '/p/.specstone/bundles/sub',
+            isWindows: false,
+          ),
+          isFalse,
+        );
+        expect(isBundlesFolderOf('/p', '/p', isWindows: false), isFalse);
+      },
+    );
+  });
+
   group('refsPathOf, the refs file of a path', () {
     test('a bare name takes .refs before .txt', () {
       expect(refsPathOf('a.implement.jaspr.txt'), 'a.implement.jaspr.refs.txt');
