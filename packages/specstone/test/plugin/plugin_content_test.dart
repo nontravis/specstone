@@ -176,6 +176,28 @@ void main() {
     },
   );
 
+  test('a folder in a git work tree lists tracked files only: an ignored or '
+      'untracked file is left out', () async {
+    final root = await writeTree({
+      '.gitignore': '.DS_Store\n',
+      'hooks/hooks.json': '{}',
+      'hooks/.DS_Store': 'ignored',
+      'hooks/new.sh': 'untracked',
+    });
+    void git(List<String> args) => expect(
+      Process.runSync('git', args, workingDirectory: root.path).exitCode,
+      0,
+      reason: 'git ${args.join(' ')}',
+    );
+    git(['init', '-q']);
+    git(['add', '.gitignore', 'hooks/hooks.json']);
+
+    expect(trackedFiles(root).map((file) => file.uri.pathSegments.last), [
+      '.gitignore',
+      'hooks.json',
+    ]);
+  });
+
   test("no shipped plugin file presumes the Owner's "
       'language with a letter outside the Latin script', () {
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
@@ -576,17 +598,22 @@ String _baseNameOf(FileSystemEntity entity) {
 }
 
 void _assetLayoutTests() {
-  final assets = agentAssetsRoot().listSync();
-  final skillFolders = assets.whereType<Directory>().where(
-    (folder) => _baseNameOf(folder).startsWith('specstone-'),
-  );
+  final skillFolders = {
+    for (final file in agentSourceFiles(agentAssetsRoot()))
+      if (isSkillSourcePath(shippedPathOf(file)))
+        shippedPathOf(file).split('/').first,
+  }.map((name) => Directory.fromUri(agentAssetsRoot().uri.resolve('$name/')));
   final agentFiles = agentSourceFiles(agentAssetsRoot())
       .where((file) => !isSkillSourcePath(shippedPathOf(file)));
 
   test('the plugin folder holds no skills folder and no agents folder', () {
+    final shipped = shippedFiles().map(shippedPathOf);
     for (final folder in const ['skills', 'agents']) {
-      final shipped = Directory.fromUri(pluginRoot().uri.resolve('$folder/'));
-      expect(shipped.existsSync(), isFalse, reason: '$folder/ is shipped');
+      expect(
+        shipped.where((path) => path.startsWith('$folder/')),
+        isEmpty,
+        reason: '$folder/ is shipped',
+      );
     }
   });
 
