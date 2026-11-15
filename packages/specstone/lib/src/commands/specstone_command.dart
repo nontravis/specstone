@@ -5,6 +5,9 @@ import 'package:args/command_runner.dart';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
 
+/// The hidden flag a bare `--out` is read as; see `withBareOut`.
+const bareOutFlag = 'bare-out';
+
 /// Base class of every Specstone command.
 ///
 /// Sends usage to the runner's `out` sink; `Command.printUsage` writes to the
@@ -29,6 +32,39 @@ abstract class SpecstoneCommand extends Command<int> {
       'target',
       help: "Keep names to one code target's docs and the shared docs.",
     );
+  }
+
+  /// Adds the shared `--out` option a command that can save its output to a
+  /// file takes, and the hidden flag `withBareOut` turns a bare `--out` into.
+  void addOutOption() {
+    argParser
+      ..addOption(
+        'out',
+        valueHelp: 'path',
+        help:
+            'Write the output to this file, or under .specstone/ when given '
+            'no path, and print its header.',
+      )
+      ..addFlag(bareOutFlag, negatable: false, hide: true);
+  }
+
+  /// Whether [args] carry `--out`, with a path or bare.
+  bool writesOut(ArgResults args) =>
+      args.option('out') != null || args.flag(bareOutFlag);
+
+  /// Returns the path `--out` names, or null when it is off or bare.
+  ///
+  /// Throws `argument_invalid` for an empty path, so an empty shell variable
+  /// never falls back to the command's own file name.
+  String? outPathOf(ArgResults args) {
+    final out = args.option('out');
+    if (out != null && out.isEmpty) {
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        '--out takes a file path, not ""',
+      );
+    }
+    return out;
   }
 
   /// Returns the code target `--target` names, or null when the flag is off.
