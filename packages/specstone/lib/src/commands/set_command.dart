@@ -36,6 +36,15 @@ class SetCommand extends WriteCommand {
             'repeat it for more tasks. Takes no doc address, --base, '
             '--field, --title, or --batch; reads no stdin.',
       )
+      ..addFlag(
+        'replace',
+        negatable: false,
+        help:
+            'Replace one passage of a section: stdin holds `==> old <==`, '
+            'the old passage, `==> new <==`, then the new passage. The old '
+            'passage must occur once in the section body. Takes a section '
+            'target alone.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
     addTargetOption();
   }
@@ -45,15 +54,17 @@ class SetCommand extends WriteCommand {
 
   @override
   String get description =>
-      'Replace a section, a field, or the title of a doc with stdin, write '
-      'a file of `get` blocks with --batch, or remove a task from every doc '
-      'with --remove-task.';
+      'Replace a section, a field, or the title of a doc with stdin, replace '
+      'one passage of a section with --replace, write a file of `get` blocks '
+      'with --batch, or remove a task from every doc with --remove-task.';
 
   @override
   String get invocation =>
       'specstone set <doc address>(#<section key> | '
       '--field <field id> | --title) --base <hash> [--target <name>] '
       '[--json]\n'
+      '       specstone set <doc address>#<section key> --base <hash> '
+      '--replace [--target <name>] [--json]\n'
       '       specstone set --batch <file> [--json]\n'
       '       specstone set --remove-task <task id> [--remove-task <task id>] '
       '[--target <name>] [--json]';
@@ -64,6 +75,13 @@ class SetCommand extends WriteCommand {
     final asJson = args.flag('json');
     final rest = args.rest;
     final removeTasks = args.multiOption('remove-task');
+    final replace = args.flag('replace');
+    if (replace && (removeTasks.isNotEmpty || args.option('batch') != null)) {
+      return fail(
+        IndexFault(IndexFaultCode.argumentConflict, replaceConflictMessage),
+        asJson: asJson,
+      );
+    }
     if (removeTasks.isNotEmpty) {
       return _runRemoveTasks(removeTasks, asJson: asJson);
     }
@@ -89,6 +107,7 @@ class SetCommand extends WriteCommand {
           base: args.option('base'),
           index: session.index,
           codeTarget: targetOf(args),
+          replace: replace,
         ),
         text,
       ),

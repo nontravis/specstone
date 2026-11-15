@@ -16,6 +16,7 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/get_docs.dart' show answerGet;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/format_run.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -3637,6 +3638,279 @@ void main() {
           contains('## Concerns\n\n- Errors: none\n'),
         ),
       );
+    });
+  });
+
+  group('set --replace', () {
+    const useCase = 'user_story:login/email_login#use_case';
+    const signOutUseCase = 'user_story:login/sign_out#use_case';
+    const criteria = 'user_story:login/email_login#acceptance_criteria';
+
+    String stdin(String oldText, String newText) =>
+        '==> old <==\n$oldText\n==> new <==\n$newText\n';
+
+    SetRequest replaceReq(String target, String base) =>
+        SetRequest.parse(target, base: base, replace: true);
+
+    ReadAnswer replace(Directory root, String target, String text) => writeIn(
+      root,
+      (s) => answerSet(s, replaceReq(target, sectionBase(root, target)), text),
+    );
+
+    test('replaces the one match, marks the doc draft, and prints the new base', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story2);
+      expect(before, isNot(contains('draft: true')));
+      final answer = replace(
+        root,
+        signOutUseCase,
+        stdin('Sign out.', 'Sign out now.'),
+      );
+      final written = baseHashOf('\nSign out now.\n');
+      expect(
+        readDoc(root, story2),
+        before
+            .replaceFirst('Sign out.\n', 'Sign out now.\n')
+            .replaceFirst(
+              'status: planned\n',
+              'status: planned\ndraft: true\n',
+            ),
+      );
+      expect(
+        answer.text,
+        '==> login/sign_out (user_story) · $story2#use_case · base $written <==\n',
+      );
+      expect(answer.json['base'], written);
+      expect(answer.json['draft'], isTrue);
+      expect(sectionBase(root, signOutUseCase), written);
+    });
+
+    test('changes no byte outside the match', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      replace(root, useCase, stdin('with an email', 'with a link'));
+      expect(
+        readDoc(root, story1),
+        before.replaceFirst('with an email', 'with a link'),
+      );
+    });
+
+    test(
+      'refuses a stale base with the current section and writes nothing',
+      () async {
+        final root = await writeWriteProject();
+        final stale = sectionBase(root, useCase);
+        writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(useCase, stale), 'Someone else wrote this.\n'),
+        );
+        final before = readDoc(root, story1);
+        final current = sectionBase(root, useCase);
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              replaceReq(useCase, stale),
+              stdin('Someone', 'Anyone'),
+            ),
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.baseMismatch)
+                .having((f) => f.exitStatus, 'exitStatus', 75)
+                .having(
+                  (f) => f.current?.text,
+                  'current.text',
+                  '## Use Case\n\nSomeone else wrote this.\n',
+                )
+                .having((f) => f.current?.base, 'current.base', current),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+
+    test('refuses an old passage found 0 times with the current section', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final current = sectionBase(root, useCase);
+      expect(
+        () => replace(root, useCase, stdin('Blue fish.', 'x')),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.replaceUnmatched)
+              .having((f) => f.exitStatus, 'exitStatus', 75)
+              .having((f) => (f.file, f.key), 'location', (story1, 'use_case'))
+              .having(
+                (f) => f.current?.text,
+                'current.text',
+                '## Use Case\n\nSign in with an email.\n',
+              )
+              .having((f) => f.current?.base, 'current.base', current)
+              .having(
+                (f) => f.current?.heading,
+                'heading',
+                '==> login/email_login (user_story) · $story1#use_case · base $current <==',
+              ),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test(
+      'refuses an old passage found 2 or more times and names the count',
+      () async {
+        final root = await writeWriteProject();
+        final before = readDoc(root, story1);
+        expect(
+          () => replace(root, useCase, stdin('a', 'x')),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.replaceAmbiguous)
+                .having((f) => f.exitStatus, 'exitStatus', 64)
+                .having((f) => f.message, 'message', contains('occurs 2 times'))
+                .having((f) => f.current, 'current', isNull),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+
+    test('keeps CRLF line ends after a replace', () async {
+      final root = await writeWriteProject();
+      docFile(
+        root,
+        story1,
+      ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
+      replace(
+        root,
+        criteria,
+        stdin(
+          '### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email',
+          '### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email and its password',
+        ),
+      );
+      expect(
+        readDoc(root, story1).replaceAll('\r\n', ''),
+        isNot(contains('\n')),
+      );
+      expect(
+        readDoc(root, story1),
+        contains(
+          '### Scenario 1 — [happy] Sign in\r\n\r\n- **Given** a registered email and its password\r\n',
+        ),
+      );
+    });
+
+    test('refuses a CRLF old passage against a body with LF ends', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => replace(
+          root,
+          criteria,
+          '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
+          '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.replaceUnmatched)
+              .having((f) => f.exitStatus, 'exitStatus', 75),
+        ),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('matches a one-line old passage sent with CRLF stdin', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      replace(
+        root,
+        useCase,
+        '==> old <==\r\nwith an email\r\n==> new <==\r\nwith a link\r\n',
+      );
+      expect(
+        readDoc(root, story1),
+        before.replaceFirst('with an email', 'with a link'),
+      );
+    });
+
+    test('removes the old passage for an empty new passage', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      replace(root, useCase, '==> old <==\n an email\n==> new <==\n');
+      expect(readDoc(root, story1), before.replaceFirst(' an email', ''));
+    });
+
+    test(
+      'refuses a new passage that makes a header line in the body',
+      () async {
+        final root = await writeWriteProject();
+        final before = readDoc(root, story1);
+        expect(
+          () => replace(root, useCase, stdin('Sign in', '## Other\nSign in')),
+          throwsIndexFault(IndexFaultCode.argumentInvalid),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
+
+    test('refuses a new passage that leaves a fence open', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => replace(root, useCase, stdin('Sign in', '```\nSign in')),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('refuses malformed stdin before it reads the doc', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => replace(root, useCase, 'Sign in\n'),
+        throwsIndexFault(IndexFaultCode.argumentInvalid),
+      );
+      expect(readDoc(root, story1), before);
+    });
+
+    test('refuses a section the doc neither holds nor defines', () async {
+      final root = await writeWriteProject();
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            replaceReq('user_story:login/email_login#no_such', emptyBaseHash),
+            stdin('a', 'b'),
+          ),
+        ),
+        throwsIndexFault(IndexFaultCode.sectionNotFound),
+      );
+    });
+
+    test('reads a template section the doc lacks as an empty body', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      expect(
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            replaceReq('user_story:login/email_login#rules', emptyBaseHash),
+            stdin('a', 'b'),
+          ),
+        ),
+        throwsA(
+          isA<WriteFault>()
+              .having((f) => f.code, 'code', WriteFaultCode.replaceUnmatched)
+              .having((f) => f.exitStatus, 'exitStatus', 75),
+        ),
+      );
+      expect(readDoc(root, story1), before);
     });
   });
 }

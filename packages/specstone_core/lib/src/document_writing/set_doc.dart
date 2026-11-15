@@ -8,6 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isOutsideApproval;
+import 'package:specstone_core/src/document_writing/replace_passage.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -19,6 +20,12 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
+
+/// The `argument_conflict` message for `--replace` beside another target or
+/// mode.
+const replaceConflictMessage =
+    '--replace takes a section target alone: no --field, --title, --batch, '
+    '--remove-task, #_lead, or whole-doc target';
 
 const _targetExample =
     'specstone set user_story:login/email_login#use_case '
@@ -32,6 +39,15 @@ sealed class SetTarget {
 
 /// The section keyed [key].
 final class SectionTarget extends SetTarget {
+  const new(this.key);
+
+  /// The template section id, else the [sectionKeyOf] key of the header.
+  final String key;
+}
+
+/// One passage of the section keyed [key], replaced as `set --replace` reads
+/// its stdin.
+final class ReplaceTarget extends SetTarget {
   const new(this.key);
 
   /// The template section id, else the [sectionKeyOf] key of the header.
@@ -72,8 +88,10 @@ final class SetRequest {
   /// With an [index], a [target] that names a doc as a path has no section
   /// key, even when it holds `#`. [codeTarget] keeps the doc's name to that
   /// code target's docs and the shared docs.
+  /// With [replace], the target is [ReplaceTarget] of the section key.
   /// Throws [IndexFault] `argument_missing` for a missing target, section
-  /// key, or [base], and `argument_conflict` for two targets at once.
+  /// key, or [base], and `argument_conflict` for two targets at once, and for
+  /// [replace] beside [field], [title], the lead, or no section key.
   static SetRequest parse(
     String? target, {
     String? field,
@@ -81,12 +99,20 @@ final class SetRequest {
     String? base,
     DocIndex? index,
     String? codeTarget,
+    bool replace = false,
   }) {
     final (target: written, base: checkedBase) = requireShape(target, base);
     final (:docPart, sectionKey: key) = index == null
         ? _splitAsWritten(written)
         : index.splitAddress(written);
     final sectionKey = key == null || key.isEmpty ? null : key;
+    if (replace &&
+        (field != null ||
+            title ||
+            sectionKey == null ||
+            sectionKey == leadKey)) {
+      throw IndexFault(IndexFaultCode.argumentConflict, replaceConflictMessage);
+    }
     final targets = [?sectionKey, ?field, if (title) ''];
     if (targets.length > 1) {
       throw IndexFault(
@@ -98,7 +124,7 @@ final class SetRequest {
     if (sectionKey == leadKey) {
       chosen = const LeadTarget();
     } else if (sectionKey != null) {
-      chosen = SectionTarget(sectionKey);
+      chosen = replace ? ReplaceTarget(sectionKey) : SectionTarget(sectionKey);
     } else if (field != null) {
       chosen = FieldTarget(field);
     } else if (title) {
@@ -259,6 +285,15 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       base: base,
       stdin: stdin,
     ),
+    ReplaceTarget(:final key) => _spliceReplace(
+      doc: doc,
+      docType: docType,
+      lfText: lfText,
+      sections: sections,
+      key: key,
+      base: base,
+      stdin: text,
+    ),
     FieldTarget(:final fieldId) => _spliceField(
       doc: doc,
       docType: docType,
@@ -294,6 +329,8 @@ void checkPartText({
   switch (target) {
     case SectionTarget():
       _checkSectionText(lf);
+    case ReplaceTarget():
+      parseReplaceStdin(text);
     case LeadTarget():
       _checkLeadText(lf);
     case TitleTarget():
@@ -374,7 +411,7 @@ const _computedStatusType = 'feature';
 String _baseAfter(ParsedDoc after, SetTarget target, MergedDocType docType) {
   final doc = Doc.parse(toLf(after.content.text));
   return switch (target) {
-    SectionTarget(:final key) =>
+    SectionTarget(:final key) || ReplaceTarget(:final key) =>
       after.content.sections
               .where((section) => section.key == key)
               .map((section) => sectionBaseOf(section.body, docType))
@@ -395,7 +432,8 @@ String _baseAfter(ParsedDoc after, SetTarget target, MergedDocType docType) {
 /// [base].
 String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
     switch (target) {
-      SectionTarget(:final key) => namingLine(doc, sectionKey: key, base: base),
+      SectionTarget(:final key) ||
+      ReplaceTarget(:final key) => namingLine(doc, sectionKey: key, base: base),
       FieldTarget(:final fieldId) => namingLine(
         doc,
         fieldId: fieldId,
@@ -636,15 +674,8 @@ void _checkLeadText(String lf) {
   required String base,
   required String stdin,
 }) {
-  final held = sections.indexWhere((section) => section.key == key);
+  final held = _heldSectionIndex(doc, docType, sections, key);
   final template = docType.sections.where((s) => s.id == key).firstOrNull;
-  if (held < 0 && template == null) {
-    throw IndexFault(
-      IndexFaultCode.sectionNotFound,
-      '${doc.docTypeId}:${doc.name} holds no section with the key $key, '
-      'and its template defines none',
-    );
-  }
   final unwrapped = _withoutOwnHeader(
     stdin,
     held < 0 ? '## ${template!.header}' : sections[held].headerLine,
@@ -654,19 +685,7 @@ void _checkLeadText(String lf) {
   // The first line may be the section's own header, which only the doc's
   // text tells; `checkPartText` judged the lines after it.
   _refuseHeaderLine(body);
-  final currentBase = held < 0
-      ? emptyBaseHash
-      : sectionBaseOf(sections[held].body, docType);
-  if (currentBase != base) {
-    throw _staleBase(
-      doc,
-      target: 'section',
-      key: key,
-      sinceBase: base,
-      currentText: held < 0 ? '' : '${sections[held].text}\n',
-      currentBase: currentBase,
-    );
-  }
+  _requireSectionBase(doc, docType, sections, held, key, base);
   if (removesSection && (template?.required ?? false)) {
     throw WriteFault(
       WriteFaultCode.requiredTarget,
@@ -687,15 +706,118 @@ void _checkLeadText(String lf) {
   return (lfText: spliced, marksDraft: true);
 }
 
-/// Checks the lines of [lf] that no doc text changes: the fence is closed, and
-/// no `## ` line follows the first line, which may be the section's own header.
-void _checkSectionText(String lf) {
+/// Returns the index in [sections] of the section keyed [key], or -1 for a
+/// template section the doc lacks.
+///
+/// Throws [IndexFault] `section_not_found` for a key the doc neither holds nor
+/// defines in [docType].
+int _heldSectionIndex(
+  IndexedDoc doc,
+  MergedDocType docType,
+  List<IndexedSection> sections,
+  String key,
+) {
+  final held = sections.indexWhere((section) => section.key == key);
+  if (held < 0 && !docType.sections.any((s) => s.id == key)) {
+    throw IndexFault(
+      IndexFaultCode.sectionNotFound,
+      '${doc.docTypeId}:${doc.name} holds no section with the key $key, '
+      'and its template defines none',
+    );
+  }
+  return held;
+}
+
+String _sectionBaseOnDisk(
+  MergedDocType docType,
+  List<IndexedSection> sections,
+  int held,
+) => held < 0 ? emptyBaseHash : sectionBaseOf(sections[held].body, docType);
+
+String _sectionTextOnDisk(List<IndexedSection> sections, int held) =>
+    held < 0 ? '' : '${sections[held].text}\n';
+
+/// Throws [WriteFault] `base_mismatch` with the current section when the
+/// section at [held] has a base other than [base].
+void _requireSectionBase(
+  IndexedDoc doc,
+  MergedDocType docType,
+  List<IndexedSection> sections,
+  int held,
+  String key,
+  String base,
+) {
+  final currentBase = _sectionBaseOnDisk(docType, sections, held);
+  if (currentBase == base) return;
+  throw _staleBase(
+    doc,
+    target: 'section',
+    key: key,
+    sinceBase: base,
+    currentText: _sectionTextOnDisk(sections, held),
+    currentBase: currentBase,
+  );
+}
+
+/// Replaces one passage of the section keyed [key] with the passages [stdin]
+/// holds, then writes the result as a section body.
+///
+/// The old passage is matched against the section body as `get` prints it.
+/// The base is checked before the match, so a stale base wins over a missing
+/// passage.
+({String lfText, bool marksDraft}) _spliceReplace({
+  required IndexedDoc doc,
+  required MergedDocType docType,
+  required String lfText,
+  required List<IndexedSection> sections,
+  required String key,
+  required String base,
+  required String stdin,
+}) {
+  final held = _heldSectionIndex(doc, docType, sections, key);
+  _requireSectionBase(doc, docType, sections, held, key, base);
+  final (:oldPassage, :newPassage) = parseReplaceStdin(stdin);
+  final currentBase = _sectionBaseOnDisk(docType, sections, held);
+  final body = replacedBody(
+    held < 0 ? '' : toLf(sections[held].body),
+    oldPassage,
+    newPassage,
+    docPath: doc.docPath,
+    key: key,
+    current: CurrentTarget(
+      heading: namingLine(doc, sectionKey: key, base: currentBase),
+      text: _sectionTextOnDisk(sections, held),
+      base: currentBase,
+    ),
+  );
+  _refuseOpenFence(body);
+  _refuseHeaderLine(body);
+  refuseNamingLine(body, 'the body');
+  return _spliceSection(
+    doc: doc,
+    docType: docType,
+    lfText: lfText,
+    sections: sections,
+    key: key,
+    base: base,
+    stdin: body,
+  );
+}
+
+/// Throws [IndexFault] `argument_invalid` when [lf] leaves a fence open.
+void _refuseOpenFence(String lf) {
   if (blockScan(lf.split('\n')).openFence case final fence?) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'the body leaves the fence "$fence" open; close it',
     );
   }
+}
+
+/// Checks the lines of [lf] that no doc text changes: the fence is closed, and
+/// no `## ` line follows the first line, which may be the section's own header.
+void _checkSectionText(String lf) {
+  _refuseOpenFence(lf);
   final lines = lf.split('\n');
   final first = lines.indexWhere((line) => line.trim().isNotEmpty);
   final mayBeOwnHeader = first >= 0 && isSectionHeaderLine(lines[first]);

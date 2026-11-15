@@ -10,6 +10,8 @@ const approvedNotWritableMessage =
 /// JSON `error.code`; [exitStatus] is the process exit status for the fault.
 enum WriteFaultCode {
   baseMismatch('base_mismatch', 75),
+  replaceUnmatched('replace_unmatched', 75),
+  replaceAmbiguous('replace_ambiguous', 64),
   fieldUnknown('field_unknown', 64),
   fieldValueInvalid('field_value_invalid', 64),
   fieldNotWritable('field_not_writable', 64),
