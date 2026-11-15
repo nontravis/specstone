@@ -188,6 +188,21 @@ void main() {
     });
   });
 
+  group('relativeFilePathOf for a record', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    test('a path in the project keeps its project-root spelling', () {
+      expect(relativeFilePathOf('../../../docs/x.md', record), 'docs/x.md');
+      expect(relativeFilePathOf('../../../lib/a.dart', record), 'lib/a.dart');
+    });
+
+    test('a walk ending at the docs root or the project root gives null', () {
+      expect(relativeFilePathOf('../../../docs/', record), isNull);
+      expect(relativeFilePathOf('../../../docs/.', record), isNull);
+      expect(relativeFilePathOf('../../../', record), isNull);
+    });
+  });
+
   group('a link between the docs root and the records root', () {
     const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
     const doc = 'prds/f/us/fr01.md';

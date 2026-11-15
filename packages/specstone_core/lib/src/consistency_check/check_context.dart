@@ -104,7 +104,7 @@ final class CheckContext {
   ///
   /// [path] is relative to [target]'s code root. Malformed UTF-8 bytes decode
   /// to U+FFFD instead of failing. Returns null for a file that cannot be
-  /// read, and records its INV-48 warning.
+  /// read, and records its unreadable-file warning.
   String? codeTextOf(CodeTarget target, String path) {
     final bytes = codeBytesOf(target, path, reason: CodeRead.symbols);
     return bytes == null

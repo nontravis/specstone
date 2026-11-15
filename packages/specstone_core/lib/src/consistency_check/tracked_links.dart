@@ -388,7 +388,8 @@ String _blockText(String source) {
   return text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
 }
 
-/// Returns the malformed and stale `confirmed` entries of [doc].
+/// Returns the malformed, repeated, and stale entries of [doc]'s `confirmed`
+/// and `overrides` fields.
 ///
 /// Only a doc type that defines `confirmed` or carries override lines is
 /// read, each entry field against its own links; a draft is read too.

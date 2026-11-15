@@ -1,9 +1,9 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
-import 'package:yaml/yaml.dart';
 
 const _confirmedKey = 'confirmed';
+final _dashItem = RegExp(r'^-(\s|$)');
 const _emptyList = ConfirmedList(KeyBlock(_confirmedKey, 'confirmed:\n'), {});
 
 /// The `confirmed` list of a doc that takes more entries as item lines.
@@ -27,21 +27,16 @@ ConfirmedList? readConfirmedList(Doc doc) {
       ?.where((b) => b.name == _confirmedKey)
       .firstOrNull;
   if (block == null) return _emptyList;
-  final value = block.valueText;
-  if (value.isNotEmpty && !value.startsWith('-')) return null;
-  final Object? items;
-  try {
-    items = loadYaml(value);
-  } on YamlException {
-    return null;
-  }
-  if (items != null && items is! YamlList) return null;
+  if (!_isListOrEmpty(block.valueText)) return null;
+  final items = listEntriesOf(block);
+  if (items == null) return null;
   return ConfirmedList(block, {
-    if (items is YamlList)
-      for (final item in items)
-        if (item is String) item.split(' ').first,
+    for (final item in items)
+      if (item is String) item.split(' ').first,
   });
 }
+
+bool _isListOrEmpty(String value) => value.isEmpty || _dashItem.hasMatch(value);
 
 /// Returns [lfText] with [entries] added at the end of [list].
 ///

@@ -75,8 +75,9 @@ DocLinkTarget resolveDocLink(String href, String docPath) {
 /// path without those two segments. A record keeps its project-root path, so
 /// `../../../docs/x.md` stays `docs/x.md`. The fragment and query are not part
 /// of the path. Null for a web address, another scheme, an authority, a rooted
-/// path, an empty path, a path whose walk ends at the docs root itself, and a
-/// segment holding an encoded slash.
+/// path, an empty path, a path whose walk ends at the docs root itself (a
+/// record's too) or at the project root a record is read from, and a segment
+/// holding an encoded slash.
 String? relativeFilePathOf(String href, String docPath) {
   if (readLinkTarget(href) case RelativeLink(:final segments)) {
     // An empty path (`#frag`, `?q`) names no file.
@@ -138,7 +139,10 @@ String? _resolveSegments(
         path.add(segment);
     }
   }
-  if (keepParents && isRecord) return path.join('/');
+  if (keepParents && isRecord) {
+    final isDocsRoot = path.length == 1 && path.first == docsFolderName;
+    return isDocsRoot ? '' : path.join('/');
+  }
   if (path.isNotEmpty && path.first == docsFolderName) {
     return path.skip(1).join('/');
   }

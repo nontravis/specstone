@@ -341,10 +341,11 @@ Iterable<Finding> _unresolvedLinks(CheckContext context, IndexedDoc doc) sync* {
 }
 
 /// Yields a finding per file link of [doc] whose file or folder is missing
-/// under the docs root.
+/// under the root [doc] is read from: the docs root, or the project root for
+/// a record.
 ///
-/// A target that leaves the docs root is checked on disk the same way; the
-/// message names it from the project root.
+/// A docs target that leaves the docs root is checked on disk the same way;
+/// the message names it from the project root.
 Iterable<Finding> _missingFileLinks(
   CheckContext context,
   IndexedDoc doc,

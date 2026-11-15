@@ -141,6 +141,16 @@ void main() {
     });
     expect(parts.map(_id), contains('specs/topics/doc_model.md#rules RULE-3'));
   });
+  test('one file a record and a doc both cite appends its path once', () async {
+    final parts = await followedFrom('login/email_login/validate_credentials', {
+      ...recordsRootTemplates,
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login:planned'\n---\n\n# Login implementation\n\n"
+          'Schema in [schema](../../../docs/specs/schema.dbml).\n',
+      _fr: _frWith('See [schema]($_specs/schema.dbml).'),
+    });
+    expect(parts.map(_id), ['specs/schema.dbml']);
+  });
   test('a bundle whose docs link nowhere outside appends nothing', () async {
     expect(await followed('The system shall check the password.'), isEmpty);
   });

@@ -38,8 +38,8 @@ final class RefreshResult {
   final bool fullBuild;
 }
 
-/// Brings [store] up to date with the `.md` files under the docs root of
-/// [project].
+/// Brings [store] up to date with the `.md` files under the docs root and the
+/// records root of [project].
 ///
 /// A file is read and hashed unless its stored stat key still matches and its
 /// mtime lies more than 2 s before the listing that last wrote the index; a

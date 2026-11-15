@@ -264,17 +264,27 @@ final class _Walk {
   /// disk. Any other link that cites nothing adds nothing.
   void _appendPath(_Link link, _DocView view) {
     final path = link.text.target;
-    if (_paths.contains(path)) return;
     if (link.file) {
+      final shown = _docsRootSpelling(path, view.doc.docPath);
+      if (_paths.contains(shown)) return;
       if (!_onDisk(path, view.doc.docPath)) return;
-      _paths.add(path);
-      _parts.add(AppendedPart.file(path));
+      _paths.add(shown);
+      _parts.add(AppendedPart.file(shown));
       return;
     }
+    if (_paths.contains(path)) return;
     final doc = index.at(path);
     if (doc == null || doc.isTyped) return;
     _paths.add(path);
     _parts.add(AppendedPart(doc: doc, text: ''));
+  }
+
+  /// Returns the file link target [path] of the doc at [docPath] spelled
+  /// from the docs root, as a doc's own targets are; a record's targets are
+  /// project-root paths.
+  String _docsRootSpelling(String path, String docPath) {
+    if (!isRecordsDocPath(docPath)) return path;
+    return docPathOfProjectPath(path) ?? '../$path';
   }
 
   /// Whether [path], a path under the root the doc at [docPath] is read from,
