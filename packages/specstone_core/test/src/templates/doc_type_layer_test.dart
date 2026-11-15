@@ -604,6 +604,21 @@ lint:
       );
     });
 
+    test('a section skeleton is read as written', () {
+      final sections = _parse(
+        'sections: [{id: goal, skeleton: true}, {id: why}]\n',
+      ).sections;
+      expect(sections.first.skeleton, isTrue);
+      expect(sections.last.skeleton, isNull);
+    });
+
+    test('a section skeleton that is not a boolean is unknown_value', () {
+      expect(
+        () => _parse('sections: [{id: goal, skeleton: header}]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'sections[0].skeleton')),
+      );
+    });
+
     test('f03/us03/fr01/e19, tpl-s03/inv23: a section query that is not a boolean is unknown_value', () {
       expect(
         () => _parse('sections: [{id: goal, query: yes please}]\n'),

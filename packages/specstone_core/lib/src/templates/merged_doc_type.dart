@@ -232,6 +232,7 @@ final class MergedSection {
     this.query,
     this.summary,
     this.summaryRows,
+    this.skeleton,
     this.bannedPatterns,
     this.requiredPatterns,
     this.minLines,
@@ -298,6 +299,10 @@ final class MergedSection {
   /// no layer sets it.
   final SummaryRows? summaryRows;
 
+  /// Whether an optional section's header joins the skeleton `new` writes;
+  /// null when no layer sets it.
+  final bool? skeleton;
+
   /// The body rows a summary doc prints; null when unset or off.
   int? get summaryRowCount => summaryRows?.count;
 
@@ -357,6 +362,7 @@ final class MergedSection {
     bool? query,
     bool? summary,
     SummaryRows? summaryRows,
+    bool? skeleton,
     List<PatternEntry>? bannedPatterns,
     List<PatternEntry>? requiredPatterns,
     int? minLines,
@@ -384,6 +390,7 @@ final class MergedSection {
     query: query ?? this.query,
     summary: summary ?? this.summary,
     summaryRows: summaryRows ?? this.summaryRows,
+    skeleton: skeleton ?? this.skeleton,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
     requiredPatterns: requiredPatterns ?? this.requiredPatterns,
     minLines: minLines ?? this.minLines,

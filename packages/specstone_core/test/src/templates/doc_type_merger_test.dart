@@ -1153,6 +1153,25 @@ sections:
     });
   });
 
+  group('DocTypeMerger.apply skeleton', () {
+    bool? skeletonOf(MergedDocType docType) =>
+        docType.sections.firstWhere((s) => s.id == 'goal').skeleton;
+
+    test("an upper layer's skeleton wins over the lower layer's", () {
+      final lower = project(
+        shipped(),
+        'sections: [{id: goal, skeleton: true}]\n',
+      );
+      final upper = project(lower, 'sections: [{id: goal, skeleton: false}]\n');
+      final silent = project(
+        lower,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(skeletonOf(upper), isFalse);
+      expect(skeletonOf(silent), isTrue);
+    });
+  });
+
   group('DocTypeMerger.apply summary_rows and summary_for', () {
     SummaryRows? rowsOf(MergedDocType docType) =>
         docType.sections.firstWhere((s) => s.id == 'goal').summaryRows;

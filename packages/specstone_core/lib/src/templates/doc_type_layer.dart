@@ -264,6 +264,7 @@ final class SectionEntry {
     this.query,
     this.summary,
     this.summaryRows,
+    this.skeleton,
     this.whenField,
     required this.disabled,
   });
@@ -302,6 +303,10 @@ final class SectionEntry {
   /// The rows a summary doc prints of the section's table, or off, when
   /// written.
   final SummaryRows? summaryRows;
+
+  /// Whether an optional section's header joins the skeleton `new` writes,
+  /// when written.
+  final bool? skeleton;
 
   /// The doc field and values that bind the section's `required`, when
   /// written.
@@ -699,6 +704,7 @@ const _sectionKeys = {
   'query',
   'summary',
   'summary_rows',
+  'skeleton',
   'when_field',
 };
 
@@ -902,6 +908,12 @@ SectionEntry _parseSection(
     query: optionalValue<bool>(entry, 'query', file: file, prefix: prefix),
     summary: optionalValue<bool>(entry, 'summary', file: file, prefix: prefix),
     summaryRows: _parseSummaryRows(entry, index: index, file: file),
+    skeleton: optionalValue<bool>(
+      entry,
+      'skeleton',
+      file: file,
+      prefix: 'sections[$index].',
+    ),
     whenField: _parseWhenField(entry, file: file, prefix: prefix),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
