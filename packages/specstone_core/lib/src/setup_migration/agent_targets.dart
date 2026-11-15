@@ -852,7 +852,7 @@ final class _Survey {
   /// Throws the `agent_block_malformed` fault when any file is malformed, or
   /// when any of [settings] is.
   void throwIfMalformed({
-    List<({String path, String failure, bool isNoFile})> settings = const [],
+    List<({String path, String failure})> settings = const [],
   }) {
     final faults = [
       for (final folder in folders)
@@ -866,14 +866,11 @@ final class _Survey {
               file: file.path,
               line: file.scan!.firstMarkerLine,
             ),
-      for (final (:path, :failure, :isNoFile) in settings)
+      for (final (:path, :failure) in settings)
         MigrateFault(
           MigrateFaultCode.agentBlockMalformed,
-          isNoFile
-              ? '$failure; move it away so the run can write a file there, '
-                    'then run the command again'
-              : '$failure; repair the file by hand so it is one JSON '
-                    'object, then run the command again',
+          '$failure; repair the file by hand so it is one JSON '
+          'object, then run the command again',
           file: path,
         ),
     ];

@@ -61,7 +61,7 @@ typedef SkillFileDrift = ({String path, SkillFileDriftKind kind});
 /// the project root or under `.git`.
 typedef SkillFilePlan = ({
   List<AgentWrite> writes,
-  List<({String path, String failure, bool isNoFile})> malformedSettings,
+  List<({String path, String failure})> malformedSettings,
   List<String> trash,
   List<String> topTrash,
   List<String> skipped,
@@ -126,7 +126,7 @@ List<SkillFileDrift> skillAndAgentFileDrifts(AgentFileInputs inputs) {
   final plan = planSkillAndAgentFiles(inputs, full: false);
   return [
     for (final write in plan.writes) (path: write.path, kind: _kindOf(write)),
-    for (final (:path, failure: _, isNoFile: _) in plan.malformedSettings)
+    for (final (:path, failure: _) in plan.malformedSettings)
       (path: path, kind: SkillFileDriftKind.settingsMalformed),
     for (final path in plan.trash)
       (path: path, kind: SkillFileDriftKind.unshipped),
@@ -156,7 +156,7 @@ final class _Planner {
   late final Set<String> _shipped;
 
   final writes = <AgentWrite>[];
-  final malformedSettings = <({String path, String failure, bool isNoFile})>[];
+  final malformedSettings = <({String path, String failure})>[];
   final trash = <String>[];
   final topTrash = <String>[];
   final skipped = <String>[];
@@ -330,7 +330,7 @@ final class _Planner {
     final type = FileSystemEntity.typeSync(target.path);
     if (type != FileSystemEntityType.notFound &&
         type != FileSystemEntityType.file) {
-      return _recordMalformed(path, 'it is not a file', isNoFile: true);
+      return _recordMalformed(path, 'it is not a file');
     }
     final bytes = type == FileSystemEntityType.file
         ? readPlanInput(target)
@@ -352,8 +352,8 @@ final class _Planner {
     }
   }
 
-  void _recordMalformed(String path, String failure, {bool isNoFile = false}) =>
-      malformedSettings.add((path: path, failure: failure, isNoFile: isNoFile));
+  void _recordMalformed(String path, String failure) =>
+      malformedSettings.add((path: path, failure: failure));
 
   void _addSettingsWrite(
     AgentFileBase base,

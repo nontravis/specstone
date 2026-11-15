@@ -2071,7 +2071,7 @@ void main() {
     });
 
     test(
-      'a settings path that is a folder refuses with its own wording',
+      'a settings path that is a folder refuses with the hand-repair wording',
       () async {
         final base = await _base({'proj/$settingsFilePath/keep': 'x'});
 
@@ -2084,7 +2084,7 @@ void main() {
                 .having(
                   (f) => f.message,
                   'message',
-                  isNot(contains('one JSON object')),
+                  contains('repair the file by hand'),
                 ),
           ),
         );

@@ -137,7 +137,7 @@ void main() {
     );
   });
 
-  test('NFR-P01: specstone context for a story, with a current index, answers '
+  test('specstone context for a story, with a current index, answers '
       'within 500 ms in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'implement'];
     timed(call); // warm-up: the index is current after it
@@ -169,7 +169,7 @@ void main() {
     );
   });
 
-  test('NFR-P01: specstone context for a story, ending with the stale-project '
+  test('specstone context for a story, ending with the stale-project '
       'line over every skill, agent, and settings file, answers within 500 ms '
       'in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'implement'];

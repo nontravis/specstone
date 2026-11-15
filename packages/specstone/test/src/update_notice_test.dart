@@ -400,7 +400,7 @@ void main() {
       expect(notice.lineAfter(), _line);
     });
 
-    test('E04: the running Version equals the latest, no notice', () async {
+    test('the running Version equals the latest, no notice', () async {
       final notice = await started(
         kept: null,
         running: _newest,
@@ -410,21 +410,18 @@ void main() {
       expect(notice.lineAfter(), isNull);
     });
 
-    test(
-      'E03: a pre-release above the latest full release, no notice',
-      () async {
-        final notice = await started(
-          kept: null,
-          running: '1.3.0-beta.1',
-          setUpSite: (site) => site.body = '{"tag_name":"v1.2.0"}',
-          waitForEnd: true,
-        );
+    test('a pre-release above the latest full release, no notice', () async {
+      final notice = await started(
+        kept: null,
+        running: '1.3.0-beta.1',
+        setUpSite: (site) => site.body = '{"tag_name":"v1.2.0"}',
+        waitForEnd: true,
+      );
 
-        expect(notice.lineAfter(), isNull);
-      },
-    );
+      expect(notice.lineAfter(), isNull);
+    });
 
-    test('E08: a Version read not above the running one wins over a kept '
+    test('a Version read not above the running one wins over a kept '
         'latest that is above it', () async {
       final notice = await started(
         setUpSite: (site) => site.body = '{"tag_name":"v$_running"}',
