@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/specstone_core.dart';
@@ -18,15 +17,6 @@ void main() {
       ).firstMatch(pubspec);
 
       expect(match?.group(1), specstoneVersion);
-    });
-
-    test('the plugin manifest carries the core version', () {
-      final manifest = File.fromUri(
-        packageRoot().uri.resolve('../../plugin/.claude-plugin/plugin.json'),
-      ).readAsStringSync();
-      final json = jsonDecode(manifest) as Map<String, Object?>;
-
-      expect(json['version'], specstoneVersion);
     });
 
     test('f09/us04/fr02, INV-1: the specstone_core pubspec carries the core '

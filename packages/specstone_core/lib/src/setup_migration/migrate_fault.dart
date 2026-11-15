@@ -15,7 +15,8 @@ enum MigrateFaultCode {
   gitFailed('git_failed', 75),
   planMismatch('plan_mismatch', 75),
   agentBlockMalformed('agent_block_malformed', 65),
-  legacyCollision('legacy_collision', 65);
+  legacyCollision('legacy_collision', 65),
+  agentFilesNewer('agent_files_newer', 78);
 
   new(this.wire, this.exitStatus);
 

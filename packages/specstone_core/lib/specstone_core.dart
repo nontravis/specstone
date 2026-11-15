@@ -1,6 +1,7 @@
 /// Core library of Specstone, shared by the specstone CLI and MCP server.
 library;
 
+export 'src/atomic_write.dart' show writeFileAtomic;
 export 'src/canonical_path.dart' show absoluteFrom, canonicalPath;
 export 'src/consistency_check/check_report.dart' show CheckReport;
 export 'src/consistency_check/check_run.dart' show runCheck, runRepeats;
@@ -84,13 +85,21 @@ export 'src/setup_migration/init_project.dart' show InitRequest, runInit;
 export 'src/setup_migration/migrate_fault.dart'
     show MigrateFault, MigrateFaultCode;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
+export 'src/setup_migration/stale_project.dart' show staleProjectLine;
 export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
 export 'src/templates/feature_pattern.dart' show ChecklistItem, FeaturePattern;
 export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/project_config.dart'
-    show matchProjectRoot, requireSpecstoneFolder;
+    show
+        AgentFilesStamp,
+        AgentFilesStampAbsent,
+        AgentFilesStampUnreadable,
+        AgentFilesStampVersion,
+        matchProjectRoot,
+        readAgentFilesVersion,
+        requireSpecstoneFolder;
 export 'src/templates/template_fault.dart';
 export 'src/templates/template_resolver.dart';
 export 'src/version.dart';

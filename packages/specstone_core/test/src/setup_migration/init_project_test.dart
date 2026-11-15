@@ -71,6 +71,19 @@ ProcessResult _noGit(
   throw StateError('init must start no git process: git $arguments');
 }
 
+/// A `CLAUDE.md` whose block imports the `.specstone/AGENT.md` it lacks.
+final _importingClaude = '# Owner\n\n$_importBlock';
+
+final String _importBlock = importBlock(
+  cliVersion: specstoneVersion,
+  agentMdPath: '.specstone/AGENT.md',
+  projectDocPath: 'docs/prds/PROJECT.md',
+);
+
+/// The config `init` writes on the shipped pins: the running Version stamped.
+String _stampedConfig() =>
+    '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n';
+
 String _configLine() {
   final versions = shippedPackVersions();
   return 'created .specstone/config.yaml: '
@@ -114,11 +127,38 @@ void main() {
       ...skillCountLines(),
       _configLine(),
     ]);
-    expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
+    expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
     for (final path in _draftPaths) {
       expect(_read(root, path), startsWith('---\ndraft: true\n'), reason: path);
     }
   });
+
+  test('a rerun that finds every agent file as written still stamps the '
+      'config', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    _run(root);
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines.where((line) => line.startsWith('created .')), [
+      _configLine(),
+    ]);
+    expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
+  });
+
+  test(
+    'an instruction file importing the missing AGENT.md ends stamped',
+    () async {
+      final root = await writeTree({'CLAUDE.md': _importingClaude});
+
+      final (status, _) = _run(root);
+
+      expect(status, 0);
+      expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
+    },
+  );
 
   test('init then check reports no format_drift on the four drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
@@ -194,7 +234,7 @@ void main() {
     final (status, lines) = _run(root);
 
     expect(status, 0);
-    expect(lines.sublist(lines.length - 11), [
+    expect(lines.sublist(lines.length - 12), [
       'created .specstone/AGENT.md',
       'updated CLAUDE.md',
       'updated AGENTS.md',
@@ -240,7 +280,7 @@ void main() {
       for (final MapEntry(:key, :value) in before.entries) {
         expect(after[key], value, reason: key);
       }
-      expect(lines.sublist(lines.length - 8), [
+      expect(lines.sublist(lines.length - 9), [
         'created AGENTS.md',
         ...skillCountLines(),
         _configLine(),
@@ -756,14 +796,12 @@ void main() {
       names,
       containsAll([for (final file in renderHostFiles()) file.path]),
     );
+    expect(names, contains('.claude/settings.json'));
     expect(
       _read(root, 'CLAUDE.md'),
       contains('<!-- BEGIN specstone v$specstoneVersion -->'),
     );
-    expect(
-      lines,
-      contains('  agent files: ${2 + renderHostFiles().length} files'),
-    );
+    expect(lines, contains('  agent files: ${2 + skillFileCount} files'));
   }, skip: hasGit ? null : 'git is not available');
 
   test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "

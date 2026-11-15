@@ -17,6 +17,7 @@ final class FakeConsole implements Console {
     this.input = '',
     this.stdinIsTerminal = false,
     this.stdoutIsTerminal = false,
+    this.stderrIsTerminal = false,
     this.noColor = false,
     this.approveModeVariable,
     this.answers = const [],
@@ -31,6 +32,9 @@ final class FakeConsole implements Console {
 
   @override
   final bool stdoutIsTerminal;
+
+  @override
+  final bool stderrIsTerminal;
 
   @override
   final bool noColor;
@@ -62,7 +66,11 @@ final class FakeConsole implements Console {
 /// The runner reads the built-in doc types and no user-level ones: its home
 /// is the test's own, which holds only the journal records of its runs.
 ({SpecstoneCommandRunner runner, StringBuffer out, StringBuffer err})
-writeRunner(Directory root, {Console? console}) {
+writeRunner(
+  Directory root, {
+  Console? console,
+  Map<String, String>? environment,
+}) {
   final out = StringBuffer();
   final err = StringBuffer();
   final runner = SpecstoneCommandRunner(
@@ -72,6 +80,7 @@ writeRunner(Directory root, {Console? console}) {
     workingDirectory: root,
     homeDirectory: testHome(),
     console: console ?? FakeConsole(),
+    environment: environment ?? const {},
   );
   return (runner: runner, out: out, err: err);
 }

@@ -10,7 +10,6 @@ import 'package:test/test.dart';
 import '../helpers/script_sandbox.dart';
 
 void main() {
-  const pluginLine = 'claude plugin uninstall specstone@specstone';
   const otherItems = r'C:\Windows;C:\Tools';
 
   // PowerShell wraps a long error line at the console width; compare the text
@@ -38,8 +37,12 @@ void main() {
 
   group('uninstall.ps1', () {
     pathTest('bin, lib, and the user PATH '
-        'item go; packs stay; plugin command last', () async {
+        'item go; packs and the update record stay; no plugin command '
+        'prints', () async {
       final sb = await installedSandbox();
+      File('${sb.home.path}\\.specstone\\update-check.json')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{"checkedAt":"2026-11-15"}\n');
       File('${sb.home.path}\\.specstone\\packs\\mine\\pack.yaml')
         ..createSync(recursive: true)
         ..writeAsStringSync('name: mine\n');
@@ -55,7 +58,6 @@ void main() {
         'Removed ${binDir(sb)}',
         'Removed ${libDir(sb)}',
         'Removed ${binDir(sb)} from the user PATH',
-        pluginLine,
       ]);
       expect(Directory(binDir(sb)).existsSync(), isFalse);
       expect(Directory(libDir(sb)).existsSync(), isFalse);
@@ -64,6 +66,11 @@ void main() {
         File('${sb.home.path}\\.specstone\\packs\\mine\\pack.yaml')
             .readAsStringSync(),
         'name: mine\n',
+      );
+      expect(
+        File('${sb.home.path}\\.specstone\\update-check.json')
+            .readAsStringSync(),
+        '{"checkedAt":"2026-11-15"}\n',
       );
       expect(
         File('${sb.home.path}\\work\\app\\.specstone\\docs\\index.md')
@@ -102,7 +109,7 @@ void main() {
           'runs from ${binDir(sb)}; stop it and run the uninstall line again',
         ),
       );
-      expect(r.stdout, isNot(contains(pluginLine)));
+      expect(r.stdout, isNot(contains('plugin')));
       expect(File(exe).existsSync(), isTrue);
       expect(Directory(libDir(sb)).existsSync(), isTrue);
       expect(sb.snapshot(), before);
@@ -146,7 +153,6 @@ void main() {
       expect((await readUserPath())?.value, otherItems);
       final lines = (r.stdout as String).trimRight().split(RegExp(r'\r?\n'));
       expect(lines, contains('Removed ${binDir(sb)}'));
-      expect(lines.last, pluginLine);
     });
 
     pathTest('the PATH item is found in another case and with '
@@ -180,7 +186,7 @@ void main() {
     });
 
     pathTest('nothing installed says so and '
-        'names the plugin command', () async {
+        'prints no plugin command', () async {
       final sb = await createScriptSandbox();
       await writeUserPath((value: otherItems, kind: 'String'));
 
@@ -189,7 +195,6 @@ void main() {
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect((r.stdout as String).trimRight().split(RegExp(r'\r?\n')), [
         'specstone: nothing to remove',
-        pluginLine,
       ]);
       expect(r.stderr, '');
       expect(sb.snapshot(), isEmpty);
@@ -204,10 +209,7 @@ void main() {
 
       expect(r.exitCode, 0, reason: '${r.stderr}');
       expect(sb.logOf('claude'), isEmpty);
-      expect(
-        (r.stdout as String).trimRight().split(RegExp(r'\r?\n')).last,
-        pluginLine,
-      );
+      expect(r.stdout, isNot(contains('plugin')));
     });
 
     test('with neither HOME nor USERPROFILE it refuses', () async {

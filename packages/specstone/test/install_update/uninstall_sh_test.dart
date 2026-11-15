@@ -10,7 +10,6 @@ import '../helpers/script_sandbox.dart';
 void main() {
   const entry = r'export PATH="$HOME/.specstone/bin:$PATH"';
   const fishEntry = r'set -gx PATH "$HOME/.specstone/bin" $PATH';
-  const pluginLine = 'claude plugin uninstall specstone@specstone';
 
   late ScriptSandbox sb;
 
@@ -34,7 +33,7 @@ void main() {
 
   group('uninstall.sh', () {
     test('bin, lib, and the entry '
-        'go; the plugin command is last', () async {
+        'go; no plugin command prints', () async {
       sb.installFake();
       profile('.zshrc', '$entry\n');
 
@@ -45,16 +44,18 @@ void main() {
         'Removed ${sb.home.path}/.specstone/bin',
         'Removed ${sb.home.path}/.specstone/lib',
         'Removed the PATH entry from ${sb.home.path}/.zshrc',
-        pluginLine,
       ]);
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
       expect(Directory(home('.specstone/lib')).existsSync(), isFalse);
       expect(read('.zshrc'), '');
     });
 
-    test('packs, ~/.specstone, and a '
+    test('packs, the update record, ~/.specstone, and a '
         'project .specstone stay', () async {
       sb.installFake();
+      File(home('.specstone/update-check.json'))
+        ..createSync(recursive: true)
+        ..writeAsStringSync('{"checkedAt":"2026-11-15"}\n');
       File(home('.specstone/packs/mine/pack.yaml'))
         ..createSync(recursive: true)
         ..writeAsStringSync('name: mine\n');
@@ -66,6 +67,10 @@ void main() {
 
       expect(r.exitCode, 0);
       expect(read('.specstone/packs/mine/pack.yaml'), 'name: mine\n');
+      expect(
+        read('.specstone/update-check.json'),
+        '{"checkedAt":"2026-11-15"}\n',
+      );
       expect(Directory(home('.specstone')).existsSync(), isTrue);
       expect(read('work/app/.specstone/docs/index.md'), '# doc\n');
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
@@ -179,7 +184,6 @@ void main() {
         'Removed the PATH entry from ${sb.home.path}/.zshrc',
         'Removed the PATH entry from ${sb.home.path}/.zshenv',
         'Removed the PATH entry from ${sb.home.path}/.profile',
-        pluginLine,
       ]);
     });
 
@@ -225,11 +229,11 @@ void main() {
     });
 
     test('nothing '
-        'installed says so and still names the plugin command', () async {
+        'installed says so and prints no plugin command', () async {
       final r = await sb.run('uninstall.sh');
 
       expect(r.exitCode, 0);
-      expect(r.stdout, 'specstone: nothing to remove\n$pluginLine\n');
+      expect(r.stdout, 'specstone: nothing to remove\n');
       expect(r.stderr, '');
       expect(sb.snapshot(), isEmpty);
     });
@@ -244,7 +248,7 @@ void main() {
 
       expect(r.exitCode, 0);
       expect(sb.logOf('claude'), isEmpty);
-      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
+      expect(r.stdout, isNot(contains('plugin')));
     });
 
     test('a second run finds nothing left', () async {
@@ -255,7 +259,7 @@ void main() {
       final r = await sb.run('uninstall.sh');
 
       expect(r.exitCode, 0);
-      expect(r.stdout, 'specstone: nothing to remove\n$pluginLine\n');
+      expect(r.stdout, 'specstone: nothing to remove\n');
     });
 
     test('an unwritable profile is named on stderr and the '
@@ -276,7 +280,6 @@ void main() {
       expect(read('.zshrc'), '$entry\n');
       expect(read('.profile'), '');
       expect(Directory(home('.specstone/bin')).existsSync(), isFalse);
-      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     }, skip: runsAsRoot ? 'root ignores file modes' : false);
 
     test('a write that fails midway leaves the profile '
@@ -297,7 +300,6 @@ exec /bin/cat "$@"''');
         'specstone: could not write ${sb.home.path}/.zshrc: '
         'remove the specstone line from it yourself\n',
       );
-      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     });
 
     test('when the restore fails too the old content is kept '
@@ -313,7 +315,6 @@ exec /bin/cat "$@"''');
           .firstMatch(r.stderr as String);
       expect(match, isNotNull);
       expect(File(match!.group(1)!).readAsStringSync(), original);
-      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     });
 
     test('two profiles whose writes and restores fail keep '
@@ -399,7 +400,6 @@ exec /usr/bin/mktemp "$@"''');
         'specstone: could not read ${sb.home.path}/.zshrc: '
         'remove the specstone line from it yourself\n',
       );
-      expect((r.stdout as String).trimRight().split('\n').last, pluginLine);
     }, skip: runsAsRoot ? 'root ignores file modes' : false);
 
     test('a failed delete of bin is named, the rest goes on, '
@@ -430,7 +430,6 @@ exec /bin/rm "$@"''');
       expect((r.stdout as String).trimRight().split('\n'), [
         'Removed ${sb.home.path}/.specstone/lib',
         'Removed the PATH entry from ${sb.home.path}/.zshrc',
-        pluginLine,
       ]);
     });
 

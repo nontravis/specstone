@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -41,7 +42,8 @@ const _yamlWords = {'true', 'false', 'null'};
 /// Writes `packs:`, one pin per line in code point order of the name, then a
 /// `code_root:` line only when [codeRoot] is not `.` or [keepCodeRootKey] is
 /// set, then a `targets:` map only when [targets] is not empty, then an
-/// `agent_file_roots:` list only when [agentFileRoots] is not empty; each
+/// `agent_file_roots:` list only when [agentFileRoots] is not empty, then an
+/// `agent_files_version:` line only when [agentFilesVersion] is set; each
 /// scalar is quoted when plain YAML would read it as another value. Throws
 /// [ArgumentError] for an agent file root the reader would refuse, an unnamed
 /// target, or [targets] beside a `code_root:` line.
@@ -54,6 +56,7 @@ String configText(
   bool keepCodeRootKey = false,
   List<CodeTarget> targets = const [],
   List<String> agentFileRoots = const [],
+  ReleaseVersion? agentFilesVersion,
 }) {
   if (targets.isNotEmpty && (codeRoot != '.' || keepCodeRootKey)) {
     throw ArgumentError.value(
@@ -87,8 +90,11 @@ String configText(
   final agentFileRootsLine = rootLines.isEmpty
       ? ''
       : 'agent_file_roots:\n${rootLines.join()}';
+  final agentFilesVersionLine = agentFilesVersion == null
+      ? ''
+      : 'agent_files_version: $agentFilesVersion\n';
   return 'packs:\n${lines.join()}$codeRootLine$targetsLine'
-      '$agentFileRootsLine';
+      '$agentFileRootsLine$agentFilesVersionLine';
 }
 
 /// Returns the lines of [target] under `targets:`.

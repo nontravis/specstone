@@ -28,6 +28,7 @@ import 'package:specstone/src/commands/structure_command.dart';
 import 'package:specstone/src/commands/trust_command.dart';
 import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone/src/update_notice.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Exit status for a usage error (`EX_USAGE` from sysexits), returned when an
@@ -59,9 +60,12 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     GeneratorRegistry<DocIndex>? generators,
     Directory? workingDirectory,
     Directory? homeDirectory,
+    Map<String, String>? environment,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
     UpgradeCommand? upgrade,
+    UpdateNotice? updateNotice,
+    Future<void> Function(String line)? courtesy,
   }) : this._(
          registry: generators ?? journeyGenerators(),
          out: out,
@@ -69,9 +73,12 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
          templates: templates,
          workingDirectory: workingDirectory,
          homeDirectory: homeDirectory,
+         environment: environment,
          busyTimeout: busyTimeout,
          console: console,
          upgrade: upgrade,
+         updateNotice: updateNotice,
+         courtesy: courtesy,
        );
 
   // The registry is resolved once, so the default resolver's kinds come from
@@ -83,18 +90,25 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     required TemplateResolver? templates,
     required Directory? workingDirectory,
     required Directory? homeDirectory,
+    required Map<String, String>? environment,
     required Duration busyTimeout,
     required Console? console,
     required UpgradeCommand? upgrade,
+    required UpdateNotice? updateNotice,
+    required Future<void> Function(String line)? courtesy,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _generators = registry,
        _templates =
            templates ?? TemplateResolver(generatorKinds: registry.kinds),
        _workingDirectory = workingDirectory,
-       _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
+       _environment = environment ?? Platform.environment,
+       _homeDirectory =
+           homeDirectory ?? homeFrom(environment ?? Platform.environment),
        _busyTimeout = busyTimeout,
        _console = console ?? SystemConsole(),
+       _updateNoticeOverride = updateNotice,
+       _courtesy = courtesy,
        super(
          'specstone',
          'Keeps PRD and spec documents for spec-driven development.',
@@ -136,8 +150,20 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final GeneratorRegistry<DocIndex> _generators;
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
+  final Map<String, String> _environment;
   final Duration _busyTimeout;
   final Console _console;
+  final UpdateNotice? _updateNoticeOverride;
+  final Future<void> Function(String line)? _courtesy;
+  var _refusedOnPin = false;
+
+  late final UpdateNotice _updateNotice =
+      _updateNoticeOverride ??
+      UpdateNotice(
+        console: _console,
+        environment: _environment,
+        home: _homeDirectory,
+      );
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -163,6 +189,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// environment names none.
   Directory? get homeDirectory => _homeDirectory;
 
+  /// The process environment, or the one a test supplies.
+  Map<String, String> get environment => _environment;
+
   /// How long a read command waits on another call's index write.
   Duration get busyTimeout => _busyTimeout;
 
@@ -171,6 +200,10 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
 
   @override
   void printUsage() => _out.writeln(usage);
+
+  /// Records that the running command was refused on a pack pin, which names
+  /// its own fix.
+  void recordPinRefusal() => _refusedOnPin = true;
 
   @override
   Future<int?> runCommand(ArgResults topLevelResults) async {
@@ -181,11 +214,84 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       _out.writeln(specstoneVersion);
       return 0;
     }
-    return super.runCommand(topLevelResults);
+    _refusedOnPin = false;
+    if (_namesLeaf(topLevelResults.command)) {
+      _updateNotice.start(_namesOf(topLevelResults.command));
+    }
+    final status = await super.runCommand(topLevelResults);
+    await _printStaleLine(topLevelResults.command);
+    return status;
+  }
+
+  /// Whether [chosen] names the command that `run` executes: a command with
+  /// subcommands needs one of them chosen too.
+  bool _namesLeaf(ArgResults? chosen) {
+    if (chosen == null) return false;
+    var command = commands[chosen.name];
+    var level = chosen;
+    while (command != null && command.subcommands.isNotEmpty) {
+      final next = level.command;
+      if (next == null) return false;
+      command = command.subcommands[next.name];
+      level = next;
+    }
+    return command != null;
+  }
+
+  /// Prints the update notice the check beside the command found, if any.
+  ///
+  /// Never throws: the notice is a courtesy, so a failed write leaves the
+  /// command's output and exit status as they are.
+  Future<void> _printUpdateNotice() async {
+    try {
+      final line = _updateNotice.lineAfter();
+      if (line == null) return;
+      final courtesy = _courtesy;
+      if (courtesy == null) {
+        _err.writeln(line);
+      } else {
+        await courtesy(line);
+      }
+    } on Object {
+      // The command's own result stands whatever the line's write did.
+    }
+  }
+
+  /// Prints the stale-project line when the command that just ended is a row
+  /// of the table that gets it.
+  ///
+  /// Never throws: the line is a courtesy, so a failed lookup or write leaves
+  /// the command's output and exit status as they are.
+  Future<void> _printStaleLine(ArgResults? command) async {
+    try {
+      if (_refusedOnPin || !_endsWithStaleLine(command)) return;
+      final root = matchProjectRoot(workingDirectory)?.root;
+      if (root == null) return;
+      final line = staleProjectLine(root, runningVersion: specstoneVersion);
+      if (line == null) return;
+      final courtesy = _courtesy;
+      if (courtesy == null) {
+        _err.writeln(line);
+      } else {
+        await courtesy(line);
+      }
+    } on Object {
+      // The command's own result stands whatever the line's read or write did.
+    }
   }
 
   @override
   Future<int> run(Iterable<String> args) async {
+    try {
+      final status = await _runUsageGuarded(args);
+      await _printUpdateNotice();
+      return status;
+    } finally {
+      _updateNotice.abandon();
+    }
+  }
+
+  Future<int> _runUsageGuarded(Iterable<String> args) async {
     try {
       return await super.run(_withTargetValue(withBareOut(args))) ?? 0;
     } on UsageException catch (error) {
@@ -197,6 +303,33 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     }
   }
 }
+
+/// The commands that end with no stale-project line: the fix itself, a command
+/// that speaks to another program, and a command that finds no project root.
+const Set<String> _noStaleLineCommands = {
+  'migrate',
+  'init',
+  'hook',
+  'mcp',
+  'help',
+  'upgrade',
+};
+
+/// Whether [command] ends with the stale-project line when its project is
+/// stale: every command but [_noStaleLineCommands], `--help`, and `check` with
+/// no target, whose findings already name the fix.
+bool _endsWithStaleLine(ArgResults? command) {
+  if (command == null || _noStaleLineCommands.contains(command.name)) {
+    return false;
+  }
+  if (command.options.contains('help') && command.flag('help')) return false;
+  return command.name != 'check' || command.rest.isNotEmpty;
+}
+
+/// Returns the names of [command] and the commands under it, top first.
+List<String> _namesOf(ArgResults? command) => [
+  for (var level = command; level != null; level = level.command) ?level.name,
+];
 
 /// Returns [args] with an empty value on each `--target` that has none, so the
 /// command answers `argument_missing` naming the targets, as the shared

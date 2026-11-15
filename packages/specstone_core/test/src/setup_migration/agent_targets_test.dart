@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show planSkillAndAgentFiles;
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -150,6 +154,143 @@ void main() {
         );
       },
     );
+  });
+
+  group('agentFilesStampAfter', () {
+    Map<String, String> settled(Map<String, String> extra) => {
+      'proj/AGENTS.md': _inline(),
+      'proj/.specstone/AGENT.md': agentMdText,
+      for (final MapEntry(:key, :value) in _skillFiles().entries)
+        'proj/$key': value,
+      ...extra,
+    };
+    const staleBlock =
+        '# Owner\n\n<!-- BEGIN specstone v1.0.0 -->\nold\n'
+        '<!-- END specstone -->\n';
+    final held = ReleaseVersion.tryParse('1.0.0');
+    const nothingWritten = AgentWritePlan(
+      rootWrites: [],
+      topWrites: [],
+      agentFileRoots: [],
+      addedRoots: [],
+      writeSet: {},
+    );
+
+    test('files that already match take the running Version, no byte '
+        'changed', () async {
+      final base = await _base(settled({}));
+      final inputs = _inputs(base);
+
+      final stamp = agentFilesStampAfter(
+        inputs,
+        planAgentWrites(inputs, full: false),
+        current: held,
+      );
+
+      expect(stamp.toString(), specstoneVersion);
+    });
+
+    test('a stale block the plan rewrites ends current', () async {
+      final base = await _base(settled({'proj/CLAUDE.md': staleBlock}));
+      final inputs = _inputs(base);
+
+      final stamp = agentFilesStampAfter(
+        inputs,
+        planAgentWrites(inputs, full: false),
+        current: null,
+      );
+
+      expect(stamp.toString(), specstoneVersion);
+    });
+
+    test('a stamp above the running Version is kept', () async {
+      final base = await _base(settled({}));
+      final inputs = _inputs(base);
+      final higher = ReleaseVersion.tryParse('9.0.0');
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: higher,
+        ),
+        same(higher),
+      );
+    });
+
+    test('a dev stamp above the running Version is kept', () async {
+      final base = await _base(settled({}));
+      final inputs = _inputs(base);
+      final dev = ReleaseVersion.tryParse('1.3.0-dev.39');
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: dev,
+        ),
+        same(dev),
+      );
+    });
+
+    test('a stale block the plan leaves keeps the stamp as it was', () async {
+      final base = await _base(settled({'proj/CLAUDE.md': staleBlock}));
+      final inputs = _inputs(base);
+
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: held),
+        same(held),
+      );
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: null),
+        isNull,
+      );
+    });
+
+    test('a skill file the plan trashes ends current, one it leaves does '
+        'not', () async {
+      final base = await _base(
+        settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),
+      );
+      final inputs = _inputs(base);
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: held,
+        ).toString(),
+        specstoneVersion,
+      );
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: held),
+        same(held),
+      );
+    });
+
+    test('an unlisted top the plan lists ends current, one it leaves does '
+        'not', () async {
+      final base = await _base(
+        settled({
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/AGENTS.md': 'Owner\n',
+        }),
+      );
+      final inputs = _inputs(base, code: ['proj/other/']);
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: held,
+        ).toString(),
+        specstoneVersion,
+      );
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: held),
+        same(held),
+      );
+    });
   });
 
   group('repository tops', () {
@@ -1755,5 +1896,332 @@ void main() {
         }
       },
     );
+  });
+
+  group('planAgentWrites with the Claude Code settings file', () {
+    const staleSettings =
+        '{\n'
+        '  "permissions": {"allow": ["Bash(ls)"]},\n'
+        '  "hooks": {\n'
+        '    "PostToolUse": [\n'
+        '      {\n'
+        '        "matcher": "Write",\n'
+        '        "hooks": [\n'
+        '          {"type": "command", "command": "specstone", '
+        '"args": ["hook", "post-edit"]}\n'
+        '        ]\n'
+        '      }\n'
+        '    ]\n'
+        '  }\n'
+        '}\n';
+
+    /// Every skill, agent, and settings file as a run writes it, but for those
+    /// of [skip].
+    Map<String, String> filesBut(Set<String> skip, [String prefix = 'proj/']) =>
+        {
+          for (final MapEntry(:key, :value) in skillFileTexts().entries)
+            if (!skip.contains(key)) '$prefix$key': value,
+        };
+
+    test('a full run creates the file at the root beside the skills', () async {
+      final base = await _base({'proj/.keep': ''});
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      final write = _writeAt(plan, settingsFilePath);
+      expect(write.text, settingsFileText);
+      expect(write.isNew, isTrue);
+      expect(write.before, isNull);
+      expect(write.isAtTop, isFalse);
+      expect(plan.rootWrites, contains(write));
+      expect(plan.writeSet, contains(_real(base, settingsFilePath)));
+      expect(plan.line, 'agent files: ${2 + skillFileCount} files');
+    });
+
+    test(
+      'a full run merges into a stale file and keeps the Owner keys',
+      () async {
+        final base = await _base({
+          ...filesBut({settingsFilePath}),
+          'proj/$settingsFilePath': staleSettings,
+        });
+
+        final plan = planAgentWrites(_inputs(base), full: true);
+
+        final write = _writeAt(plan, settingsFilePath);
+        expect(write.isNew, isFalse);
+        expect(write.before, isNotNull);
+        expect(write.text, contains('"permissions"'));
+        expect(write.text, contains('"Bash(ls)"'));
+        expect(write.text, isNot(contains('"matcher": "Write",')));
+        expect(plan.trash, isEmpty);
+      },
+    );
+
+    test('a group in use plans the file only when it is not current', () async {
+      final current = await _base({
+        ...filesBut({}),
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+      });
+      final missing = await _base({
+        ...filesBut({settingsFilePath}),
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+      });
+      final stale = await _base({
+        ...filesBut({settingsFilePath}),
+        'proj/$settingsFilePath': staleSettings,
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+      });
+
+      expect(planAgentWrites(_inputs(current), full: false).paths, isEmpty);
+      expect(planAgentWrites(_inputs(missing), full: false).paths, [
+        settingsFilePath,
+      ]);
+      expect(planAgentWrites(_inputs(stale), full: false).paths, [
+        settingsFilePath,
+      ]);
+    });
+
+    test('an opted-out group neither reads nor plans the file', () async {
+      final base = await _base({
+        ...filesBut({
+          for (final path in skillPaths())
+            if (path.startsWith('.claude/')) path,
+        }),
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+        'proj/$settingsFilePath': staleSettings,
+      });
+      final inputs = PlanInputs(_at(base, 'proj/'));
+
+      final plan = inputs.collect(
+        () => planAgentWrites(_inputs(base), full: false),
+      );
+
+      expect(plan.paths, isEmpty);
+      expect(inputs.lines, isNot(contains(settingsFilePath)));
+      expect(
+        File(_real(base, settingsFilePath)).readAsStringSync(),
+        staleSettings,
+      );
+    });
+
+    test('a file at a repository top is a top write', () async {
+      final base = await _base({
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+        ...filesBut({}),
+        'proj/other/.git/HEAD': 'ref\n',
+        'proj/other/lib/a': '',
+      });
+
+      final plan = planAgentWrites(
+        _inputs(base, code: ['proj/other/lib/']),
+        full: false,
+      );
+
+      final write = _writeAt(plan, 'other/$settingsFilePath');
+      expect(write.isAtTop, isTrue);
+      expect(
+        plan.rootWrites.map((write) => write.path),
+        isNot(contains(write.path)),
+      );
+      expect(plan.topWrites, contains(write));
+    });
+
+    test('a malformed file refuses naming it, dry run or not, and writes '
+        'nothing', () async {
+      for (final text in [
+        '{"hooks": ',
+        '[]\n',
+        '{"hooks": []}\n',
+        '{"hooks": {"PostToolUse": {}}}\n',
+        '// c\n{}\n',
+      ]) {
+        final base = await _base({'proj/$settingsFilePath': text});
+
+        for (final full in [true, false]) {
+          final inputs = _inputs(base);
+          // `full: false` takes part through a specstone entry.
+          if (!full) {
+            File(_real(base, '.claude/skills/specstone-x/SKILL.md'))
+              ..parent.createSync(recursive: true)
+              ..writeAsStringSync('x');
+          }
+
+          expect(
+            () => planAgentWrites(inputs, full: full),
+            throwsA(
+              isA<MigrateFault>()
+                  .having(
+                    (f) => f.code,
+                    'code',
+                    MigrateFaultCode.agentBlockMalformed,
+                  )
+                  .having((f) => f.file, 'file', settingsFilePath),
+            ),
+            reason: '$text full: $full',
+          );
+        }
+        expect(File(_real(base, settingsFilePath)).readAsStringSync(), text);
+      }
+    });
+
+    test(
+      'a settings path that is a folder refuses with its own wording',
+      () async {
+        final base = await _base({'proj/$settingsFilePath/keep': 'x'});
+
+        expect(
+          () => planAgentWrites(_inputs(base), full: true),
+          throwsA(
+            isA<MigrateFault>()
+                .having((f) => f.file, 'file', settingsFilePath)
+                .having((f) => f.message, 'message', contains('is not a file'))
+                .having(
+                  (f) => f.message,
+                  'message',
+                  isNot(contains('one JSON object')),
+                ),
+          ),
+        );
+      },
+    );
+
+    test('a hand-laid-out current settings file plans no write', () async {
+      const current =
+          '{\r\n\t"hooks": {\r\n\t\t"PostToolUse": [\r\n\t\t\t{\r\n'
+          '\t\t\t\t"matcher": "Write|Edit",\r\n\t\t\t\t"hooks": [\r\n'
+          '\t\t\t\t\t{"type": "command", "command": "specstone", '
+          '"args": ["hook", "post-edit"]}\r\n\t\t\t\t]\r\n\t\t\t}\r\n'
+          '\t\t]\r\n\t}\r\n}';
+      final base = await _base({
+        ...filesBut({settingsFilePath}),
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+      });
+      File(_real(base, settingsFilePath))
+          .writeAsBytesSync(utf8.encode(current));
+
+      final skills = planSkillAndAgentFiles(_inputs(base), full: true);
+
+      expect(skills.writes, isEmpty);
+      expect(skills.malformedSettings, isEmpty);
+      expect(planAgentWrites(_inputs(base), full: true).paths, isEmpty);
+      expect(planAgentWrites(_inputs(base), full: false).paths, isEmpty);
+    });
+
+    test('bytes that are not UTF-8 refuse the same', () async {
+      final base = await _base({'proj/.keep': ''});
+      File(_real(base, settingsFilePath))
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([0x7b, 0x22, 0xff, 0x22, 0x7d]);
+
+      expect(
+        () => planAgentWrites(_inputs(base), full: true),
+        throwsA(
+          isA<MigrateFault>().having((f) => f.file, 'file', settingsFilePath),
+        ),
+      );
+    });
+
+    test('a malformed file beside a malformed block names both', () async {
+      final base = await _base({
+        'proj/$settingsFilePath': 'nope',
+        'proj/AGENTS.md': '<!-- BEGIN specstone v1.0.0 -->\nx\n',
+      });
+
+      expect(
+        () => planAgentWrites(_inputs(base), full: true),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.file, 'first', 'AGENTS.md')
+              .having((f) => f.more.map((more) => more.file), 'more', [
+                settingsFilePath,
+              ]),
+        ),
+      );
+    });
+
+    test('an opted-out group with a malformed file refuses nothing', () async {
+      final base = await _base({
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+        'proj/$settingsFilePath': 'nope',
+      });
+
+      expect(planAgentWrites(_inputs(base), full: false).paths, isEmpty);
+    });
+
+    test('the plan hash follows the bytes of the file', () async {
+      final base = await _base({
+        ...filesBut({settingsFilePath}),
+        'proj/$settingsFilePath': staleSettings,
+      });
+      String hashOf() {
+        final inputs = PlanInputs(_at(base, 'proj/'))
+          ..collect(() => planAgentWrites(_inputs(base), full: true));
+        return planHashOf('plan', inputs);
+      }
+
+      final before = hashOf();
+      File(
+        _real(base, settingsFilePath),
+      ).writeAsStringSync(staleSettings.replaceFirst('Bash(ls)', 'Bash(pwd)'));
+
+      expect(hashOf(), isNot(before));
+    });
+
+    test('a Specstone handler the binary does not write is merged, never '
+        'trashed', () async {
+      final base = await _base({
+        ...filesBut({settingsFilePath}),
+        'proj/$settingsFilePath': staleSettings.replaceFirst(
+          '"post-edit"',
+          '"session-start"',
+        ),
+      });
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      expect(plan.trash, isEmpty);
+      expect(plan.trashFiles, isEmpty);
+      expect(
+        _writeAt(plan, settingsFilePath).text,
+        isNot(contains('session-start')),
+      );
+    });
+  });
+
+  group('agentFixDirectionOf', () {
+    test('no stamp or one below the running Version picks '
+        'migrate', () {
+      expect(agentFixDirectionOf(null), AgentFixDirection.migrate);
+      expect(
+        agentFixDirectionOf(ReleaseVersion.tryParse('0.0.1')),
+        AgentFixDirection.migrate,
+      );
+    });
+
+    test('the running Version picks migrate', () {
+      expect(agentFixDirectionOf(runningVersion), AgentFixDirection.migrate);
+    });
+
+    test('a dev stamp above the running Version picks upgrade', () {
+      expect(
+        agentFixDirectionOf(ReleaseVersion.tryParse('1.3.0-dev.39')),
+        AgentFixDirection.upgrade,
+      );
+    });
+
+    test('a stamp above the running Version picks upgrade', () {
+      expect(
+        agentFixDirectionOf(ReleaseVersion.tryParse('99.0.0')),
+        AgentFixDirection.upgrade,
+      );
+    });
   });
 }

@@ -145,7 +145,9 @@ int _scaffold(Directory root, InitRequest request) {
     packNames: carriedPacks,
     homeDirectory: request.homeDirectory,
   );
-  final agentPlan = _planAgentFiles(root, set);
+  final agentInputs = _agentInputsOf(root, set);
+  final agentPlan = planAgentWrites(agentInputs, full: true);
+  final stamp = agentFilesStampAfter(agentInputs, agentPlan, current: null);
   agentPlan.skipped.forEach(request.warn);
   final docsRoot = Directory.fromUri(root.uri.resolve('docs/'));
   for (final docType in singularDocTypes(set)) {
@@ -163,7 +165,11 @@ int _scaffold(Directory root, InitRequest request) {
   _writeNew(
     root,
     File.fromUri(root.uri.resolve(projectConfigPath)),
-    configText(pins, agentFileRoots: agentPlan.agentFileRoots),
+    configText(
+      pins,
+      agentFileRoots: agentPlan.agentFileRoots,
+      agentFilesVersion: stamp,
+    ),
     shown: projectConfigPath,
   );
   final list = [
@@ -174,21 +180,18 @@ int _scaffold(Directory root, InitRequest request) {
   return 0;
 }
 
-/// Returns the full agent file plan of a new project at [root].
-AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
+/// Returns the agent file inputs of a new project at [root].
+AgentFileInputs _agentInputsOf(Directory root, MergedSet set) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
-  return planAgentWrites(
-    AgentFileInputs(
-      projectRoot: projectRoot,
-      cliVersion: specstoneVersion,
-      codeRootFolders: codeFoldersOf(
-        projectRoot,
-        set,
-        targets: const [CodeTarget(null, codeRoot: '.')],
-      ),
-      agentFileRoots: const [],
+  return AgentFileInputs(
+    projectRoot: projectRoot,
+    cliVersion: specstoneVersion,
+    codeRootFolders: codeFoldersOf(
+      projectRoot,
+      set,
+      targets: const [CodeTarget(null, codeRoot: '.')],
     ),
-    full: true,
+    agentFileRoots: const [],
   );
 }
 

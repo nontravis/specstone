@@ -104,6 +104,43 @@ void main() {
       expect(status, readerGoneExitCode);
     });
 
+    test('keeps the command status when only a courtesy line meets the gone '
+        'reader of stderr', () async {
+      final errSink = IOSink(_Consumer(_readerGone));
+      final courtesy = CourtesyWrites(errSink);
+
+      final status = await guardOutput(
+        () async {
+          await courtesy.writeln('a courtesy line');
+          return 5;
+        },
+        out: IOSink(_Consumer()),
+        err: errSink,
+        courtesy: courtesy,
+      );
+
+      expect(status, 5);
+    });
+
+    test('returns $readerGoneExitCode when the command wrote to the gone '
+        'reader of stderr before the courtesy line', () async {
+      final errSink = IOSink(_Consumer(_readerGone));
+      final courtesy = CourtesyWrites(errSink);
+
+      final status = await guardOutput(
+        () async {
+          errSink.writeln('a fault');
+          await courtesy.writeln('a courtesy line');
+          return 5;
+        },
+        out: IOSink(_Consumer()),
+        err: errSink,
+        courtesy: courtesy,
+      );
+
+      expect(status, readerGoneExitCode);
+    });
+
     test('returns $outputFailedExitCode and names the OS error on stderr when '
         'a stdout write fails another way', () async {
       final err = _Consumer();

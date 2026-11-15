@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
@@ -6,7 +5,6 @@ import 'package:specstone_core/src/setup_migration/agent_assets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:test/test.dart';
 
-import '../helpers/hook_command.dart';
 import '../helpers/plugin_content.dart';
 import '../helpers/temp_tree.dart';
 
@@ -198,52 +196,9 @@ void main() {
     ]);
   });
 
-  test("no shipped plugin file presumes the Owner's "
+  test("no shipped file presumes the Owner's "
       'language with a letter outside the Latin script', () {
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
-    expect(nonLatinLetterLines(pluginRoot()), isEmpty);
-  });
-
-  test('f08/us06/fr01, f09/us05/fr01/e05, ms-r12: hooks.json keeps only the '
-      'PostToolUse Write|Edit hook beside the SessionStart entry', () {
-    final decoded = jsonDecode(
-      File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
-          .readAsStringSync(),
-    ) as Map<String, dynamic>;
-    final hooks = decoded['hooks'] as Map<String, dynamic>;
-    expect(hooks.keys, unorderedEquals(['PostToolUse', 'SessionStart']));
-    expect(hooks['PostToolUse'], [
-      {
-        'matcher': 'Write|Edit',
-        'hooks': [
-          {
-            'type': 'command',
-            'command': r'/bin/sh "${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"',
-          },
-        ],
-      },
-    ]);
-    final hook = SpecstoneCommandRunner().commands['hook'];
-    expect(hook?.subcommands.keys, unorderedEquals(['post-edit']));
-  });
-
-  test('g8-r11: every script hooks.json names exists under hooks/', () {
-    final decoded = jsonDecode(
-      File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
-          .readAsStringSync(),
-    ) as Map<String, dynamic>;
-    final scriptNamed = RegExp(r'/hooks/([\w.-]+\.sh)"$');
-
-    for (final event in (decoded['hooks'] as Map<String, dynamic>).keys) {
-      final name = scriptNamed.firstMatch(hookCommandOf(event))?.group(1);
-
-      expect(name, isNotNull, reason: '$event names no script under hooks/');
-      expect(
-        File.fromUri(pluginRoot().uri.resolve('hooks/$name')).existsSync(),
-        isTrue,
-        reason: '$event names hooks/$name',
-      );
-    }
   });
 
   _assetLayoutTests();
@@ -341,7 +296,7 @@ void _agentFileTests() {
   test('no plugin file names '
       'mktemp or a file outside the repository', () {
     final problems = <String>[];
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       final path = shippedPathOf(file);
       final text = _oneLine(file.readAsStringSync());
       for (final banned in ['mktemp', 'outside the repository']) {
@@ -607,7 +562,7 @@ void _assetLayoutTests() {
       .where((file) => !isSkillSourcePath(shippedPathOf(file)));
 
   test('the plugin folder holds no skills folder and no agents folder', () {
-    final shipped = shippedFiles().map(shippedPathOf);
+    final shipped = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
     for (final folder in const ['skills', 'agents']) {
       expect(
         shipped.where((path) => path.startsWith('$folder/')),
@@ -639,29 +594,30 @@ void _assetLayoutTests() {
     }
   });
 
-  test('the source walk sees the twelve sources, leaves AGENT.md out, and '
-      'the shipped walk adds the hooks', () async {
-    final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
-    expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
-    expect(
-      seen.where((path) => !isSkillSourcePath(path)),
-      unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
-    );
-    expect(seen, isNot(contains('AGENT.md')));
-    expect(shippedFiles().map(shippedPathOf), contains('hooks/hooks.json'));
+  test(
+    'the source walk sees the twelve sources and leaves AGENT.md out',
+    () async {
+      final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
+      expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
+      expect(
+        seen.where((path) => !isSkillSourcePath(path)),
+        unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
+      );
+      expect(seen, isNot(contains('AGENT.md')));
 
-    final root = await writeTree({
-      'AGENT.md': 'text',
-      'specstone-x/SKILL.md': 'text',
-      'specstone-y.md': 'text',
-      'other/SKILL.md': 'text',
-      'other.md': 'text',
-    });
-    expect(agentSourceFiles(root).map((file) => file.uri.pathSegments.last), [
-      'SKILL.md',
-      'specstone-y.md',
-    ]);
-  });
+      final root = await writeTree({
+        'AGENT.md': 'text',
+        'specstone-x/SKILL.md': 'text',
+        'specstone-y.md': 'text',
+        'other/SKILL.md': 'text',
+        'other.md': 'text',
+      });
+      expect(agentSourceFiles(root).map((file) => file.uri.pathSegments.last), [
+        'SKILL.md',
+        'specstone-y.md',
+      ]);
+    },
+  );
 
   test('the nine skills and three agents are all there', () {
     expect(
@@ -1045,7 +1001,7 @@ void _handOffTests() {
 
   test('no shipped plugin file holds the relay line or '
       'routed by', () {
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       final text = file.readAsStringSync();
       expect(text, isNot(contains(_relayLine)), reason: file.path);
       expect(text, isNot(contains('routed by')), reason: file.path);
@@ -1106,7 +1062,7 @@ void _handOffTests() {
         '(waits for the Owner), as printed>',
       ),
     );
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       expect(
         _oneLine(file.readAsStringSync().replaceAll('`', '')),
         isNot(contains('unconfirmed link on a draft')),
@@ -1376,7 +1332,7 @@ void _handOffTests() {
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final hits = <String>[];
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       final path = shippedPathOf(file);
       final text = _oneLine(file.readAsStringSync());
       for (final match in _nameCite.allMatches(text)) {
@@ -1503,7 +1459,7 @@ void _handOffTests() {
 
     test('no skill reads the approve mode from a shell', () {
       final holders = [
-        for (final file in shippedFiles())
+        for (final file in agentSourceFiles(agentAssetsRoot()))
           if (file.readAsStringSync().contains('SPECSTONE_APPROVE_MODE'))
             shippedPathOf(file),
       ];
@@ -4113,7 +4069,7 @@ void _sizeFixTests() {
       _pluginText('specstone-sdd-engineer.md'),
       contains('`.agents/skills/$_sizeFix`'),
     );
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       if (file.uri.path.endsWith(_sizeFix)) continue;
       expect(
         _oneLine(file.readAsStringSync()),

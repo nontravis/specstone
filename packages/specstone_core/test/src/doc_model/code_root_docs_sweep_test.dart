@@ -21,7 +21,6 @@ const _codeRoots = [
   'packages/specstone_core/tool/',
   'packages/specstone/lib/',
   'packages/specstone/bin/',
-  'plugin/',
   'tool/',
   '.github/workflows/',
   'install.sh',
@@ -138,11 +137,11 @@ void main() {
       'file is not', () async {
     final index = await indexWith();
     final root = await writeTree({
-      'plugin/CLAUDE.md': 'Read `auth_tokens`.\n',
-      'plugin/notes.md': 'Read `auth_tokens`.\n',
+      'scripts/CLAUDE.md': 'Read `auth_tokens`.\n',
+      'scripts/notes.md': 'Read `auth_tokens`.\n',
     });
-    expect(_mentionsUnder(root, const ['plugin/'], index), [
-      'plugin/notes.md:1: auth_tokens',
+    expect(_mentionsUnder(root, const ['scripts/'], index), [
+      'scripts/notes.md:1: auth_tokens',
     ]);
   });
 

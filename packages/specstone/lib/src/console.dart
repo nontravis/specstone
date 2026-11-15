@@ -13,6 +13,9 @@ abstract interface class Console {
   /// Whether stdout is an interactive terminal.
   bool get stdoutIsTerminal;
 
+  /// Whether stderr is an interactive terminal.
+  bool get stderrIsTerminal;
+
   /// Whether the user asked for no colour (`NO_COLOR` set and not empty).
   bool get noColor;
 
@@ -45,6 +48,9 @@ final class SystemConsole implements Console {
 
   @override
   bool get stdoutIsTerminal => stdout.hasTerminal;
+
+  @override
+  bool get stderrIsTerminal => stderr.hasTerminal;
 
   @override
   bool get noColor => (Platform.environment['NO_COLOR'] ?? '').isNotEmpty;

@@ -38,11 +38,6 @@ final List<_VersionSpot> _spots = [
     RegExp(r'(^version: )(\S+)', multiLine: true),
   ),
   _VersionSpot(
-    'plugin/.claude-plugin/plugin.json',
-    'plugin/.claude-plugin/plugin.json',
-    RegExp(r'("version"\s*:\s*")([^"]*)'),
-  ),
-  _VersionSpot(
     'packages/specstone/pubspec.yaml (specstone_core constraint)',
     'packages/specstone/pubspec.yaml',
     RegExp(r'(^\s+specstone_core:\s*\^)(\S+)', multiLine: true),
@@ -402,8 +397,8 @@ Future<void> _checkRefNames(String version) async {
 
 List<String> _planSteps(String v, {required bool isPreRelease}) => [
   'create release/$v from develop',
-  'set $v in the five version spots',
-  're-read the five spots; run dart pub get --enforce-lockfile',
+  'set $v in the four version spots',
+  're-read the four spots; run dart pub get --enforce-lockfile',
   'commit "chore: release $v"; tag v$v on it',
   'push tag v$v',
   _waitStep(v),
@@ -533,14 +528,14 @@ String _runAgain(String version) =>
     'run dart run tool/release.dart $version again from release/$version';
 
 /// Returns `<label> holds <value>` for each spot not at [version], joined by
-/// `; `; empty when all five hold it.
+/// `; `; empty when all four hold it.
 String _spotsNotHolding(String root, String version) =>
     readSpots(root).entries
         .where((e) => e.value != version)
         .map((e) => '${e.key} holds ${e.value}')
         .join('; ');
 
-/// Bumps the five spots on `release/<version>`, commits, and tags.
+/// Bumps the four spots on `release/<version>`, commits, and tags.
 ///
 /// Returns the tagged commit. A spot left behind or a failed
 /// `dart pub get` undoes the bump and refuses before the commit.

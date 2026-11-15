@@ -13,6 +13,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/release_version.dart' show ReleaseVersion;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
@@ -65,6 +66,7 @@ const _layoutAndAgentCommit2Message =
     'lay docs out and refresh the Specstone agent files';
 const _treeMoveCommit2Message = 'point links at the moved spec docs';
 const _agentFileRootsKey = 'agent_file_roots';
+const _agentFilesVersionKey = 'agent_files_version';
 const _renumberChange = 'renumber ids';
 const _labelChange = 'convert number labels';
 const _stampChange = 'stamp approvals';
@@ -358,7 +360,12 @@ RunPlan _upgradeRunOf(
     if (lf != work.lf) work.changes.add(_renumberChange);
     renumbered.add(lf);
   }
-  final agentFiles = _agentFilesOf(root, upgrades, set: finalSet);
+  final agentInputs = _agentInputsOf(root, config, set: finalSet);
+  final agentFiles = planAgentWrites(
+    agentInputs,
+    full: runsOneTimePasses(upgrades),
+    shipsSkills: shipsSkillFiles(upgrades),
+  );
   final labels = isOneTime
       ? LabelPass.plan(
           [
@@ -480,6 +487,12 @@ RunPlan _upgradeRunOf(
     agentFileRoots: agentFiles.addedRoots.isEmpty
         ? null
         : agentFiles.agentFileRoots,
+    agentFilesVersion: _stampOf(
+      agentInputs,
+      agentFiles,
+      config,
+      isConfigWritten: upgrades.isNotEmpty || !agentFiles.isEmpty,
+    ),
   );
 
   List<String> pathsAt(int index) {
@@ -821,24 +834,37 @@ String _withScalarsReplaced(String lf, List<(YamlScalar, String)> edits) {
   return text;
 }
 
-/// Plans the agent files step of the upgrade of [root] to [upgrades].
-AgentWritePlan _agentFilesOf(
+/// Returns the agent file inputs of the upgrade of [root], whose [config] it
+/// has read.
+AgentFileInputs _agentInputsOf(
   Directory root,
-  List<PackUpgrade> upgrades, {
+  ProjectConfig config, {
   required MergedSet set,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
-  final config = ProjectConfig.read(projectRoot);
-  return planAgentWrites(
-    AgentFileInputs(
-      projectRoot: projectRoot,
-      cliVersion: specstoneVersion,
-      codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
-      agentFileRoots: config.agentFileRoots,
-    ),
-    full: runsOneTimePasses(upgrades),
-    shipsSkills: shipsSkillFiles(upgrades),
+  return AgentFileInputs(
+    projectRoot: projectRoot,
+    cliVersion: specstoneVersion,
+    codeRootFolders: codeFoldersOf(projectRoot, set, targets: config.targets),
+    agentFileRoots: config.agentFileRoots,
   );
+}
+
+/// Returns the `agent_files_version` the run sets, or null when it leaves the
+/// key: a run that writes no config, or one whose stamp [config] already holds.
+ReleaseVersion? _stampOf(
+  AgentFileInputs inputs,
+  AgentWritePlan plan,
+  ProjectConfig config, {
+  required bool isConfigWritten,
+}) {
+  if (!isConfigWritten) return null;
+  final held = config.agentFilesVersion;
+  final stamp = agentFilesStampAfter(inputs, plan, current: held);
+  if (stamp == null || (held != null && stamp.compareTo(held) == 0)) {
+    return null;
+  }
+  return stamp;
 }
 
 /// Whether [upgrades] move a prd-core or software-tech pin from below its
@@ -885,14 +911,18 @@ final class _DocWork {
 }
 
 /// Returns the rewrite of `config.yaml` that moves the pins of [upgrades] and
-/// sets `agent_file_roots` to [agentFileRoots] when it is not null, every other
-/// byte kept, or null when neither changes.
+/// sets `agent_file_roots` to [agentFileRoots] and `agent_files_version` to
+/// [agentFilesVersion] when each is not null, every other byte kept, or null
+/// when none changes.
 PlannedRewrite? _configRewriteOf(
   Directory root,
   List<PackUpgrade> upgrades, {
   required List<String>? agentFileRoots,
+  required ReleaseVersion? agentFilesVersion,
 }) {
-  if (upgrades.isEmpty && agentFileRoots == null) return null;
+  if (upgrades.isEmpty && agentFileRoots == null && agentFilesVersion == null) {
+    return null;
+  }
   final original = readDocText(
     readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
   );
@@ -903,6 +933,9 @@ PlannedRewrite? _configRewriteOf(
       (packs.nodes[upgrade.pack]! as YamlScalar, '${upgrade.target}'),
   ]);
   if (agentFileRoots != null) text = _withAgentFileRoots(text, agentFileRoots);
+  if (agentFilesVersion != null) {
+    text = _withAgentFilesVersion(text, agentFilesVersion);
+  }
   return PlannedRewrite(
     path: projectConfigPath,
     text: writtenText(original, text),
@@ -910,26 +943,43 @@ PlannedRewrite? _configRewriteOf(
     changes: [
       if (upgrades.isNotEmpty) 'pins',
       if (agentFileRoots != null) _agentFileRootsKey,
+      if (agentFilesVersion != null) _agentFilesVersionKey,
     ],
   );
 }
 
 /// Returns [text] with the `agent_file_roots` entry set to [roots]: replaced
 /// in place when present, else appended.
+String _withAgentFileRoots(String text, List<String> roots) => _withKeyBlock(
+  text,
+  _agentFileRootsKey,
+  configText(const {}, agentFileRoots: roots).substring('packs:\n'.length),
+);
+
+/// Returns [text] with the `agent_files_version` entry set to [version]:
+/// replaced in place when present, else appended.
+String _withAgentFilesVersion(String text, ReleaseVersion version) =>
+    _withKeyBlock(
+      text,
+      _agentFilesVersionKey,
+      configText(
+        const {},
+        agentFilesVersion: version,
+      ).substring('packs:\n'.length),
+    );
+
+/// Returns [text] with the top-level [key] set to [block], its whole lines:
+/// replaced in place when present, else appended.
 ///
 /// The replacement covers through the end of the value's last line, so a null
 /// value (the bare key) and an end-of-line comment on the value both leave a
-/// valid list; the comment is dropped.
-String _withAgentFileRoots(String text, List<String> roots) {
-  final block = configText(
-    const {},
-    agentFileRoots: roots,
-  ).substring('packs:\n'.length);
+/// valid entry; the comment is dropped.
+String _withKeyBlock(String text, String key, String block) {
   final map = loadYamlNode(text) as YamlMap;
-  final value = map.nodes[_agentFileRootsKey];
+  final value = map.nodes[key];
   if (value == null) return '${text.endsWith('\n') ? text : '$text\n'}$block';
-  final key = map.nodes.keys.firstWhere(
-    (key) => (key as YamlNode).value == _agentFileRootsKey,
+  final keyNode = map.nodes.keys.firstWhere(
+    (node) => (node as YamlNode).value == key,
   ) as YamlNode;
   var valueEnd = value.span.end.offset;
   if (valueEnd > 0 && text[valueEnd - 1] == '\n') {
@@ -938,7 +988,7 @@ String _withAgentFileRoots(String text, List<String> roots) {
   }
   final newline = text.indexOf('\n', valueEnd);
   return text.replaceRange(
-    key.span.start.offset,
+    keyNode.span.start.offset,
     newline == -1 ? text.length : newline + 1,
     block,
   );

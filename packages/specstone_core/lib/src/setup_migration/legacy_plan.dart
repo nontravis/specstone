@@ -22,6 +22,7 @@ import 'package:specstone_core/src/index_query/index_store.dart'
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show IndexedDoc;
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/release_version.dart' show ReleaseVersion;
 import 'package:specstone_core/src/rendering/formatter.dart'
     show headerKey, layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
@@ -208,10 +209,16 @@ RunPlan _legacyRunOf(
         : null,
   );
 
-  final agentFiles = _agentFilesOf(
+  final agentInputs = _agentInputsOf(
     root,
     targets: targets,
     agentFileRoots: existing?.agentFileRoots ?? const [],
+  );
+  final agentFiles = planAgentWrites(agentInputs, full: true);
+  final agentFilesVersion = agentFilesStampAfter(
+    agentInputs,
+    agentFiles,
+    current: existing?.agentFilesVersion,
   );
   final mentions = _staleMentionsOf(
     root,
@@ -230,6 +237,7 @@ RunPlan _legacyRunOf(
           codeRoot: codeRoot,
           note: codeRootNote,
           agentFileRoots: agentFiles.agentFileRoots,
+          agentFilesVersion: agentFilesVersion,
         );
 
   final plan = RunPlan(
@@ -263,6 +271,7 @@ RunPlan _legacyRunOf(
             pins,
             codeRoot: codeRoot,
             agentFileRoots: agentFiles.agentFileRoots,
+            agentFilesVersion: agentFilesVersion,
           ),
           note: ': ${_pinList(pins)}$codeRootNote',
         ),
@@ -320,32 +329,30 @@ List<StaleMention> _staleMentionsOf(
   );
 }
 
-/// Plans the agent files of the legacy run: the full upsert at the root and at
-/// each unlisted repository top inside the project root.
+/// Returns the agent file inputs of the legacy run, whose plan is the full
+/// upsert at the root and at each unlisted repository top inside the project
+/// root.
 ///
 /// The legacy tree holds no `code:` entry, so the code roots are those of
 /// [targets] alone.
-AgentWritePlan _agentFilesOf(
+AgentFileInputs _agentInputsOf(
   Directory root, {
   required List<CodeTarget> targets,
   required List<String> agentFileRoots,
 }) {
   final projectRoot = Directory(root.resolveSymbolicLinksSync());
-  return planAgentWrites(
-    AgentFileInputs(
-      projectRoot: projectRoot,
-      cliVersion: specstoneVersion,
-      codeRootFolders: [
-        for (final target in targets)
-          ...codeRootFolders(
-            projectRoot,
-            codeRoot: target.codeRoot,
-            codeEntries: const [],
-          ),
-      ],
-      agentFileRoots: agentFileRoots,
-    ),
-    full: true,
+  return AgentFileInputs(
+    projectRoot: projectRoot,
+    cliVersion: specstoneVersion,
+    codeRootFolders: [
+      for (final target in targets)
+        ...codeRootFolders(
+          projectRoot,
+          codeRoot: target.codeRoot,
+          codeEntries: const [],
+        ),
+    ],
+    agentFileRoots: agentFileRoots,
   );
 }
 
@@ -898,7 +905,8 @@ bool _existsIn(Directory docsRoot, String path) =>
 /// [codeRoot] is the config's own value, or the one inferred for a config with
 /// no key; a config that holds the key keeps its line, `.` included, and one
 /// that holds `targets:` has no such line. [note] ends the plan line.
-/// [agentFileRoots] is the full list the run leaves in the config.
+/// [agentFileRoots] is the full list the run leaves in the config, and
+/// [agentFilesVersion] the stamp it leaves.
 PlannedRewrite? _configRewriteOf(
   File config,
   ProjectConfig existing,
@@ -906,6 +914,7 @@ PlannedRewrite? _configRewriteOf(
   required String codeRoot,
   required String note,
   required List<String> agentFileRoots,
+  required ReleaseVersion? agentFilesVersion,
 }) {
   final targets = [
     for (final target in existing.targets)
@@ -917,6 +926,7 @@ PlannedRewrite? _configRewriteOf(
     keepCodeRootKey: existing.hasCodeRoot,
     targets: targets,
     agentFileRoots: agentFileRoots,
+    agentFilesVersion: agentFilesVersion,
   );
   final current = utf8.decode(readPlanInput(config));
   if (text == current) return null;

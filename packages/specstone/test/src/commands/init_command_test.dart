@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -44,7 +45,7 @@ void main() {
     expect(out.toString(), endsWith(_configLine()));
     expect(
       File('${root.path}/.specstone/config.yaml').readAsStringSync(),
-      shippedPinsConfig(),
+      '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n',
     );
   });
 
@@ -89,6 +90,54 @@ void main() {
         reason: file.path,
       );
     }
+  });
+
+  test('init prints created for a new settings file and updated for an '
+      'existing one', () async {
+    final fresh = await writeTree({'keep.txt': 'x\n'});
+    final existing = await writeTree({'.claude/settings.json': '{}\n'});
+    final first = writeRunner(fresh);
+    final second = writeRunner(existing);
+
+    expect(await first.runner.run(['init']), 0);
+    expect(await second.runner.run(['init']), 0);
+
+    expect(first.out.toString(), contains('\ncreated .claude/settings.json\n'));
+    expect(
+      second.out.toString(),
+      contains('\nupdated .claude/settings.json\n'),
+    );
+    expect(first.err.toString(), isEmpty);
+  });
+
+  test(
+    'init refuses a malformed settings file, exit 65, writing nothing',
+    () async {
+      final root = await writeTree({'.claude/settings.json': '{ not json'});
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['init']), 65);
+
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('.claude/settings.json'));
+      expect(Directory('${root.path}/.specstone').existsSync(), isFalse);
+      expect(
+        File('${root.path}/.claude/settings.json').readAsStringSync(),
+        '{ not json',
+      );
+    },
+  );
+
+  test('init prints no old plugin line, even with the plugin on', () async {
+    final root = await writeTree({
+      '.claude/settings.json':
+          '{"enabledPlugins": {"specstone@specstone": true}}',
+    });
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init']), 0);
+
+    expect(err.toString(), isEmpty);
   });
 
   test('init writes '

@@ -12,14 +12,18 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/skill_files.dart' show settingsFilePath, settingsFileText;
 import '../../helpers/temp_tree.dart';
 
 final List<RenderedFile> _rendered = renderHostFiles();
 
-/// Every rendered file of [folders], by its path from the root.
+/// Every rendered file of [folders], by its path from the root, and the
+/// settings file when a folder of the Claude Code group is among them.
 Map<String, String> _renderedIn(Iterable<AgentFolder> folders) => {
   for (final file in _rendered)
     if (folders.contains(file.folder)) file.path: file.text,
+  if (folders.any((folder) => folder.group == AgentFolderGroup.claudeCode))
+    settingsFilePath: settingsFileText,
 };
 
 Map<String, String> get _allRendered => _renderedIn(AgentFolder.values);
@@ -57,21 +61,31 @@ Set<String> _writtenPaths(SkillFilePlan plan) => {
   for (final write in plan.writes) write.path,
 };
 
-/// The drift list a plan implies: a write is missing or differs, a trash entry
-/// is unshipped.
+/// The drift list a plan implies for the skill and agent files: a write is
+/// missing or differs, a trash entry is unshipped. The settings file is left
+/// to the caller's explicit kinds, so no mapping here mirrors the code's.
 Map<String, SkillFileDriftKind> _driftsOf(SkillFilePlan plan) => {
   for (final write in plan.writes)
-    write.path: write.isNew
-        ? SkillFileDriftKind.missing
-        : SkillFileDriftKind.differs,
+    if (!write.path.endsWith(settingsFilePath))
+      write.path: write.isNew
+          ? SkillFileDriftKind.missing
+          : SkillFileDriftKind.differs,
   for (final path in plan.trash) path: SkillFileDriftKind.unshipped,
 };
 
-void _expectDriftsMatchPlan(AgentFileInputs inputs) {
+/// Checks that the drifts are the plan's skill and agent drifts plus exactly
+/// the [settings] kinds named by path, written out by the caller.
+void _expectDriftsMatchPlan(
+  AgentFileInputs inputs, {
+  Map<String, SkillFileDriftKind> settings = const {},
+}) {
   final plan = planSkillAndAgentFiles(inputs, full: false);
   final drifts = skillAndAgentFileDrifts(inputs);
-  expect({for (final drift in drifts) drift.path: drift.kind}, _driftsOf(plan));
-  expect(drifts, hasLength(plan.writes.length + plan.trash.length));
+  expect(
+    {for (final drift in drifts) drift.path: drift.kind},
+    {..._driftsOf(plan), ...settings},
+  );
+  expect(drifts, hasLength(_driftsOf(plan).length + settings.length));
 }
 
 void main() {
@@ -298,7 +312,10 @@ void main() {
         '.agents/skills/specstone-gone',
       ]);
       expect(_writtenPaths(plan).any((path) => path.contains('-old')), isFalse);
-      _expectDriftsMatchPlan(_inputs(base));
+      _expectDriftsMatchPlan(
+        _inputs(base),
+        settings: {settingsFilePath: SkillFileDriftKind.settingsMissing},
+      );
     });
 
     test(
@@ -431,7 +448,8 @@ void main() {
       final plan = planSkillAndAgentFiles(_inputs(base), full: true);
 
       expect(plan.writes.map((write) => write.path), [
-        for (final path in _renderedIn([AgentFolder.claudeAgents]).keys) path,
+        for (final path in _renderedIn([AgentFolder.claudeAgents]).keys)
+          if (path != settingsFilePath) path,
       ]);
       for (final write in plan.writes) {
         File(_at(base, 'proj/${write.path}').path)
@@ -768,7 +786,12 @@ void main() {
       });
       expect(plan.writes.every((write) => write.isAtTop), isTrue);
       expect(plan.writeSet, _writtenPaths(plan));
-      _expectDriftsMatchPlan(_inputs(base, code: ['proj/vendor/lib/']));
+      _expectDriftsMatchPlan(
+        _inputs(base, code: ['proj/vendor/lib/']),
+        settings: {
+          'vendor/$settingsFilePath': SkillFileDriftKind.settingsMissing,
+        },
+      );
     });
 
     test('follow the group rule at a listed top', () async {
@@ -874,6 +897,127 @@ void main() {
       expect(skillAndAgentFileDrifts(inputs), isEmpty);
       expect(planSkillAndAgentFiles(inputs, full: false).writes, isEmpty);
     });
+  });
+
+  group('the settings file', () {
+    const stale = '{"a": 1}\n';
+
+    test('a missing file of a group in use is settingsMissing', () async {
+      final base = await _base({
+        ..._under('proj', {
+          for (final MapEntry(:key, :value) in _renderedIn(
+            AgentFolderGroup.claudeCode.folders,
+          ).entries)
+            if (key != settingsFilePath) key: value,
+        }),
+      });
+
+      final drifts = skillAndAgentFileDrifts(_inputs(base));
+
+      expect(drifts, [
+        (path: settingsFilePath, kind: SkillFileDriftKind.settingsMissing),
+      ]);
+      _expectDriftsMatchPlan(
+        _inputs(base),
+        settings: {settingsFilePath: SkillFileDriftKind.settingsMissing},
+      );
+    });
+
+    test('a file that differs is settingsStale and keeps its place in the '
+        'plan', () async {
+      final base = await _base({
+        ..._under('proj', _renderedIn(AgentFolderGroup.claudeCode.folders)),
+        'proj/$settingsFilePath': stale,
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(skillAndAgentFileDrifts(_inputs(base)), [
+        (path: settingsFilePath, kind: SkillFileDriftKind.settingsStale),
+      ]);
+      expect(plan.writes.single.before, isNotNull);
+      expect(plan.writeSet, {settingsFilePath});
+      _expectDriftsMatchPlan(
+        _inputs(base),
+        settings: {settingsFilePath: SkillFileDriftKind.settingsStale},
+      );
+    });
+
+    test('a malformed file is settingsMalformed with its failure, no write, '
+        'no throw', () async {
+      final base = await _base({
+        ..._under('proj', _renderedIn(AgentFolderGroup.claudeCode.folders)),
+        'proj/$settingsFilePath': '{',
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.malformedSettings.single.path, settingsFilePath);
+      expect(plan.malformedSettings.single.failure, isNotEmpty);
+      expect(plan.writes, isEmpty);
+      expect(skillAndAgentFileDrifts(_inputs(base)), [
+        (path: settingsFilePath, kind: SkillFileDriftKind.settingsMalformed),
+      ]);
+    });
+
+    test('a settings path that is a folder is settingsMalformed', () async {
+      final base = await _base({
+        ..._under('proj', {
+          for (final MapEntry(:key, :value) in _renderedIn(
+            AgentFolderGroup.claudeCode.folders,
+          ).entries)
+            if (key != settingsFilePath) key: value,
+        }),
+        'proj/$settingsFilePath/keep': 'x',
+      });
+
+      expect(
+        skillAndAgentFileDrifts(_inputs(base)).map((drift) => drift.kind),
+        [SkillFileDriftKind.settingsMalformed],
+      );
+    });
+
+    test('an opted-out group neither plans nor records the file', () async {
+      final base = await _base({
+        'proj/.claude/skills/own/SKILL.md': 'own\n',
+        'proj/$settingsFilePath': '{',
+      });
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: false);
+
+      expect(plan.writes, isEmpty);
+      expect(plan.malformedSettings, isEmpty);
+      expect(skillAndAgentFileDrifts(_inputs(base)), isEmpty);
+    });
+
+    test(
+      'a full run records a malformed file though no skill is there',
+      () async {
+        final base = await _base({'proj/$settingsFilePath': '{'});
+
+        final plan = planSkillAndAgentFiles(_inputs(base), full: true);
+
+        expect(plan.malformedSettings.map((entry) => entry.path), [
+          settingsFilePath,
+        ]);
+        expect(
+          plan.writes.map((write) => write.path),
+          isNot(contains(settingsFilePath)),
+        );
+      },
+    );
+
+    test('a .claude folder that leaves the project takes one line, none for '
+        'the file', () async {
+      final base = await _base({'outside/keep.txt': 'x\n', 'proj/a': ''});
+      Link(_at(base, 'proj/.claude').path)
+          .createSync(_at(base, 'outside').path);
+
+      final plan = planSkillAndAgentFiles(_inputs(base), full: true);
+
+      expect(plan.skipped, hasLength(1));
+      expect(plan.malformedSettings, isEmpty);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
 
   group('shipsSkillFiles', () {

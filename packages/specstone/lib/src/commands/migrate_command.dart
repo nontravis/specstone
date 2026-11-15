@@ -75,6 +75,7 @@ class MigrateCommand extends SpecstoneCommand {
           out: runner.out,
           asJson: args.flag('json'),
           warn: runner.err.writeln,
+          environment: runner.environment,
           planHash: planHash,
         ),
       );

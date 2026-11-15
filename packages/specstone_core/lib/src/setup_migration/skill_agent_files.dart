@@ -11,11 +11,14 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart'
     show citeRuleSince;
+import 'package:specstone_core/src/setup_migration/claude_settings.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 
 const _ownedPrefix = 'specstone-';
+const _claudeFolder = '.claude';
+const _settingsPath = '$_claudeFolder/settings.json';
 
 /// Why a skill or agent file needs a run.
 enum SkillFileDriftKind {
@@ -27,6 +30,15 @@ enum SkillFileDriftKind {
 
   /// The CLI no longer ships the file.
   unshipped,
+
+  /// `.claude/settings.json` does not hold the Specstone hook group alone.
+  settingsStale,
+
+  /// `.claude/settings.json` is missing from a Claude Code folder group in use.
+  settingsMissing,
+
+  /// `.claude/settings.json` is no JSON object a run can merge into.
+  settingsMalformed,
 }
 
 /// One drift: its path from the project root, `/`-separated, and its kind.
@@ -34,6 +46,12 @@ typedef SkillFileDrift = ({String path, SkillFileDriftKind kind});
 
 /// The skill and agent file changes of one run, every path from the project
 /// root with `/` separators.
+///
+/// `writes` holds `.claude/settings.json` beside the skill and agent files when
+/// the Claude Code folder group takes part and the file is not current;
+/// `malformedSettings` holds, for each such file that no run can merge into,
+/// its path, why it does not parse, and whether it is no file at all, and
+/// plans no write for it.
 ///
 /// `trash` lists each path to move to the trash: the folder or file of a
 /// `specstone-*` entry the CLI ships nothing of, which moves whole, and each
@@ -43,6 +61,7 @@ typedef SkillFileDrift = ({String path, SkillFileDriftKind kind});
 /// the project root or under `.git`.
 typedef SkillFilePlan = ({
   List<AgentWrite> writes,
+  List<({String path, String failure, bool isNoFile})> malformedSettings,
   List<String> trash,
   List<String> topTrash,
   List<String> skipped,
@@ -79,6 +98,7 @@ SkillFilePlan planSkillAndAgentFiles(
   planner.trashUnclaimed();
   return (
     writes: planner.writes,
+    malformedSettings: planner.malformedSettings,
     trash: planner.trash,
     topTrash: planner.topTrash,
     skipped: planner.skipped,
@@ -100,21 +120,31 @@ String? skillFolderOf(String path) {
 /// Returns every drift of the skill and agent files, in plan order.
 ///
 /// Empty exactly when [planSkillAndAgentFiles] with `full: false` has nothing
-/// to write or trash.
+/// to write or trash and no malformed settings file. Never throws for a
+/// malformed settings file; it is a [SkillFileDriftKind.settingsMalformed].
 List<SkillFileDrift> skillAndAgentFileDrifts(AgentFileInputs inputs) {
   final plan = planSkillAndAgentFiles(inputs, full: false);
   return [
-    for (final write in plan.writes)
-      (
-        path: write.path,
-        kind: write.isNew
-            ? SkillFileDriftKind.missing
-            : SkillFileDriftKind.differs,
-      ),
+    for (final write in plan.writes) (path: write.path, kind: _kindOf(write)),
+    for (final (:path, failure: _, isNoFile: _) in plan.malformedSettings)
+      (path: path, kind: SkillFileDriftKind.settingsMalformed),
     for (final path in plan.trash)
       (path: path, kind: SkillFileDriftKind.unshipped),
   ];
 }
+
+SkillFileDriftKind _kindOf(AgentWrite write) {
+  final isSettings = _isSettingsPath(write.path);
+  return switch ((isSettings, write.isNew)) {
+    (true, true) => SkillFileDriftKind.settingsMissing,
+    (true, false) => SkillFileDriftKind.settingsStale,
+    (false, true) => SkillFileDriftKind.missing,
+    (false, false) => SkillFileDriftKind.differs,
+  };
+}
+
+bool _isSettingsPath(String path) =>
+    path == _settingsPath || path.endsWith('/$_settingsPath');
 
 final class _Planner {
   new(this._root) : _rendered = renderHostFiles() {
@@ -126,6 +156,7 @@ final class _Planner {
   late final Set<String> _shipped;
 
   final writes = <AgentWrite>[];
+  final malformedSettings = <({String path, String failure, bool isNoFile})>[];
   final trash = <String>[];
   final topTrash = <String>[];
   final skipped = <String>[];
@@ -181,6 +212,7 @@ final class _Planner {
       final names = listed[file.folder];
       if (names != null) _planFile(base, file, names);
     }
+    if (group == AgentFolderGroup.claudeCode) _planSettings(base);
     for (final MapEntry(key: folder, value: names) in entries.entries) {
       for (final name in names) {
         _entriesToTrash.add((base, '${folder.path}/$name'));
@@ -273,6 +305,69 @@ final class _Planner {
         text: file.text,
         isNew: current == null,
         before: current == null ? null : textHashOf(current),
+        isAtTop: base.isTop,
+      ),
+    );
+  }
+
+  /// Plans `.claude/settings.json` of [base] for a Claude Code group that takes
+  /// part: a write when the file is missing or stale, a record when it is
+  /// malformed, nothing when it is current.
+  ///
+  /// A `.claude` the group already named as refused or no folder takes no
+  /// second line.
+  void _planSettings(AgentFileBase base) {
+    final claude = _pathIn(base, _claudeFolder);
+    if (writeRefusalOf(claude, projectRoot: _root) != null ||
+        _isNoFolder(claude)) {
+      return;
+    }
+    final target = File(_pathIn(base, _settingsPath));
+    if (!_planned.add(canonicalPath(target.path))) return;
+    final path = _rootPath(base, _settingsPath);
+    final refusal = writeRefusalOf(target.path, projectRoot: _root);
+    if (refusal != null) return _skip(skippedLineOf(path, refusal));
+    final type = FileSystemEntity.typeSync(target.path);
+    if (type != FileSystemEntityType.notFound &&
+        type != FileSystemEntityType.file) {
+      return _recordMalformed(path, 'it is not a file', isNoFile: true);
+    }
+    final bytes = type == FileSystemEntityType.file
+        ? readPlanInput(target)
+        : null;
+    switch (settingsStateOf(bytes)) {
+      case SettingsCurrent():
+        return;
+      case SettingsMalformed(:final failure):
+        _recordMalformed(path, failure);
+      case SettingsMissing(:final text):
+        _addSettingsWrite(base, path, text, before: null);
+      case SettingsStale(:final text):
+        _addSettingsWrite(
+          base,
+          path,
+          text,
+          before: textHashOf(utf8.decode(bytes!)),
+        );
+    }
+  }
+
+  void _recordMalformed(String path, String failure, {bool isNoFile = false}) =>
+      malformedSettings.add((path: path, failure: failure, isNoFile: isNoFile));
+
+  void _addSettingsWrite(
+    AgentFileBase base,
+    String path,
+    String text, {
+    required String? before,
+  }) {
+    writeSet.add(path);
+    writes.add(
+      AgentWrite(
+        path: path,
+        text: text,
+        isNew: before == null,
+        before: before,
         isAtTop: base.isTop,
       ),
     );

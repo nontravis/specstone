@@ -19,7 +19,7 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
-    show planSkillAndAgentFiles;
+    show planSkillAndAgentFiles, skillAndAgentFileDrifts;
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -28,6 +28,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show isPortableCodeEntry;
+import 'package:specstone_core/src/version.dart' show specstoneVersion;
 
 const _agentMdPath = '.specstone/AGENT.md';
 const _cursorFolder = '.cursor';
@@ -435,13 +436,20 @@ final class AgentWritePlan {
 /// root and at each listed top too. Reads every file first.
 ///
 /// Throws `MigrateFault` `agent_block_malformed`, naming every malformed file
-/// with its first marker line, before it returns.
+/// with its first marker line, and every `.claude/settings.json` no run can
+/// merge into, before it returns.
 AgentWritePlan planAgentWrites(
   AgentFileInputs inputs, {
   required bool full,
   bool shipsSkills = false,
 }) {
-  final survey = _Survey.of(inputs)..throwIfMalformed();
+  final skills = planSkillAndAgentFiles(
+    inputs,
+    full: full || shipsSkills,
+    includesListedTops: shipsSkills,
+  );
+  final survey = _Survey.of(inputs)
+    ..throwIfMalformed(settings: skills.malformedSettings);
   final root = _canonicalOf(inputs.projectRoot);
   final rootWrites = <AgentWrite>[];
   final topWrites = <AgentWrite>[];
@@ -492,11 +500,6 @@ AgentWritePlan planAgentWrites(
       skipped.insert(0, skippedLineOf(_agentMdPath, refusal));
     }
   }
-  final skills = planSkillAndAgentFiles(
-    inputs,
-    full: full || shipsSkills,
-    includesListedTops: shipsSkills,
-  );
   for (final write in skills.writes) {
     (write.isAtTop ? topWrites : rootWrites).add(write);
   }
@@ -519,6 +522,59 @@ AgentWritePlan planAgentWrites(
     trashContents: {for (final path in trash) path: _filesUnder(root, path)},
     skipped: [...skipped, ...skills.skipped],
   );
+}
+
+/// Returns the `agent_files_version` a config written by a run that applies
+/// [plan] to [inputs] holds: the running Version when the agent files end as
+/// the CLI writes them, else [current], the key as it was.
+///
+/// The stamp never goes down: a [current] above the running Version stays.
+/// Reads [inputs] before any write: the end state is the drifts before the
+/// run, minus the paths [plan] writes or trashes and the tops it lists.
+ReleaseVersion? agentFilesStampAfter(
+  AgentFileInputs inputs,
+  AgentWritePlan plan, {
+  required ReleaseVersion? current,
+}) {
+  if (current != null && current.compareTo(runningVersion) > 0) return current;
+  return _endsCurrent(inputs, plan) ? runningVersion : current;
+}
+
+/// The running CLI's Version.
+final ReleaseVersion runningVersion =
+    ReleaseVersion.tryParse(specstoneVersion) ??
+    (throw StateError('specstoneVersion is no Version: $specstoneVersion'));
+
+/// The command that brings stale agent files back to what a binary writes.
+enum AgentFixDirection { migrate, upgrade }
+
+/// Returns [AgentFixDirection.upgrade] when the files come from a newer
+/// Version than the running one, else [AgentFixDirection.migrate].
+///
+/// A [stamp] that is null, below, or equal to the running Version picks
+/// `migrate`: an equal stamp over changed files means a hand edit or a local
+/// build of that number.
+AgentFixDirection agentFixDirectionOf(ReleaseVersion? stamp) =>
+    stamp != null && stamp.compareTo(runningVersion) > 0
+    ? AgentFixDirection.upgrade
+    : AgentFixDirection.migrate;
+
+bool _endsCurrent(AgentFileInputs inputs, AgentWritePlan plan) {
+  final fixed = {...plan.paths, ...plan.trash, ...plan.trashFiles};
+  final listed = plan.addedRoots.toSet();
+  final left = [
+    for (final (:path, line: _, :kind) in agentFileDrifts(inputs))
+      if (!switch (kind) {
+        // The importing file stays as it is; writing AGENT.md fixes it.
+        AgentDriftKind.topUnlisted => listed.contains(path),
+        AgentDriftKind.agentMdMissing => fixed.contains(_agentMdPath),
+        _ => fixed.contains(path),
+      })
+        path,
+    for (final (:path, kind: _) in skillAndAgentFileDrifts(inputs))
+      if (!fixed.contains(path)) path,
+  ];
+  return left.isEmpty;
 }
 
 /// Returns [paths] from [root] without the second name of one place.
@@ -793,8 +849,11 @@ final class _Survey {
   bool isUpsert(_Folder folder, _AgentFile file, {required bool full}) =>
       folder.isUpsert(full: full) || _topUpserted.contains(file.realPath);
 
-  /// Throws the `agent_block_malformed` fault when any file is malformed.
-  void throwIfMalformed() {
+  /// Throws the `agent_block_malformed` fault when any file is malformed, or
+  /// when any of [settings] is.
+  void throwIfMalformed({
+    List<({String path, String failure, bool isNoFile})> settings = const [],
+  }) {
     final faults = [
       for (final folder in folders)
         for (final file in folder.files)
@@ -807,6 +866,16 @@ final class _Survey {
               file: file.path,
               line: file.scan!.firstMarkerLine,
             ),
+      for (final (:path, :failure, :isNoFile) in settings)
+        MigrateFault(
+          MigrateFaultCode.agentBlockMalformed,
+          isNoFile
+              ? '$failure; move it away so the run can write a file there, '
+                    'then run the command again'
+              : '$failure; repair the file by hand so it is one JSON '
+                    'object, then run the command again',
+          file: path,
+        ),
     ];
     if (faults.isEmpty) return;
     throw MigrateFault(

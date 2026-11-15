@@ -15,7 +15,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
-    show agentMdText;
+    show agentMdText, importBlock;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show agentFilesSince;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -917,7 +917,10 @@ pack upgrade: acme 1.0.0 -> 1.2.0
 commit 2, rewrites:
   .specstone/config.yaml: acme 1.2.0
 ''');
-    expect(_rewriteAt(plan, '.specstone/config.yaml').text, _config('1.2.0'));
+    expect(
+      _rewriteAt(plan, '.specstone/config.yaml').text,
+      '${_config('1.2.0')}$_stamp',
+    );
     expect(plan.moves, isEmpty);
     expect(plan.prunes, isEmpty);
   });
@@ -1272,6 +1275,24 @@ sections:
 
 const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
+
+/// A `CLAUDE.md` whose block imports the `.specstone/AGENT.md` it lacks.
+final _importingClaude = '# Owner\n\n$_importBlock';
+
+final String _importBlock = importBlock(
+  cliVersion: specstoneVersion,
+  agentMdPath: '.specstone/AGENT.md',
+  projectDocPath: 'docs/prds/PROJECT.md',
+);
+
+/// The stamp an upgrade that writes the config leaves: the running Version.
+const _stamp = 'agent_files_version: $specstoneVersion\n';
+
+/// The text of each config rewrite of [plan].
+List<String> _stampRewrites(RunPlan plan) => [
+  for (final rewrite in plan.rewrites)
+    if (rewrite.path == '.specstone/config.yaml') rewrite.text,
+];
 const _staleBlock = '$_begin\nold rules\n<!-- END specstone -->\n';
 const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
 
@@ -1416,7 +1437,119 @@ void _agentFilesTests() {
       );
       expect(plan.lists.agentFiles, [path]);
       expect(plan.agentFiles!.rootWrites.single.isNew, isFalse);
-      expect(plan.rewrites, isEmpty);
+      expect(_stampRewrites(plan), ['${shippedPinsConfig()}$_stamp']);
+    });
+
+    test('pins equal and only the Claude Code settings file missing is the '
+        'agent-only upgrade, one file counted', () async {
+      final texts = skillFileTexts();
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        for (final MapEntry(:key, :value) in texts.entries)
+          if (key != settingsFilePath) key: value,
+      });
+
+      final plan = _planAt(project);
+
+      expect(
+        plan.toText(),
+        'pack upgrade: pins unchanged, agent files only\n'
+        'commit 2, rewrites:\n'
+        '  agent files: 1 files\n',
+      );
+      expect(plan.lists.agentFiles, [settingsFilePath]);
+      expect(plan.agentFiles!.rootWrites.single.isNew, isTrue);
+      expect(plan.agentFiles!.rootWrites.single.text, settingsFileText);
+    });
+
+    test('pins equal and a settings file with another Specstone handler is '
+        'merged by one write, never trashed', () async {
+      final texts = skillFileTexts();
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...texts,
+        settingsFilePath:
+            '{"hooks":{"SessionStart":[{"hooks":[{"type":"command",'
+            '"command":"specstone","args":["hook","session-start"]}]}]}}',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, [settingsFilePath]);
+      expect(plan.agentFiles!.trash, isEmpty);
+      expect(plan.agentFiles!.rootWrites.single.isNew, isFalse);
+      expect(
+        plan.agentFiles!.rootWrites.single.text,
+        isNot(contains('session-start')),
+      );
+    });
+
+    test(
+      'pins equal and a current settings file is no agent-only upgrade',
+      () async {
+        final project = await writeTree({
+          '.specstone/config.yaml': shippedPinsConfig(),
+          ...skillFileTexts(),
+        });
+
+        expect(_planAt(project).agentFiles?.isEmpty ?? true, isTrue);
+      },
+    );
+
+    test('a group opted out leaves a stale settings file unread', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.claude/skills/own-skill/SKILL.md': 'own\n',
+        settingsFilePath:
+            '{"hooks":{"PostToolUse":[{"hooks":[{"type":'
+            '"command","command":"specstone","args":["hook","x"]}]}]}}',
+      });
+
+      expect(_planAt(project).agentFiles?.isEmpty ?? true, isTrue);
+    });
+
+    test('a malformed settings file refuses agent_block_malformed naming '
+        'it, at planning, before any write', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        settingsFilePath: '{"hooks": []}',
+      });
+
+      expect(
+        () => _planAt(project),
+        throwsA(
+          isA<MigrateFault>()
+              .having(
+                (f) => f.code,
+                'code',
+                MigrateFaultCode.agentBlockMalformed,
+              )
+              .having((f) => f.file, 'file', settingsFilePath),
+        ),
+      );
+    });
+
+    test('a settings file at a listed top is a top write, outside the root '
+        'files', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
+            '  - code\n',
+        ...skillFileTexts(),
+        ...skillFileTexts('code/'),
+        'code/.git/HEAD': 'ref: refs/heads/main\n',
+        'code/$settingsFilePath': '{}\n',
+      });
+
+      final plan = _planAt(project);
+
+      final agents = plan.agentFiles!;
+      expect(agents.rootWrites, isEmpty);
+      expect(agents.topWrites.map((write) => write.path), [
+        'code/$settingsFilePath',
+      ]);
+      expect(agents.topWrites.single.isAtTop, isTrue);
     });
 
     test('an entry the binary ships missing from a group in use is '
@@ -1549,7 +1682,7 @@ void _agentFilesTests() {
       );
       expect(plan.lists.agentFiles, ['CLAUDE.md']);
       expect(plan.commit2Message, 'refresh the Specstone agent files');
-      expect(plan.rewrites, isEmpty);
+      expect(_stampRewrites(plan), ['${shippedPinsConfig()}$_stamp']);
       expect(plan.moves, isEmpty);
     });
 
@@ -1577,6 +1710,7 @@ void _agentFilesTests() {
       );
       expect(plan.rewrites.map((rewrite) => rewrite.path), [
         'docs/prds/GNFR.md',
+        '.specstone/config.yaml',
       ]);
     });
 
@@ -1603,10 +1737,11 @@ void _agentFilesTests() {
       expect(
         _rewriteAt(plan, '.specstone/config.yaml').text,
         '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
-        '  - code\n',
+        '  - code\n$_stamp',
       );
       expect(_rewriteAt(plan, '.specstone/config.yaml').changes, [
         'agent_file_roots',
+        'agent_files_version',
       ]);
     });
 
@@ -1624,7 +1759,7 @@ void _agentFilesTests() {
         expect(
           _rewriteAt(plan, '.specstone/config.yaml').text,
           '${shippedPinsConfig()}code_root: code\n'
-          'agent_file_roots:\n  - code\n',
+          'agent_file_roots:\n  - code\n$_stamp',
         );
       },
     );
@@ -1644,7 +1779,7 @@ void _agentFilesTests() {
         expect(
           _rewriteAt(plan, '.specstone/config.yaml').text,
           '${shippedPinsConfig()}code_root: code\n'
-          'agent_file_roots:\n  - other\n  - code\n',
+          'agent_file_roots:\n  - other\n  - code\n$_stamp',
         );
       },
     );
@@ -1666,6 +1801,96 @@ void _agentFilesTests() {
       expect(text, contains('  - old\n'));
       expect(text, contains('  - code\n'));
       expect(text, isNot(contains('prd-core: 1.0.0')));
+    });
+
+    test('a pin-moving upgrade replaces a lower stamp in place and '
+        'keeps every other key', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${_belowSince}code_root: code\nagent_files_version: 1.0.0\n',
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      final plan = _planAt(project);
+
+      final rewrite = _rewriteAt(plan, '.specstone/config.yaml');
+      expect(rewrite.text, contains('code_root: code\n$_stamp'));
+      expect('agent_files_version'.allMatches(rewrite.text), hasLength(1));
+      expect(rewrite.changes, ['pins', 'agent_files_version']);
+    });
+
+    test('a layout-only upgrade writes no config and leaves the '
+        'stamp as it is', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}agent_files_version: 1.0.0\n',
+        ...skillFileTexts(),
+        'docs/prds/GNFR.md': '## Reliability\n\nr\n\n## Performance\n\np\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.rewrites.map((rewrite) => rewrite.path), [
+        'docs/prds/GNFR.md',
+      ]);
+    });
+
+    test('an agent-only upgrade whose stamp already holds the running '
+        'Version rewrites no config', () async {
+      final texts = skillFileTexts();
+      final path = texts.keys.first;
+      final project = await writeTree({
+        '.specstone/config.yaml': '${shippedPinsConfig()}$_stamp',
+        ...texts,
+        path: '${texts[path]}edit\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, [path]);
+      expect(_stampRewrites(plan), isEmpty);
+    });
+
+    test('an agent-only upgrade that writes the missing AGENT.md an import '
+        'block names sets the stamp', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        'CLAUDE.md': _importingClaude,
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md']);
+      expect(_stampRewrites(plan), ['${shippedPinsConfig()}$_stamp']);
+    });
+
+    test('a stamp above the running Version stays as it is', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${_belowSince}agent_files_version: 9.0.0\n',
+      });
+
+      final text = _stampRewrites(_planAt(project)).single;
+
+      expect(text, endsWith('agent_files_version: 9.0.0\n'));
+    });
+
+    test('a refused AGENT.md write leaves the stamp as it was', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${_belowSince}agent_files_version: 1.0.0\n',
+        'CLAUDE.md': _importingClaude,
+      });
+      final outside = await writeTree({'outside/keep': 'x\n'});
+      Link('${project.path}/.specstone/AGENT.md')
+          .createSync('${outside.path}/outside/AGENT.md');
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, isNot(contains('.specstone/AGENT.md')));
+      expect(
+        _stampRewrites(plan).single,
+        endsWith('agent_files_version: 1.0.0\n'),
+      );
     });
 
     test(

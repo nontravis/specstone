@@ -55,6 +55,11 @@ void main() {
       expect(MigrateFaultCode.agentBlockMalformed.exitStatus, 65);
     });
 
+    test('agent_files_newer exits 78', () {
+      expect(MigrateFaultCode.agentFilesNewer.wire, 'agent_files_newer');
+      expect(MigrateFaultCode.agentFilesNewer.exitStatus, 78);
+    });
+
     test('legacy_collision exits 65', () {
       expect(MigrateFaultCode.legacyCollision.wire, 'legacy_collision');
       expect(MigrateFaultCode.legacyCollision.exitStatus, 65);

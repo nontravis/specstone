@@ -20,23 +20,6 @@ const String latestReleaseApi =
 /// The variable that pins the version the install script installs.
 const String _pinnedVersionVariable = 'SPECSTONE_VERSION';
 
-/// The arguments `claude` takes to update the Specstone plugin.
-const List<String> _pluginUpdateArguments = [
-  'plugin',
-  'update',
-  'specstone@specstone',
-];
-
-/// The program, arguments, and environment of one `claude plugin update`.
-typedef _ClaudeStart = ({
-  String program,
-  List<String> arguments,
-  Map<String, String> environment,
-});
-
-/// The Windows variable that keeps a program lookup out of the current folder.
-const String _noCurrentFolderLookup = 'NoDefaultCurrentDirectoryInExePath';
-
 /// How long a connection may take to open.
 const Duration _connectTimeout = Duration(seconds: 30);
 
@@ -58,10 +41,6 @@ const String _cutMark = '...';
 
 /// The code point that stands for each character an error message hides.
 const int _maskRune = 0x3f;
-
-/// The last line `specstone upgrade` prints.
-const String _restartLine =
-    'Restart Claude Code to load the new CLI and plugin.';
 
 /// A fault code of `specstone upgrade`.
 ///
@@ -158,10 +137,83 @@ String _comparable(Directory folder, {required bool windows}) {
   return windows ? bare.toLowerCase() : bare;
 }
 
-/// Upgrades the CLI and the plugin to the latest release.
+/// Reads the Version of the latest full release from the `tag_name` of [url].
+///
+/// The reply is untrusted, so it must be a JSON object holding `v<Version>`.
+/// The record holds the Version, or null with the reason when the read fails.
+/// A completed [abandon] closes the request at once, so a caller that stops
+/// waiting leaves nothing pending.
+Future<({ReleaseVersion? version, String? failure})> readLatestRelease(
+  Uri url, {
+  Future<void>? abandon,
+}) async {
+  final (:body, :failure) = await _get(url, abandon: abandon);
+  if (body == null) return (version: null, failure: failure);
+  final Object? json;
+  try {
+    json = jsonDecode(utf8.decode(body));
+  } on FormatException {
+    return (version: null, failure: 'the body is not JSON');
+  }
+  final tag = json is Map<String, Object?> ? json['tag_name'] : null;
+  if (tag is! String) return (version: null, failure: 'no tag_name');
+  final version = tag.startsWith('v')
+      ? ReleaseVersion.tryParse(tag.substring(1))
+      : null;
+  if (version != null) return (version: version, failure: null);
+  return (
+    version: null,
+    failure: 'tag_name ${_printable(tag)} is not v<Version>',
+  );
+}
+
+// Returns the body of one complete 2xx reply of [url], else why there is none:
+// `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
+Future<({List<int>? body, String? failure})> _get(
+  Uri url, {
+  Future<void>? abandon,
+}) async {
+  final client = HttpClient()..connectionTimeout = _connectTimeout;
+  unawaited(abandon?.then((_) => client.close(force: true)));
+  try {
+    final request = await client.getUrl(url);
+    // A redirect could lead off GitHub, so a 3xx counts as a failed status.
+    request.followRedirects = false;
+    final response = await request.close().timeout(_idleTimeout);
+    final status = response.statusCode;
+    // An error body is never read: the closed client drops it, so it cannot
+    // stall, fail to decode, or grow without a cap.
+    if (status < 200 || status >= 300) {
+      return (body: null, failure: 'HTTP $status');
+    }
+    final quiet = response.timeout(_idleTimeout);
+    // HttpClient throws on a body cut short, so a finished loop is complete.
+    final body = BytesBuilder(copy: false);
+    await for (final chunk in quiet) {
+      body.add(chunk);
+      if (body.length > _maxReplyBytes) {
+        return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
+      }
+    }
+    return (body: body.takeBytes(), failure: null);
+  } on IOException catch (e) {
+    return (body: null, failure: e is HttpException ? e.message : '$e');
+  } on FormatException catch (e) {
+    // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
+    return (body: null, failure: e.message);
+  } on TimeoutException {
+    return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
+  } finally {
+    client.close(force: true);
+  }
+}
+
+/// Upgrades the CLI to the latest release.
 ///
 /// Refuses unless the running binary sits in `<home>/.specstone/bin`. A
 /// pre-release CLI that is not below the latest full release stays as it is.
+/// Each exit-0 path ends by running the installed binary's `folder`, so the
+/// stale-project line names the working folder's fix.
 class UpgradeCommand extends SpecstoneCommand {
   /// Creates the command; each argument defaults to the running process.
   ///
@@ -207,30 +259,26 @@ class UpgradeCommand extends SpecstoneCommand {
   String get name => 'upgrade';
 
   @override
-  String get description =>
-      'Upgrade the CLI and the plugin to the latest release.';
+  String get description => 'Upgrade the CLI to the latest release.';
 
   @override
   bool get takesArguments => false;
 
   @override
   Future<int> run() async {
-    final folder = unmanagedBinFolder(
-      executable,
-      homeFrom(environment),
-      windows: windows,
-    );
-    if (folder != null) {
+    final home = homeFrom(environment);
+    final folder = unmanagedBinFolder(executable, home, windows: windows);
+    if (home == null || folder != null) {
       return fail(
         UpgradeFault(
           UpgradeFaultCode.installNotManaged,
           'specstone upgrade updates only a CLI installed in '
-          '~/.specstone/bin; this one runs from $folder',
+          '~/.specstone/bin; this one runs from ${folder ?? File(executable).parent.path}',
         ),
         asJson: false,
       );
     }
-    final kept = await _keepNewerPreRelease();
+    final kept = await _keepNewerPreRelease(home);
     if (kept != null) return kept;
     final Directory temp;
     try {
@@ -251,18 +299,17 @@ class UpgradeCommand extends SpecstoneCommand {
     } finally {
       await _remove(temp);
     }
-    await _updatePlugin();
-    specstoneRunner.out.writeln(_restartLine);
+    await _nameProjectFix(home);
     return 0;
   }
 
   // Returns null to go on to the install script, else the exit status to stop
   // with: 0 after a pre-release CLI that is not below the latest full release
   // is kept, 69 when that release cannot be read.
-  Future<int?> _keepNewerPreRelease() async {
+  Future<int?> _keepNewerPreRelease(Directory home) async {
     final running = ReleaseVersion.tryParse(runningVersion);
     if (running == null || !running.isPreRelease) return null;
-    final (:version, :failure) = await _readLatestRelease();
+    final (:version, :failure) = await readLatestRelease(latestReleaseUrl);
     if (version == null) {
       return fail(
         UpgradeFault(
@@ -274,49 +321,13 @@ class UpgradeCommand extends SpecstoneCommand {
       );
     }
     if (running.compareTo(version) < 0) return null;
-    specstoneRunner.out
-      ..writeln(
-        'specstone $running is newer than the latest release $version; '
-        'nothing to upgrade',
-      )
-      ..writeln(
-        'To put the plugin on $running too, run: ${_installLineFor(running)}',
-      );
+    specstoneRunner.out.writeln(
+      'specstone $running is newer than the latest release $version; '
+      'nothing to upgrade',
+    );
+    await _nameProjectFix(home);
     return 0;
   }
-
-  // Reads the Version of the latest full release from the `tag_name` of
-  // [latestReleaseUrl]; the reply is untrusted, so it must be a JSON object
-  // holding `v<Version>`.
-  Future<({ReleaseVersion? version, String? failure})>
-  _readLatestRelease() async {
-    final (:body, :failure) = await _get(latestReleaseUrl);
-    if (body == null) return (version: null, failure: failure);
-    final Object? json;
-    try {
-      json = jsonDecode(utf8.decode(body));
-    } on FormatException {
-      return (version: null, failure: 'the body is not JSON');
-    }
-    final tag = json is Map<String, Object?> ? json['tag_name'] : null;
-    if (tag is! String) return (version: null, failure: 'no tag_name');
-    final version = tag.startsWith('v')
-        ? ReleaseVersion.tryParse(tag.substring(1))
-        : null;
-    if (version != null) return (version: version, failure: null);
-    return (
-      version: null,
-      failure: 'tag_name ${_printable(tag)} is not v<Version>',
-    );
-  }
-
-  // The install line of the version, which fetches the script of its own tag
-  // since `main` holds the last full release's script.
-  String _installLineFor(ReleaseVersion version) => windows
-      ? 'iex "& {\$(irm ${_rawContentBase}v$version/install.ps1)} '
-            "-Version '$version'\""
-      : 'curl -fsSL ${_rawContentBase}v$version/install.sh | '
-            '$_pinnedVersionVariable=$version sh';
 
   // Deletes [temp]; a failure is reported and never changes the exit status.
   Future<void> _remove(Directory temp) async {
@@ -402,114 +413,28 @@ class UpgradeCommand extends SpecstoneCommand {
     }
   }
 
-  // Returns the body of one complete 2xx reply of [url], else why there is
-  // none: `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
-  Future<({List<int>? body, String? failure})> _get(Uri url) async {
-    final client = HttpClient()..connectionTimeout = _connectTimeout;
+  // Runs the installed binary's `folder` in the working folder and passes its
+  // stderr on when that run exits 0; a run that cannot start or exits non-zero
+  // shows nothing, since the CLI step succeeded. Stdout is dropped.
+  Future<void> _nameProjectFix(Directory home) async {
+    final separator = Platform.pathSeparator;
+    final binary =
+        '${home.path}$separator.specstone${separator}bin$separator'
+        '${windows ? 'specstone.exe' : 'specstone'}';
+    const decoder = Utf8Codec(allowMalformed: true);
     try {
-      final request = await client.getUrl(url);
-      // A redirect could lead off GitHub, so a 3xx counts as a failed status.
-      request.followRedirects = false;
-      final response = await request.close().timeout(_idleTimeout);
-      final status = response.statusCode;
-      // An error body is never read: the closed client drops it, so it cannot
-      // stall, fail to decode, or grow without a cap.
-      if (status < 200 || status >= 300) {
-        return (body: null, failure: 'HTTP $status');
-      }
-      final quiet = response.timeout(_idleTimeout);
-      // HttpClient throws on a body cut short, so a finished loop is complete.
-      final body = BytesBuilder(copy: false);
-      await for (final chunk in quiet) {
-        body.add(chunk);
-        if (body.length > _maxReplyBytes) {
-          return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
-        }
-      }
-      return (body: body.takeBytes(), failure: null);
-    } on IOException catch (e) {
-      return (body: null, failure: e is HttpException ? e.message : '$e');
-    } on FormatException catch (e) {
-      // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
-      return (body: null, failure: e.message);
-    } on TimeoutException {
-      return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
-    } finally {
-      client.close(force: true);
-    }
-  }
-
-  // Runs `claude plugin update`, or prints the command when `claude` is not on
-  // the PATH. A failure is reported on `err` and never changes the exit status.
-  Future<void> _updatePlugin() async {
-    final out = specstoneRunner.out;
-    final command = 'claude ${_pluginUpdateArguments.join(' ')}';
-    final start = _claudeStart();
-    if (start == null) {
-      out
-        ..writeln('To update the Specstone plugin, run:')
-        ..writeln(command);
-      return;
-    }
-    final failure = await _runClaude(start, out);
-    if (failure != null) {
-      specstoneRunner.err.writeln(
-        'specstone: $command failed: $failure; run it by hand',
-      );
-    }
-  }
-
-  // Returns the absolute program that runs `claude plugin update`, or null when
-  // there is none. A `claude.cmd` runs through the absolute `cmd.exe`: a bare
-  // name starts from the current folder on Windows, and so does the `node` a
-  // `.cmd` shim names, which `NoDefaultCurrentDirectoryInExePath` stops.
-  _ClaudeStart? _claudeStart() {
-    final claude = findExecutable(
-      'claude',
-      environment,
-      isWindows: windows,
-      windowsExtensions: const ['.exe', '.cmd'],
-    );
-    if (claude == null) return null;
-    if (!claude.endsWith('.cmd')) {
-      return (
-        program: claude,
-        arguments: _pluginUpdateArguments,
+      final result = await Process.run(
+        binary,
+        const ['folder'],
+        workingDirectory: specstoneRunner.workingDirectory.path,
         environment: environment,
-      );
-    }
-    final shell = findExecutable('cmd', environment, isWindows: true);
-    if (shell == null) return null;
-    return (
-      program: shell,
-      arguments: ['/c', claude, ..._pluginUpdateArguments],
-      environment: {...environment, _noCurrentFolderLookup: '1'},
-    );
-  }
-
-  // Returns the first non-blank, trimmed stderr line of a failed run,
-  // `exit <status>` when it wrote none, or null on success.
-  Future<String?> _runClaude(_ClaudeStart start, StringSink out) async {
-    try {
-      final process = await Process.start(
-        start.program,
-        start.arguments,
-        environment: start.environment,
         includeParentEnvironment: false,
+        stdoutEncoding: decoder,
+        stderrEncoding: decoder,
       );
-      const decoder = Utf8Decoder(allowMalformed: true);
-      final stderrText = process.stderr.transform(decoder).join();
-      await process.stdout.transform(decoder).forEach(out.write);
-      final status = await process.exitCode;
-      if (status == 0) return null;
-      final firstLine = const LineSplitter()
-          .convert(await stderrText)
-          .map((line) => line.trim())
-          .where((line) => line.isNotEmpty)
-          .firstOrNull;
-      return firstLine ?? 'exit $status';
-    } on ProcessException catch (e) {
-      return e.message;
+      if (result.exitCode == 0) specstoneRunner.err.write(result.stderr);
+    } on IOException {
+      return;
     }
   }
 }

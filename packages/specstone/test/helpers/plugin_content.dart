@@ -25,10 +25,6 @@ const _frontmatterEndFence = '\n---\n';
 const _tomlBodyStart = 'developer_instructions = """\n';
 const _tomlBodyEnd = '"""';
 
-/// Returns the shipped plugin folder, two levels above the specstone package.
-Directory pluginRoot() =>
-    Directory.fromUri(packageRoot().uri.resolve('../../plugin/'));
-
 /// Returns every file under [root] that git tracks, sorted by path: the file
 /// set Specstone ships, with ignored files such as `.DS_Store` left out.
 ///
@@ -76,21 +72,12 @@ bool _isAgentSource(String path) {
   return segments.length > 1 || path.endsWith('.md');
 }
 
-/// Returns every shipped file, the skill and agent sources first and the
-/// plugin folder's files after them.
-List<File> shippedFiles() => [
-  ...agentSourceFiles(agentAssetsRoot()),
-  ...trackedFiles(pluginRoot()),
-];
-
-/// Returns the path of [file] below the folder it ships from, [agentAssetsRoot]
-/// or [pluginRoot], with `/` separators.
+/// Returns the path of [file] below [agentAssetsRoot], with `/` separators.
 String shippedPathOf(File file) {
+  final root = agentAssetsRoot();
   final path = file.uri.toFilePath(windows: false);
-  for (final root in [agentAssetsRoot(), pluginRoot()]) {
-    if (path.startsWith(root.uri.toFilePath(windows: false))) {
-      return _relativePath(root, file);
-    }
+  if (path.startsWith(root.uri.toFilePath(windows: false))) {
+    return _relativePath(root, file);
   }
   throw ArgumentError('not a shipped file: $path');
 }

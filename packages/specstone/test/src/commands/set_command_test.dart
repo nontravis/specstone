@@ -717,6 +717,9 @@ final class _RecordingConsole implements Console {
   bool get stdoutIsTerminal => false;
 
   @override
+  bool get stderrIsTerminal => false;
+
+  @override
   bool get noColor => false;
 
   @override
