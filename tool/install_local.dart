@@ -1,10 +1,14 @@
 // Builds a branch of this repository and installs the build as the CLI.
 //
 // Run from the checkout: `dart run tool/install_local.dart [--branch <ref>]`.
-// Only `dart:` libraries, so a test can compile it outside the workspace.
+// Imports the Version library of `specstone_core` and nothing else outside
+// `dart:`; a test compiles the tool against a copy of that library, outside the
+// workspace.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:specstone_core/release_version.dart';
 
 const String _usage =
     'usage: dart run tool/install_local.dart [--branch <ref>]';
@@ -13,6 +17,16 @@ const String _defaultRef = 'develop';
 const String _unchanged = 'the install is unchanged';
 const String _rerun = 'run install_local again';
 const String _shimPath = 'packages/specstone/bin/stn';
+const String _versionPath = 'packages/specstone_core/lib/src/version.dart';
+
+/// The `specstoneVersion` line of `version.dart`, up to its quoted value.
+///
+/// Group 1 is the text before the value and group 2 the closing quote and
+/// semicolon; the match ends there, so a line end of any kind stays.
+final RegExp _versionLine = RegExp(
+  r"^(const String specstoneVersion = ')[^'\r\n]*(';)",
+  multiLine: true,
+);
 
 /// The text of `git rev-parse` for one commit: a full sha-1 or sha-256 name.
 final RegExp _objectName = RegExp(r'^(?:[0-9a-f]{40}|[0-9a-f]{64})$');
@@ -104,6 +118,7 @@ Future<void> _installLocal(List<String> args) async {
   final ref = _refFrom(args);
   final commit = await _commitOf(ref);
   await _requireShim(ref, commit);
+  final devVersion = await _devVersionOf(commit);
   final home = _homeFrom(Platform.environment);
   if (home == null) {
     throw _Refusal(
@@ -121,7 +136,7 @@ Future<void> _installLocal(List<String> args) async {
   _Refusal? cleanup;
   try {
     temp = await _createTemp();
-    final built = await _build(commit, temp, interrupt);
+    final built = await _build(commit, devVersion, temp, interrupt);
     final shim = File('${built.worktree.path}/$_shimPath');
     final version = interrupt.isRaised
         ? null
@@ -201,19 +216,94 @@ Future<void> _requireShim(String ref, String commit) async {
   }
 }
 
+/// Returns the dev Version of [commit]: `<MAJOR>.<MINOR+1>.0-dev.<N>`.
+///
+/// MAJOR and MINOR are the highest Version tag's merged into [commit], and N is
+/// the count of merge commits on its first-parent chain after the lowest tag of
+/// that MAJOR.MINOR. Refuses when no `v<Version>` tag is merged into it.
+Future<String> _devVersionOf(String commit) async {
+  final tags = <String, ReleaseVersion>{};
+  for (final name in LineSplitter.split(
+    await _git(['tag', '--merged', commit]),
+  )) {
+    final version = name.startsWith('v')
+        ? ReleaseVersion.tryParse(name.substring(1))
+        : null;
+    if (version != null) tags[name] = version;
+  }
+  if (tags.isEmpty) {
+    final shortCommit = await _git(['rev-parse', '--short', commit]);
+    throw _Refusal(
+      'no tag v<Version> is merged into $shortCommit; $_unchanged',
+    );
+  }
+  final entries = tags.entries.toList();
+  final base = entries
+      .reduce((a, b) => a.value.compareTo(b.value) >= 0 ? a : b)
+      .value;
+  final line = entries
+      .where(
+        (tag) => tag.value.major == base.major && tag.value.minor == base.minor,
+      )
+      .reduce((a, b) => a.value.compareTo(b.value) <= 0 ? a : b);
+  // The full ref, so a branch of the same name cannot move the count.
+  final count = await _git([
+    'rev-list',
+    '--first-parent',
+    '--merges',
+    '--count',
+    'refs/tags/${line.key}..$commit',
+  ]);
+  return '${base.major}.${BigInt.parse(base.minor) + BigInt.one}.0-dev.$count';
+}
+
+/// Sets `specstoneVersion` in the `version.dart` of [worktree] to [version].
+///
+/// Only the first such line's quoted value changes. A missing file or line
+/// refuses naming the file.
+Future<void> _setVersion(String worktree, String version) async {
+  final file = File('$worktree/$_versionPath');
+  final missing = _Refusal(
+    'no specstoneVersion line in $_versionPath; $_unchanged',
+  );
+  final String text;
+  try {
+    text = await file.readAsString();
+  } on FileSystemException {
+    throw missing;
+  }
+  if (!_versionLine.hasMatch(text)) throw missing;
+  try {
+    await file.writeAsString(
+      text.replaceFirstMapped(
+        _versionLine,
+        (match) => '${match[1]}$version${match[2]}',
+      ),
+    );
+  } on FileSystemException catch (error) {
+    throw _Refusal(
+      'could not write $_versionPath: ${error.message}; '
+      '$_unchanged',
+    );
+  }
+}
+
 /// Adds a detached worktree at [commit] in [temp] and builds the CLI there.
 ///
-/// The build output sits beside the worktree, so deleting [temp] removes both.
-/// Returns the folder `dart build cli` fills with `bin/` and `lib/`, and the
-/// worktree folder itself.
+/// The worktree's `specstoneVersion` is set to [version] first. The build
+/// output sits beside the worktree, so deleting [temp] removes both. Returns
+/// the folder `dart build cli` fills with `bin/` and `lib/`, and the worktree
+/// folder itself.
 Future<({Directory bundle, Directory worktree})> _build(
   String commit,
+  String version,
   Directory temp,
   _Interrupt interrupt,
 ) async {
   final worktree = '${temp.path}/worktree';
   final output = '${temp.path}/build';
   await _git(['worktree', 'add', '--detach', worktree, commit]);
+  await _setVersion(worktree, version);
   await _step(
     'dart pub get',
     ['pub', 'get', '--enforce-lockfile'],
