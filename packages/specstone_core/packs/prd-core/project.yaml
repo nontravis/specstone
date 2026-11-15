@@ -84,7 +84,7 @@ sections:
           message: 'Metric line holds no number; guide line: a numeric metric with unit'
           in: all
         - id: metric_measurement
-          pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\]\((?:[^)\s]*/)?MEASUREMENT\.md(?:#[^)\s]*)?\))'
+          pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\]\(<?(?:[^)\s>]*/)?MEASUREMENT\.md(?:#[^)\s>]*)?>?(?:\s+"[^"]*")?\))'
           message: "Metric line links no measurement; guide line: link the goal's measurement"
           in: all
   - id: roles

@@ -15,11 +15,11 @@ final _carriageReturn = RegExp(r'\r$');
 /// keeps every row.
 ({String body, int lineCount}) cutToRows(String body, int rows) {
   final lines = body.split('\n');
-  final table = firstTableOf(_scannedLines(body, lines), rows);
-  if (table == null) {
+  final tableEnd = firstTableOf(_scannedLines(body, lines), rows);
+  if (tableEnd == null) {
     return (body: body, lineCount: _lineCountOf(body.trimRight()));
   }
-  return (body: lines.take(table.end).join('\n'), lineCount: table.end);
+  return (body: lines.take(tableEnd).join('\n'), lineCount: tableEnd);
 }
 
 /// Returns the lines of [body] as the doc model reads them, each comment

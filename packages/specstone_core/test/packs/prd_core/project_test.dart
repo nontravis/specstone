@@ -155,6 +155,8 @@ void main() {
         '- **Metric:** 3 calls, [m](../../measurements/x/MEASUREMENT.md)',
         '**Metric:** 3 calls, [m](../../measurements/x/MEASUREMENT.md#results)',
         '- **Metric:** 3 calls, [m](MEASUREMENT.md)',
+        '- **Metric:** 3 calls, [m](../x/MEASUREMENT.md "the run")',
+        '- **Metric:** 3 calls, [m](<../x/MEASUREMENT.md>)',
         '- **Serves:** PV-02',
       ]) {
         expect(pattern.hasMatch(line), isFalse, reason: line);

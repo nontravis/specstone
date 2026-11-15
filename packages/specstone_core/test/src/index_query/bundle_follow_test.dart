@@ -723,6 +723,23 @@ void main() {
       ]);
       expect(parts.last.summary, isFalse);
     });
+    test(
+      'a link to a ### heading inside the section appends the cut',
+      () async {
+        final parts = await fromProject(
+          '[runs]($_measurementFromProject#runs)',
+          measurement:
+              '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
+              '## Results\nNewest first. Met: halved.\n\n### Runs\n'
+              '| Date | Run | Met |\n|---|---|---|\n'
+              '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+        );
+
+        expect(parts.map(_id), ['$_measurementDoc#results summary']);
+        expect(parts.single.text, contains('2026-11-14 | 2'));
+        expect(parts.single.text, isNot(contains('2026-11-01 | 1')));
+      },
+    );
     test('a section written as prose appends its text whole', () async {
       final parts = await fromProject(
         '[results]($results)',

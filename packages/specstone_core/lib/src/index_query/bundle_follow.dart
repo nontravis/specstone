@@ -458,6 +458,9 @@ final class _Walk {
     final body = view.bodyLinesOf(at);
     final extent = headingBlockExtentOf(body, headingLine);
     if (extent == null) return;
+    if (view.cutRowsAt(at) case final rows?) {
+      return _appendCut(view, at, section.key, rows);
+    }
     final itemId = view.headingItemId(at, body, headingLine);
     _appendLines(
       view,
