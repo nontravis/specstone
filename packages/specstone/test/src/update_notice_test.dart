@@ -617,6 +617,35 @@ void main() {
       expect(result.status, 0);
     });
 
+    for (final args in [
+      <String>[],
+      ['--help'],
+      ['gett'],
+      ['hook'],
+    ]) {
+      test('${args.isEmpty ? 'a bare specstone' : args.join(' ')} names no '
+          'command to run: no request, no record', () async {
+        final before = _record(home).readAsStringSync();
+
+        await run(args);
+        await _settle();
+
+        expect(site.requests, isEmpty);
+        expect(_record(home).readAsStringSync(), before);
+      });
+    }
+
+    test('a usage error inside a resolved command is a failing command: its '
+        'status stays, the notice follows the usage text', () async {
+      final quiet = await run(['check', 'a', 'b'], environment: off);
+      final noisy = await run(['check', 'a', 'b']);
+
+      expect(quiet.status, usageExitCode);
+      expect(noisy.status, usageExitCode);
+      expect(noisy.out, quiet.out);
+      expect(noisy.err, '${quiet.err}$_line\n');
+    });
+
     test('a stderr reader that left before the line keeps the status and '
         'stdout', () async {
       final quiet = await run(['folder'], environment: off);

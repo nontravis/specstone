@@ -215,15 +215,27 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       return 0;
     }
     _refusedOnPin = false;
-    _updateNotice.start(_namesOf(topLevelResults.command));
-    try {
-      final status = await super.runCommand(topLevelResults);
-      await _printStaleLine(topLevelResults.command);
-      await _printUpdateNotice();
-      return status;
-    } finally {
-      _updateNotice.abandon();
+    if (_namesLeaf(topLevelResults.command)) {
+      _updateNotice.start(_namesOf(topLevelResults.command));
     }
+    final status = await super.runCommand(topLevelResults);
+    await _printStaleLine(topLevelResults.command);
+    return status;
+  }
+
+  /// Whether [chosen] names the command that `run` executes: a command with
+  /// subcommands needs one of them chosen too.
+  bool _namesLeaf(ArgResults? chosen) {
+    if (chosen == null) return false;
+    var command = commands[chosen.name];
+    var level = chosen;
+    while (command != null && command.subcommands.isNotEmpty) {
+      final next = level.command;
+      if (next == null) return false;
+      command = command.subcommands[next.name];
+      level = next;
+    }
+    return command != null;
   }
 
   /// Prints the update notice the check beside the command found, if any.
@@ -270,6 +282,16 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
 
   @override
   Future<int> run(Iterable<String> args) async {
+    try {
+      final status = await _runUsageGuarded(args);
+      await _printUpdateNotice();
+      return status;
+    } finally {
+      _updateNotice.abandon();
+    }
+  }
+
+  Future<int> _runUsageGuarded(Iterable<String> args) async {
     try {
       return await super.run(_withTargetValue(withBareOut(args))) ?? 0;
     } on UsageException catch (error) {
