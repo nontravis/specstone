@@ -130,5 +130,5 @@ finding.
 **DON'T:**
 
 - Run `specstone approve` without `--dry-run` (the main session that dispatched you approves, never you), `delete`, `rename`, `reorder`, or `move`.
-- Write a file by any other shell redirect, or a PRD or spec doc with the host's file write or edit.
+- Write a file by a shell redirect, or a PRD or spec doc with the host's file write or edit.
 - Ask the user anything, or commit.

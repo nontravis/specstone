@@ -3565,7 +3565,7 @@ void _agentTests() {
     expect(_redirectSpan.allMatches(scope), isEmpty);
     expect(
       _oneLine(scope),
-      contains('- Write a file by any other shell redirect, or a PRD or spec'),
+      contains('- Write a file by a shell redirect, or a PRD or spec'),
     );
     bool ofAuthor(String problem) => problem.startsWith('$_author:');
     expect(oversizedSkillFiles(contentFiles()).where(ofAuthor), isEmpty);
@@ -5694,13 +5694,16 @@ void _shippedTreeTests() {
   });
 }
 
+/// A `specstone get` call whose output a shell redirect writes to a file.
+final _getRedirect = RegExp(r'specstone get [^`]*\s>>?\s');
+
 void _outAndReplaceTests() {
   test('the sdd-engineer makes its batch file with get --out and runs no get '
       'shell redirect', () {
     final text = _oneLine(_pluginText('specstone-sdd-engineer.md'));
 
     expect(text, contains('made by `specstone get … --out "<file>"`'));
-    expect(text, isNot(contains(' > "<file>"')));
+    expect(text, isNot(matches(_getRedirect)));
   });
 
   test('the author procedure saves long output with --out and edits a passage '
@@ -5710,12 +5713,16 @@ void _outAndReplaceTests() {
     );
 
     expect(text, contains('`specstone get <names> --out "<file>"`'));
-    expect(text, isNot(contains(' > "<file>"')));
+    expect(text, isNot(matches(_getRedirect)));
     expect(
       text,
       contains('long `check`, `guide`, or `get` output with `--out`'),
     );
-    expect(text, contains('--replace`'));
+    expect(text, contains('`==> old <==`, the passage, `==> new <==`'));
+    expect(
+      text,
+      contains('`specstone set <type>:<name>#<key> --base <hash> --replace`'),
+    );
   });
 
   test('the read skill names --out for long output and set --replace for a '
@@ -5724,6 +5731,7 @@ void _outAndReplaceTests() {
 
     expect(text, contains('long `check`, `guide`, or `get` output'));
     expect(text, contains('bare `--out`'));
-    expect(text, contains('change one passage with `set --replace`'));
+    expect(text, contains('Change one passage with `set --replace`'));
+    expect(text, contains('`sed -i`, `perl -pi`, `tee`'));
   });
 }
