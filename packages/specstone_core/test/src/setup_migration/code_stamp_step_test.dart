@@ -552,19 +552,67 @@ void main() {
 
     test('a link whose code has no line the new rule drops is not '
         'counted', () async {
-      final project = await restampProject(
-        code: ['email_login:$_login:SignInPage $legacyLogin'],
-      );
-      File('${project.path}/$_login')
-          .writeAsStringSync('class SignInPage {}\n');
-      final plain = _legacyOf('class SignInPage {}\n');
-      File('${project.path}/docs/$loginRecord').writeAsStringSync(
-        _record(code: ['email_login:$_login:SignInPage $plain']),
+      const plainCode = 'class SignInPage {}\n';
+      final project = await _project(
+        extra: {
+          _login: plainCode,
+          'docs/$loginRecord': _record(
+            code: ['email_login:$_login:SignInPage ${_legacyOf(plainCode)}'],
+          ),
+        },
       );
 
       final step = _planAt(project, restamp: true);
 
       expect(step.rewrites, isEmpty);
+    });
+
+    test('a link already clean under the new fingerprint stays while its '
+        'code holds droppable lines', () async {
+      final project = await restampProject(
+        code: ['email_login:$_login:SignInPage $_loginFingerprint'],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isEmpty);
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries',
+      );
+    });
+
+    test('two code targets count the links restamped in each', () async {
+      final project = await writeTwinProject(
+        extra: {'flutter_ws/$_login': _loginText},
+        unfingerprinted: {
+          'docs/$flutterArchitecture',
+          'docs/$jasprArchitecture',
+        },
+      );
+      final records = {
+        _flutterRecord: _record(
+          code: ['email_login:$_login:SignInPage $legacyLogin'],
+        ),
+        _jasprRecord: _record(
+          statuses: ['email_login:planned'],
+          code: ['email_login:$_login:SignInPage $legacyLogin'],
+        ),
+      };
+      for (final MapEntry(key: path, value: text) in records.entries) {
+        File('${project.path}/docs/$path')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(text);
+      }
+
+      final step = _planAt(project, restamp: true);
+
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 1 docs; flutter: 1 entries; '
+        'jaspr: 0 entries',
+      );
+      expect(step.paths, [_flutterRecord]);
     });
 
     test('restamps a folder link and leaves a suspect sibling', () async {

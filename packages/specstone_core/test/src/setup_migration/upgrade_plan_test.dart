@@ -4106,6 +4106,9 @@ void _codeStampTests() {
         _rewriteAt(plan, 'docs/$_recordPath').text,
         contains("  - 'email_login:$signIn:SignIn $current'\n"),
       );
+      expect(_rewriteAt(plan, 'docs/$_recordPath').changes, [
+        'restamp code fingerprints',
+      ]);
       expect(
         plan.toText(),
         contains(
@@ -4150,6 +4153,9 @@ void _codeStampTests() {
         _rewriteAt(plan, 'docs/$_recordPath').text,
         contains("  - 'email_login:$signIn:SignIn $current'\n"),
       );
+      expect(_rewriteAt(plan, 'docs/$_recordPath').changes, [
+        'stamp code fingerprints',
+      ]);
       final text = plan.toText();
       expect(
         text,

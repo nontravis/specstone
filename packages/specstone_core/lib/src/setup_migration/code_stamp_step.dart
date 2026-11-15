@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
-    show fileCodeFingerprint, legacyFileCodeFingerprint;
+    show legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
@@ -270,12 +270,12 @@ final class _CodeReader {
       _codeRoots[target] ?? (throw _unknownTarget(target));
 
   /// Returns the fingerprint of [path] of [target], as the check reads it
-  /// under [fileHash] (its current rule by default), null when its code
+  /// under [fileHash] (its current rule when null), null when its code
   /// cannot be read.
   String? fingerprintOf(
     CodeTarget target,
     String path, {
-    String Function(List<int> bytes, String path) fileHash = _currentHash,
+    String Function(List<int> bytes, String path)? fileHash,
   }) {
     final codeRoot = codeRootOf(target);
     return currentCodeFingerprint(
@@ -302,9 +302,6 @@ final class _CodeReader {
         }
       });
 }
-
-String _currentHash(List<int> bytes, String path) =>
-    fileCodeFingerprint(bytes, path: path);
 
 // MARK: - Writing
 

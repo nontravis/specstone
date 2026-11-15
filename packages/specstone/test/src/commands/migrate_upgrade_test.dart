@@ -2174,6 +2174,18 @@ agent_file_roots:
         );
       });
 
+      test('a dry run leaves the tree as it was', () async {
+        final h = await home();
+        final root = await project(legacy);
+        final before = _read(root, recordPath);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(_read(root, recordPath), before);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+
       test('a suspect link stays as written', () async {
         final h = await home();
         final root = await project('0123456789ab');

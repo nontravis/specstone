@@ -73,6 +73,7 @@ const _stampChange = 'stamp approvals';
 const _recordChange = 'add record entries';
 const _testsChange = 'add test lines';
 const _codeStampChange = 'stamp code fingerprints';
+const _codeRestampChange = 'restamp code fingerprints';
 const _citeChange = 'convert cites';
 
 typedef _Step = ({PackVersion from, MigrationStep step});
@@ -363,7 +364,12 @@ RunPlan _upgradeRunOf(
   for (final work in works) {
     if (codeRewrites[work.plannedPath] case final stamped?) {
       work.lf = stamped;
-      work.changes.add(_codeStampChange);
+      if (codeStamp?.rewrites.containsKey(work.plannedPath) ?? false) {
+        work.changes.add(_codeStampChange);
+      }
+      if (codeRestamp?.rewrites.containsKey(work.plannedPath) ?? false) {
+        work.changes.add(_codeRestampChange);
+      }
     }
   }
 
