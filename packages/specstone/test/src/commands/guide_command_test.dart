@@ -176,6 +176,19 @@ void main() {
       expect(sections.first['query'], isTrue);
     });
 
+    test('guide --json prints bundleRefs', () async {
+      final runner = await runnerIn(
+        await projectWith({
+          '.specstone/templates/feature.yaml':
+              'bundle: [implement]\nbundle_refs: true\n',
+        }),
+      );
+
+      expect(await runner.run(['guide', 'feature', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['bundleRefs'], isTrue);
+    });
+
     test('guide feature --json prints maxDepth 2 after path', () async {
       final runner = await runnerIn(
         await projectWith({

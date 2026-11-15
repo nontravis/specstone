@@ -520,6 +520,7 @@ final class MergedDocType {
     this.isPerTarget = false,
     this.nestedPaths,
     this.bundle,
+    this.bundleRefs,
     this.summaryFor,
     this.generators,
     this.reference,
@@ -584,6 +585,10 @@ final class MergedDocType {
   /// The bundle modes the doc type takes part in; null when no layer sets it.
   final List<String>? bundle;
 
+  /// Whether the bundle join of this doc type goes to the refs file of an
+  /// `implement` or `design` bundle `--out` writes; null when no layer sets it.
+  final bool? bundleRefs;
+
   /// The doc type ids of the bundle targets whose bundles print this doc type
   /// in summary; null when no layer sets it.
   final List<String>? summaryFor;
@@ -633,6 +638,7 @@ final class MergedDocType {
     bool? isPerTarget,
     List<String>? nestedPaths,
     List<String>? bundle,
+    bool? bundleRefs,
     List<String>? summaryFor,
     List<String>? generators,
     List<MergedField>? fields,
@@ -654,6 +660,7 @@ final class MergedDocType {
     isPerTarget: isPerTarget ?? this.isPerTarget,
     nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
+    bundleRefs: bundleRefs ?? this.bundleRefs,
     summaryFor: summaryFor ?? this.summaryFor,
     generators: generators ?? this.generators,
     fields: fields ?? this.fields,
@@ -681,6 +688,7 @@ final class MergedDocType {
       'maxDepth': ?maxDepth,
       if (isPerTarget) 'perTarget': true,
       'bundle': ?bundle,
+      'bundleRefs': ?bundleRefs,
       'summaryFor': ?summaryFor,
       'fields': [for (final field in fields) field.toJson()],
       'sections': [for (final section in sections) section.toJson()],

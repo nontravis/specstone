@@ -120,6 +120,7 @@ final class DocTypeMerger {
         nameOf: (kind) => kind,
         notFound: FaultCode.unknownValue,
       ),
+      bundleRefs: layer.bundleRefs,
       summaryFor: layer.summaryFor,
       fields: List.unmodifiable(
         _mergeFields(base.fields, layer, disabledFields),

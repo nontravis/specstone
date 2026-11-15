@@ -360,6 +360,7 @@ final class DocTypeLayer {
     required this.lint,
     required this.reference,
     required this.bundle,
+    required this.bundleRefs,
     required this.summaryFor,
     required this.generators,
   });
@@ -421,6 +422,7 @@ final class DocTypeLayer {
         templateFolder: '',
       ),
       bundle: _parseBundle(map, file: file),
+      bundleRefs: optionalValue<bool>(map, 'bundle_refs', file: file),
       summaryFor: _parseSummaryFor(map, file: file),
       generators: _listWrite(map, 'generators', file: file, prefix: ''),
     );
@@ -473,6 +475,9 @@ final class DocTypeLayer {
 
   /// The bundle modes this layer writes, plain or as changes, when written.
   final ListWrite<String>? bundle;
+
+  /// Whether the doc type's bundle join goes to the refs file, when written.
+  final bool? bundleRefs;
 
   /// The doc type ids whose bundles print this doc type in summary, when
   /// written.
@@ -661,6 +666,7 @@ const _topKeys = {
   'lint',
   'reference',
   'bundle',
+  'bundle_refs',
   'summary_for',
   'generators',
 };
