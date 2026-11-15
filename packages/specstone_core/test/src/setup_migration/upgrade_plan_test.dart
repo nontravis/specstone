@@ -6,6 +6,8 @@ import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -3140,7 +3142,7 @@ void _moveToRecordTests() {
             '  software-tech: 1.7.0\n$targets',
         'docs/$_featurePath': '# Login\n',
         'docs/$_loginStoryPath': '# Email login\n',
-        for (final path in records) 'docs/$path': record,
+        for (final path in records) projectPathOfDocPath(path): record,
         signIn: signInCode,
       });
 
@@ -3193,6 +3195,22 @@ void _moveToRecordTests() {
             'unreadable': <String>[],
           },
         ]);
+      });
+
+      test('a record already under .specstone/records/ moves to the first '
+          "target's folder, and its emptied folder is pruned from the "
+          'project root', () async {
+        final plan = _planAt(
+          await pinned1x7(
+            targets:
+                'targets:\n  flutter:\n    code_root: app\n'
+                '  jaspr:\n    code_root: web\n',
+            records: [newRecord],
+          ),
+        );
+
+        expect(plan.moves.map((move) => move.from), [newRecord]);
+        expect(plan.prunes, ['.specstone/records/f01_login']);
       });
 
       test('with two code targets each target moves its record to its folder '

@@ -1033,7 +1033,7 @@ Map<String, String> _overridesOf(
 /// Returns the folders the moves empty, the deepest first, as ProjectPaths.
 List<String> prunesOf(List<PathMove> moves) => {
   for (final move in moves)
-    '$_docsFolder${move.from.substring(0, move.from.lastIndexOf('/'))}',
+    projectPathOfDocPath(move.from.substring(0, move.from.lastIndexOf('/'))),
 }.toList()..sort((a, b) => compareCodePoints(b, a));
 
 /// Returns a draft for each singular doc type whose path the moved tree

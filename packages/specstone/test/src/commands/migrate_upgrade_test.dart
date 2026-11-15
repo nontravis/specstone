@@ -2360,6 +2360,52 @@ agent_file_roots:
         expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
       });
 
+      test(
+        'a second code target moves a record under .specstone/records/ '
+        'into the first target folder and leaves no empty folder behind',
+        () async {
+          final h = await writeTree({});
+          const text =
+              "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
+              '# Login implementation\n';
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.7.0\n'
+                'targets:\n  flutter:\n    code_root: app\n'
+                '  jaspr:\n    code_root: web\n',
+            _gitignore: _ignoreFile,
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            recordPath: text,
+          });
+
+          final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, h, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          expect(
+            _read(
+              root,
+              '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
+            ),
+            text,
+          );
+          expect(
+            Directory('${root.path}/.specstone/records/f01_login').existsSync(),
+            isFalse,
+          );
+        },
+      );
+
       test('a status no entry takes refuses the shipped run '
           'and writes nothing', () async {
         final h = await writeTree({});

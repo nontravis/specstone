@@ -1956,6 +1956,19 @@ name: Login API
       expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
     });
 
+    test('with two targets an existing record moves to the first target and '
+        'its emptied records folder is pruned from the project root', () async {
+      final plan = await _plan({
+        ...recorded(),
+        '.specstone/config.yaml': twin,
+        recordPath: recordText(statuses: ['email_login:implemented']),
+      });
+
+      expect(plan.moves.map((move) => move.from), contains(recordPath));
+      expect(plan.prunes, contains('.specstone/records/f01_login'));
+      expect(plan.prunes, isNot(contains(startsWith('docs/.specstone'))));
+    });
+
     test('E15: with two targets a doc that already holds the first target '
         'path refuses legacy_collision, and nothing is lost', () async {
       await expectLater(
