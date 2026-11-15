@@ -28,6 +28,18 @@ const _frXText = '# Requirement X\n\n## Statement\n\nShall.\n';
 const _storyBText =
     '# Story B\n\n## Summary\n\nSecond.\n\n## Acceptance Criteria\n\nDone.\n';
 
+const _recordType = '''
+id: implementation
+description: One feature record.
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
+''';
+
 const Map<String, String> _fixture = {
   _feature: _featureText,
   _storyA: _storyAText,
@@ -98,6 +110,25 @@ void main() {
       expect(order, everyElement(isNonNegative));
       expect(order, [...order]..sort());
     });
+
+    test(
+      'a record under the records root gets no page and no warning',
+      () async {
+        final project = await fixtureProject({
+          ..._fixture,
+          '.specstone/templates/implementation.yaml': _recordType,
+          '.specstone/records/f03_template_packs/IMPLEMENTATION.md':
+              '# Packs record\n',
+        });
+        final runner = await runnerIn(project);
+
+        expect(await runner.run(['build', 'docs']), 0);
+        expect(err.toString(), isEmpty);
+        final html = read(project, '.specstone/build/docs.html');
+        expect(html, contains('F-03 Template packs'));
+        expect(html, isNot(contains('Packs record')));
+      },
+    );
 
     test('a file keeps its .md in the output name', () async {
       final project = await fixtureProject(_fixture);

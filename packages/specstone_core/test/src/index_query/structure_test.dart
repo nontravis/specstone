@@ -15,6 +15,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -877,6 +878,64 @@ void main() {
         'feedback (feature) — Toast · planned · '
         '${tokenSizeOf(featureText)} tokens\n',
       );
+    });
+  });
+
+  group('records under the records root', () {
+    const recordsRoot = '.specstone/records';
+    late DocIndex underRoot;
+    setUpAll(() async {
+      underRoot = await indexWith({
+        ...recordsRootTemplates,
+        '$recordsRoot/f01_login/IMPLEMENTATION.md':
+            loginRecords['docs/specs/f01_login/IMPLEMENTATION.md']!,
+        '$recordsRoot/f02_signup/IMPLEMENTATION.md':
+            loginRecords['docs/specs/f02_signup/IMPLEMENTATION.md']!,
+      });
+    });
+
+    List<String> withoutRecordLines(String text) => [
+      for (final line in text.split('\n'))
+        if (!line.contains(' (implementation) ')) line,
+    ];
+
+    test('the whole tree prints no record line and the statuses it printed with the records beside the feature', () {
+      final text = answerStructure(underRoot).text;
+
+      expect(text, isNot(contains('(implementation)')));
+      expect(text.split('\n'), withoutRecordLines(answerStructure(index).text));
+      expect(text, contains('login (feature) — Login · planned · '));
+      expect(text, contains('signup (feature) — Sign up · implemented · '));
+    });
+
+    test(
+      'a feature prints its subtree with no record line and the same statuses',
+      () {
+        final text = answerStructure(underRoot, target: 'login').text;
+
+        expect(text, isNot(contains('(implementation)')));
+        expect(
+          text.split('\n'),
+          withoutRecordLines(answerStructure(index, target: 'login').text),
+        );
+      },
+    );
+
+    test('--json on the whole tree holds no record doc', () {
+      final docs = answerStructure(underRoot).json['docs']! as List;
+
+      expect(jsonEncode(docs), isNot(contains('"docType":"implementation"')));
+      expect(jsonEncode(docs), isNot(contains(recordsRoot)));
+    });
+
+    test('the record target prints the record lines', () {
+      final answer = answerStructure(underRoot, target: 'implementation:login');
+
+      expect(
+        answer.text.split('\n').first,
+        startsWith('login (implementation) — Login implementation · '),
+      );
+      expect(answer.json['docs'], hasLength(1));
     });
   });
 }

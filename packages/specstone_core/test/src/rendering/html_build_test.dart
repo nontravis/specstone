@@ -17,6 +17,18 @@ description: A second doc type on the same paths.
 path: prds/features/f{nn}_rendering/FEATURE.md
 ''';
 
+const _recordType = '''
+id: implementation
+description: One feature record.
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
+''';
+
 const _featureDir = 'prds/features/f05_rendering';
 const _featurePath = '$_featureDir/FEATURE.md';
 const _storyPath = '$_featureDir/us01_a/USER_STORY.md';
@@ -515,6 +527,31 @@ void main() {
         'docs/$_featureDir/us01_a/: cannot be read; skipped',
       ]);
     }, skip: unreadablePathSkipReason() ?? false);
+  });
+
+  test('a record under the records root gets no page and no warning', () async {
+    final build = await _build(
+      {_featurePath: _feature, _storyPath: _story},
+      beforeBuild: (root) {
+        File.fromUri(
+            root.uri.resolve('.specstone/templates/implementation.yaml'),
+          )
+          ..createSync(recursive: true)
+          ..writeAsStringSync(_recordType);
+        File.fromUri(
+            root.uri.resolve(
+              '.specstone/records/f05_rendering/IMPLEMENTATION.md',
+            ),
+          )
+          ..createSync(recursive: true)
+          ..writeAsStringSync('# Rendering record\n');
+      },
+    );
+
+    expect(build.html, contains('F-05 — Rendering'));
+    expect(build.html, isNot(contains('Rendering record')));
+    expect(build.html, isNot(contains('IMPLEMENTATION.md')));
+    expect(build.warnings, isEmpty);
   });
 
   test('resolve_links E08: a link to another doc reaches the prefixed id of '
