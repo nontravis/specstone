@@ -15,6 +15,7 @@ import '../../helpers/shipped_pins.dart';
 
 const _patternsField =
     'fields:\n  - id: patterns\n    type: string\n    list: true\n';
+const _noPatternsField = 'fields:\n  - id: patterns\n    disabled: true\n';
 
 const _signIn = '''
 id: sign_in
@@ -131,7 +132,10 @@ void main() {
     'skipLinesOf is empty for a doc whose type carries no patterns field',
     () async {
       final project = await writeCheckProject(
-        extra: _feature(['crud'], ['- `crud/paged_list` — one page is enough']),
+        extra: {
+          '.specstone/templates/feature.yaml': _noPatternsField,
+          ..._feature(['crud'], ['- `crud/paged_list` — one page is enough']),
+        },
       );
 
       expect(_skipsOf(project), isEmpty);
@@ -294,7 +298,10 @@ void main() {
     'a doc type without the patterns field reads no value and no skip line',
     () async {
       final project = await writeCheckProject(
-        extra: _feature(['cruds'], ['- `crud/paged_lis` — one page is enough']),
+        extra: {
+          '.specstone/templates/feature.yaml': _noPatternsField,
+          ..._feature(['cruds'], ['- `crud/paged_lis` — one page is enough']),
+        },
       );
 
       expect(_found(checkOf(project)), isEmpty);

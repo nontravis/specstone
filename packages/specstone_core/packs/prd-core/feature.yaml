@@ -60,6 +60,12 @@ fields:
     description: |-
       Names the features this feature needs built first; each name must resolve to a feature.
       Leave it out when the feature depends on no other feature.
+  - id: patterns
+    type: string
+    list: true
+    description: |-
+      Names the feature patterns this feature follows; list the ids with `specstone guide --pattern`.
+      Leave it out when no feature pattern fits the feature.
 sections:
   - id: problem
     header: Problem
@@ -115,9 +121,11 @@ sections:
     description: |-
       List the use cases left out to fit the appetite or keep the problem tractable, one line each.
       Write each line as `<thing> — <owning feature | not planned>`; mark a deferred item with its owning feature.
+      Write the skip line of a pattern item as `<pattern>/<item>` in a code span, then ` — `, then the reason.
       The list has no cap on the number of lines.
     template: |-
       - <thing> — <owning feature | not planned>
+      - `<pattern>/<item>` — <why the feature skips the item>
     query: true
     lint:
       banned_patterns:
