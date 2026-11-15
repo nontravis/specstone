@@ -19,9 +19,8 @@ type's writing guide says it needs; a gap goes to the Owner.
 
 ## Take in the source
 
-1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`, on any
-   host: a call over its budget prints no doc path to judge the source by. Read no source and
-   open no link or issue before it. Its exits are the skill's step 1's; on 78 the source stays unread.
+1. **The gate.** Make `specstone context project --for design --out` your first CLI call, with no `--budget`. Read no
+   source and open no link or issue before it. Its exits are the skill's step 1's; on 78 the source stays unread.
 2. **Judge the path.** A file inside the CheckedFolders (the first folder of a doc path the `==> ` headers of the
    gate's saved bundle hold, right under the docs folder) is no source. Read none of it with any tool; make item 4's
    call with its path as the target and no `--summary`. Its exit decides:
@@ -34,7 +33,7 @@ type's writing guide says it needs; a gap goes to the Owner.
    - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
 3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
    conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
-   Owner gave, so it stays unopened. The CLI opens none. Never edit, move, or delete the
+   Owner gave. The CLI opens none. Never edit, move, or delete the
    source.
 4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the grounding,
    and no second call runs. Otherwise target the doc the source decides, by the skill's step 1 target rule.
@@ -45,7 +44,8 @@ type's writing guide says it needs; a gap goes to the Owner.
    ```
 
    - **0:** both saved bundles are the grounding, whatever their size: read them per the `specstone-read-sdd`
-     skill, searching them before any `get`.
+     skill, searching them before any `get`. Ground a doc they lack by its own
+     `specstone context <doc> --for design --out`, never `get`.
    - **Any other exit:** report the CLI's error and stop.
 5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
    question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's

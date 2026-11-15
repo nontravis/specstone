@@ -5,24 +5,17 @@ question in your report.
 ## 1. Check the inputs
 
 - **Brief**: the Owner's approved answers: decisions, rulings in the Owner's words, the approach picked, and open
-  questions. Read it whole. When it names a file to re-read, also follow `## Map the source` in
-  `source.md`.
+  questions, each claim with its saved file and line range. Read it whole. When it names a file to re-read, also
+  follow `## Map the source` in `source.md`.
 - **Design path**: the document to write or amend; step 2 judges it.
 
 ## 2. Ground each claim
 
-Run `specstone context <target> --for design --out` on the smallest doc that holds the brief's whole change: the
-story for a change inside one story, the feature for one across stories, the feature with `--summary` to add a story,
-and the project doc to add a feature. Pass no `--budget`. Pass no `--target`: a design read spans every code target.
-Read the saved file per the `specstone-read-sdd` skill, searching it before any `get`.
-As the skill's runner, run no other call: your ground is what its step 1 gave, the bundle or `specstone-sdd-reader`'s
-sections, and, for a change from a source, the gate call's bundle plus any `--no-project` call's or the reader's
-sections.
+Read each claim's grounding from the saved file and line range the brief gives under it, with the host's file read.
+Run no `context` and no `get` for a doc: a claim with no range is an open question in your report. Cite only what
+those lines hold.
 
-- **0:** the saved bundle is your ground. Cite only what your ground holds.
-- **Any other exit:** report the CLI's error and stop.
-
-Before any write, judge the design path by that bundle:
+Before any write, judge the design path by the saved files' `==> ` headers:
 
 - **A design path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
   right under the docs folder: `prds/`, `specs/`, and `measurements/` with the shipped packs; a deeper folder of
@@ -91,5 +84,5 @@ Design document: <path>, written | amended
 Sections touched: <each section an amend or a ruling sweep changed, or none>
 Open questions:
 - <a gap>
-Findings: <each claim the bundle could not ground, each code path or symbol not found, or none>
+Findings: <each claim its lines could not ground, each code path or symbol not found, or none>
 ```

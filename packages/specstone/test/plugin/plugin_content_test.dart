@@ -218,6 +218,7 @@ void main() {
   _dispatchReferenceTests();
   _groundInitUpdateTests();
   _brainstormTests();
+  _designBriefTests();
   _syncBootstrapTests();
   _planFilesTests();
   _shippedTreeTests();
@@ -776,7 +777,7 @@ const _procedures = <_Procedure>[
   (
     file: 'specstone-brainstorming-sdd/references/design.md',
     tags: 'f08/us02/fr01, f08/us02/fr06',
-    commands: ['context', 'refs', 'search'],
+    commands: ['refs', 'search'],
   ),
   (
     file: 'specstone-brainstorming-sdd/references/audit.md',
@@ -1724,7 +1725,6 @@ const _groundingFiles = [
   'specstone-read-sdd/SKILL.md',
   'specstone-sdd-reader.md',
   'specstone-brainstorming-sdd/SKILL.md',
-  'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/source.md',
   'specstone-plan-sdd/SKILL.md',
@@ -2299,14 +2299,9 @@ void _agentTests() {
   });
 
   test('E20: design '
-      'mode grounds with no --target and names a code target on each '
-      'per-target row', () {
+      'mode names a code target on each per-target row', () {
     final design = _oneLine(
       _pluginText('specstone-brainstorming-sdd/references/design.md'),
-    );
-    expect(
-      design,
-      contains('Pass no `--target`: a design read spans every code target.'),
     );
     expect(
       design,
@@ -2332,8 +2327,8 @@ void _agentTests() {
     expect(
       _oneLine(_pluginText('specstone-sdd-engineer.md')),
       contains(
-        'design writes a code target on each per-target spec doc row; design '
-        'and audit pass no `--target` on `context --for design`.',
+        'design writes a code target on each per-target spec doc row; audit '
+        'passes no `--target` on `context --for design`.',
       ),
     );
   });
@@ -3347,21 +3342,6 @@ void _agentTests() {
     }
   });
 
-  test('f08/us02/fr01, db-r5: design.md names the smallest doc itself, as the '
-      'design-mode agent never reads SKILL.md', () {
-    final text = _pluginText('specstone-brainstorming-sdd/references/design.md')
-        .replaceAll(RegExp(r'\s+'), ' ');
-    expect(
-      text,
-      contains(
-        "on the smallest doc that holds the brief's whole change: the story "
-        'for a change inside one story, the feature for one across stories, '
-        'the feature with `--summary` to add a story, and the project doc to '
-        'add a feature.',
-      ),
-    );
-  });
-
   test('agent_plugin/write_prd_and_spec/write_design_and_plan E09-E12, '
       'E10-E13: '
       "design mode searches each decision's dependents, and the audit hashes "
@@ -3531,9 +3511,8 @@ void _agentTests() {
 
   test('Map each source item in the design document '
       'verification; write_design_document input_output; take_in_a_source '
-      'E02, E03, E08: design.md points design mode to source.md, and the '
-      'runner grounds on the gate bundle plus any narrow bundle or the '
-      "reader's sections", () {
+      'E02, E03, E08: design.md points design mode to source.md, and design '
+      "mode grounds on the brief's saved file and line ranges", () {
     final design = _pluginText(
       'specstone-brainstorming-sdd/references/design.md',
     );
@@ -3542,15 +3521,10 @@ void _agentTests() {
       contains('`source.md`'),
     );
     final ground = _oneLine(_sectionOf(design, '2. Ground each claim'));
-    for (final point in [
-      "As the skill's runner, run no other call: your ground is what its",
-      "step 1 gave, the bundle or `specstone-sdd-reader`'s sections,",
-      "for a change from a source, the gate call's bundle plus any",
-      "`--no-project` call's or the reader's sections.",
-      'Cite only what your ground holds.',
-    ]) {
-      expect(ground, contains(point), reason: point);
-    }
+    expect(
+      ground,
+      contains('the saved file and line range the brief gives under it'),
+    );
     expect(ground, isNot(contains('--for design --no-project')));
     expect(
       _pluginText('specstone-sdd-engineer.md'),
@@ -5447,6 +5421,92 @@ void _brainstormTests() {
 
     test('each of the six skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_brainstormContent()), isEmpty);
+    });
+  });
+}
+
+/// The skill and agent files that do design work with a saved bundle: the
+/// design brief's runner, its readers, and the audit.
+const _designWorkFiles = [
+  'specstone-read-sdd/SKILL.md',
+  'specstone-brainstorming-sdd/SKILL.md',
+  'specstone-brainstorming-sdd/references/audit.md',
+  'specstone-brainstorming-sdd/references/source.md',
+  'specstone-sdd-engineer.md',
+];
+
+void _designBriefTests() {
+  group('the design brief and design mode', () {
+    String skillStep3() => _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+        '3. Write the document: design mode',
+      ),
+    );
+    String designGround() => _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/references/design.md'),
+        '2. Ground each claim',
+      ),
+    );
+    String engineer() => _oneLine(_pluginText('specstone-sdd-engineer.md'));
+
+    test('the brief carries a saved file and line range per claim', () {
+      expect(
+        skillStep3(),
+        contains(
+          "under each claim of the brief the saved bundle file's path and "
+          'the line range that grounds it',
+        ),
+      );
+      expect(
+        designGround(),
+        contains('the saved file and line range the brief gives under it'),
+      );
+    });
+
+    test('design mode runs no context', () {
+      const rule = 'run no `context` and no `get` for a doc';
+      expect(designGround().toLowerCase(), contains(rule));
+      expect(engineer().toLowerCase(), contains(rule));
+      expect(
+        _contextCalls(
+          _pluginText('specstone-brainstorming-sdd/references/design.md'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a claim with no range is an open question', () {
+      expect(designGround(), contains('a claim with no range is an open'));
+      expect(engineer(), contains('a claim with no range is an open question'));
+      expect(skillStep3(), contains('a claim with no range is an open'));
+    });
+
+    test('main holds same-flag context until design mode replies', () {
+      expect(
+        skillStep3(),
+        contains(
+          'run no `context` call with the same target and flags until design '
+          'mode replies',
+        ),
+      );
+    });
+
+    test('design grounds a newly reached doc with context --for design, '
+        'never get', () {
+      for (final file in _designWorkFiles) {
+        expect(
+          _oneLine(_pluginText(file)),
+          matches(
+            RegExp(
+              '`(?:specstone )?context <doc> --for design --out`, '
+              'never `get`',
+            ),
+          ),
+          reason: file,
+        );
+      }
     });
   });
 }

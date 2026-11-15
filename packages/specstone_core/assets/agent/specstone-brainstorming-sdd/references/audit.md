@@ -17,9 +17,10 @@ report what the author's coverage table cannot show.
    is a finding and drops each name it names too. Run the call again on the rest; when no target is left, skip the
    rerun and the steps below. A dropped name is no target for the steps below: no bundle and no `check` for it.
 3. **Bundles**: run `specstone context <target> --for design --out` once for each feature the targets fall under
-   (the project doc for a project-level one), not once per target: a design bundle already holds the whole feature.
-   Pass no `--budget`. Pass no `--target`: the bundle takes every code target's spec docs. Read each saved file whole,
-   per the `specstone-read-sdd` skill.
+   (the project doc for a project-level one). Pass no `--budget`.
+   Pass no `--target`: the bundle takes every code target's spec docs. Read the saved files per the `specstone-read-sdd`
+   skill, the read-first one whole; ground a doc they lack with its own
+   `specstone context <doc> --for design --out`, never `get`.
    - **0:** the bundle is what you audit.
    - **Any other exit:** report the CLI's error for that call as a finding, and go on with the rest.
 4. **Design document**, when given: read it whole, and list each decision and ruling by its ID or label. Then run
@@ -32,14 +33,14 @@ report what the author's coverage table cannot show.
 
 Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 
-| Gap                  | What you find                                                                                |
-|----------------------|----------------------------------------------------------------------------------------------|
-| Decision dropped     | a decision, ruling, or Docs to change row of the design document that no target doc carries  |
+| Gap | What you find |
+|---|---|
+| Decision dropped | a decision, ruling, or Docs to change row of the design document that no target doc carries |
 | Requirement invented | a draft story, FR, or NFR, or a draft section of one, tracing to no decision of the document |
-| PRD and spec apart   | a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for   |
-| Docs contradict      | two docs that state different values or behavior for one thing; name both                    |
-| Statement untested   | an FR statement, or a clause of one, that no scenario of its story and no edge case covers   |
-| Rule restated        | a draft stating a rule another doc owns instead of citing it (`specstone-expert-sdd` rule 7) |
+| PRD and spec apart | a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for |
+| Docs contradict | two docs that state different values or behavior for one thing; name both |
+| Statement untested | an FR statement, or a clause of one, that no scenario of its story and no edge case covers |
+| Rule restated | a draft stating a rule another doc owns instead of citing it (`specstone-expert-sdd` rule 7) |
 
 - **Rule restated:** name the owner doc and the item; its fix is an item link in the draft.
 - **No design document:** skip the first two rows; every other comparison and `check` still run.

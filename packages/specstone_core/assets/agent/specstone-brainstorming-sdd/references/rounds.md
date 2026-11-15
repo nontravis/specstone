@@ -1,5 +1,5 @@
 The runner of `specstone-brainstorming-sdd` follows this from the first design-mode reply until the Owner approves
-the drafts. Each dispatch passes `report:`, and each reply goes to the Owner, as the skill's step 3 says.
+the drafts.
 
 ## 1. Route each Owner decision
 
@@ -8,11 +8,12 @@ rule. Every other decision only words or records one.
 
 - **A refused design path**, reported as an open question with no document written: append nothing; dispatch
   `mode: design` again with the brief's path and the Owner's new path in place of the refused one.
-- **Only words or records**: append it to the design document's Rulings yourself, as design mode writes them, and
+- **Only words or records**: append it to the design document's Rulings yourself, and
   dispatch nothing; the author, or the fix round under way, goes on.
-- **Adds or changes behavior**, or needs more PRD or spec grounding: add it to the brief and dispatch `mode: design`
-  again with the brief's path and the document's path, an amend of the same file. Design mode searches the
-  decision's terms (`design.md`) before the author writes it.
+- **Adds or changes behavior**, or needs more PRD or spec grounding: add it to the brief as the skill's
+  step 3 says, a doc newly reached by its own `specstone context <doc> --for design --out`, never `get`, and dispatch
+  `mode: design` again with the brief's path and the document's path, an amend of the same file. Design mode searches
+  the decision's terms (`design.md`) before the author writes it.
 - **Before the author**: after an append or an amend, ask for the approval again. When the design report holds
   open questions, gather the Owner's answers, append each that only words or records one, send the rest to one
   amend, and ask for the approval only after it.
