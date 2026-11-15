@@ -128,6 +128,25 @@ void main() {
       expect(read, isEmpty);
     });
 
+    test(
+      'a doc address inside a longer code span gives none, while a span '
+      'that is the whole address, with its #key, and a plain path give one',
+      () {
+        final read = _readAll(
+          _doc(
+            '`==> login (domain) · ../f01_login/DOMAIN.md#invariants · base 01 <==`\n'
+            '`run domain:login now` and `lib/src/journeys/`\n'
+            '`domain:login#invariants`\n'
+            'See ../f01_login/DOMAIN.md here.\n',
+          ),
+        );
+        expect(read, [
+          (8, 'domain:login', 'invariants', ''),
+          (9, '../f01_login/DOMAIN.md', null, ''),
+        ]);
+      },
+    );
+
     test('a doc without a backtick or a .md '
         'path gives none', () {
       expect(_readAll('# T\n\nPlain text, INV-1.\n'), isEmpty);
