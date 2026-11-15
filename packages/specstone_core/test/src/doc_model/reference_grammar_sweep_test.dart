@@ -121,6 +121,12 @@ final _allowed = <_Allowed>[
     """.indexOf(':'""",
     'Cuts a record entry line at its `:` marks, no reference.',
   ),
+  // A task ref entry (`<item>:<task id>`), not a doc reference.
+  _core(
+    'doc_model/task_ref.dart',
+    """.lastIndexOf(':'""",
+    'Cuts a task ref entry at its last `:`, a task id, no doc reference.',
+  ),
   _core(
     'index_query/link_blocks.dart',
     r"""RegExp(r'^#+$'""",
