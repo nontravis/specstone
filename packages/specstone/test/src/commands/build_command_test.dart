@@ -547,6 +547,32 @@ void main() {
       });
     });
 
+    test(
+      'an --output inside the records root is 73 and renders nothing',
+      () async {
+        const recordPath =
+            '.specstone/records/f03_template_packs/IMPLEMENTATION.md';
+        const recordText = '---\nstatuses: []\n---\n\n# Record\n';
+        final project = await fixtureProject({
+          ..._fixture,
+          '.specstone/templates/implementation.yaml': _recordType,
+          recordPath: recordText,
+        });
+        final runner = await runnerIn(project);
+
+        expect(
+          await runner.run(['build', _featureDir, '--output', recordPath]),
+          73,
+        );
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          '$recordPath: the output path is inside the records root\n',
+        );
+        expect(read(project, recordPath), recordText);
+      },
+    );
+
     test('f05/us02/s9, f05/us02/fr05/e02, DP1: --paper letter --landscape '
         '--margin 1in writes the page rule', () async {
       final project = await fixtureProject(_fixture);

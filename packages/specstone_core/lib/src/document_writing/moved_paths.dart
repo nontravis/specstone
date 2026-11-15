@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart'
     show percentDecoded;
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show isRecordsDocPath, projectPathOfDocPath;
 
 /// One move of a doc or a folder, as DocPaths.
 ///
@@ -44,14 +46,40 @@ String relativeHref(String fromDocPath, String toDocPath) {
 /// by leaving a moved folder and re-entering it, or when it names no file
 /// path (see [relativeFilePathOf]). A leading `./` stays unless the new path
 /// starts with `../`. A link and a prose mention share this one decision.
+///
+/// The comparison runs in project-root paths, so a link between a doc and a
+/// record, which sit under different roots, follows a move of either.
 String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
   final target = relativeFilePathOf(path, docPath);
   if (target == null) return null;
+  final projectMoves = [
+    for (final move in moves)
+      (
+        from: projectPathOfDocPath(move.from),
+        to: projectPathOfDocPath(move.to),
+      ),
+  ];
   final movedDoc = movedPath(docPath, moves);
-  final movedTarget = movedFilePath(target, moves);
-  if (relativeFilePathOf(path, movedDoc) == movedTarget) return null;
-  final after = relativeHref(movedDoc, movedTarget);
+  final movedTarget = movedFilePath(
+    _projectFilePathOf(target, docPath),
+    projectMoves,
+  );
+  final kept = relativeFilePathOf(path, movedDoc);
+  if (kept != null && _projectFilePathOf(kept, movedDoc) == movedTarget) {
+    return null;
+  }
+  final after = relativeHref(projectPathOfDocPath(movedDoc), movedTarget);
   return _keptDotSlash(path, after);
+}
+
+/// Returns [filePath], as [relativeFilePathOf] gives it for the doc at
+/// [docPath], as a path from the project root.
+String _projectFilePathOf(String filePath, String docPath) {
+  if (isRecordsDocPath(docPath)) return filePath;
+  if (filePath == '..') return '';
+  return filePath.startsWith('../')
+      ? filePath.substring('../'.length)
+      : '$docsFolderName/$filePath';
 }
 
 /// Returns [path], written in the doc at [fromDocPath], as the path that
