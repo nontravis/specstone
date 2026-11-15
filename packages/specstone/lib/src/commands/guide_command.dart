@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -16,6 +18,7 @@ class GuideCommand extends SpecstoneCommand {
         negatable: false,
         help: 'Read feature patterns in place of doc types.',
       );
+    addOutOption();
   }
 
   @override
@@ -28,14 +31,21 @@ class GuideCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone guide [type …] [--json]\n'
-      '       specstone guide --pattern [id …] [--json]';
+      'specstone guide [type …] [--json] [--out [<path>]]\n'
+      '       specstone guide --pattern [id …] [--json] [--out [<path>]]';
 
   @override
   Future<int> run() async {
     final rest = argResults!.rest;
     final runner = specstoneRunner;
     final asJson = argResults!.flag('json');
+
+    final String? outPath;
+    try {
+      outPath = outPathOf(argResults!);
+    } on IndexFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
 
     final MergedSet set;
     try {
@@ -48,16 +58,16 @@ class GuideCommand extends SpecstoneCommand {
     }
 
     if (argResults!.flag('pattern')) {
-      return _printPatterns(set, rest, asJson: asJson);
+      return _printPatterns(set, rest, asJson: asJson, outPath: outPath);
     }
 
     if (rest.isEmpty) {
-      runner.out.write(
+      return _emit(
         asJson
             ? '${SpecstoneCommand.pretty.convert(set.listJson())}\n'
             : set.listText(),
+        outPath,
       );
-      return 0;
     }
 
     final types = rest.toSet().toList();
@@ -80,20 +90,26 @@ class GuideCommand extends SpecstoneCommand {
       );
     }
 
-    runner.out.write(asJson ? _renderJson(docTypes) : _renderGuides(docTypes));
-    return 0;
+    return _emit(
+      asJson ? _renderJson(docTypes) : _renderGuides(docTypes),
+      outPath,
+    );
   }
 
-  int _printPatterns(MergedSet set, List<String> ids, {required bool asJson}) {
-    final out = specstoneRunner.out;
+  int _printPatterns(
+    MergedSet set,
+    List<String> ids, {
+    required bool asJson,
+    required String? outPath,
+  }) {
     if (ids.isEmpty) {
       final list = set.featurePatternListJson();
-      out.write(
+      return _emit(
         asJson
             ? '${SpecstoneCommand.pretty.convert(list)}\n'
             : set.featurePatternListText(),
+        outPath,
       );
-      return 0;
     }
 
     final patterns = <FeaturePattern>[];
@@ -116,10 +132,54 @@ class GuideCommand extends SpecstoneCommand {
       );
     }
 
-    out.write(
+    return _emit(
       asJson ? _renderPatternJson(patterns) : _renderPatterns(patterns),
+      outPath,
     );
-    return 0;
+  }
+
+  /// Prints [text], or, under `--out`, writes it to [outPath] (bare when null)
+  /// and prints the reply that names the file.
+  int _emit(String text, String? outPath) {
+    final args = argResults!;
+    final asJson = args.flag('json');
+    if (!writesOut(args)) {
+      specstoneRunner.out.write(text);
+      return 0;
+    }
+    final runner = specstoneRunner;
+    final match = matchProjectRoot(runner.workingDirectory);
+    final trust = match == null
+        ? null
+        : RootTrust.at(
+            folder: match.folder,
+            root: match.root,
+            homeDirectory: runner.homeDirectory,
+          );
+    try {
+      final answer = answerOutFile(
+        command: 'guide',
+        text: text,
+        file: outPath == null
+            ? bareOutFile(
+                trust?.projectRoot ?? runner.workingDirectory,
+                outFileName(
+                  command: 'guide',
+                  flags: [if (args.flag('pattern')) 'pattern'],
+                  args: args.rest,
+                  asJson: asJson,
+                ),
+              )
+            : File(absoluteFrom(runner.workingDirectory, outPath)),
+        projectRoot: trust?.projectRoot,
+        docsRoot: trust?.docsRoot,
+        isBare: outPath == null,
+        asJson: asJson,
+      );
+      return printAnswer(answer, const [], asJson: asJson);
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
   }
 
   /// Names each of [unknown] after [noun], in the singular form for one.
