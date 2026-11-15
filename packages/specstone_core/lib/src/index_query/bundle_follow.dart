@@ -419,7 +419,7 @@ final class _Walk {
     );
   }
 
-  /// Appends the cut to [rows] body rows of the `summary_rows` section at [at]
+  /// Appends the first [rows] body rows of the `summary_rows` section at [at]
   /// as a summary part, once, unless the bundle prints the cut already.
   ///
   /// A link into the section or one of its items gives the cut, never the

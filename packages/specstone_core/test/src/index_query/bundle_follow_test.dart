@@ -676,6 +676,19 @@ void main() {
 
       expect(parts.map(_id), ['$_measurementDoc#results summary']);
     });
+    test('an item range link appends the cut once', () async {
+      final parts = await fromProject(
+        '[RUN-1]($results) to [RUN-3]($results)',
+        measurement: plain.replaceFirst(
+          '## Results\n',
+          '## Results\n- **RUN-1** First run.\n- **RUN-2** Second run.\n- **RUN-3** Third run.\n\n',
+        ),
+        extra: itemLayer,
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+      expect(parts.single.itemId, isNull);
+    });
     test(
       'a section link after the doc link appends nothing the summary holds',
       () async {
