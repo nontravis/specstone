@@ -296,8 +296,14 @@ final class DocIndex {
   ruleItemWords() => _store.ruleItemWords();
 
   /// Returns the rows of the full-text index that match [matchExpression].
-  List<SearchRow> search(String matchExpression) =>
-      _store.search(matchExpression);
+  ///
+  /// First brings the search rows of each lagging doc up to date
+  /// ([IndexStore.fillSearchRows]), so the hits equal those of rows that were
+  /// always current.
+  List<SearchRow> search(String matchExpression) {
+    _store.fillSearchRows();
+    return _store.search(matchExpression);
+  }
 
   /// Returns the docs whose text holds [needle], case-sensitive.
   List<IndexedDoc> holding(String needle) {

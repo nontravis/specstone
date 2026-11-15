@@ -1,13 +1,21 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/search_docs.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
+
+/// Returns the path of [segments] under [project], with native separators.
+String _underProject(Directory project, List<String> segments) =>
+    [project.path, ...segments].join(Platform.pathSeparator);
 
 void main() {
   late DocIndex index;
@@ -96,6 +104,42 @@ void main() {
       heads(answer)
           .every((h) => h.startsWith('login/') && h.contains(' (fr) ')),
       isTrue,
+    );
+  });
+  test('the first search after a doc changed finds the new text and none of '
+      'the old', () async {
+    final project = await writeLoginProject(
+      extra: {'docs/m/note.md': '# Note\n\n## Body\nalpha beta\n'},
+    );
+    final first = openSession(project);
+    expect(heads(answerSearch(first.index, 'alpha', const SearchOptions())), [
+      'm/note.md#body — Note',
+    ]);
+    first.close();
+    File(_underProject(project, ['docs', 'm', 'note.md']))
+        .writeAsStringSync('# Note\n\n## Body\ngamma delta epsilon\n');
+    final second = openSession(project);
+    addTearDown(second.close);
+    expect(heads(answerSearch(second.index, 'delta', const SearchOptions())), [
+      'm/note.md#body — Note',
+    ]);
+    expect(
+      heads(answerSearch(second.index, 'alpha', const SearchOptions())),
+      isEmpty,
+    );
+  });
+  test('a read that does not search leaves the search rows unwritten, and the '
+      'first search after it still finds every doc', () async {
+    final project = await writeLoginProject();
+    openSession(project).close();
+    final raw = sqlite3.open(_underProject(project, [indexFilePath]));
+    addTearDown(raw.close);
+    expect(raw.select('SELECT count(*) FROM doc_search').single.columnAt(0), 0);
+    final searcher = openSession(project);
+    addTearDown(searcher.close);
+    expect(
+      heads(answerSearch(searcher.index, 'ค้นหา', const SearchOptions())),
+      ['prds/d01_context.md#project_vision — D-01 — Project context'],
     );
   });
   test('20 hits at most by default, untyped docs included', () async {
