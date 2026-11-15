@@ -253,6 +253,52 @@ void main() {
     ]);
   });
 
+  test(
+    'f04/us03/fr01/e15: an NFR block of a project-layer section with no '
+    'prefix_id keys by its heading ID, for an override and its fingerprint',
+    () async {
+      const recorded =
+          '- **Statement:** The system shall meet WCAG 2.2 AA on every page.';
+      Map<String, String> usability({
+        String heading = '### NFR-U01 — WCAG 2.2 AA',
+        String statement = recorded,
+      }) => {
+        '.specstone/templates/gnfr.yaml':
+            'sections:\n  - id: usability\n    header: Usability\n',
+        ...doc(
+          gnfrDoc,
+          '## Design standards\n\nN/A — none applies.\n',
+          '## Design standards\n\nN/A — none applies.\n\n## Usability\n\n'
+              '$heading\n\n$statement\n',
+        ),
+        ...edit(loginNf, [
+          ('overrides: NFR-P01', 'overrides: NFR-U01'),
+          (
+            'NFR-P01 ${fingerprintFor(loginNfrStatement)}',
+            'NFR-U01 ${fingerprintFor(recorded)}',
+          ),
+        ]),
+      };
+      final agreed = checkOf(await writeCheckProject(extra: usability()));
+      expect(spots(agreed, FindingKind.overrideUnresolved), isEmpty);
+      expect(spots(agreed, FindingKind.suspect), isEmpty);
+      final changed = checkOf(
+        await writeCheckProject(
+          extra: usability(statement: '$recorded Again.'),
+        ),
+      );
+      expect(spots(changed, FindingKind.suspect), ['$loginNf:7: suspect']);
+      final unreadable = checkOf(
+        await writeCheckProject(
+          extra: usability(heading: '### NFR-U1a1 — WCAG 2.2 AA'),
+        ),
+      );
+      expect(spots(unreadable, FindingKind.overrideUnresolved), [
+        '$loginNf:4: override_unresolved',
+      ]);
+    },
+  );
+
   test('a requirement whose story is gone gets no trace rule', () async {
     final report = checkOf(
       await writeCheckProject(

@@ -327,15 +327,21 @@ final class CheckContext {
   /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
 
-  /// Returns the `###` blocks of each held section of [doc] whose template
-  /// sets `prefix_id`, keyed by the ID the grammar reads at the heading;
-  /// a lettered or unreadable ID keys no block.
+  /// Returns the `###` blocks of each held section of [doc], keyed by the ID
+  /// the grammar reads at the heading; a lettered or unreadable ID keys no
+  /// block.
+  ///
+  /// A section reads its `prefix_id`. A gnfr section with none reads the
+  /// letters and hyphens before the heading's first digit as the prefix; any
+  /// other doc skips a section with none.
   Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
     IndexedDoc doc,
   ) sync* {
+    final isGnfr = doc.docTypeId == _gnfrType;
     for (final (i, template) in _heldTemplatesOf(doc).indexed) {
-      final prefix = template?.prefixId;
-      if (prefix == null) continue;
+      if (template == null) continue;
+      final prefix = template.prefixId;
+      if (prefix == null && !isGnfr) continue;
       yield* headingBlocksOf(
         bodyLinesOf(doc, i),
         (heading) => _itemKeyOf(heading, prefix),
@@ -434,8 +440,15 @@ const _statementPrefix = '- **Statement:**';
 
 /// Returns the ID of [prefix] a `###` [heading] opens with; null for any
 /// other heading, a lettered ID, and an unreadable ID.
-String? _itemKeyOf(String heading, String prefix) {
+///
+/// A null [prefix] reads the letters and hyphens before the first digit.
+String? _itemKeyOf(String heading, String? prefix) {
   final text = itemHeadingTextOf(heading);
-  final id = text == null ? null : readItemId(text, prefix);
+  if (text == null) return null;
+  final own = prefix ?? _writtenPrefix.firstMatch(text)?.group(1);
+  final id = own == null ? null : readItemId(text, own);
   return id is ItemId ? id.written : null;
 }
+
+/// The letters and hyphens that open an item heading, ahead of its digits.
+final _writtenPrefix = RegExp(r'^(?:\*\*)?([A-Za-z][A-Za-z-]*)\d');
