@@ -106,11 +106,20 @@ $_fenced''';
 
 late MergedSet _set;
 
-MergedDocType _typeAt(String docPath) =>
-    switch (DocTypeMatcher(_set, targetNames: const []).match(docPath)) {
+MergedDocType _typeIn(MergedSet set, String docPath) =>
+    switch (DocTypeMatcher(set, targetNames: const []).match(docPath)) {
       MatchedDocType(:final docType) => docType,
       _ => throw StateError('no doc type at $docPath'),
     };
+
+MergedDocType _typeAt(String docPath) => _typeIn(_set, docPath);
+
+/// The shipped packs merged with a project-layer `goal` doc type.
+MergedSet _goalSet() => TemplateResolver().resolveCarried(
+  packNames: const ['prd-core', 'software-tech'],
+  homeDirectory: null,
+  projectLayers: parseOverrides({'.specstone/templates/goal.yaml': _goalLayer}),
+);
 
 RenumberPass _planOf(Map<String, String> docs) => RenumberPass.plan([
   for (final MapEntry(key: docPath, value: lf) in docs.entries)
@@ -590,18 +599,8 @@ confirmed:
 ### PG-2a — Two
 ''';
     const feature = '---\ngoals:\n  - PG-2a\nname: PG-2a team\n---\n# A\n';
-    final set = TemplateResolver().resolveCarried(
-      packNames: const ['prd-core', 'software-tech'],
-      homeDirectory: null,
-      projectLayers: parseOverrides({
-        '.specstone/templates/goal.yaml': _goalLayer,
-      }),
-    );
-    MergedDocType typeAt(String docPath) =>
-        switch (DocTypeMatcher(set, targetNames: const []).match(docPath)) {
-          MatchedDocType(:final docType) => docType,
-          _ => throw StateError('no doc type at $docPath'),
-        };
+    final set = _goalSet();
+    MergedDocType typeAt(String docPath) => _typeIn(set, docPath);
     const featurePath = 'prds/features/f01_a/FEATURE.md';
 
     final pass = RenumberPass.plan([
@@ -642,18 +641,8 @@ confirmed:
 ### PG-2a — Four
 ''';
     const feature = '---\ngoals: [PG-2a, PG-3b]\n---\n# A\n';
-    final set = TemplateResolver().resolveCarried(
-      packNames: const ['prd-core', 'software-tech'],
-      homeDirectory: null,
-      projectLayers: parseOverrides({
-        '.specstone/templates/goal.yaml': _goalLayer,
-      }),
-    );
-    MergedDocType typeAt(String docPath) =>
-        switch (DocTypeMatcher(set, targetNames: const []).match(docPath)) {
-          MatchedDocType(:final docType) => docType,
-          _ => throw StateError('no doc type at $docPath'),
-        };
+    final set = _goalSet();
+    MergedDocType typeAt(String docPath) => _typeIn(set, docPath);
     const featurePath = 'prds/features/f01_a/FEATURE.md';
 
     final pass = RenumberPass.plan([
