@@ -193,7 +193,7 @@ Map<String, String> withCodeFingerprints(
   final codeFiles = {
     for (final MapEntry(:key, :value) in files.entries)
       if (!key.startsWith('docs/') && !key.startsWith('.specstone/'))
-        key: fileCodeFingerprint(utf8.encode(value)),
+        key: fileCodeFingerprint(utf8.encode(value), path: key),
   };
   final config = _configOf(files);
   final codeByRoot = <String, Map<String, String>>{};

@@ -33,10 +33,11 @@ const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
 /// Every doc whose code links the fixture writes, left with none recorded.
 const _linkedDocs = {'docs/$loginRecord', 'docs/$loginArchitecture'};
 
-String _fingerprintOf(String text) => fileCodeFingerprint(utf8.encode(text));
+String _fingerprintOf(String text, String path) =>
+    fileCodeFingerprint(utf8.encode(text), path: path);
 
 final String _loginText = checkProjectFiles()[_login]!;
-final String _loginFingerprint = _fingerprintOf(_loginText);
+final String _loginFingerprint = _fingerprintOf(_loginText, _login);
 final String _appLibFingerprint = folderCodeFingerprint([
   (path: _login, fingerprint: _loginFingerprint),
 ]);

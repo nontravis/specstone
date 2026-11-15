@@ -236,12 +236,15 @@ Iterable<CodeLink> _coversLinks(
 ///   stay out.
 /// - [bytesOf]: the bytes of a file from [codeRoot], null when unreadable.
 /// - [onUnlistable]: told each folder that cannot be listed.
+/// - [fileHash]: the fingerprint of a file's bytes and its path from
+///   [codeRoot]; the current rule by default.
 String? currentCodeFingerprint(
   String path, {
   required Directory codeRoot,
   required List<String> nestedRoots,
   required List<int>? Function(String file) bytesOf,
   required void Function(String folder) onUnlistable,
+  String Function(List<int> bytes, String path) fileHash = _currentFileHash,
 }) {
   final normal = normalCodeEntry(path);
   final isFile =
@@ -249,7 +252,7 @@ String? currentCodeFingerprint(
       FileSystemEntityType.file;
   if (isFile) {
     final bytes = bytesOf(normal);
-    return bytes == null ? null : fileCodeFingerprint(bytes);
+    return bytes == null ? null : fileHash(bytes, normal);
   }
   var isReadable = true;
   final listed = codeLinkFiles(
@@ -267,8 +270,11 @@ String? currentCodeFingerprint(
     if (bytes == null) {
       isReadable = false;
     } else {
-      files.add((path: file, fingerprint: fileCodeFingerprint(bytes)));
+      files.add((path: file, fingerprint: fileHash(bytes, file)));
     }
   }
   return isReadable ? folderCodeFingerprint(files) : null;
 }
+
+String _currentFileHash(List<int> bytes, String path) =>
+    fileCodeFingerprint(bytes, path: path);

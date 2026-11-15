@@ -97,7 +97,7 @@ final Map<String, String> _codeFiles = {
 };
 
 String _fileFingerprint(String path) =>
-    fileCodeFingerprint(utf8.encode(_codeFiles[path]!));
+    fileCodeFingerprint(utf8.encode(_codeFiles[path]!), path: path);
 
 /// Returns the fingerprint of every code file under [folder].
 String _folderFingerprint(String folder) {

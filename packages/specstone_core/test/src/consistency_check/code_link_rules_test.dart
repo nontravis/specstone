@@ -27,17 +27,18 @@ const _stale = '0123456789ab';
 const _unreadable =
     'cannot read the file; implements Symbols in it are not checked';
 
-String _fingerprintOf(String text) => fileCodeFingerprint(utf8.encode(text));
+String _fingerprintOf(String text, String path) =>
+    fileCodeFingerprint(utf8.encode(text), path: path);
 
 /// Returns the fingerprint of a folder that lists [files], by path and text.
 String _folderFingerprintOf(Map<String, String> files) =>
     folderCodeFingerprint([
       for (final MapEntry(:key, :value) in files.entries)
-        (path: key, fingerprint: _fingerprintOf(value)),
+        (path: key, fingerprint: _fingerprintOf(value, key)),
     ]);
 
 final String _loginText = checkProjectFiles()[_login]!;
-final String _loginFingerprint = _fingerprintOf(_loginText);
+final String _loginFingerprint = _fingerprintOf(_loginText, _login);
 
 /// Returns a record: `statuses`, `implements`, and `tests`, one quoted line
 /// each, under a `draft: true` line when [isDraft].
@@ -157,6 +158,37 @@ void main() {
       },
     );
 
+    test('whose file gained a comment line and a blank line gives no '
+        'code_suspect', () async {
+      final project = await _project(
+        _record(code: ['$_fr:$_pointer $_loginFingerprint']),
+      );
+      File(
+        '${project.path}/$_login',
+      ).writeAsStringSync('// added note\n\n$_loginText\n  // trailing note\n');
+
+      final report = _run(project);
+
+      expect(_suspects(report), isEmpty);
+      expect(_unconfirmed(report), isEmpty);
+    });
+
+    test(
+      'whose file gained an end-of-line comment gives code_suspect',
+      () async {
+        final project = await _project(
+          _record(code: ['$_fr:$_pointer $_loginFingerprint']),
+        );
+        final lines = _loginText.split('\n')
+          ..[0] = '${_loginText.split('\n')[0]} // x';
+        File('${project.path}/$_login').writeAsStringSync(lines.join('\n'));
+
+        expect([
+          for (final f in _suspects(_run(project))) f.path,
+        ], contains(_recordPath));
+      },
+    );
+
     test('that records no fingerprint waits for the agent in a draft record '
         'and an approved one', () async {
       for (final isDraft in [true, false]) {
@@ -197,7 +229,7 @@ void main() {
         ),
       );
       File('${project.path}/$_login').writeAsStringSync(changed);
-      final current = _fingerprintOf(changed);
+      final current = _fingerprintOf(changed, _login);
 
       final [finding] = _suspects(_run(project));
 
@@ -501,7 +533,10 @@ void main() {
       const bytes = [0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF];
       final recorded = folderCodeFingerprint([
         (path: _login, fingerprint: _loginFingerprint),
-        (path: 'app/lib/logo.png', fingerprint: fileCodeFingerprint(bytes)),
+        (
+          path: 'app/lib/logo.png',
+          fingerprint: fileCodeFingerprint(bytes, path: 'app/lib/logo.png'),
+        ),
       ]);
       final project = await writeCheckProject(
         extra: _covering('  - app/lib/ $recorded\n'),
@@ -714,7 +749,7 @@ void main() {
     final flutterText = File('${project.path}/flutter_ws/$_login')
         .readAsStringSync();
     final record = _record(
-      code: ['$_fr:$_pointer ${_fingerprintOf(flutterText)}'],
+      code: ['$_fr:$_pointer ${_fingerprintOf(flutterText, _login)}'],
     );
     for (final path in [_flutterRecord, _jasprRecord]) {
       File('${project.path}/docs/$path')

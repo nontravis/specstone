@@ -3959,7 +3959,10 @@ void _codeStampTests() {
     const signIn = 'app/lib/login/sign_in.dart';
     const signInCode = 'class SignIn {}\n';
     const architecturePath = 'specs/f01_login/ARCHITECTURE.md';
-    final signInFingerprint = fileCodeFingerprint(utf8.encode(signInCode));
+    final signInFingerprint = fileCodeFingerprint(
+      utf8.encode(signInCode),
+      path: signIn,
+    );
 
     /// A project on the shipped prd-core and software-tech 1.6.0, whose
     /// record and architecture doc name code with no fingerprint recorded.

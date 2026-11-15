@@ -372,6 +372,7 @@ void main() {
     const entry = 'app/lib/login.dart:checkPassword';
     final current = fileCodeFingerprint(
       utf8.encode(checkProjectFiles()['app/lib/login.dart']!),
+      path: 'app/lib/login.dart',
     );
 
     // The record's other entry records its fingerprint, so the entry named

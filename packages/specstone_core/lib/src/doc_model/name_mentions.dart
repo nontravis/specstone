@@ -54,6 +54,15 @@ const _commentMarks = {
   '.py': '#',
 };
 
+/// The extension of [path], a `/`-separated path from a code root: the last
+/// `.` of its file name and what follows, empty when the name has none or
+/// starts with its only `.`.
+String extensionOfCodePath(String path) {
+  final name = path.substring(path.lastIndexOf('/') + 1);
+  final dot = name.lastIndexOf('.');
+  return dot <= 0 ? '' : name.substring(dot);
+}
+
 /// Whether a file of [extension], a `.` and its letters, holds doc-name
 /// mentions: markdown, or a type with a line-comment mark.
 bool readsNameMentions(String extension) =>
