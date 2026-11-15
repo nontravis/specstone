@@ -5,6 +5,8 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/new_doc.dart'
+    show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     show newRecordOf;
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -321,6 +323,53 @@ name: Login API
     });
 
     expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
+  });
+
+  group('tech stack skeleton per target', () {
+    const jasprThenFlutter =
+        'packs:\n  prd-core: 0.0.1\ntargets:\n  jaspr:\n'
+        '    code_root: jaspr_ws\n  flutter:\n    code_root: flutter_ws\n';
+
+    test('per-target creates follow targets order', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml': jasprThenFlutter,
+      });
+
+      final techStack = _carriedSet().lookup('tech_stack')!;
+      final creates = plan.creates.where(
+        (c) => c.path.endsWith('TECH_STACK.md'),
+      );
+      expect(creates.map((c) => c.path), [
+        'docs/specs/jaspr/TECH_STACK.md',
+        'docs/specs/flutter/TECH_STACK.md',
+      ]);
+      for (final create in creates) {
+        expect(create.text, skeletonOf(techStack, 'tech_stack'));
+      }
+    });
+
+    test("a target's tech stack doc in place is kept", () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml': jasprThenFlutter,
+        'docs/specs/flutter/TECH_STACK.md': '# Tech stack\n',
+      });
+
+      expect(
+        _createdPaths(plan).where((path) => path.endsWith('TECH_STACK.md')),
+        ['docs/specs/jaspr/TECH_STACK.md'],
+      );
+    });
+
+    test('one target creates the one-target path', () async {
+      final plan = await _plan(acmeLegacy);
+
+      expect(
+        _createdPaths(plan).where((path) => path.endsWith('TECH_STACK.md')),
+        ['docs/specs/TECH_STACK.md'],
+      );
+    });
   });
 
   test('a tree gets no draft for a project spec doc type', () async {
