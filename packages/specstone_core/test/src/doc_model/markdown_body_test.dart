@@ -57,4 +57,41 @@ void main() {
       },
     );
   });
+
+  group('parseMarkdownTreeByBlock', () {
+    Node firstChildOf(Node block) => (block as Element).children!.first;
+
+    test('a block with none of the characters a link needs keeps its '
+        'unparsed content, and a block with one is parsed', () {
+      final nodes = parseMarkdownTreeByBlock(
+        'Plain words only.\n\nSee [a](b.md).\n',
+      )!.nodes;
+
+      expect(firstChildOf(nodes[0]), isA<UnparsedContent>());
+      expect(nodes[1], isA<Element>());
+      expect(
+        (nodes[1] as Element).children!.whereType<Element>().single.tag,
+        'a',
+      );
+    });
+
+    test('a heading with none of those characters is parsed', () {
+      final nodes = parseMarkdownTreeByBlock('# Plain heading\n')!.nodes;
+
+      expect(firstChildOf(nodes.single), isA<Text>());
+    });
+
+    test('a link reference definition read in the block pass resolves in a '
+        'later block', () {
+      final nodes = parseMarkdownTreeByBlock('[a][ref]\n\n[ref]: b.md\n')!
+          .nodes;
+
+      final link = (nodes.single as Element).children!.single as Element;
+      expect(link.attributes['href'], 'b.md');
+    });
+
+    test('a body the parser throws on gives null', () {
+      expect(parseMarkdownTreeByBlock(r'[a]:<b\'), isNull);
+    });
+  });
 }

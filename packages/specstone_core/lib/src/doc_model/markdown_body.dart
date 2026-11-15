@@ -85,6 +85,79 @@ MarkdownTree? parseMarkdownTree(String text) {
   );
 }
 
+/// Returns the [MarkdownTree] of [text] with the inline pass run only where a
+/// link or an anchor can come from, or null where [parseMarkdownTree] gives
+/// null for the same text.
+///
+/// A heading is always parsed, since the anchor set reads its text. Any other
+/// block is parsed when its text holds `[`, `<`, `@`, `://`, or `www.`, the
+/// starts of every inline link, autolink, and raw tag `markdown` reads; every
+/// other block keeps its `UnparsedContent`. The block pass runs first on the
+/// whole text, so a link reference definition resolves in any block. A text
+/// that defines a footnote gets the full parse, which moves and drops its
+/// footnote definitions by the references it counts.
+///
+/// A tree the full parse finds too deep only through inline nesting, in
+/// blocks this pass leaves unparsed, comes back whole.
+MarkdownTree? parseMarkdownTreeByBlock(String text) {
+  final Document document;
+  final List<Node> nodes;
+  try {
+    document = Document(extensionSet: ExtensionSet.gitHubFlavored);
+    nodes = BlockParser(
+      LineSplitter.split(text).map(Line.new).toList(),
+      document,
+    ).parseLines();
+    if (document.footnoteReferences.isNotEmpty) return parseMarkdownTree(text);
+    _parseInlineWhereGated(document, nodes, inHeading: false);
+  } on Object {
+    return null;
+  }
+  if (_depthOf(nodes) > maxMarkdownDepth) return null;
+  return MarkdownTree._(
+    text,
+    nodes,
+    document.linkReferences,
+    definesFootnote: false,
+  );
+}
+
+/// Runs [document]'s inline pass on the unparsed content of [nodes] that is
+/// in a heading or whose text can start a link or an anchor.
+void _parseInlineWhereGated(
+  Document document,
+  List<Node> nodes, {
+  required bool inHeading,
+}) {
+  for (var i = 0; i < nodes.length; i++) {
+    final node = nodes[i];
+    if (node is UnparsedContent) {
+      if (!inHeading && !_canStartInline(node.textContent)) continue;
+      final inline = document.parseInline(node.textContent);
+      nodes
+        ..removeAt(i)
+        ..insertAll(i, inline);
+      i += inline.length - 1;
+    } else if (node is Element && node.children != null) {
+      _parseInlineWhereGated(
+        document,
+        node.children!,
+        inHeading: inHeading || _isHeadingTag(node.tag),
+      );
+    }
+  }
+}
+
+/// Whether [text] holds a start of syntax the inline pass reads into a link or
+/// an anchor: `[` (inline, reference, and footnote links), `<` (autolink and
+/// raw tag), `@` (email autolink), `://` (bare web autolink), or `www.`.
+bool _canStartInline(String text) =>
+    text.contains('[') ||
+    text.contains('<') ||
+    text.contains('@') ||
+    text.contains('://') ||
+    text.contains('www.');
+
 /// Returns the nodes of [text] in source order, as `markdown` builds them
 /// before it moves its footnote definitions, or [rendered], its parse of
 /// [text], when that build throws.
@@ -143,8 +216,9 @@ void _parseInline(Document document, List<Node> nodes) {
 /// (`<` and a scheme).
 ///
 /// A scheme autolink never resolves to a doc, but the grammar may fail to
-/// read it, so it passes too. This is the one gate of the index:
-/// a body that fails it needs no full inline parse.
+/// read it, so it passes too. A body that fails it is never read for links
+/// and never warns of its links: the index (`LineFacts.of`), `linkPlacesOf`
+/// with no tree, the cite candidates, and the item words all start here.
 bool holdsLinkSyntax(String body) =>
     body.contains('](') || body.contains(']:') || _holdsSchemeAutolink(body);
 
@@ -153,62 +227,6 @@ bool _holdsSchemeAutolink(String body) {
     if (schemeEndOf(body, at + 1) > 0) return true;
   }
   return false;
-}
-
-/// Returns the nodes of [body] parsed for anchors, or null when the parse
-/// fails.
-///
-/// A body that [holdsLinkSyntax] gets the same full parse [parseMarkdown]
-/// gives. Any other body gets one block pass plus an inline pass only where
-/// the anchor set reads the result: h1-h6 content and blocks whose text holds
-/// `<` (an inline tag may carry an `id`). The heading subtrees are the nodes
-/// the full parse builds, so the anchor set is the same either way; only
-/// prose the index never reads is left unparsed.
-List<Node>? parseBodyForAnchors(String body) =>
-    holdsLinkSyntax(body) ? parseMarkdown(body) : parseLinkFreeBody(body);
-
-/// Returns the nodes of [body], which fails [holdsLinkSyntax], parsed for
-/// anchors only, or null when the parse fails: the block pass plus the inline
-/// pass on h1-h6 content and on blocks whose text holds `<`.
-List<Node>? parseLinkFreeBody(String body) {
-  final List<Node> nodes;
-  try {
-    final document = Document(extensionSet: ExtensionSet.gitHubFlavored);
-    nodes = BlockParser(
-      LineSplitter.split(body).map(Line.new).toList(),
-      document,
-    ).parseLines();
-    _inlineForAnchors(document, nodes, inHeading: false);
-  } on Object {
-    return null;
-  }
-  return _depthOf(nodes) > maxMarkdownDepth ? null : nodes;
-}
-
-/// Runs [document]'s inline pass on [nodes] the anchor set reads: content in
-/// a heading, and text holding `<` anywhere else.
-void _inlineForAnchors(
-  Document document,
-  List<Node> nodes, {
-  required bool inHeading,
-}) {
-  for (var i = 0; i < nodes.length; i++) {
-    final node = nodes[i];
-    if (node is UnparsedContent) {
-      if (!inHeading && !node.textContent.contains('<')) continue;
-      final inline = document.parseInline(node.textContent);
-      nodes
-        ..removeAt(i)
-        ..insertAll(i, inline);
-      i += inline.length - 1;
-    } else if (node is Element && node.children != null) {
-      _inlineForAnchors(
-        document,
-        node.children!,
-        inHeading: inHeading || _isHeadingTag(node.tag),
-      );
-    }
-  }
 }
 
 /// Whether [tag] is `h1` through `h6`.
