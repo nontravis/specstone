@@ -60,6 +60,12 @@ void main() {
     expect(version.minor, '2');
   });
 
+  test('install_update Version: a field of 0 is returned as 0', () {
+    final version = ReleaseVersion.tryParse('0.0.0')!;
+    expect(version.major, '0');
+    expect(version.minor, '0');
+  });
+
   test('install_update Version: a minor of 3M digits is returned whole', () {
     final digits = '9' * 3000000;
     expect(ReleaseVersion.tryParse('0.$digits.0')!.minor, digits);

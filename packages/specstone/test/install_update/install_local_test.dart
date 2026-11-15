@@ -664,6 +664,10 @@ fi''');
     expect(result.stderr, contains('v<Version>'));
     expect(result.stderr, contains(repo.shortSha('develop')));
     expect(result.stderr, contains(_unchangedText));
+    expect(
+      repo.sandbox.logOf('git'),
+      isNot(anyElement(startsWith('worktree'))),
+    );
     expectNothingChanged();
   });
 

@@ -10,8 +10,10 @@ import 'script_sandbox.dart';
 ///
 /// The tool is copied into a new temp folder outside the workspace and
 /// compiled there, where no build hook is involved (as
-/// `ScriptSandbox.compileFakeCli` does). Call it from `setUpAll`: the folder is
-/// deleted by `addTearDown` after the group.
+/// `ScriptSandbox.compileFakeCli` does). The folder is the scratch package
+/// `install_local_scratch`, holding copies of the two `specstone_core`
+/// `Version` libraries. Call it from `setUpAll`: the folder is deleted by
+/// `addTearDown` after the group.
 Future<String> compileInstallLocal() async {
   final separator = Platform.pathSeparator;
   final scratch = await Directory.systemTemp.createTemp(
@@ -20,34 +22,36 @@ Future<String> compileInstallLocal() async {
   addTearDown(() => scratch.delete(recursive: true));
   final root = repoRoot().path;
   const environment = 'environment:\n  sdk: ^3.13.5\n';
-  File('${scratch.path}${separator}pubspec.yaml')
-    ..createSync()
-    ..writeAsStringSync(
-      'name: install_local_scratch\n$environment'
-      'dependencies:\n  specstone_core:\n    path: core\n',
-    );
-  File('${scratch.path}${separator}core${separator}pubspec.yaml')
-    ..createSync(recursive: true)
-    ..writeAsStringSync('name: specstone_core\n$environment');
+  void writeScratch(String relative, String content) =>
+      File('${scratch.path}$separator$relative')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(content);
+  writeScratch(
+    'pubspec.yaml',
+    'name: install_local_scratch\n$environment'
+        'dependencies:\n  specstone_core:\n    path: core\n',
+  );
+  writeScratch(
+    'core${separator}pubspec.yaml',
+    'name: specstone_core\n$environment',
+  );
   for (final file in [
     'release_version.dart',
     'src${separator}release_version.dart',
   ]) {
-    File('${scratch.path}${separator}core${separator}lib$separator$file')
-      ..createSync(recursive: true)
-      ..writeAsStringSync(
-        File(
-          '$root${separator}packages${separator}specstone_core'
-          '${separator}lib$separator$file',
-        ).readAsStringSync(),
-      );
-  }
-  File('${scratch.path}${separator}tool${separator}install_local.dart')
-    ..createSync(recursive: true)
-    ..writeAsStringSync(
-      File('$root${separator}tool${separator}install_local.dart')
-          .readAsStringSync(),
+    writeScratch(
+      'core${separator}lib$separator$file',
+      File(
+        '$root${separator}packages${separator}specstone_core'
+        '${separator}lib$separator$file',
+      ).readAsStringSync(),
     );
+  }
+  writeScratch(
+    'tool${separator}install_local.dart',
+    File('$root${separator}tool${separator}install_local.dart')
+        .readAsStringSync(),
+  );
   final exe =
       '${scratch.path}${separator}install_local'
       '${Platform.isWindows ? '.exe' : ''}';
