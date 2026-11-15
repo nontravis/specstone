@@ -319,8 +319,8 @@ void main() {
         '## Role\n\n- `Owner` — runs it.\n';
 
     test(
-      'a project pinned at the 1.9.0 prd-core pack migrates to the shipped version '
-      'with its bare goal lines bulleted and no other line changed',
+      'a project pinned at the 1.9.0 prd-core pack migrates to the shipped '
+      'version with its bare goal lines bulleted and no other line changed',
       () async {
         final home = await writeTree({});
         final root = await gitFixture({
