@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show fileCodeFingerprint, legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart'
     show fingerprintOf, legacyFingerprintOf;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
@@ -1894,11 +1896,11 @@ agent_file_roots:
         expect(applied.status, 0, reason: applied.err);
         final record = _read(root, recordPath);
         expect(record, contains('draft: true'));
-        expect(record, contains("'email_login:implemented'"));
-        expect(record, contains("'email_login/validate_credentials:planned'"));
+        expect(record, contains('email_login:implemented'));
+        expect(record, contains('email_login/validate_credentials:planned'));
         expect(
           record,
-          contains("'email_login:app/lib/login/sign_in.dart:SignIn'"),
+          contains('email_login:app/lib/login/sign_in.dart:SignIn'),
         );
         for (final path in [storyPath, frPath]) {
           expect(_read(root, path), isNot(contains('status:')));
@@ -2105,6 +2107,89 @@ agent_file_roots:
       });
     });
 
+    group('code links restamped under the comment-free fingerprint', () {
+      const signIn = 'app/lib/login/sign_in.dart';
+      const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+      final current = fileCodeFingerprint(
+        utf8.encode(signInCode),
+        path: signIn,
+      );
+
+      Future<Directory> home() => writeTree({
+        '.specstone/packs/acme/pack.yaml': _pack(
+          '1.1.0',
+          'migrations:\n'
+              '  - from: 1.0.0\n'
+              '    steps:\n'
+              '      - restamp_code_fingerprints: {}\n',
+        ),
+      });
+
+      Future<Directory> project(String recorded) => _project(
+        files: {
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          recordPath:
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn $recorded'\n"
+              '---\n\n# Login record\n',
+          signIn: signInCode,
+        },
+      );
+
+      test('the run writes commit 2 with the new fingerprint of a link '
+          'stamped under the old rule', () async {
+        final h = await home();
+        final root = await project(legacy);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.0.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(
+          _read(root, recordPath),
+          contains("  - 'email_login:$signIn:SignIn $current'\n"),
+        );
+        expect(_read(root, recordPath), isNot(contains('draft')));
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains(recordPath),
+        );
+      });
+
+      test('a suspect link stays as written', () async {
+        final h = await home();
+        final root = await project('0123456789ab');
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
+          ),
+        );
+      });
+    });
+
     group('the shipped software-tech 1.7.0 record', () {
       const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
       const storyPath =
@@ -2160,10 +2245,10 @@ agent_file_roots:
         expect(applied.status, 0, reason: applied.err);
         final record = _read(root, recordPath);
         expect(record, contains('draft: true'));
-        expect(record, contains("'email_login:implemented'"));
+        expect(record, contains('email_login:implemented'));
         expect(
           record,
-          contains("'email_login:app/lib/login/sign_in.dart:SignIn'"),
+          contains('email_login:app/lib/login/sign_in.dart:SignIn'),
         );
         expect(_read(root, storyPath), isNot(contains('status:')));
         expect(_read(root, frPath), isNot(contains('status:')));
@@ -2375,12 +2460,12 @@ agent_file_roots:
           expect(record, contains('draft: true'));
           expect(
             record,
-            contains("'email_login/validate_credentials:test/auth_test.dart'"),
+            contains('email_login/validate_credentials:test/auth_test.dart'),
           );
           expect(
             record,
             contains(
-              "'email_login/validate_credentials:vendor/test/dep_test.dart'",
+              'email_login/validate_credentials:vendor/test/dep_test.dart',
             ),
           );
           expect(_read(root, testPath), source('rejects a wrong password'));

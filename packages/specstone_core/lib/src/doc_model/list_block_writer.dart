@@ -22,13 +22,10 @@ List<Object?>? listEntriesOf(KeyBlock block) {
 /// Returns the key block text of [fieldId] listing [entries] in order, written
 /// over [onDisk], its key spelling kept.
 ///
-/// Each entry equal by YAML value to one on disk keeps that entry's lines,
-/// comments above it included; a new or changed one takes the indent and
-/// quote style of the first kept entry, or of the first entry on disk when
-/// none is kept. A block that is not a plain list of one-line items, or an
-/// absent one, is written as a fresh block list: indent two spaces, each
-/// entry plain, or single-quoted when plain text would read back as another
-/// value. An empty [entries] writes an empty YAML list.
+/// An entry equal by YAML value to one on disk keeps that item's lines; the
+/// rest take the style of the first kept item. A block that is not a plain
+/// list of one-line items, or an absent one, is written fresh. An empty
+/// [entries] writes an empty YAML list.
 String listBlockOf(String fieldId, List<Object?> entries, {KeyBlock? onDisk}) {
   final key = onDisk?.key ?? fieldId;
   if (entries.isEmpty) return '$key: []\n';
@@ -50,6 +47,9 @@ String listBlockOf(String fieldId, List<Object?> entries, {KeyBlock? onDisk}) {
 // MARK: - Held list
 
 /// A block that is a plain list of one-line items, split into its parts.
+///
+/// Comment lines above an item belong to it, and go with it when it is
+/// removed; those after the last item stay as the trailer.
 final class _HeldList {
   const new(this.header, this.items, this.trailer);
 
@@ -139,6 +139,10 @@ final class _HeldItem {
 }
 
 /// The indent before `- ` and the quote character of an entry, null for plain.
+///
+/// New entries take the first kept item's style, else the first item on
+/// disk's, else the fresh one: indent two spaces, plain, or single-quoted
+/// when plain text would read back as another value.
 final class _Style {
   const new(this.indent, this.quote);
 

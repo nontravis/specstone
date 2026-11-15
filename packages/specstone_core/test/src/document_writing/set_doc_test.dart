@@ -3335,6 +3335,46 @@ void main() {
       expect(answer.json['draft'], isFalse);
     });
 
+    test('a record whose 92-entry implements block is single-quoted gains one entry as one added line', () async {
+      final root = await twinWithRecords();
+      final held = [
+        for (var i = 0; i < 92; i++) 'email_login:app/lib/f$i.dart',
+      ];
+      final block =
+          "implements:\n${[for (final e in held) "  - '$e'\n"].join()}";
+      final (type, statusesOutside) = writeIn(
+        root,
+        (s) => (s.index.set.recordDocType!, s.project.statusesOutsideApproval),
+      );
+      final seeded = withApprovalHash(
+        withKeyBlock(record, 'implements', block),
+        type,
+        statusesOutside: statusesOutside,
+      );
+      docFile(root, flutterRecord).writeAsStringSync(seeded);
+      const added = 'email_login:app/lib/new.dart';
+
+      writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          SetRequest.parse(
+            flutterRecord,
+            field: 'implements',
+            base: baseHashOf(block),
+          ),
+          [
+            for (final e in [...held, added]) '- $e\n',
+          ].join(),
+        ),
+      );
+
+      expect(
+        readDoc(root, flutterRecord),
+        seeded.replaceFirst(block, "$block  - '$added'\n"),
+      );
+    });
+
     test('f02/us01/fr03/e02: a name that two targets share is argument_invalid listing both docs without --target, and --target must name a target', () async {
       final root = await writeTwinProject();
       final base = fieldBase(root, jasprArchitecture, 'covers');

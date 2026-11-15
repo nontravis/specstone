@@ -581,8 +581,8 @@ void main() {
       final record = File('${root.path}/docs/specs/f01_login/IMPLEMENTATION.md')
           .readAsStringSync();
       expect(record, contains('draft: true\n'));
-      expect(record, contains("  - 'email_login:implemented'\n"));
-      expect(record, contains("  - 'email_login:lib/a.dart:A'\n"));
+      expect(record, contains('  - email_login:implemented\n'));
+      expect(record, contains('  - email_login:lib/a.dart:A\n'));
       final moved = File(
         '${root.path}/docs/prds/features/f01_login/us01_email_login/'
         'USER_STORY.md',

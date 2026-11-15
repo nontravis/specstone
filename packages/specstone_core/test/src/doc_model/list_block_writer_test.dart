@@ -1,7 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:test/test.dart';
-import 'package:yaml/yaml.dart';
 
 KeyBlock _block(String text, {String key = 'tests'}) => KeyBlock(key, text);
 
@@ -71,6 +70,24 @@ void main() {
       final written = listBlockOf('tests', ['a', 'b'], onDisk: held);
 
       expect(written, "'tests':\n  - a\n  - b\n");
+    });
+  });
+
+  group('comment lines above an entry', () {
+    test('go with a changed entry', () {
+      const text = 'tests:\n  # why a\n  - a\n  - b\n';
+
+      final written = listBlockOf('tests', ['x', 'b'], onDisk: _block(text));
+
+      expect(written, 'tests:\n  - x\n  - b\n');
+    });
+
+    test('go with a removed entry', () {
+      const text = 'tests:\n  - a\n  # why b\n  - b\n';
+
+      final written = listBlockOf('tests', ['a'], onDisk: _block(text));
+
+      expect(written, 'tests:\n  - a\n');
     });
   });
 
@@ -209,7 +226,6 @@ void main() {
       final block = _block(text);
 
       expect(listBlockOf('tests', listEntriesOf(block)!, onDisk: block), text);
-      expect(loadYaml(text), isA<YamlMap>());
     });
   });
 }

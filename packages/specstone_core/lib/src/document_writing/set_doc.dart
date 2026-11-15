@@ -550,7 +550,7 @@ String _fieldBlockOf(
   if (field == null || !field.list) return _blockOf(fieldId, value);
   return switch (loadYaml(value)) {
     final YamlList entries => listBlockOf(fieldId, [...entries], onDisk: held),
-    _ => _blockOf(fieldId, value),
+    _ => throw StateError('$fieldId was checked as a YAML list'),
   };
 }
 

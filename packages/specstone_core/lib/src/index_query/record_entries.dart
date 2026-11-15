@@ -272,9 +272,9 @@ final class RecordFieldUnreadable implements Exception {
 /// [rewrite] takes a line's item, empty for the feature itself, and returns
 /// the item to write in its place, the same item to leave the line, or null to
 /// drop the line. A line that names no item stays. A field that changes is
-/// written back as a block list, one quoted line each, or removed when no line
-/// is left; every other key, and a field that does not change, stays as
-/// written. It marks no draft. Throws [RecordFieldUnreadable] when a field's
+/// written back through the list writer, or removed when no line is left;
+/// every other key, and a field that does not change, stays as written. It
+/// marks no draft. Throws [RecordFieldUnreadable] when a field's
 /// block is not valid YAML.
 String? rewriteRecordItems(
   String lfText,

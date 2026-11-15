@@ -825,7 +825,7 @@ void main() {
       0,
       reason: err.toString(),
     );
-    const kept = 'depends_on: [login, login]\n';
+    const kept = 'depends_on:\n  - login\n  - login\n';
     final file = File('${project.path}/docs/$loginFeature');
     expect(file.readAsStringSync(), contains(kept));
 
