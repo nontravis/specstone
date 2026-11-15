@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
+import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/setup_migration/init_project.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
@@ -23,6 +24,7 @@ import '../../helpers/legacy_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 import '../../helpers/write_fixture.dart' show testHome;
 
@@ -109,6 +111,7 @@ void main() {
       'created docs/specs/TECH_STACK.md (draft)',
       'created .specstone/AGENT.md',
       'created AGENTS.md',
+      ...skillCountLines(),
       _configLine(),
     ]);
     expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
@@ -141,6 +144,7 @@ void main() {
         'created docs/specs/TECH_STACK.md (draft)',
         'created .specstone/AGENT.md',
         'created AGENTS.md',
+        ...skillCountLines(),
         _configLine(),
       ]);
       expect(_read(root, 'docs/prds/PROJECT.md'), '# Mine\n');
@@ -169,6 +173,7 @@ void main() {
       'created docs/specs/TECH_STACK.md (draft)',
       'created .specstone/AGENT.md',
       'created AGENTS.md',
+      ...skillCountLines(),
       _configLine(),
     ]);
     expect(_read(root, _draftPaths[0]), project);
@@ -189,11 +194,12 @@ void main() {
     final (status, lines) = _run(root);
 
     expect(status, 0);
-    expect(lines.sublist(lines.length - 5), [
+    expect(lines.sublist(lines.length - 11), [
       'created .specstone/AGENT.md',
       'updated CLAUDE.md',
       'updated AGENTS.md',
       'created .cursor/rules/specstone.mdc',
+      ...skillCountLines(),
       _configLine(),
     ]);
     expect(_read(root, '.specstone/AGENT.md'), agentMdText);
@@ -212,6 +218,151 @@ void main() {
       cursorRulesText(cliVersion: specstoneVersion),
     );
   });
+
+  test(
+    'init writes every skill and agent file, prints one count line per '
+    'folder before the config, and leaves the Owner skill byte-equal',
+    () async {
+      final root = await writeTree({
+        '.claude/skills/my-skill/SKILL.md': 'mine\n',
+        '.claude/skills/my-skill/notes/a.txt': 'note\n',
+      });
+      final before = _bytesUnder(root);
+
+      final (status, lines) = _run(root);
+
+      expect(status, 0);
+      final rendered = renderHostFiles();
+      for (final file in rendered) {
+        expect(_read(root, file.path), file.text, reason: file.path);
+      }
+      final after = _bytesUnder(root);
+      for (final MapEntry(:key, :value) in before.entries) {
+        expect(after[key], value, reason: key);
+      }
+      expect(lines.sublist(lines.length - 8), [
+        'created AGENTS.md',
+        ...skillCountLines(),
+        _configLine(),
+      ]);
+      expect(lines.where((line) => line.contains('specstone-')), isEmpty);
+    },
+  );
+
+  test('a root with no instruction file and no .cursor folder gets AGENTS.md '
+      'and no Cursor rules file, though .cursor/agents is written', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(File('${root.path}/AGENTS.md').existsSync(), isTrue);
+    expect(
+      File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+      isFalse,
+    );
+    expect(Directory('${root.path}/.cursor/agents').existsSync(), isTrue);
+    expect(lines, contains(startsWith('created .cursor/agents: ')));
+    expect(lines, isNot(contains(contains('specstone.mdc'))));
+  });
+
+  test(
+    'a .claude folder linked outside the project is named and left, the '
+    'other folders are written, and the folder outside keeps its bytes',
+    () async {
+      final base = await writeTree({'outside/keep.txt': 'mine\n'});
+      final project = Directory('${base.path}/proj')..createSync();
+      Link('${project.path}/.claude').createSync('../outside');
+      final warnings = <String>[];
+      final before = _bytesUnder(Directory('${base.path}/outside'));
+
+      final (status, lines) = _run(project, warnings: warnings);
+
+      expect(status, 0);
+      expect(warnings, [
+        '.claude reaches outside the project root; left as it is',
+      ]);
+      expect(_bytesUnder(Directory('${base.path}/outside')), before);
+      expect(lines, isNot(contains(startsWith('created .claude/'))));
+      expect(lines, contains(startsWith('created .agents/skills: ')));
+    },
+    skip: Platform.isWindows ? 'symbolic links need a privilege' : null,
+  );
+
+  test('a .cursor file that is no folder is named and left, and init still '
+      'writes the other folders and the config', () async {
+    final root = await writeTree({'.cursor': 'mine\n'});
+    final warnings = <String>[];
+
+    final (status, lines) = _run(root, warnings: warnings);
+
+    expect(status, 0);
+    expect(warnings, ['.cursor is not a folder; left as it is']);
+    expect(File('${root.path}/.cursor').readAsStringSync(), 'mine\n');
+    expect(lines, isNot(contains(startsWith('created .cursor/'))));
+    expect(lines, contains(startsWith('created .claude/skills: ')));
+    expect(File('${root.path}/.specstone/config.yaml').existsSync(), isTrue);
+  });
+
+  test('a rerun after a stop before the config writes no skill or agent file '
+      'and prints no count line', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    _run(root);
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+    final before = _bytesUnder(root)..remove('.specstone/config.yaml');
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines, isNot(contains(matches(RegExp(r'^created .*: \d+ files$')))));
+    expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
+  });
+
+  test('a rerun after a stop writes no Cursor rules file when the root had no '
+      '.cursor folder before the first run', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    _run(root);
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+
+    _run(root);
+
+    expect(
+      File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+      isFalse,
+    );
+  });
+
+  test('a root that holds .cursor/keep gets the Cursor rules file on the first '
+      'run, and a rerun leaves it', () async {
+    final root = await writeTree({'.cursor/keep': 'x'});
+    _run(root);
+    expect(
+      File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+      isTrue,
+    );
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+    final before = _bytesUnder(root)..remove('.specstone/config.yaml');
+
+    _run(root);
+
+    expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
+  });
+
+  test(
+    'an agent of the Owner in .cursor/agents counts as a .cursor folder',
+    () async {
+      final root = await writeTree({'.cursor/agents/my-agent.md': 'mine\n'});
+
+      final (_, lines) = _run(root);
+
+      expect(
+        File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
+        isTrue,
+      );
+      expect(File('${root.path}/AGENTS.md').existsSync(), isFalse);
+      expect(lines, contains('created .cursor/rules/specstone.mdc'));
+    },
+  );
 
   test('E05: a '
       'malformed file refuses before any write', () async {
@@ -316,6 +467,7 @@ void main() {
     expect(status, 0);
     expect(warnings, [
       '../other/AGENTS.md reaches outside the project root; left as it is',
+      '../other reaches outside the project root; left as it is',
     ]);
     expect(lines, isNot(contains(contains('other'))));
     expect(File('${base.path}/other/AGENTS.md').readAsStringSync(), 'Owner\n');
@@ -601,10 +753,17 @@ void main() {
             .split('\n');
     expect(names, containsAll(['.specstone/AGENT.md', 'CLAUDE.md']));
     expect(
+      names,
+      containsAll([for (final file in renderHostFiles()) file.path]),
+    );
+    expect(
       _read(root, 'CLAUDE.md'),
       contains('<!-- BEGIN specstone v$specstoneVersion -->'),
     );
-    expect(lines, contains('  agent files: 2 files'));
+    expect(
+      lines,
+      contains('  agent files: ${2 + renderHostFiles().length} files'),
+    );
   }, skip: hasGit ? null : 'git is not available');
 
   test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "

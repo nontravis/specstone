@@ -174,7 +174,9 @@ main() {
 
   remove_dir "$home_dir/.specstone/bin"
   remove_dir "$home_dir/.specstone/lib"
-  for name in .zshrc .bashrc .bash_profile .bash_login .profile; do
+  remove_path_line "$home_dir/.zshrc" "$posix_line"
+  remove_path_line "${ZDOTDIR:-$home_dir}/.zshenv" "$posix_line"
+  for name in .bashrc .bash_profile .bash_login .profile; do
     remove_path_line "$home_dir/$name" "$posix_line"
   done
   remove_path_line "$home_dir/.config/fish/conf.d/specstone.fish" "$fish_line" delete

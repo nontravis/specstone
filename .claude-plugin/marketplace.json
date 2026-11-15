@@ -4,13 +4,13 @@
     "name": "Nonthawit Doungsodsri"
   },
   "metadata": {
-    "description": "Specstone: spec-driven development skills and agents for Claude Code."
+    "description": "Specstone: spec-driven development hooks for Claude Code."
   },
   "plugins": [
     {
       "name": "specstone",
       "source": "./plugin",
-      "description": "Spec-driven development skills and agents backed by the specstone CLI."
+      "description": "Specstone hooks for Claude Code: a doc check after each edit and a version check at session start."
     }
   ]
 }
