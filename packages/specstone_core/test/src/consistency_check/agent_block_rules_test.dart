@@ -434,6 +434,33 @@ void main() {
       expect(await staleSkillFiles({}), isEmpty);
     });
 
+    test('a stale settings file is one finding the Owner clears with '
+        'migrate', () async {
+      final found = await staleSkillFiles({settingsFilePath: '{}\n'});
+
+      expect(found.map(where), ['$settingsFilePath:1']);
+      expect(found.single.waitsFor, WaitsFor.owner);
+      expect(found.single.message, contains(_migrate));
+    });
+
+    test('a missing settings file is one finding the Owner clears with '
+        'migrate', () async {
+      final found = await staleSkillFiles({settingsFilePath: null});
+
+      expect(found.map(where), ['$settingsFilePath:1']);
+      expect(found.single.waitsFor, WaitsFor.owner);
+      expect(found.single.message, contains(_migrate));
+    });
+
+    test('a malformed settings file is one finding the Agent repairs by '
+        'hand, and check does not throw', () async {
+      final found = await staleSkillFiles({settingsFilePath: '{'});
+
+      expect(found.map(where), ['$settingsFilePath:1']);
+      expect(found.single.waitsFor, WaitsFor.agent);
+      expect(found.single.message, contains('repair the file by hand'));
+    });
+
     test('a hand-edited Codex agent file is one finding on '
         'line 1', () async {
       final found = await staleSkillFiles({codexToml: 'hand edit\n'});

@@ -35,6 +35,15 @@ String _skillMessageOf(SkillFileDriftKind kind) => switch (kind) {
     'the Specstone skill or agent file is missing; $_migrateHint',
   SkillFileDriftKind.unshipped =>
     'the running CLI does not ship this Specstone file; $_migrateHint',
+  SkillFileDriftKind.settingsStale =>
+    'the Specstone hook in this Claude Code settings file differs from what '
+        'the running CLI writes; $_migrateHint',
+  SkillFileDriftKind.settingsMissing =>
+    'the Claude Code settings file holding the Specstone hook is missing; '
+        '$_migrateHint',
+  SkillFileDriftKind.settingsMalformed =>
+    'this Claude Code settings file is not JSON `specstone migrate` can '
+        'merge into and refuses it; repair the file by hand',
 };
 
 // `migrate` runs on the Owner's word; a malformed marker or an open code fence
@@ -88,7 +97,9 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
       path: path,
       line: 1,
       message: _skillMessageOf(kind),
-      waitsFor: WaitsFor.owner,
+      waitsFor: kind == SkillFileDriftKind.settingsMalformed
+          ? WaitsFor.agent
+          : WaitsFor.owner,
     );
   }
 }

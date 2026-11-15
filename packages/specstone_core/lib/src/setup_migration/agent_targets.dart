@@ -435,13 +435,20 @@ final class AgentWritePlan {
 /// root and at each listed top too. Reads every file first.
 ///
 /// Throws `MigrateFault` `agent_block_malformed`, naming every malformed file
-/// with its first marker line, before it returns.
+/// with its first marker line, and every `.claude/settings.json` no run can
+/// merge into, before it returns.
 AgentWritePlan planAgentWrites(
   AgentFileInputs inputs, {
   required bool full,
   bool shipsSkills = false,
 }) {
-  final survey = _Survey.of(inputs)..throwIfMalformed();
+  final skills = planSkillAndAgentFiles(
+    inputs,
+    full: full || shipsSkills,
+    includesListedTops: shipsSkills,
+  );
+  final survey = _Survey.of(inputs)
+    ..throwIfMalformed(settings: skills.malformedSettings);
   final root = _canonicalOf(inputs.projectRoot);
   final rootWrites = <AgentWrite>[];
   final topWrites = <AgentWrite>[];
@@ -492,11 +499,6 @@ AgentWritePlan planAgentWrites(
       skipped.insert(0, skippedLineOf(_agentMdPath, refusal));
     }
   }
-  final skills = planSkillAndAgentFiles(
-    inputs,
-    full: full || shipsSkills,
-    includesListedTops: shipsSkills,
-  );
   for (final write in skills.writes) {
     (write.isAtTop ? topWrites : rootWrites).add(write);
   }
@@ -793,8 +795,11 @@ final class _Survey {
   bool isUpsert(_Folder folder, _AgentFile file, {required bool full}) =>
       folder.isUpsert(full: full) || _topUpserted.contains(file.realPath);
 
-  /// Throws the `agent_block_malformed` fault when any file is malformed.
-  void throwIfMalformed() {
+  /// Throws the `agent_block_malformed` fault when any file is malformed, or
+  /// when any of [settings] (path and failure) is.
+  void throwIfMalformed({
+    List<({String path, String failure})> settings = const [],
+  }) {
     final faults = [
       for (final folder in folders)
         for (final file in folder.files)
@@ -807,6 +812,13 @@ final class _Survey {
               file: file.path,
               line: file.scan!.firstMarkerLine,
             ),
+      for (final (:path, :failure) in settings)
+        MigrateFault(
+          MigrateFaultCode.agentBlockMalformed,
+          '$failure; repair the file by hand so it is one JSON object, '
+          'then run the command again',
+          file: path,
+        ),
     ];
     if (faults.isEmpty) return;
     throw MigrateFault(

@@ -994,6 +994,73 @@ sections:
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
+  group('the Claude Code settings file', () {
+    const stale =
+        '{"permissions":{"allow":["Bash(ls)"]},"hooks":{"PostToolUse":'
+        '[{"matcher":"Write","hooks":[{"type":"command","command":'
+        '"specstone","args":["hook","post-edit"]}]}]}}\n';
+
+    Future<Directory> fixture(String settings) => gitFixture({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      ...skillFileTexts(),
+      settingsFilePath: settings,
+    });
+
+    test('a run whose only change is the hook merges it in commit 2 and '
+        'keeps the Owner keys', () async {
+      final root = await fixture(stale);
+      final out = StringBuffer();
+
+      expect(_run(root, out, answers: ['y']), 0);
+
+      final names =
+          (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
+                  as String)
+              .trim()
+              .split('\n');
+      expect(names, contains(settingsFilePath));
+      expect(names, isNot(contains('.claude/skills/specstone-init/SKILL.md')));
+      final text = File('${root.path}/$settingsFilePath').readAsStringSync();
+      expect(text, contains('"Bash(ls)"'));
+      expect(text, isNot(contains('"matcher": "Write",')));
+      expect(out.toString(), contains('  agent files: 1 files\n'));
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a malformed file refuses the dry run and the apply before any '
+        'write', () async {
+      final root = await fixture('{"hooks": []}');
+      final commits = git(root, ['rev-list', '--count', 'HEAD']).stdout;
+      Matcher fault() => throwsA(
+        isA<MigrateFault>()
+            .having((f) => f.code, 'code', MigrateFaultCode.agentBlockMalformed)
+            .having((f) => f.file, 'file', settingsFilePath),
+      );
+      final dryOut = StringBuffer();
+
+      expect(() => _run(root, dryOut, dryRun: true), fault());
+      expect(() => _run(root, StringBuffer(), answers: ['y']), fault());
+
+      expect(dryOut.toString(), isEmpty);
+      expect(git(root, ['rev-list', '--count', 'HEAD']).stdout, commits);
+      expect(
+        File('${root.path}/$settingsFilePath').readAsStringSync(),
+        '{"hooks": []}',
+      );
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('the dry run plan hash follows the settings bytes', () async {
+      final root = await fixture(stale);
+      final before = _dryRunPlanHash(root);
+
+      File('${root.path}/$settingsFilePath')
+          .writeAsStringSync(stale.replaceFirst('Bash(ls)', 'Bash(pwd)'));
+      commitAll(root, 'edit settings');
+
+      expect(_dryRunPlanHash(root), isNot(before));
+    }, skip: hasGit ? null : 'git is not available');
+  });
+
   test('a dry run from the folder holding the docs link plans code_root '
       'when the legacy paths resolve from there', () async {
     final tree = await writeTree(

@@ -194,7 +194,7 @@ void main() {
     final (status, lines) = _run(root);
 
     expect(status, 0);
-    expect(lines.sublist(lines.length - 11), [
+    expect(lines.sublist(lines.length - 12), [
       'created .specstone/AGENT.md',
       'updated CLAUDE.md',
       'updated AGENTS.md',
@@ -240,7 +240,7 @@ void main() {
       for (final MapEntry(:key, :value) in before.entries) {
         expect(after[key], value, reason: key);
       }
-      expect(lines.sublist(lines.length - 8), [
+      expect(lines.sublist(lines.length - 9), [
         'created AGENTS.md',
         ...skillCountLines(),
         _configLine(),
@@ -756,14 +756,12 @@ void main() {
       names,
       containsAll([for (final file in renderHostFiles()) file.path]),
     );
+    expect(names, contains('.claude/settings.json'));
     expect(
       _read(root, 'CLAUDE.md'),
       contains('<!-- BEGIN specstone v$specstoneVersion -->'),
     );
-    expect(
-      lines,
-      contains('  agent files: ${2 + renderHostFiles().length} files'),
-    );
+    expect(lines, contains('  agent files: ${2 + skillFileCount} files'));
   }, skip: hasGit ? null : 'git is not available');
 
   test("ms-r11: a legacy folder under --yes with migrate's dry-run plan hash "

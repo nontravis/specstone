@@ -220,6 +220,58 @@ void main() {
       expect(_choose(root), RunKind.none);
     });
 
+    test('only a stale settings file is an upgrade', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        settingsFilePath:
+            '{"hooks":{"PostToolUse":[{"matcher":"Write","hooks":[{"type":'
+            '"command","command":"specstone","args":["hook","post-edit"]}]}]}}',
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('only a missing settings file is an upgrade', () async {
+      final texts = skillFileTexts();
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        for (final MapEntry(:key, :value) in texts.entries)
+          if (key != settingsFilePath) key: value,
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('a current settings file leaves none', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+      });
+
+      expect(_choose(root), RunKind.none);
+    });
+
+    test('a malformed settings file is an upgrade, never a throw', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        settingsFilePath: '{',
+      });
+
+      expect(_choose(root), RunKind.upgrade);
+    });
+
+    test('a stale settings file of an opted-out group is none', () async {
+      final root = await _project({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        '.claude/skills/own-skill/SKILL.md': 'own\n',
+        settingsFilePath: '{',
+      });
+
+      expect(_choose(root), RunKind.none);
+    });
+
     test('a group no folder of which holds a specstone '
         'entry is opted out, none', () async {
       final root = await _project({
