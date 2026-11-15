@@ -413,6 +413,40 @@ void main() {
     );
   });
 
+  group('new measurement', () {
+    const measurementDoc =
+        'measurements/grounding_cost_per_feature/'
+        'MEASUREMENT.md';
+
+    test('new measurement --slug writes the doc as a draft', () async {
+      final root = await writeWriteProject();
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+
+      expect(
+        await runner.run([
+          'new',
+          'measurement',
+          '--slug',
+          'grounding_cost_per_feature',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(
+        out.toString(),
+        '==> grounding_cost_per_feature (measurement) · $measurementDoc <==\n',
+      );
+      expect(
+        readDoc(root, measurementDoc),
+        startsWith('---\ndraft: true\n---\n\n# grounding_cost_per_feature\n'),
+      );
+    });
+  });
+
   group('with two code targets', () {
     Future<Directory> twinWithoutDocs() => writeTwinProject(
       without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},

@@ -1,0 +1,75 @@
+id: measurement
+description: |-
+  A measurement: the evidence for one project goal, kept as a log of runs.
+  Title it `# <the goal's short name>`, with no number. The folder name, the goal's short name in `snake_case`, is its identity.
+  Put one markdown link in the head, the text between the title and the first section: to the measured goal's `### PG-` heading in the project doc.
+  Make its text the goal's short name and its anchor the heading's, such as `#pg-01--grounding-cost-per-feature`.
+  Measure one goal, never a vision; the goal's `**Metric:**` line links back to this doc.
+  Results is a log: a run adds its row on top and never edits an older row.
+  Every other section states the present truth. Open causes holds the latest run's causes alone, rewritten each run.
+  Name no other goal's runs as this goal's own in the Metric, Results, or Open causes text.
+  State the present truth; history lives in git.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
+path: measurements/{slug}/MEASUREMENT.md
+summary_for: [project]
+sections:
+  - id: scope
+    header: Scope
+    required: true
+    summary: true
+    description: |-
+      State what is measured: the runs, projects, agents, or channels.
+      Write a table or a list.
+    template: |-
+      - <what is measured>
+  - id: method
+    header: Method
+    required: true
+    description: |-
+      Write numbered steps, one per action, that a reader repeats to take one run.
+    template: |-
+      1. <one step of a run>
+  - id: baseline
+    header: Baseline
+    description: |-
+      Optional. Write one table of the columns Metric, Run, Value, Date, and Source.
+      Leave the section out when no figure from before the first run exists.
+    template: |-
+      | Metric | Run | Value | Date | Source |
+      |---|---|---|---|---|
+      | <metric> | <run> | <value> | <date> | <source> |
+  - id: results
+    header: Results
+    required: true
+    summary_rows: 1
+    description: |-
+      Write the line `Newest first. Met: <the goal's pass condition>.`, then one table.
+      Use the columns Date, the version or commit, Run, one column per metric, and Met.
+      Add a run's row on top; never edit an older row.
+      Leave the table with no body row for a goal not yet measured.
+    template: |-
+      Newest first. Met: <the goal's pass condition>.
+
+      | Date | Version | Run | <metric> | Met |
+      |---|---|---|---|---|
+  - id: open_causes
+    header: Open causes
+    required: true
+    description: |-
+      Write the causes of the latest run alone, rewritten each run.
+      Write `N/A` when none.
+    template: |-
+      <the causes of the latest run, or N/A>
+lint:
+  title_no_number: true
+  banned_patterns:
+    - id: doc_citation
+      # [0-9][0-9]*, not [0-9]+: a loop after the first character stops the regex skip-ahead.
+      pattern: 'DESIGN-[A-Z]|\b[Rr]uling|\bPlan [A-Z]\.[0-9]|\bM[0-9][0-9]*-T[0-9]+\b|\b[Mm]ilestone M?[0-9]+|\bschema v[0-9]|docs/superpowers|\b[A-Z][0-9][0-9]*[A-Z]?-[DR][0-9]+\b'
+      message: cites a plan, milestone, ruling, or design doc
+      in: all
+    - id: history
+      pattern: '\b(?:[Pp]reviously|[Nn]o longer(?! than)|[Ff]ormerly|[Ww]as renamed|[Ss]uperseded|[Rr]eversed|[Aa]s of (?:\d{4}-\d{2}-\d{2}|[A-Za-z]+ \d{4})|[Ss]ince (?:plan|milestone))\b'
+      message: history prose; state the present truth only
+      in: text
+  max_lines: 400

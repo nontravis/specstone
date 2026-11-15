@@ -55,7 +55,7 @@ void main() {
       prdOnly = await resolvePrdCore();
     });
 
-    test('E01: the merged set holds the eleven prd-core and the nine '
+    test('E01: the merged set holds the twelve prd-core and the nine '
         'software-tech doc types, the record among them', () {
       expect(
         both.docTypes.map((d) => d.id).toList(),
@@ -507,9 +507,15 @@ void main() {
       }
     });
 
-    test('title_no_number is true on persona, anti_persona, feature, and '
-        'journey, and unset on the others', () {
-      const numbered = {'persona', 'anti_persona', 'feature', 'journey'};
+    test('title_no_number is true on persona, anti_persona, feature, '
+        'journey, and measurement, and unset on the others', () {
+      const numbered = {
+        'persona',
+        'anti_persona',
+        'feature',
+        'journey',
+        'measurement',
+      };
       for (final docType in set.docTypes) {
         expect(
           docType.lint.titleNoNumber,
