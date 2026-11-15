@@ -255,10 +255,12 @@ void main() {
         contains('  from 1.0.0: bullet_lines runbook goals: 1 docs\n'),
       );
       expect(_bytesUnder(root), before);
+      final subjects = _subjects(root);
 
       final result = await _run(root, home, ['migrate'], console: _owner());
 
       expect(result.status, 0, reason: result.err);
+      expect(_subjects(root), hasLength(subjects.length + 1));
       expect(_read(root, _runbookPath), _bulletedDoc);
       expect(
         _gitOut(root, [
