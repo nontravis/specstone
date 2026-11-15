@@ -887,6 +887,41 @@ void main() {
       },
     );
 
+    test(
+      'a refs path that is the read-first file is refused and writes nothing',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        addTearDown(session.close);
+        final out = Directory('${project.path}/out')..createSync();
+        final file = File('${out.path}/b.txt')..writeAsStringSync('mine\n');
+        Link('${out.path}/b.refs.txt').createSync(file.path);
+        expect(
+          () => answerBundleFile(
+            splitAnswer(session.index),
+            file,
+            project: session.project,
+            isBare: false,
+          ),
+          throwsA(
+            isA<RenderFault>()
+                .having(
+                  (fault) => fault.code,
+                  'code',
+                  RenderFaultCode.outputNotWritable,
+                )
+                .having(
+                  (fault) => fault.message,
+                  'message',
+                  'the refs file is the read-first file',
+                ),
+          ),
+        );
+        expect(file.readAsStringSync(), 'mine\n');
+      },
+      skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null,
+    );
+
     test('a refs path the writer refuses writes neither file', () async {
       final project = await writeLoginProject();
       final session = openSession(project);

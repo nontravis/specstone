@@ -12,6 +12,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// The most lines an index keeps its sections within, its header included.
 const _indexLineCap = 200;
@@ -25,6 +26,8 @@ const _nameSeparators = ['/', r'\', ':'];
 
 /// What a refs file's name carries before its extension.
 const _refsMark = '.refs';
+
+const _refsIsReadFirst = 'the refs file is the read-first file';
 
 // MARK: - Name
 
@@ -107,6 +110,13 @@ ReadAnswer answerBundleFile(
   final shownPath = canonicalPath(file.absolute.path);
   final refs = answer.refs;
   final refsPath = refs == null ? null : canonicalPath(refsPathOf(shownPath));
+  if (refsPath == shownPath) {
+    throw RenderFault(
+      RenderFaultCode.outputNotWritable,
+      _refsIsReadFirst,
+      file: shownPath,
+    );
+  }
   final writes = {shownPath: answer.text, ?refsPath: ?refs?.text};
   for (final path in writes.keys) {
     requireOutPath(
@@ -119,16 +129,23 @@ ReadAnswer answerBundleFile(
   for (final MapEntry(key: path, value: text) in writes.entries) {
     writeBuildOutput(File(path), utf8.encode(text), displayPath: path);
   }
-  pruneBundles(
-    Directory(canonicalPath(bundlesFolderOf(project.projectRoot).path)),
-    keep: writes.keys.toSet(),
-    now: DateTime.now(),
-  );
+  _pruneBundlesOf(project.projectRoot, keep: writes.keys.toSet());
   return ReadAnswer(
     text: bundleIndex(answer, shownPath, refsPath: refsPath),
     json: bundleIndexJson(answer, shownPath, refsPath: refsPath),
     warnings: answer.warnings,
   );
+}
+
+/// Prunes the project's `.specstone/bundles/`, keeping [keep].
+///
+/// A `bundles/` that is a link, or lies below one, is left alone: its real
+/// folder is not the project's own.
+void _pruneBundlesOf(Directory projectRoot, {required Set<String> keep}) {
+  final folder = bundlesFolderOf(Directory(canonicalPath(projectRoot.path)));
+  final real = canonicalPath(bundlesFolderOf(projectRoot).path);
+  if (real != folder.path) return;
+  pruneBundles(folder, keep: keep, now: DateTime.now());
 }
 
 // MARK: - Index
@@ -189,16 +206,22 @@ Map<String, Object> bundleIndexJson(
 }
 
 /// Returns each file [answer] saves, the read-first file first, with its
-/// path; the refs file's is [refsPath], else [refsPathOf] of [shownPath].
+/// path; the refs file's is [refsPath], which a split answer needs.
 List<({BundleText file, String path})> _filesOf(
   ContextAnswer answer,
   String shownPath,
   String? refsPath,
-) => [
-  (file: answer.readFirst, path: shownPath),
-  if (answer.refs case final refs?)
-    (file: refs, path: refsPath ?? refsPathOf(shownPath)),
-];
+) {
+  assert(
+    (answer.refs == null) == (refsPath == null),
+    'a split answer names its refs path, an unsplit one none',
+  );
+  return [
+    (file: answer.readFirst, path: shownPath),
+    if ((answer.refs, refsPath) case (final refs?, final path?))
+      (file: refs, path: path),
+  ];
+}
 
 /// Returns the header line of [file] saved at [path], then one index line per
 /// entry.

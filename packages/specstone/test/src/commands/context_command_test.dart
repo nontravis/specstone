@@ -1686,6 +1686,26 @@ void main() {
       expect(old.existsSync(), isFalse);
     });
 
+    test('a bundles folder that is a link prunes nothing in the folder it leads to', () async {
+      final project = await writeReadProject();
+      final outside = await writeTree({'.keep': ''});
+      final old = File('${outside.path}/old.txt')
+        ..writeAsStringSync('old\n')
+        ..setLastModifiedSync(twoDaysAgo);
+      Link('${project.path}/.specstone/bundles').createSync(outside.path);
+      final (status, _) = await run(project, [
+        'context',
+        story,
+        '--for',
+        'implement',
+        '--out',
+        'out/b.txt',
+      ]);
+      expect(status, 0);
+      expect(File('${project.path}/out/b.txt').existsSync(), isTrue);
+      expect(old.existsSync(), isTrue);
+    }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
+
     test(
       'a project with no bundles folder exits 0 with an --out path',
       () async {
