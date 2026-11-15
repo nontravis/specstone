@@ -447,6 +447,42 @@ void main() {
     });
   });
 
+  group('new goal', () {
+    const goalLayer = <String, String>{
+      '.specstone/templates/goal.yaml': '''
+id: goal
+description: The project goals.
+path: prds/GOAL.md
+sections:
+  - id: long_term
+    header: Long-term goals
+    skeleton: true
+  - id: mid_term
+    header: Mid-term goals
+    skeleton: true
+  - id: short_term
+    header: Short-term goals
+    skeleton: true
+''',
+    };
+
+    test('new goal with no stdin writes the three headers', () async {
+      final root = await writeWriteProject(extra: goalLayer);
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+
+      expect(await runner.run(['new', 'goal']), 0, reason: err.toString());
+
+      expect(
+        readDoc(root, 'prds/GOAL.md'),
+        '---\ndraft: true\n---\n\n# goal\n\n## Long-term goals\n\n'
+        '## Mid-term goals\n\n## Short-term goals\n',
+      );
+    });
+  });
+
   group('with two code targets', () {
     Future<Directory> twinWithoutDocs() => writeTwinProject(
       without: {'docs/$flutterArchitecture', 'docs/$jasprArchitecture'},

@@ -9,6 +9,9 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/doc_type_merger.dart';
+import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
@@ -756,6 +759,38 @@ void main() {
     }
   });
 
+  test('a skeleton section prints its header with no body', () {
+    const merger = DocTypeMerger();
+    final docType = merger.apply(
+      merger.builtInBase('note'),
+      DocTypeLayer.parse(
+        r'''
+description: A note.
+path: prds/NOTE.md
+sections:
+  - id: a
+    header: A
+    required: true
+    template: "Say it.\n"
+  - id: b
+    header: B
+    skeleton: true
+  - id: c
+    header: C
+''',
+        file: 'packs/prd-core/note.yaml',
+        docTypeId: 'note',
+        kind: LayerKind.shipped,
+        files: const _NoFiles(),
+      ),
+    );
+
+    expect(
+      skeletonOf(docType, 'note'),
+      '---\ndraft: true\n---\n\n# note\n\n## A\n\nSay it.\n\n## B\n',
+    );
+  });
+
   test('E08: keys reordered, text laid out, draft at its field slot', () async {
     final root = await writeWriteProject();
     writeIn(
@@ -1068,4 +1103,11 @@ void main() {
       );
     });
   });
+}
+
+final class _NoFiles implements LayerFiles {
+  const new();
+
+  @override
+  bool exists(String layerRelativePath) => false;
 }
