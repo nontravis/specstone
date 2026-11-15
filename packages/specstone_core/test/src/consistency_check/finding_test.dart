@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 116 snake_case kinds, no error code', () {
+  test('consistency_check: 117 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -124,6 +124,7 @@ void main() {
       'override_not_in_chain',
       'task_item_missing',
       'task_ref_leftover',
+      'singular_doc_missing',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
     const writeCodes = {
@@ -159,6 +160,7 @@ void main() {
         FindingKind.codeUncovered,
         FindingKind.referenceDocUnresolved,
         FindingKind.agentBlockStale,
+        FindingKind.singularDocMissing,
       ],
     );
   });

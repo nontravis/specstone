@@ -919,6 +919,26 @@ void main() {
       },
     );
 
+    test(
+      'E17: check --target jaspr keeps the missing jaspr tech stack, '
+      'its message ending --target jaspr; --target flutter drops it',
+      () async {
+        final project = await writeTwinProject(
+          without: {'docs/$loginApi', 'docs/specs/jaspr/TECH_STACK.md'},
+        );
+        const missingLine =
+            'specs/jaspr/TECH_STACK.md:1: singular_doc_missing: '
+            'the project holds no tech_stack doc; run '
+            '`specstone new tech_stack` --target jaspr\n';
+        final jaspr = readRunner(project);
+        expect(await jaspr.runner.run(['check', '--target', 'jaspr']), 1);
+        expect(jaspr.out.toString(), contains(missingLine));
+        final flutter = readRunner(project);
+        expect(await flutter.runner.run(['check', '--target', 'flutter']), 1);
+        expect(flutter.out.toString(), isNot(contains('singular_doc_missing')));
+      },
+    );
+
     test('E22: a --target name targets: lacks is argument_invalid, exit 64, no finding', () async {
       final (:runner, :out, :err) = readRunner(await twinProject());
       expect(await runner.run(['check', '--target', 'web']), 64);

@@ -410,6 +410,18 @@ void main() {
       isEmpty,
     );
   });
+  test('E20: a check with a target holds no singular_doc_missing', () async {
+    final project = await writeCheckProject(without: {'docs/$projectDoc'});
+
+    expect(spots(checkOf(project), FindingKind.singularDocMissing), [
+      '$projectDoc:1: singular_doc_missing',
+    ]);
+    expect(
+      spots(checkOf(project, target: 'login'), FindingKind.singularDocMissing),
+      isEmpty,
+    );
+  });
+
   test('E08: a check with a target holds no agent_block_stale', () async {
     final project = await writeCheckProject(
       extra: {'.specstone/AGENT.md': 'hand edit\n'},
