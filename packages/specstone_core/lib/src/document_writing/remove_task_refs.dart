@@ -69,7 +69,7 @@ final class _Removal {
     required this.doc,
     required this.docType,
     required this.bytes,
-    required this.lfText,
+    required this.laidOut,
     required this.removed,
     required this.tasks,
     required this.fieldValues,
@@ -81,8 +81,8 @@ final class _Removal {
   /// The file's bytes as read under the lock.
   final List<int> bytes;
 
-  /// The doc's text after the removal, with LF line ends.
-  final String lfText;
+  /// The doc's text after the removal, laid out, with LF line ends.
+  final String laidOut;
 
   /// The entries removed, as the doc held them, in field then entry order.
   final List<String> removed;
@@ -152,53 +152,111 @@ _Removal? _removalIn(
   for (final fieldId in fields) {
     final block = blocks[fieldId];
     final items = block == null ? null : _itemsOf(block);
-    if (items == null) continue;
-    final (:kept, :gone) = _split(items, named);
+    if (block == null || items == null) continue;
+    final (:kept, :gone, :goneAt) = _split(items, named);
     if (gone.isEmpty) continue;
     removed.addAll(gone);
     tasks.addAll([for (final entry in gone) TaskRef.parse(entry)!.task]);
-    final lines = [for (final item in kept) '- ${_yamlOf(item)}'];
-    fieldValues[fieldId] = lines.isEmpty ? null : lines.join('\n');
-    text = withKeyBlock(
-      text,
-      fieldId,
-      lines.isEmpty ? null : '$fieldId:\n${lines.map((l) => '  $l\n').join()}',
-    );
+    final after = _blockAfter(block, fieldId, kept, goneAt);
+    fieldValues[fieldId] = after == null
+        ? null
+        : [for (final item in kept) '- ${_yamlOf(item)}'].join('\n');
+    text = withKeyBlock(text, fieldId, after);
   }
   if (removed.isEmpty) return null;
   return _Removal(
     doc: doc,
     docType: docType,
     bytes: read.bytes,
-    lfText: text,
+    laidOut: layOutDoc(text, session.docTypeAt(doc.docPath)),
     removed: removed,
     tasks: tasks,
     fieldValues: fieldValues,
   );
 }
 
-/// Returns the items of [block]'s list, or null when it holds no list.
+/// Returns the entries of [block]: the items of its list, or its one scalar
+/// string; null when it holds neither.
 List<Object?>? _itemsOf(KeyBlock block) {
   try {
-    final value = loadYaml(block.indentedValueText);
-    return value is YamlList ? value.toList() : null;
+    return switch (loadYaml(block.indentedValueText)) {
+      final YamlList list => list.toList(),
+      final String entry => [entry],
+      _ => null,
+    };
   } on YamlException {
     return null;
   }
 }
 
-/// Splits [items] into those that stay and the entries of a task in [named].
-({List<Object?> kept, List<String> gone}) _split(
+/// Splits [items] into those that stay and the entries of a task in [named],
+/// with the position of each entry that goes.
+({List<Object?> kept, List<String> gone, Set<int> goneAt}) _split(
   List<Object?> items,
   Set<String> named,
 ) {
   final kept = <Object?>[];
   final gone = <String>[];
-  for (final item in items) {
-    final task = item is String ? TaskRef.parse(item)?.task : null;
-    (named.contains(task) ? gone : kept).add(item);
+  final goneAt = <int>{};
+  for (final (position, item) in items.indexed) {
+    if (item case final String entry
+        when named.contains(TaskRef.parse(entry)?.task)) {
+      gone.add(entry);
+      goneAt.add(position);
+    } else {
+      kept.add(item);
+    }
   }
-  return (kept: kept, gone: gone);
+  return (kept: kept, gone: gone, goneAt: goneAt);
+}
+
+/// Returns the key block of [fieldId] after the entries at [goneAt] go, or
+/// null when no entry [kept] stays.
+///
+/// A plain block list keeps every other byte; any other form is written anew
+/// as a block list.
+String? _blockAfter(
+  KeyBlock block,
+  String fieldId,
+  List<Object?> kept,
+  Set<int> goneAt,
+) {
+  if (kept.isEmpty) return null;
+  final spliced = _withoutItemLines(block, kept.length + goneAt.length, goneAt);
+  if (spliced != null) return spliced;
+  final lines = [for (final item in kept) '  - ${_yamlOf(item)}\n'];
+  return '$fieldId:\n${lines.join()}';
+}
+
+final _itemLine = RegExp(r'^\s*-(\s|$)');
+
+/// Returns [block]'s text without the item lines at [goneAt], or null when
+/// the block is not a plain block list of [count] one-line items.
+String? _withoutItemLines(KeyBlock block, int count, Set<int> goneAt) {
+  final lines = const LineSplitter().convert(block.text);
+  final keyAt = lines.indexWhere((line) => !_isTrivia(line));
+  if (keyAt < 0) return null;
+  final afterKey = lines[keyAt].substring(block.key.length).trim();
+  if (!afterKey.startsWith(':') || !_isTrivia(afterKey.substring(1))) {
+    return null;
+  }
+  final itemAt = [
+    for (var i = keyAt + 1; i < lines.length; i++)
+      if (!_isTrivia(lines[i])) i,
+  ];
+  if (itemAt.length != count) return null;
+  if (itemAt.any((i) => !_itemLine.hasMatch(lines[i]))) return null;
+  final dropped = {for (final position in goneAt) itemAt[position]};
+  return [
+    for (final (i, line) in lines.indexed)
+      if (!dropped.contains(i)) '$line\n',
+  ].join();
+}
+
+/// Whether [line] is blank or a comment.
+bool _isTrivia(String line) {
+  final text = line.trim();
+  return text.isEmpty || text.startsWith('#');
 }
 
 /// Returns [item] as a YAML list item, quoted when a bare one would read
@@ -227,13 +285,10 @@ WriteStep _stepOf(WriteSession session, _Removal removal) {
   session.requireWritable(removal.doc.docPath);
   return session.docWriteStep(
     removal.doc.docPath,
-    _laidOut(session, removal),
+    removal.laidOut,
     removal.bytes,
   );
 }
-
-String _laidOut(WriteSession session, _Removal removal) =>
-    layOutDoc(removal.lfText, session.docTypeAt(removal.doc.docPath));
 
 // MARK: - Answer
 
@@ -274,7 +329,7 @@ ReadAnswer _answerOf(
 String _baseAfter(WriteSession session, _Removal removal) {
   final after = parseIndexedDoc(
     docPath: removal.doc.docPath,
-    bytes: utf8.encode(_laidOut(session, removal)),
+    bytes: utf8.encode(removal.laidOut),
     match: MatchedDocType(removal.docType),
     statusesOutside: session.project.statusesOutsideApproval,
   );

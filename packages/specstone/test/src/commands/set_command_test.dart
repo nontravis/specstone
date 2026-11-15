@@ -557,7 +557,7 @@ void main() {
       },
     );
 
-    test('f02/us01/fr08: removes the refs of the task, prints one line per doc and one per task with no ref, exit 0, stdin ignored', () async {
+    test('removes the refs of the task, prints one line per doc and one per task with no ref, exit 0, stdin ignored', () async {
       final root = await project();
       final console = _RecordingConsole();
       final (:runner, :out, :err) = writeRunner(root, console: console);
@@ -588,7 +588,7 @@ void main() {
       expect(console.reads, 0);
     });
 
-    test('f02/us01/fr08: --json prints docs, noRefs, and warnings', () async {
+    test('--json prints docs, noRefs, and warnings', () async {
       final root = await project();
       final (:runner, :out, :err) = writeRunner(root);
 
@@ -613,7 +613,7 @@ void main() {
       ]);
     });
 
-    test('f02/us01/fr08/e06: a doc address, --base, --field, --title, or --batch beside it exits 64 as argument_conflict before its value is read, writes nothing, and reads no stdin', () async {
+    test('a doc address, --base, --field, --title, or --batch beside it exits 64 as argument_conflict before its value is read, writes nothing, and reads no stdin', () async {
       final root = await project();
       final before = readDoc(root, loginArch);
       for (final beside in [
@@ -640,7 +640,7 @@ void main() {
       expect(readDoc(root, loginArch), before);
     });
 
-    test('f02/us01/fr08/e05: a value that is empty or holds a colon exits 64 as argument_invalid and writes nothing', () async {
+    test('a value that is empty or holds a colon exits 64 as argument_invalid and writes nothing', () async {
       final root = await project();
       final before = readDoc(root, loginArch);
       for (final value in ['', 'INV-4:ENG-42']) {
@@ -668,39 +668,32 @@ void main() {
       expect(readDoc(root, loginArch), before);
     });
 
-    test(
-      'f02/us01/fr08: --target keeps the removal to one code target',
-      () async {
-        final root = await writeTwinProject();
-        for (final docPath in [flutterArchitecture, jasprArchitecture]) {
-          docFile(root, docPath).writeAsStringSync(
-            withKeyBlock(
-              readDoc(root, docPath),
-              'tasks',
-              'tasks:\n  - ENG-42\n',
-            ),
-          );
-        }
-        final (:runner, :out, :err) = writeRunner(root);
-
-        expect(
-          await runner.run([
-            'set',
-            '--remove-task',
-            'ENG-42',
-            '--target',
-            'jaspr',
-          ]),
-          0,
-          reason: err.toString(),
+    test('--target keeps the removal to one code target', () async {
+      final root = await writeTwinProject();
+      for (final docPath in [flutterArchitecture, jasprArchitecture]) {
+        docFile(root, docPath).writeAsStringSync(
+          withKeyBlock(readDoc(root, docPath), 'tasks', 'tasks:\n  - ENG-42\n'),
         );
+      }
+      final (:runner, :out, :err) = writeRunner(root);
 
-        expect(readDoc(root, jasprArchitecture), isNot(contains('ENG-42')));
-        expect(readDoc(root, flutterArchitecture), contains('ENG-42'));
-      },
-    );
+      expect(
+        await runner.run([
+          'set',
+          '--remove-task',
+          'ENG-42',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
 
-    test('f02/us01/fr08: the help and the invocation show the form', () async {
+      expect(readDoc(root, jasprArchitecture), isNot(contains('ENG-42')));
+      expect(readDoc(root, flutterArchitecture), contains('ENG-42'));
+    });
+
+    test('the help and the invocation show the form', () async {
       final (:runner, :out, :err) = writeRunner(await writeWriteProject());
 
       expect(await runner.run(['set', '--help']), 0);

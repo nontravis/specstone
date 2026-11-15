@@ -138,7 +138,7 @@ void main() {
     expect(MoveJournal.pending(root), isFalse);
   });
 
-  test('f02/us01/fr08/e11: a --remove-task run stopped after its journal and '
+  test('a --remove-task run stopped after its journal and '
       'before its last doc is finished by the next write command', () async {
     const docs = [loginArch, signupArch];
     final files = {

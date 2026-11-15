@@ -65,7 +65,7 @@ String _line(Directory root, String docPath, String removed) {
 
 void main() {
   group('requireTaskIds', () {
-    test('E05: an empty value or one with a colon is argument_invalid, naming the value', () {
+    test('an empty value or one with a colon is argument_invalid, naming the value', () {
       for (final value in ['', 'INV-4:ENG-42', ':']) {
         expect(
           () => requireTaskIds(['ENG-42', value]),
@@ -86,7 +86,7 @@ void main() {
   });
 
   group('answerRemoveTasks', () {
-    test('E01: every entry of the task goes from every doc, an emptied list loses its key block, 2 lines print', () async {
+    test('every entry of the task goes from every doc, an emptied list loses its key block, 2 lines print', () async {
       final root = await _project();
       final apiBefore = readDoc(root, _loginApiDoc);
       final signupBefore = readDoc(root, signupArch);
@@ -109,7 +109,7 @@ void main() {
       expect(MoveJournal.pending(root), isFalse);
     });
 
-    test('Output: the json holds docs in DocPath order, noRefs, and each doc new base equal to get bases.doc', () async {
+    test('the json holds docs in doc path order, noRefs, and each doc new base equal to the base get prints', () async {
       final root = await _project();
 
       final answer = _remove(root, ['ENG-42', 'ENG-43']);
@@ -134,7 +134,7 @@ void main() {
       ]);
     });
 
-    test('E02: a task no doc holds prints its no refs line after the doc lines, and the held task is removed', () async {
+    test('a task no doc holds prints its no refs line after the doc lines, and the held task is removed', () async {
       final root = await _project();
 
       final answer = _remove(root, ['ENG-42', 'ENG-43']);
@@ -144,7 +144,7 @@ void main() {
       expect(readDoc(root, loginArch), isNot(contains('ENG-42')));
     });
 
-    test('E03: a task no doc holds writes no doc and no journal, and a rerun changes nothing', () async {
+    test('a task no doc holds writes no doc and no journal, and a rerun changes nothing', () async {
       final root = await _project();
       _remove(root, ['ENG-42']);
       final after = _docBytes(root);
@@ -158,70 +158,70 @@ void main() {
       expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
     });
 
-    test('E04: an entry that holds the task only as a prefix or in another case stays', () async {
-      final root = await _project(
-        arch: ['ENG-421', 'INV-4:eng-42', 'INV-4:ENG-42', 'ENG-42'],
-      );
-
-      final answer = _remove(root, ['ENG-42']);
-
-      expect(
-        readDoc(root, loginArch),
-        contains('tasks:\n  - ENG-421\n  - INV-4:eng-42\n---'),
-      );
-      expect(
-        answer.json['docs'],
-        contains(containsPair('removed', ['INV-4:ENG-42', 'ENG-42'])),
-      );
-    });
-
-    test('Review Focus 2: one entry held twice in a doc goes twice and is listed twice', () async {
-      final root = await _project(arch: ['ENG-42', 'INV-7:ENG-50', 'ENG-42']);
-
-      final answer = _remove(root, ['ENG-42']);
-
-      expect(readDoc(root, loginArch), isNot(contains('ENG-42')));
-      expect(answer.text, contains(' · removed ENG-42, ENG-42 <==\n'));
-    });
-
     test(
-      'Review Focus 3: a task named twice is matched once and printed once',
+      'an entry that holds the task only as a prefix or in another case stays',
       () async {
-        final root = await _project();
-
-        final held = _remove(root, ['ENG-42', 'ENG-42']);
-        final missing = _remove(root, ['ENG-9', 'ENG-9']);
-
-        expect(held.json['noRefs'], isEmpty);
-        expect(held.json['docs'], hasLength(2));
-        expect(missing.text, 'ENG-9 · no refs\n');
-        expect(missing.json['noRefs'], ['ENG-9']);
-      },
-    );
-
-    test(
-      'Review Focus 4: a CRLF doc with a BOM is written back CRLF with its BOM',
-      () async {
-        final lf = _withTasks(writeProject['docs/$loginArch']!, [
-          'ENG-42',
-          'ENG-50',
-        ]);
-        final root = await writeWriteProject(
-          extra: {'docs/$loginArch': '﻿${lf.replaceAll('\n', '\r\n')}'},
+        final root = await _project(
+          arch: ['ENG-421', 'INV-4:eng-42', 'INV-4:ENG-42', 'ENG-42'],
         );
 
-        _remove(root, ['ENG-42']);
+        final answer = _remove(root, ['ENG-42']);
 
-        final written = docFile(root, loginArch).readAsBytesSync();
-        expect(written.take(3), [0xEF, 0xBB, 0xBF]);
-        final text = String.fromCharCodes(written.skip(3));
-        expect(text, contains('tasks:\r\n  - ENG-50\r\n---'));
-        expect(text, isNot(matches(RegExp(r'(?<!\r)\n'))));
+        expect(
+          readDoc(root, loginArch),
+          contains('tasks:\n  - ENG-421\n  - INV-4:eng-42\n---'),
+        );
+        expect(
+          answer.json['docs'],
+          contains(containsPair('removed', ['INV-4:ENG-42', 'ENG-42'])),
+        );
       },
     );
 
     test(
-      'E07: --target keeps the removal to that target docs and the shared docs',
+      'one entry held twice in a doc goes twice and is listed twice',
+      () async {
+        final root = await _project(arch: ['ENG-42', 'INV-7:ENG-50', 'ENG-42']);
+
+        final answer = _remove(root, ['ENG-42']);
+
+        expect(readDoc(root, loginArch), isNot(contains('ENG-42')));
+        expect(answer.text, contains(' · removed ENG-42, ENG-42 <==\n'));
+      },
+    );
+
+    test('a task named twice is matched once and printed once', () async {
+      final root = await _project();
+
+      final held = _remove(root, ['ENG-42', 'ENG-42']);
+      final missing = _remove(root, ['ENG-9', 'ENG-9']);
+
+      expect(held.json['noRefs'], isEmpty);
+      expect(held.json['docs'], hasLength(2));
+      expect(missing.text, 'ENG-9 · no refs\n');
+      expect(missing.json['noRefs'], ['ENG-9']);
+    });
+
+    test('a CRLF doc with a BOM is written back CRLF with its BOM', () async {
+      final lf = _withTasks(writeProject['docs/$loginArch']!, [
+        'ENG-42',
+        'ENG-50',
+      ]);
+      final root = await writeWriteProject(
+        extra: {'docs/$loginArch': '\uFEFF${lf.replaceAll('\n', '\r\n')}'},
+      );
+
+      _remove(root, ['ENG-42']);
+
+      final written = docFile(root, loginArch).readAsBytesSync();
+      expect(written.take(3), [0xEF, 0xBB, 0xBF]);
+      final text = String.fromCharCodes(written.skip(3));
+      expect(text, contains('tasks:\r\n  - ENG-50\r\n---'));
+      expect(text, isNot(matches(RegExp(r'(?<!\r)\n'))));
+    });
+
+    test(
+      '--target keeps the removal to that target docs and the shared docs',
       () async {
         Future<Directory> twins() async {
           final root = await writeTwinProject();
@@ -247,55 +247,173 @@ void main() {
       },
     );
 
+    test('an approved doc stays approved and a draft stays a draft', () async {
+      final root = await _project(
+        extra: {
+          'docs/$signupArch': _withTasks(writeProject['docs/$signupArch']!, [
+            'ENG-42',
+            'ENG-50',
+          ]),
+        },
+      );
+      final approved = RegExp('approved: .*')
+          .firstMatch(readDoc(root, loginArch))!
+          .group(0)!;
+
+      _remove(root, ['ENG-42']);
+
+      expect(readDoc(root, loginArch), contains(approved));
+      expect(readDoc(root, signupArch), contains('draft: true'));
+      expect(readDoc(root, signupArch), isNot(contains('ENG-42')));
+      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+    });
+
+    test('a task_ref field under another id is found by its type', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/feature.yaml':
+              'fields:\n  - id: work\n    type: task_ref\n    list: true\n',
+          'docs/$signupFeature': _withTasks(
+            writeProject['docs/$signupFeature']!,
+            ['ENG-42', 'ENG-50'],
+            key: 'work',
+          ),
+        },
+      );
+
+      final answer = _remove(root, ['ENG-42']);
+
+      expect(readDoc(root, signupFeature), contains('work:\n  - ENG-50\n'));
+      expect(answer.json['docs'], [
+        containsPair('removed', ['ENG-42']),
+      ]);
+    });
+
+    test('a scalar task_ref field is dropped when it holds the task', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/feature.yaml':
+              'fields:\n  - id: work\n    type: task_ref\n',
+          'docs/$signupFeature': withKeyBlock(
+            writeProject['docs/$signupFeature']!,
+            'work',
+            'work: INV-4:ENG-42\n',
+          ),
+        },
+      );
+
+      final answer = _remove(root, ['ENG-42', 'ENG-43']);
+
+      expect(readDoc(root, signupFeature), isNot(contains('work')));
+      expect(answer.json['docs'], [
+        containsPair('removed', ['INV-4:ENG-42']),
+      ]);
+      expect(answer.json['noRefs'], ['ENG-43']);
+    });
+
+    test('a scalar task_ref field that holds another task stays', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/feature.yaml':
+              'fields:\n  - id: work\n    type: task_ref\n',
+          'docs/$signupFeature': withKeyBlock(
+            writeProject['docs/$signupFeature']!,
+            'work',
+            'work: ENG-50\n',
+          ),
+        },
+      );
+      final before = _docBytes(root);
+
+      final answer = _remove(root, ['ENG-42']);
+
+      expect(answer.text, 'ENG-42 · no refs\n');
+      expect(_docBytes(root), before);
+    });
+
+    test('a required scalar task_ref field that holds the task refuses', () async {
+      final root = await writeWriteProject(
+        extra: {
+          '.specstone/templates/feature.yaml':
+              'fields:\n  - id: work\n    type: task_ref\n    required: true\n',
+          'docs/$signupFeature': withKeyBlock(
+            writeProject['docs/$signupFeature']!,
+            'work',
+            'work: ENG-42\n',
+          ),
+        },
+      );
+      final before = _docBytes(root);
+
+      expect(
+        () => _remove(root, ['ENG-42']),
+        throwsA(
+          isA<WriteFault>().having(
+            (f) => f.code,
+            'code',
+            WriteFaultCode.requiredTarget,
+          ),
+        ),
+      );
+
+      expect(_docBytes(root), before);
+    });
+
+    test('a plain block list keeps its comments, quotes, and other entries byte for byte', () async {
+      const block =
+          'tasks:\n'
+          '  # first the open work\n'
+          '  - "INV-7:ENG-50"\n'
+          '  - ENG-42 # to drop\n'
+          '\n'
+          '  # then the rest\n'
+          '  - INV-4:ENG-51   # keep\n';
+      final root = await writeWriteProject(
+        extra: {
+          'docs/$loginArch': withKeyBlock(
+            writeProject['docs/$loginArch']!,
+            'tasks',
+            block,
+          ),
+        },
+      );
+
+      _remove(root, ['ENG-42']);
+
+      expect(
+        readDoc(root, loginArch),
+        contains(
+          'tasks:\n'
+          '  # first the open work\n'
+          '  - "INV-7:ENG-50"\n'
+          '\n'
+          '  # then the rest\n'
+          '  - INV-4:ENG-51   # keep\n'
+          '---',
+        ),
+      );
+    });
+
     test(
-      'E08: an approved doc stays approved and a draft stays a draft',
-      () async {
-        final root = await _project(
-          extra: {
-            'docs/$signupArch': _withTasks(writeProject['docs/$signupArch']!, [
-              'ENG-42',
-              'ENG-50',
-            ]),
-          },
-        );
-        final approved = RegExp('approved: .*')
-            .firstMatch(readDoc(root, loginArch))!
-            .group(0)!;
-
-        _remove(root, ['ENG-42']);
-
-        expect(readDoc(root, loginArch), contains(approved));
-        expect(readDoc(root, signupArch), contains('draft: true'));
-        expect(readDoc(root, signupArch), isNot(contains('ENG-42')));
-        expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
-      },
-    );
-
-    test(
-      'E09: a task_ref field under another id is found by its type',
+      'a flow list is written anew as a block list without the task',
       () async {
         final root = await writeWriteProject(
           extra: {
-            '.specstone/templates/feature.yaml':
-                'fields:\n  - id: work\n    type: task_ref\n    list: true\n',
-            'docs/$signupFeature': _withTasks(
-              writeProject['docs/$signupFeature']!,
-              ['ENG-42', 'ENG-50'],
-              key: 'work',
+            'docs/$loginArch': withKeyBlock(
+              writeProject['docs/$loginArch']!,
+              'tasks',
+              'tasks: [ENG-42, ENG-50]\n',
             ),
           },
         );
 
-        final answer = _remove(root, ['ENG-42']);
+        _remove(root, ['ENG-42']);
 
-        expect(readDoc(root, signupFeature), contains('work:\n  - ENG-50\n'));
-        expect(answer.json['docs'], [
-          containsPair('removed', ['ENG-42']),
-        ]);
+        expect(readDoc(root, loginArch), contains('tasks:\n  - ENG-50\n---'));
       },
     );
 
-    test('E10: a changed doc that fails a write check refuses the whole run, and no doc is written', () async {
+    test('a changed doc that fails a write check refuses the whole run, and no doc is written', () async {
       final root = await _project(
         extra: {
           '.specstone/templates/feature.yaml': 'fields:\n  - id: work\n    type: task_ref\n    list: true\n    required: true\n',
@@ -323,7 +441,7 @@ void main() {
     });
 
     test(
-      'E10: a project whose roots wait for the trust record refuses with the trust text and writes nothing',
+      'a project whose roots wait for the trust record refuses with the trust text and writes nothing',
       () async {
         final base = await writeTree({
           for (final MapEntry(:key, :value) in writeProject.entries)
