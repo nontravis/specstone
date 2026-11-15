@@ -4,7 +4,8 @@
 /// from the unset state, which a null [SummaryRows] stands for.
 final class SummaryRows {
   /// A summary doc prints the section's first [count] table rows.
-  const new rows(int this.count);
+  const new rows(int this.count)
+    : assert(count > 0, 'summary_rows counts positive rows');
 
   /// The layer writes `false`, which clears a lower layer's count.
   const new off() : count = null;

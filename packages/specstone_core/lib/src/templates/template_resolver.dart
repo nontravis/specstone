@@ -552,6 +552,9 @@ final class TemplateResolver {
       maxDepth: null,
       isPerTarget: target.isPerTarget,
       bundle: target.bundle == null ? null : List.unmodifiable(target.bundle!),
+      summaryFor: target.summaryFor == null
+          ? null
+          : List.unmodifiable(target.summaryFor!),
       generators: target.generators == null
           ? null
           : List.unmodifiable(target.generators!),

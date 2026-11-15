@@ -993,6 +993,22 @@ path: prds/notes/{slug}/NOTE.md
       ]);
     });
 
+    test("an extends doc type keeps its target's summary_for", () async {
+      final home = await writeTree({});
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/note.yaml':
+            'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'
+            'summary_for: [note]\n',
+        '.specstone/templates/memo.yaml':
+            'id: memo\nextends: note\npath: memos/{slug}.md\n',
+      });
+      final merged = TemplateResolver(shippedFiles: shipped())
+          .resolve(workingDirectory: project, homeDirectory: home);
+
+      expect(merged.lookup('memo')!.summaryFor, ['note']);
+    });
+
     test('a doc type extending feature carries no '
         'max_depth', () async {
       final project = await writeTree({

@@ -635,6 +635,13 @@ lint:
       expect(_parse('path: f.md\n').summaryFor, isNull);
     });
 
+    test('a summary_for holding a non-string is unknown_value', () {
+      expect(
+        () => _parse('summary_for: [1]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'summary_for')),
+      );
+    });
+
     test('a summary_for that is no list is unknown_value', () {
       expect(
         () => _parse('summary_for: project\n'),
