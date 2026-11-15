@@ -1,7 +1,7 @@
 Step 1, the gate, ran before you were sent here.
 As `specstone-sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-Findings under `prds/` go to `specstone-bootstrap-prd`, except the PRD sections step 6 moves. Follow the
+Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except the PRD sections step 6 moves. Follow the
 `specstone-expert-sdd` skill for every write; before the first, run `specstone guide <type> …` once,
 naming every type you write; a type met later gets its own call before its first write.
 
@@ -11,7 +11,7 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 ## 2. One finding at a time
 
 Fix this skill's first unhandled finding, then run a bare `specstone check` again.
-Stop when each finding left is under `prds/`, clears with no write, is a reported `code_uncovered`, or is tagged
+Stop when each finding left is under `prds/` or `measurements/`, clears with no write, is a reported `code_uncovered`, or is tagged
 `(waits for the Owner)`, except an unanswered size finding.
 
 Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);

@@ -11,7 +11,7 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 ## 2. One finding at a time
 
-Fix the first unhandled finding under `prds/`, then run `specstone check` again. Stop when each finding left
+Fix the first unhandled finding under `prds/` or `measurements/`, then run `specstone check` again. Stop when each finding left
 goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an unanswered
 size finding.
 
@@ -39,7 +39,7 @@ whole section.
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
-| any other under `prds/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
+| any other under `prds/` or `measurements/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers
 
@@ -64,7 +64,7 @@ its new doc. Name in step 6 each waiver and each mention in a section kept uncha
 
 1. Run `specstone refs <path>` per file of the set; each `Inbound`, `Mentions`, or `Untyped mentions` line is a
    referrer.
-2. Referrers inside the set never block. An old untyped doc under `prds/` or `specs/` joins the set, as no write
+2. Referrers inside the set never block. An old untyped doc under `prds/`, `measurements/`, or `specs/` joins the set, as no write
    repoints it; merge it first (`specstone-bootstrap-spec` takes one under `specs/`). A batch's set holds only
    files it merged; list each untyped referrer outside it, with the file it names, for its owner to merge. Leave any
    other untyped file as history. Repoint each other link or mention to the doc holding the content,

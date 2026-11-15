@@ -4221,7 +4221,11 @@ void _repeatsBatchTests() {
       expect(batch, contains(point), reason: point);
     }
     for (final MapEntry(key: skill, value: tree) in _repeatsTrees.entries) {
-      expect(batch, contains('under `$tree/` for `$skill`'), reason: skill);
+      expect(
+        batch,
+        matches(RegExp('under `$tree/`(?: or `measurements/`)? for `$skill`')),
+        reason: skill,
+      );
     }
     expect(
       _oneLine(_sectionOf(text, 'A `cite_unlinked` finding')),
@@ -4303,6 +4307,38 @@ void _repeatsBatchTests() {
         'merge it first (`specstone-bootstrap-spec` takes one under `specs/`).',
       ),
     );
+  });
+
+  test('the plan-engineer and brainstorm design glosses name prds/, specs/, '
+      'and measurements/ as the checked folders', () {
+    for (final file in [
+      _planAgent,
+      'specstone-brainstorming-sdd/references/design.md',
+    ]) {
+      final text = _oneLine(_pluginText(file));
+      expect(
+        text,
+        contains('`prds/`, `specs/`, and `measurements/` with the shipped'),
+        reason: file,
+      );
+    }
+  });
+
+  test('no routing line sends PRD findings by prds/ alone', () {
+    final aloneAfterUnder = RegExp('under `prds/`(?! or `measurements/`|, )');
+    for (final file in [
+      'specstone-bootstrap-prd/SKILL.md',
+      'specstone-bootstrap-prd/references/procedure.md',
+      'specstone-bootstrap-spec/SKILL.md',
+      'specstone-bootstrap-spec/references/procedure.md',
+      'specstone-expert-sdd/references/repeats.md',
+    ]) {
+      expect(
+        aloneAfterUnder.hasMatch(_oneLine(_pluginText(file))),
+        isFalse,
+        reason: file,
+      );
+    }
   });
 
   test("bootstrap-spec's repeats batch runs after "

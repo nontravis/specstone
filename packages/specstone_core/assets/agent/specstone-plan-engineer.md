@@ -134,7 +134,7 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
    - **No task builds any target** (each is `NOT PLANNED` or has no task): write no plan, not even one holding only
      the sync task; `Plan:` reads `none`.
    - **A plan path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
-     right under the docs folder: `prds/` and `specs/` with the shipped packs; a deeper folder of that name is
+     right under the docs folder: `prds/`, `specs/`, and `measurements/` with the shipped packs; a deeper folder of that name is
      outside), or a PRD or spec doc named as the file: write no plan; list the path under open questions, asking the
      Owner for a new `plan path`.
    - **Else**: the one plan file, at a given `plan path`, else as `<YYYY-MM-DD>-<slug>.md` in the plans folder the
