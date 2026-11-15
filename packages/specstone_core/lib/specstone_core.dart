@@ -85,7 +85,14 @@ export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';
 export 'src/templates/project_config.dart'
-    show matchProjectRoot, requireSpecstoneFolder;
+    show
+        AgentFilesStamp,
+        AgentFilesStampAbsent,
+        AgentFilesStampUnreadable,
+        AgentFilesStampVersion,
+        matchProjectRoot,
+        readAgentFilesVersion,
+        requireSpecstoneFolder;
 export 'src/templates/template_fault.dart';
 export 'src/templates/template_resolver.dart';
 export 'src/version.dart';

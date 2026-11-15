@@ -10,6 +10,10 @@ import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
 
+final String? _linksUnavailable = Platform.isWindows
+    ? 'a link needs a privilege on Windows'
+    : null;
+
 TypeMatcher<TemplateFault> _fault(FaultCode code, {String? key, int? line}) =>
     isA<TemplateFault>()
         .having((f) => f.code, 'code', code)
@@ -675,7 +679,7 @@ void main() {
           .createSync('${other.path}${Platform.pathSeparator}.specstone');
 
       expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
-    });
+    }, skip: _linksUnavailable);
 
     test('a config path that is a folder is unreadable', () async {
       final root = await writeTree({'$_configPath/inner': 'x'});

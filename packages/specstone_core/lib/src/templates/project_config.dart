@@ -109,8 +109,8 @@ Directory? findProjectRoot(Directory start) => matchProjectRoot(start)?.root;
     );
 
 /// The project config: the pack version each pack is pinned to, the code
-/// targets code paths are written from, and the repository tops already
-/// offered agent files.
+/// targets code paths are written from, the repository tops already offered
+/// agent files, and the Version stamp of the run that wrote them.
 final class ProjectConfig {
   new _({
     required this.pins,
