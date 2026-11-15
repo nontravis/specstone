@@ -107,6 +107,7 @@ enum FindingKind {
   measurementGoalUnresolved('measurement_goal_unresolved'),
   goalMeasurementDuplicate('goal_measurement_duplicate'),
   goalMetricMismatch('goal_metric_mismatch'),
+  goalMetricUnlinked('goal_metric_unlinked'),
   frTraceUnresolved('fr_trace_unresolved'),
   architectureMissing('architecture_missing'),
   implementsMissing('implements_missing'),

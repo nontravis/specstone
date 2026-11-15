@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 114 snake_case kinds, no error code', () {
+  test('consistency_check: 115 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -90,6 +90,7 @@ void main() {
       'measurement_goal_unresolved',
       'goal_measurement_duplicate',
       'goal_metric_mismatch',
+      'goal_metric_unlinked',
       'fr_trace_unresolved',
       'architecture_missing',
       'implements_missing',
@@ -184,6 +185,7 @@ void main() {
       FindingKind.measurementGoalUnresolved,
       FindingKind.goalMeasurementDuplicate,
       FindingKind.goalMetricMismatch,
+      FindingKind.goalMetricUnlinked,
     ]) {
       expect(kind.waitsFor, WaitsFor.agent, reason: kind.wire);
     }
