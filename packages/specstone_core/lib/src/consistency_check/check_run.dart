@@ -15,6 +15,7 @@ import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
+import 'package:specstone_core/src/consistency_check/goal_measurement_rules.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
 import 'package:specstone_core/src/consistency_check/item_field_rules.dart';
 import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
@@ -77,6 +78,7 @@ CheckReport runCheck(
       findings
         ..addAll(checkTraces(context, doc))
         ..addAll(checkRolesAndGoals(context, doc))
+        ..addAll(checkGoalMeasurements(context, doc))
         ..addAll(checkSpecAgainstPrd(context, work, doc))
         ..addAll(checkImplementedStatus(context, doc))
         ..addAll(checkRecordEntries(context, doc))

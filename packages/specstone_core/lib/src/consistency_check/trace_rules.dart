@@ -250,7 +250,9 @@ Iterable<Finding> _unresolvedId(
   );
 }
 
-String? _goalKeyOf(String heading) {
+/// Returns the ID a `### PG-` [heading] opens with, as written; null for any
+/// other heading, a lettered ID, and an unreadable ID.
+String? goalKeyOf(String heading) {
   final text = itemHeadingTextOf(heading);
   if (text == null) return null;
   return switch (readItemId(text, _goalIdPrefix)) {
@@ -277,7 +279,7 @@ List<String> _servedIdsOf(String text) {
 Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
   final section = context.heldIndexOf(doc, _goalsSection);
   if (section == null) return;
-  final blocks = headingBlocksOf(context.bodyLinesOf(doc, section), _goalKeyOf);
+  final blocks = headingBlocksOf(context.bodyLinesOf(doc, section), goalKeyOf);
   for (final (:key, :lines) in blocks) {
     final serves = lines
         .where((line) => !line.fenced)

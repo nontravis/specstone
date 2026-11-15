@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 92 snake_case kinds, no error code', () {
+  test('consistency_check: 96 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -84,6 +84,10 @@ void main() {
       'vision_goal_widened',
       'vision_goal_unresolved',
       'goal_serves_missing',
+      'goal_measurement_missing',
+      'measurement_goal_unresolved',
+      'goal_measurement_duplicate',
+      'goal_metric_mismatch',
       'fr_trace_unresolved',
       'architecture_missing',
       'implements_missing',
@@ -171,6 +175,14 @@ void main() {
       );
     }
     expect(WaitsFor.values.map((w) => w.wire), ['owner', 'agent']);
+    for (final kind in [
+      FindingKind.goalMeasurementMissing,
+      FindingKind.measurementGoalUnresolved,
+      FindingKind.goalMeasurementDuplicate,
+      FindingKind.goalMetricMismatch,
+    ]) {
+      expect(kind.waitsFor, WaitsFor.agent, reason: kind.wire);
+    }
   });
 
   test('a finding '

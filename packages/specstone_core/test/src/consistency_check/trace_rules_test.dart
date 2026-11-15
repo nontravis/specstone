@@ -355,12 +355,14 @@ void main() {
         },
       ),
     );
-    expect(spots(report), ['$loginStory:3: vision_goal_widened']);
-    expect(report.findings.single.toJson()['id'], 'PG-03');
-    expect(
-      report.findings.single.message,
-      'PG-03 is not in the goals of the feature',
+    expect(spots(report, FindingKind.visionGoalWidened), [
+      '$loginStory:3: vision_goal_widened',
+    ]);
+    final widened = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.visionGoalWidened,
     );
+    expect(widened.toJson()['id'], 'PG-03');
+    expect(widened.message, 'PG-03 is not in the goals of the feature');
   });
 
   test(

@@ -283,6 +283,10 @@ final class CheckContext {
   bool get hasProject =>
       _session.project.set.docTypes.any((type) => type.id == _projectType);
 
+  /// Whether the merged set holds a measurement doc type.
+  bool get hasMeasurement =>
+      _session.project.set.docTypes.any((type) => type.id == _measurementType);
+
   late final Set<String> _roleNames = {
     for (final doc in _projectDocs)
       if (heldIndexOf(doc, _rolesSection) case final index?)
@@ -403,6 +407,7 @@ final class CheckContext {
 
 const _gnfrType = 'gnfr';
 const _projectType = 'project';
+const _measurementType = 'measurement';
 const _rolesSection = 'roles';
 final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _architectureType = 'architecture';
