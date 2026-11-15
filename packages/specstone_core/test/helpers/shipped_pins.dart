@@ -32,10 +32,12 @@ String shippedPinsOneMinorBelow(String pack) {
     throw StateError('$pack ships at $shipped, with no minor below it');
   }
   final below = '${shipped.major}.${shipped.minor - 1}.0';
-  return shippedPinsConfig().replaceFirst(
-    '  $pack: $shipped\n',
-    '  $pack: $below\n',
-  );
+  final pinned = '  $pack: $shipped\n';
+  final config = shippedPinsConfig();
+  if (!config.contains(pinned)) {
+    throw StateError('shippedPinsConfig does not pin $pack at $shipped');
+  }
+  return config.replaceFirst(pinned, '  $pack: $below\n');
 }
 
 /// Whether a project on the shipped pins keeps a record's statuses outside

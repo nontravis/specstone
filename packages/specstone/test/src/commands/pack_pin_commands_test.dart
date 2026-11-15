@@ -52,6 +52,42 @@ void main() {
           contains('specstone migrate --dry-run'),
         ),
       );
+      expect(error['file'], '.specstone/config.yaml');
+      expect(error['key'], 'packs.prd-core');
+    });
+  }
+
+  test('every --json form prints the same refusal message', () async {
+    final messages = <String>{};
+    for (final args in forms.values) {
+      final result = await run(args);
+      final envelope =
+          jsonDecode(result.stderr as String) as Map<String, Object?>;
+      messages.add(
+        (envelope['error']! as Map<String, Object?>)['message']! as String,
+      );
+    }
+
+    expect(messages, hasLength(1));
+  });
+
+  final textForms = {
+    'check': ['check'],
+    'context': ['context', story, '--for', 'implement'],
+  };
+
+  for (final MapEntry(:key, :value) in textForms.entries) {
+    test('$key without --json refuses the older pin', () async {
+      final result = await run(value);
+
+      expect(result.exitCode, 78, reason: '${result.stdout}\n${result.stderr}');
+      expect(
+        result.stderr,
+        allOf(
+          startsWith('.specstone/config.yaml: packs.prd-core: Pack prd-core'),
+          contains('specstone migrate --dry-run'),
+        ),
+      );
     });
   }
 
