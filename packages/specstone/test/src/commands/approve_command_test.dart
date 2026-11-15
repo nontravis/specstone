@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/git_repo.dart';
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/relative_link.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
@@ -943,5 +944,44 @@ void main() {
         );
       },
     );
+  });
+  group('a draft named by the end of its name', () {
+    Future<Directory> shop() => writeNestedProject(
+      extra: {
+        'docs/$cartFeature': '---\ndraft: true\nvision:\n  - PV-01\n---\n\n# Cart\n\n## Problem\nShoppers need it.\n',
+      },
+    );
+    test('approve takes a unique suffix as it takes the full name', () async {
+      final byFull = await shop();
+      final full = writeRunner(byFull);
+      expect(
+        await full.runner.run([
+          'approve',
+          _seen(byFull, 'feature:shop/cart'),
+          '--yes',
+        ]),
+        0,
+      );
+      final bySuffix = await shop();
+      final hash =
+          (getDoc(bySuffix, 'feature:shop/cart')['bases']! as Map)['doc'];
+      final short = writeRunner(bySuffix);
+      expect(
+        await short.runner.run(['approve', 'feature:cart@$hash', '--yes']),
+        0,
+      );
+      expect(short.out.toString(), full.out.toString());
+      expect(short.err.toString(), full.err.toString());
+    });
+    test('approve refuses a suffix of no identity, naming it', () async {
+      final root = await shop();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['approve', 'feature:art@000000000000', '--yes']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('art'));
+    });
   });
 }

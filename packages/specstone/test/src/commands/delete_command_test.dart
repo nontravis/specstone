@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -780,6 +781,34 @@ void main() {
           '$scratch: docs outside $scratch link into it; also $referrer\n',
         );
         expect(File('${root.path}/docs/$scratch').existsSync(), isTrue);
+      },
+    );
+  });
+  group('a delete target named by the end of its name', () {
+    test(
+      'delete --dry-run takes a unique suffix as it takes the full name',
+      () async {
+        final root = await writeNestedProject();
+        final full = writeRunner(root);
+        expect(
+          await full.runner.run(['delete', 'feature:shop/pay', '--dry-run']),
+          0,
+        );
+        final short = writeRunner(root);
+        expect(
+          await short.runner.run(['delete', 'feature:pay', '--dry-run']),
+          0,
+        );
+        expect(short.out.toString(), full.out.toString());
+      },
+    );
+    test(
+      'delete --dry-run refuses a suffix of no identity, naming it',
+      () async {
+        final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+        expect(await runner.run(['delete', 'feature:ay', '--dry-run']), 64);
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), contains('ay'));
       },
     );
   });

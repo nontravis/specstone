@@ -528,4 +528,15 @@ void main() {
       });
     });
   });
+  test('move takes a suffix parent', () async {
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['move', addItem, '--under', 'pay']), 0);
+    expect(err.toString(), isEmpty);
+    expect(
+      out.toString(),
+      startsWith('moved $addItemFolder/ to $movedFolder/\n'),
+    );
+    expect(docFile(root, '$movedFolder/USER_STORY.md').existsSync(), isTrue);
+  });
 }

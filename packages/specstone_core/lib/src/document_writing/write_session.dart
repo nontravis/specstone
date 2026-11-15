@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -174,8 +175,10 @@ final class WriteSession {
 
   /// Returns the one doc of [parentTypeId] among the docs [value] names.
   ///
-  /// [value] is read as any target, as [target] reads it, and only the docs of
-  /// [parentTypeId] count; [codeTarget] narrows it as it does there.
+  /// [value] is read as any target, as [target] reads it, with [parentTypeId]
+  /// as its doc type when it names none, so a carried name or a name's end of
+  /// that doc type counts first; only the docs of [parentTypeId] count;
+  /// [codeTarget] narrows it as it does there.
   /// Throws [IndexFault] `doc_not_found` naming [value] when none counts and
   /// `argument_invalid` listing each as `<doc type>:<name>` or, when that names
   /// 2 docs, its DocPath, when 2 or more count; a `TemplateFault` for a doc
@@ -188,7 +191,11 @@ final class WriteSession {
   }) {
     final List<IndexedDoc> named;
     try {
-      named = index.resolve(value, codeTarget: codeTarget);
+      final hasTypePrefix = readDocAddress(value).typeId != null;
+      named = index.resolve(
+        hasTypePrefix ? value : '$parentTypeId:$value',
+        codeTarget: codeTarget,
+      );
     } on IndexFault catch (fault) {
       if (fault.code != IndexFaultCode.docNotFound) rethrow;
       throw _noParent(parentTypeId, value);

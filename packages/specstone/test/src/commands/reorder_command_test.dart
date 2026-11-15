@@ -409,4 +409,25 @@ void main() {
       expect(dryErr.toString(), applyErr);
     });
   });
+  group('a reorder target named by the end of its name', () {
+    test('reorder takes a unique suffix as it takes the full name', () async {
+      final full = writeRunner(await writeNestedProject());
+      expect(
+        await full.runner.run(['reorder', 'feature:shop/pay', '--to', '1']),
+        0,
+      );
+      final short = writeRunner(await writeNestedProject());
+      expect(
+        await short.runner.run(['reorder', 'feature:pay', '--to', '1']),
+        0,
+      );
+      expect(short.out.toString(), full.out.toString());
+    });
+    test('reorder refuses a suffix of no identity, naming it', () async {
+      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+      expect(await runner.run(['reorder', 'feature:ay', '--to', '1']), 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('ay'));
+    });
+  });
 }
