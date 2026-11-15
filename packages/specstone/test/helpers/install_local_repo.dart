@@ -18,26 +18,59 @@ Future<String> compileInstallLocal() async {
     'specstone_install_local_',
   );
   addTearDown(() => scratch.delete(recursive: true));
-  final source = await File(
-    '${repoRoot().path}${separator}tool${separator}install_local.dart',
-  ).copy('${scratch.path}${separator}install_local.dart');
+  final root = repoRoot().path;
+  const environment = 'environment:\n  sdk: ^3.13.5\n';
+  File('${scratch.path}${separator}pubspec.yaml')
+    ..createSync()
+    ..writeAsStringSync(
+      'name: install_local_scratch\n$environment'
+      'dependencies:\n  specstone_core:\n    path: core\n',
+    );
+  File('${scratch.path}${separator}core${separator}pubspec.yaml')
+    ..createSync(recursive: true)
+    ..writeAsStringSync('name: specstone_core\n$environment');
+  for (final file in [
+    'release_version.dart',
+    'src${separator}release_version.dart',
+  ]) {
+    File('${scratch.path}${separator}core${separator}lib$separator$file')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(
+        File(
+          '$root${separator}packages${separator}specstone_core'
+          '${separator}lib$separator$file',
+        ).readAsStringSync(),
+      );
+  }
+  File('${scratch.path}${separator}tool${separator}install_local.dart')
+    ..createSync(recursive: true)
+    ..writeAsStringSync(
+      File('$root${separator}tool${separator}install_local.dart')
+          .readAsStringSync(),
+    );
   final exe =
       '${scratch.path}${separator}install_local'
       '${Platform.isWindows ? '.exe' : ''}';
-  final result = await Process.run(Platform.resolvedExecutable, [
-    'compile',
-    'exe',
-    source.path,
-    '-o',
-    exe,
-  ], workingDirectory: scratch.path);
-  if (result.exitCode != 0) {
-    throw StateError(
-      'dart compile exe failed: ${result.stdout}\n${result.stderr}',
+  for (final args in [
+    ['pub', 'get', '--offline'],
+    ['compile', 'exe', 'tool${separator}install_local.dart', '-o', exe],
+  ]) {
+    final result = await Process.run(
+      Platform.resolvedExecutable,
+      args,
+      workingDirectory: scratch.path,
     );
+    if (result.exitCode != 0) {
+      throw StateError(
+        'dart ${args.take(2).join(' ')} failed: '
+        '${result.stdout}\n${result.stderr}',
+      );
+    }
   }
   return exe;
 }
+
+const _versionPath = 'packages/specstone_core/lib/src/version.dart';
 
 /// The shim's path in the checkout, relative to its root.
 const String shimPath = 'packages/specstone/bin/stn';
@@ -156,11 +189,17 @@ final class InstallLocalRepo {
 
   void _fillCheckout() {
     _git(['init', '-q', '-b', 'develop']);
-    _write('fixture_version.txt', '0.9.0\n');
+    _write(_versionPath, "const String specstoneVersion = '0.9.0';\n");
     _write('marker.txt', 'develop\n');
     _write('packages/specstone/bin/specstone.dart', 'void main() {}\n');
     _writeShim('develop');
     commitAll(work, 'init');
+    _git(['tag', 'v0.9.0']);
+    _git(['checkout', '-q', '-b', 'topic']);
+    _write('topic.txt', 'topic\n');
+    commitAll(work, 'topic');
+    _git(['checkout', '-q', 'develop']);
+    _git(['merge', '-q', '--no-ff', '-m', 'merge topic', 'topic']);
     _git(['checkout', '-q', '-b', 'feature/example']);
     _write('marker.txt', 'feature\n');
     _writeShim('feature');
@@ -215,7 +254,8 @@ case "$1 $2" in
     root=$(cd ../.. && pwd)
     mkdir -p "$out/bundle/lib" "$out/bundle/bin"
     echo stub > "$out/bundle/lib/libsqlite3.so"
-    version=$(cat "$root/fixture_version.txt")
+    version=$(sed -n "s/^const String specstoneVersion = '\(.*\)';\r\{0,1\}$/\1/p" \
+      "$root/packages/specstone_core/lib/src/version.dart")
     commit=$('<real git>' -C "$root" rev-parse HEAD)
     marker=$(cat "$root/marker.txt")
     printf '#!/bin/sh\n# %s %s\nif [ "$1" = --version ]; then echo %s; fi\n' \

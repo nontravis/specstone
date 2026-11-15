@@ -282,8 +282,9 @@ exec "$(dirname "$0")/git_original" "$@"''');
       'bundle holds the committed marker.txt', () async {
     final bundleBinary = keepBundleBinary();
     File('${repo.work.path}/marker.txt').writeAsStringSync('changed\n');
-    File('${repo.work.path}/fixture_version.txt').writeAsStringSync('9.9.9\n');
-    git(repo.work, ['add', 'fixture_version.txt']);
+    File('${repo.work.path}/packages/specstone_core/lib/src/version.dart')
+        .writeAsStringSync("const String specstoneVersion = '9.9.9';\n");
+    git(repo.work, ['add', 'packages/specstone_core/lib/src/version.dart']);
     File('${repo.work.path}/untracked.txt').writeAsStringSync('new\n');
     final stateBefore = await repo.checkoutState();
 
@@ -531,24 +532,24 @@ fi''');
 
   test('a tag or a full commit installs and the line names '
       'it as given', () async {
-    git(repo.work, ['tag', 'v0.9.0', 'feature/example']);
-    git(repo.work, ['tag', '-a', 'v1.0.0', '-m', 'annotated', 'develop']);
+    git(repo.work, ['tag', 'v0.9.1', 'feature/example']);
+    git(repo.work, ['tag', '-a', 'v0.9.2', '-m', 'annotated', 'develop']);
 
-    final tagged = await repo.run(tool, args: ['--branch', 'v0.9.0']);
+    final tagged = await repo.run(tool, args: ['--branch', 'v0.9.1']);
 
     expect(tagged.exitCode, 0, reason: '${tagged.stderr}');
     expect(
       tagged.stdout,
-      installLine('v0.9.0', repo.shortSha('feature/example')),
+      installLine('v0.9.1', repo.shortSha('feature/example')),
     );
     expect(placedMark(), '# ${repo.sha('feature/example')} feature');
 
-    final annotated = await repo.run(tool, args: ['--branch', 'v1.0.0']);
+    final annotated = await repo.run(tool, args: ['--branch', 'v0.9.2']);
 
     expect(annotated.exitCode, 0, reason: '${annotated.stderr}');
-    expect(annotated.stdout, installLine('v1.0.0', repo.shortSha('develop')));
+    expect(annotated.stdout, installLine('v0.9.2', repo.shortSha('develop')));
     expect(placedMark(), '# ${repo.sha('develop')} develop');
-    expect(buildTxt().readAsLinesSync().first, 'ref: v1.0.0');
+    expect(buildTxt().readAsLinesSync().first, 'ref: v0.9.2');
 
     final commit = repo.sha('develop');
     final full = await repo.run(tool, args: ['--branch', commit]);
