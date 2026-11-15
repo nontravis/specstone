@@ -350,12 +350,7 @@ void main() {
           (table, 'Run one halved the resets.\n\n'),
         ]),
       );
-      final baseline = await writeCheckProject();
-      List<String> kinds(Directory dir) => [
-        for (final finding in checkOf(dir, docPath: measurementDoc).findings)
-          finding.kind.name,
-      ];
-      expect(kinds(project), kinds(baseline));
+      expect(checkOf(project, docPath: measurementDoc).findings, isEmpty);
     },
   );
 }

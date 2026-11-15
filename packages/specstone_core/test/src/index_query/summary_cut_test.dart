@@ -1,3 +1,6 @@
+// The test literals hold whole table lines as written.
+// ignore_for_file: lines_longer_than_80_chars
+
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:test/test.dart';
 
@@ -65,5 +68,28 @@ void main() {
 
     expect(cut.body, '```\n| not | table |\n```\n\n$_head| a | 1 |');
     expect(cut.lineCount, 7);
+  });
+
+  test('skips a table inside an HTML comment before the real table', () {
+    final cut = cutToRows(
+      'Lead.\n<!--\n| Old | Run |\n|---|---|\n| x | 0 |\n-->\n\n$_head| a | 1 |\n| b | 2 |\n',
+      1,
+    );
+
+    expect(
+      cut.body,
+      'Lead.\n<!--\n| Old | Run |\n|---|---|\n| x | 0 |\n-->\n\n$_head| a | 1 |',
+    );
+    expect(cut.lineCount, 10);
+  });
+
+  test('cuts a table in a blockquote', () {
+    final cut = cutToRows(
+      'Lead.\n\n> | Date | Run |\n> |---|---|\n> | a | 1 |\n> | b | 2 |\n',
+      1,
+    );
+
+    expect(cut.body, 'Lead.\n\n> | Date | Run |\n> |---|---|\n> | a | 1 |');
+    expect(cut.lineCount, 5);
   });
 }

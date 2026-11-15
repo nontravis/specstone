@@ -1163,6 +1163,33 @@ void main() {
       expect(text, isNot(contains('## Method')));
       expect(text, isNot(contains('## Open causes')));
     });
+    test('a summary_rows section keeps the cited-by lines of the items its cut prints whole and drops the others', () async {
+      final i = await indexWith({
+        '.specstone/templates/measurement.yaml':
+            'sections:\n  - id: results\n    prefix_id: RUN-\n',
+        _projectFile: _projectLinking,
+        measurement:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
+            '## Results\n- **RUN-1** First run.\n\n$table| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n\n- **RUN-2** Second run.\n',
+        'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [RUN-1](../../measurements/fewer_resets/MEASUREMENT.md#results) and [RUN-2](../../measurements/fewer_resets/MEASUREMENT.md#results).\n',
+      });
+      final a = ctxIn(i, 'project', BundleMode.design);
+
+      expect(
+        a.text,
+        contains(
+          '## Results\n- **RUN-1** First run.\n  · cited by guide (topic) —: See [RUN-1]',
+        ),
+      );
+      final summary = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere(
+            (d) => d['name'] == 'fewer_resets' && d['summary'] == true,
+          );
+      expect((summary['citedBy']! as List).map((c) => (c as Map)['item']), [
+        'RUN-1',
+      ]);
+    });
     test('a summary_rows section written as prose prints whole', () async {
       final text = await printed('Run one met the goal.');
 

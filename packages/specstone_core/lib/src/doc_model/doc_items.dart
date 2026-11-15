@@ -141,6 +141,27 @@ List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
   return spans;
 }
 
+/// Returns where the first table of [body] ends, read as [itemsOf] reads a
+/// table, or null when none starts.
+///
+/// `header` is the index of the header line, and `end` the index after the
+/// header, the delimiter row, and the first [rows] body rows.
+({int header, int end})? firstTableOf(List<BodyLine> body, int rows) {
+  final lines = _linesOf(body);
+  for (var at = 0; at < lines.length; at++) {
+    if (!_startsTable(lines, at)) continue;
+    var end = at + 2;
+    while (end < at + 2 + rows &&
+        end < lines.length &&
+        lines[end].kind == _Kind.text &&
+        lines[end].quote == lines[at].quote) {
+      end++;
+    }
+    return (header: at, end: end);
+  }
+  return null;
+}
+
 enum _Kind { blank, fence, rule, heading, list, text }
 
 /// One body line split into its blockquote depth and the text after it.

@@ -1,14 +1,15 @@
-import 'package:specstone_core/src/doc_model/code_spans.dart';
-import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
+import 'package:specstone_core/src/index_query/html_comments.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
+import 'package:specstone_core/src/index_query/line_facts.dart' show LineRange;
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
+export 'package:specstone_core/src/index_query/html_comments.dart'
+    show removeHtmlComments;
 
 /// A `##` section a printed text holds whole, with the line its header sits
 /// on, counted from 0 at the text's first line.
@@ -60,8 +61,8 @@ summaryPrintOf(
 /// Returns [section] of [doc], whose held sections [held] reads, as a bundle
 /// prints it, with the lines [citedBy] holds for its items after them.
 ///
-/// With [summaryRows], the section prints cut by [cutToRows], and a cut that
-/// drops lines prints no cited-by line.
+/// With [summaryRows], the section prints cut by [cutToRows], and only the
+/// items whole inside the printed lines get a cited-by line.
 ({String block, List<CitedItem> cited}) sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
@@ -78,10 +79,18 @@ summaryPrintOf(
           headerLine: section.headerLine,
           body: cutToRows(section.body, summaryRows).body,
         );
-  final isCut = printed.body.trimRight() != section.body.trimRight();
-  final items = citedBy == null || isCut
+  final items = citedBy == null
       ? const <CitedItem>[]
-      : citedItemsIn(citedBy, doc, content, held[at], at);
+      : citedItemsIn(
+          citedBy,
+          doc,
+          content,
+          held[at],
+          at,
+          within: summaryRows == null
+              ? null
+              : _bodyRangeOf(content, at, printed.body),
+        );
   final block = sectionBlockOf(
     printed,
     bodyLine: content.lineFacts.sectionLines[at] + 1,
@@ -106,6 +115,13 @@ List<IndexedSection> summarySectionsOf(
     for (final section in keptSectionsOf(content, docType, mode))
       if (summaryIds.contains(section.key)) section,
   ];
+}
+
+/// Returns the file lines of the body [printed] of the section at [at], which
+/// starts on the line after its header.
+LineRange _bodyRangeOf(DocContent content, int at, String printed) {
+  final first = content.lineFacts.sectionLines[at] + 1;
+  return (first: first, last: first + lineCountOf(printed) - 1);
 }
 
 /// Returns the `summary_rows` count of the merged section [key] of [docType],
@@ -174,21 +190,6 @@ bool _naChecked(String body) {
   return cleaned != 'N/A' && !cleaned.startsWith('N/A —');
 }
 
-/// Returns [text] with every HTML comment removed, except one whose `<!--`
-/// sits in fenced code or an inline code span.
-///
-/// A comment runs to the first `-->` whatever it holds, so a backtick or a
-/// fence line inside a comment never hides it.
-String removeHtmlComments(String text) {
-  final kept = StringBuffer();
-  var from = 0;
-  for (final (:start, :end) in _commentRangesOf(text)) {
-    kept.write(text.substring(from, start));
-    from = end;
-  }
-  return (kept..write(text.substring(from))).toString();
-}
-
 /// Returns [text], whose first line is file line [firstLine], as a bundle
 /// prints a body: HTML comments removed, trimmed at its end, and each of
 /// [after]'s lines right after its file line.
@@ -202,7 +203,7 @@ String printedBodyOf(
 }) {
   final printed = removeHtmlComments(text).trimRight();
   if (after.isEmpty) return printed;
-  final comments = _commentRangesOf(text);
+  final comments = commentRangesOf(text);
   final lineEnds = _lineEndsOf(text);
   final out = StringBuffer();
   var from = 0;
@@ -236,46 +237,6 @@ int _keptOffset(int offset, List<({int start, int end})> comments) {
     removed += (end < offset ? end : offset) - start;
   }
   return offset - removed;
-}
-
-/// Returns the offsets of each HTML comment of [text] that
-/// [removeHtmlComments] removes, in order.
-List<({int start, int end})> _commentRangesOf(String text) {
-  final code = _codeRanges(text);
-  final ranges = <({int start, int end})>[];
-  var search = 0;
-  while (true) {
-    final comment = _htmlComment.allMatches(text, search).firstOrNull;
-    if (comment == null) break;
-    if (code.any((r) => r.start <= comment.start && comment.start < r.end)) {
-      search = comment.start + 1;
-      continue;
-    }
-    ranges.add((start: comment.start, end: comment.end));
-    search = comment.end;
-  }
-  return ranges;
-}
-
-/// Returns the offsets of each fenced line and each inline code span of [text].
-List<({int start, int end})> _codeRanges(String text) {
-  final lines = text.split('\n');
-  final fenced = fencedLines([
-    for (final line in lines) line.replaceFirst(RegExp(r'\r$'), ''),
-  ]);
-  final ranges = <({int start, int end})>[];
-  var offset = 0;
-  for (var i = 0; i < lines.length; i++) {
-    if (fenced[i]) {
-      ranges.add((start: offset, end: offset + lines[i].length));
-    } else {
-      for (final (:start, :end, ticks: _) in codeSpansOf(lines[i])) {
-        ranges.add((start: offset + start, end: offset + end));
-      }
-    }
-    offset += lines[i].length + 1;
-  }
-  return ranges;
 }
 
 /// Returns [text] with HTML comments removed and both ends trimmed.
