@@ -20,23 +20,6 @@ const String latestReleaseApi =
 /// The variable that pins the version the install script installs.
 const String _pinnedVersionVariable = 'SPECSTONE_VERSION';
 
-/// The arguments `claude` takes to update the Specstone plugin.
-const List<String> _pluginUpdateArguments = [
-  'plugin',
-  'update',
-  'specstone@specstone',
-];
-
-/// The program, arguments, and environment of one `claude plugin update`.
-typedef _ClaudeStart = ({
-  String program,
-  List<String> arguments,
-  Map<String, String> environment,
-});
-
-/// The Windows variable that keeps a program lookup out of the current folder.
-const String _noCurrentFolderLookup = 'NoDefaultCurrentDirectoryInExePath';
-
 /// How long a connection may take to open.
 const Duration _connectTimeout = Duration(seconds: 30);
 
@@ -58,10 +41,6 @@ const String _cutMark = '...';
 
 /// The code point that stands for each character an error message hides.
 const int _maskRune = 0x3f;
-
-/// The last line `specstone upgrade` prints.
-const String _restartLine =
-    'Restart Claude Code to load the new CLI and plugin.';
 
 /// A fault code of `specstone upgrade`.
 ///
@@ -229,10 +208,12 @@ Future<({List<int>? body, String? failure})> _get(
   }
 }
 
-/// Upgrades the CLI and the plugin to the latest release.
+/// Upgrades the CLI to the latest release.
 ///
 /// Refuses unless the running binary sits in `<home>/.specstone/bin`. A
 /// pre-release CLI that is not below the latest full release stays as it is.
+/// Each exit-0 path ends by running the installed binary's `folder`, so the
+/// stale-project line names the working folder's fix.
 class UpgradeCommand extends SpecstoneCommand {
   /// Creates the command; each argument defaults to the running process.
   ///
@@ -278,8 +259,7 @@ class UpgradeCommand extends SpecstoneCommand {
   String get name => 'upgrade';
 
   @override
-  String get description =>
-      'Upgrade the CLI and the plugin to the latest release.';
+  String get description => 'Upgrade the CLI to the latest release.';
 
   @override
   bool get takesArguments => false;
@@ -322,8 +302,7 @@ class UpgradeCommand extends SpecstoneCommand {
     } finally {
       await _remove(temp);
     }
-    await _updatePlugin();
-    specstoneRunner.out.writeln(_restartLine);
+    await _nameProjectFix();
     return 0;
   }
 
@@ -345,24 +324,13 @@ class UpgradeCommand extends SpecstoneCommand {
       );
     }
     if (running.compareTo(version) < 0) return null;
-    specstoneRunner.out
-      ..writeln(
-        'specstone $running is newer than the latest release $version; '
-        'nothing to upgrade',
-      )
-      ..writeln(
-        'To put the plugin on $running too, run: ${_installLineFor(running)}',
-      );
+    specstoneRunner.out.writeln(
+      'specstone $running is newer than the latest release $version; '
+      'nothing to upgrade',
+    );
+    await _nameProjectFix();
     return 0;
   }
-
-  // The install line of the version, which fetches the script of its own tag
-  // since `main` holds the last full release's script.
-  String _installLineFor(ReleaseVersion version) => windows
-      ? 'iex "& {\$(irm ${_rawContentBase}v$version/install.ps1)} '
-            "-Version '$version'\""
-      : 'curl -fsSL ${_rawContentBase}v$version/install.sh | '
-            '$_pinnedVersionVariable=$version sh';
 
   // Deletes [temp]; a failure is reported and never changes the exit status.
   Future<void> _remove(Directory temp) async {
@@ -448,77 +416,30 @@ class UpgradeCommand extends SpecstoneCommand {
     }
   }
 
-  // Runs `claude plugin update`, or prints the command when `claude` is not on
-  // the PATH. A failure is reported on `err` and never changes the exit status.
-  Future<void> _updatePlugin() async {
-    final out = specstoneRunner.out;
-    final command = 'claude ${_pluginUpdateArguments.join(' ')}';
-    final start = _claudeStart();
-    if (start == null) {
-      out
-        ..writeln('To update the Specstone plugin, run:')
-        ..writeln(command);
-      return;
-    }
-    final failure = await _runClaude(start, out);
-    if (failure != null) {
-      specstoneRunner.err.writeln(
-        'specstone: $command failed: $failure; run it by hand',
-      );
-    }
-  }
-
-  // Returns the absolute program that runs `claude plugin update`, or null when
-  // there is none. A `claude.cmd` runs through the absolute `cmd.exe`: a bare
-  // name starts from the current folder on Windows, and so does the `node` a
-  // `.cmd` shim names, which `NoDefaultCurrentDirectoryInExePath` stops.
-  _ClaudeStart? _claudeStart() {
-    final claude = findExecutable(
-      'claude',
-      environment,
-      isWindows: windows,
-      windowsExtensions: const ['.exe', '.cmd'],
-    );
-    if (claude == null) return null;
-    if (!claude.endsWith('.cmd')) {
-      return (
-        program: claude,
-        arguments: _pluginUpdateArguments,
-        environment: environment,
-      );
-    }
-    final shell = findExecutable('cmd', environment, isWindows: true);
-    if (shell == null) return null;
-    return (
-      program: shell,
-      arguments: ['/c', claude, ..._pluginUpdateArguments],
-      environment: {...environment, _noCurrentFolderLookup: '1'},
-    );
-  }
-
-  // Returns the first non-blank, trimmed stderr line of a failed run,
-  // `exit <status>` when it wrote none, or null on success.
-  Future<String?> _runClaude(_ClaudeStart start, StringSink out) async {
+  // Runs the installed binary's `folder` in the working folder and passes its
+  // stderr on when that run exits 0; a run that cannot start or exits non-zero
+  // shows nothing, since the CLI step succeeded. Stdout is dropped.
+  Future<void> _nameProjectFix() async {
+    final home = homeFrom(environment);
+    if (home == null) return;
+    final separator = Platform.pathSeparator;
+    final binary =
+        '${home.path}$separator.specstone${separator}bin$separator'
+        '${windows ? 'specstone.exe' : 'specstone'}';
+    const decoder = Utf8Codec(allowMalformed: true);
     try {
-      final process = await Process.start(
-        start.program,
-        start.arguments,
-        environment: start.environment,
+      final result = await Process.run(
+        binary,
+        const ['folder'],
+        workingDirectory: specstoneRunner.workingDirectory.path,
+        environment: environment,
         includeParentEnvironment: false,
+        stdoutEncoding: decoder,
+        stderrEncoding: decoder,
       );
-      const decoder = Utf8Decoder(allowMalformed: true);
-      final stderrText = process.stderr.transform(decoder).join();
-      await process.stdout.transform(decoder).forEach(out.write);
-      final status = await process.exitCode;
-      if (status == 0) return null;
-      final firstLine = const LineSplitter()
-          .convert(await stderrText)
-          .map((line) => line.trim())
-          .where((line) => line.isNotEmpty)
-          .firstOrNull;
-      return firstLine ?? 'exit $status';
-    } on ProcessException catch (e) {
-      return e.message;
+      if (result.exitCode == 0) specstoneRunner.err.write(result.stderr);
+    } on IOException {
+      return;
     }
   }
 }

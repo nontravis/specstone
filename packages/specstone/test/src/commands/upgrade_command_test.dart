@@ -18,12 +18,33 @@ const _keep = '$_story/keep_newer_prerelease';
 const _rerun = '$_story/rerun_install_script';
 const _refuse = '$_story/refuse_other_install';
 
+/// The installed binary the upgrade runs with `folder`: it logs a line of
+/// arguments, working folder, and own path to `FOLDER_LOG`, writes a line to
+/// each output, and exits `FOLDER_EXIT`. `FOLDER_BYTES` makes its stderr
+/// carry a byte no UTF-8 text holds.
+const _folderStubSource = r'''
+import 'dart:io';
+
+void main(List<String> args) {
+  final env = Platform.environment;
+  File(env['FOLDER_LOG']!).writeAsStringSync(
+    '${args.join(' ')}|${Directory.current.path}|'
+    '${Platform.resolvedExecutable}\n',
+    mode: FileMode.append,
+  );
+  stdout.writeln('folder-out');
+  if (env['FOLDER_BYTES'] != null) {
+    stderr.add([0x62, 0xff, 0x0a]);
+  } else {
+    stderr.writeln('stale line');
+  }
+  exit(int.parse(env['FOLDER_EXIT'] ?? '0'));
+}
+''';
+
 /// The Version the tests run as unless one names another; a full release, so
 /// no test depends on the Version the shipped binary carries.
 const _fullRelease = '1.1.1';
-
-/// The raw-content root the install lines by version name.
-const _rawBase = 'https://raw.githubusercontent.com/nontravis/specstone/';
 
 void main() {
   late HttpServer server;
@@ -215,32 +236,56 @@ void main() {
   // which the default 30 s timeout cuts off.
   group('the install run', timeout: const Timeout(Duration(minutes: 2)), () {
     final windows = Platform.isWindows;
-    const updateCommand = 'claude plugin update specstone@specstone';
-    const restartLine = 'Restart Claude Code to load the new CLI and plugin.';
     late Directory root;
     late SpecstoneCommandRunner runner;
     late Uri scriptUrl;
     late Uri releaseUrl;
     late Future<void> Function(HttpRequest) releaseHandle;
+    late Directory stubBuild;
+    late String folderStub;
+
+    // The installed binary of every run: it logs its arguments, working
+    // folder, and own path, prints a line on each output, and exits as
+    // FOLDER_EXIT says. A compiled program, so one file serves every OS.
+    setUpAll(() async {
+      stubBuild = await Directory.systemTemp.createTemp('specstone_stub_');
+      final source = File(_join(stubBuild.path, 'folder_stub.dart'))
+        ..writeAsStringSync(_folderStubSource);
+      folderStub = _join(stubBuild.path, windows ? 'stub.exe' : 'stub');
+      final compiled = await Process.run(Platform.resolvedExecutable, [
+        'compile',
+        'exe',
+        source.path,
+        '-o',
+        folderStub,
+      ]);
+      expect(compiled.exitCode, 0, reason: '${compiled.stderr}');
+    });
+
+    tearDownAll(() => stubBuild.delete(recursive: true));
 
     String fileIn(String folder, String name) => _join(root.path, folder, name);
 
+    final installedName = windows ? 'specstone.exe' : 'specstone';
+
     // Prepares a sandbox whose served script exits [scriptExit] and whose
-    // `claude` stub exits [claudeExit]; [withClaude] false leaves it out.
+    // installed binary exits [folderExit]; [withInstalled] false leaves the
+    // binary out. A `claude` stub logs any start, which no run may make.
     // The release path answers through `releaseHandle`, no reply at first.
     Future<void> prepare({
       int scriptExit = 0,
-      int claudeExit = 0,
-      bool withClaude = true,
+      int folderExit = 0,
+      bool withInstalled = true,
       bool asWindows = false,
       String runningVersion = _fullRelease,
       Map<String, String> extraEnv = const {},
     }) async {
       final sandbox = await createScriptSandbox();
       root = sandbox.root;
-      final exe = await makeExecutable(
-        Directory(_join(sandbox.home.path, '.specstone', 'bin')),
-      );
+      final bin = Directory(_join(sandbox.home.path, '.specstone', 'bin'));
+      await bin.create(recursive: true);
+      final exe = File(_join(bin.path, installedName));
+      if (withInstalled) await File(folderStub).copy(exe.path);
       final ran = fileIn('logs', 'ran');
       final claudeLog = fileIn('logs', 'claude.log');
       // Imported by name, Set-Content's module loads at once; found by
@@ -264,37 +309,22 @@ void main() {
         request.response.write(script);
         await request.response.close();
       };
-      if (withClaude) {
-        if (windows) {
-          await File(fileIn('stubs', 'claude.cmd')).writeAsString(
-            '@echo off\r\n'
-            'echo %*>> "$claudeLog"\r\n'
-            'echo claude-out\r\n'
-            'if "%CLAUDE_EXIT%"=="0" exit /b 0\r\n'
-            'echo boom: offline 1>&2\r\n'
-            'echo second line 1>&2\r\n'
-            'exit /b %CLAUDE_EXIT%\r\n',
-          );
-        } else {
-          final stub = File(fileIn('stubs', 'claude'));
-          await stub.writeAsString(
-            '#!/bin/sh\n'
-            'echo "\$*" >> \'$claudeLog\'\n'
-            'echo claude-out\n'
-            'if [ "\$CLAUDE_EXIT" != 0 ]; then\n'
-            "  printf '\\n  boom: offline \\r\\nsecond line\\n' >&2\n"
-            '  exit "\$CLAUDE_EXIT"\n'
-            'fi\n',
-          );
-          await Process.run('chmod', ['+x', stub.path]);
-        }
-      }
-      final env = sandbox.env({'CLAUDE_EXIT': '$claudeExit', ...extraEnv});
+      sandbox.stub(
+        'claude',
+        windows ? 'echo %*>> "$claudeLog"' : "echo \"\$*\" >> '$claudeLog'",
+      );
+      Directory(fileIn('project', '')).createSync();
+      final env = sandbox.env({
+        'FOLDER_LOG': fileIn('logs', 'folder.log'),
+        'FOLDER_EXIT': '$folderExit',
+        ...extraEnv,
+      });
       runner = runnerFor(
         exe.path,
         env,
         windows: asWindows || windows,
         runningVersion: runningVersion,
+        workingDirectory: Directory(fileIn('project', '')),
       );
     }
 
@@ -316,14 +346,20 @@ void main() {
     void releaseReplies(String body, {int status = HttpStatus.ok}) =>
         releaseSends(utf8.encode(body), status: status);
 
-    List<String> claudeLog() =>
-        File(fileIn('logs', 'claude.log'))
-            .readAsLinesSync()
-            .map((line) => line.trim())
-            .toList();
+    // The recorded runs of the installed binary: arguments, working folder,
+    // and the path it ran from, each `|` apart.
+    List<List<String>> folderRuns() {
+      final log = File(fileIn('logs', 'folder.log'));
+      if (!log.existsSync()) return const [];
+      return [for (final line in log.readAsLinesSync()) line.split('|')];
+    }
 
-    test('f09/us02/fr02, f09/us02/fr03, f09/us02/s1: the script runs from a '
-        'temp file, then the plugin updates; restart is the last line; '
+    bool claudeStarted() => File(fileIn('logs', 'claude.log')).existsSync();
+
+    String resolved(String path) => Directory(path).resolveSymbolicLinksSync();
+
+    test('the script runs from a temp file, then the installed binary runs '
+        'folder in the working folder; its stderr shows, its stdout does not; '
         'exit 0', () async {
       await prepare();
 
@@ -331,21 +367,76 @@ void main() {
       final ran = File(fileIn('logs', 'ran')).readAsStringSync().trim();
       expect(ran, endsWith(windows ? 'install.ps1' : 'install.sh'));
       expect(File(ran).existsSync(), isFalse);
-      expect(claudeLog(), [updateCommand.substring('claude '.length)]);
-      expect(out.toString(), contains('claude-out'));
-      expect(out.toString().trimRight().split('\n').last, restartLine);
       expect(paths, [scriptUrl.path]);
+      final [run] = folderRuns();
+      expect(run[0], 'folder');
+      expect(resolved(run[1]), resolved(fileIn('project', '')));
+      expect(run[2], endsWith(installedName));
+      expect(err.toString(), 'stale line\n');
+      expect(out.toString(), isEmpty);
+      expect(claudeStarted(), isFalse);
     });
 
-    test('f09/us02/fr02/e01, f09/us02/fr03/e01, f09/us02/s2: upgrade does '
-        'not read the script output; an exit 0 leads to the plugin '
-        'update', () async {
-      await prepare();
+    test('a run outside a project shows nothing more; exit 0', () async {
+      await prepare(folderExit: 66);
 
       expect(await runner.run(['upgrade']), 0);
-      expect(claudeLog(), hasLength(1));
-      expect(out.toString().trimRight().split('\n').last, restartLine);
+      expect(folderRuns(), hasLength(1));
+      expect(err.toString(), isEmpty);
+      expect(out.toString(), isEmpty);
     });
+
+    test(
+      'a folder run that exits non-zero shows nothing more; exit 0',
+      () async {
+        await prepare(folderExit: 78);
+
+        expect(await runner.run(['upgrade']), 0);
+        expect(err.toString(), isEmpty);
+        expect(out.toString(), isEmpty);
+      },
+    );
+
+    test(
+      'an installed binary that cannot start shows nothing more; exit 0',
+      () async {
+        await prepare(withInstalled: false);
+
+        expect(await runner.run(['upgrade']), 0);
+        expect(folderRuns(), isEmpty);
+        expect(err.toString(), isEmpty);
+        expect(out.toString(), isEmpty);
+      },
+    );
+
+    test('a byte outside UTF-8 on stderr does not crash the upgrade', () async {
+      await prepare(extraEnv: {'FOLDER_BYTES': '1'});
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(err.toString(), 'b\u{fffd}\n');
+    });
+
+    // The script renames the running `specstone.exe`, as install.ps1 does, and
+    // writes a new one; the run must start the new file.
+    test('Windows starts the new exe while the old is renamed', () async {
+      await prepare();
+      final bin = _join(root.path, 'home', '.specstone', 'bin');
+      handle = (request) async {
+        request.response.write(
+          'Import-Module -Name Microsoft.PowerShell.Management\n'
+          "Rename-Item -Path '$bin\\specstone.exe' "
+          "-NewName 'specstone.exe.old'\n"
+          "Copy-Item -Path '$folderStub' -Destination '$bin\\specstone.exe'\n",
+        );
+        await request.response.close();
+      };
+
+      expect(await runner.run(['upgrade']), 0);
+      expect(File('$bin\\specstone.exe.old').existsSync(), isTrue);
+      final [run] = folderRuns();
+      expect(run[2], endsWith('specstone.exe'));
+      expect(err.toString(), 'stale line\n');
+    }, testOn: 'windows');
 
     test(
       'f09/us02/fr02/e02, f09/us02/s5: no server refuses '
@@ -357,7 +448,8 @@ void main() {
         expect(await runner.run(['upgrade']), 69);
         expect(err.toString(), contains('$scriptUrl'));
         expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
-        expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+        expect(claudeStarted(), isFalse);
+        expect(folderRuns(), isEmpty);
       },
     );
 
@@ -391,7 +483,8 @@ void main() {
       expect(await runner.run(['upgrade']), 69);
       expect(err.toString(), contains('could not fetch $scriptUrl'));
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
-      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+      expect(claudeStarted(), isFalse);
+      expect(folderRuns(), isEmpty);
     });
 
     test('f09/us02/fr02/e03: a script exit 1 refuses, exit 69; no plugin '
@@ -404,8 +497,8 @@ void main() {
         'specstone upgrade: $scriptUrl exited 1; '
         'the install is as the script left it\n',
       );
-      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
-      expect(out.toString(), isNot(contains(restartLine)));
+      expect(claudeStarted(), isFalse);
+      expect(folderRuns(), isEmpty);
       final ran = File(fileIn('logs', 'ran')).readAsStringSync().trim();
       expect(File(ran).existsSync(), isFalse);
     });
@@ -426,78 +519,8 @@ void main() {
           endsWith('; the install is unchanged\n'),
         ),
       );
-      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
-    }, testOn: '!windows');
-
-    test('f09/us02/fr03/e02, f09/us02/s3: no claude prints the update '
-        'command, then restart; exit 0', () async {
-      await prepare(withClaude: false);
-
-      expect(await runner.run(['upgrade']), 0);
-      final lines = out.toString().trimRight().split('\n');
-      expect(lines, contains('To update the Specstone plugin, run:'));
-      expect(lines, contains(updateCommand));
-      expect(lines.last, restartLine);
-    });
-
-    // CreateProcessW looks in the current folder before System32 for a bare
-    // `cmd.exe`, so a start that names no folder runs this stand-in.
-    test('f09/us02/fr03, G8-R8: a claude.cmd start runs the System32 cmd.exe, '
-        'never a cmd.exe in the current folder', () async {
-      await prepare();
-      final plant = File(
-        '${Directory.current.path}${Platform.pathSeparator}cmd.exe',
-      );
-      final source = File(fileIn('logs', 'marker.dart'))
-        ..writeAsStringSync(r'''
-import 'dart:io';
-
-void main() =>
-    File('${Platform.resolvedExecutable}.ran').writeAsStringSync('ran');
-''');
-      final marker = File('${plant.path}.ran');
-      addTearDown(() {
-        for (final file in [plant, marker]) {
-          if (file.existsSync()) file.deleteSync();
-        }
-      });
-      final compiled = await Process.run(Platform.resolvedExecutable, [
-        'compile',
-        'exe',
-        source.path,
-        '-o',
-        plant.path,
-      ]);
-      expect(compiled.exitCode, 0, reason: '${compiled.stderr}');
-
-      expect(await runner.run(['upgrade']), 0);
-      expect(marker.existsSync(), isFalse);
-      expect(claudeLog(), [updateCommand.substring('claude '.length)]);
-    }, testOn: 'windows');
-
-    test('f09/us02/fr03/e03: a failing plugin update names its first stderr '
-        'line; exit 0', () async {
-      await prepare(claudeExit: 1);
-
-      expect(await runner.run(['upgrade']), 0);
-      expect(
-        err.toString(),
-        'specstone: $updateCommand failed: boom: offline; run it by hand\n',
-      );
-      expect(out.toString().trimRight().split('\n').last, restartLine);
-    });
-
-    test('f09/us02/fr03/e03: a non-UTF-8 byte from claude does not crash; '
-        'exit 0 with the result line', () async {
-      await prepare();
-      await File(fileIn('stubs', 'claude')).writeAsString(
-        '#!/bin/sh\n'
-        "printf 'bad \\377 byte\\n'\n",
-      );
-
-      expect(await runner.run(['upgrade']), 0);
-      expect(out.toString(), contains('bad'));
-      expect(out.toString().trimRight().split('\n').last, restartLine);
+      expect(claudeStarted(), isFalse);
+      expect(folderRuns(), isEmpty);
     }, testOn: '!windows');
 
     // Runs [body] with every timer 100 times shorter, so a 60 s idle timeout
@@ -599,51 +622,37 @@ void main() =>
       expect(requests, 0);
     });
 
-    String curlLine(String version) =>
-        'curl -fsSL ${_rawBase}v$version/install.sh | '
-        'SPECSTONE_VERSION=$version sh';
+    test(
+      '$_keep E01, upgrade_cli S6: a pre-release newer than the latest '
+      'release is kept; one line, no script, then the folder run; exit 0',
+      () async {
+        await prepare(runningVersion: '1.2.0-beta.1');
+        releaseReplies('{"tag_name": "v1.1.1"}');
 
-    String irmLine(String version) =>
-        'iex "& {\$(irm ${_rawBase}v$version/install.ps1)} '
-        "-Version '$version'\"";
-
-    for (final asWindows in [false, true]) {
-      final host = asWindows ? 'Windows' : 'a POSIX host';
-      test(
-        '$_keep E01, upgrade_cli_and_plugin S6: $host keeps a pre-release '
-        'newer than the latest release; two lines, exit 0, nothing run',
-        () async {
-          await prepare(runningVersion: '1.2.0-beta.1', asWindows: asWindows);
-          releaseReplies('{"tag_name": "v1.1.1"}');
-
-          expect(await runner.run(['upgrade']), 0);
-          final line = asWindows || windows
-              ? irmLine('1.2.0-beta.1')
-              : curlLine('1.2.0-beta.1');
-          expect(
-            out.toString(),
-            'specstone 1.2.0-beta.1 is newer than the latest release 1.1.1; '
-            'nothing to upgrade\n'
-            'To put the plugin on 1.2.0-beta.1 too, run: $line\n',
-          );
-          expect(err.toString(), isEmpty);
-          expect(paths, [releaseUrl.path]);
-          expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
-          expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
-        },
-      );
-    }
+        expect(await runner.run(['upgrade']), 0);
+        expect(
+          out.toString(),
+          'specstone 1.2.0-beta.1 is newer than the latest release 1.1.1; '
+          'nothing to upgrade\n',
+        );
+        expect(err.toString(), 'stale line\n');
+        expect(paths, [releaseUrl.path]);
+        expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
+        expect(claudeStarted(), isFalse);
+        expect(folderRuns(), hasLength(1));
+      },
+    );
 
     test('$_keep E02: a latest release above the pre-release runs the script '
-        'and the plugin update', () async {
+        'and then the folder run', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       releaseReplies('{"tag_name": "v1.2.0"}');
 
       expect(await runner.run(['upgrade']), 0);
       final ran = File(fileIn('logs', 'ran')).readAsStringSync().trim();
       expect(ran, endsWith(windows ? 'install.ps1' : 'install.sh'));
-      expect(claudeLog(), [updateCommand.substring('claude '.length)]);
-      expect(out.toString().trimRight().split('\n').last, restartLine);
+      expect(folderRuns(), hasLength(1));
+      expect(claudeStarted(), isFalse);
       expect(paths, [releaseUrl.path, scriptUrl.path]);
     });
 
@@ -763,7 +772,8 @@ void main() =>
         expect(out.toString(), isEmpty);
         expect(paths, [releaseUrl.path]);
         expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
-        expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+        expect(claudeStarted(), isFalse);
+        expect(folderRuns(), isEmpty);
       });
     }
 
@@ -799,7 +809,8 @@ void main() =>
         );
         expect(paths, [releaseUrl.path]);
         expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
-        expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+        expect(claudeStarted(), isFalse);
+        expect(folderRuns(), isEmpty);
       });
     }
 
@@ -838,7 +849,8 @@ void main() =>
       );
       expect(paths, [releaseUrl.path]);
       expect(File(fileIn('logs', 'ran')).existsSync(), isFalse);
-      expect(File(fileIn('logs', 'claude.log')).existsSync(), isFalse);
+      expect(claudeStarted(), isFalse);
+      expect(folderRuns(), isEmpty);
     });
 
     test('$_rerun E02: a 2xx gzip script reply with garbage refuses, exit '
@@ -913,7 +925,7 @@ void main() =>
 
         expect(await runner.run(['upgrade']), 0);
         expect(paths, [releaseUrl.path, scriptUrl.path]);
-        expect(out.toString().trimRight().split('\n').last, restartLine);
+        expect(folderRuns(), hasLength(1));
       },
     );
 
