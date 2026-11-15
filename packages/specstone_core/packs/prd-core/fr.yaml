@@ -161,6 +161,13 @@ sections:
       - **Pass criteria:** <what shows the requirement holds>
         - <one condition, when the criteria are long>
       - **Level:** <level>
+    lint:
+      banned_patterns:
+        - id: test_file_named
+          # The first branch skips a path whose file name the second branch reads, so one file gives one finding.
+          pattern: '(?<![\w-])tests?/(?![^\s`]*(?:_test|\.test|\.spec)\.\w)(?=[\w.-]*/|[\w-]+\.\w|[`\s]|$)|\w(?:_test|\.test|\.spec)\.[A-Za-z0-9]+'
+          message: 'Verification names a test file; guide line: Name no test file here'
+          in: all
   - id: tbr
     header: TBR
     description: |-

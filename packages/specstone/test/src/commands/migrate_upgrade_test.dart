@@ -321,7 +321,7 @@ void main() {
         '## Role\n\n- `Owner` — runs it.\n';
 
     test(
-      'a project pinned at the 1.9.0 prd-core pack migrates to 1.10.0 '
+      'a project pinned at the 1.9.0 prd-core pack migrates to the shipped pin '
       'with its bare goal lines bulleted and no other line changed',
       () async {
         final home = await writeTree({});

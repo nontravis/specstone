@@ -68,36 +68,46 @@ sections:
       - <Research link or reference>
   - id: motivations
     header: Motivations
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Optional. Fill it for a misuser only; a non-target leaves it out.
+      Fill it for a misuser; a non-target leaves it out.
       State why the misuser wants to misuse the product.
     template: |-
       - <Why the misuser wants to misuse the product.>
   - id: actions
     header: Actions
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Optional. Fill it for a misuser only; a non-target leaves it out.
+      Fill it for a misuser; a non-target leaves it out.
       List the steps the misuser takes to reach the goal.
     template: |-
       - <A step the misuser takes.>
   - id: tools
     header: Tools
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Optional. Fill it for a misuser only; a non-target leaves it out.
+      Fill it for a misuser; a non-target leaves it out.
       List the tools, scripts, or access the misuser uses.
     template: |-
       - <A tool, script, or access the misuser uses.>
   - id: needs
     header: Needs
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Optional. Fill it for a misuser only; a non-target leaves it out.
+      Fill it for a misuser; a non-target leaves it out.
       List what the misuser needs from the product to succeed.
     template: |-
       - <What the misuser needs from the product.>
   - id: consequences
     header: Consequences
+    required: true
+    when_field: {field: anti_type, values: [misuser]}
     description: |-
-      Optional. Fill it for a misuser only; a non-target leaves it out.
+      Fill it for a misuser; a non-target leaves it out.
       State the harm if the misuse succeeds, and who bears it.
     template: |-
       - <The harm if the misuse succeeds, and who bears it.>

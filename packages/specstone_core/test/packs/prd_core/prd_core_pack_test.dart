@@ -13,7 +13,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.10.0 with no extends', () {
+    test('prd-core ships at 1.11.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -21,7 +21,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.10.0');
+      expect(manifest.version.toString(), '1.11.0');
       expect(manifest.extendsPack, isNull);
     });
 
@@ -44,7 +44,7 @@ void main() {
       ]);
     });
 
-    test('a 1.7.0 or 1.9.0 pin upgrades to 1.10.0 with the bullet step', () {
+    test('a 1.7.0 or 1.9.0 pin upgrades to 1.11.0 with the bullet step', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
@@ -60,13 +60,32 @@ void main() {
           },
           {'prd-core': manifest},
         );
-        expect(upgrades.single.target.toString(), '1.10.0', reason: pin);
+        expect(upgrades.single.target.toString(), '1.11.0', reason: pin);
         expect(
           upgrades.single.steps.single.step,
           isA<BulletLines>(),
           reason: pin,
         );
       }
+    });
+
+    test('a 1.10.0 pin takes the 1.11.0 pin alone, with no step', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+        file: 'packs/prd-core/pack.yaml',
+      );
+      final upgrades = selectUpgrades(
+        {
+          'prd-core': PackVersion.parse(
+            '1.10.0',
+            file: 'config.yaml',
+            key: 'packs.prd-core',
+          ),
+        },
+        {'prd-core': manifest},
+      );
+      expect(upgrades.single.target.toString(), '1.11.0');
+      expect(upgrades.single.steps, isEmpty);
     });
 
     test('a project pinning the shipped prd-core resolves with '

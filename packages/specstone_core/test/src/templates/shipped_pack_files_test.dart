@@ -458,9 +458,9 @@ void main() {
   });
 
   test(
-    'the shipped prd-core pack is 1.10.0, so the guide-rule keys ride it',
+    'the shipped prd-core pack is 1.11.0, so the scoped lint keys ride it',
     () {
-      expect(shippedPackVersions()['prd-core'], '1.10.0');
+      expect(shippedPackVersions()['prd-core'], '1.11.0');
     },
   );
 
@@ -490,11 +490,12 @@ void main() {
       };
       expect(found, {
         'project.vision': ['quote_words', 'quote_language'],
-        'project.goals': ['metric_number', 'metric_measurement'],
+        'project.goals': ['metric_number'],
         'feature.out_of_scope': ['out_of_scope_owner'],
         'user_story.acceptance_criteria': ['scenario_title'],
         'fr.statement': ['second_shall'],
         'fr.edge_cases': ['edge_case_arrow'],
+        'fr.verification': ['test_file_named'],
         'nf.statement': ['second_shall', 'statement_number'],
         for (final category in _gnfrCategories)
           'gnfr.$category': ['second_shall', 'statement_number'],
@@ -578,6 +579,42 @@ void main() {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
       }
+    });
+
+    test('the story scenario cap is 6 and no other section sets one', () {
+      expect(section('user_story', 'acceptance_criteria').maxSubsections, 6);
+      final found = <String>{
+        for (final docType in set.docTypes)
+          for (final s in docType.sections)
+            if (s.maxSubsections != null) '${docType.id}.${s.id}',
+      };
+      expect(found, {'user_story.acceptance_criteria'});
+    });
+
+    test('the five misuser sections are required and held only when '
+        'anti_type is misuser, and no other section sets when_field', () {
+      for (final id in [
+        'motivations',
+        'actions',
+        'tools',
+        'needs',
+        'consequences',
+      ]) {
+        final s = section('anti_persona', id);
+        expect(s.required, isTrue, reason: id);
+        expect(s.whenField?.field, 'anti_type', reason: id);
+        expect(s.whenField?.values, ['misuser'], reason: id);
+      }
+      final found = <String>{
+        for (final docType in set.docTypes)
+          for (final s in docType.sections)
+            if (s.whenField != null) '${docType.id}.${s.id}',
+      };
+      expect(found, {
+        for (final id in ['motivations', 'actions', 'tools', 'needs'])
+          'anti_persona.$id',
+        'anti_persona.consequences',
+      });
     });
 
     test('no other section sets a count key', () {
@@ -728,17 +765,6 @@ const _guideRules = <_GuideRule>[
     misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
   ),
   _GuideRule(
-    'project',
-    'goals',
-    'metric_measurement',
-    phrase: "link the goal's measurement",
-    hits: ['**Metric:** 3 calls', '- **Metric:** 3 calls, [m](../README.md)'],
-    misses: [
-      '- **Metric:** 3 calls, [m](../m/MEASUREMENT.md#results)',
-      '- **Serves:** PV-02',
-    ],
-  ),
-  _GuideRule(
     'feature',
     'out_of_scope',
     'out_of_scope_owner',
@@ -814,6 +840,25 @@ const _guideRules = <_GuideRule>[
     phrase: 'E01 — <trigger> → <response>',
     hits: ['1. E01 — A case with no arrow', '- E02 — A case with none'],
     misses: ['1. E01 — A case → what happens', '   a wrapped line'],
+  ),
+  _GuideRule(
+    'fr',
+    'verification',
+    'test_file_named',
+    phrase: 'Name no test file here',
+    hits: [
+      'Run `test/x_test.dart`.',
+      'Run `tests/fixtures/a.json`.',
+      'Run `packages/app/test/`.',
+      '- **Pass criteria:** login_test.dart passes.',
+      'See login.test.ts and login.spec.js.',
+    ],
+    misses: [
+      'Test: a wrong password is refused.',
+      '- **Level:** unit/integration',
+      'Level: test/analysis, per the test method.',
+      'A test-driven check of the latest sign-in.',
+    ],
   ),
 ];
 
