@@ -135,6 +135,7 @@ void main() {
         'cleaned, ~/.bash_login included', () async {
       for (final name in [
         '.zshrc',
+        '.zshenv',
         '.bashrc',
         '.bash_profile',
         '.bash_login',
@@ -148,6 +149,7 @@ void main() {
       expect(r.exitCode, 0);
       for (final name in [
         '.zshrc',
+        '.zshenv',
         '.bashrc',
         '.bash_profile',
         '.bash_login',
@@ -159,6 +161,50 @@ void main() {
           contains('Removed the PATH entry from ${sb.home.path}/$name\n'),
         );
       }
+    });
+
+    test('a zsh install is undone in .zshrc, .zshenv, and .profile, '
+        'in the order the install wrote them', () async {
+      sb.installFake();
+      for (final name in ['.zshrc', '.zshenv', '.profile']) {
+        profile(name, 'keep\n$entry\n');
+      }
+
+      final r = await sb.run('uninstall.sh');
+
+      expect(r.exitCode, 0);
+      expect((r.stdout as String).trimRight().split('\n'), [
+        'Removed ${sb.home.path}/.specstone/bin',
+        'Removed ${sb.home.path}/.specstone/lib',
+        'Removed the PATH entry from ${sb.home.path}/.zshrc',
+        'Removed the PATH entry from ${sb.home.path}/.zshenv',
+        'Removed the PATH entry from ${sb.home.path}/.profile',
+        pluginLine,
+      ]);
+    });
+
+    test('with ZDOTDIR set the .zshenv there is cleaned and '
+        '~/.zshenv is left alone', () async {
+      final zdotdir = '${sb.root.path}/zdot';
+      File('$zdotdir/.zshenv')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('a=1\r\n$entry\nb');
+      profile('.zshenv', '$entry\n');
+      profile('.zshrc', '$entry\n');
+
+      final r = await sb.run('uninstall.sh', extra: {'ZDOTDIR': zdotdir});
+
+      expect(r.exitCode, 0);
+      expect(
+        String.fromCharCodes(File('$zdotdir/.zshenv').readAsBytesSync()),
+        'a=1\r\nb',
+      );
+      expect(read('.zshenv'), '$entry\n');
+      expect(read('.zshrc'), '');
+      expect(
+        r.stdout,
+        contains('Removed the PATH entry from $zdotdir/.zshenv\n'),
+      );
     });
 
     test('a symlinked profile keeps its link and the target '

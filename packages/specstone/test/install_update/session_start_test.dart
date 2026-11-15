@@ -554,6 +554,233 @@ void main() {
     });
   });
 
+  group('session-start.sh without Specstone skills', () {
+    const noSkills =
+        'Specstone: this project holds no Specstone skills or agents. '
+        'Run: specstone migrate';
+    const notInstalled =
+        'Specstone: the CLI is not installed. Install it: $curlLine';
+    const reinstall =
+        'Specstone: the CLI did not report its version. '
+        'Reinstall it: $curlLine';
+    const folders = [
+      '.claude/skills',
+      '.agents/skills',
+      '.claude/agents',
+      '.agents/agents',
+      '.cursor/agents',
+      '.codex/agents',
+    ];
+
+    /// Creates a project root at [name] below the sandbox and returns it.
+    Directory project(String name) {
+      final dir = Directory('${sb.root.path}/$name');
+      File('${dir.path}/.specstone/config.yaml')
+        ..createSync(recursive: true)
+        ..writeAsStringSync('code_root: .\n');
+      return dir;
+    }
+
+    void addEntry(Directory root, String folder, String name) {
+      File('${root.path}/$folder/$name').createSync(recursive: true);
+    }
+
+    /// Runs the hook from [cwd]; a null [version] leaves out the CLI stub.
+    Future<ProcessResult> runIn(
+      Directory cwd, {
+      String? version = '0.2.0',
+      int exit = 0,
+    }) {
+      if (version != null) {
+        sb.stub(
+          'specstone',
+          r'printf "%s" "$STUB_VERSION"; exit ${STUB_EXIT:-0}',
+        );
+      }
+      return Process.run(
+        '/bin/bash',
+        [scriptPath()],
+        environment: sb.env(
+          hookEnv({
+            'STUB_VERSION': ?version,
+            if (exit != 0) 'STUB_EXIT': '$exit',
+          }),
+        ),
+        includeParentEnvironment: false,
+        workingDirectory: cwd.path,
+      );
+    }
+
+    /// Like [message], and checks stdout holds one line, so one object.
+    String onlyMessage(ProcessResult r) {
+      final text = message(r);
+      expect((r.stdout as String).trimRight().split('\n'), hasLength(1));
+      return text;
+    }
+
+    void expectSilent(ProcessResult r) {
+      expect(r.exitCode, 0, reason: '${r.stderr}');
+      expect(r.stdout, isEmpty);
+    }
+
+    test('a project root with no entry gets the no-skills message', () async {
+      expect(onlyMessage(await runIn(project('proj'))), noSkills);
+    });
+
+    test('one entry in any of the six folders prints nothing', () async {
+      for (final (i, folder) in folders.indexed) {
+        final root = project('proj$i');
+        addEntry(root, folder, 'specstone-sdd');
+
+        expectSilent(await runIn(root));
+      }
+    });
+
+    test('a directory entry counts as much as a file', () async {
+      final root = project('proj');
+      Directory('${root.path}/.claude/skills/specstone-sdd')
+          .createSync(recursive: true);
+
+      expectSilent(await runIn(root));
+    });
+
+    test('a dangling link named specstone- counts', () async {
+      final root = project('proj');
+      Directory('${root.path}/.codex/agents').createSync(recursive: true);
+      Link('${root.path}/.codex/agents/specstone-x').createSync('nowhere');
+
+      expectSilent(await runIn(root));
+    });
+
+    test(
+      'names without the lowercase specstone- prefix do not count',
+      () async {
+        final root = project('proj');
+        for (final name in [
+          'Specstone-x',
+          'specstone',
+          'my-specstone-x',
+          'x',
+        ]) {
+          addEntry(root, '.claude/skills', name);
+        }
+
+        expect(onlyMessage(await runIn(root)), noSkills);
+      },
+    );
+
+    test('a specstone- entry outside the six folders does not count', () async {
+      final root = project('proj');
+      addEntry(root, '.claude/commands', 'specstone-x');
+      addEntry(root, '.cursor/skills', 'specstone-x');
+      addEntry(root, '', 'specstone-x');
+
+      expect(onlyMessage(await runIn(root)), noSkills);
+    });
+
+    test('the walk up from a nested folder, spaces included, finds the '
+        'root', () async {
+      final root = project('my proj');
+      final nested = Directory('${root.path}/a/b c')
+        ..createSync(recursive: true);
+
+      expect(onlyMessage(await runIn(nested)), noSkills);
+
+      addEntry(root, '.agents/agents', 'specstone-x');
+
+      expectSilent(await runIn(nested));
+    });
+
+    test('the nearest folder holding a config is the root', () async {
+      final outer = project('outer');
+      addEntry(outer, '.claude/skills', 'specstone-x');
+      final inner = project('outer/inner');
+
+      expect(onlyMessage(await runIn(inner)), noSkills);
+    });
+
+    test('a folder with no config from the working directory up prints '
+        'nothing', () async {
+      final cwd = Directory('${sb.root.path}/plain')..createSync();
+      Directory('${cwd.path}/.specstone').createSync();
+
+      expectSilent(await runIn(cwd));
+    });
+
+    test('a config path that is a folder is no project', () async {
+      final cwd = Directory('${sb.root.path}/plain')..createSync();
+      Directory('${cwd.path}/.specstone/config.yaml')
+          .createSync(recursive: true);
+
+      expectSilent(await runIn(cwd));
+    });
+
+    test('a missing CLI prints only the not-installed message', () async {
+      expect(
+        onlyMessage(await runIn(project('proj'), version: null)),
+        notInstalled,
+      );
+    });
+
+    test('a CLI off the PATH prints only the off-PATH message', () async {
+      installBinary('specstone');
+
+      expect(
+        onlyMessage(await runIn(project('proj'), version: null)),
+        offPathMessage,
+      );
+    });
+
+    test('a mismatch and no entry join in one object, the no-skills line '
+        'last after a newline', () async {
+      expect(
+        onlyMessage(await runIn(project('proj'), version: '0.1.0')),
+        '${mismatch('0.1.0', '0.2.0')}\n$noSkills',
+      );
+    });
+
+    test('a failing --version and no entry join in one object', () async {
+      expect(
+        onlyMessage(await runIn(project('proj'), exit: 1)),
+        '$reinstall\n$noSkills',
+      );
+    });
+
+    test('a mismatch with an entry present prints only the mismatch', () async {
+      final root = project('proj');
+      addEntry(root, '.cursor/agents', 'specstone-x');
+
+      expect(
+        onlyMessage(await runIn(root, version: '0.1.0')),
+        mismatch('0.1.0', '0.2.0'),
+      );
+    });
+
+    test('a plugin without a version still prints the no-skills '
+        'message', () async {
+      File('$pluginDir/.claude-plugin/plugin.json').deleteSync();
+
+      expect(onlyMessage(await runIn(project('proj'))), noSkills);
+    });
+
+    test('the walk runs no extra specstone command', () async {
+      sb.stub('specstone', r'''
+echo "$*" >> "$STUB_LOG_DIR/specstone.log"
+echo 0.2.0''');
+
+      final r = await Process.run(
+        '/bin/bash',
+        [scriptPath()],
+        environment: sb.env(hookEnv({})),
+        includeParentEnvironment: false,
+        workingDirectory: project('proj').path,
+      );
+
+      expect(onlyMessage(r), noSkills);
+      expect(sb.logOf('specstone'), ['--version']);
+    });
+  });
+
   group('session-start.sh PATH search', () {
     setUp(() {
       // The sandbox plugin folder holds the plugin.json the stub matches.

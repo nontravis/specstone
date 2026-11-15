@@ -30,6 +30,8 @@ import '../../helpers/check_fixture.dart'
         techStack,
         writeCheckProject;
 import '../../helpers/failing_rename.dart';
+import '../../helpers/git_repo.dart' show hasGit;
+import '../../helpers/legacy_fixture.dart' show commitRepo;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
@@ -1883,6 +1885,31 @@ void main() {
         ),
       );
     });
+
+    test('a move lists a mention in a tracked file under .codex/agents and keeps its bytes', () async {
+      const agent = 'Read `shop/cart/add_item` first.\n';
+      final root = await writeNestedProject(
+        extra: {'.codex/agents/reader.md': agent},
+      );
+      commitRepo(root);
+      final answer = writeIn(
+        root,
+        (s) =>
+            answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
+      );
+      expect(codeText(root, '.codex/agents/reader.md'), agent);
+      expect(answer.json['mentions'], [
+        {
+          'path': '.codex/agents/reader.md',
+          'line': 1,
+          'mention': 'shop/cart/add_item',
+        },
+      ]);
+      expect(
+        answer.text,
+        endsWith('mentions .codex/agents/reader.md:1 shop/cart/add_item\n'),
+      );
+    }, skip: hasGit ? null : 'git is not available');
 
     test(
       'E07: a move stamps an approved doc whose mention it rewrites',

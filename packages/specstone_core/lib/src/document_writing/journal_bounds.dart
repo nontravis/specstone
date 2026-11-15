@@ -60,7 +60,7 @@ final class JournalBounds {
   bool holds(String path) {
     final segments = path.split('/');
     if (!isCodeRootValue(path) ||
-        segments.any((segment) => segment.isEmpty || _isGitEntry(segment))) {
+        segments.any((segment) => segment.isEmpty || isGitEntry(segment))) {
       return false;
     }
     final name = segments.removeLast();
@@ -126,13 +126,13 @@ final class JournalBounds {
           real.substring(root.length + 1).split(separator),
     ];
     return holding.isNotEmpty &&
-        holding.every((inside) => !inside.any(_isGitEntry));
+        holding.every((inside) => !inside.any(isGitEntry));
   }
 }
 
 /// Whether [segment] names a `.git` entry, as a case-folding or Windows file
 /// system reads it, an NTFS alternate-stream suffix included.
-bool _isGitEntry(String segment) {
+bool isGitEntry(String segment) {
   // NTFS reads `.git:stream` and `.git::$INDEX_ALLOCATION` as `.git`.
   final stream = segment.indexOf(':');
   final base = stream < 0 ? segment : segment.substring(0, stream);
@@ -191,14 +191,18 @@ String? writeRefusalOf(
         real.substring(root.length + 1).split(separator),
   ];
   if (inside.isEmpty) return mayLeaveProject ? null : _leavesProject;
-  return inside.any((below) => below.any(_isGitEntry)) ? _underGit : null;
+  return inside.any((below) => below.any(isGitEntry)) ? _underGit : null;
 }
+
+/// Returns the warning line for [path], which a run leaves as it is because it
+/// lies under a `.git` entry.
+String underGitLineOf(String path) => '$path lies under .git; left as it is';
 
 /// Returns the warning line for [path], a file a run leaves as it is because
 /// [writeRefusalOf] gave [reason]; without one, because its real path lies
 /// outside the project root.
 String skippedLineOf(String path, [String? reason]) {
-  if (reason == _underGit) return '$path lies under .git; left as it is';
+  if (reason == _underGit) return underGitLineOf(path);
   if (reason != null && reason.startsWith(_unresolved)) {
     return '$path cannot be resolved; left as it is';
   }

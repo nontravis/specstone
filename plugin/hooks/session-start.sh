@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # SessionStart hook: warn when the specstone CLI and this plugin differ in
-# version, or when the CLI is missing. When the CLI sits in ~/.specstone/bin but
+# version, or when the CLI is missing. With the CLI found, also name
+# `specstone migrate` when the project holds no specstone-* skill or agent entry;
+# the messages join in one JSON object. When the CLI sits in ~/.specstone/bin but
 # off the hook's PATH, also append a PATH line to the file CLAUDE_ENV_FILE names
 # so the session's later Bash commands find it. Reads no stdin, opens no network,
 # writes nothing else, and exits 0 on every path (a hook must never block a
@@ -27,6 +29,7 @@ absolute_path_only
 
 curl_line='curl -fsSL https://raw.githubusercontent.com/nontravis/specstone/main/install.sh | sh'
 irm_line='irm https://raw.githubusercontent.com/nontravis/specstone/main/install.ps1 | iex'
+no_skills_message='Specstone: this project holds no Specstone skills or agents. Run: specstone migrate'
 
 # Prints $1 as the body of a JSON string. Runs in a subshell under LC_ALL=C so
 # the loop walks bytes and the control-character class matches only ASCII.
@@ -152,8 +155,51 @@ valid_version() {
   [ "${#1}" -ge 1 ] && [ "${#1}" -le 64 ] && [[ $1 =~ ^[0-9A-Za-z._+-]+$ ]]
 }
 
+# Prints the folder from the working directory up that holds
+# .specstone/config.yaml; fails when none does. Shell tests only, so the walk
+# runs no program and works the same under Git Bash.
+find_project_root() {
+  local dir=${PWD:-}
+  case $dir in
+    /*) ;;
+    *) return 1 ;;
+  esac
+  while :; do
+    if [ -f "${dir%/}/.specstone/config.yaml" ]; then
+      printf '%s' "$dir"
+      return 0
+    fi
+    [ "$dir" = / ] && return 1
+    dir=${dir%/*}
+    [ -n "$dir" ] || dir=/
+  done
+}
+
+# Succeeds when the project root $1 holds an entry named specstone-* in any of
+# the six skill and agent folders. A dangling link counts as an entry.
+has_specstone_entry() {
+  local root=${1%/} folder entry
+  for folder in .claude/skills .agents/skills .claude/agents .agents/agents \
+    .cursor/agents .codex/agents; do
+    for entry in "$root/$folder"/specstone-*; do
+      if [ -e "$entry" ] || [ -L "$entry" ]; then
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
+# Succeeds when the working directory sits in a project whose root holds no
+# specstone-* skill or agent entry.
+project_lacks_skills() {
+  local root
+  root=$(find_project_root) || return 1
+  ! has_specstone_entry "$root"
+}
+
 main() {
-  local plugin_version cli_version status install_line windows=0
+  local plugin_version cli_version status install_line windows=0 message=''
 
   plugin_version=$(plugin_version_of "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json")
 
@@ -170,18 +216,26 @@ main() {
     cli_version=${cli_version#"${cli_version%%[![:space:]]*}"}
     cli_version=${cli_version%"${cli_version##*[![:space:]]}"}
     if [ "$status" -ne 0 ] || ! valid_version "$cli_version"; then
-      emit "Specstone: the CLI did not report its version. Reinstall it: $install_line"
+      message="Specstone: the CLI did not report its version. Reinstall it: $install_line"
     elif [ -n "$plugin_version" ] && [ "$cli_version" != "$plugin_version" ]; then
-      emit "Specstone: the CLI is $cli_version and the plugin is $plugin_version. Run: specstone upgrade"
+      message="Specstone: the CLI is $cli_version and the plugin is $plugin_version. Run: specstone upgrade"
+    fi
+    if project_lacks_skills; then
+      message=${message:+$message$'\n'}$no_skills_message
     fi
   elif installed_off_path "$windows"; then
     if append_path_line; then
-      emit "Specstone: the CLI is installed in ~/.specstone/bin, and this session's later commands get it from the hook, but the PATH Claude Code starts with still lacks it. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets."
+      message="Specstone: the CLI is installed in ~/.specstone/bin, and this session's later commands get it from the hook, but the PATH Claude Code starts with still lacks it. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets."
     else
-      emit 'Specstone: the CLI is installed in ~/.specstone/bin but not on the PATH Claude Code sees. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets.'
+      message='Specstone: the CLI is installed in ~/.specstone/bin but not on the PATH Claude Code sees. Start Claude Code from a terminal, or add ~/.specstone/bin to the PATH Claude Code gets.'
     fi
   else
-    emit "Specstone: the CLI is not installed. Install it: $install_line"
+    message="Specstone: the CLI is not installed. Install it: $install_line"
+  fi
+
+  # One object, so every message joins here and no branch prints on its own.
+  if [ -n "$message" ]; then
+    emit "$message"
   fi
 }
 

@@ -18,7 +18,8 @@ import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart'
     show shippedStatusesOutside;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
-import '../../../../specstone_core/test/helpers/write_fixture.dart' show getDoc;
+import '../../../../specstone_core/test/helpers/write_fixture.dart'
+    show getDoc, testHome;
 import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -1478,6 +1479,116 @@ void main() {
       expect(text.exitCode, 0, reason: '${text.stdout}\n${text.stderr}');
       expect(text.stdout, '0 findings\n');
       expect(json.exitCode, 0);
+    });
+  });
+
+  group('skill and agent files', () {
+    const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
+    const procedure =
+        '.agents/skills/specstone-sync-sdd/references/procedure.md';
+    const planAgent = '.claude/agents/specstone-plan-engineer.md';
+
+    Future<ProcessResult> run(Directory root, List<String> args) => Process.run(
+      binary,
+      args,
+      workingDirectory: root.path,
+      environment: {'HOME': testHome().path, 'USERPROFILE': testHome().path},
+    );
+
+    /// Returns a project `init` set up, in a new temp folder.
+    Future<Directory> initProject() async {
+      final root = await Directory.systemTemp.createTemp('specstone_check_');
+      addTearDown(() => root.delete(recursive: true));
+      final init = await run(root, ['init']);
+      expect(init.exitCode, 0, reason: '${init.stdout}\n${init.stderr}');
+      return root;
+    }
+
+    /// Returns the `agent_block_stale` lines of a whole-project check.
+    Future<List<String>> staleLines(
+      Directory root, [
+      List<String> target = const [],
+    ]) async {
+      final result = await run(root, ['check', ...target]);
+      expect(result.exitCode, anyOf(0, 1), reason: '${result.stderr}');
+      return [
+        for (final line in (result.stdout as String).split('\n'))
+          if (line.contains(': agent_block_stale: ')) line,
+      ];
+    }
+
+    const migrate = 'run `specstone migrate`';
+    const owner = '(waits for the Owner)';
+    const differs =
+        'the Specstone skill or agent file differs from what the running CLI '
+        'writes';
+    const missing = 'the Specstone skill or agent file is missing';
+    const unshipped = 'the running CLI does not ship this Specstone file';
+
+    test('a fresh init project has no finding', () async {
+      expect(await staleLines(await initProject()), isEmpty);
+    });
+
+    test('a hand edit to a Codex agent file is named on '
+        'line 1', () async {
+      final root = await initProject();
+      File('${root.path}/$codexToml').writeAsStringSync('hand edit\n');
+
+      expect(await staleLines(root), [
+        '$codexToml:1: agent_block_stale: $differs; $migrate $owner',
+      ]);
+    });
+
+    test('a file missing inside a skill folder is named at '
+        'its path', () async {
+      final root = await initProject();
+      File('${root.path}/$procedure').deleteSync();
+
+      expect(await staleLines(root), [
+        '$procedure:1: agent_block_stale: $missing; $migrate $owner',
+      ]);
+    });
+
+    test('a deleted agent file beside filled skills is '
+        'named', () async {
+      final root = await initProject();
+      File('${root.path}/$planAgent').deleteSync();
+
+      expect(await staleLines(root), [
+        '$planAgent:1: agent_block_stale: $missing; $migrate $owner',
+      ]);
+    });
+
+    test('both Claude Code folders emptied have no '
+        'finding', () async {
+      final root = await initProject();
+      for (final folder in ['.claude/skills', '.claude/agents']) {
+        Directory('${root.path}/$folder')
+          ..deleteSync(recursive: true)
+          ..createSync();
+      }
+
+      expect(await staleLines(root), isEmpty);
+    });
+
+    test('an entry the CLI does not ship is named at the '
+        'entry', () async {
+      final root = await initProject();
+      File('${root.path}/.claude/skills/specstone-old/SKILL.md')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('old\n');
+
+      expect(await staleLines(root), [
+        '.claude/skills/specstone-old:1: agent_block_stale: $unshipped; $migrate $owner',
+      ]);
+    });
+
+    test('a check with a target names no skill or agent '
+        'file', () async {
+      final root = await initProject();
+      File('${root.path}/$codexToml').writeAsStringSync('hand edit\n');
+
+      expect(await staleLines(root, ['project']), isEmpty);
     });
   });
 }
