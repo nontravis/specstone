@@ -2,6 +2,7 @@ import 'dart:convert';
 
 const _hookEvent = 'PostToolUse';
 const _hooksKey = 'hooks';
+const Set<String> _groupKeys = {'matcher', _hooksKey};
 
 /// What `.claude/settings.json` holds against the Specstone hook group.
 sealed class SettingsState {
@@ -183,7 +184,8 @@ bool _emptiedByRemoval(Object? group) {
   final handlers = _handlersOf(group);
   if (!handlers.any(isSpecstoneHandler)) return false;
   handlers.removeWhere(isSpecstoneHandler);
-  return handlers.isEmpty;
+  return handlers.isEmpty &&
+      (group! as Map<String, Object?>).keys.every(_groupKeys.contains);
 }
 
 /// The leading whitespace of the first indented line, else two spaces.

@@ -99,6 +99,23 @@ void main() {
       expect(_read(text), isA<SettingsCurrent>());
     });
 
+    test('a hand-laid-out file already holding the group is not rewritten', () {
+      const text =
+          '{\r\n'
+          '\t"permissions": {"allow": ["Bash"]},\r\n'
+          '\t"hooks": {\r\n'
+          '\t\t"PostToolUse": [\r\n'
+          '\t\t\t{"hooks": [{"args": ["hook", "post-edit"], '
+          '"command": "specstone", "type": "command"}], '
+          '"matcher": "Write|Edit"}\r\n'
+          '\t\t]\r\n'
+          '\t},\r\n'
+          '\t"model": "opus"\r\n'
+          '}';
+
+      expect(_read(text), isA<SettingsCurrent>());
+    });
+
     test('the group at any position among the Owner groups', () {
       final owner = {
         'matcher': 'Bash',
@@ -341,6 +358,29 @@ void main() {
           'hooks': [_ownerHandler],
         },
       ]);
+    });
+
+    test('keeps the Owner key of a group the removal emptied', () {
+      final text = _staleText(
+        _json({
+          'hooks': {
+            'PostToolUse': [
+              {
+                'matcher': 'Write|Edit',
+                'hooks': [
+                  _handler(['hook', 'post-edit']),
+                ],
+                'x': 1,
+              },
+            ],
+          },
+        }),
+      );
+
+      final groups = _postToolUse(text);
+      expect(groups, hasLength(2));
+      expect((groups.first! as Map<String, Object?>)['x'], 1);
+      expect(_specstoneHandlerCount(text), 1);
     });
 
     test('keeps a group or event the Owner left empty', () {
