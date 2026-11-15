@@ -38,13 +38,11 @@ typedef CiteItemAt = ({int column, String itemId});
 ///
 /// `start` and `end` are the 0-based columns the doc part spans, its code
 /// span's backticks, `#key`, and header span included; `items` holds each
-/// item ID it owns, repeats included. `isInSpan` holds when the doc part sits
-/// inside a code span it does not fill, where no link can stand.
+/// item ID it owns, repeats included.
 typedef CiteForm = ({
   CiteCandidate candidate,
   int start,
   int end,
-  bool isInSpan,
   List<CiteItemAt> items,
 });
 
@@ -53,11 +51,12 @@ typedef CiteForm = ({
 ///
 /// Each doc mention `docMentionsInFile` reads from the body outside fenced
 /// code is a candidate, bar one inside a link or a link reference's
-/// destination. The section key is the `#key` after the mention, or, after a
-/// path, the header of a code span that follows it, such as `` `## Error
-/// envelope` ``. The item IDs are the IDs the reference grammar reads in the
-/// line's prose after the candidate, up to the next citation, a link or
-/// another candidate, so the nearest citation before an ID owns it;
+/// destination, and one inside a code span it does not fill, such as a path in
+/// quoted CLI output. The section key is the `#key` after the mention, or,
+/// after a path, the header of a code span that follows it, such as
+/// `` `## Error envelope` ``. The item IDs are the IDs the reference grammar
+/// reads in the line's prose after the candidate, up to the next citation, a
+/// link or another candidate, so the nearest citation before an ID owns it;
 /// an item ID is a token of one
 /// of [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
 List<CiteCandidate> citeCandidatesOf(
@@ -77,33 +76,51 @@ List<CiteForm> citeFormsOf(String lfText, {required Set<String> idPrefixes}) {
   final firstLine = _lineFeedsIn(lfText, lfText.length - body.length) + 1;
   final lines = _LineIndex(body);
   final ranges = _linkRangesOf(body, firstLine);
-  final kept = <(NameMention, int)>[];
+  final kept = <_Kept>[];
   for (final mention in mentions) {
     final offset = lines.offsetOf(mention.line - firstLine, mention.column);
-    if (offset != null && !ranges.covers(offset)) kept.add((mention, offset));
+    if (offset == null || ranges.covers(offset)) continue;
+    final line = lines.lineOf(mention.line - firstLine);
+    final spans = codeSpansOf(line);
+    final extent = _extentOf(mention, line, spans);
+    if (_isInSpan(spans, mention, extent.end)) continue;
+    kept.add((
+      mention: mention,
+      offset: offset,
+      line: line,
+      spans: spans,
+      extent: extent,
+    ));
   }
-  final boundaries = [...ranges.starts, for (final (_, offset) in kept) offset]
+  final boundaries = [...ranges.starts, for (final it in kept) it.offset]
     ..sort();
   return [
-    for (final (mention, offset) in kept)
+    for (final it in kept)
       _formOf(
-        mention,
-        lines.lineOf(mention.line - firstLine),
-        nextBoundary: _firstAfter(boundaries, offset),
-        lineStart: offset - mention.column,
+        it,
+        nextBoundary: _firstAfter(boundaries, it.offset),
         idPrefixes: idPrefixes,
       ),
   ];
 }
 
-CiteForm _formOf(
+/// A mention that is a candidate, with the line and code spans it sits on, and
+/// its body offset.
+typedef _Kept = ({
   NameMention mention,
-  String line, {
-  required int? nextBoundary,
-  required int lineStart,
-  required Set<String> idPrefixes,
-}) {
-  final spans = codeSpansOf(line);
+  int offset,
+  String line,
+  List<CodeSpan> spans,
+  ({String? key, int end}) extent,
+});
+
+/// Returns the `#key` and the end column of [mention]'s doc part on [line],
+/// its closing backticks and a header span right after a path included.
+({String? key, int end}) _extentOf(
+  NameMention mention,
+  String line,
+  List<CodeSpan> spans,
+) {
   var end = mention.column + mention.text.length;
   var key = _nonEmpty(mention.address.sectionKey);
   if (key == null) {
@@ -115,9 +132,28 @@ CiteForm _formOf(
     final header = _headerSpanAfter(line, spans, end);
     if (header != null) (key, end) = header;
   }
+  return (key: key, end: end);
+}
+
+/// Whether [mention], whose doc part ends at [end], sits inside a code span it
+/// does not fill, where no link can stand.
+bool _isInSpan(List<CodeSpan> spans, NameMention mention, int end) {
+  final holder = _spanHolding(spans, mention.column);
+  return holder != null && !_fills(holder, mention.column, end);
+}
+
+bool _fills(CodeSpan holder, int column, int end) =>
+    holder.start + holder.ticks == column && holder.end <= end;
+
+CiteForm _formOf(
+  _Kept kept, {
+  required int? nextBoundary,
+  required Set<String> idPrefixes,
+}) {
+  final (:mention, :offset, :line, :spans, extent: (:key, :end)) = kept;
   final stop = nextBoundary == null
       ? line.length
-      : (nextBoundary - lineStart).clamp(end, line.length);
+      : (nextBoundary - (offset - mention.column)).clamp(end, line.length);
   final items = [
     for (final (:at, :id) in itemIdsInProse(
       _proseOf(line, spans, from: end).substring(end, stop),
@@ -126,10 +162,6 @@ CiteForm _formOf(
       (column: end + at, itemId: id.written),
   ];
   final holder = _spanHolding(spans, mention.column);
-  final fillsHolder =
-      holder != null &&
-      holder.start + holder.ticks == mention.column &&
-      holder.end <= end;
   return (
     candidate: (
       line: mention.line,
@@ -139,9 +171,8 @@ CiteForm _formOf(
         ...{for (final item in items) item.itemId},
       ],
     ),
-    start: fillsHolder ? holder.start : mention.column,
+    start: holder?.start ?? mention.column,
     end: end,
-    isInSpan: holder != null && !fillsHolder,
     items: items,
   );
 }

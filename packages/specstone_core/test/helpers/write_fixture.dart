@@ -5,6 +5,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -156,9 +158,10 @@ DocsProject openProject(Directory root) => DocsProject.open(
   homeDirectory: null,
 );
 
-/// Returns the file of [docPath], a path relative to `docs/`.
+/// Returns the file of [docPath], a path relative to `docs/`, or to the
+/// project root for a record under `.specstone/records/`.
 File docFile(Directory root, String docPath) =>
-    File('${root.path}/docs/$docPath');
+    File('${root.path}/${projectPathOfDocPath(docPath)}');
 
 /// Returns the text of the doc at [docPath].
 String readDoc(Directory root, String docPath) =>

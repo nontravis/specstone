@@ -16,6 +16,7 @@ class GuideCommand extends SpecstoneCommand {
         negatable: false,
         help: 'Read feature patterns in place of doc types.',
       );
+    addOutOption();
   }
 
   @override
@@ -28,14 +29,23 @@ class GuideCommand extends SpecstoneCommand {
 
   @override
   String get invocation =>
-      'specstone guide [type …] [--json]\n'
-      '       specstone guide --pattern [id …] [--json]';
+      'specstone guide [type …] [--json] [--out [<path>]]\n'
+      '       specstone guide --pattern [id …] [--json] [--out [<path>]]';
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
+    final args = argResults!;
+    final rest = args.rest;
     final runner = specstoneRunner;
-    final asJson = argResults!.flag('json');
+    final asJson = args.flag('json');
+    final isPattern = args.flag('pattern');
+
+    final String? outPath;
+    try {
+      outPath = outPathOf(args);
+    } on IndexFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
 
     final MergedSet set;
     try {
@@ -47,17 +57,25 @@ class GuideCommand extends SpecstoneCommand {
       return fail(fault, asJson: asJson);
     }
 
-    if (argResults!.flag('pattern')) {
-      return _printPatterns(set, rest, asJson: asJson);
+    int emit(String text) => _emit(
+      text,
+      outPath,
+      asJson: asJson,
+      writes: writesOut(args),
+      isPattern: isPattern,
+      rest: rest,
+    );
+
+    if (isPattern) {
+      return _printPatterns(set, rest, asJson: asJson, emit: emit);
     }
 
     if (rest.isEmpty) {
-      runner.out.write(
+      return emit(
         asJson
             ? '${SpecstoneCommand.pretty.convert(set.listJson())}\n'
             : set.listText(),
       );
-      return 0;
     }
 
     final types = rest.toSet().toList();
@@ -80,20 +98,22 @@ class GuideCommand extends SpecstoneCommand {
       );
     }
 
-    runner.out.write(asJson ? _renderJson(docTypes) : _renderGuides(docTypes));
-    return 0;
+    return emit(asJson ? _renderJson(docTypes) : _renderGuides(docTypes));
   }
 
-  int _printPatterns(MergedSet set, List<String> ids, {required bool asJson}) {
-    final out = specstoneRunner.out;
+  int _printPatterns(
+    MergedSet set,
+    List<String> ids, {
+    required bool asJson,
+    required int Function(String text) emit,
+  }) {
     if (ids.isEmpty) {
       final list = set.featurePatternListJson();
-      out.write(
+      return emit(
         asJson
             ? '${SpecstoneCommand.pretty.convert(list)}\n'
             : set.featurePatternListText(),
       );
-      return 0;
     }
 
     final patterns = <FeaturePattern>[];
@@ -116,10 +136,41 @@ class GuideCommand extends SpecstoneCommand {
       );
     }
 
-    out.write(
+    return emit(
       asJson ? _renderPatternJson(patterns) : _renderPatterns(patterns),
     );
-    return 0;
+  }
+
+  /// Prints [text], or, under `--out`, writes it to [outPath] (bare when null)
+  /// and prints the reply that names the file.
+  int _emit(
+    String text,
+    String? outPath, {
+    required bool asJson,
+    required bool writes,
+    required bool isPattern,
+    required List<String> rest,
+  }) {
+    if (!writes) {
+      specstoneRunner.out.write(text);
+      return 0;
+    }
+    final roots = locateReadRoots(specstoneRunner.workingDirectory);
+    try {
+      final answer = answerOut(
+        command: 'guide',
+        text: text,
+        outPath: outPath,
+        projectRoot: roots?.projectRoot,
+        docsRoot: roots?.docsRoot,
+        asJson: asJson,
+        flags: [if (isPattern) 'pattern'],
+        args: rest,
+      );
+      return printAnswer(answer, const [], asJson: asJson);
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
   }
 
   /// Names each of [unknown] after [noun], in the singular form for one.

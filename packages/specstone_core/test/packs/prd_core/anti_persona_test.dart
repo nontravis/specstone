@@ -35,11 +35,11 @@ void main() {
       SectionSpec('snapshot', 'Snapshot', required: true),
       SectionSpec('goal', 'Goal', required: true),
       SectionSpec('sources', 'Sources', required: true),
-      SectionSpec('motivations', 'Motivations'),
-      SectionSpec('actions', 'Actions'),
-      SectionSpec('tools', 'Tools'),
-      SectionSpec('needs', 'Needs'),
-      SectionSpec('consequences', 'Consequences'),
+      SectionSpec('motivations', 'Motivations', required: true),
+      SectionSpec('actions', 'Actions', required: true),
+      SectionSpec('tools', 'Tools', required: true),
+      SectionSpec('needs', 'Needs', required: true),
+      SectionSpec('consequences', 'Consequences', required: true),
     ]);
   });
 

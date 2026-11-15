@@ -20,11 +20,11 @@ import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
 
-const _brokenRecord = 'specs/f01_login/IMPLEMENTATION.md';
+const _brokenRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
 /// Returns the files that plant a code path to nothing in the login record.
 Map<String, String> _brokenRecordFiles() => {
-  'docs/$_brokenRecord':
+  _brokenRecord:
       "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
       "implements:\n  - 'email_login/check_password:app/lib/gone.dart:X'\n"
       '---\n\n# Record\n',
@@ -687,7 +687,7 @@ void main() {
         expect(context.codeFilesRead, 2);
         expect(context.codeTextOf(jaspr, 'app/lib/gone.dart'), isNull);
         const warning =
-            'app/lib/gone.dart: cannot read the file; '
+            'jaspr: app/lib/gone.dart: cannot read the file; '
             'implements Symbols in it are not checked';
         expect(context.unstatedWarnings, [warning]);
       },

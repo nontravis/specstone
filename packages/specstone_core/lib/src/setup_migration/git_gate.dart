@@ -72,10 +72,22 @@ void _requireGitFloor(Directory root, RunGit runGit) {
 
 /// Refuses a [root] whose work tree holds an uncommitted change.
 ///
+/// Throws `working_tree_dirty` as [isWorkTreeDirty] reads it.
+void requireCleanWorkTree(Directory root, RunGit runGit) {
+  if (!isWorkTreeDirty(root, runGit)) return;
+  throw MigrateFault(
+    MigrateFaultCode.workingTreeDirty,
+    'the repository that holds the docs has uncommitted changes; commit or '
+    'stash them, then run specstone migrate again',
+  );
+}
+
+/// Returns whether the work tree of [root] holds an uncommitted change.
+///
 /// Untracked files count, whatever `status.showUntrackedFiles` says; ignored
 /// ones do not. No other fault code covers a `git status` that fails, so that
 /// case is `git_work_tree_required`.
-void requireCleanWorkTree(Directory root, RunGit runGit) {
+bool isWorkTreeDirty(Directory root, RunGit runGit) {
   final ProcessResult status;
   try {
     status = runGit([
@@ -87,13 +99,7 @@ void requireCleanWorkTree(Directory root, RunGit runGit) {
     throw _gitCannotStartFault(e);
   }
   if (status.exitCode != 0) throw workTreeRequiredFault(migrateCommand);
-  if ((status.stdout as String).trim().isNotEmpty) {
-    throw MigrateFault(
-      MigrateFaultCode.workingTreeDirty,
-      'the repository that holds the docs has uncommitted changes; commit or '
-      'stash them, then run specstone migrate again',
-    );
-  }
+  return (status.stdout as String).trim().isNotEmpty;
 }
 
 /// Returns the full sha HEAD points at.

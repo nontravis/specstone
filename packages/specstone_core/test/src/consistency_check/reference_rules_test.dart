@@ -8,6 +8,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 
 void main() {
@@ -448,4 +449,58 @@ void main() {
     );
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
+
+  group('see targets in the other root', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const toRecord = '../../../$record';
+
+    test('an anchor of a record is checked from a docs doc', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...recordsRootTemplates,
+            record: '# Login implementation\n\n## Notes\n\nNone.\n',
+            ...doc(
+              loginArchitecture,
+              '- Errors: see Components\n',
+              '- Errors: see $toRecord#notes\n- Auth: see $toRecord#nope\n',
+            ),
+          },
+        ),
+      );
+
+      expect(spots(report, FindingKind.concernsTargetUnresolved), [
+        '$loginArchitecture:23: concerns_target_unresolved',
+      ]);
+      expect(
+        report.findings.where(_isConcern).single.toJson()['target'],
+        '$toRecord#nope',
+      );
+    });
+
+    test('an anchor of a docs doc reached by leaving the docs root is '
+        'checked', () async {
+      const toError = '../../../docs/specs/f01_login/ERROR.md';
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            'docs/specs/f01_login/ERROR.md': '# Login errors\n\n## Known\n',
+            ...doc(
+              loginArchitecture,
+              '- Errors: see Components\n',
+              '- Errors: see $toError#known\n- Auth: see $toError#nope\n',
+            ),
+          },
+        ),
+      );
+
+      expect(
+        report.findings.where(_isConcern).map((f) => f.toJson()['target']),
+        ['$toError#nope'],
+      );
+    });
+  });
 }
+
+bool _isConcern(Finding finding) =>
+    finding.kind == FindingKind.concernsTargetUnresolved;

@@ -261,15 +261,39 @@ void main() {
     expect(out.toString(), endsWith('dry run: nothing written\n'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('migrate --dry-run over a dirty tree is '
-      'working_tree_dirty, exit 75, with no plan', () async {
+  test('migrate --dry-run over a dirty tree prints the plan and says the run '
+      'needs a clean tree, exit 0', () async {
     final root = await gitFixture(acmeLegacy);
     File('${root.path}/notes.txt').writeAsStringSync('x\n');
+    final before = _bytesUnder(root);
     final (:runner, :out, :err) = writeRunner(root);
 
-    expect(await runner.run(['migrate', '--dry-run']), 75);
-    expect(out.toString(), isEmpty);
-    expect(err.toString(), isNotEmpty);
+    expect(await runner.run(['migrate', '--dry-run']), 0);
+    expect(err.toString(), isEmpty);
+    expect(out.toString(), startsWith('legacy migration: '));
+    expect(
+      out.toString(),
+      matches(
+        RegExp(
+          r'\nplan [0-9a-f]{12}\n'
+          r'dry run: nothing written; the run needs a clean working tree\n$',
+        ),
+      ),
+    );
+    expect(_bytesUnder(root), before);
+  }, skip: hasGit ? null : 'git is not available');
+
+  test('migrate --plan <hash> over a dirty tree is working_tree_dirty, '
+      'exit 75', () async {
+    final root = await gitFixture(acmeLegacy);
+    File('${root.path}/notes.txt').writeAsStringSync('x\n');
+    final hash = await _dryRunPlanHash(root);
+    final before = _bytesUnder(root);
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 75);
+    expect(err.toString(), contains('uncommitted changes'));
+    expect(_bytesUnder(root), before);
   }, skip: hasGit ? null : 'git is not available');
 
   test('migrate --dry-run outside a git work tree is '
@@ -570,7 +594,7 @@ void main() {
       expect(await dry.run(['migrate', '--dry-run']), 0);
       expect(
         dryOut.toString(),
-        contains('  specs/f01_login/IMPLEMENTATION.md (draft)\n'),
+        contains('  .specstone/records/f01_login/IMPLEMENTATION.md (draft)\n'),
       );
       final hash = await _dryRunPlanHash(root);
       final (:runner, :out, :err) = writeRunner(root);
@@ -578,11 +602,12 @@ void main() {
       expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
 
       expect(err.toString(), isEmpty);
-      final record = File('${root.path}/docs/specs/f01_login/IMPLEMENTATION.md')
-          .readAsStringSync();
+      final record = File(
+        '${root.path}/.specstone/records/f01_login/IMPLEMENTATION.md',
+      ).readAsStringSync();
       expect(record, contains('draft: true\n'));
-      expect(record, contains("  - 'email_login:implemented'\n"));
-      expect(record, contains("  - 'email_login:lib/a.dart:A'\n"));
+      expect(record, contains('  - email_login:implemented\n'));
+      expect(record, contains('  - email_login:lib/a.dart:A\n'));
       final moved = File(
         '${root.path}/docs/prds/features/f01_login/us01_email_login/'
         'USER_STORY.md',
@@ -595,7 +620,10 @@ void main() {
         '--format=',
         'HEAD',
       ]).stdout;
-      expect(committed, contains('docs/specs/f01_login/IMPLEMENTATION.md'));
+      expect(
+        committed,
+        contains('.specstone/records/f01_login/IMPLEMENTATION.md'),
+      );
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
     });
 

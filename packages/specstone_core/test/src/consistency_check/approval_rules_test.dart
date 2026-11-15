@@ -142,21 +142,21 @@ void main() {
   test(
     "$_name E03: a write of a record entry's code paths or of covers raises no approval_stale",
     () async {
-      const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
       final base = {
         ...checkProjectFiles(),
-        'docs/$recordPath':
+        recordPath:
             "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
             "implements:\n  - 'email_login/check_password:app/lib/login.dart:checkPassword'\n"
             '---\n\n# Record\n',
       };
       final approved = withApprovalHashes(base);
-      final record = approved['docs/$recordPath']!;
+      final record = approved[recordPath]!;
       expect(record, contains('approved:'));
       final report = checkOf(
         await writeTree({
           ...approved,
-          'docs/$recordPath': record.replaceFirst(
+          recordPath: record.replaceFirst(
             'app/lib/login.dart:checkPassword',
             'app/lib/login.dart:SignInPage',
           ),
@@ -198,7 +198,7 @@ void main() {
     });
 
     test('is one approval_stale below the statuses pin', () async {
-      const key = 'docs/$loginRecord';
+      const key = loginRecord;
       final stamped = withApprovalHash(
         checkProjectFiles()[key]!,
         fixtureDocTypeOf(loginRecord),

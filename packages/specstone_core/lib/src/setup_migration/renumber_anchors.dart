@@ -6,7 +6,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show parseLinkFreeBody;
+    show parseMarkdownTreeByBlock;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show destinationPartsOf;
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -113,10 +113,10 @@ bool _isAtxHeading(String line) {
   return line.startsWith('#', indent);
 }
 
-/// The heading slugs of [body], read by the anchor-only parse, whose heading
+/// The heading slugs of [body], read from the per-block tree, whose heading
 /// subtrees are the ones the full parse builds.
 List<String>? headingSlugsOf(String body) {
-  final nodes = parseLinkFreeBody(body);
+  final nodes = parseMarkdownTreeByBlock(body)?.nodes;
   return nodes == null ? null : anchorsOf(nodes).headingSlugs;
 }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/task_ref.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart'
@@ -17,7 +18,6 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:yaml/yaml.dart';
 
 // MARK: - Public
 
@@ -151,17 +151,18 @@ _Removal? _removalIn(
   final fieldValues = <String, String?>{};
   for (final fieldId in fields) {
     final block = blocks[fieldId];
-    final items = block == null ? null : _itemsOf(block);
+    final items = block == null ? null : listEntriesOf(block);
     if (block == null || items == null) continue;
-    final (:kept, :gone, :goneAt) = _split(items, named);
+    final (:kept, :gone) = _split(items, named);
     if (gone.isEmpty) continue;
     removed.addAll(gone);
     tasks.addAll([for (final entry in gone) TaskRef.parse(entry)!.task]);
-    final after = _blockAfter(block, fieldId, kept, goneAt);
-    fieldValues[fieldId] = after == null
-        ? null
-        : [for (final item in kept) '- ${_yamlOf(item)}'].join('\n');
-    text = withKeyBlock(text, fieldId, after);
+    fieldValues[fieldId] = kept.isEmpty ? null : jsonEncode(kept);
+    text = withKeyBlock(
+      text,
+      fieldId,
+      kept.isEmpty ? null : listBlockOf(fieldId, kept, onDisk: block),
+    );
   }
   if (removed.isEmpty) return null;
   return _Removal(
@@ -175,103 +176,22 @@ _Removal? _removalIn(
   );
 }
 
-/// Returns the entries of [block]: the items of its list, or its one scalar
-/// string; null when it holds neither.
-List<Object?>? _itemsOf(KeyBlock block) {
-  try {
-    return switch (loadYaml(block.indentedValueText)) {
-      final YamlList list => list.toList(),
-      final String entry => [entry],
-      _ => null,
-    };
-  } on YamlException {
-    return null;
-  }
-}
-
-/// Splits [items] into those that stay and the entries of a task in [named],
-/// with the position of each entry that goes.
-({List<Object?> kept, List<String> gone, Set<int> goneAt}) _split(
+/// Splits [items] into those that stay and the entries of a task in [named].
+({List<Object?> kept, List<String> gone}) _split(
   List<Object?> items,
   Set<String> named,
 ) {
   final kept = <Object?>[];
   final gone = <String>[];
-  final goneAt = <int>{};
-  for (final (position, item) in items.indexed) {
+  for (final item in items) {
     if (item case final String entry
         when named.contains(TaskRef.parse(entry)?.task)) {
       gone.add(entry);
-      goneAt.add(position);
     } else {
       kept.add(item);
     }
   }
-  return (kept: kept, gone: gone, goneAt: goneAt);
-}
-
-/// Returns the key block of [fieldId] after the entries at [goneAt] go, or
-/// null when no entry [kept] stays.
-///
-/// A plain block list keeps every other byte; any other form is written anew
-/// as a block list.
-String? _blockAfter(
-  KeyBlock block,
-  String fieldId,
-  List<Object?> kept,
-  Set<int> goneAt,
-) {
-  if (kept.isEmpty) return null;
-  final spliced = _withoutItemLines(block, kept.length + goneAt.length, goneAt);
-  if (spliced != null) return spliced;
-  final lines = [for (final item in kept) '  - ${_yamlOf(item)}\n'];
-  return '$fieldId:\n${lines.join()}';
-}
-
-final _itemLine = RegExp(r'^\s*-(\s|$)');
-
-/// Returns [block]'s text without the item lines at [goneAt], or null when
-/// the block is not a plain block list of [count] one-line items.
-String? _withoutItemLines(KeyBlock block, int count, Set<int> goneAt) {
-  final lines = const LineSplitter().convert(block.text);
-  final keyAt = lines.indexWhere((line) => !_isTrivia(line));
-  if (keyAt < 0) return null;
-  final afterKey = lines[keyAt].substring(block.key.length).trim();
-  if (!afterKey.startsWith(':') || !_isTrivia(afterKey.substring(1))) {
-    return null;
-  }
-  final itemAt = [
-    for (var i = keyAt + 1; i < lines.length; i++)
-      if (!_isTrivia(lines[i])) i,
-  ];
-  if (itemAt.length != count) return null;
-  if (itemAt.any((i) => !_itemLine.hasMatch(lines[i]))) return null;
-  final dropped = {for (final position in goneAt) itemAt[position]};
-  return [
-    for (final (i, line) in lines.indexed)
-      if (!dropped.contains(i)) '$line\n',
-  ].join();
-}
-
-/// Whether [line] is blank or a comment.
-bool _isTrivia(String line) {
-  final text = line.trim();
-  return text.isEmpty || text.startsWith('#');
-}
-
-/// Returns [item] as a YAML list item, quoted when a bare one would read
-/// back as another value.
-String _yamlOf(Object? item) {
-  if (item is String && _isPlain(item)) return item;
-  return jsonEncode(item);
-}
-
-bool _isPlain(String text) {
-  try {
-    return loadYaml(text) == text;
-  } on YamlException {
-    return false;
-  }
+  return (kept: kept, gone: gone);
 }
 
 // MARK: - Writing

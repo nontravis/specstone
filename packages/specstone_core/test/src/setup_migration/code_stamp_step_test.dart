@@ -5,7 +5,11 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show baseHashOf, withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
@@ -18,21 +22,25 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
+import '../../helpers/write_fixture.dart' show docFile, writeIn;
 
 const _login = 'app/lib/login.dart';
 const _stale = '0123456789ab';
 const _from = '1.6.0';
 const _step = 'stamp_code_fingerprints';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
 /// Every doc whose code links the fixture writes, left with none recorded.
-const _linkedDocs = {'docs/$loginRecord', 'docs/$loginArchitecture'};
+const Set<String> _linkedDocs = {loginRecord, 'docs/$loginArchitecture'};
 
-String _fingerprintOf(String text) => fileCodeFingerprint(utf8.encode(text));
+String _fingerprintOf(String text, String path) =>
+    fileCodeFingerprint(utf8.encode(text), path: path);
+
+String _legacyOf(String text) => legacyFileCodeFingerprint(utf8.encode(text));
 
 final String _loginText = checkProjectFiles()[_login]!;
-final String _loginFingerprint = _fingerprintOf(_loginText);
+final String _loginFingerprint = _fingerprintOf(_loginText, _login);
 final String _appLibFingerprint = folderCodeFingerprint([
   (path: _login, fingerprint: _loginFingerprint),
 ]);
@@ -62,20 +70,29 @@ Future<Directory> _project({
 );
 
 /// Plans the step over the docs of [project] with the project's targets.
-CodeStampStep _planAt(Directory project) {
+CodeStampStep _planAt(Directory project, {bool restamp = false}) {
   final session = openSession(project);
   try {
     final config = session.project;
     final docsRoot = Directory('${config.projectRoot.path}/docs');
     final docs = [
-      for (final docPath in docPathsOf(docsRoot)..sort())
-        _docOf(config.matcher, docPath, File('${docsRoot.path}/$docPath')),
+      for (final docPath in docPathsOf(docsRoot, config.projectRoot)..sort())
+        _docOf(
+          config.matcher,
+          docPath,
+          fileOfDocPath(
+            docPath,
+            docsRoot: docsRoot,
+            projectRoot: config.projectRoot,
+          ),
+        ),
     ];
     return CodeStampStep.plan(
       docs,
       projectRoot: config.projectRoot,
       set: config.set,
       targets: config.targets,
+      restamp: restamp,
     );
   } finally {
     session.close();
@@ -95,7 +112,7 @@ CodeStampDoc _docOf(DocTypeMatcher matcher, String docPath, File file) {
 /// Writes each rewrite of [step] under [project].
 void _write(Directory project, CodeStampStep step) {
   for (final MapEntry(key: docPath, value: lf) in step.rewrites.entries) {
-    File('${project.path}/docs/$docPath').writeAsStringSync(lf);
+    docFile(project, docPath).writeAsStringSync(lf);
   }
 }
 
@@ -116,14 +133,14 @@ List<Finding> _codeFindings(CheckReport report) => [
 ];
 
 String _read(Directory project, String docPath) =>
-    File('${project.path}/docs/$docPath').readAsStringSync();
+    docFile(project, docPath).readAsStringSync();
 
 /// Returns the real-path resolves of planning the step over a record that
 /// holds [links] implemented entries for one code file.
 Future<int> _resolvesOfPlan(int links) async {
   final project = await _project(
     extra: {
-      'docs/$loginRecord': _record(
+      loginRecord: _record(
         code: [for (var i = 0; i < links; i++) 'email_login:$_login:Symbol$i'],
       ),
     },
@@ -171,7 +188,7 @@ void main() {
     test('a stale fingerprint is replaced in place, with no compare', () async {
       final project = await _project(
         extra: {
-          'docs/$loginRecord': _record(
+          loginRecord: _record(
             code: ['email_login:$_login:SignInPage $_stale'],
           ),
         },
@@ -223,7 +240,7 @@ void main() {
         ],
         tests: ['email_login:$_login'],
       );
-      final project = await _project(extra: {'docs/$loginRecord': record});
+      final project = await _project(extra: {loginRecord: record});
 
       final step = _planAt(project);
 
@@ -234,7 +251,7 @@ void main() {
         'waits and stays as written', () async {
       final project = await _project(
         extra: {
-          'docs/$loginRecord': _record(
+          loginRecord: _record(
             statuses: ['email_login:planned'],
             code: ['email_login:app/lib/missing.dart'],
           ),
@@ -255,7 +272,7 @@ void main() {
       () async {
         final project = await _project(
           extra: {
-            'docs/$loginRecord': _record(
+            loginRecord: _record(
               statuses: ['email_login:deprecated'],
               code: ['email_login:$_login:SignInPage'],
             ),
@@ -319,25 +336,62 @@ void main() {
     });
   });
 
-  group('an entry the step cannot rewrite', () {
-    test('a folded scalar stays as written and is not counted', () async {
-      final project = await _project(
-        extra: {
-          'docs/$loginRecord':
-              "---\nstatuses:\n  - 'email_login:implemented'\n"
-              'implements:\n  - >-\n    email_login:$_login:SignInPage\n'
-              '---\n\n# Login implementation\n',
-        },
-      );
+  group('an entry the step stamps', () {
+    test(
+      'a folded scalar is written as a block list entry and counted',
+      () async {
+        final project = await _project(
+          extra: {
+            loginRecord:
+                "---\nstatuses:\n  - 'email_login:implemented'\n"
+                'implements:\n  - >-\n    email_login:$_login:SignInPage\n'
+                '---\n\n# Login implementation\n',
+          },
+        );
 
-      final step = _planAt(project);
+        final step = _planAt(project);
 
-      expect(step.rewrites, isNot(contains(loginRecord)));
-      expect(
-        step.stepLine(from: _from, step: _step).text,
-        'from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries',
-      );
-    });
+        expect(
+          step.rewrites[loginRecord],
+          contains('implements:\n  - email_login:$_login:SignInPage '),
+        );
+        expect(
+          step.stepLine(from: _from, step: _step).text,
+          'from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries',
+        );
+      },
+    );
+
+    test(
+      'the text equals what set --field writes for the same entries',
+      () async {
+        const held = 'covers:\n  - "app/lib/login.dart"\n  - app/lib/\n';
+        final doc = checkProjectFiles()['docs/$loginArchitecture']!;
+        final project = await _project(
+          extra: {'docs/$loginArchitecture': withKeyBlock(doc, 'covers', held)},
+        );
+        final step = _planAt(project);
+
+        writeIn(
+          project,
+          (s) => answerSet(
+            s,
+            SetRequest.parse(
+              loginArchitecture,
+              field: 'covers',
+              base: baseHashOf(held),
+            ),
+            '- app/lib/login.dart $_loginFingerprint\n'
+            '- app/lib/ $_appLibFingerprint\n',
+          ),
+        );
+
+        expect(
+          step.rewrites[loginArchitecture],
+          _read(project, loginArchitecture),
+        );
+      },
+    );
   });
 
   group('the step line', () {
@@ -351,11 +405,11 @@ void main() {
         line.text,
         'from 1.6.0: stamp_code_fingerprints: 2 docs; 3 entries',
       );
-      expect(line.paths, [loginArchitecture, loginRecord]);
+      expect(line.paths, [loginRecord, loginArchitecture]);
       expect(line.toJson(), {
         'from': '1.6.0',
         'step': _step,
-        'paths': [loginArchitecture, loginRecord],
+        'paths': [loginRecord, loginArchitecture],
         'unreadable': <String>[],
       });
     });
@@ -375,7 +429,7 @@ void main() {
         ),
       };
       for (final MapEntry(key: path, value: text) in records.entries) {
-        File('${project.path}/docs/$path')
+        docFile(project, path)
           ..createSync(recursive: true)
           ..writeAsStringSync(text);
       }
@@ -387,7 +441,7 @@ void main() {
         'from 1.6.0: stamp_code_fingerprints: 2 docs; flutter: 2 entries; '
         'jaspr: 0 entries',
       );
-      expect(step.paths, [flutterArchitecture, _flutterRecord]);
+      expect(step.paths, [_flutterRecord, flutterArchitecture]);
     });
 
     test(
@@ -397,9 +451,7 @@ void main() {
       () async {
         final project = await _project(
           extra: {
-            'docs/$loginRecord': _record(
-              code: ['email_login:$_login:SignInPage'],
-            ),
+            loginRecord: _record(code: ['email_login:$_login:SignInPage']),
             'docs/$loginArchitecture':
                 checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
                   '  - app/lib/\n',
@@ -423,6 +475,189 @@ void main() {
         expect(line.paths, [loginArchitecture]);
         expect(line.toJson()['unreadable'], [_login]);
         expect(step.rewrites, isNot(contains(loginRecord)));
+      },
+    );
+  });
+
+  group('restamp mode', () {
+    const restampStep = 'restamp_code_fingerprints';
+    const other = 'app/lib/other.dart';
+    const otherText = '// Other.\nclass Other {}\n\n';
+    final legacyLogin = _legacyOf(_loginText);
+
+    /// Plans the restamp over a project whose record holds [code] entries,
+    /// all implemented, and whose architecture doc holds [covers].
+    Future<Directory> restampProject({
+      List<String> code = const [],
+      List<String> covers = const [],
+      List<String> statuses = const ['email_login:implemented'],
+    }) => _project(
+      extra: {
+        loginRecord: _record(statuses: statuses, code: code),
+        'docs/$loginArchitecture':
+            checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
+              'covers:\n  - app/lib/\n',
+              'covers:\n${[for (final c in covers) '  - $c\n'].join()}',
+            ),
+        other: otherText,
+      },
+    );
+
+    test('a link stamped under the old rule takes the new fingerprint, so '
+        'the next check finds no suspect link', () async {
+      final project = await restampProject(
+        code: ['email_login:$_login:SignInPage $legacyLogin'],
+      );
+      expect(_codeFindings(_check(project)), isNotEmpty);
+
+      final step = _planAt(project, restamp: true);
+      _write(project, step);
+
+      expect(
+        _read(project, loginRecord),
+        contains("  - 'email_login:$_login:SignInPage $_loginFingerprint'\n"),
+      );
+      expect(
+        _codeFindings(_check(project))
+            .where((finding) => finding.kind == FindingKind.codeSuspect),
+        isEmpty,
+      );
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries',
+      );
+    });
+
+    test('a suspect link and a link with no fingerprint stay as written, '
+        'and are not counted', () async {
+      final project = await restampProject(
+        code: [
+          'email_login:$_login:SignInPage $_stale',
+          'email_login/check_password:$_login:checkPassword',
+        ],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isEmpty);
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries',
+      );
+    });
+
+    test('a planned entry stays as written', () async {
+      final project = await restampProject(
+        statuses: ['email_login:planned'],
+        code: ['email_login:$_login:SignInPage $legacyLogin'],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isNot(contains(loginRecord)));
+    });
+
+    test('a link whose code has no line the new rule drops is not '
+        'counted', () async {
+      const plainCode = 'class SignInPage {}\n';
+      final project = await _project(
+        extra: {
+          _login: plainCode,
+          loginRecord: _record(
+            code: ['email_login:$_login:SignInPage ${_legacyOf(plainCode)}'],
+          ),
+        },
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isEmpty);
+    });
+
+    test('a link already clean under the new fingerprint stays while its '
+        'code holds droppable lines', () async {
+      final project = await restampProject(
+        code: ['email_login:$_login:SignInPage $_loginFingerprint'],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isEmpty);
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries',
+      );
+    });
+
+    test('two code targets count the links restamped in each', () async {
+      final project = await writeTwinProject(
+        extra: {'flutter_ws/$_login': _loginText},
+        unfingerprinted: {
+          'docs/$flutterArchitecture',
+          'docs/$jasprArchitecture',
+        },
+      );
+      final records = {
+        _flutterRecord: _record(
+          code: ['email_login:$_login:SignInPage $legacyLogin'],
+        ),
+        _jasprRecord: _record(
+          statuses: ['email_login:planned'],
+          code: ['email_login:$_login:SignInPage $legacyLogin'],
+        ),
+      };
+      for (final MapEntry(key: path, value: text) in records.entries) {
+        docFile(project, path)
+          ..createSync(recursive: true)
+          ..writeAsStringSync(text);
+      }
+
+      final step = _planAt(project, restamp: true);
+
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 1 docs; flutter: 1 entries; '
+        'jaspr: 0 entries',
+      );
+      expect(step.paths, [_flutterRecord]);
+    });
+
+    test('restamps a folder link and leaves a suspect sibling', () async {
+      final legacyFolder = folderCodeFingerprint([
+        (path: _login, fingerprint: legacyLogin),
+        (path: other, fingerprint: _legacyOf(otherText)),
+      ]);
+      final newFolder = folderCodeFingerprint([
+        (path: _login, fingerprint: _loginFingerprint),
+        (path: other, fingerprint: _fingerprintOf(otherText, other)),
+      ]);
+      final project = await restampProject(
+        covers: ['app/lib/ $legacyFolder', '$other $_stale'],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(
+        step.rewrites[loginArchitecture],
+        contains('covers:\n  - app/lib/ $newFolder\n  - $other $_stale\n'),
+      );
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries',
+      );
+    });
+
+    test(
+      'the text equals what the stamp mode writes for the same code',
+      () async {
+        final project = await restampProject(
+          code: ['email_login:$_login:SignInPage $legacyLogin'],
+        );
+
+        final restamped = _planAt(project, restamp: true);
+        final stamped = _planAt(project);
+
+        expect(restamped.rewrites[loginRecord], stamped.rewrites[loginRecord]);
       },
     );
   });

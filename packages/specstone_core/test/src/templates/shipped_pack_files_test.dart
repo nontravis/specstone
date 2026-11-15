@@ -1,15 +1,18 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
@@ -42,8 +45,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.7.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.7.0');
+  test('the shipped software-tech pack is 1.8.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.8.0');
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -77,7 +80,10 @@ void main() {
         'error': ('specs/f{nn}_{slug}/ERROR.md', 'feature'),
         'auth': ('specs/f{nn}_{slug}/AUTH.md', 'feature'),
         'topic': ('specs/topics/{slug}.md', null),
-        'implementation': ('specs/f{nn}_{slug}/IMPLEMENTATION.md', 'feature'),
+        'implementation': (
+          '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
+          'feature',
+        ),
         'project_architecture': ('specs/ARCHITECTURE.md', null),
         'project_domain': ('specs/DOMAIN.md', null),
         'project_api': ('specs/API.md', null),
@@ -138,7 +144,7 @@ void main() {
         PathPattern(prdCoreDocType(both, 'implementation').path!)
             .forTarget('jaspr')
             .source,
-        'specs/jaspr/f{nn}_{slug}/IMPLEMENTATION.md',
+        '.specstone/records/jaspr/f{nn}_{slug}/IMPLEMENTATION.md',
       );
       expect(
         PathPattern(prdCoreDocType(both, 'tech_stack').path!)
@@ -230,14 +236,15 @@ void main() {
       ]);
     });
 
-    test('S1: the pack carries two migrations entries, a move_to_record step '
-        'from 1.4.0 and a stamp_code_fingerprints step from 1.6.0', () {
+    test('the pack carries three migrations entries, a move_to_record '
+        'step from 1.4.0, a stamp_code_fingerprints step from 1.6.0, and a '
+        'move_file and a restamp_code_fingerprints step from 1.7.0', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
         file: 'packs/software-tech/pack.yaml',
       );
-      expect(manifest.migrations, hasLength(2));
-      final [move, stamp] = manifest.migrations;
+      expect(manifest.migrations, hasLength(3));
+      final [move, stamp, record] = manifest.migrations;
       expect(move.from.toString(), '1.4.0');
       final step = move.steps.single as MoveToRecord;
       expect(step.docTypes, ['user_story', 'fr']);
@@ -245,6 +252,13 @@ void main() {
       expect(step.to, 'implementation');
       expect(stamp.from.toString(), '1.6.0');
       expect(stamp.steps.single, isA<StampCodeFingerprints>());
+      expect(record.from.toString(), '1.7.0');
+      final [moveFile, restamp] = record.steps;
+      expect(moveFile, isA<MoveFile>());
+      expect((moveFile as MoveFile).docType, 'implementation');
+      expect(moveFile.from, 'specs/f{nn}_{slug}/IMPLEMENTATION.md');
+      expect(moveFile.to, '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md');
+      expect(restamp, isA<RestampCodeFingerprints>());
     });
 
     test('the covers and implements descriptions say an entry may end in one '
@@ -308,6 +322,7 @@ void main() {
           'architecture.components': ['table_only'],
           'architecture.concerns': ['concern_ending'],
           'api.operations': ['operation_heading'],
+          'topic.interface': ['interface_pointer'],
           'auth.scopes': ['scope_form'],
           'auth.resource_matrix': ['matrix_cell'],
           'domain.entities': ['entity_kind'],
@@ -329,6 +344,7 @@ void main() {
               ],
         },
         {
+          'api.operations': ['response_success', 'response_error'],
           for (final id in ['architecture', 'project_architecture'])
             '$id.concerns': [
               'concern_integration',
@@ -367,6 +383,18 @@ void main() {
         );
       });
     }
+
+    test('the topic interface limits its pointer rule to the `- ` lines, and '
+        'each api operation needs both response examples per subsection', () {
+      expect(section('topic', 'interface').linePrefix, '- ');
+      for (final id in ['response_success', 'response_error']) {
+        final entry = section(
+          'api',
+          'operations',
+        ).requiredPatterns!.singleWhere((p) => p.id == id);
+        expect(entry.perSubsection, isTrue, reason: id);
+      }
+    });
 
     test('component_details is an optional section right after components', () {
       final architecture = prdCoreDocType(set, 'architecture');
@@ -457,10 +485,106 @@ void main() {
     });
   });
 
+  group('the shipped api and topic lint entries under check', () {
+    const operation = '### `signIn`\n\nSigns the Agent in.\n\n';
+    const success = '**Response example — success**\n\n';
+    const failure = '**Response example — error**\n\n';
+
+    String api(String operations) =>
+        '---\nconfirmed:\n  - email_login/check_password '
+        '${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n# Login API\n\n'
+        '## FR trace\n\n| FR | Operation |\n|---|---|\n'
+        '| email_login/check_password | `signIn` |\n\n'
+        '## Operations\n\n$operations';
+
+    Future<List<String>> apiSpots(String operations) async => spots(
+      checkOf(
+        await writeCheckProject(
+          extra: {'docs/$loginApi': api(operations)},
+          unstamped: {'docs/$loginApi'},
+        ),
+      ),
+      FindingKind.patternMissing,
+    );
+
+    test('an operation with no error example is pattern_missing at its '
+        'heading, and one with both examples passes', () async {
+      final text = api('$operation$success');
+      final headingLine = text
+          .substring(0, text.indexOf('### `signIn`'))
+          .split('\n')
+          .length;
+
+      expect(await apiSpots('$operation$success'), [
+        '$loginApi:$headingLine: pattern_missing',
+      ]);
+      expect(await apiSpots('$operation$success$failure'), isEmpty);
+    });
+
+    test('each operation needs its own examples, so a second operation with '
+        'none is reported alone', () async {
+      const first = '$operation$success$failure';
+      final text = api('$first### `lock`\n\nLocks it.\n');
+      final lockLine = text
+          .substring(0, text.indexOf('### `lock`'))
+          .split('\n')
+          .length;
+
+      expect(await apiSpots('$first### `lock`\n\nLocks it.\n'), [
+        '$loginApi:$lockLine: pattern_missing',
+        '$loginApi:$lockLine: pattern_missing',
+      ]);
+    });
+
+    test('a topic interface item not opening with a path:Symbol code span is '
+        'reported at its line', () async {
+      const topicPath = 'docs/specs/topics/sign_in.md';
+      String topic(String item) =>
+          '---\ncovers:\n  - app/lib/\n---\n\n# Sign in\n\n'
+          '## Purpose\n\nSigns in.\n\n## Scope\n\nThe sign-in code.\n\n'
+          '## Used by\n\n| Feature | What it uses |\n|---|---|\n'
+          '| login | all |\n\n## Interface\n\n$item\n';
+      Future<List<String>> bannedIn(String item) async => spots(
+        checkOf(
+          await writeCheckProject(
+            extra: {topicPath: topic(item)},
+            unstamped: {topicPath},
+          ),
+        ),
+        FindingKind.patternBanned,
+      );
+      final lines = topic('- A bare item').split('\n');
+      final itemLine = lines.indexOf('- A bare item') + 1;
+
+      expect(await bannedIn('- A bare item'), [
+        'specs/topics/sign_in.md:$itemLine: pattern_banned',
+      ]);
+      expect(
+        await bannedIn('- `app/lib/login.dart:SignInPage` — the page'),
+        isEmpty,
+      );
+    });
+  });
+
+  test('the shipped prd-core pack is at least 1.11.0, so the scoped lint '
+      'keys ride it', () {
+    final version = PackVersion.parse(
+      shippedPackVersions()['prd-core']!,
+      file: 'pack.yaml',
+      key: 'version',
+    );
+    expect(
+      version.compareTo(
+        PackVersion.parse('1.11.0', file: 'pack.yaml', key: 'version'),
+      ),
+      greaterThanOrEqualTo(0),
+    );
+  });
+
   test(
-    'the shipped prd-core pack is 1.13.0, so the guide-rule keys ride it',
+    'the shipped prd-core pack is 1.12.0, so the guide-rule keys ride it',
     () {
-      expect(shippedPackVersions()['prd-core'], '1.13.0');
+      expect(shippedPackVersions()['prd-core'], '1.12.0');
     },
   );
 
@@ -490,11 +614,12 @@ void main() {
       };
       expect(found, {
         'project.vision': ['quote_words', 'quote_language'],
-        'project.goals': ['metric_number', 'metric_measurement'],
+        'project.goals': ['metric_number'],
         'feature.out_of_scope': ['out_of_scope_owner'],
         'user_story.acceptance_criteria': ['scenario_title'],
         'fr.statement': ['second_shall'],
         'fr.edge_cases': ['edge_case_arrow'],
+        'fr.verification': ['test_file_named'],
         'nf.statement': ['second_shall', 'statement_number'],
         for (final category in _gnfrCategories)
           'gnfr.$category': ['second_shall', 'statement_number'],
@@ -578,6 +703,39 @@ void main() {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
       }
+    });
+
+    test('the story scenario cap is 6 and no other section sets one', () {
+      expect(section('user_story', 'acceptance_criteria').maxSubsections, 6);
+      final found = <String>{
+        for (final docType in set.docTypes)
+          for (final s in docType.sections)
+            if (s.maxSubsections != null) '${docType.id}.${s.id}',
+      };
+      expect(found, {'user_story.acceptance_criteria'});
+    });
+
+    test('the five misuser sections are required and held only when '
+        'anti_type is misuser, and no other section sets when_field', () {
+      const misuserSections = [
+        'motivations',
+        'actions',
+        'tools',
+        'needs',
+        'consequences',
+      ];
+      for (final id in misuserSections) {
+        final s = section('anti_persona', id);
+        expect(s.required, isTrue, reason: id);
+        expect(s.whenField?.field, 'anti_type', reason: id);
+        expect(s.whenField?.values, ['misuser'], reason: id);
+      }
+      final found = <String>{
+        for (final docType in set.docTypes)
+          for (final s in docType.sections)
+            if (s.whenField != null) '${docType.id}.${s.id}',
+      };
+      expect(found, {for (final id in misuserSections) 'anti_persona.$id'});
     });
 
     test('no other section sets a count key', () {
@@ -728,17 +886,6 @@ const _guideRules = <_GuideRule>[
     misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
   ),
   _GuideRule(
-    'project',
-    'goals',
-    'metric_measurement',
-    phrase: "link the goal's measurement",
-    hits: ['**Metric:** 3 calls', '- **Metric:** 3 calls, [m](../README.md)'],
-    misses: [
-      '- **Metric:** 3 calls, [m](../m/MEASUREMENT.md#results)',
-      '- **Serves:** PV-02',
-    ],
-  ),
-  _GuideRule(
     'feature',
     'out_of_scope',
     'out_of_scope_owner',
@@ -815,6 +962,28 @@ const _guideRules = <_GuideRule>[
     hits: ['1. E01 — A case with no arrow', '- E02 — A case with none'],
     misses: ['1. E01 — A case → what happens', '   a wrapped line'],
   ),
+  _GuideRule(
+    'fr',
+    'verification',
+    'test_file_named',
+    phrase: 'Name no test file here',
+    hits: [
+      'Run `test/x_test.dart`.',
+      'Run `tests/fixtures/a.json`.',
+      'Run `packages/app/test/`.',
+      'Read `test/README` first.',
+      '- **Pass criteria:** login_test.dart passes.',
+      'See login.test.ts and login.spec.js.',
+    ],
+    misses: [
+      'Test: a wrong password is refused.',
+      '- **Level:** unit/integration',
+      'Level: test/analysis, per the test method.',
+      'Level: test/analysis/inspection',
+      'Level: analysis/test/demonstration.',
+      'A test-driven check of the latest sign-in.',
+    ],
+  ),
 ];
 
 final _specGuideRules = <_GuideRule>[
@@ -862,6 +1031,44 @@ final _specGuideRules = <_GuideRule>[
     phrase: 'alone with no FR label',
     hits: ['### `create` — FR-01', '### `create` FR-01', '### `create` (v2)'],
     misses: ['### `create`', '### `POST /items`', '#### `x` y', '- `x` y'],
+  ),
+  const _GuideRule(
+    'topic',
+    'interface',
+    'interface_pointer',
+    phrase: 'List the public entry points as `path:Symbol` pointers',
+    hits: [
+      '- A public entry point',
+      '- `lib/src/a.dart` Symbol',
+      '- lib/src/a.dart:Symbol',
+      '- `Symbol` in lib/src/a.dart:Symbol',
+    ],
+    misses: [
+      '- `lib/src/a.dart:Symbol` — opens a file',
+      '- `lib/src/a.dart:Symbol.method`',
+      '  - nested note',
+    ],
+  ),
+  const _GuideRule(
+    'api',
+    'operations',
+    'response_success',
+    phrase: 'Write a success and an error Response example',
+    required: true,
+    hits: [
+      '**Response example — success**',
+      '**Response example — success** x',
+    ],
+    misses: ['**Response example — error**', 'Response example — success'],
+  ),
+  const _GuideRule(
+    'api',
+    'operations',
+    'response_error',
+    phrase: 'Write a success and an error Response example',
+    required: true,
+    hits: ['**Response example — error**', '**Response example — error** x'],
+    misses: ['**Response example — success**', 'Response example — error'],
   ),
   const _GuideRule(
     'auth',

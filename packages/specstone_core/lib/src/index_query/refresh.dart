@@ -38,8 +38,8 @@ final class RefreshResult {
   final bool fullBuild;
 }
 
-/// Brings [store] up to date with the `.md` files under the docs root of
-/// [project].
+/// Brings [store] up to date with the `.md` files under the docs root and the
+/// records root of [project].
 ///
 /// A file is read and hashed unless its stored stat key still matches and its
 /// mtime lies more than 2 s before the listing that last wrote the index; a
@@ -183,18 +183,23 @@ final class _Listing {
   /// How many files were read and hashed.
   int hashed = 0;
 
-  /// Stats every `.md` file under the docs root of [project] and reads each
-  /// one [stored] does not vouch for.
+  /// Stats every `.md` file under the docs root and the records root of
+  /// [project] and reads each one [stored] does not vouch for.
   ///
   /// A folder that cannot be listed and a file that cannot be read add a
   /// warning and are left out.
   void list(DocsProject project, _Stored stored) {
-    if (!project.docsRoot.existsSync()) return;
-    final entries = collectDocEntries(
-      Target(project.docsRoot, ''),
-      project.matcher,
-    );
-    for (final entry in entries) {
+    final roots = [
+      if (project.docsRoot.existsSync()) Target(project.docsRoot, ''),
+      ?project.recordsTarget,
+    ];
+    for (final root in roots) {
+      _listUnder(root, project, stored);
+    }
+  }
+
+  void _listUnder(Target root, DocsProject project, _Stored stored) {
+    for (final entry in collectDocEntries(root, project.matcher)) {
       switch (entry) {
         case UnreadableFolder(:final docPath):
           warnings.add('$docPath/: cannot be read; skipped');

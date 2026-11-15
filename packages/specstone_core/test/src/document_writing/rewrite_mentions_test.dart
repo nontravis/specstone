@@ -40,6 +40,14 @@ void main() {
     },
   );
 
+  test(
+    'a link to the project root keeps its text through a change of depth',
+    () {
+      const moves = <PathMove>[(from: 'a/b.md', to: 'x/y/z/b.md')];
+      expect(movedRelativePath('../..', 'a/b.md', moves), '../../../..');
+    },
+  );
+
   test('f02/us05/fr02/e10, M1: a link out of the docs root and back in by '
       'name follows the moved file', () {
     const moves = <PathMove>[(from: 'prds/x.md', to: 'prds/y.md')];
@@ -98,10 +106,13 @@ void main() {
     );
 
     expect(result, isNull);
-    expect(seen, contains('prds/features/f01_login/us02_sign_out/gone.md'));
+    expect(
+      seen,
+      contains('docs/prds/features/f01_login/us02_sign_out/gone.md'),
+    );
   });
 
-  test('f02/us05/fr02/e11, M2: exists reads the path before the moves, from the docs root', () {
+  test('f02/us05/fr02/e11, M2: exists reads the path before the moves, from the project root', () {
     final seen = <String>[];
     rewrite(
       'See ../us02_sign_out/USER_STORY.md\n',
@@ -111,7 +122,7 @@ void main() {
       },
     );
 
-    expect(seen, ['prds/features/f01_login/us02_sign_out/USER_STORY.md']);
+    expect(seen, ['docs/prds/features/f01_login/us02_sign_out/USER_STORY.md']);
   });
 
   test('a mention of a file in the same moved folder stays', () {

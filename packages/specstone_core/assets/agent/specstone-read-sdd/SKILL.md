@@ -62,6 +62,8 @@ directories. A later call with the same target and flags replaces the files: rea
 When the index does not show a fact the task needs, search the saved files with the host's text search before any
 `specstone get`. Never `get` a doc the files hold; in design work, ground a doc they lack with its own
 `specstone context <doc> --for design --out`, never `get`. A `get` only for a write's base hash before `set` is fine.
+Save a long `check`, `guide`, or `get` output you read in parts with bare `--out`, then search its file. Change one
+passage with `set --replace`. Write no file by shell redirect, `sed -i`, `perl -pi`, or `tee`; hand edit no doc file.
 
 ## Count the calls
 

@@ -138,36 +138,6 @@ void main() {
       };
     });
 
-    test('metric_measurement hits a bare and a bullet Metric line that '
-        'links no measurement', () {
-      final pattern = lint['metric_measurement']!;
-      for (final line in [
-        '**Metric:** at most 3 tool calls',
-        '- **Metric:** at most 3 tool calls',
-        '- **Metric:** at most 3 calls, [bench](../benchmarks/README.md)',
-        '- **Metric:** 3 calls, [bench](../x/NOTMEASUREMENT.md)',
-        '- **Metric:** 3 calls, [bench](../x/MEASUREMENT.md.bak)',
-        '- **Metric:** 3 calls, MEASUREMENT.md',
-      ]) {
-        expect(pattern.hasMatch(line), isTrue, reason: line);
-      }
-    });
-
-    test('metric_measurement misses a Metric line that links a '
-        'MEASUREMENT.md, with or without an anchor, and other lines', () {
-      final pattern = lint['metric_measurement']!;
-      for (final line in [
-        '- **Metric:** 3 calls, [m](../../measurements/x/MEASUREMENT.md)',
-        '**Metric:** 3 calls, [m](../../measurements/x/MEASUREMENT.md#results)',
-        '- **Metric:** 3 calls, [m](MEASUREMENT.md)',
-        '- **Metric:** 3 calls, [m](../x/MEASUREMENT.md "the run")',
-        '- **Metric:** 3 calls, [m](<../x/MEASUREMENT.md>)',
-        '- **Serves:** PV-02',
-      ]) {
-        expect(pattern.hasMatch(line), isFalse, reason: line);
-      }
-    });
-
     test('metric_number still hits a digit-free Metric line', () {
       final pattern = lint['metric_number']!;
       expect(pattern.hasMatch('- **Metric:** a fast tool'), isTrue);

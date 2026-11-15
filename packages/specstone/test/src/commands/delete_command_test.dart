@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -811,5 +812,108 @@ void main() {
         expect(err.toString(), 'no feature doc carries the name ay\n');
       },
     );
+  });
+
+  group('a feature record under .specstone/records/', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    Future<Directory> recordProject() => writeWriteProject(
+      extra: {
+        ...recordsRootTemplates,
+        'docs/prds/FEATURES.md':
+            '# Feature index\n\n## Systems\n'
+            '- [Signup](features/f02_signup/FEATURE.md)\n',
+        'docs/$persona':
+            '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+        record: recordText(
+          front: 'approved: true\n',
+          statuses: ['email_login:implemented'],
+        ),
+      },
+    );
+
+    test(
+      'the plan names the record by its path and the delete removes it',
+      () async {
+        final root = await recordProject();
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run(['delete', 'feature:login', '--dry-run', '--json']),
+          0,
+          reason: err.toString(),
+        );
+        final plan = jsonDecode(out.toString()) as Map;
+        expect(plan['files'], contains(record));
+        expect(plan['guarded'], contains(record));
+        expect(File('${root.path}/$record').existsSync(), isTrue);
+
+        final (runner: second, out: secondOut, err: secondErr) = writeRunner(
+          root,
+        );
+        expect(
+          await second.run([
+            'delete',
+            'feature:login',
+            '--yes',
+            '--plan',
+            plan['plan']! as String,
+          ]),
+          0,
+          reason: secondErr.toString(),
+        );
+        expect(secondOut.toString(), contains(record));
+        expect(File('${root.path}/$record').existsSync(), isFalse);
+      },
+    );
+
+    test('with two targets one delete removes both records', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...recordsRootTemplates,
+          'docs/prds/FEATURES.md':
+              '# Feature index\n\n## Systems\n'
+              '- [Signup](features/f02_signup/FEATURE.md)\n',
+          'docs/$persona':
+              '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          flutterRecord: recordText(statuses: ['email_login:implemented']),
+          jasprRecord: recordText(statuses: ['email_login:implemented']),
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['delete', 'feature:login', '--dry-run', '--json']),
+        0,
+        reason: err.toString(),
+      );
+      final plan = jsonDecode(out.toString()) as Map;
+      final (runner: second, out: secondOut, err: secondErr) = writeRunner(
+        root,
+      );
+      expect(
+        await second.run([
+          'delete',
+          'feature:login',
+          '--yes',
+          '--plan',
+          plan['plan']! as String,
+        ]),
+        0,
+        reason: secondErr.toString(),
+      );
+      expect(secondOut.toString(), contains(flutterRecord));
+      expect(secondOut.toString(), contains(jasprRecord));
+      expect(
+        Directory('${root.path}/.specstone/records/flutter').existsSync() ||
+            Directory('${root.path}/.specstone/records/jaspr').existsSync(),
+        isFalse,
+      );
+    });
   });
 }

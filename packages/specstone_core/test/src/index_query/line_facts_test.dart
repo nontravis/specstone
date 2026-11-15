@@ -1,9 +1,12 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -82,6 +85,41 @@ void main() {
         [6, 'pick a value.'],
         [10, 'later.'],
       ]);
+    });
+
+    test('a link in the first block and long link-free prose after it store '
+        'the facts the full parse gives', () {
+      final body =
+          '# Title\n\nSee [other](other.md#part).\n\n'
+          '${List.filled(60, 'Plain words, no link mark in them. ').join()}'
+          '\n\n## Second heading\n\nMore plain prose.\n';
+
+      final facts = _factsOf(body);
+
+      final tree = parseMarkdownTree(body)!;
+      final links = linkPlacesOf(
+        body,
+        docPath: 'doc.md',
+        firstLine: 1,
+        tree: tree,
+      )!;
+      expect(facts.links, links.docLinks);
+      expect(facts.fileLinks, links.fileLinks);
+      expect(facts.linkTexts, links.texts);
+      expect(facts.anchors!.toJson(), anchorsOf(tree.nodes).toJson());
+    });
+
+    test('a body with no link syntax whose block pass throws stores no '
+        'warning and no links', () {
+      final parsed = parseIndexedDoc(
+        docPath: 'doc.md',
+        bytes: utf8.encode('${'>' * 20000}x\n'),
+        match: const NoDocType(),
+        statusesOutside: true,
+      );
+
+      expect(parsed.doc.warnings, isEmpty);
+      expect(parsed.content.lineFacts.links, isEmpty);
     });
 
     test('E08: a '

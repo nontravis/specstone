@@ -5,8 +5,8 @@ import 'package:specstone_core/src/doc_model/sentences.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// Returns the sentence, item-count, and line-floor findings of a typed [doc];
-/// an untyped doc has none.
+/// Returns the sentence, item-count, line-floor, and subsection-cap findings
+/// of a typed [doc]; an untyped doc has none.
 ///
 /// An item is a top-level list item or a table row; a nested item, a
 /// paragraph, a heading, and fenced code are none.
@@ -37,7 +37,8 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
     }
     final limits = template.maxSentences ?? const <SentenceLimit>[];
     final count = template.itemCount;
-    if (limits.isEmpty && count == null) continue;
+    final maxSubsections = template.maxSubsections;
+    if (limits.isEmpty && count == null && maxSubsections == null) continue;
     final section = _Block(
       context.itemsIn(doc, i),
       text: [
@@ -45,6 +46,16 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
           if (!line.fenced) line.text,
       ].join('\n'),
     );
+    if (maxSubsections != null) {
+      yield* _subsectionLimitFindings(
+        context,
+        doc,
+        template.id,
+        section,
+        headerLine,
+        maxSubsections,
+      );
+    }
     for (final limit in limits) {
       yield* _sentenceFindings(context, doc, section, headerLine, limit);
     }
@@ -52,6 +63,25 @@ Iterable<Finding> checkShapeCounts(CheckContext context, IndexedDoc doc) sync* {
       yield* _countFindings(context, doc, section, headerLine, count);
     }
   }
+}
+
+Iterable<Finding> _subsectionLimitFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  String sectionId,
+  _Block section,
+  int headerLine,
+  int limit,
+) sync* {
+  final actual = section.subsections.length;
+  if (actual <= limit) return;
+  yield context.finding(
+    doc,
+    FindingKind.subsectionsOverLimit,
+    line: headerLine,
+    message: 'section $sectionId has $actual subsections; the limit is $limit',
+    keys: {'section': sectionId, 'limit': limit, 'actual': actual},
+  );
 }
 
 Iterable<Finding> _sentenceFindings(

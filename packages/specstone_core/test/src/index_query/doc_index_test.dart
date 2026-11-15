@@ -286,21 +286,21 @@ void main() {
         'docs/prds/features/f04_old/FEATURE.md': written,
         'docs/prds/features/f04_old/us01_a/USER_STORY.md': story,
         'docs/prds/features/f04_old/us02_b/USER_STORY.md': story,
-        'docs/specs/f04_old/IMPLEMENTATION.md': record([
+        '.specstone/records/f04_old/IMPLEMENTATION.md': record([
           'a:deprecated',
           'b:deprecated',
         ]),
         'docs/prds/features/f05_mixed/FEATURE.md': written,
         'docs/prds/features/f05_mixed/us01_a/USER_STORY.md': story,
         'docs/prds/features/f05_mixed/us02_b/USER_STORY.md': story,
-        'docs/specs/f05_mixed/IMPLEMENTATION.md': record([
+        '.specstone/records/f05_mixed/IMPLEMENTATION.md': record([
           'a:implemented',
           'b:deprecated',
         ]),
         'docs/prds/features/f06_half/FEATURE.md': written,
         'docs/prds/features/f06_half/us01_a/USER_STORY.md': story,
         'docs/prds/features/f06_half/us02_b/USER_STORY.md': story,
-        'docs/specs/f06_half/IMPLEMENTATION.md': record([
+        '.specstone/records/f06_half/IMPLEMENTATION.md': record([
           'a:implemented',
           'b:planned',
         ]),
@@ -378,7 +378,7 @@ void main() {
         '.specstone/templates/implementation.yaml':
             'id: implementation\n'
             'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
             'parent: feature\n'
             'per_target: true\n'
             'fields:\n'
@@ -397,8 +397,9 @@ void main() {
         'docs/$jasprArch': '# Toast architecture\n',
         'docs/specs/flutter/f02_feedback/f03_toast/DOMAIN.md':
             '# Toast domain\n',
-        'docs/specs/flutter/f02_feedback/IMPLEMENTATION.md': '# Record\n',
-        'docs/specs/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
+        '.specstone/records/flutter/f02_feedback/IMPLEMENTATION.md':
+            '# Record\n',
+        '.specstone/records/jaspr/f02_feedback/IMPLEMENTATION.md': '# Record\n',
       });
       final session = openSession(root);
       addTearDown(session.close);
@@ -510,7 +511,7 @@ void main() {
     const recordLayer =
         'id: implementation\n'
         'description: One feature record per target.\n'
-        'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+        'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
         'parent: feature\n'
         'per_target: true\n'
         'fields:\n'
@@ -561,10 +562,10 @@ void main() {
     test("f01/us02/fr02/e07: a target's record skips the feature and each of its stories there, while the other target computes from its own records", () async {
       final skipped = await targeted(
         records: {
-          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
             '  - ":skipped:no shop on the web"\n',
           ),
-          'docs/specs/jaspr/f01_shop/IMPLEMENTATION.md': record(''),
+          '.specstone/records/jaspr/f01_shop/IMPLEMENTATION.md': record(''),
         },
       );
       final shop = skipped.at(shopPath)!;
@@ -578,7 +579,7 @@ void main() {
     test('f01/us02/fr02/e13: a skip on an ancestor record skips the nested feature itself, which holds no record of its own there', () async {
       final skipped = await targeted(
         records: {
-          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
             '  - ":skipped:no shop on the web"\n',
           ),
         },
@@ -595,7 +596,7 @@ void main() {
     test('f01/us02/fr02/e08: every story skipped with no feature entry gives skipped there', () async {
       final allSkipped = await targeted(
         records: {
-          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
             '  - greet:skipped\n  - cart:skipped\n'
             '  - cart/add:skipped\n  - cart/add/check:skipped\n',
           ),
@@ -611,12 +612,11 @@ void main() {
       () async {
         final oneSkipped = await targeted(
           records: {
-            'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+            '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
               '  - greet:skipped\n',
             ),
-            'docs/specs/flutter/f01_shop/f01_cart/IMPLEMENTATION.md': record(
-              '  - add:implemented\n  - add/check:implemented\n',
-            ),
+            '.specstone/records/flutter/f01_shop/f01_cart/IMPLEMENTATION.md':
+                record('  - add:implemented\n  - add/check:implemented\n'),
           },
         );
         expect(
@@ -628,7 +628,7 @@ void main() {
     test('f01/us02/fr02/e10: no record for the feature and no skip above gives planned per story entry, planned everywhere with none', () async {
       final bare = await targeted(
         records: {
-          'docs/specs/jaspr/f01_shop/IMPLEMENTATION.md': record(
+          '.specstone/records/jaspr/f01_shop/IMPLEMENTATION.md': record(
             '  - greet:planned\n  - cart/add:planned\n',
           ),
         },
@@ -638,7 +638,9 @@ void main() {
         'planned',
       );
       final fresh = await targeted(
-        records: {'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record('')},
+        records: {
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(''),
+        },
       );
       expect(
         fresh.statusOf(fresh.at(shopPath)!, codeTarget: 'flutter'),
@@ -648,7 +650,7 @@ void main() {
     test('f01/us02/fr02/e11: one sub-feature skipped, the other implemented, gives implemented there', () async {
       final nested = await targeted(
         records: {
-          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
             '  - cart:skipped\n  - greet:implemented\n',
           ),
         },
@@ -665,7 +667,7 @@ void main() {
     test("domain:index_query INV-29, consistency_check/find_prd_spec_disagreements/check_record_entries: an entry an ancestor record writes for a nested feature's story gives it no status and no entry, as check resolves it nowhere", () async {
       final misplaced = await targeted(
         records: {
-          'docs/specs/flutter/f01_shop/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f01_shop/IMPLEMENTATION.md': record(
             '  - cart/add:implemented\n',
           ),
         },
@@ -678,7 +680,7 @@ void main() {
       final empty = await targeted(
         extra: {'docs/prds/features/f02_none/FEATURE.md': feature('None')},
         records: {
-          'docs/specs/flutter/f02_none/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f02_none/IMPLEMENTATION.md': record(
             '  - ":skipped:no web view on the web"\n',
           ),
         },

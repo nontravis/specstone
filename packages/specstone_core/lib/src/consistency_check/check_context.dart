@@ -9,7 +9,6 @@ import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -27,6 +26,21 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show BodyLine;
 
+/// Why a rule reads a code file, which names what an unreadable file leaves
+/// unchecked.
+enum CodeRead {
+  /// An `implements` Symbol is looked up in the file.
+  symbols('implements Symbols in it are not checked'),
+
+  /// A code link's fingerprint is taken from the file.
+  codeLink('the code links that reach it are not checked');
+
+  new(this.unchecked);
+
+  /// What goes unchecked when the file cannot be read.
+  final String unchecked;
+}
+
 /// What every rule of one check run reads: the index, per-doc caches, and the
 /// warnings the findings have stated.
 final class CheckContext {
@@ -36,6 +50,7 @@ final class CheckContext {
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
   final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
+  final Map<(CodeTarget, String), CodeRead> _unreadable = {};
   final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -89,9 +104,9 @@ final class CheckContext {
   ///
   /// [path] is relative to [target]'s code root. Malformed UTF-8 bytes decode
   /// to U+FFFD instead of failing. Returns null for a file that cannot be
-  /// read, and adds one warning for it.
+  /// read, and records its unreadable-file warning.
   String? codeTextOf(CodeTarget target, String path) {
-    final bytes = codeBytesOf(target, path);
+    final bytes = codeBytesOf(target, path, reason: CodeRead.symbols);
     return bytes == null
         ? null
         : const Utf8Decoder(allowMalformed: true).convert(bytes);
@@ -101,14 +116,18 @@ final class CheckContext {
   /// run, and states the warning of a file that cannot be read.
   ///
   /// [path] is relative to [target]'s code root. Returns null for a file that
-  /// cannot be read; its warning is stated once per run, whoever reads it.
-  List<int>? codeBytesOf(CodeTarget target, String path) {
+  /// cannot be read; its warning is stated once per target and file, naming
+  /// what [reason] leaves unchecked, [CodeRead.symbols] when any read of the
+  /// file has that reason.
+  List<int>? codeBytesOf(
+    CodeTarget target,
+    String path, {
+    required CodeRead reason,
+  }) {
     final bytes = readCodeBytes(target, path);
     if (bytes == null) {
-      warn(
-        '${normalCodeEntry(path)}: cannot read the file; '
-        'implements Symbols in it are not checked',
-      );
+      final key = (target, normalCodeEntry(path));
+      if (_unreadable[key] != CodeRead.symbols) _unreadable[key] = reason;
     }
     return bytes;
   }
@@ -240,14 +259,15 @@ final class CheckContext {
             type.sections.any((section) => section.id == sectionId),
       );
 
-  /// The first path segment of every doc type `path`.
+  /// The first path segment of every doc type `path`, and the records folder
+  /// for a records path.
   late final Set<String> checkedFolders = checkedFoldersOf(
     _session.project.set,
   );
 
   /// Whether [docPath] lies in a checked folder.
   bool isCheckedPath(String docPath) =>
-      checkedFolders.contains(docPath.split('/').first);
+      isInCheckedFolder(checkedFolders, docPath);
 
   /// Whether [doc] lies in a checked folder.
   bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);
@@ -326,18 +346,24 @@ final class CheckContext {
   /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
 
-  /// Returns the `###` blocks of each held section of [doc] whose template
-  /// sets `prefix_id`, keyed by the ID the grammar reads at the heading;
-  /// a lettered or unreadable ID keys no block.
+  /// Returns the `###` blocks of each held section of [doc], keyed by the ID
+  /// the grammar reads at the heading; a lettered or unreadable ID keys no
+  /// block.
+  ///
+  /// A section reads its `prefix_id`. A gnfr section with none reads the
+  /// letters and hyphens before the heading's first digit as the prefix; any
+  /// other doc skips a section with none.
   Iterable<({String key, List<BodyLine> lines})> _itemHeadingBlocksOf(
     IndexedDoc doc,
   ) sync* {
+    final isGnfr = doc.docTypeId == _gnfrType;
     for (final (i, template) in _heldTemplatesOf(doc).indexed) {
-      final prefix = template?.prefixId;
-      if (prefix == null) continue;
+      if (template == null) continue;
+      final prefix = template.prefixId;
+      if (prefix == null && !isGnfr) continue;
       yield* headingBlocksOf(
         bodyLinesOf(doc, i),
-        (heading) => _itemKeyOf(heading, prefix),
+        (heading) => itemHeadingKeyOf(heading, prefix),
       );
     }
   }
@@ -359,14 +385,9 @@ final class CheckContext {
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
       for (final (:key, :lines) in _itemHeadingBlocksOf(doc)) {
-        final statement = lines
-            .where((line) => !line.fenced)
-            .map((line) => line.text.trim())
-            .where((text) => text.startsWith(_statementPrefix))
-            .firstOrNull;
         statements.putIfAbsent(
           key,
-          () => (path: doc.docPath, text: statement ?? ''),
+          () => (path: doc.docPath, text: nfrStatementOf(lines)),
         );
       }
     }
@@ -417,8 +438,16 @@ final class CheckContext {
   List<String> get unstatedWarnings => [
     for (final warning in _session.warnings)
       if (!_stated.contains(warning)) warning,
+    for (final MapEntry(key: (target, path), value: reason)
+        in _unreadable.entries)
+      _unreadableWarning(target, path, reason),
     ..._codeWarnings,
   ];
+
+  String _unreadableWarning(CodeTarget target, String path, CodeRead reason) {
+    final prefix = targets.length > 1 ? '${target.name}: ' : '';
+    return '$prefix$path: cannot read the file; ${reason.unchecked}';
+  }
 }
 
 const _gnfrType = 'gnfr';
@@ -429,12 +458,3 @@ final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
-const _statementPrefix = '- **Statement:**';
-
-/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
-/// other heading, a lettered ID, and an unreadable ID.
-String? _itemKeyOf(String heading, String prefix) {
-  final text = itemHeadingTextOf(heading);
-  final id = text == null ? null : readItemId(text, prefix);
-  return id is ItemId ? id.written : null;
-}

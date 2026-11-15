@@ -27,7 +27,8 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// path from the doc at [docPath], read before the moves. Its `#` suffix, a
 /// closing mark, and a line suffix are not part of the path and stay. It
 /// changes only when that path is an [isPortablePath] and [exists] holds for
-/// it, given as [relativeFilePathOf] gives it, and the shared decision of
+/// it, as a path from the project root (see [projectFilePathOf]), and the
+/// shared decision of
 /// [movedRelativePath] says the text no longer reaches the moved file. A
 /// token holding an escape, a web address, a path of dots alone, and a word
 /// with neither a `/` nor a file extension are not mentions. [exists] runs
@@ -123,7 +124,9 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
   final after = movedRelativePath(path, docPath, moves);
   if (after == null) return null;
   final target = relativeFilePathOf(path, docPath);
-  if (target == null || !isPortablePath(target) || !exists(target)) {
+  if (target == null ||
+      !isPortablePath(target) ||
+      !exists(projectFilePathOf(target, docPath))) {
     return null;
   }
   final text = path.endsWith('/') ? '$after/' : after;

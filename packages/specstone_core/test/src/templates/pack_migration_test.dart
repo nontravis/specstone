@@ -314,6 +314,36 @@ void main() {
     );
   });
 
+  test('a restamp_code_fingerprints step with no keys parses and '
+      'touches no doc type', () {
+    final step = parseMigrationsOf('''
+- from: 1.7.0
+  steps:
+    - restamp_code_fingerprints: {}
+''').single.steps.single;
+
+    expect(step, isA<RestampCodeFingerprints>());
+    expect(step.kind, 'restamp_code_fingerprints');
+    expect(step.touches('fr'), isFalse);
+  });
+
+  test('a restamp_code_fingerprints step with a key is '
+      'unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.7.0\n'
+        '  steps:\n'
+        '    - restamp_code_fingerprints: {note: x}\n',
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].restamp_code_fingerprints.note',
+        ),
+      ),
+    );
+  });
+
   test('a bullet_lines step parses to BulletLines and touches its '
       'doc type', () {
     final step = parseMigrationsOf('''

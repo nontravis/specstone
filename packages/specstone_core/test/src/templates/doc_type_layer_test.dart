@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -900,6 +901,51 @@ lint:
       },
     );
 
+    test('max_subsections reads a whole number of 1 or more', () {
+      expect(lintOf('{max_subsections: 4}').maxSubsections, 4);
+      expect(lintOf('{max_chars: 3}').maxSubsections, isNull);
+    });
+
+    test('a max_subsections of zero, below zero, or another type is '
+        'unknown_value', () {
+      for (final value in ['0', '-1', '2.5', 'many', 'true']) {
+        expectSectionFault(
+          '{max_subsections: $value}',
+          FaultCode.unknownValue,
+          'max_subsections',
+        );
+      }
+    });
+
+    test('a required_patterns entry reads per_subsection, off when absent', () {
+      final write = lintOf(
+        '{required_patterns: [ '
+        '{id: a, pattern: x, message: m, per_subsection: true}, '
+        '{id: b, pattern: y, message: m} ]}',
+      ).requiredPatterns;
+      final items = (write! as PlainList<PatternEntry>).items;
+      expect(items.map((e) => e.perSubsection), [true, false]);
+    });
+
+    test('a required_patterns per_subsection that is no boolean is '
+        'unknown_value', () {
+      expectSectionFault(
+        '{required_patterns: [{id: a, pattern: x, message: m, '
+            'per_subsection: sometimes}]}',
+        FaultCode.unknownValue,
+        'required_patterns[0].per_subsection',
+      );
+    });
+
+    test('a banned_patterns entry with per_subsection is unknown_key', () {
+      expectSectionFault(
+        '{banned_patterns: [{id: a, pattern: x, message: m, '
+            'per_subsection: true}]}',
+        FaultCode.unknownKey,
+        'banned_patterns[0].per_subsection',
+      );
+    });
+
     test('min_lines reads a whole number and refuses another value', () {
       expect(lintOf('{min_lines: 2}').minLines, 2);
       expectSectionFault(
@@ -940,6 +986,64 @@ lint:
           reason: key,
         );
       }
+    });
+  });
+
+  group('DocTypeLayer.parse when_field', () {
+    SectionEntry sectionOf(String whenField) => _parse(
+      'sections: [{id: goal, header: G, required: true, '
+      'when_field: $whenField}]',
+    ).sections.single;
+
+    void expectFault(String whenField, FaultCode code, String key) {
+      expect(
+        () => sectionOf(whenField),
+        throwsA(_fault(code, key: 'sections.goal.$key')),
+      );
+    }
+
+    test('reads the field and its values beside the section required', () {
+      final section = sectionOf('{field: kind, values: [api, cli]}');
+      expect(section.whenField?.field, 'kind');
+      expect(section.whenField?.values, ['api', 'cli']);
+      expect(section.required, isTrue);
+    });
+
+    test('is null when the section writes none', () {
+      final section = _parse('sections: [{id: goal, header: G}]').sections;
+      expect(section.single.whenField, isNull);
+    });
+
+    test('a key other than field and values is unknown_key', () {
+      expectFault(
+        '{field: kind, values: [api], required: true}',
+        FaultCode.unknownKey,
+        'when_field.required',
+      );
+    });
+
+    test('a missing field or values is missing_key', () {
+      expectFault('{values: [api]}', FaultCode.missingKey, 'when_field.field');
+      expectFault('{field: kind}', FaultCode.missingKey, 'when_field.values');
+    });
+
+    test('a wrong type is unknown_value at its key path', () {
+      expectFault(
+        '{field: 3, values: [api]}',
+        FaultCode.unknownValue,
+        'when_field.field',
+      );
+      expectFault(
+        '{field: kind, values: api}',
+        FaultCode.unknownValue,
+        'when_field.values',
+      );
+      expectFault(
+        '{field: kind, values: [1]}',
+        FaultCode.unknownValue,
+        'when_field.values',
+      );
+      expectFault('[kind]', FaultCode.unknownValue, 'when_field');
     });
   });
 

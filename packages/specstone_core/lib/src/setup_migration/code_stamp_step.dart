@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
@@ -8,6 +10,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
@@ -22,7 +25,6 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:yaml/yaml.dart';
 
 // MARK: - Types
 
@@ -48,7 +50,9 @@ typedef _Stamp = ({
 
 /// The `stamp_code_fingerprints` step of a pack upgrade: each code link the
 /// check reads, but a `planned` entry's, takes its code's current
-/// fingerprint, with no compare.
+/// fingerprint, with no compare. In restamp mode, the
+/// `restamp_code_fingerprints` step: a link takes it only when it records the
+/// fingerprint its code had before comment and blank lines were dropped.
 ///
 /// The docs are read as the index reads them, the links picked by the
 /// check's own selection, and the code hashed by its own read, each code
@@ -61,14 +65,17 @@ final class CodeStampStep {
   ///
   /// A link takes its fingerprint after one space, in place of any it ends
   /// in. A `planned` entry, a waiting target's `covers:` entry, an entry
-  /// whose path names nothing, one whose code cannot be read, and one whose
-  /// scalar style takes no tail edit stay as written and are not counted; no
-  /// other byte of a doc changes.
+  /// whose path names nothing, and one whose code cannot be read stay as
+  /// written and are not counted; no other entry of a doc changes.
+  ///
+  /// With [restamp], a link that records no fingerprint, or one that differs
+  /// from its code's fingerprint under the earlier rule, stays as written too.
   factory plan(
     List<CodeStampDoc> docs, {
     required Directory projectRoot,
     required MergedSet set,
     required List<CodeTarget> targets,
+    bool restamp = false,
   }) {
     final read = _ReadDocs(docs, set, targets);
     final work = ImplementedWork.of(
@@ -80,7 +87,7 @@ final class CodeStampStep {
     final rewrites = <String, String>{};
     final entries = {for (final target in targets) target: 0};
     for (final doc in docs) {
-      final stamps = _stampsOf(read, work, reader, doc);
+      final stamps = _stampsOf(read, work, reader, doc, restamp: restamp);
       final (:lf, :applied) = _withStamps(doc.lf, stamps);
       if (lf != doc.lf) rewrites[doc.docPath] = lf;
       for (final stamp in applied) {
@@ -136,8 +143,9 @@ List<_Stamp> _stampsOf(
   _ReadDocs read,
   ImplementedWork work,
   _CodeReader reader,
-  CodeStampDoc doc,
-) {
+  CodeStampDoc doc, {
+  required bool restamp,
+}) {
   final indexed = read.tree.at(doc.docPath);
   final type = doc.type;
   final target = indexed == null ? null : work.targetOf(indexed);
@@ -155,7 +163,8 @@ List<_Stamp> _stampsOf(
   return [
     for (final link in links)
       if (link.status != RecordStatus.planned)
-        if (reader.fingerprintOf(target, link.path) case final fp?)
+        if (_fingerprintToTake(reader, target, link, restamp: restamp)
+            case final fp?)
           if (_stampedValue(link, fp) case final stamped
               when stamped != link.value)
             (
@@ -165,6 +174,29 @@ List<_Stamp> _stampsOf(
               target: target,
             ),
   ];
+}
+
+/// Returns the fingerprint [link] takes, null when it keeps its entry.
+///
+/// Stamping takes the current fingerprint of the code. Restamping takes it
+/// only when [link] records the fingerprint of the same code under the rule
+/// before comment and blank lines were dropped.
+String? _fingerprintToTake(
+  _CodeReader reader,
+  CodeTarget target,
+  CodeLink link, {
+  required bool restamp,
+}) {
+  final current = reader.fingerprintOf(target, link.path);
+  if (!restamp || current == null) return current;
+  final recorded = link.recorded;
+  if (recorded == null) return null;
+  final earlier = reader.fingerprintOf(
+    target,
+    link.path,
+    fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes),
+  );
+  return recorded == earlier ? current : null;
 }
 
 /// Returns the value [link] takes with [fingerprint] recorded after it.
@@ -237,9 +269,14 @@ final class _CodeReader {
   Directory codeRootOf(CodeTarget target) =>
       _codeRoots[target] ?? (throw _unknownTarget(target));
 
-  /// Returns the current fingerprint of [path] of [target], as the check
-  /// reads it, null when its code cannot be read.
-  String? fingerprintOf(CodeTarget target, String path) {
+  /// Returns the fingerprint of [path] of [target], as the check reads it
+  /// under [fileHash] (its current rule when null), null when its code
+  /// cannot be read.
+  String? fingerprintOf(
+    CodeTarget target,
+    String path, {
+    String Function(List<int> bytes, String path)? fileHash,
+  }) {
     final codeRoot = codeRootOf(target);
     return currentCodeFingerprint(
       path,
@@ -247,6 +284,7 @@ final class _CodeReader {
       nestedRoots: _nestedRoots[target] ?? (throw _unknownTarget(target)),
       bytesOf: (file) => _read(target, codeRoot, file),
       onUnlistable: (_) {},
+      fileHash: fileHash,
     );
   }
 
@@ -267,8 +305,8 @@ final class _CodeReader {
 
 // MARK: - Writing
 
-/// Returns [lf] with each value of [stamps] rewritten in its field, quotes
-/// and every other byte kept, and the stamps that landed.
+/// Returns [lf] with each value of [stamps] rewritten in its field through
+/// the list writer, and the stamps that landed.
 ({String lf, List<_Stamp> applied}) _withStamps(
   String lf,
   List<_Stamp> stamps,
@@ -283,81 +321,23 @@ final class _CodeReader {
     final block = Doc.parse(text).frontmatter
         ?.where((candidate) => candidate.name == field)
         .firstOrNull;
-    if (block == null) continue;
-    final (:written, :landed) = _withScalars(block.text, field, fieldStamps);
+    final entries = block == null ? null : listEntriesOf(block);
+    if (block == null || entries == null) continue;
+    final byValue = {for (final stamp in fieldStamps) stamp.value: stamp};
+    final landed = <_Stamp>[];
+    final stamped = <Object?>[];
+    for (final entry in entries) {
+      final stamp = byValue[entry];
+      if (stamp != null) landed.add(stamp);
+      stamped.add(stamp?.stamped ?? entry);
+    }
+    if (landed.isEmpty) continue;
     applied.addAll(landed);
-    if (written != block.text) text = withKeyBlock(text, field, written);
+    text = withKeyBlock(
+      text,
+      field,
+      listBlockOf(field, stamped, onDisk: block),
+    );
   }
   return (lf: text, applied: applied);
-}
-
-/// Returns the key block [text] of [field] with the scalar of each of
-/// [stamps] rewritten in place, and the stamps whose scalar took the edit.
-({String written, List<_Stamp> landed}) _withScalars(
-  String text,
-  String field,
-  List<_Stamp> stamps,
-) {
-  final node = switch (loadYamlNode(text)) {
-    YamlMap(:final nodes) => nodes[field],
-    _ => null,
-  };
-  final scalars = switch (node) {
-    final YamlList list => list.nodes.whereType<YamlScalar>(),
-    final YamlScalar scalar => [scalar],
-    _ => const <YamlScalar>[],
-  };
-  final byValue = {for (final stamp in stamps) stamp.value: stamp};
-  final edits = <({int start, int end, String source, _Stamp stamp})>[];
-  for (final scalar in scalars) {
-    final stamp = byValue[scalar.value];
-    if (stamp == null) continue;
-    if (_tailEdit(text, scalar, stamp.value, stamp.stamped) case final edit?) {
-      edits.add((
-        start: edit.start,
-        end: edit.end,
-        source: edit.source,
-        stamp: stamp,
-      ));
-    }
-  }
-  edits.sort((a, b) => b.start.compareTo(a.start));
-  var written = text;
-  for (final (:start, :end, :source, stamp: _) in edits) {
-    written = written.replaceRange(start, end, source);
-  }
-  return (written: written, landed: [for (final edit in edits) edit.stamp]);
-}
-
-/// Returns the edit that makes the source of [scalar], read as [old], read
-/// as [value]; null when the scalar's style or source keeps it from one.
-///
-/// [value] differs from [old] only past the pointer, so the edit replaces
-/// the tail alone and the source keeps its quotes and escapes.
-({int start, int end, String source})? _tailEdit(
-  String text,
-  YamlScalar scalar,
-  String old,
-  String value,
-) {
-  final quoteLength = switch (scalar.style) {
-    ScalarStyle.PLAIN => 0,
-    ScalarStyle.SINGLE_QUOTED || ScalarStyle.DOUBLE_QUOTED => 1,
-    _ => null,
-  };
-  if (quoteLength == null) return null;
-  var shared = 0;
-  while (shared < old.length &&
-      shared < value.length &&
-      old[shared] == value[shared]) {
-    shared++;
-  }
-  final oldTail = old.substring(shared);
-  final end = scalar.span.end.offset - quoteLength;
-  final start = end - oldTail.length;
-  if (start < scalar.span.start.offset + quoteLength ||
-      text.substring(start, end) != oldTail) {
-    return null;
-  }
-  return (start: start, end: end, source: value.substring(shared));
 }

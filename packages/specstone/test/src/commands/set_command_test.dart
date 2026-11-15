@@ -704,6 +704,140 @@ void main() {
       expect(text, contains('Removes every entry of the task'));
     });
   });
+
+  group('--replace', () {
+    const target = 'user_story:login/email_login#use_case';
+    const stdin = '==> old <==\nwith an email\n==> new <==\nwith a link\n';
+
+    test('replaces one passage of a section and prints its new base', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = getDoc(root, target)['base']! as String;
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(input: stdin),
+      );
+      expect(
+        await runner.run(['set', target, '--base', base, '--replace']),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        readDoc(root, story1),
+        before.replaceFirst('with an email', 'with a link'),
+      );
+      expect(
+        out.toString(),
+        '==> login/email_login (user_story) · $story1#use_case · base ${baseHashOf('\nSign in with a link.\n')} <==\n',
+      );
+      expect(err.toString(), isEmpty);
+    });
+
+    test('exits 75 as replace_unmatched and prints the current section', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = getDoc(root, target)['base']! as String;
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          input: '==> old <==\nBlue fish.\n==> new <==\nx\n',
+        ),
+      );
+      expect(
+        await runner.run(['set', target, '--base', base, '--replace']),
+        75,
+      );
+      expect(
+        out.toString(),
+        '==> login/email_login (user_story) · $story1#use_case · base $base <==\n'
+        '## Use Case\n\nSign in with an email.\n',
+      );
+      expect(err.toString(), contains('the old passage is not in the section'));
+      expect(readDoc(root, story1), before);
+    });
+
+    test('exits 64 as replace_ambiguous naming the count', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = getDoc(root, target)['base']! as String;
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(input: '==> old <==\na\n==> new <==\nx\n'),
+      );
+      expect(
+        await runner.run(['set', target, '--base', base, '--replace']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('occurs 2 times'));
+      expect(readDoc(root, story1), before);
+    });
+
+    test('exits 64 as argument_conflict beside --field, --title, --batch, a lead target, or a whole-doc target, and writes nothing', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final batch = File.fromUri(root.uri.resolve('batch.md'))
+        ..writeAsStringSync('x\n');
+      const doc = 'user_story:login/email_login';
+      for (final args in [
+        [target, '--field', 'vision'],
+        [doc, '--field', 'vision'],
+        [doc, '--title'],
+        [target, '--title'],
+        [target, '--batch', batch.path],
+        ['$doc#_lead'],
+        [doc],
+      ]) {
+        final (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(input: stdin),
+        );
+        expect(
+          await runner.run([
+            'set',
+            ...args,
+            '--base',
+            'e3b0c44298fc',
+            '--replace',
+            '--json',
+          ]),
+          64,
+          reason: '$args',
+        );
+        expect(out.toString(), isEmpty, reason: '$args');
+        expect(
+          ((jsonDecode(err.toString()) as Map)['error']! as Map)['code'],
+          'argument_conflict',
+          reason: '$args',
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test(
+      'exits 64 as argument_conflict beside --remove-task and reads no stdin',
+      () async {
+        final root = await writeWriteProject();
+        final console = _RecordingConsole();
+        final (:runner, :out, :err) = writeRunner(root, console: console);
+        expect(
+          await runner.run([
+            'set',
+            '--remove-task',
+            'a:b',
+            '--replace',
+            '--json',
+          ]),
+          64,
+        );
+        expect(
+          ((jsonDecode(err.toString()) as Map)['error']! as Map)['code'],
+          'argument_conflict',
+        );
+        expect(console.reads, 0);
+      },
+    );
+  });
 }
 
 /// A [Console] that counts how often stdin is read.

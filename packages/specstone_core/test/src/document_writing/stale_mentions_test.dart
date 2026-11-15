@@ -105,6 +105,7 @@ void main() {
       );
       const removedFeature = <PathMove>[
         (from: 'prds/features/f01_login/', to: ''),
+        (from: '.specstone/records/f01_login/', to: ''),
         (from: 'specs/f01_login/', to: ''),
       ];
 
@@ -288,7 +289,7 @@ void main() {
               '${shippedPinsConfig()}code_root: ../$folder\n',
         },
         // The code lies outside the project, so no link can take a fingerprint.
-        unfingerprinted: {'docs/$loginRecord', 'docs/$loginArchitecture'},
+        unfingerprinted: {loginRecord, 'docs/$loginArchitecture'},
       );
 
       expect(staleAfter(root, renameLogin), [

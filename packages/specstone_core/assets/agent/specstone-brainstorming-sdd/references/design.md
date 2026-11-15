@@ -1,12 +1,11 @@
 `specstone-sdd-engineer` runs this in `mode: design`, its gate already made; so does the runner of
-`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner nothing: each gap is an open
-question in your report.
+`specstone-brainstorming-sdd` when it runs the mode itself. Each gap is an open question in your report.
 
 ## 1. Check the inputs
 
-- **Brief**: the Owner's approved answers: decisions, rulings in the Owner's words, the approach picked, and open
-  questions, each claim with its saved file and line range. Read it whole. When it names a file to re-read, also
-  follow `## Map the source` in `source.md`.
+- **Brief**: the Owner's approved answers (decisions, rulings, the approach picked, open questions), each claim
+  with its saved file and line range. Read it whole. When it names a file to re-read, also follow
+  `## Map the source` in `source.md`.
 - **Design path**: the document to write or amend.
 
 ## 2. Ground each claim
@@ -25,8 +24,7 @@ Before any write, judge the design path by the saved files' `==> ` headers:
   `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole.
 
 Cite each story, FR, and section by its Specstone name, `<type>:<name>#<section>`, never by file path or line. A
-claim in the brief that the docs contradict is an open question; a decision that changes what a doc says is a change,
-mapped in step 3. Open each code path and symbol the brief names; list each not found under `Findings:`.
+claim in the brief that the docs contradict is an open question. Open each code path and symbol the brief names.
 
 ## 3. Write the document
 
@@ -63,19 +61,22 @@ Before the Docs to change table closes, search each decision's dependents:
 - An amend for an Owner decision that adds or changes behavior runs the same search on that decision's
   terms and adds its rows and searched terms before the author writes it.
 
-Leave out what a doc will carry verbatim: no story text, FR statement, scenario, edge case, endpoint shape, or an
-entity's field list.
+Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the brief leaves open, naming the
+one owner item its rule takes, or list it as an open question; a design holding such a point open goes to no author.
+Leave a code-level point, such as a class name, to the builder, with no decision and no open question.
 
-When you amend, sweep each ruling: search the document for the text it supersedes and edit every place
-that still states it.
+Leave out what a doc will carry verbatim (story text, FR statement, scenario, edge case, endpoint shape, an entity's
+field list): name the decision.
+
+On an amend, sweep each ruling: search the document for the text it supersedes and edit every place that still states
+it.
 
 Write the file, or amend it when it exists. Write no other file but the agent's `report:` file, and no PRD or spec doc.
 
 ## 4. Check before you report
 
-- No placeholder, no `TBD`, and no empty section but Open questions.
-- No section contradicts another, and no decision contradicts a ruling.
-- Each decision is specific enough that two builders would build the same thing.
+No placeholder, no empty section but Open questions, no contradiction between sections or with a ruling,
+and each decision specific enough that two builders would build the same thing.
 
 ## 5. Report
 

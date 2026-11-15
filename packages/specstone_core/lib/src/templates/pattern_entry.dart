@@ -27,6 +27,7 @@ final class PatternEntry {
     required this.message,
     this.scope = PatternScope.text,
     this.except = const [],
+    this.perSubsection = false,
   }) : regExp = RegExp(pattern, unicode: true),
        _exceptRegExps = [
          for (final entry in except) RegExp(_fullMatch(entry), unicode: true),
@@ -47,6 +48,10 @@ final class PatternEntry {
   /// Matched texts the entry lets pass; each is a full-match expression.
   final List<String> except;
 
+  /// Whether each `###` subsection of the section must match; a
+  /// `required_patterns` entry only.
+  final bool perSubsection;
+
   /// The compiled [pattern], Unicode mode.
   final RegExp regExp;
 
@@ -56,18 +61,21 @@ final class PatternEntry {
   bool isExcepted(String matched) =>
       _exceptRegExps.any((entry) => entry.hasMatch(matched));
 
-  /// Returns the JSON object of this entry; `except` prints only when set.
+  /// Returns the JSON object of this entry; `except` and `perSubsection` print
+  /// only when set.
   Map<String, Object> toJson() => {
     'id': id,
     'pattern': pattern,
     'message': message,
     'in': scope.wire,
     if (except.isNotEmpty) 'except': except,
+    if (perSubsection) 'perSubsection': true,
   };
 
   /// Parses one entry, at fault key [key].
   ///
-  /// With [forRequired], the entry allows only `id`, `pattern`, and `message`.
+  /// With [forRequired], the entry allows only `id`, `pattern`, `message`, and
+  /// `per_subsection`.
   /// Throws `unknown_value` for a `pattern` or `except` entry that does not
   /// compile, so no later reader meets a `FormatException`.
   static PatternEntry parse(
@@ -99,6 +107,14 @@ final class PatternEntry {
     );
     final except = stringList(map, 'except', file: file, prefix: prefix);
     final scope = _scopeOf(map, file: file, prefix: prefix);
+    final perSubsection =
+        optionalValue<bool>(
+          map,
+          'per_subsection',
+          file: file,
+          prefix: prefix,
+        ) ??
+        false;
     try {
       return PatternEntry(
         id: id,
@@ -106,6 +122,7 @@ final class PatternEntry {
         message: message,
         scope: scope,
         except: List.unmodifiable(except),
+        perSubsection: perSubsection,
       );
     } on FormatException {
       _compile(pattern, file: file, key: '${prefix}pattern');
@@ -119,7 +136,7 @@ final class PatternEntry {
 
 const _bannedKeys = {'id', 'pattern', 'message', 'in', 'except'};
 
-const _requiredKeys = {'id', 'pattern', 'message'};
+const _requiredKeys = {'id', 'pattern', 'message', 'per_subsection'};
 
 /// Returns the expression that matches [source] against a whole text.
 String _fullMatch(String source) => '^(?:$source)\$';

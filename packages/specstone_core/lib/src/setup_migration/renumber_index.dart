@@ -113,6 +113,7 @@ final class RenumberIndex {
           : [
               for (final item in doc.items)
                 if (item.id case final id? when id is! UnreadableId) id.written,
+              ...doc.unprefixedNfrStatements.keys,
             ];
       for (final id in ids) {
         paths.putIfAbsent(id, () => doc.docPath);

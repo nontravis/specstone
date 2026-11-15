@@ -10,6 +10,8 @@ const approvedNotWritableMessage =
 /// JSON `error.code`; [exitStatus] is the process exit status for the fault.
 enum WriteFaultCode {
   baseMismatch('base_mismatch', 75),
+  replaceUnmatched('replace_unmatched', 75),
+  replaceAmbiguous('replace_ambiguous', 64),
   fieldUnknown('field_unknown', 64),
   fieldValueInvalid('field_value_invalid', 64),
   fieldNotWritable('field_not_writable', 64),
@@ -34,7 +36,8 @@ enum WriteFaultCode {
 
 /// The current text and base hash of a target a write found changed.
 ///
-/// A `base_mismatch` carries it so the caller can retry without a `get`.
+/// A `base_mismatch` or `replace_unmatched` carries it so the caller can
+/// retry without a `get`.
 final class CurrentTarget {
   const new({required this.heading, required this.text, required this.base});
 
@@ -77,7 +80,8 @@ final class WriteFault implements SpecstoneFault {
   /// The other DocPaths involved, such as the docs that link into a delete.
   final List<String> relatedFiles;
 
-  /// The target's current text and base, for `base_mismatch`.
+  /// The target's current text and base, for `base_mismatch` and
+  /// `replace_unmatched`.
   final CurrentTarget? current;
 
   @override

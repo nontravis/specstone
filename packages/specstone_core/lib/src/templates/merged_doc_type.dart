@@ -212,6 +212,9 @@ final class ItemCountLint {
   };
 }
 
+/// The doc field and values that bind a section's `required`.
+typedef WhenField = ({String field, List<String> values});
+
 /// One enabled guide section of a merged doc type.
 final class MergedSection {
   const new({
@@ -239,6 +242,8 @@ final class MergedSection {
     this.diagram,
     this.maxSentences,
     this.itemCount,
+    this.maxSubsections,
+    this.whenField,
   });
 
   /// The section id.
@@ -330,6 +335,13 @@ final class MergedSection {
   /// The bounds on the section's item count; null when no layer sets them.
   final ItemCountLint? itemCount;
 
+  /// The most `###` subsections the section holds; null when no layer sets it.
+  final int? maxSubsections;
+
+  /// The doc field and values that bind [required]; null when no layer sets
+  /// it.
+  final WhenField? whenField;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedSection copyWith({
     String? header,
@@ -355,6 +367,8 @@ final class MergedSection {
     DiagramLint? diagram,
     List<SentenceLimit>? maxSentences,
     ItemCountLint? itemCount,
+    int? maxSubsections,
+    WhenField? whenField,
   }) => MergedSection(
     id: id,
     header: header ?? this.header,
@@ -380,6 +394,8 @@ final class MergedSection {
     diagram: diagram ?? this.diagram,
     maxSentences: maxSentences ?? this.maxSentences,
     itemCount: itemCount ?? this.itemCount,
+    maxSubsections: maxSubsections ?? this.maxSubsections,
+    whenField: whenField ?? this.whenField,
   );
 
   /// Returns the JSON object of this section with only the keys set.
@@ -405,6 +421,7 @@ final class MergedSection {
       'diagram': ?diagram?.toJson(),
       'maxSentences': ?maxSentences?.map((l) => l.toJson()).toList(),
       'itemCount': ?itemCount?.toJson(),
+      'maxSubsections': ?maxSubsections,
     };
     return {
       'id': id,
@@ -417,6 +434,8 @@ final class MergedSection {
       'query': ?query,
       'summary': ?summary,
       'summaryRows': ?summaryRows?.toJson(),
+      if (whenField case (:final field, :final values))
+        'whenField': {'field': field, 'values': values},
     };
   }
 }

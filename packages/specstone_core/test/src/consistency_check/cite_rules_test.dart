@@ -199,6 +199,26 @@ void main() {
     },
   );
 
+  test('a doc address inside a longer code span, such as a path in quoted '
+      'bundle output, gives no cite_unlinked, while the same path outside '
+      'a span does', () async {
+    const header =
+        '`==> login (domain) · $_domain#invariants · base 0123456789ab <==`';
+    expect(await _citesInFeature('Users forget; $header.'), isEmpty);
+
+    final findings = await _citesInFeature('Users forget; see $_domain here.');
+    expect(findings, hasLength(1));
+    expect(findings.single.keys, {'cite': _domain});
+  });
+
+  test('a span that is a code path, not a doc address, gives no '
+      'cite_unlinked', () async {
+    final findings = await _citesInFeature(
+      'Users forget; code lives in `lib/src/journeys/` and `login.dart`.',
+    );
+    expect(findings, isEmpty);
+  });
+
   test('a link, frontmatter, fenced code, a mermaid block, and a Concerns '
       'see target give none', () async {
     final findings = await _citeFindings({

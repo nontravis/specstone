@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
@@ -25,7 +26,6 @@ const _filesField = 'files';
 
 /// Id of the section whose lines end with a `see` target.
 const concernsSectionId = 'concerns';
-const _separator = '/';
 const _seeMarker = ' see ';
 const _notApplicable = 'N/A — ';
 const _backtick = '`';
@@ -200,7 +200,7 @@ bool _seeResolves(
       return anchor != null && _anchorHeld(anchors, named);
     }
     final path = relativeFilePathOf(text, doc.docPath);
-    return path != null && _fileHolds(context, path, named);
+    return path != null && _fileHolds(context, doc, path, named);
   }
   return false;
 }
@@ -262,11 +262,22 @@ String? _namedAnchor(String? anchor) =>
 bool _anchorHeld(DocAnchors? anchors, String? named) =>
     named == null || _holds(anchors, named);
 
-/// Whether the file at [path] under the docs root exists and, when it is an
-/// indexed doc, holds the anchor [named].
-bool _fileHolds(CheckContext context, String path, String? named) {
-  if (!_namesFileBeside(context.docsRoot.path, path)) return false;
-  final file = context.index.at(path);
+/// Whether the file at [path] under the root [doc] is read from exists and,
+/// when it is an indexed doc of either root, holds the anchor [named].
+bool _fileHolds(
+  CheckContext context,
+  IndexedDoc doc,
+  String path,
+  String? named,
+) {
+  final root = rootOfDocPath(
+    doc.docPath,
+    docsRoot: context.docsRoot,
+    projectRoot: context.projectRoot,
+  );
+  if (!_namesFileBeside(root.path, path)) return false;
+  final docPath = docPathOfProjectPath(projectFilePathOf(path, doc.docPath));
+  final file = docPath == null ? null : context.index.at(docPath);
   return named == null ||
       file == null ||
       _holds(context.contentOf(file).lineFacts.anchors, named);
@@ -304,13 +315,11 @@ Iterable<({String value, int line})> _docEntries(File file) sync* {
   }
 }
 
-String _folderOf(CheckContext context, IndexedDoc doc) {
-  final at = doc.docPath.lastIndexOf(_separator);
-  final folder = at < 0 ? '' : doc.docPath.substring(0, at);
-  return folder.isEmpty
-      ? context.docsRoot.path
-      : '${context.docsRoot.path}/$folder';
-}
+String _folderOf(CheckContext context, IndexedDoc doc) => fileOfDocPath(
+  doc.docPath,
+  docsRoot: context.docsRoot,
+  projectRoot: context.projectRoot,
+).parent.path;
 
 String _baseName(File file) =>
     file.uri.pathSegments.lastWhere((s) => s.isNotEmpty);

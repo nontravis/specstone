@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -11,7 +13,8 @@ import 'package:specstone_core/src/templates/pattern_entry.dart';
 /// for a line of a held section, fenced code excluded; the doc-level entries
 /// apply on every line, a section's own on its `linePrefix` lines. A
 /// `required_patterns` entry with no matching line in its held section holds
-/// one finding at the header.
+/// one finding at the header; with `per_subsection`, one finding at each `###`
+/// heading whose subsection has no matching line.
 Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null) return;
@@ -44,19 +47,84 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     final required = template?.requiredPatterns ?? const <PatternEntry>[];
     if (required.isEmpty) continue;
     final lines = searchLinesOf(held, content.lineFacts, i);
+    final headings = required.any((entry) => entry.perSubsection)
+        ? _subsectionHeadings(context.itemsIn(doc, i))
+        : const <({int line, String text})>[];
     for (final entry in required) {
-      final regExp = entry.regExp;
-      if (lines.any((line) => regExp.hasMatch(line.prose))) continue;
-      yield context.finding(
-        doc,
-        FindingKind.patternMissing,
-        line: content.lineFacts.sectionLines[i],
-        message: entry.message,
-        keys: {'pattern': entry.id, 'section': sectionKey},
-      );
+      yield* entry.perSubsection
+          ? _missingPerSubsection(
+              context,
+              doc,
+              entry,
+              sectionKey,
+              headings,
+              lines,
+            )
+          : _missingInSection(
+              context,
+              doc,
+              entry,
+              sectionKey,
+              content.lineFacts.sectionLines[i],
+              lines,
+            );
     }
   }
 }
+
+Iterable<Finding> _missingInSection(
+  CheckContext context,
+  IndexedDoc doc,
+  PatternEntry entry,
+  String sectionKey,
+  int headerLine,
+  List<SearchLine> lines,
+) sync* {
+  if (lines.any((line) => entry.regExp.hasMatch(line.prose))) return;
+  yield context.finding(
+    doc,
+    FindingKind.patternMissing,
+    line: headerLine,
+    message: entry.message,
+    keys: {'pattern': entry.id, 'section': sectionKey},
+  );
+}
+
+/// Returns one finding per `###` subsection in [headings] that no line of its
+/// own matches [entry].
+Iterable<Finding> _missingPerSubsection(
+  CheckContext context,
+  IndexedDoc doc,
+  PatternEntry entry,
+  String sectionKey,
+  List<({int line, String text})> headings,
+  List<SearchLine> lines,
+) sync* {
+  for (var k = 0; k < headings.length; k++) {
+    final (:line, :text) = headings[k];
+    final end = k + 1 < headings.length ? headings[k + 1].line : null;
+    final held = lines.where(
+      (searched) =>
+          searched.line >= line && (end == null || searched.line < end),
+    );
+    if (held.any((searched) => entry.regExp.hasMatch(searched.prose))) continue;
+    yield context.finding(
+      doc,
+      FindingKind.patternMissing,
+      line: line,
+      message: entry.message,
+      keys: {'pattern': entry.id, 'section': sectionKey, 'subsection': text},
+    );
+  }
+}
+
+/// Returns the line and text of each top-level `###` heading of [items].
+List<({int line, String text})> _subsectionHeadings(List<SectionItem> items) =>
+    [
+      for (final item in items)
+        if (item.kind == SectionItemKind.heading && !item.nested)
+          (line: item.line, text: item.head),
+    ];
 
 /// Whether [matched], a code-span match, names a doc-tree folder or a
 /// `/`-joined run of them: it names a place in the doc tree, so no hit.

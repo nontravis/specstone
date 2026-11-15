@@ -430,4 +430,39 @@ void main() {
       expect(err.toString(), 'no feature doc carries the name ay\n');
     });
   });
+
+  group('a feature record under .specstone/records/', () {
+    test('reorder renumbers the record folder with its feature', () async {
+      final root = await writeWriteProject(
+        extra: {
+          ...recordsRootTemplates,
+          '.specstone/records/f01_login/IMPLEMENTATION.md': recordText(
+            statuses: ['email_login:implemented'],
+          ),
+          '.specstone/records/f02_signup/IMPLEMENTATION.md': recordText(
+            statuses: ['ghost:planned'],
+          ),
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['reorder', 'feature:signup', '--to', '1']),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        out.toString(),
+        contains(
+          'moved .specstone/records/f02_signup/ to '
+          '.specstone/records/f01_signup/\n',
+        ),
+      );
+      for (final path in [
+        '.specstone/records/f01_signup/IMPLEMENTATION.md',
+        '.specstone/records/f02_login/IMPLEMENTATION.md',
+      ]) {
+        expect(File('${root.path}/$path').existsSync(), isTrue, reason: path);
+      }
+    });
+  });
 }

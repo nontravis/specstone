@@ -80,6 +80,7 @@ const Set<FindingKind> linkKinds = {
   FindingKind.unconfirmed,
   FindingKind.confirmedEntryMalformed,
   FindingKind.confirmedEntryStale,
+  FindingKind.confirmedEntryRepeated,
   FindingKind.overrideLineMalformed,
   FindingKind.overrideNotInChain,
 };

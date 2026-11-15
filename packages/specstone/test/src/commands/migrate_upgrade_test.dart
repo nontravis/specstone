@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show fileCodeFingerprint, legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart'
     show fingerprintOf, legacyFingerprintOf;
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
@@ -319,8 +321,8 @@ void main() {
         '## Role\n\n- `Owner` — runs it.\n';
 
     test(
-      'a project pinned at the 1.9.0 prd-core pack migrates to the shipped '
-      'version with its bare goal lines bulleted and no other line changed',
+      'a project pinned at the 1.9.0 prd-core pack migrates to the shipped pin '
+      'with its bare goal lines bulleted and no other line changed',
       () async {
         final home = await writeTree({});
         final root = await gitFixture({
@@ -1894,11 +1896,11 @@ agent_file_roots:
         expect(applied.status, 0, reason: applied.err);
         final record = _read(root, recordPath);
         expect(record, contains('draft: true'));
-        expect(record, contains("'email_login:implemented'"));
-        expect(record, contains("'email_login/validate_credentials:planned'"));
+        expect(record, contains('email_login:implemented'));
+        expect(record, contains('email_login/validate_credentials:planned'));
         expect(
           record,
-          contains("'email_login:app/lib/login/sign_in.dart:SignIn'"),
+          contains('email_login:app/lib/login/sign_in.dart:SignIn'),
         );
         for (final path in [storyPath, frPath]) {
           expect(_read(root, path), isNot(contains('status:')));
@@ -1992,6 +1994,7 @@ agent_file_roots:
     group('code fingerprints on the upgrade to software-tech 1.7.0', () {
       const signIn = 'app/lib/login/sign_in.dart';
       const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const movedRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
       const architecturePath = 'docs/specs/f01_login/ARCHITECTURE.md';
 
       test('the first check after the upgrade finds no code link to compare '
@@ -2056,8 +2059,8 @@ agent_file_roots:
         ]);
 
         expect(applied.status, 0, reason: applied.err);
-        expect(_read(root, recordPath), contains('$signIn:SignIn '));
-        expect(_read(root, recordPath), isNot(contains('draft')));
+        expect(_read(root, movedRecordPath), contains('$signIn:SignIn '));
+        expect(_read(root, movedRecordPath), isNot(contains('draft')));
         final after = await kinds();
         expect(after, isNot(contains('code_suspect')));
         expect(after, isNot(contains('code_unconfirmed')));
@@ -2105,14 +2108,109 @@ agent_file_roots:
       });
     });
 
-    group('the shipped software-tech 1.7.0 record', () {
+    group('code links restamped under the comment-free fingerprint', () {
+      const signIn = 'app/lib/login/sign_in.dart';
+      const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+      final current = fileCodeFingerprint(
+        utf8.encode(signInCode),
+        path: signIn,
+      );
+
+      Future<Directory> home() => writeTree({
+        '.specstone/packs/acme/pack.yaml': _pack(
+          '1.1.0',
+          'migrations:\n'
+              '  - from: 1.0.0\n'
+              '    steps:\n'
+              '      - restamp_code_fingerprints: {}\n',
+        ),
+      });
+
+      Future<Directory> project(String recorded) => _project(
+        files: {
+          'docs/prds/features/f01_login/FEATURE.md': '# Login\n',
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Email login\n',
+          recordPath:
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn $recorded'\n"
+              '---\n\n# Login record\n',
+          signIn: signInCode,
+        },
+      );
+
+      test('the run writes commit 2 with the new fingerprint of a link '
+          'stamped under the old rule', () async {
+        final h = await home();
+        final root = await project(legacy);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.0.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(
+          _read(root, recordPath),
+          contains("  - 'email_login:$signIn:SignIn $current'\n"),
+        );
+        expect(_read(root, recordPath), isNot(contains('draft')));
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains(recordPath),
+        );
+      });
+
+      test('a dry run leaves the tree as it was', () async {
+        final h = await home();
+        final root = await project(legacy);
+        final before = _read(root, recordPath);
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(_read(root, recordPath), before);
+        expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+      });
+
+      test('a suspect link stays as written', () async {
+        final h = await home();
+        final root = await project('0123456789ab');
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
+          ),
+        );
+      });
+    });
+
+    group('the shipped software-tech record', () {
       const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
       const storyPath =
           'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
       const frPath =
           'docs/prds/features/f01_login/us01_email_login/'
           'fr01_validate_credentials.md';
-      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
       Future<Directory> project(String storyText) => gitFixture({
         '.specstone/config.yaml':
@@ -2136,7 +2234,12 @@ agent_file_roots:
         final dry = await _run(root, h, ['migrate', '--dry-run']);
 
         expect(dry.status, 0, reason: dry.err);
-        expect(dry.out, contains('software-tech 1.4.0 -> 1.7.0'));
+        expect(
+          dry.out,
+          contains(
+            'software-tech 1.4.0 -> ${shippedPackVersions()['software-tech']}',
+          ),
+        );
         expect(
           dry.out,
           contains(
@@ -2160,10 +2263,10 @@ agent_file_roots:
         expect(applied.status, 0, reason: applied.err);
         final record = _read(root, recordPath);
         expect(record, contains('draft: true'));
-        expect(record, contains("'email_login:implemented'"));
+        expect(record, contains('email_login:implemented'));
         expect(
           record,
-          contains("'email_login:app/lib/login/sign_in.dart:SignIn'"),
+          contains('email_login:app/lib/login/sign_in.dart:SignIn'),
         );
         expect(_read(root, storyPath), isNot(contains('status:')));
         expect(_read(root, frPath), isNot(contains('status:')));
@@ -2177,6 +2280,131 @@ agent_file_roots:
         expect(kinds, isNot(contains('field_undeclared')));
         expect(kinds, isNot(contains('requirement_status_written')));
       });
+
+      test('a 1.7.0 project moves its record under .specstone/records/ in '
+          'commit 1, restamps its code link in commit 2, and the first check '
+          'reads it there', () async {
+        final h = await writeTree({});
+        const oldPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+        const signIn = 'app/lib/login/sign_in.dart';
+        const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+        final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+        final current = fileCodeFingerprint(
+          utf8.encode(signInCode),
+          path: signIn,
+        );
+        String record(String fingerprint) =>
+            "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+            "  - 'email_login:$signIn:SignIn $fingerprint'\n---\n\n"
+            '# Login implementation\n';
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.7.0\n',
+          _gitignore: _ignoreFile,
+          featurePath: '# Login\n',
+          storyPath: '# Email login\n',
+          oldPath: record(legacy),
+          signIn: signInCode,
+        });
+
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'commit 1, moves:\n'
+            '  specs/f01_login/IMPLEMENTATION.md -> $recordPath\n',
+          ),
+        );
+        expect(
+          dry.out,
+          contains(
+            '  from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
+
+        expect(applied.status, 0, reason: applied.err);
+        expect(File('${root.path}/$oldPath').existsSync(), isFalse);
+        expect(_read(root, recordPath), record(current));
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-status',
+            '--format=',
+            '-M',
+            'HEAD~1',
+          ]).trim(),
+          'R100\t$oldPath\t$recordPath',
+        );
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains(recordPath),
+        );
+        final check = await _run(root, h, ['check', '--json']);
+        final kinds = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            (finding! as Map<String, Object?>)['kind'],
+        ];
+        expect(kinds, isNot(contains('untyped_doc')));
+        expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
+      });
+
+      test(
+        'a second code target moves a record under .specstone/records/ '
+        'into the first target folder and leaves no empty folder behind',
+        () async {
+          final h = await writeTree({});
+          const text =
+              "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
+              '# Login implementation\n';
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.7.0\n'
+                'targets:\n  flutter:\n    code_root: app\n'
+                '  jaspr:\n    code_root: web\n',
+            _gitignore: _ignoreFile,
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            recordPath: text,
+          });
+
+          final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, h, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          expect(
+            _read(
+              root,
+              '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
+            ),
+            text,
+          );
+          expect(
+            Directory('${root.path}/.specstone/records/f01_login').existsSync(),
+            isFalse,
+          );
+        },
+      );
 
       test('a status no entry takes refuses the shipped run '
           'and writes nothing', () async {
@@ -2304,7 +2532,7 @@ agent_file_roots:
       const frPath =
           'docs/prds/features/f01_login/us01_email_login/'
           'fr01_validate_credentials.md';
-      const recordPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+      const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
       const testPath = 'app/test/auth_test.dart';
       const otherPath = 'app/vendor/test/dep_test.dart';
 
@@ -2348,7 +2576,9 @@ agent_file_roots:
           );
           expect(
             dry.out,
-            contains('  specs/f01_login/IMPLEMENTATION.md (draft)'),
+            contains(
+              '  .specstone/records/f01_login/IMPLEMENTATION.md (draft)',
+            ),
           );
           final json = await _run(root, home, [
             'migrate',
@@ -2375,12 +2605,12 @@ agent_file_roots:
           expect(record, contains('draft: true'));
           expect(
             record,
-            contains("'email_login/validate_credentials:test/auth_test.dart'"),
+            contains('email_login/validate_credentials:test/auth_test.dart'),
           );
           expect(
             record,
             contains(
-              "'email_login/validate_credentials:vendor/test/dep_test.dart'",
+              'email_login/validate_credentials:vendor/test/dep_test.dart',
             ),
           );
           expect(_read(root, testPath), source('rejects a wrong password'));

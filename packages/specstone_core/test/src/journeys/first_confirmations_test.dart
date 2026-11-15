@@ -221,6 +221,21 @@ void main() {
     expect(text, contains(_entry(2)));
   });
 
+  test('an indented list of two held entries gets no second entry for '
+      'its second step', () async {
+    final root = await _project();
+    const held = '  - $_story#S1 aaaaaaaaaaaa\n  - $_story#S2 bbbbbbbbbbbb\n';
+
+    final text = _new(
+      root,
+      text: '---\nconfirmed:\n$held---\n\n${_body([_step(1, 1), _step(2, 2)])}',
+    );
+
+    expect(text, contains(held));
+    expect(_count(text, '$_story#S1 '), 1);
+    expect(_count(text, '$_story#S2 '), 1);
+  });
+
   test(
     "an entry names its link by the scenario number's "
     'value, so a held S01 entry gets no S1 beside it, for step S1 or S01',

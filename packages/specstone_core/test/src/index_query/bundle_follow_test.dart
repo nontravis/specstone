@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -131,6 +132,38 @@ void main() {
 
   const inv14 = '[INV-14]($_specs/f02_signup/DOMAIN.md#invariants)';
 
+  test('an item a record cites by a link through the project root is appended', () async {
+    final parts = await followedFrom('login/email_login/validate_credentials', {
+      ...recordsRootTemplates,
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login:planned'\n---\n\n# Login implementation\n\n"
+          'Locks by [RULE-3](../../../docs/specs/topics/doc_model.md#rules).\n',
+    });
+    expect(parts.map(_id), contains('specs/topics/doc_model.md#rules RULE-3'));
+  });
+  test('one file a record and a doc both cite appends its path once', () async {
+    final parts = await followedFrom('login/email_login/validate_credentials', {
+      ...recordsRootTemplates,
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login:planned'\n---\n\n# Login implementation\n\n"
+          'Schema in [schema](../../../docs/specs/schema.dbml).\n',
+      _fr: _frWith('See [schema]($_specs/schema.dbml).'),
+    });
+    expect(parts.map(_id), ['specs/schema.dbml']);
+  });
+  test('one file under the records root a record and a doc both cite appends its path once', () async {
+    final parts = await followedFrom('login/email_login/validate_credentials', {
+      ...recordsRootTemplates,
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login:planned'\n---\n\n# Login implementation\n\n"
+          'Flow in [diagram](diagram.png).\n',
+      '.specstone/records/f01_login/diagram.png': 'png',
+      _fr: _frWith(
+        'See [diagram](../../../../../.specstone/records/f01_login/diagram.png).',
+      ),
+    });
+    expect(parts.map(_id), ['../.specstone/records/f01_login/diagram.png']);
+  });
   test('a bundle whose docs link nowhere outside appends nothing', () async {
     expect(await followed('The system shall check the password.'), isEmpty);
   });

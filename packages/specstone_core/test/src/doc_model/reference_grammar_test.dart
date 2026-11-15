@@ -173,6 +173,29 @@ void main() {
     });
   });
 
+  group('readItemIdOfWrittenPrefix', () {
+    test('takes the letters and hyphens before the first digit as the '
+        'prefix, past one optional **', () {
+      for (final text in const ['NFR-U01 — x', '**NFR-U01** — x']) {
+        final id = readItemIdOfWrittenPrefix(text);
+        expect(id, isA<ItemId>(), reason: text);
+        expect(id!.prefix, 'NFR-U', reason: text);
+        expect(id.written, 'NFR-U01', reason: text);
+      }
+    });
+
+    test('reads a lettered and an unreadable form as the grammar does', () {
+      expect(readItemIdOfWrittenPrefix('NFR-U01a'), isA<LetteredId>());
+      expect(readItemIdOfWrittenPrefix('NFR-U1a1'), isA<UnreadableId>());
+    });
+
+    test('text with no letter-led prefix before a digit reads as null', () {
+      for (final text in const ['Usability', '01 first', '-U01', 'NFR- x']) {
+        expect(readItemIdOfWrittenPrefix(text), isNull, reason: text);
+      }
+    });
+  });
+
   group('readScenarioHeading', () {
     test('reads ### Scenario <N>', () {
       final id = readScenarioHeading('### Scenario 6 — x');

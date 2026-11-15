@@ -1,17 +1,25 @@
+import 'dart:io';
+
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/search_docs.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
+import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
+/// Returns the path of [segments] under [project], with native separators.
+String _underProject(Directory project, List<String> segments) =>
+    [project.path, ...segments].join(Platform.pathSeparator);
+
 void main() {
   late DocIndex index;
-  setUpAll(() async => index = await indexWith());
+  setUpAll(() async => index = await searchIndexWith());
   List<String> heads(ReadAnswer a) => [
     for (final l in a.text.split('\n'))
       if (l.isNotEmpty && !l.startsWith('  ')) l,
@@ -98,8 +106,53 @@ void main() {
       isTrue,
     );
   });
+  test('the first search after a doc changed finds the new text and none of '
+      'the old', () async {
+    final project = await writeLoginProject(
+      extra: {'docs/m/note.md': '# Note\n\n## Body\nalpha beta\n'},
+    );
+    final first = openSession(project, fillSearchRows: true);
+    expect(heads(answerSearch(first.index, 'alpha', const SearchOptions())), [
+      'm/note.md#body — Note',
+    ]);
+    first.close();
+    File(_underProject(project, ['docs', 'm', 'note.md']))
+        .writeAsStringSync('# Note\n\n## Body\ngamma delta epsilon\n');
+    final second = openSession(project, fillSearchRows: true);
+    addTearDown(second.close);
+    expect(heads(answerSearch(second.index, 'delta', const SearchOptions())), [
+      'm/note.md#body — Note',
+    ]);
+    expect(
+      heads(answerSearch(second.index, 'alpha', const SearchOptions())),
+      isEmpty,
+    );
+  });
+  test('a read that does not search leaves the search rows unwritten, and the '
+      'first search after it still finds every doc', () async {
+    final project = await writeLoginProject();
+    openSession(project).close();
+    final raw = sqlite3.open(_underProject(project, [indexFilePath]));
+    addTearDown(raw.close);
+    expect(raw.select('SELECT count(*) FROM doc_search').single.columnAt(0), 0);
+    final searcher = openSession(project, fillSearchRows: true);
+    addTearDown(searcher.close);
+    expect(
+      heads(answerSearch(searcher.index, 'ค้นหา', const SearchOptions())),
+      ['prds/d01_context.md#project_vision — D-01 — Project context'],
+    );
+  });
+  test('a session opened without its search rows refuses to search, never '
+      'answering from missing rows', () async {
+    final session = openSession(await writeLoginProject());
+    addTearDown(session.close);
+    expect(
+      () => answerSearch(session.index, 'login', const SearchOptions()),
+      throwsStateError,
+    );
+  });
   test('20 hits at most by default, untyped docs included', () async {
-    final zebras = await indexWith({
+    final zebras = await searchIndexWith({
       for (var i = 1; i <= 25; i++)
         'docs/z/zebra_$i.md': '# Z\n\n## Body\nzebra\n',
     });
@@ -157,7 +210,7 @@ void main() {
   );
   test('a snippet over several lines prints as one indented line, JSON keeps '
       'it as indexed', () async {
-    final multi = await indexWith({
+    final multi = await searchIndexWith({
       'docs/m/multi.md': '# M\n\n## Body\nalpha beta\ngamma delta\n',
     });
     final answer = answerSearch(multi, 'alpha', const SearchOptions());
@@ -198,6 +251,7 @@ void main() {
         'docs/$jasprArch':
             '# Toast architecture\n\n## Purpose\nWarm toast on jaspr.\n',
       }),
+      fillSearchRows: true,
     );
     addTearDown(session.close);
     final scoped = answerSearch(

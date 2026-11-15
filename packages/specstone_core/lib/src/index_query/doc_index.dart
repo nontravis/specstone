@@ -31,6 +31,7 @@ final class DocIndex {
     this._store,
     this._docPathOfFile, {
     required this.docsRoot,
+    required this.projectRoot,
     List<String> targetNames = const [],
   }) : statusTree = StatusTree(set, docs, targetNames: targetNames),
        _byName = _groupBy(docs, (doc) => doc.name),
@@ -45,6 +46,9 @@ final class DocIndex {
 
   /// The docs root on disk, which a file link's path is read under.
   final Directory docsRoot;
+
+  /// The project root on disk, which a record's file link is read under.
+  final Directory projectRoot;
 
   /// The config's target names, in config order; empty with one unnamed
   /// target.
@@ -337,8 +341,15 @@ final class DocIndex {
   ruleItemWords() => _store.ruleItemWords();
 
   /// Returns the rows of the full-text index that match [matchExpression].
-  List<SearchRow> search(String matchExpression) =>
-      _store.search(matchExpression);
+  ///
+  /// Throws [StateError] when a doc's search rows lag its text: open the
+  /// session with its search rows filled (`fillSearchRows` of `ReadSession`).
+  List<SearchRow> search(String matchExpression) {
+    if (_store.searchRowsLag) {
+      throw StateError('the session was opened without its search rows');
+    }
+    return _store.search(matchExpression);
+  }
 
   /// Returns the docs whose text holds [needle], case-sensitive.
   List<IndexedDoc> holding(String needle) {

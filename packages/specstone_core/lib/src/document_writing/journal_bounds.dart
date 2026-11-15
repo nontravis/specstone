@@ -234,13 +234,21 @@ void requireWritableTarget(
         mayLeaveProject: mayLeaveProject,
       );
   if (reason == null) return;
-  final shown = pathFromProjectRoot(path, projectRoot, docsRoot);
-  throw RenderFault(
-    RenderFaultCode.outputNotWritable,
-    'cannot write $shown: $reason',
-    file: shown,
-  );
+  throw _writeFault(pathFromProjectRoot(path, projectRoot, docsRoot), reason);
 }
+
+/// Throws [RenderFault] `output_not_writable` when a segment of [path] names a
+/// `.git` entry, for a path judged with no project root.
+void requireNotUnderGit(String path) {
+  final segments = withNativeSeparators(path).split(Platform.pathSeparator);
+  if (segments.any(isGitEntry)) throw _writeFault(path, _underGit);
+}
+
+RenderFault _writeFault(String shown, String reason) => RenderFault(
+  RenderFaultCode.outputNotWritable,
+  'cannot write $shown: $reason',
+  file: shown,
+);
 
 /// Returns [path] from the project root, `/`-separated, as `docs/...` under
 /// the docs root; a path under neither stays as given.

@@ -155,17 +155,16 @@ void main() {
       expect(pass.leftOn({_citing: written}), ['$_citing:9 login']);
     });
 
-    test(
-      'a cite form written inside a longer code span stays and counts as left',
-      () {
-        const body = 'Run `see ../f01_login/DOMAIN.md now`.\n';
-        const text = '# Sign-up architecture\n\n## Components\n\n$body';
-        final pass = _passOf({..._baseDocs, _citing: text});
+    test('a cite form written inside a longer code span is no cite, neither '
+        'rewritten nor counted as left', () {
+      const body = 'Run `see ../f01_login/DOMAIN.md now`.\n';
+      const text = '# Sign-up architecture\n\n## Components\n\n$body';
+      final pass = _passOf({..._baseDocs, _citing: text});
 
-        expect(pass.apply(_citing, text), text);
-        expect(pass.planLine, 'cites: 0 rewrites in 0 docs; left: 1');
-      },
-    );
+      expect(pass.apply(_citing, text), text);
+      expect(pass.planLine, isNull);
+      expect(pass.leftOn(const {}), isEmpty);
+    });
 
     test('a cite in frontmatter, in fenced code, in a Concerns see target, or '
         'in a link is never rewritten', () {

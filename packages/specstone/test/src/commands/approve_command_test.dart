@@ -126,8 +126,9 @@ void main() {
     expect(
       err.toString(),
       startsWith(
-        '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
-        'specstone get --json; got architecture:signup.\n',
+        '--yes needs each draft as <name>@<hash>, the hash from '
+        'docs[0].bases.doc of specstone get <name> --json; got '
+        'architecture:signup.\n',
       ),
     );
     expect(File('${root.path}/docs/$signupFeature').readAsStringSync(), before);
@@ -473,8 +474,8 @@ void main() {
       expect(
         err.toString(),
         startsWith(
-          '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
-          'specstone get --json; got $name.\n',
+          '--yes needs each draft as <name>@<hash>, the hash from '
+          'docs[0].bases.doc of specstone get <name> --json; got $name.\n',
         ),
       );
     },
@@ -925,7 +926,7 @@ void main() {
         final root = await writeTwinProject(
           extra: {
             ...edit(loginStory, [('goals:\n', 'draft: true\ngoals:\n')]),
-            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
+            '.specstone/records/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
           },
         );
         final (:runner, :out, :err) = writeRunner(root);

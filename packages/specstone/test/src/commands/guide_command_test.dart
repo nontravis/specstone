@@ -1195,4 +1195,156 @@ items:
       expect(err.toString(), isEmpty);
     });
   });
+
+  group('specstone guide --out', () {
+    late StringBuffer out;
+    late StringBuffer err;
+
+    setUp(() {
+      out = StringBuffer();
+      err = StringBuffer();
+    });
+
+    Future<SpecstoneCommandRunner> runnerIn(Directory folder) async =>
+        SpecstoneCommandRunner(
+          out: out,
+          err: err,
+          templates: TemplateResolver(shippedFiles: _shippedWithPatterns()),
+          workingDirectory: folder,
+          homeDirectory: await writeTree({}),
+        );
+
+    Future<Directory> project() =>
+        writeTree({_configPath: _patternConfig, ..._frLayer});
+
+    String reportOf(Directory project, String name) =>
+        File('${project.path}/.specstone/reports/$name').readAsStringSync();
+
+    test('guide <types> --out writes guide.<types>.txt and prints its '
+        'header', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', 'user_story', '--out']), 0);
+      final written = reportOf(folder, 'guide.fr.user_story.txt');
+      expect(written, startsWith('==> fr <==\n'));
+      expect(written, contains('==> user_story <==\n'));
+      final header = out.toString();
+      expect(header, startsWith('==> guide: '));
+      expect(header.trimRight().split('\n'), hasLength(1));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide --pattern --out writes guide-pattern.all.txt', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--pattern', '--out']), 0);
+      expect(reportOf(folder, 'guide-pattern.all.txt'), contains('crud'));
+      expect(out.toString(), startsWith('==> guide: '));
+    });
+
+    test('guide --pattern crud --out writes guide-pattern.crud.txt', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--pattern', 'crud', '--out']), 0);
+      expect(
+        reportOf(folder, 'guide-pattern.crud.txt'),
+        contains('soft_delete'),
+      );
+    });
+
+    test('guide <type> --json --out writes the schema JSON and prints out, '
+        'lines, and tokens', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', '--json', '--out']), 0);
+      final file = File('${folder.path}/.specstone/reports/guide.fr.json');
+      final schema =
+          jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      expect(schema['id'], 'fr');
+      final printed = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(printed['out'], file.resolveSymbolicLinksSync());
+      expect(printed['lines'], isA<int>());
+      expect(printed['tokens'], isA<int>());
+    });
+
+    test('a path given names the file inside a project', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', '--out', 'notes/fr.txt']), 0);
+      expect(
+        File('${folder.path}/notes/fr.txt').readAsStringSync(),
+        contains('One requirement.'),
+      );
+    });
+
+    test('--out "" exits 64 and writes no file', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', '--out', '']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        Directory('${folder.path}/.specstone/reports').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('--out= with no path exits 64 and writes no file', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', '--out=']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        Directory('${folder.path}/.specstone/reports').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a bare guide --out inside a project writes guide.all.txt', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--out']), 0, reason: err.toString());
+      expect(reportOf(folder, 'guide.all.txt'), 'feature\nfr\nuser_story\n');
+      expect(out.toString(), startsWith('==> guide: '));
+    });
+
+    test('a path inside the docs root exits 73 and writes nothing', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', '--out', 'docs/x.txt']), 73);
+      expect(out.toString(), isEmpty);
+      expect(File('${folder.path}/docs/x.txt').existsSync(), isFalse);
+    });
+
+    test(
+      'a bare --out outside a project exits 73 and writes nothing',
+      () async {
+        final folder = await writeTree({});
+        final runner = await runnerIn(folder);
+
+        expect(await runner.run(['guide', '--out']), 73);
+        expect(out.toString(), isEmpty);
+        expect(folder.listSync(), isEmpty);
+      },
+    );
+
+    test('a path given outside a project writes there', () async {
+      final folder = await writeTree({});
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--out', '${folder.path}/x.txt']), 0);
+      expect(
+        File('${folder.path}/x.txt').readAsStringSync(),
+        'feature\nuser_story\n',
+      );
+    });
+  });
 }

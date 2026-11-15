@@ -190,6 +190,34 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
+    test('guide user_story caps a story at 6 scenarios, and guide fr names no '
+        'test file', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'user_story']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'Split a story that needs more than 6 scenarios, along business '
+            'behavior and never along technical layers.\n',
+          ),
+          isNot(contains('five or six')),
+        ),
+      );
+      out.clear();
+      expect(await runner.run(['guide', 'fr', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final verification = (json['sections']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((s) => s['id'] == 'verification');
+      final patterns =
+          ((verification['lint']! as Map)['bannedPatterns']! as List)
+              .cast<Map<String, Object?>>();
+      expect(patterns.map((p) => p['id']), ['test_file_named']);
+      expect(patterns.single['message'], contains('Name no test file here'));
+      expect(verification['description'], contains('Name no test file here'));
+    });
+
     test('guide fr and guide user_story ask for no ID order', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'fr']), 0);

@@ -12,6 +12,7 @@ export 'package:specstone_core/src/index_query/held_sections.dart'
 const _subHeadingMarker = '###';
 const _deeperHeadingMarker = '####';
 const _itemHeadingMarker = '### ';
+const _statementPrefix = '- **Statement:**';
 
 // MARK: - Held sections
 
@@ -36,6 +37,29 @@ int? heldSectionIndexIn(List<MergedSection?> templates, String sectionId) {
 String? itemHeadingTextOf(String line) => line.startsWith(_itemHeadingMarker)
     ? line.substring(_itemHeadingMarker.length)
     : null;
+
+/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
+/// other heading, a lettered ID, and an unreadable ID.
+///
+/// A null [prefix] reads the ID the grammar finds by its written prefix.
+String? itemHeadingKeyOf(String heading, String? prefix) {
+  final text = itemHeadingTextOf(heading);
+  if (text == null) return null;
+  final id = prefix == null
+      ? readItemIdOfWrittenPrefix(text)
+      : readItemId(text, prefix);
+  return id is ItemId ? id.written : null;
+}
+
+/// Returns the first unfenced `- **Statement:**` line of [block], trimmed, as
+/// an NFR is fingerprinted; empty without one.
+String nfrStatementOf(Iterable<BodyLine> block) =>
+    block
+        .where((line) => !line.fenced)
+        .map((line) => line.text.trim())
+        .where((text) => text.startsWith(_statementPrefix))
+        .firstOrNull ??
+    '';
 
 /// Whether [line] opens a `###` heading (not a deeper one).
 bool isSubHeading(String line) =>

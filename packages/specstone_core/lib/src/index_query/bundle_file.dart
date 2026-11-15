@@ -2,17 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
-import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show requireWritableTarget;
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
+import 'package:specstone_core/src/index_query/out_file.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/build_output.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
-import 'package:specstone_core/src/rendering/render_fault.dart';
 
 /// The most lines an index keeps its sections within, its header included.
 const _indexLineCap = 200;
@@ -70,10 +68,9 @@ File bareBundleFile(Directory projectRoot, String name) {
 /// Writes [answer]'s bundle text to [file] and returns the reply that indexes
 /// it.
 ///
-/// The reply names the file by the canonical path the docs-root check
-/// compares. Throws `output_not_writable` for a path inside the docs root or
-/// below a `.git` entry of the project, a bare ([isBare]) one outside the
-/// project, or a write that fails.
+/// The reply names the file by its canonical path. Throws
+/// `output_not_writable` for a path [requireOutPath] refuses or a write that
+/// fails.
 ReadAnswer answerBundleFile(
   ContextAnswer answer,
   File file, {
@@ -82,17 +79,11 @@ ReadAnswer answerBundleFile(
 }) {
   assert(answer.exitStatus == 0, 'a bundle over budget is never written');
   final shownPath = canonicalPath(file.absolute.path);
-  if (project.isInsideDocsRoot(File(shownPath))) {
-    throw RenderFault(
-      RenderFaultCode.outputNotWritable,
-      'the output path is inside the docs root',
-      file: shownPath,
-    );
-  }
-  requireWritableTarget(
+  requireOutPath(
     shownPath,
     projectRoot: project.projectRoot,
-    mayLeaveProject: !isBare,
+    docsRoot: project.docsRoot,
+    isBare: isBare,
   );
   writeBuildOutput(
     File(shownPath),

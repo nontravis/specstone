@@ -1,18 +1,18 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:yaml/yaml.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 
 const _confirmedKey = 'confirmed';
-const _defaultItemPrefix = '  - ';
-final _itemPrefix = RegExp(r'^\s*-\s+', multiLine: true);
+final _dashItem = RegExp(r'^-(\s|$)');
+const _emptyList = ConfirmedList(KeyBlock(_confirmedKey, 'confirmed:\n'), {});
 
 /// The `confirmed` list of a doc that takes more entries as item lines.
 final class ConfirmedList {
-  const new(this.text, this.labels);
+  const new(this.block, this.labels);
 
-  /// The `confirmed` key block, every line ending in `\n`; `confirmed:\n` when
-  /// the doc holds none.
-  final String text;
+  /// The `confirmed` key block as written, key spelling included;
+  /// `confirmed:\n` when the doc holds none.
+  final KeyBlock block;
 
   /// The first word of each entry the list holds.
   final Set<String> labels;
@@ -26,27 +26,22 @@ ConfirmedList? readConfirmedList(Doc doc) {
   final block = doc.frontmatter
       ?.where((b) => b.name == _confirmedKey)
       .firstOrNull;
-  if (block == null) return const ConfirmedList('$_confirmedKey:\n', {});
-  final value = block.valueText;
-  if (value.isNotEmpty && !value.startsWith('-')) return null;
-  final Object? items;
-  try {
-    items = loadYaml(value);
-  } on YamlException {
-    return null;
-  }
-  if (items != null && items is! YamlList) return null;
-  return ConfirmedList(block.text, {
-    if (items is YamlList)
-      for (final item in items)
-        if (item is String) item.split(' ').first,
+  if (block == null) return _emptyList;
+  if (!_isListOrEmpty(block.valueText)) return null;
+  final items = listEntriesOf(block);
+  if (items == null) return null;
+  return ConfirmedList(block, {
+    for (final item in items)
+      if (item is String) item.split(' ').first,
   });
 }
 
+bool _isListOrEmpty(String value) => value.isEmpty || _dashItem.hasMatch(value);
+
 /// Returns [lfText] with [entries] added at the end of [list].
 ///
-/// Each entry takes the item prefix of the list's first item, `  - ` for an
-/// empty list.
+/// Each entry takes the indent and quotes of the list's first item, as the
+/// list writer gives them.
 ///
 /// An absent `confirmed` key lands at its slot in [fieldOrder], as
 /// [withKeyBlock] reads it.
@@ -56,14 +51,14 @@ String withConfirmedEntries(
   Iterable<String> entries, {
   List<String>? fieldOrder,
 }) {
-  final prefix = _itemPrefix.firstMatch(list.text)?.group(0);
-  final items = [
-    for (final entry in entries) '${prefix ?? _defaultItemPrefix}$entry\n',
-  ];
+  final held = listEntriesOf(list.block);
+  if (held == null) {
+    throw StateError('the confirmed block was read as a list of entries');
+  }
   return withKeyBlock(
     lfText,
     _confirmedKey,
-    '${list.text}${items.join()}',
+    listBlockOf(_confirmedKey, [...held, ...entries], onDisk: list.block),
     fieldOrder: fieldOrder,
   );
 }

@@ -174,6 +174,132 @@ Iterable<Object?> _leaves(Object? node) => switch (node) {
 };
 
 void main() {
+  group('max_subsections, per_subsection, and when_field', () {
+    const lower = '''
+path: docs/specs/{slug}/DOMAIN.md
+fields:
+  - {id: kind, type: string}
+sections:
+  - id: scope
+    header: Scope
+    required: true
+    when_field: {field: kind, values: [api]}
+    lint:
+      max_subsections: 3
+      required_patterns:
+        - {id: why, pattern: Why, message: m, per_subsection: true}
+        - {id: what, pattern: What, message: m}
+  - id: plain
+    header: Plain
+''';
+
+    MergedSection sectionOf(MergedDocType type, String id) =>
+        type.sections.singleWhere((s) => s.id == id);
+
+    test('a layer carries each key into the merged section', () {
+      final section = sectionOf(_merge(lower), 'scope');
+      expect(section.maxSubsections, 3);
+      expect(section.whenField?.field, 'kind');
+      expect(section.whenField?.values, ['api']);
+      expect(section.required, isTrue);
+      expect(section.requiredPatterns?.map((p) => p.perSubsection), [
+        true,
+        false,
+      ]);
+    });
+
+    test('a section that writes none of the keys reads each as null', () {
+      final plain = sectionOf(_merge(lower), 'plain');
+      expect(plain.maxSubsections, isNull);
+      expect(plain.whenField, isNull);
+    });
+
+    test('an upper layer that writes none keeps the lower values', () {
+      final section = sectionOf(
+        _merge(lower, 'sections: [{id: scope, description: New}]'),
+        'scope',
+      );
+      expect(section.maxSubsections, 3);
+      expect(section.whenField?.values, ['api']);
+    });
+
+    test('the top-most writer wins for max_subsections and when_field', () {
+      final section = sectionOf(
+        _merge(
+          lower,
+          'sections: [{id: scope, when_field: {field: kind, values: [cli]}, '
+          'lint: {max_subsections: 5}}]',
+        ),
+        'scope',
+      );
+      expect(section.maxSubsections, 5);
+      expect(section.whenField?.values, ['cli']);
+    });
+
+    test('an upper required pattern of the same id replaces the lower one, '
+        'per_subsection included', () {
+      final section = sectionOf(
+        _merge(
+          lower,
+          'sections: [{id: scope, lint: {required_patterns: {add: '
+          '[{id: why, pattern: Why, message: m}]}}}]',
+        ),
+        'scope',
+      );
+      expect(section.requiredPatterns?.map((p) => p.perSubsection), [
+        false,
+        false,
+      ]);
+    });
+
+    test('a section a layer adds carries the keys', () {
+      final added = sectionOf(
+        _merge(
+          lower,
+          'sections: [{id: extra, header: Extra, '
+          'when_field: {field: kind, values: [x, y]}, '
+          'lint: {max_subsections: 2}}]',
+        ),
+        'extra',
+      );
+      expect(added.maxSubsections, 2);
+      expect(added.whenField?.values, ['x', 'y']);
+    });
+
+    test('copyWith keeps both keys it is not given and replaces one it is', () {
+      final section = sectionOf(_merge(lower), 'scope');
+      final kept = section.copyWith(minLines: 2);
+      expect(kept.maxSubsections, 3);
+      expect(kept.whenField?.field, 'kind');
+      final replaced = section.copyWith(
+        maxSubsections: 9,
+        whenField: (field: 'other', values: ['z']),
+      );
+      expect(replaced.maxSubsections, 9);
+      expect(replaced.whenField?.values, ['z']);
+    });
+
+    test('toJson prints maxSubsections in lint, whenField on the section, and '
+        'perSubsection on a required pattern that sets it', () {
+      final json = sectionOf(_merge(lower), 'scope').toJson();
+      expect(json['whenField'], {
+        'field': 'kind',
+        'values': ['api'],
+      });
+      final lint = json['lint']! as Map<String, Object?>;
+      expect(lint['maxSubsections'], 3);
+      final patterns = (lint['requiredPatterns']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      expect(patterns.map((p) => p['perSubsection']), [true, null]);
+    });
+
+    test('toJson prints none of the keys when no layer sets them', () {
+      final json = sectionOf(_merge(lower), 'plain').toJson();
+      expect(json.containsKey('whenField'), isFalse);
+      expect(json.containsKey('lint'), isFalse);
+    });
+  });
+
   group('MergedDocType.toJson', () {
     test('tpl-s03/inv28: toJson prints maxDepth right after path', () {
       final merged = _merge(_featureLayer, 'max_depth: 2');

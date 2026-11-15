@@ -115,11 +115,11 @@ void main() {
   });
 
   group('consistency_check/find_template_breaks/check_frontmatter_fields, records', () {
-    const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+    const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     /// The record doc with [recordFrontmatter]; the shipped pack types it.
     Map<String, String> recordProject(String recordFrontmatter) => {
-      'docs/$recordPath': '---\n$recordFrontmatter---\n\n# Login record\n',
+      recordPath: '---\n$recordFrontmatter---\n\n# Login record\n',
     };
 
     /// The story and the FR, each writing the status the record now holds.
@@ -133,7 +133,7 @@ void main() {
     test('a story or FR writing status is requirement_status_written while the merged set holds the record doc type', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: {...recordProject(''), ...withStatus},
         ),
       );
@@ -170,7 +170,7 @@ void main() {
     test('a story or FR with no status written takes no finding', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: recordProject(''),
         ),
       );
@@ -182,7 +182,7 @@ void main() {
       () async {
         final report = checkOf(
           await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
+            unstamped: {recordPath},
             extra: {
               ...recordProject(''),
               'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
@@ -202,14 +202,14 @@ void main() {
     test('the record doc type is found by its record_status field, whatever its id', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: {
             ...withStatus,
             '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
             '.specstone/templates/target_record.yaml':
                 'id: target_record\n'
                 'description: One feature record per target.\n'
-                'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+                'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
                 'parent: feature\n'
                 'per_target: true\n'
                 'fields:\n'
@@ -229,7 +229,7 @@ void main() {
     test('an implements line with a space after the colon reads as a map and mismatches', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: recordProject('implements:\n  - show_toast: lib/toast.dart\n'),
         ),
       );
@@ -247,7 +247,7 @@ void main() {
       () async {
         final report = checkOf(
           await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
+            unstamped: {recordPath},
             extra: recordProject(
               'implements:\n  - show_toast:lib/toast.dart\n',
             ),
@@ -260,7 +260,7 @@ void main() {
     test('a statuses line giving an item the status wip mismatches, naming the field and the four statuses', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: recordProject('statuses:\n  - login:wip\n'),
         ),
       );
@@ -284,7 +284,7 @@ void main() {
       test('the statuses line $line fits', () async {
         final report = checkOf(
           await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
+            unstamped: {recordPath},
             extra: recordProject('statuses:\n  - "$line"\n'),
           ),
         );
@@ -295,7 +295,7 @@ void main() {
     test('a statuses line with no status, or no colon, mismatches', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: recordProject('statuses:\n  - login\n  - "login:"\n'),
         ),
       );
@@ -306,14 +306,14 @@ void main() {
   });
 
   group('a task_ref list field', () {
-    const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+    const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     /// The record doc with [tasks] as its `tasks` frontmatter, under a project
     /// template that adds the field to the shipped record doc type.
     Map<String, String> projectWith(String tasks) => {
       '.specstone/templates/implementation.yaml':
           'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
-      'docs/$recordPath': '---\n$tasks---\n\n# Login record\n',
+      recordPath: '---\n$tasks---\n\n# Login record\n',
     };
 
     const mismatches = {
@@ -327,7 +327,7 @@ void main() {
       test('$label mismatches, naming the field', () async {
         final report = checkOf(
           await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
+            unstamped: {recordPath},
             extra: projectWith('tasks:\n  - $entry\n'),
           ),
         );
@@ -343,7 +343,7 @@ void main() {
       test('the entry $entry fits', () async {
         final report = checkOf(
           await writeCheckProject(
-            unstamped: {'docs/$recordPath'},
+            unstamped: {recordPath},
             extra: projectWith('tasks:\n  - $entry\n'),
           ),
         );
@@ -354,7 +354,7 @@ void main() {
     test('a scalar in place of the list mismatches', () async {
       final report = checkOf(
         await writeCheckProject(
-          unstamped: {'docs/$recordPath'},
+          unstamped: {recordPath},
           extra: projectWith('tasks: T-1\n'),
         ),
       );

@@ -12,8 +12,10 @@ import 'package:test/test.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
+  final shipped = shippedPackVersions()['prd-core']!;
+
   group('prd-core manifest', () {
-    test('prd-core ships at 1.13.0 with no extends', () {
+    test('prd-core ships at 1.12.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -21,18 +23,18 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.13.0');
+      expect(manifest.version.toString(), '1.12.0');
       expect(manifest.extendsPack, isNull);
     });
 
-    test('prd-core carries 1.13.0 with a no-step entry from 1.12.0', () {
+    test('prd-core carries 1.12.0 with a no-step entry from 1.11.0', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.migrations.map((e) => e.from.toString()), [
         '1.9.0',
-        '1.12.0',
+        '1.11.0',
       ]);
       expect(manifest.migrations.last.steps, isEmpty);
     });
@@ -56,7 +58,8 @@ void main() {
       ]);
     });
 
-    test('a 1.7.0 or 1.9.0 pin upgrades to 1.13.0 with the bullet step', () {
+    test('a 1.7.0 or 1.9.0 pin upgrades to the shipped version with the '
+        'bullet step', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
@@ -72,7 +75,7 @@ void main() {
           },
           {'prd-core': manifest},
         );
-        expect(upgrades.single.target.toString(), '1.13.0', reason: pin);
+        expect(upgrades.single.target.toString(), shipped, reason: pin);
         expect(
           upgrades.single.steps.single.step,
           isA<BulletLines>(),
@@ -81,24 +84,26 @@ void main() {
       }
     });
 
-    test('a 1.12.0 pin upgrades to 1.13.0 with no step', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-        file: 'packs/prd-core/pack.yaml',
-      );
-      final upgrades = selectUpgrades(
-        {
-          'prd-core': PackVersion.parse(
-            '1.12.0',
-            file: 'config.yaml',
-            key: 'packs.prd-core',
-          ),
-        },
-        {'prd-core': manifest},
-      );
-      expect(upgrades.single.target.toString(), '1.13.0');
-      expect(upgrades.single.steps, isEmpty);
-    });
+    for (final pin in ['1.10.0', '1.11.0']) {
+      test('a $pin pin takes the shipped pin alone, with no step', () {
+        final manifest = PackManifest.parse(
+          utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+          file: 'packs/prd-core/pack.yaml',
+        );
+        final upgrades = selectUpgrades(
+          {
+            'prd-core': PackVersion.parse(
+              pin,
+              file: 'config.yaml',
+              key: 'packs.prd-core',
+            ),
+          },
+          {'prd-core': manifest},
+        );
+        expect(upgrades.single.target.toString(), shipped);
+        expect(upgrades.single.steps, isEmpty);
+      });
+    }
 
     test('a project pinning the shipped prd-core resolves with '
         'no fault', () async {

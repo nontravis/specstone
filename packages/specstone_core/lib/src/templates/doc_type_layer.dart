@@ -194,6 +194,7 @@ final class SectionLint {
     this.diagram,
     this.maxSentences,
     this.itemCount,
+    this.maxSubsections,
   });
 
   /// The section's character limit, when written.
@@ -242,6 +243,9 @@ final class SectionLint {
 
   /// The bounds on the section's item count, when written.
   final ItemCountLint? itemCount;
+
+  /// The most `###` subsections the section holds, when written.
+  final int? maxSubsections;
 }
 
 /// One guide section of a doc type, as one layer writes it.
@@ -260,6 +264,7 @@ final class SectionEntry {
     this.query,
     this.summary,
     this.summaryRows,
+    this.whenField,
     required this.disabled,
   });
 
@@ -297,6 +302,10 @@ final class SectionEntry {
   /// The rows a summary doc prints of the section's table, or off, when
   /// written.
   final SummaryRows? summaryRows;
+
+  /// The doc field and values that bind the section's `required`, when
+  /// written.
+  final WhenField? whenField;
 
   /// Whether the section is turned off by this layer.
   final bool disabled;
@@ -696,6 +705,7 @@ const _sectionKeys = {
   'query',
   'summary',
   'summary_rows',
+  'when_field',
 };
 
 const _docLintKeys = {
@@ -725,6 +735,7 @@ const _sectionLintKeys = {
   'diagram',
   'max_sentences',
   'item_count',
+  'max_subsections',
 };
 
 List<FieldEntry> _parseFields(YamlMap map, {required String file}) {
@@ -897,6 +908,7 @@ SectionEntry _parseSection(
     query: optionalValue<bool>(entry, 'query', file: file, prefix: prefix),
     summary: optionalValue<bool>(entry, 'summary', file: file, prefix: prefix),
     summaryRows: _parseSummaryRows(entry, index: index, file: file),
+    whenField: _parseWhenField(entry, file: file, prefix: prefix),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,
@@ -1010,6 +1022,62 @@ SectionLint _parseSectionLint(
     diagram: _parseDiagram(map, file: file, prefix: keyPrefix),
     maxSentences: _parseMaxSentences(map, file: file, prefix: keyPrefix),
     itemCount: _parseItemCount(map, file: file, prefix: keyPrefix),
+    maxSubsections: _parseMaxSubsections(map, file: file, prefix: keyPrefix),
+  );
+}
+
+/// Reads `lint.max_subsections` as a whole number of 1 or more.
+int? _parseMaxSubsections(
+  YamlMap map, {
+  required String file,
+  required String prefix,
+}) {
+  final count = optionalValue<int>(
+    map,
+    'max_subsections',
+    file: file,
+    prefix: prefix,
+  );
+  if (count == null || count >= 1) return count;
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'the key max_subsections must be a whole number of 1 or more',
+    file: file,
+    key: '${prefix}max_subsections',
+  );
+}
+
+/// Reads a section's `when_field` as its `field` and `values`.
+WhenField? _parseWhenField(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final map = optionalValue<YamlMap>(
+    entry,
+    'when_field',
+    file: file,
+    prefix: prefix,
+  );
+  if (map == null) return null;
+  final keyPrefix = '${prefix}when_field.';
+  checkKeys(
+    map,
+    const {'field', 'values'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  return (
+    field: requireValue<String>(map, 'field', file: file, prefix: keyPrefix),
+    values: List.unmodifiable(
+      stringsOf(
+        requireValue<YamlList>(map, 'values', file: file, prefix: keyPrefix),
+        'values',
+        file: file,
+        prefix: keyPrefix,
+      ),
+    ),
   );
 }
 
