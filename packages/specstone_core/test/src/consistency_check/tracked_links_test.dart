@@ -619,6 +619,96 @@ void main() {
     }
   });
 
+  group('repeated confirmed entries', () {
+    const secondFingerprint = '9a1c03be55d2';
+    const thirdFingerprint = '5d1e0c4b7a92';
+    final firstEntry = '  - S2 ${fp(loginScenario2)}';
+
+    List<Finding> repeatedIn(CheckReport report) => [
+      for (final finding in report.findings)
+        if (finding.kind == FindingKind.confirmedEntryRepeated) finding,
+    ];
+
+    test('two entries naming one scenario give one finding at the second, '
+        'whatever the fingerprints', () async {
+      for (final second in [secondFingerprint, fp(loginScenario2)]) {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: fr(firstEntry, '$firstEntry\n  - S2 $second'),
+          ),
+        );
+        final found = repeatedIn(report);
+        expect(found, hasLength(1));
+        expect(found.single.line, 8);
+        expect(found.single.waitsFor, WaitsFor.agent);
+        expect(found.single.keys, {
+          'entry': 'S2 $second',
+          'link': 'S2',
+          'first': 7,
+        });
+        expect(
+          spots(report),
+          isNot(contains('$loginFr:8: confirmed_entry_stale')),
+        );
+      }
+    });
+
+    test('three entries give two findings, each naming the first', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr(
+            firstEntry,
+            '$firstEntry\n  - S2 $secondFingerprint\n  - S2 $thirdFingerprint',
+          ),
+        ),
+      );
+      final found = repeatedIn(report);
+      expect(found.map((f) => f.line), [8, 9]);
+      expect(found.map((f) => f.keys['first']), [7, 7]);
+      expect(found.map((f) => f.keys['link']), ['S2', 'S2']);
+    });
+
+    test('two overrides entries naming one address give one finding at the '
+        'second', () async {
+      final files = overrideFiles(
+        extra: {
+          'docs/$loginDomain': domainDoc(
+            [overrideOfRoot],
+            entries: [
+              '$rootAddress $rootFingerprint',
+              '$rootAddress $secondFingerprint',
+            ],
+          ),
+        },
+      );
+      final report = checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: loginDomain,
+      );
+      final found = repeatedIn(report);
+      expect(found, hasLength(1));
+      expect(
+        found.single.line,
+        lineOf(files['docs/$loginDomain']!, secondFingerprint),
+      );
+      expect(found.single.keys, {
+        'entry': '$rootAddress $secondFingerprint',
+        'link': rootAddress,
+        'first': lineOf(files['docs/$loginDomain']!, rootFingerprint),
+      });
+    });
+
+    test('a malformed entry is never counted as a repeat', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr(firstEntry, '$firstEntry\n  - S2 047E817F9707'),
+        ),
+      );
+      expect(repeatedIn(report), isEmpty);
+      expect(spots(report, FindingKind.confirmedEntryMalformed), hasLength(1));
+    });
+  });
+
   test('an add nf tracks no link, so its entry is stale', () async {
     final report = checkOf(
       await writeCheckProject(

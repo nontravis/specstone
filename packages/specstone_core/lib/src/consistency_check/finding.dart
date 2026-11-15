@@ -128,6 +128,7 @@ enum FindingKind {
   unconfirmed('unconfirmed'),
   confirmedEntryMalformed('confirmed_entry_malformed'),
   confirmedEntryStale('confirmed_entry_stale'),
+  confirmedEntryRepeated('confirmed_entry_repeated'),
   codeSuspect('code_suspect'),
   codeUnconfirmed('code_unconfirmed'),
   formatDrift('format_drift'),
