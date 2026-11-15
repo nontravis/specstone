@@ -1274,6 +1274,61 @@ void main() {
     );
     expect(answer.json['draft'], isFalse);
   });
+  test('a list field with 92 single-quoted entries gains one entry as one added line', () async {
+    final held = [for (var i = 0; i < 92; i++) 'app/lib/src/f$i/'];
+    final block = "covers:\n${[for (final e in held) "  - '$e'\n"].join()}";
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$loginArch': withKeyBlock(
+          writeProject['docs/$loginArch']!,
+          'covers',
+          block,
+        ),
+      },
+    );
+    const target = 'architecture:login';
+    final before = readDoc(root, loginArch);
+
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'covers', fieldBase(root, target, 'covers')),
+        [
+          for (final e in [...held, 'app/lib/src/new/']) '- $e\n',
+        ].join(),
+      ),
+    );
+
+    final after = readDoc(root, loginArch);
+    expect(after, before.replaceFirst(block, "$block  - 'app/lib/src/new/'\n"));
+  });
+  test('a list field keeps the quotes of the entries it keeps and styles a new one after them', () async {
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$loginArch': withKeyBlock(
+          writeProject['docs/$loginArch']!,
+          'covers',
+          'covers:\n    - "app/lib/a/"\n    - "app/lib/b/"\n',
+        ),
+      },
+    );
+    const target = 'architecture:login';
+
+    writeIn(
+      root,
+      (s) => answerSet(
+        s,
+        fieldReq(target, 'covers', fieldBase(root, target, 'covers')),
+        '- app/lib/a/\n- app/lib/c/\n',
+      ),
+    );
+
+    expect(
+      readDoc(root, loginArch),
+      contains('covers:\n    - "app/lib/a/"\n    - "app/lib/c/"\n'),
+    );
+  });
   test('E09: a covers write leaves an approved doc approved', () async {
     final root = await writeWriteProject();
     const arch = 'architecture:login';
@@ -1967,7 +2022,7 @@ void main() {
       );
     },
   );
-  test('PD6: a multi-line value keeps its interior blank lines, each indented two spaces', () async {
+  test('a list value written with a blank line between entries gives one block of consecutive entries', () async {
     final root = await writeWriteProject();
     const target = 'user_story:login/email_login';
     writeIn(
@@ -1978,10 +2033,7 @@ void main() {
         '- PV-02\n\n- PV-03\n',
       ),
     );
-    expect(
-      readDoc(root, story1),
-      contains('vision:\n  - PV-02\n\n  - PV-03\n'),
-    );
+    expect(readDoc(root, story1), contains('vision:\n  - PV-02\n  - PV-03\n'));
   });
 
   test('U1, dw-s03/inv3: set refuses a doc that is not UTF-8 and leaves its bytes unchanged', () async {

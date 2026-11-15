@@ -5,7 +5,10 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show baseHashOf, withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
@@ -18,6 +21,7 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
+import '../../helpers/write_fixture.dart' show writeIn;
 
 const _login = 'app/lib/login.dart';
 const _stale = '0123456789ab';
@@ -319,25 +323,62 @@ void main() {
     });
   });
 
-  group('an entry the step cannot rewrite', () {
-    test('a folded scalar stays as written and is not counted', () async {
-      final project = await _project(
-        extra: {
-          'docs/$loginRecord':
-              "---\nstatuses:\n  - 'email_login:implemented'\n"
-              'implements:\n  - >-\n    email_login:$_login:SignInPage\n'
-              '---\n\n# Login implementation\n',
-        },
-      );
+  group('an entry the step stamps', () {
+    test(
+      'a folded scalar is written as a block list entry and counted',
+      () async {
+        final project = await _project(
+          extra: {
+            'docs/$loginRecord':
+                "---\nstatuses:\n  - 'email_login:implemented'\n"
+                'implements:\n  - >-\n    email_login:$_login:SignInPage\n'
+                '---\n\n# Login implementation\n',
+          },
+        );
 
-      final step = _planAt(project);
+        final step = _planAt(project);
 
-      expect(step.rewrites, isNot(contains(loginRecord)));
-      expect(
-        step.stepLine(from: _from, step: _step).text,
-        'from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries',
-      );
-    });
+        expect(
+          step.rewrites[loginRecord],
+          contains('implements:\n  - email_login:$_login:SignInPage '),
+        );
+        expect(
+          step.stepLine(from: _from, step: _step).text,
+          'from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries',
+        );
+      },
+    );
+
+    test(
+      'the text equals what set --field writes for the same entries',
+      () async {
+        const held = 'covers:\n  - "app/lib/login.dart"\n  - app/lib/\n';
+        final doc = checkProjectFiles()['docs/$loginArchitecture']!;
+        final project = await _project(
+          extra: {'docs/$loginArchitecture': withKeyBlock(doc, 'covers', held)},
+        );
+        final step = _planAt(project);
+
+        writeIn(
+          project,
+          (s) => answerSet(
+            s,
+            SetRequest.parse(
+              loginArchitecture,
+              field: 'covers',
+              base: baseHashOf(held),
+            ),
+            '- app/lib/login.dart $_loginFingerprint\n'
+            '- app/lib/ $_appLibFingerprint\n',
+          ),
+        );
+
+        expect(
+          step.rewrites[loginArchitecture],
+          _read(project, loginArchitecture),
+        );
+      },
+    );
   });
 
   group('the step line', () {

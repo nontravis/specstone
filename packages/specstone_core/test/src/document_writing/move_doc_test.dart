@@ -2594,13 +2594,10 @@ void main() {
 
       final created = readDoc(root, payFlutter);
       expect(created, contains('draft: true'));
-      expect(created, contains("'add_item:implemented'"));
-      expect(created, contains("'add_item/check_stock:implemented'"));
-      expect(created, contains("'add_item:app/lib/shop.dart:Shop'"));
-      expect(
-        created,
-        contains("'add_item/check_stock:app/lib/shop.dart:Shop'"),
-      );
+      expect(created, contains('add_item:implemented'));
+      expect(created, contains('add_item/check_stock:implemented'));
+      expect(created, contains('add_item:app/lib/shop.dart:Shop'));
+      expect(created, contains('add_item/check_stock:app/lib/shop.dart:Shop'));
       expect(created, isNot(contains('skipped')));
       expect(holdsApproval(root, payFlutter), isFalse);
 
@@ -2637,10 +2634,10 @@ void main() {
         expect(cart, contains("'drop_item:app/test/shop_test.dart'"));
         expect(cart, isNot(contains('add_item')));
         final created = readDoc(root, payFlutter);
-        expect(created, contains("'add_item:app/test/shop_test.dart'"));
+        expect(created, contains('add_item:app/test/shop_test.dart'));
         expect(
           created,
-          contains("'add_item/check_stock:app/test/shop_test.dart:checks'"),
+          contains('add_item/check_stock:app/test/shop_test.dart:checks'),
         );
       },
     );
@@ -2666,7 +2663,7 @@ void main() {
         expect(cart, isNot(contains('add_item')));
         expect(
           readDoc(root, payFlutter),
-          contains("'add_item:app/lib/shop.dart:Shop 0123456789ab'"),
+          contains('add_item:app/lib/shop.dart:Shop 0123456789ab'),
         );
       },
     );
@@ -2747,8 +2744,8 @@ void main() {
       );
       final created = readDoc(root, payFlutter);
       expect(
-        created.indexOf("'add_item:implemented'"),
-        lessThan(created.indexOf("'drop_item:planned'")),
+        created.indexOf('add_item:implemented'),
+        lessThan(created.indexOf('drop_item:planned')),
       );
       expect(readDoc(root, cartFlutter), isNot(contains('statuses')));
     });
@@ -2806,7 +2803,7 @@ void main() {
       expect(pay, contains("'card:planned'"));
       expect(pay, contains("'add_item:implemented'"));
       expect(pay, contains("'add_item/check_stock:implemented'"));
-      expect(pay, contains("'add_item:app/lib/shop.dart:Shop'"));
+      expect(pay, contains('add_item:app/lib/shop.dart:Shop'));
       expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
     });
 
@@ -2896,7 +2893,7 @@ void main() {
       moveAddItem(root);
       final created = readDoc(root, 'specs/f02_shop/f02_pay/IMPLEMENTATION.md');
       expect(created, contains('draft: true'));
-      expect(created, contains("'add_item/check_stock:implemented'"));
+      expect(created, contains('add_item/check_stock:implemented'));
       expect(
         readDoc(root, 'specs/f02_shop/f01_cart/IMPLEMENTATION.md'),
         isNot(contains('add_item')),

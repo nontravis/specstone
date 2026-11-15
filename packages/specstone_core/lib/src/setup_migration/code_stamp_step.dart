@@ -8,6 +8,7 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
@@ -22,7 +23,6 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-import 'package:yaml/yaml.dart';
 
 // MARK: - Types
 
@@ -61,9 +61,8 @@ final class CodeStampStep {
   ///
   /// A link takes its fingerprint after one space, in place of any it ends
   /// in. A `planned` entry, a waiting target's `covers:` entry, an entry
-  /// whose path names nothing, one whose code cannot be read, and one whose
-  /// scalar style takes no tail edit stay as written and are not counted; no
-  /// other byte of a doc changes.
+  /// whose path names nothing, and one whose code cannot be read stay as
+  /// written and are not counted; no other entry of a doc changes.
   factory plan(
     List<CodeStampDoc> docs, {
     required Directory projectRoot,
@@ -267,8 +266,8 @@ final class _CodeReader {
 
 // MARK: - Writing
 
-/// Returns [lf] with each value of [stamps] rewritten in its field, quotes
-/// and every other byte kept, and the stamps that landed.
+/// Returns [lf] with each value of [stamps] rewritten in its field through
+/// the list writer, and the stamps that landed.
 ({String lf, List<_Stamp> applied}) _withStamps(
   String lf,
   List<_Stamp> stamps,
@@ -283,81 +282,23 @@ final class _CodeReader {
     final block = Doc.parse(text).frontmatter
         ?.where((candidate) => candidate.name == field)
         .firstOrNull;
-    if (block == null) continue;
-    final (:written, :landed) = _withScalars(block.text, field, fieldStamps);
+    final entries = block == null ? null : listEntriesOf(block);
+    if (block == null || entries == null) continue;
+    final byValue = {for (final stamp in fieldStamps) stamp.value: stamp};
+    final landed = <_Stamp>[];
+    final stamped = <Object?>[];
+    for (final entry in entries) {
+      final stamp = byValue[entry];
+      if (stamp != null) landed.add(stamp);
+      stamped.add(stamp?.stamped ?? entry);
+    }
+    if (landed.isEmpty) continue;
     applied.addAll(landed);
-    if (written != block.text) text = withKeyBlock(text, field, written);
+    text = withKeyBlock(
+      text,
+      field,
+      listBlockOf(field, stamped, onDisk: block),
+    );
   }
   return (lf: text, applied: applied);
-}
-
-/// Returns the key block [text] of [field] with the scalar of each of
-/// [stamps] rewritten in place, and the stamps whose scalar took the edit.
-({String written, List<_Stamp> landed}) _withScalars(
-  String text,
-  String field,
-  List<_Stamp> stamps,
-) {
-  final node = switch (loadYamlNode(text)) {
-    YamlMap(:final nodes) => nodes[field],
-    _ => null,
-  };
-  final scalars = switch (node) {
-    final YamlList list => list.nodes.whereType<YamlScalar>(),
-    final YamlScalar scalar => [scalar],
-    _ => const <YamlScalar>[],
-  };
-  final byValue = {for (final stamp in stamps) stamp.value: stamp};
-  final edits = <({int start, int end, String source, _Stamp stamp})>[];
-  for (final scalar in scalars) {
-    final stamp = byValue[scalar.value];
-    if (stamp == null) continue;
-    if (_tailEdit(text, scalar, stamp.value, stamp.stamped) case final edit?) {
-      edits.add((
-        start: edit.start,
-        end: edit.end,
-        source: edit.source,
-        stamp: stamp,
-      ));
-    }
-  }
-  edits.sort((a, b) => b.start.compareTo(a.start));
-  var written = text;
-  for (final (:start, :end, :source, stamp: _) in edits) {
-    written = written.replaceRange(start, end, source);
-  }
-  return (written: written, landed: [for (final edit in edits) edit.stamp]);
-}
-
-/// Returns the edit that makes the source of [scalar], read as [old], read
-/// as [value]; null when the scalar's style or source keeps it from one.
-///
-/// [value] differs from [old] only past the pointer, so the edit replaces
-/// the tail alone and the source keeps its quotes and escapes.
-({int start, int end, String source})? _tailEdit(
-  String text,
-  YamlScalar scalar,
-  String old,
-  String value,
-) {
-  final quoteLength = switch (scalar.style) {
-    ScalarStyle.PLAIN => 0,
-    ScalarStyle.SINGLE_QUOTED || ScalarStyle.DOUBLE_QUOTED => 1,
-    _ => null,
-  };
-  if (quoteLength == null) return null;
-  var shared = 0;
-  while (shared < old.length &&
-      shared < value.length &&
-      old[shared] == value[shared]) {
-    shared++;
-  }
-  final oldTail = old.substring(shared);
-  final end = scalar.span.end.offset - quoteLength;
-  final start = end - oldTail.length;
-  if (start < scalar.span.start.offset + quoteLength ||
-      text.substring(start, end) != oldTail) {
-    return null;
-  }
-  return (start: start, end: end, source: value.substring(shared));
 }

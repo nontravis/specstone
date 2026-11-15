@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart'
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isOutsideApproval;
@@ -473,12 +474,12 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
       currentBase: currentBase,
     );
   }
+  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
   final spliced = withKeyBlock(
     lfText,
     fieldId,
-    value == null ? null : _blockOf(fieldId, value),
+    value == null ? null : _fieldBlockOf(fieldId, field, value, held),
   );
-  final field = docType.fields.where((f) => f.id == fieldId).firstOrNull;
   return (
     lfText: spliced,
     marksDraft:
@@ -531,7 +532,22 @@ String _typeOf(MergedField field) => switch (field.type) {
         : 'one of ${field.enumValues!.join(', ')}',
 };
 
-/// Returns [stdin] as the key block text of [fieldId].
+/// Returns the key block of [fieldId] holding the checked YAML [value]: a
+/// `list: true` field's entries written over [held], else [value] as given.
+String _fieldBlockOf(
+  String fieldId,
+  MergedField? field,
+  String value,
+  KeyBlock? held,
+) {
+  if (field == null || !field.list) return _blockOf(fieldId, value);
+  return switch (loadYaml(value)) {
+    final YamlList entries => listBlockOf(fieldId, [...entries], onDisk: held),
+    _ => _blockOf(fieldId, value),
+  };
+}
+
+/// Returns [stdin] as the key block text of the scalar field [fieldId].
 ///
 /// A blank interior line stays blank; a trailing blank line is dropped.
 String _blockOf(String fieldId, String stdin) {

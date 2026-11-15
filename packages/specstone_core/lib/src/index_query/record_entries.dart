@@ -1,13 +1,11 @@
-import 'dart:convert';
-
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-import 'package:yaml/yaml.dart';
 
 /// One entry of a target's `implementation` record: the story or FR it
 /// records, named relative to the record's feature (empty for the feature
@@ -326,8 +324,8 @@ RecordLines recordLinesCarried(
 /// `item_exact`, and `item_test` fields, a field that holds none yet gaining
 /// its key; null when [lines] holds none.
 ///
-/// A field that gains lines is written back as a block list, one quoted line
-/// each, as [rewriteRecordItems] writes it. It marks no draft. Throws
+/// A field that gains lines is written back as a block list through the list
+/// writer, as [rewriteRecordItems] writes it. It marks no draft. Throws
 /// [RecordFieldUnreadable] when the block of a field that gains lines is not
 /// valid YAML, since writing it back would drop the lines it holds.
 String? addRecordLines(
@@ -343,10 +341,10 @@ String? addRecordLines(
   ]) {
     if (field == null || added.isEmpty) continue;
     final held = _fieldLinesOf(text, field);
-    text = _withFieldLines(text, field, held?.key ?? field.id, [
+    text = _withFieldLines(text, field, [
       ...?held?.lines,
       ...added,
-    ]);
+    ], onDisk: held?.block);
   }
   return text == lfText ? null : text;
 }
@@ -357,11 +355,11 @@ List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
   ?recordTestFieldOf(recordType),
 ];
 
-/// Returns the key as spelled in the block of [field] in [lfText] and the
-/// lines it lists, one value alone as one line; null when the key is absent.
+/// Returns the block of [field] in [lfText] and the lines it lists, one value
+/// alone as one line; null when the key is absent.
 ///
 /// Throws [RecordFieldUnreadable] for a block that is no valid YAML.
-({String key, List<Object?> lines})? _fieldLinesOf(
+({KeyBlock block, List<Object?> lines})? _fieldLinesOf(
   String lfText,
   MergedField field,
 ) {
@@ -369,38 +367,23 @@ List<MergedField> _recordFieldsOf(MergedDocType recordType) => [
       .where((b) => b.name == field.id)
       .firstOrNull;
   if (block == null) return null;
-  final Object? parsed;
-  try {
-    parsed = loadYaml(block.text);
-  } on YamlException {
-    throw RecordFieldUnreadable(block.key);
-  }
-  final value = parsed is YamlMap ? parsed[field.id] : null;
-  return (
-    key: block.key,
-    lines: switch (value) {
-      null => const <Object?>[],
-      YamlList() => [...value],
-      _ => [value],
-    },
-  );
+  final lines = listEntriesOf(block);
+  if (lines == null) throw RecordFieldUnreadable(block.key);
+  return (block: block, lines: lines);
 }
 
-/// Returns [lfText] with the block of [field] listing [lines], one quoted
-/// line each, under [key]; the block is removed when [lines] is empty.
+/// Returns [lfText] with the block of [field] listing [lines] over [onDisk]
+/// through the list writer; the block is removed when [lines] is empty.
 String _withFieldLines(
   String lfText,
   MergedField field,
-  String key,
-  List<Object?> lines,
-) {
-  final listed = [for (final line in lines) '  - ${_yamlOf(line)}\n'].join();
-  return withKeyBlock(
-    lfText,
-    field.id,
-    lines.isEmpty ? null : '$key:\n$listed',
-  );
-}
+  List<Object?> lines, {
+  KeyBlock? onDisk,
+}) => withKeyBlock(
+  lfText,
+  field.id,
+  lines.isEmpty ? null : listBlockOf(field.id, lines, onDisk: onDisk),
+);
 
 String _rewriteField(
   String lfText,
@@ -417,7 +400,9 @@ String _rewriteField(
     if (next != line) changed = true;
     if (next != null) kept.add(next);
   }
-  return changed ? _withFieldLines(lfText, field, held.key, kept) : lfText;
+  return changed
+      ? _withFieldLines(lfText, field, kept, onDisk: held.block)
+      : lfText;
 }
 
 /// Returns [line] with the item [itemOf] reads from it set by [rewrite], or
@@ -459,15 +444,3 @@ String? _testItemOf(String line) {
   final item = recordTestLineOf(line)?.item;
   return item == null || item.isEmpty ? null : item;
 }
-
-/// Returns [value] as one YAML flow or single-quoted scalar, which reads back
-/// as it was.
-String _yamlOf(Object? value) => value is String && !value.contains('\n')
-    ? "'${value.replaceAll("'", "''")}'"
-    : jsonEncode(_plain(value));
-
-Object? _plain(Object? yaml) => switch (yaml) {
-  YamlMap() => {for (final e in yaml.entries) '${e.key}': _plain(e.value)},
-  YamlList() => [for (final e in yaml) _plain(e)],
-  _ => yaml,
-};
