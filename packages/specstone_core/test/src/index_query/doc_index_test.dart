@@ -747,8 +747,26 @@ void main() {
         throwsA(
           isA<IndexFault>()
               .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
-              .having((f) => f.message, 'message', contains('feedback/toast'))
-              .having((f) => f.message, 'message', contains('snackbar/toast')),
+              .having(
+                (f) => f.message,
+                'message',
+                'toast ends 2 names: '
+                    'feature:feedback/toast, feature:snackbar/toast',
+              ),
+        ),
+      );
+    });
+    test('a typed suffix lists each identity in the same form', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(
+        () => tree.resolve('feature:toast'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            'feature:toast ends 2 names: '
+                'feature:feedback/toast, feature:snackbar/toast',
+          ),
         ),
       );
     });
@@ -763,12 +781,12 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                contains('foundation/layout_primitives/scrolling'),
+                contains('feature:foundation/layout_primitives/scrolling'),
               )
               .having(
                 (f) => f.message,
                 'message',
-                contains('foundation/scroll_area/scrolling'),
+                contains('user_story:foundation/scroll_area/scrolling'),
               ),
         ),
       );
