@@ -84,12 +84,12 @@ Iterable<Finding> checkCodeLinks(
     linesOf: () => context.linesOf(doc),
   );
   for (final link in links) {
+    final reason = link.item == null ? CodeRead.codeLink : CodeRead.symbols;
     final current = currentCodeFingerprint(
       link.path,
       codeRoot: context.codeRootOf(target),
       nestedRoots: context.nestedRootsOf(target),
-      bytesOf: (file) =>
-          context.codeBytesOf(target, file, reason: CodeRead.codeLink),
+      bytesOf: (file) => context.codeBytesOf(target, file, reason: reason),
       onUnlistable: (folder) => context.warn(
         '$folder: cannot list the folder; files under it are not checked for '
         'covers or fingerprints',

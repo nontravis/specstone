@@ -298,7 +298,8 @@ void main() {
     });
 
     test(
-      'a file that cannot be read gives a warning and no stop',
+      'a file that only covers reaches and cannot be read gives a warning and '
+      'no stop',
       skip: unreadablePathSkipReason(),
       () async {
         final project = await writeCheckProject(

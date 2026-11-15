@@ -783,6 +783,28 @@ void main() {
   );
 
   test(
+    'an unreadable file a record entry with no Symbol names gives the '
+    'Symbols warning',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(code: ['$_fr:$_login $_stale']),
+        extra: _covering(''),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadable',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  test(
     'an unreadable file only a covers entry reaches gives the code-link '
     'warning',
     skip: unreadablePathSkipReason(),
