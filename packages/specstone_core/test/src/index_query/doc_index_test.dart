@@ -756,6 +756,28 @@ void main() {
         ),
       );
     });
+    test(
+      'a name carried by several doc types is listed once per doc',
+      () async {
+        final tree = await indexWith({
+          ...suffixFiles(),
+          'docs/specs/f11_feedback/f01_toast/ARCHITECTURE.md': '# Toast\n',
+          'docs/specs/f11_feedback/f01_toast/DOMAIN.md': '# Toast\n',
+        });
+        expect(
+          () => tree.resolve('toast'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.message,
+              'message',
+              'toast ends 2 names: feature:feedback/toast, '
+                  'feature:snackbar/toast, architecture:feedback/toast, '
+                  'domain:feedback/toast',
+            ),
+          ),
+        );
+      },
+    );
     test('a typed suffix lists each identity in the same form', () async {
       final tree = await indexWith(suffixFiles());
       expect(

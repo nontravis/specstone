@@ -226,7 +226,7 @@ final class DocIndex {
     ];
     final names = {for (final doc in ending) doc.name}.toList();
     if (names.length > 1) {
-      final listed = {for (final doc in ending) addressOf(doc)};
+      final listed = [for (final doc in ending) addressOf(doc)];
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
         '${typeId == null ? '' : '$typeId:'}$suffix ends ${names.length} '
