@@ -374,6 +374,30 @@ void main() {
       }
     });
 
+    test('quotes a value with a non-printable or line-break character', () {
+      const characters = {
+        'DEL': '\u007f',
+        'NEL': '\u0085',
+        'LS': ' ',
+        'PS': ' ',
+        'BOM': '﻿',
+      };
+      for (final MapEntry(key: label, value: character) in characters.entries) {
+        final description = 'before${character}after';
+        for (final file in markdownRenders(description)) {
+          final line = file.text
+              .split('\n')
+              .firstWhere((line) => line.startsWith('description:'));
+          expect(line, startsWith('description: "'), reason: label);
+          expect(
+            _frontmatterOf(file.text)['description'],
+            description,
+            reason: '$label in ${file.path}',
+          );
+        }
+      }
+    });
+
     test('round-trips every shipped agent and skill through YAML', () {
       final sources = {
         for (final asset in shippedAgentAssets()) asset.path: asset.text,
