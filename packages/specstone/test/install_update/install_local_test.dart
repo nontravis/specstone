@@ -11,6 +11,7 @@ import '../../../specstone_core/test/helpers/git_repo.dart' show commitAll, git;
 import '../helpers/install_local_repo.dart';
 
 const _unchangedText = 'the install is unchanged';
+const _versionFile = 'packages/specstone_core/lib/src/version.dart';
 
 void main() {
   late String tool;
@@ -67,6 +68,9 @@ if [ "$1 $2" = 'build cli' ]; then
 fi''');
     return File('${repo.sandbox.logs.path}/bundle_specstone');
   }
+
+  // The dart stub saves the `version.dart` it builds from.
+  File builtVersionFile() => File('${repo.sandbox.logs.path}/version.dart');
 
   Future<void> waitFor(bool Function() isDone) async {
     final deadline = DateTime.now().add(const Duration(seconds: 30));
@@ -282,8 +286,9 @@ exec "$(dirname "$0")/git_original" "$@"''');
       'bundle holds the committed marker.txt', () async {
     final bundleBinary = keepBundleBinary();
     File('${repo.work.path}/marker.txt').writeAsStringSync('changed\n');
-    File('${repo.work.path}/fixture_version.txt').writeAsStringSync('9.9.9\n');
-    git(repo.work, ['add', 'fixture_version.txt']);
+    File('${repo.work.path}/$_versionFile')
+        .writeAsStringSync("const String specstoneVersion = '9.9.9';\n");
+    git(repo.work, ['add', _versionFile]);
     File('${repo.work.path}/untracked.txt').writeAsStringSync('new\n');
     final stateBefore = await repo.checkoutState();
 
@@ -296,7 +301,7 @@ exec "$(dirname "$0")/git_original" "$@"''');
       '# ${repo.sha('develop')} develop',
     );
     final version = await Process.run(bundleBinary.path, ['--version']);
-    expect((version.stdout as String).trim(), '0.9.0');
+    expect((version.stdout as String).trim(), '0.10.0-dev.1');
   });
 
   test('a dirty checkout on develop is equal across a '
@@ -465,8 +470,30 @@ fi''');
     expect(repo.tmpIsEmpty, isTrue);
   });
 
-  String installLine(String ref, String shortCommit) =>
-      'installed specstone 0.9.0 ($ref @ $shortCommit) in ${installDir()}/bin\n';
+  String installLine(String version, String ref, String shortCommit) =>
+      'installed specstone $version ($ref @ $shortCommit) '
+      'in ${installDir()}/bin\n';
+
+  // Merges a new branch into develop with a merge commit.
+  void mergeIntoDevelop(String name) {
+    git(repo.work, ['checkout', '-q', '-b', name]);
+    File('${repo.work.path}/$name.txt').writeAsStringSync('$name\n');
+    commitAll(repo.work, name);
+    git(repo.work, ['checkout', '-q', 'develop']);
+    git(repo.work, ['merge', '-q', '--no-ff', '-m', 'merge $name', name]);
+  }
+
+  // Runs the tool on [ref] and expects its install line to name [version].
+  Future<void> expectVersion(String version, {String ref = 'develop'}) async {
+    final result = await repo.run(tool, args: ['--branch', ref]);
+
+    expect(result.exitCode, 0, reason: '${result.stderr}');
+    expect(
+      result.stdout,
+      installLine(version, ref, repo.shortSha(ref)),
+      reason: ref,
+    );
+  }
 
   // The second line of the placed binary: the stub's `# <commit> <marker>`.
   String placedMark() =>
@@ -489,7 +516,7 @@ fi''');
     'exec /bin/$tool "\$@"',
   );
 
-  test('no ref installs develop and prints one line', () async {
+  test('no ref installs develop as 0.10.0-dev.1', () async {
     Directory(installDir()).deleteSync(recursive: true);
     final started = DateTime.now().toUtc();
 
@@ -497,12 +524,15 @@ fi''');
 
     final finished = DateTime.now().toUtc();
     expect(result.exitCode, 0, reason: '${result.stderr}');
-    expect(result.stdout, installLine('develop', repo.shortSha('develop')));
+    expect(
+      result.stdout,
+      installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
+    );
     expect(result.stderr, isEmpty);
     final version = await Process.run('${installDir()}/bin/specstone', [
       '--version',
     ]);
-    expect(version.stdout, '0.9.0\n');
+    expect(version.stdout, '0.10.0-dev.1\n');
     expect(placedMark(), '# ${repo.sha('develop')} develop');
     final record = buildTxt().readAsLinesSync();
     expect(record, hasLength(3));
@@ -523,7 +553,11 @@ fi''');
     expect(result.exitCode, 0, reason: '${result.stderr}');
     expect(
       result.stdout,
-      installLine('feature/example', repo.shortSha('feature/example')),
+      installLine(
+        '0.10.0-dev.1',
+        'feature/example',
+        repo.shortSha('feature/example'),
+      ),
     );
     expect(placedMark(), '# ${repo.sha('feature/example')} feature');
     expect(buildTxt().readAsLinesSync().first, 'ref: feature/example');
@@ -531,32 +565,186 @@ fi''');
 
   test('a tag or a full commit installs and the line names '
       'it as given', () async {
-    git(repo.work, ['tag', 'v0.9.0', 'feature/example']);
-    git(repo.work, ['tag', '-a', 'v1.0.0', '-m', 'annotated', 'develop']);
+    git(repo.work, ['tag', 'v0.9.1', 'feature/example']);
+    git(repo.work, ['tag', '-a', 'v0.9.2', '-m', 'annotated', 'develop']);
 
-    final tagged = await repo.run(tool, args: ['--branch', 'v0.9.0']);
+    final tagged = await repo.run(tool, args: ['--branch', 'v0.9.1']);
 
     expect(tagged.exitCode, 0, reason: '${tagged.stderr}');
     expect(
       tagged.stdout,
-      installLine('v0.9.0', repo.shortSha('feature/example')),
+      installLine('0.10.0-dev.1', 'v0.9.1', repo.shortSha('feature/example')),
     );
     expect(placedMark(), '# ${repo.sha('feature/example')} feature');
 
-    final annotated = await repo.run(tool, args: ['--branch', 'v1.0.0']);
+    final annotated = await repo.run(tool, args: ['--branch', 'v0.9.2']);
 
     expect(annotated.exitCode, 0, reason: '${annotated.stderr}');
-    expect(annotated.stdout, installLine('v1.0.0', repo.shortSha('develop')));
+    expect(
+      annotated.stdout,
+      installLine('0.10.0-dev.1', 'v0.9.2', repo.shortSha('develop')),
+    );
     expect(placedMark(), '# ${repo.sha('develop')} develop');
-    expect(buildTxt().readAsLinesSync().first, 'ref: v1.0.0');
+    expect(buildTxt().readAsLinesSync().first, 'ref: v0.9.2');
 
     final commit = repo.sha('develop');
     final full = await repo.run(tool, args: ['--branch', commit]);
 
     expect(full.exitCode, 0, reason: '${full.stderr}');
-    expect(full.stdout, installLine(commit, repo.shortSha('develop')));
+    expect(
+      full.stdout,
+      installLine('0.10.0-dev.1', commit, repo.shortSha('develop')),
+    );
     expect(placedMark(), '# $commit develop');
     expect(buildTxt().readAsLinesSync().first, 'ref: $commit');
+  });
+
+  test('the line tag itself builds as 0.10.0-dev.0', () async {
+    await expectVersion('0.10.0-dev.0', ref: 'v0.9.0');
+  });
+
+  test('a later release, a merge, and a new pre-release line move the '
+      'dev Version', () async {
+    git(repo.work, ['tag', 'v0.9.1', 'develop']);
+    await expectVersion('0.10.0-dev.1');
+
+    mergeIntoDevelop('second');
+    await expectVersion('0.10.0-dev.2');
+
+    git(repo.work, ['tag', 'v0.10.0-beta.1', 'develop']);
+    await expectVersion('0.11.0-dev.0');
+  });
+
+  test('a tag in no Version form, and a tag the commit does not reach, '
+      'are skipped', () async {
+    for (final name in ['vnext', 'v1.2', 'release-2.0.0']) {
+      git(repo.work, ['tag', name, 'develop']);
+    }
+    git(repo.work, ['tag', 'v9.9.9', 'feature/example']);
+
+    await expectVersion('0.10.0-dev.1');
+  });
+
+  test('a branch of a tag name does not shift the count, and an annotated '
+      'line tag counts the same', () async {
+    git(repo.work, ['branch', 'v0.9.0', 'develop']);
+    // `refs/<name>` outranks `refs/tags/<name>` for a bare name.
+    git(repo.work, ['update-ref', 'refs/v0.9.0', 'develop']);
+    await expectVersion('0.10.0-dev.1');
+
+    git(repo.work, [
+      'tag',
+      '-f',
+      '-a',
+      'v0.9.0',
+      '-m',
+      'annotated',
+      git(repo.work, [
+        'rev-list',
+        '--max-parents=0',
+        'develop',
+      ]).stdout.toString().trim(),
+    ]);
+    await expectVersion('0.10.0-dev.1');
+  });
+
+  test('a minor of any length is counted, not parsed to an int', () async {
+    git(repo.work, ['tag', 'v0.99999999999999999999.0', 'develop']);
+
+    await expectVersion('0.100000000000000000000.0-dev.0');
+  });
+
+  test('no tag merged into the commit is refused before any '
+      'worktree', () async {
+    git(repo.work, ['tag', '-d', 'v0.9.0']);
+
+    final result = await repo.run(tool);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('v<Version>'));
+    expect(result.stderr, contains(repo.shortSha('develop')));
+    expect(result.stderr, contains(_unchangedText));
+    expect(
+      repo.sandbox.logOf('git'),
+      isNot(anyElement(startsWith('worktree'))),
+    );
+    expectNothingChanged();
+  });
+
+  test('a git that prints tags in columns still finds them', () async {
+    git(repo.work, ['config', 'column.ui', 'always']);
+    git(repo.work, ['tag', 'v0.9.1', 'develop']);
+
+    await expectVersion('0.10.0-dev.1');
+  });
+
+  test('a version.dart that cannot be read is not called a missing '
+      'line', () async {
+    git(repo.work, ['checkout', '-q', '-b', 'binary']);
+    File('${repo.work.path}/$_versionFile')
+        .writeAsBytesSync([0xff, 0xfe, 0x0a]);
+    commitAll(repo.work, 'not utf-8');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    final result = await repo.run(tool, args: ['--branch', 'binary']);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('could not read $_versionFile'));
+    expect(result.stderr, isNot(contains('no specstoneVersion line')));
+    expect(result.stderr, contains(_unchangedText));
+    expect(repo.sandbox.logOf('dart'), isEmpty);
+    expectBuildLeftNothing();
+  });
+
+  test('a commit with no specstoneVersion line is refused naming the file '
+      'before any build step', () async {
+    git(repo.work, ['checkout', '-q', '-b', 'old-version']);
+    File('${repo.work.path}/$_versionFile')
+        .writeAsStringSync('// no version yet\n');
+    commitAll(repo.work, 'drop the version line');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    final result = await repo.run(tool, args: ['--branch', 'old-version']);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains(_versionFile));
+    expect(result.stderr, contains(_unchangedText));
+    expect(repo.sandbox.logOf('dart'), isEmpty);
+    expectBuildLeftNothing();
+  });
+
+  test('a version.dart with CRLF line ends takes the dev Version', () async {
+    // A global autocrlf would turn the committed CRLF back into LF.
+    git(repo.work, ['config', 'core.autocrlf', 'false']);
+    git(repo.work, ['checkout', '-q', '-b', 'crlf']);
+    File('${repo.work.path}/$_versionFile')
+        .writeAsStringSync("const String specstoneVersion = '0.9.0';\r\n");
+    commitAll(repo.work, 'crlf');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    await expectVersion('0.10.0-dev.1', ref: 'crlf');
+    expect(
+      builtVersionFile().readAsStringSync(),
+      "const String specstoneVersion = '0.10.0-dev.1';\r\n",
+    );
+  });
+
+  test('a version.dart with two specstoneVersion lines changes the '
+      'first', () async {
+    git(repo.work, ['checkout', '-q', '-b', 'twice']);
+    File('${repo.work.path}/$_versionFile').writeAsStringSync(
+      "const String specstoneVersion = '0.9.0';\n"
+      "const String specstoneVersion = '0.8.0'; // second\n",
+    );
+    commitAll(repo.work, 'twice');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    await expectVersion('0.10.0-dev.1', ref: 'twice');
+    expect(
+      builtVersionFile().readAsStringSync(),
+      "const String specstoneVersion = '0.10.0-dev.1';\n"
+      "const String specstoneVersion = '0.8.0'; // second\n",
+    );
   });
 
   for (final folder in ['lib', 'bin']) {
@@ -623,8 +811,8 @@ fi''');
     );
   });
 
-  test('installFake at 0.9.0 is replaced by the build', () async {
-    repo.sandbox.installFake(version: '0.9.0');
+  test('installFake at 0.10.0-dev.1 is replaced by the build', () async {
+    repo.sandbox.installFake(version: '0.10.0-dev.1');
 
     final result = await repo.run(tool);
 
@@ -753,8 +941,8 @@ fi''');
     expectNothingChanged();
   });
 
-  test('build.txt goes with lib/ under install.sh at 0.9.1 and '
-      'uninstall.sh, and stays under install.sh at 0.9.0', () async {
+  test('build.txt goes with lib/ under install.sh at 0.9.1 and at 0.9.0, '
+      'and under uninstall.sh', () async {
     final sandbox = repo.sandbox;
     final archiveEnv = {'SPECSTONE_ARCHIVE_DIR': sandbox.archives.path};
     expect((await repo.run(tool)).exitCode, 0);
@@ -771,8 +959,7 @@ fi''');
     final same = await sandbox.run('install.sh', extra: archiveEnv);
 
     expect(same.exitCode, 0, reason: '${same.stderr}');
-    expect(buildTxt().existsSync(), isTrue);
-    expect(placedMark(), '# ${repo.sha('develop')} develop');
+    expect(buildTxt().existsSync(), isFalse);
 
     final removed = await sandbox.run('uninstall.sh');
 
@@ -823,7 +1010,10 @@ exec /bin/mv "$@"''');
     final result = await interruptAt('moving', const {});
 
     expect(result.exitCode, 0, reason: result.stderr);
-    expect(result.stdout, installLine('develop', repo.shortSha('develop')));
+    expect(
+      result.stdout,
+      installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
+    );
     expect(result.stderr, isNot(contains('unchanged')));
     expect(placedMark(), '# ${repo.sha('develop')} develop');
     expect(repo.worktrees(), hasLength(1));
@@ -837,7 +1027,10 @@ exec /bin/mv "$@"''');
     final result = await runBounded();
 
     expect(result.exitCode, 1);
-    expect(result.stdout, installLine('develop', repo.shortSha('develop')));
+    expect(
+      result.stdout,
+      installLine('0.10.0-dev.1', 'develop', repo.shortSha('develop')),
+    );
     expect(result.stderr, contains('the install is in place, but'));
     expect(result.stderr, contains('stub: git worktree remove failed'));
     expect(placedMark(), '# ${repo.sha('develop')} develop');
