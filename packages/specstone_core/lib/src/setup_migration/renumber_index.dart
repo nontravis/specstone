@@ -70,10 +70,10 @@ final class RenumberIndex {
   );
 
   /// The project or goal doc holding each lettered vision or goal ID; the
-  /// project doc wins an ID both hold.
+  /// goal doc wins an ID both hold, as `check` reads goals from it alone.
   late final Map<String, String> _projectPaths = {
-    ..._idPathsOfType(_goalType, letteredOnly: true),
     ..._idPathsOfType(_projectType, letteredOnly: true),
+    ..._idPathsOfType(_goalType, letteredOnly: true),
   };
 
   /// Per story DocPath, the one lettered scenario of each number value that
@@ -220,7 +220,7 @@ final class RenumberIndex {
   // MARK: - Entry values
 
   /// The new `traced_from` value of [value] in the doc at [docPath]: a
-  /// renumbered scenario ref or project ID; null to keep it.
+  /// renumbered scenario ref or project or goal ID; null to keep it.
   String? tracedFromLabel(String value, String docPath) {
     final scenario = scenarioTarget(value, docPath)?.label;
     if (scenario != null) return scenario == value ? null : scenario;
@@ -228,7 +228,7 @@ final class RenumberIndex {
   }
 
   /// The new `vision`, `goals`, or `traced_from` value of [value], a
-  /// renumbered project ID; null to keep it.
+  /// renumbered project or goal ID; null to keep it.
   String? projectIdLabel(String value) {
     final projectPath = _projectPaths[value];
     return projectPath == null ? null : toOf(projectPath, value);

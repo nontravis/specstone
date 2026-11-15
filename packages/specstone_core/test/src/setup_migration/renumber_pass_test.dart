@@ -615,6 +615,63 @@ confirmed:
     );
   });
 
+  test('$_fr E20: the goal doc wins a lettered goal ID the project doc also '
+      'holds; an ID only the project doc holds still renumbers', () {
+    const project = '''
+# P
+
+## Project goals
+
+### PG-01 — One
+
+### PG-3b — Two
+
+### PG-2a — Three
+''';
+    const goal = '''
+# Goals
+
+## Long-term goals
+
+### PG-01 — One
+
+### PG-02 — Two
+
+### PG-03 — Three
+
+### PG-2a — Four
+''';
+    const feature = '---\ngoals: [PG-2a, PG-3b]\n---\n# A\n';
+    final set = TemplateResolver().resolveCarried(
+      packNames: const ['prd-core', 'software-tech'],
+      homeDirectory: null,
+      projectLayers: parseOverrides({
+        '.specstone/templates/goal.yaml': _goalLayer,
+      }),
+    );
+    MergedDocType typeAt(String docPath) =>
+        switch (DocTypeMatcher(set, targetNames: const []).match(docPath)) {
+          MatchedDocType(:final docType) => docType,
+          _ => throw StateError('no doc type at $docPath'),
+        };
+    const featurePath = 'prds/features/f01_a/FEATURE.md';
+
+    final pass = RenumberPass.plan([
+      (
+        docPath: 'prds/PROJECT.md',
+        lf: project,
+        type: typeAt('prds/PROJECT.md'),
+      ),
+      (docPath: _goalPath, lf: goal, type: typeAt(_goalPath)),
+      (docPath: featurePath, lf: feature, type: typeAt(featurePath)),
+    ]);
+
+    expect(
+      pass.apply(featurePath, feature),
+      '---\ngoals: [PG-04, PG-02]\n---\n# A\n',
+    );
+  });
+
   test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
       'written', () {
     const statement =
