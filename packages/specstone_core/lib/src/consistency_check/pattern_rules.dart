@@ -47,7 +47,9 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
     final required = template?.requiredPatterns ?? const <PatternEntry>[];
     if (required.isEmpty) continue;
     final lines = searchLinesOf(held, content.lineFacts, i);
-    final headings = _subsectionHeadings(context.itemsIn(doc, i));
+    final headings = required.any((entry) => entry.perSubsection)
+        ? _subsectionHeadings(context.itemsIn(doc, i))
+        : const <({int line, String text})>[];
     for (final entry in required) {
       yield* entry.perSubsection
           ? _missingPerSubsection(

@@ -6,8 +6,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns the sentence, item-count, line-floor, and subsection-cap findings
-/// of a typed [doc];
-/// an untyped doc has none.
+/// of a typed [doc]; an untyped doc has none.
 ///
 /// An item is a top-level list item or a table row; a nested item, a
 /// paragraph, a heading, and fenced code are none.
