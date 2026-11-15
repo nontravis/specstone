@@ -142,8 +142,8 @@ class ApproveCommand extends WriteCommand {
     final match = _seenDraft.firstMatch(arg);
     if (match == null) {
       usageException(
-        '--yes needs each draft as <name>@<hash>, the hash from bases.doc of '
-        'specstone get --json; got $arg.',
+        '--yes needs each draft as <name>@<hash>, the hash from '
+        'docs[0].bases.doc of specstone get <name> --json; got $arg.',
       );
     }
     return (name: match[1]!, hash: match[2]!);
