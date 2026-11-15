@@ -1848,8 +1848,8 @@ name: Login API
       },
     );
 
-    test('E14: a file at the record path the run would create refuses with '
-        'value_unplaced instead of being overwritten', () async {
+    test('an unreadable record refuses at the story that holds the value '
+        'instead of losing it', () async {
       final root = await writeTree(recorded());
       File('${root.path}/$recordPath')
         ..parent.createSync(recursive: true)
@@ -1864,24 +1864,24 @@ name: Login API
         throwsA(
           isA<MigrateFault>()
               .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
-              .having((f) => f.file, 'file', recordPath)
+              .having((f) => f.file, 'file', storyPath)
               .having((f) => f.message, 'message', contains(recordPath)),
         ),
       );
     });
 
-    test('E14: a record the tree already holds at the record path refuses '
-        'value_unplaced, never a second create or an overwrite', () async {
-      await expectLater(
-        _plan({
-          ...recorded(),
-          recordPath: recordText(statuses: ['email_login:implemented']),
-        }),
-        throwsA(
-          isA<MigrateFault>()
-              .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
-              .having((f) => f.file, 'file', recordPath),
-        ),
+    test('an existing record gains the entry as an edit, never a second '
+        'create', () async {
+      final plan = await _plan({
+        ...recorded(),
+        recordPath: recordText(statuses: ['email_login:implemented']),
+      });
+
+      expect(_createdPaths(plan), isNot(contains(recordPath)));
+      final record = plan.rewrites.singleWhere((r) => r.path == recordPath);
+      expect(
+        record.text,
+        contains("  - 'email_login/validate_credentials:planned'\n"),
       );
     });
 

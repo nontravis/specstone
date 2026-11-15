@@ -43,7 +43,7 @@ import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
 import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
-    show treeMovesOf;
+    show recordDocPathsOf, treeMovesOf;
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
     show orderedMoves;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -118,7 +118,8 @@ RunPlan _legacyRunOf(
   required PlanInputs inputs,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
-  final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
+  final docPaths = [..._docPathsOf(docsRoot), ...recordDocPathsOf(root)]
+    ..sort(compareCodePoints);
   final specMap = _specMapOf(docsRoot, docPaths);
   final features = scanLegacyFeatures(docPaths);
   refuseDuplicateGroups(features);
@@ -199,7 +200,7 @@ RunPlan _legacyRunOf(
       templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
     ),
     exists: (path) => _existsIn(docsRoot, root, path),
-    isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
     statusesOutside: statusesOutsideApproval(pins),
     testNames: projectSet.recordDocType != null
         ? (
@@ -357,7 +358,8 @@ AgentFileInputs _agentInputsOf(
   );
 }
 
-/// Returns the DocPath of every file under `prds/` and `specs/`.
+/// Returns the DocPath of every file under `prds/` and `specs/` of
+/// [docsRoot].
 List<String> _docPathsOf(Directory docsRoot) {
   // A file URI path always uses `/`, so no platform separator is split on.
   final prefixLength = docsRoot.uri.path.length;
@@ -642,7 +644,7 @@ _Rewrites _rewritesOf(
     planned: [
       for (final work in written)
         PlannedRewrite(
-          path: '$_docsFolder${work.newPath}',
+          path: projectPathOfDocPath(work.newPath),
           text: writtenText(work.original, work.lf),
           before: work.original.hash,
           changes: work.changes,

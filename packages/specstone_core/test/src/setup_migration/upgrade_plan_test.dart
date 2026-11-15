@@ -3101,8 +3101,8 @@ void _moveToRecordTests() {
         );
       });
 
-      test('E36: no override is written, since the shipped record path '
-          'already lies in its feature folder', () async {
+      test('no override is written, since no project layer sets an '
+          'architecture path for the record to follow', () async {
         final plan = _planAt(await shippedProject());
 
         expect(
@@ -3116,12 +3116,20 @@ void _moveToRecordTests() {
       });
     });
 
-    group('$_fr E117, the shipped software-tech pack from 1.7.0', () {
+    group('the shipped software-tech pack from 1.7.0', () {
       const oldRecord = 'specs/f01_login/IMPLEMENTATION.md';
       const newRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
-      const recordText =
-          '---\nstatuses:\n  - email_login:implemented\n---\n'
-          '# Login implementation\n';
+      const signIn = 'app/lib/login/sign_in.dart';
+      const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+      final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+      final current = fileCodeFingerprint(
+        utf8.encode(signInCode),
+        path: signIn,
+      );
+      final record = recordText(
+        statuses: ['email_login:implemented'],
+        code: ['email_login:$signIn:SignIn $legacy'],
+      );
 
       Future<Directory> pinned1x7({
         List<String> records = const [oldRecord],
@@ -3131,12 +3139,14 @@ void _moveToRecordTests() {
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
             '  software-tech: 1.7.0\n$targets',
         'docs/$_featurePath': '# Login\n',
-        for (final record in records) 'docs/$record': recordText,
+        'docs/$_loginStoryPath': '# Email login\n',
+        for (final path in records) 'docs/$path': record,
+        signIn: signInCode,
       });
 
       test('commit 1 moves each record to its path under .specstone/records/, '
-          'printed from the project root, and the run restamps in commit '
-          '2', () async {
+          'printed from the project root, and commit 2 restamps the moved '
+          'record', () async {
         final plan = _planAt(await pinned1x7());
 
         final text = plan.toText();
@@ -3157,13 +3167,32 @@ void _moveToRecordTests() {
         expect(
           text,
           contains(
-            '  from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
+            '  from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
           ),
         );
         expect(plan.moves.map((move) => (move.from, move.to)), [
           (oldRecord, newRecord),
         ]);
-        expect(plan.lists.steps.first.paths, [newRecord]);
+        expect(
+          _rewriteAt(plan, newRecord).text,
+          contains("  - 'email_login:$signIn:SignIn $current'\n"),
+        );
+        expect(plan.lists.toJson()['steps'], [
+          {
+            'from': '1.7.0',
+            'step':
+                'move_file implementation '
+                'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
+                '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
+            'paths': [newRecord],
+          },
+          {
+            'from': '1.7.0',
+            'step': 'restamp_code_fingerprints',
+            'paths': [newRecord],
+            'unreadable': <String>[],
+          },
+        ]);
       });
 
       test('with two code targets each target moves its record to its folder '
@@ -4091,12 +4120,28 @@ void _codeStampTests() {
           '  from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries\n',
         ),
       );
-      expect((plan.lists.toJson()['steps']! as List).first, {
-        'from': '1.6.0',
-        'step': 'stamp_code_fingerprints',
-        'paths': [_shippedRecordPath, architecturePath],
-        'unreadable': <String>[],
-      });
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.6.0',
+          'step': 'stamp_code_fingerprints',
+          'paths': [_shippedRecordPath, architecturePath],
+          'unreadable': <String>[],
+        },
+        {
+          'from': '1.7.0',
+          'step':
+              'move_file implementation '
+              'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
+              '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
+          'paths': [_shippedRecordPath],
+        },
+        {
+          'from': '1.7.0',
+          'step': 'restamp_code_fingerprints',
+          'paths': <String>[],
+          'unreadable': <String>[],
+        },
+      ]);
     });
 
     test('the plan hash holds while no code file changes, and moves when a '

@@ -12,6 +12,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -433,7 +435,7 @@ List<String> spots(CheckReport report, [FindingKind? kind]) => [
 /// The key is `docs/<docPath>`, or the DocPath of a record. Throws an [ArgumentError] naming the anchor
 /// when a `from` text does not occur, so a negative test cannot pass vacuously.
 Map<String, String> edit(String docPath, List<(String, String)> changes) {
-  final key = _keyOf(docPath);
+  final key = projectPathOfDocPath(docPath);
   return {key: _changed(checkProjectFiles()[key]!, docPath, changes)};
 }
 
@@ -445,13 +447,10 @@ Map<String, String> editedAfterApproval(
   String docPath,
   List<(String, String)> changes,
 ) {
-  final key = _keyOf(docPath);
+  final key = projectPathOfDocPath(docPath);
   final approved = withApprovalHashes(checkProjectFiles())[key]!;
   return {key: _changed(approved, docPath, changes)};
 }
-
-String _keyOf(String docPath) =>
-    docPath.startsWith('.specstone/records/') ? docPath : 'docs/$docPath';
 
 String _changed(String text, String docPath, List<(String, String)> changes) {
   var changed = text;

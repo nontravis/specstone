@@ -2281,62 +2281,84 @@ agent_file_roots:
         expect(kinds, isNot(contains('requirement_status_written')));
       });
 
-      test(
-        'a 1.7.0 project moves its record under .specstone/records/ in '
-        'commit 1, text unchanged, and the first check reads it there',
-        () async {
-          final h = await writeTree({});
-          const oldPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
-          const text =
-              "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
-              '# Login implementation\n';
-          final root = await gitFixture({
-            '.specstone/config.yaml':
-                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
-                '  software-tech: 1.7.0\n',
-            _gitignore: _ignoreFile,
-            featurePath: '# Login\n',
-            oldPath: text,
-          });
+      test('a 1.7.0 project moves its record under .specstone/records/ in '
+          'commit 1, restamps its code link in commit 2, and the first check '
+          'reads it there', () async {
+        final h = await writeTree({});
+        const oldPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+        const signIn = 'app/lib/login/sign_in.dart';
+        const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+        final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+        final current = fileCodeFingerprint(
+          utf8.encode(signInCode),
+          path: signIn,
+        );
+        String record(String fingerprint) =>
+            "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+            "  - 'email_login:$signIn:SignIn $fingerprint'\n---\n\n"
+            '# Login implementation\n';
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+              '  software-tech: 1.7.0\n',
+          _gitignore: _ignoreFile,
+          featurePath: '# Login\n',
+          storyPath: '# Email login\n',
+          oldPath: record(legacy),
+          signIn: signInCode,
+        });
 
-          final dry = await _run(root, h, ['migrate', '--dry-run']);
+        final dry = await _run(root, h, ['migrate', '--dry-run']);
 
-          expect(dry.status, 0, reason: dry.err);
-          expect(
-            dry.out,
-            contains(
-              'commit 1, moves:\n'
-              '  specs/f01_login/IMPLEMENTATION.md -> $recordPath\n',
-            ),
-          );
-          expect(
-            dry.out,
-            contains(
-              '  from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
-            ),
-          );
-          final lines = dry.out.split('\n');
-          final applied = await _run(root, h, [
-            'migrate',
-            '--yes',
-            '--plan',
-            lines[lines.length - 3].substring('plan '.length),
-          ]);
+        expect(dry.status, 0, reason: dry.err);
+        expect(
+          dry.out,
+          contains(
+            'commit 1, moves:\n'
+            '  specs/f01_login/IMPLEMENTATION.md -> $recordPath\n',
+          ),
+        );
+        expect(
+          dry.out,
+          contains(
+            '  from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+          ),
+        );
+        final lines = dry.out.split('\n');
+        final applied = await _run(root, h, [
+          'migrate',
+          '--yes',
+          '--plan',
+          lines[lines.length - 3].substring('plan '.length),
+        ]);
 
-          expect(applied.status, 0, reason: applied.err);
-          expect(File('${root.path}/$oldPath').existsSync(), isFalse);
-          expect(_read(root, recordPath), text);
-          final check = await _run(root, h, ['check', '--json']);
-          final kinds = [
-            for (final finding
-                in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
-                    as List<Object?>)
-              (finding! as Map<String, Object?>)['kind'],
-          ];
-          expect(kinds, isNot(contains('untyped_doc')));
-          expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
-        },
-      );
+        expect(applied.status, 0, reason: applied.err);
+        expect(File('${root.path}/$oldPath').existsSync(), isFalse);
+        expect(_read(root, recordPath), record(current));
+        expect(
+          _gitOut(root, [
+            'show',
+            '--name-status',
+            '--format=',
+            '-M',
+            'HEAD~1',
+          ]).trim(),
+          'R100\t$oldPath\t$recordPath',
+        );
+        expect(
+          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']),
+          contains(recordPath),
+        );
+        final check = await _run(root, h, ['check', '--json']);
+        final kinds = [
+          for (final finding
+              in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                  as List<Object?>)
+            (finding! as Map<String, Object?>)['kind'],
+        ];
+        expect(kinds, isNot(contains('untyped_doc')));
+        expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
+      });
 
       test('a status no entry takes refuses the shipped run '
           'and writes nothing', () async {

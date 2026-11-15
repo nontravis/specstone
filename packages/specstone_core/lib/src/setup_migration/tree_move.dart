@@ -62,6 +62,12 @@ String? _inTargetFolder(String docPath, List<String> patterns, String target) {
 /// one under the records root of [projectRoot].
 List<String> docPathsOf(Directory docsRoot, Directory projectRoot) => [
   ..._markdownUnder(docsRoot, ''),
+  ...recordDocPathsOf(projectRoot),
+];
+
+/// Returns the DocPath of every Markdown file under the records root of
+/// [projectRoot]; none when it has no records root.
+List<String> recordDocPathsOf(Directory projectRoot) => [
   if (recordsRootOf(projectRoot) case final records?)
     ..._markdownUnder(records, recordsRootDocPath),
 ];

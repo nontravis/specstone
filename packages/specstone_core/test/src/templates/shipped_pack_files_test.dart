@@ -236,7 +236,7 @@ void main() {
       ]);
     });
 
-    test('S1: the pack carries three migrations entries, a move_to_record '
+    test('the pack carries three migrations entries, a move_to_record '
         'step from 1.4.0, a stamp_code_fingerprints step from 1.6.0, and a '
         'move_file and a restamp_code_fingerprints step from 1.7.0', () {
       final manifest = PackManifest.parse(
