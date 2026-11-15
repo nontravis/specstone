@@ -1641,4 +1641,23 @@ void main() {
       expect(await staleLines(root, ['project']), isEmpty);
     });
   });
+
+  test('an untyped .md under measurements/ is untyped_doc, and one outside the '
+      'checked folders gets no check', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {
+          'docs/measurements/notes.md': '# Notes\n',
+          'docs/notes/ideas.md': '# Ideas\n',
+        },
+      ),
+    );
+    expect(await runner.run(['check']), 1);
+    expect(
+      out.toString(),
+      matches(
+        RegExp(r'^measurements/notes\.md:1: untyped_doc: .*\n1 finding\n$'),
+      ),
+    );
+  });
 }
