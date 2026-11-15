@@ -29,29 +29,58 @@ const _tomlBodyEnd = '"""';
 Directory pluginRoot() =>
     Directory.fromUri(packageRoot().uri.resolve('../../plugin/'));
 
-/// Returns every file of the skill folders `specstone-<name>/` and the agent
-/// files `specstone-<name>.md` under [root], sorted by path.
+/// Returns every file under [root] that git tracks, sorted by path: the file
+/// set Specstone ships, with ignored files such as `.DS_Store` left out.
+///
+/// A [root] outside any git work tree, such as a fixture folder, has nothing
+/// to ignore, so all its files are returned.
+List<File> trackedFiles(Directory root) {
+  if (!_isInsideWorkTree(root)) {
+    return root.listSync(recursive: true).whereType<File>().toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+  }
+  final result = Process.runSync(
+    'git',
+    ['ls-files', '-z', '--', '.'],
+    workingDirectory: root.path,
+    stdoutEncoding: utf8,
+  );
+  if (result.exitCode != 0) {
+    throw StateError('git ls-files failed: ${result.stderr}');
+  }
+  return [
+    for (final path in (result.stdout as String).split('\u0000'))
+      if (path.isNotEmpty) File.fromUri(root.uri.resolve(path)),
+  ]..sort((a, b) => a.path.compareTo(b.path));
+}
+
+bool _isInsideWorkTree(Directory root) =>
+    Process.runSync('git', [
+      'rev-parse',
+      '--is-inside-work-tree',
+    ], workingDirectory: root.path).exitCode ==
+    0;
+
+/// Returns every tracked file of the skill folders `specstone-<name>/` and the
+/// agent files `specstone-<name>.md` under [root], sorted by path.
 ///
 /// Any other entry of [root], the `AGENT.md` asset among them, is left out.
-List<File> agentSourceFiles(Directory root) {
-  final files = <File>[];
-  for (final entity in root.listSync()) {
-    final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
-    if (!name.startsWith('specstone-')) continue;
-    if (entity is Directory) {
-      files.addAll(entity.listSync(recursive: true).whereType<File>());
-    } else if (entity is File && name.endsWith('.md')) {
-      files.add(entity);
-    }
-  }
-  return files..sort((a, b) => a.path.compareTo(b.path));
+List<File> agentSourceFiles(Directory root) => [
+  for (final file in trackedFiles(root))
+    if (_isAgentSource(_relativePath(root, file))) file,
+];
+
+bool _isAgentSource(String path) {
+  final segments = path.split('/');
+  if (!segments.first.startsWith('specstone-')) return false;
+  return segments.length > 1 || path.endsWith('.md');
 }
 
 /// Returns every shipped file, the skill and agent sources first and the
 /// plugin folder's files after them.
 List<File> shippedFiles() => [
   ...agentSourceFiles(agentAssetsRoot()),
-  ...pluginRoot().listSync(recursive: true).whereType<File>(),
+  ...trackedFiles(pluginRoot()),
 ];
 
 /// Returns the path of [file] below the folder it ships from, [agentAssetsRoot]
@@ -362,7 +391,7 @@ List<String> oversizedSkillFiles(List<ContentFile> files, {int limit = 1500}) {
 /// a label in another script presumes one Owner's language.
 List<String> nonLatinLetterLines(Directory root) {
   final problems = <String>[];
-  for (final file in root.listSync(recursive: true).whereType<File>()) {
+  for (final file in trackedFiles(root)) {
     final lines = file.readAsLinesSync();
     for (var index = 0; index < lines.length; index++) {
       if (_nonLatinLetter.hasMatch(lines[index])) {
