@@ -2305,28 +2305,141 @@ void main() {
       expect(recordFile(root).existsSync(), isTrue);
     });
 
-    test(
-      'an approved record gates the feature delete under its project path',
-      () async {
-        final root = await recordProject();
-        recordFile(root).writeAsStringSync(
-          recordText(
-            front: 'approved: true\n',
-            statuses: ['email_login:implemented'],
-          ),
-        );
+    group('an approved record is the only guard of a feature', () {
+      const signupRecord = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+
+      // signup holds only drafts, so its record is the one doc that can gate.
+      Future<Directory> signupProject({required bool approved}) =>
+          writeWriteProject(
+            extra: {
+              ...recordsRootTemplates,
+              'docs/prds/FEATURES.md':
+                  '# Feature index\n\n## Systems\n'
+                  '- [Login](features/f01_login/FEATURE.md)\n',
+              'docs/prds/d01_context.md': '# Context\n',
+              signupRecord: recordText(
+                front: approved ? 'approved: true\n' : 'draft: true\n',
+                statuses: ['ghost:planned'],
+              ),
+            },
+          );
+
+      test('guards the delete under its project path until the Owner says yes', () async {
+        final root = await signupProject(approved: true);
         final answer = writeIn(
           root,
-          (s) => answerDeleteDryRun(s, ['feature:login']),
+          (s) => answerDeleteDryRun(s, ['feature:signup']),
         );
-        expect(answer.json['guarded'], contains(record));
+        expect(answer.json['guarded'], [signupRecord]);
         expect(
-          () => del(root, ['feature:login']),
+          () => del(root, ['feature:signup']),
           refusesWith(WriteFaultCode.ownerTerminalRequired),
         );
-        expect(recordFile(root).existsSync(), isTrue);
-      },
-    );
+        expect(
+          File(
+            '${root.path}/${signupRecord.replaceAll('/', Platform.pathSeparator)}',
+          ).existsSync(),
+          isTrue,
+        );
+      });
+
+      test('a draft record leaves the same feature free to delete', () async {
+        final root = await signupProject(approved: false);
+        final answer = del(root, ['feature:signup']);
+        expect(answer.json['removed'], contains(signupRecord));
+        expect(
+          Directory('${root.path}/.specstone/records/f02_signup').existsSync(),
+          isFalse,
+        );
+      });
+    });
+
+    test('a feature delete with two code targets removes the record folder of each target', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...freeOfLoginReferrers,
+          ...recordsRootTemplates,
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          flutterRecord: recordBody,
+          jasprRecord: recordBody,
+        },
+      );
+      final answer = del(
+        root,
+        ['feature:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      expect(answer.json['removed'], containsAll([flutterRecord, jasprRecord]));
+      for (final target in ['flutter', 'jaspr']) {
+        expect(
+          Directory('${root.path}/.specstone/records/$target/f01_login')
+              .existsSync(),
+          isFalse,
+          reason: target,
+        );
+      }
+    });
+
+    group('nested feature records', () {
+      const cartRecord =
+          '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
+      const payRecord = '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+      Future<Directory> nestedProject() => writeNestedProject(
+        without: {'docs/$shopApi'},
+        extra: {
+          ...recordsRootTemplates,
+          cartRecord: recordText(statuses: ['add_item:planned']),
+          payRecord: recordText(statuses: ['card:planned']),
+        },
+      );
+
+      bool exists(Directory root, String path) => File(
+        '${root.path}${Platform.pathSeparator}'
+        '${path.replaceAll('/', Platform.pathSeparator)}',
+      ).existsSync();
+
+      test(
+        'deleting a sub-feature removes its nested record folder alone',
+        () async {
+          final root = await nestedProject();
+          final answer = del(
+            root,
+            ['feature:shop/cart'],
+            confirmation: OwnerConfirmation.prompt,
+            answers: ['y'],
+          );
+          expect(answer.json['removed'], contains(cartRecord));
+          expect(exists(root, cartRecord), isFalse);
+          expect(exists(root, payRecord), isTrue);
+        },
+      );
+
+      test(
+        'deleting the top feature removes the records of its sub-features',
+        () async {
+          final root = await nestedProject();
+          final answer = del(
+            root,
+            ['feature:shop'],
+            confirmation: OwnerConfirmation.prompt,
+            answers: ['y'],
+          );
+          expect(answer.json['removed'], containsAll([cartRecord, payRecord]));
+          expect(
+            Directory('${root.path}/.specstone/records/f02_shop').existsSync(),
+            isFalse,
+          );
+        },
+      );
+    });
 
     test(
       'a feature delete with no record folder removes the feature alone',

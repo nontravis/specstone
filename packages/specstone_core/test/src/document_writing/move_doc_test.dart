@@ -3290,6 +3290,59 @@ void main() {
       expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
     });
 
+    test('a reorder that stops on a record folder leaves a journal the next write replays', () async {
+      final root = await recordProject();
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => reorder(root, 'feature:signup', '1'),
+          FailingRenameHook('.specstone/records/f02_signup'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+
+      writeIn(root, (_) {});
+
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signup/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        signupRecordText,
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_login/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+    });
+
+    test('a reorder of a feature with no record moves the records of its siblings alone', () async {
+      final root = await recordProject(without: {signupRecordPath});
+      final answer = reorder(root, 'feature:signup', '1');
+      final from = [
+        for (final move in answer.json['moved']! as List)
+          '${(move as Map)['from']}',
+      ];
+      expect(from, contains('.specstone/records/f01_login/'));
+      expect(from, isNot(contains('.specstone/records/f02_signup/')));
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_login/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(hasDoc(root, 'specs/f01_signup/ARCHITECTURE.md'), isTrue);
+    });
+
     test('with two targets each target record folder moves', () async {
       const flutterRecord =
           '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
@@ -3329,6 +3382,99 @@ void main() {
           isFalse,
         );
       }
+    });
+  });
+
+  group('nested feature records under .specstone/records/', () {
+    const cartRecordPath =
+        '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payRecordPath =
+        '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+    File recordFile(Directory root, String path) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${path.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> nestedRecordProject() => writeNestedProject(
+      extra: {
+        ...recordsRootTemplates,
+        cartRecordPath: recordText(statuses: ['add_item:implemented']),
+        payRecordPath: recordText(statuses: ['card:planned']),
+      },
+    );
+
+    String movedLines(ReadAnswer answer) => [
+      for (final move in answer.json['moved']! as List)
+        '${(move as Map)['from']} ${move['to']}',
+    ].join('\n');
+
+    test('renaming a sub-feature moves its nested record folder', () async {
+      final root = await nestedRecordProject();
+      final answer = rename(root, 'feature:shop/cart', 'basket');
+      expect(
+        movedLines(answer),
+        contains(
+          '.specstone/records/f02_shop/f01_cart/ '
+          '.specstone/records/f02_shop/f01_basket/',
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f01_basket/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'add_item:implemented'"),
+      );
+      expect(recordFile(root, cartRecordPath).existsSync(), isFalse);
+      expect(recordFile(root, payRecordPath).existsSync(), isTrue);
+    });
+
+    test('reordering a sub-feature renumbers its nested record folder and its sibling', () async {
+      final root = await nestedRecordProject();
+      final answer = reorder(root, 'feature:shop/pay', '1');
+      expect(
+        movedLines(answer),
+        allOf(
+          contains(
+            '.specstone/records/f02_shop/f02_pay/ '
+            '.specstone/records/f02_shop/f01_pay/',
+          ),
+          contains(
+            '.specstone/records/f02_shop/f01_cart/ '
+            '.specstone/records/f02_shop/f02_cart/',
+          ),
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f01_pay/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'card:planned'"),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f02_cart/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'add_item:implemented'"),
+      );
+    });
+
+    test('renaming the top feature moves the record folder that holds its sub-feature records', () async {
+      final root = await nestedRecordProject();
+      rename(root, 'feature:shop', 'market');
+      for (final path in [
+        '.specstone/records/f02_market/f01_cart/IMPLEMENTATION.md',
+        '.specstone/records/f02_market/f02_pay/IMPLEMENTATION.md',
+      ]) {
+        expect(recordFile(root, path).existsSync(), isTrue, reason: path);
+      }
+      expect(
+        Directory('${root.path}/.specstone/records/f02_shop').existsSync(),
+        isFalse,
+      );
     });
   });
 }
