@@ -2003,7 +2003,7 @@ void _agentTests() {
       reader,
       contains(
         "read them with the host's file read, the read-first file whole and "
-        'the refs file by line range, found with `Grep` by its parts\' headers, '
+        "the refs file by line range, found with `Grep` by its parts' headers, "
         'and run no `context`',
       ),
     );

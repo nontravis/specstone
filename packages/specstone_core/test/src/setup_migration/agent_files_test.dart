@@ -27,9 +27,10 @@ const _agentMd =
     '  once, short, complete.\n'
     "- Before writing a story's plan, tickets, or tests, ground them with "
     '`specstone context <story> --for implement --out`.\n'
-    '- Cite by markdown link, never a number label (`F-<nn> US-<nn>`).\n'
-    '- Before reporting done, run `specstone check <doc>` on each doc you changed '
-    'until every finding ends `(waits for the Owner)` '
+    '- Cite by markdown link, never a number label '
+    '(`F-<nn> US-<nn>`).\n'
+    '- Before reporting done, run `specstone check <doc>` on each doc you '
+    'changed until every finding ends `(waits for the Owner)` '
     '(`--json`: `waitsFor` is `owner`).\n'
     '- Without specstone on PATH, run `~/.specstone/bin/specstone`.\n';
 
