@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 const _apiType = 'api';
 const _projectType = 'project';
+const _goalType = 'goal';
 const _docsPrefix = 'docs/';
 final _slugPlaceholder = RegExp(r'\{slug\}');
 
@@ -68,11 +69,12 @@ final class RenumberIndex {
     letteredOnly: false,
   );
 
-  /// The project doc holding each lettered project ID.
-  late final Map<String, String> _projectPaths = _idPathsOfType(
-    _projectType,
-    letteredOnly: true,
-  );
+  /// The project or goal doc holding each lettered vision or goal ID; the
+  /// project doc wins an ID both hold.
+  late final Map<String, String> _projectPaths = {
+    ..._idPathsOfType(_goalType, letteredOnly: true),
+    ..._idPathsOfType(_projectType, letteredOnly: true),
+  };
 
   /// Per story DocPath, the one lettered scenario of each number value that
   /// the story holds no plain scenario of, which 1.1.0 read `S<N>` as.

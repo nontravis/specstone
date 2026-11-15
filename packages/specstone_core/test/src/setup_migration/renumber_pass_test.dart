@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -18,6 +19,16 @@ const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _siblingFrPath = 'prds/features/f01_a/us02_e/fr01_f.md';
 const _journeyPath = 'prds/journeys/onboard/JOURNEY.md';
 const _gnfrPath = 'prds/GNFR.md';
+const _goalPath = 'prds/GOAL.md';
+
+const _goalLayer =
+    'id: goal\n'
+    'description: The goals.\n'
+    'path: prds/GOAL.md\n'
+    'sections:\n'
+    '  - id: long_term\n'
+    '    header: Long-term goals\n'
+    '    prefix_id: PG-\n';
 const _nfPath = 'prds/features/f01_a/us01_b/nf01_d.md';
 
 const _topic = '''
@@ -566,6 +577,42 @@ confirmed:
     expect(pass.apply(_nfPath, nf), nf.replaceFirst('PG-2a', 'PG-02'));
     expect(pass.planLine, 'renumber ids: 1 IDs in 2 docs');
     expect(pass.paths, contains(_nfPath));
+  });
+
+  test('$_fr E20: goals renumber from the goal doc', () {
+    const goal = '''
+# Goals
+
+## Long-term goals
+
+### PG-01 — One
+
+### PG-2a — Two
+''';
+    const feature = '---\ngoals:\n  - PG-2a\nname: PG-2a team\n---\n# A\n';
+    final set = TemplateResolver().resolveCarried(
+      packNames: const ['prd-core', 'software-tech'],
+      homeDirectory: null,
+      projectLayers: parseOverrides({
+        '.specstone/templates/goal.yaml': _goalLayer,
+      }),
+    );
+    MergedDocType typeAt(String docPath) =>
+        switch (DocTypeMatcher(set, targetNames: const []).match(docPath)) {
+          MatchedDocType(:final docType) => docType,
+          _ => throw StateError('no doc type at $docPath'),
+        };
+    const featurePath = 'prds/features/f01_a/FEATURE.md';
+
+    final pass = RenumberPass.plan([
+      (docPath: _goalPath, lf: goal, type: typeAt(_goalPath)),
+      (docPath: featurePath, lf: feature, type: typeAt(featurePath)),
+    ]);
+
+    expect(
+      pass.apply(featurePath, feature),
+      '---\ngoals:\n  - PG-02\nname: PG-2a team\n---\n# A\n',
+    );
   });
 
   test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
