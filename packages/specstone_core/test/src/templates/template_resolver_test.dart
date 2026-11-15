@@ -1101,6 +1101,24 @@ path: prds/notes/{slug}/NOTE.md
       expect(memo.bundleRefs, isTrue);
     });
 
+    test('an extending doc type sets bundle_refs false over an inherited '
+        'true', () async {
+      final home = await writeTree({});
+      final project = await writeTree({
+        _configPath: 'packs:\n  prd-core: 1.1.0\n',
+        '.specstone/templates/note.yaml':
+            'id: note\ndescription: A note\npath: prds/notes/{slug}/NOTE.md\n'
+            'bundle: [implement]\nbundle_refs: true\n',
+        '.specstone/templates/memo.yaml':
+            'id: memo\nextends: note\npath: memos/{slug}.md\n'
+            'bundle_refs: false\n',
+      });
+      final merged = TemplateResolver(shippedFiles: shipped())
+          .resolve(workingDirectory: project, homeDirectory: home);
+
+      expect(merged.lookup('memo')!.bundleRefs, isFalse);
+    });
+
     test('a doc type extending feature carries no '
         'max_depth', () async {
       final project = await writeTree({

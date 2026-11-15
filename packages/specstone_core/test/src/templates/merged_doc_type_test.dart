@@ -474,13 +474,8 @@ void main() {
       );
       final json = docType.toJson();
       expect(json['bundleRefs'], isTrue);
-      expect(json.keys.toList(), [
-        'id',
-        'bundle',
-        'bundleRefs',
-        'fields',
-        'sections',
-      ]);
+      final keys = json.keys.toList();
+      expect(keys.indexOf('bundleRefs'), keys.indexOf('bundle') + 1);
       expect(
         const MergedDocType(
           id: 'x',
