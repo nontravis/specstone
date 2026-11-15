@@ -428,8 +428,10 @@ Iterable<Finding> checkConfirmedEntries(
       }
       final label = entry.label;
       final identity = linkIdentityOf(label);
-      final first = firstLineOf.putIfAbsent(identity, () => item.line);
-      if (first != item.line) {
+      final first = firstLineOf[identity];
+      if (first == null) {
+        firstLineOf[identity] = item.line;
+      } else {
         yield context.finding(
           doc,
           FindingKind.confirmedEntryRepeated,

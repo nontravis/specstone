@@ -698,6 +698,69 @@ void main() {
       });
     });
 
+    test('two confirmed entries naming one scenario in one flow list give one '
+        'finding naming that line', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr(
+            'confirmed:\n$firstEntry\n',
+            'confirmed: [S2 ${fp(loginScenario2)}, S2 $secondFingerprint]\n',
+          ),
+        ),
+      );
+      final found = repeatedIn(report);
+      expect(found, hasLength(1));
+      expect(found.single.keys, {
+        'entry': 'S2 $secondFingerprint',
+        'link': 'S2',
+        'first': found.single.line,
+      });
+    });
+
+    test('two overrides entries naming one address in one flow list give one '
+        'finding', () async {
+      final domain =
+          domainDoc(
+            [overrideOfRoot],
+            entries: [
+              '$rootAddress $rootFingerprint',
+              '$rootAddress $secondFingerprint',
+            ],
+          ).replaceFirst(
+            'overrides:\n  - $rootAddress $rootFingerprint\n'
+                '  - $rootAddress $secondFingerprint\n',
+            'overrides: [$rootAddress $rootFingerprint, '
+                '$rootAddress $secondFingerprint]\n',
+          );
+      final files = overrideFiles(extra: {'docs/$loginDomain': domain});
+      final report = checkOf(
+        await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
+        docPath: loginDomain,
+      );
+      final found = repeatedIn(report);
+      expect(found, hasLength(1));
+      expect(found.single.keys['entry'], '$rootAddress $secondFingerprint');
+    });
+
+    test('a repeated entry for an untraced link is stale at the first copy '
+        'and repeated at the later copy', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: fr(
+            firstEntry,
+            '$firstEntry\n  - S3 ${fp(loginScenario2)}\n'
+            '  - S3 $secondFingerprint',
+          ),
+        ),
+      );
+      expect(spots(report, FindingKind.confirmedEntryStale), [
+        '$loginFr:8: confirmed_entry_stale',
+      ]);
+      expect(spots(report, FindingKind.confirmedEntryRepeated), [
+        '$loginFr:9: confirmed_entry_repeated',
+      ]);
+    });
+
     test('a malformed entry is never counted as a repeat', () async {
       final report = checkOf(
         await writeCheckProject(
