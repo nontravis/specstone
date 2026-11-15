@@ -116,6 +116,62 @@ void main() {
     expect(err.toString(), contains('prd-core'));
   });
 
+  group('an agent_files_version above the running Version', () {
+    final config = '${shippedPinsConfig()}agent_files_version: 99.0.0\n';
+
+    for (final flags in [
+      ['migrate', '--dry-run'],
+      ['migrate'],
+    ]) {
+      test('refuses agent_files_newer, exit 78, writes nothing, in '
+          '${flags.join(' ')}', () async {
+        final root = await writeTree({
+          '.specstone/config.yaml': config,
+          '.specstone/AGENT.md': 'other bytes\n',
+        });
+        final before = _bytesUnder(root);
+        final (:runner, :out, :err) = writeRunner(root);
+
+        expect(await runner.run(flags), 78);
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          allOf(
+            contains('.specstone/config.yaml: agent_files_version: '),
+            contains('written by Specstone 99.0.0'),
+            contains('run specstone upgrade'),
+          ),
+        );
+        expect(_bytesUnder(root), before);
+      });
+    }
+
+    test('with a newer pin too, the pin refuses first', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 99.0.0\nagent_files_version: 99.0.0\n',
+      });
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--dry-run']), 78);
+      expect(err.toString(), contains('prd-core'));
+      expect(err.toString(), isNot(contains('agent_files_version')));
+    });
+
+    test('a stamp at or below the running Version still prints nothing to '
+        'migrate', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}'
+            'agent_files_version: 0.0.1\n',
+      });
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate']), 0);
+      expect(out.toString(), contains('nothing to migrate'));
+    });
+  });
+
   test('two groups with one name refuse in the dry run', () async {
     final root = await gitFixture({
       ...duplicateGroupLegacy,

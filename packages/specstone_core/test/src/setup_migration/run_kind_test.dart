@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
+import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -31,6 +32,21 @@ Matcher _pinNewer() => throwsA(
   isA<TemplateFault>()
       .having((f) => f.code, 'code', FaultCode.packPinNewer)
       .having((f) => f.key, 'key', 'packs.prd-core'),
+);
+
+Matcher _agentFilesNewer() => throwsA(
+  isA<MigrateFault>()
+      .having((f) => f.code, 'code', MigrateFaultCode.agentFilesNewer)
+      .having((f) => f.exitStatus, 'exit status', 78)
+      .having((f) => f.file, 'file', '.specstone/config.yaml')
+      .having((f) => f.key, 'key', 'agent_files_version')
+      .having(
+        (f) => f.message,
+        'message',
+        'the agent files were written by Specstone 99.0.0, and this '
+            'Specstone is $specstoneVersion; run specstone upgrade, then run '
+            'specstone migrate again',
+      ),
 );
 
 const _findRoot = 'setup_migration/migrate_legacy_docs/find_project_root';
@@ -127,6 +143,82 @@ void main() {
     });
 
     expect(() => _choose(root), _pinNewer());
+  });
+
+  group('an agent_files_version above the running Version', () {
+    String config({String pins = '', String stamp = '99.0.0'}) =>
+        '${pins.isEmpty ? shippedPinsConfig() : pins}'
+        'agent_files_version: $stamp\n';
+
+    test('refuses agent_files_newer with every pin equal', () async {
+      final root = await writeTree({'.specstone/config.yaml': config()});
+
+      expect(() => _choose(root), _agentFilesNewer());
+    });
+
+    test('refuses agent_files_newer beside an older pin, where the run '
+        'would be upgrade', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml': config(
+          pins: '${shippedPinsConfig(['prd-core'])}  software-tech: 1.0.0\n',
+        ),
+      });
+
+      expect(() => _choose(root), _agentFilesNewer());
+    });
+
+    test('refuses agent_files_newer over agent files that differ', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml': config(),
+        '.specstone/AGENT.md': 'other bytes\n',
+      });
+
+      expect(() => _choose(root), _agentFilesNewer());
+    });
+
+    test('a newer pin still refuses first', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 9.0.0\nagent_files_version: 99.0.0\n',
+      });
+
+      expect(() => _choose(root), _pinNewer());
+    });
+
+    test('a pending journal and a legacy context doc still choose their '
+        'run', () async {
+      final journal = await writeTree({
+        MoveJournal.journalPath: _journal,
+        '.specstone/config.yaml': config(),
+      });
+      final legacy = await writeTree({
+        '.specstone/config.yaml': config(),
+        legacyContextPath: '# D-01\n',
+      });
+
+      expect(_choose(journal), RunKind.resume);
+      expect(_choose(legacy), RunKind.legacy);
+    });
+
+    test('a stamp equal to the running Version is none', () async {
+      final root = await writeTree({
+        '.specstone/config.yaml': config(stamp: specstoneVersion),
+      });
+
+      expect(_choose(root), RunKind.none);
+    });
+
+    test('a stamp below the running Version, or no stamp, is none', () async {
+      final below = await writeTree({
+        '.specstone/config.yaml': config(stamp: '0.0.1'),
+      });
+      final absent = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+      });
+
+      expect(_choose(below), RunKind.none);
+      expect(_choose(absent), RunKind.none);
+    });
   });
 
   test('an older pin is upgrade', () async {
