@@ -41,9 +41,10 @@ enum RunKind {
 /// [RunKind.resume] when a migrate journal is pending; else [RunKind.legacy]
 /// when [legacyContextPath] exists; else the pins are compared, in code point
 /// order, with the available pack versions: the first newer pin throws
-/// `pack_pin_newer`; with no pin newer, an `agent_files_version` above the
-/// running Version throws `agent_files_newer`, the pins and agent files
-/// whatever they hold. Any older pin gives [RunKind.upgrade]. With every pin
+/// `pack_pin_newer`. After the pin refusal and before any [RunKind.upgrade]
+/// or [RunKind.none] result, an `agent_files_version` above the running
+/// Version throws `agent_files_newer`, whatever the older pins and agent
+/// files hold. Then any older pin gives [RunKind.upgrade]. With every pin
 /// equal, a doc off its layout, generated blocks aside, then any agent file
 /// drift (`agentFileDrifts`, the predicate `check` uses, a malformed marker
 /// included) or skill and agent file drift (`skillAndAgentFileDrifts`), then
@@ -75,7 +76,7 @@ RunKind chooseRun(
   }
   final stamp = config.agentFilesVersion;
   if (stamp != null && stamp.compareTo(runningVersion) > 0) {
-    throw agentFilesNewerFault(stamp);
+    throw _agentFilesNewerFault(stamp);
   }
   if (older) return RunKind.upgrade;
   if (_hasDocOffLayout(root, templates, homeDirectory)) return RunKind.upgrade;
@@ -89,7 +90,7 @@ RunKind chooseRun(
 
 /// Returns the `agent_files_newer` fault for a [stamp] above the running
 /// Version.
-MigrateFault agentFilesNewerFault(ReleaseVersion stamp) => MigrateFault(
+MigrateFault _agentFilesNewerFault(ReleaseVersion stamp) => MigrateFault(
   MigrateFaultCode.agentFilesNewer,
   'the agent files were written by Specstone $stamp, and this Specstone is '
   '$runningVersion; run specstone upgrade, then run specstone migrate again',
