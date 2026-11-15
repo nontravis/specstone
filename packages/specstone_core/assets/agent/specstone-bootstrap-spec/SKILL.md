@@ -6,8 +6,8 @@ description: Use when the spec docs of a Specstone project lag behind its format
 # Bring the spec docs up to the new format
 
 This skill takes `specstone check` findings under `specs/`, plus `architecture_missing` and `code_uncovered`.
-Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except those on PROJECT's Tech stack and Naming
-canonicalization sections, which this skill moves.
+Findings under `prds/` or `measurements/` go to `specstone-bootstrap-prd`, except those on PROJECT's Tech stack and
+Naming canonicalization sections, which this skill moves.
 Follow the `specstone-expert-sdd` skill for every write: each leaves a draft, a pointer write (`implements`,
 `covers`) excepted.
 

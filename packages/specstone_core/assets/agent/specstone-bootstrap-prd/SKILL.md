@@ -5,9 +5,9 @@ description: Use when the PRD docs of a Specstone project lag behind its format 
 
 # Bring the PRD docs up to the new format
 
-This skill takes `specstone check` findings under `prds/` or `measurements/`. Findings under `specs/`, `architecture_missing`,
-`code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go to
-`specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write: each leaves a draft, a pointer
+This skill takes `specstone check` findings under `prds/` or `measurements/`. Findings under `specs/`,
+`architecture_missing`, `code_uncovered`, and those on PROJECT's Tech stack and Naming canonicalization sections go
+to `specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write: each leaves a draft, a pointer
 write (`implements`, `covers`) excepted.
 
 ## 1. Gate: the first call
@@ -64,6 +64,6 @@ in for item 4.
    `specstone-bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, go to item 6.
 6. Once per run, after the last round, run `specstone check --repeats`, then dispatch the repeats batch
    (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each
-   group with an item under `prds/` or `measurements/`, if any; work items 1 and 2 on its report. A group it keeps stays listed and never
-   starts a round. Then stop; first, in a run that did not name `item_over_limit`, list under `Waits on the Owner:`
-   each `item_over_limit` finding no report's `Waits on the Owner:` line named.
+   group with an item under `prds/` or `measurements/`, if any; work items 1 and 2 on its report. A group it keeps
+   stays listed and never starts a round. Then stop; first, in a run that did not name `item_over_limit`, list
+   under `Waits on the Owner:` each `item_over_limit` finding no report's `Waits on the Owner:` line named.

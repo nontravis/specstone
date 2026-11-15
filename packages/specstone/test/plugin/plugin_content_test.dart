@@ -4193,6 +4193,9 @@ void _batchGuideTests() {
 /// Each bootstrap skill and the docs tree whose repeat groups it takes.
 const _repeatsTrees = {'bootstrap-prd': 'prds', 'bootstrap-spec': 'specs'};
 
+/// The folder text a skill's repeats phrase adds after its tree.
+const _repeatsExtraTrees = {'bootstrap-prd': ' or `measurements/`'};
+
 /// The shared repeats-batch reference both fill skills point to.
 const _repeats = 'specstone-expert-sdd/references/repeats.md';
 
@@ -4223,7 +4226,9 @@ void _repeatsBatchTests() {
     for (final MapEntry(key: skill, value: tree) in _repeatsTrees.entries) {
       expect(
         batch,
-        matches(RegExp('under `$tree/`(?: or `measurements/`)? for `$skill`')),
+        contains(
+          'under `$tree/`${_repeatsExtraTrees[skill] ?? ''} for `$skill`',
+        ),
         reason: skill,
       );
     }
@@ -4325,7 +4330,9 @@ void _repeatsBatchTests() {
   });
 
   test('no routing line sends PRD findings by prds/ alone', () {
-    final aloneAfterUnder = RegExp('under `prds/`(?! or `measurements/`|, )');
+    final aloneAfterUnder = RegExp(
+      'under `prds/`(?! or `measurements/`|, `measurements/`)',
+    );
     for (final file in [
       'specstone-bootstrap-prd/SKILL.md',
       'specstone-bootstrap-prd/references/procedure.md',
