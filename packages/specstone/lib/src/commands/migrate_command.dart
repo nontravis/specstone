@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:specstone/src/command_runner.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -61,6 +64,7 @@ class MigrateCommand extends SpecstoneCommand {
     final runner = specstoneRunner;
     final console = runner.console;
     try {
+      _warnOldPlugin(runner);
       return runMigrate(
         MigrateRequest(
           workingDirectory: runner.workingDirectory,
@@ -82,4 +86,28 @@ class MigrateCommand extends SpecstoneCommand {
       return fail(fault, asJson: false);
     }
   }
+
+  /// Writes the old plugin line to stderr while a settings file enables it.
+  ///
+  /// A folder under no project prints nothing; the run refuses it itself.
+  void _warnOldPlugin(SpecstoneCommandRunner runner) {
+    final Directory root;
+    try {
+      root = locateMigrateRoot(runner.workingDirectory).root;
+    } on RenderFault {
+      return;
+    }
+    if (oldPluginEnabled(
+      projectRoot: root,
+      environment: runner.environment,
+      home: runner.homeDirectory,
+    )) {
+      runner.err.writeln(_oldPluginLine);
+    }
+  }
 }
+
+const _oldPluginLine =
+    'specstone: the Specstone plugin for Claude Code is still on; its hook '
+    'now comes from .claude/settings.json. Run: claude plugin uninstall '
+    'specstone@specstone';

@@ -59,6 +59,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     GeneratorRegistry<DocIndex>? generators,
     Directory? workingDirectory,
     Directory? homeDirectory,
+    Map<String, String>? environment,
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
     UpgradeCommand? upgrade,
@@ -69,6 +70,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
          templates: templates,
          workingDirectory: workingDirectory,
          homeDirectory: homeDirectory,
+         environment: environment,
          busyTimeout: busyTimeout,
          console: console,
          upgrade: upgrade,
@@ -83,6 +85,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     required TemplateResolver? templates,
     required Directory? workingDirectory,
     required Directory? homeDirectory,
+    required Map<String, String>? environment,
     required Duration busyTimeout,
     required Console? console,
     required UpgradeCommand? upgrade,
@@ -92,6 +95,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
        _templates =
            templates ?? TemplateResolver(generatorKinds: registry.kinds),
        _workingDirectory = workingDirectory,
+       _environment = environment ?? Platform.environment,
        _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
        _busyTimeout = busyTimeout,
        _console = console ?? SystemConsole(),
@@ -136,6 +140,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final GeneratorRegistry<DocIndex> _generators;
   final Directory? _workingDirectory;
   final Directory? _homeDirectory;
+  final Map<String, String> _environment;
   final Duration _busyTimeout;
   final Console _console;
 
@@ -162,6 +167,9 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   /// Home folder that holds the personal packs, `~`, or null when the
   /// environment names none.
   Directory? get homeDirectory => _homeDirectory;
+
+  /// The process environment, or the one a test supplies.
+  Map<String, String> get environment => _environment;
 
   /// How long a read command waits on another call's index write.
   Duration get busyTimeout => _busyTimeout;

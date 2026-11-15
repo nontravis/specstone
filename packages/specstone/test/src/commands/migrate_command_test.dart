@@ -7,6 +7,8 @@ import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/legacy_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/temp_tree.dart';
+import '../../../../specstone_core/test/helpers/write_fixture.dart'
+    show testHome;
 import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
@@ -279,6 +281,120 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(err.toString(), contains('not in a git work tree'));
   }, skip: hasGit ? null : 'git is not available');
+
+  group('the old plugin line', () {
+    const on = '{"enabledPlugins": {"specstone@specstone": true}}';
+    const line =
+        'specstone: the Specstone plugin for Claude Code is still on; its '
+        'hook now comes from .claude/settings.json. Run: claude plugin '
+        'uninstall specstone@specstone\n';
+
+    Future<Directory> configured(Map<String, String> files) =>
+        writeTree({'.specstone/config.yaml': shippedPinsConfig(), ...files});
+
+    for (final args in [
+      ['migrate'],
+      ['migrate', '--dry-run'],
+    ]) {
+      for (final file in [
+        '.claude/settings.json',
+        '.claude/settings.local.json',
+      ]) {
+        test('${args.join(' ')} prints it once when $file enables the plugin, '
+            'with the exit status of the run', () async {
+          final root = await configured({file: on});
+          final (:runner, :out, :err) = writeRunner(root);
+
+          expect(await runner.run(args), 0);
+
+          expect(out.toString(), 'nothing to migrate\n');
+          expect(err.toString(), line);
+        });
+      }
+    }
+
+    test('the home settings file enables it', () async {
+      final root = await configured({});
+      final (:runner, :out, :err) = writeRunner(root);
+      final home = testHome();
+      File('${home.path}/.claude/settings.json')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(on);
+
+      expect(await runner.run(['migrate']), 0);
+
+      expect(err.toString(), line);
+    });
+
+    test(r'$CLAUDE_CONFIG_DIR wins over the home folder', () async {
+      final root = await configured({});
+      final config = await writeTree({'settings.json': on});
+      final home = testHome();
+      File('${home.path}/.claude/settings.json')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync(on);
+
+      final off = await writeTree({'settings.json': '{}'});
+      final withOff = writeRunner(
+        root,
+        environment: {'CLAUDE_CONFIG_DIR': off.path},
+      );
+      final withOn = writeRunner(
+        root,
+        environment: {'CLAUDE_CONFIG_DIR': config.path},
+      );
+
+      expect(await withOff.runner.run(['migrate']), 0);
+      expect(await withOn.runner.run(['migrate']), 0);
+
+      expect(withOff.err.toString(), isEmpty);
+      expect(withOn.err.toString(), line);
+    });
+
+    for (final (name, text) in [
+      ('off', '{"enabledPlugins": {"specstone@specstone": false}}'),
+      ('absent', '{}'),
+      ('unparseable', '{ not json'),
+    ]) {
+      test('no line when the plugin is $name in every file', () async {
+        final root = await configured({'.claude/settings.local.json': text});
+        final (:runner, :out, :err) = writeRunner(root);
+
+        expect(await runner.run(['migrate']), 0);
+
+        expect(err.toString(), isEmpty);
+      });
+    }
+
+    test('it keeps a nonzero exit status of the run', () async {
+      final root = await writeTree({
+        ...acmeLegacy,
+        '.claude/settings.local.json': on,
+      });
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--dry-run']), 78);
+
+      expect(err.toString(), startsWith(line));
+      expect(err.toString(), contains('not in a git work tree'));
+    });
+
+    test('migrate refuses a malformed settings file, exit 65, writing '
+        'nothing', () async {
+      final root = await gitFixture({
+        ...acmeLegacy,
+        '.claude/settings.json': '{ not json',
+      });
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--dry-run']), 65);
+
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('.claude/settings.json'));
+      expect(_bytesUnder(root), before);
+    }, skip: hasGit ? null : 'git is not available');
+  });
 
   test('migrate takes no argument', () async {
     final root = await writeTree(acmeLegacy);
