@@ -114,6 +114,7 @@ void main() {
       'feature_pattern_item_missing',
       'override_line_malformed',
       'override_not_in_chain',
+      'task_item_missing',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
     const writeCodes = {

@@ -17,6 +17,8 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show generatedLineTest, withGeneratedFenced;
+import 'package:specstone_core/src/index_query/line_facts.dart'
+    show lfLinesOf, linesBeforeBodyOf;
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -206,6 +208,30 @@ final class CheckContext {
     return sectionItemsOf(
       withGeneratedFenced(bodyLinesOf(doc, index), isGenerated),
     );
+  }
+
+  /// Returns the items of the lead of [doc], the head after its title line,
+  /// read from the file text.
+  ///
+  /// The index stores no ID for a lead item, since the lead has no section.
+  List<SectionItem> leadItemsOf(IndexedDoc doc) {
+    final text = toLf(contentOf(doc).text);
+    final parsed = Doc.parse(text);
+    final lines = linesOf(doc);
+    final firstBodyLine = linesBeforeBodyOf(parsed, text) + 1;
+    final head = lfLinesOf(parsed.head);
+    final skip = switch (parsed.titleLineIndex) {
+      final at? => at + 1,
+      null => 0,
+    };
+    return sectionItemsOf([
+      for (var k = skip; k < head.length; k++)
+        (
+          text: head[k],
+          line: firstBodyLine + k,
+          fenced: lines.isFenced(firstBodyLine + k),
+        ),
+    ]);
   }
 
   /// Whether [type] declares the field [fieldId].

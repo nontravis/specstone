@@ -1531,6 +1531,70 @@ void main() {
     });
   });
 
+  group('task refs', () {
+    const domain = 'specs/f01_login/DOMAIN.md';
+
+    Future<Directory> domainWith(String invariants) => writeCheckProject(
+      extra: {
+        'docs/$domain':
+            '---\ntasks:\n  - INV-4:ENG-42\n---\n\n# Login domain\n\n'
+            '## Invariants\n\n$invariants\n',
+      },
+      unstamped: {'docs/$domain'},
+    );
+
+    Future<(ProcessResult, ProcessResult)> run(Directory project) async => (
+      await Process.run(binary, [
+        'check',
+        'domain:login',
+      ], workingDirectory: project.path),
+      await Process.run(binary, [
+        'check',
+        'domain:login',
+        '--json',
+      ], workingDirectory: project.path),
+    );
+
+    test('an entry whose item the doc lost is one finding at the entry, in text and --json', () async {
+      final project = await domainWith('- **INV-5** A name is unique.');
+      const message =
+          'task ENG-42 names item INV-4, which the doc does not hold';
+
+      final (text, json) = await run(project);
+
+      expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+      expect(text.stdout, contains('$domain:3: task_item_missing: $message\n'));
+      expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
+      expect(
+        [
+          for (final finding
+              in (jsonDecode(json.stdout as String) as Map)['findings'] as List)
+            if ((finding as Map)['kind'] == 'task_item_missing') finding,
+        ],
+        [
+          {
+            'kind': 'task_item_missing',
+            'docPath': domain,
+            'name': 'login',
+            'line': 3,
+            'message': message,
+            'waitsFor': 'agent',
+            'task': 'ENG-42',
+            'item': 'INV-4',
+          },
+        ],
+      );
+    });
+
+    test('an entry whose item the doc holds prints no task finding', () async {
+      final project = await domainWith('- **INV-4** An email is unique.');
+
+      final (text, _) = await run(project);
+
+      expect(text.stdout, isNot(contains('task_item_missing')));
+    });
+  });
+
   group('skill and agent files', () {
     const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
     const procedure =

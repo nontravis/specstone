@@ -29,6 +29,7 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart';
 import 'package:specstone_core/src/consistency_check/shape_count_rules.dart';
+import 'package:specstone_core/src/consistency_check/task_ref_rules.dart';
 import 'package:specstone_core/src/consistency_check/tbr_rules.dart';
 import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
@@ -101,6 +102,7 @@ CheckReport runCheck(
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkCodeLinks(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
+      ..addAll(checkTaskRefs(context, doc))
       ..addAll(checkFeaturePatterns(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))

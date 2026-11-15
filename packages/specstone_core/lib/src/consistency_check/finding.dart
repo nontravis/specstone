@@ -130,7 +130,8 @@ enum FindingKind {
   featurePatternMissing('feature_pattern_missing'),
   featurePatternItemMissing('feature_pattern_item_missing'),
   overrideLineMalformed('override_line_malformed'),
-  overrideNotInChain('override_not_in_chain');
+  overrideNotInChain('override_not_in_chain'),
+  taskItemMissing('task_item_missing');
 
   new(this.wire);
 
