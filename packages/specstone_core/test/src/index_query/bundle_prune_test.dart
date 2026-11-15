@@ -123,6 +123,13 @@ void main() {
     expect(locked.existsSync(), isTrue);
     expect(other.existsSync(), isFalse);
   }, skip: Platform.isWindows ? 'a read-only folder is a POSIX rule' : null);
+
+  test('prune ends without a throw when a subfolder cannot be listed', () {
+    final hidden = file('sub/a.txt', now.subtract(const Duration(days: 9)));
+    Process.runSync('chmod', ['000', hidden.parent.path]);
+
+    expect(prune, returnsNormally);
+  }, skip: Platform.isWindows ? 'a mode-000 folder is a POSIX rule' : null);
 }
 
 void _makeWritable(Directory folder) {

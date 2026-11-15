@@ -17,7 +17,7 @@ const _agentMd =
     '- Read docs with `specstone context <target> --for <mode> --out`; '
     'search saved files before any `specstone get`; in design work ground a '
     'doc they lack with `specstone context <doc> --for design --out`, never '
-    '`get`; never open doc files directly.\n'
+    '`get` (design mode excepted); never open doc files.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
     "drafts await Owner's `specstone approve` (main session's when clean "
@@ -25,12 +25,12 @@ const _agentMd =
     '- Before writing a doc, run `specstone guide <type>`; write each item in '
     'its shape,\n'
     '  once, short, complete.\n'
-    "- Before writing a story's plan, tickets, or tests, ground them with "
+    "- Before a story's plan, tickets, or tests, ground them with "
     '`specstone context <story> --for implement --out`.\n'
     '- Cite by markdown link, never a number label '
     '(`F-<nn> US-<nn>`).\n'
-    '- Before reporting done, run `specstone check <doc>` on each doc you '
-    'changed until every finding ends `(waits for the Owner)` '
+    '- Before reporting done, run `specstone check <doc>` on each '
+    'changed doc until every finding ends `(waits for the Owner)` '
     '(`--json`: `waitsFor` is `owner`).\n'
     '- Without specstone on PATH, run `~/.specstone/bin/specstone`.\n';
 
@@ -160,6 +160,15 @@ void main() {
           ),
         );
         expect(rule, contains('before any `specstone get`'));
+      }
+    });
+
+    test('AGENT.md excepts design mode from the design-work context rule', () {
+      for (final text in [agentMdText, _inlineBlock()]) {
+        final rule = _rules(text)
+            .singleWhere((r) => r.startsWith('- Read docs with'));
+
+        expect(rule, contains('never `get` (design mode excepted)'));
       }
     });
 

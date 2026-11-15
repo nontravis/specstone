@@ -1913,9 +1913,8 @@ void _agentTests() {
     expect(
       _oneLine(_sectionOf(engineer, 'Scope Boundaries')),
       contains(
-        'Read the file each `context --out` call saves per the '
-        '`specstone-read-sdd` skill, searching it with `Grep` before any '
-        '`get`.',
+        'Read the files each `context --out` call saves per the '
+        '`specstone-read-sdd` skill.',
       ),
     );
     expect(
@@ -5491,6 +5490,43 @@ void _designBriefTests() {
         contains(
           'run no `context` call with the same target and flags until design '
           'mode replies',
+        ),
+      );
+    });
+
+    test('main reruns the cited context calls before each design dispatch', () {
+      expect(
+        skillStep3(),
+        contains(
+          'Before each `mode: design` dispatch, first or amend, rerun each '
+          '`context` call whose file the brief cites and rewrite every range '
+          'from the new index',
+        ),
+      );
+    });
+
+    test('rounds.md points to the skill step for the range refresh', () {
+      final rounds = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
+      );
+
+      expect(
+        rounds,
+        contains(
+          "refresh the ranges as the skill's step 3 says and dispatch "
+          '`mode: design` again',
+        ),
+      );
+      expect(rounds, isNot(contains('rerun each `context` call')));
+    });
+
+    test('a missing cited file or a range naming another doc is an open '
+        'question that names the file', () {
+      expect(
+        designGround(),
+        contains(
+          'So is a missing cited file, or a range whose `==> ` line is not '
+          "the claim's doc; name the file.",
         ),
       );
     });

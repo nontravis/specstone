@@ -114,8 +114,7 @@ finding.
 **DO:**
 
 - Write docs with `specstone new` and `specstone set` alone: each write leaves a draft; never clear its flag.
-- Read the file each `context --out` call saves per the `specstone-read-sdd` skill, searching it with `Grep` before
-  any `get`.
+- Read the files each `context --out` call saves per the `specstone-read-sdd` skill.
 - In design mode, run no `context` and no `get` for a doc: read each claim's saved file by the brief's line range; a
   claim with no range is an open question. In audit mode, ground a doc the files lack with its own
   `context <doc> --for design --out`, never `get`.

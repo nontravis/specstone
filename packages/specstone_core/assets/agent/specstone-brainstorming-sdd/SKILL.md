@@ -36,8 +36,8 @@ questions, and show the Owner each answer; go on only after their yes.
 
 ## 2. Reach an approved design document
 
-The brainstorm skill is the one in your skill list whose description says it turns a change into a design through
-dialogue with the user. Judge by that, never by name. No Specstone skill qualifies. When two qualify,
+The brainstorm skill is the one in your skill list whose description, never its name, says it turns a change into a
+design through dialogue with the user. No Specstone skill qualifies. When two qualify,
 take the one the project's instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed.
 
 The design document proposes each new or reshaped feature's `patterns:` value, picked from `specstone guide --pattern`.
@@ -61,12 +61,12 @@ After step 1's calls, take `<folder>` the path `specstone folder` prints, run on
 `report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that
 file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
-Write the Owner's approved answers (the decisions, the rulings in the Owner's words, the approach picked, the open
-questions) to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in.
+Write the Owner's approved answers to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in.
 Write under each claim of the brief the saved bundle file's path and the line range that grounds it; a claim with no
-range is an open question. Dispatch `mode: design` once, with that brief's path and the document's: the brainstorm
-skill's own design path, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`; run no `context` call with the same
-target and flags until design mode replies.
+range is an open question. Before each `mode: design` dispatch, first or amend, rerun each `context` call whose file
+the brief cites and rewrite every range from the new index. Dispatch `mode: design` once, with that brief's path and
+the document's: the brainstorm skill's own design path, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`; run no
+`context` call with the same target and flags until design mode replies.
 
 Route each later Owner answer or change per `references/rounds.md`.
 
@@ -82,7 +82,7 @@ Route each later Owner answer or change per `references/rounds.md`.
 ## 5. Hand the approved drafts to the plan skill
 
 After the Owner approves the drafts, follow the `specstone-plan-sdd` skill with the approved drafts list, whole, and the
-document's path. It writes the plan and asks the Owner how to run it.
+document's path.
 
 ## Without a dispatch
 

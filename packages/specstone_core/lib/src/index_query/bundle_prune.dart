@@ -10,18 +10,28 @@ const _bundleAgeBound = Duration(hours: 24);
 /// than 24 hours before [now].
 ///
 /// Keeps every canonical path in [keep], every folder, and every link, and
-/// never follows a link. A missing [bundles] and a file that cannot be
-/// deleted are skipped without a message.
+/// never follows a link. A missing [bundles], a file that cannot be deleted,
+/// and a folder that cannot be listed (the prune then ends, deleting nothing
+/// more) are skipped without a message.
 void pruneBundles(
   Directory bundles, {
   required Set<String> keep,
   required DateTime now,
 }) {
-  if (!bundles.existsSync()) return;
+  final entities = _listAll(bundles);
   final oldest = now.subtract(_bundleAgeBound);
-  for (final entity in bundles.listSync(recursive: true, followLinks: false)) {
+  for (final entity in entities) {
     if (entity is! File || keep.contains(canonicalPath(entity.path))) continue;
     _deleteIfOlder(entity, oldest);
+  }
+}
+
+List<FileSystemEntity> _listAll(Directory bundles) {
+  try {
+    if (!bundles.existsSync()) return const [];
+    return bundles.listSync(recursive: true, followLinks: false);
+  } on FileSystemException {
+    return const [];
   }
 }
 
