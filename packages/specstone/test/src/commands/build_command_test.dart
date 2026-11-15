@@ -28,6 +28,18 @@ const _frXText = '# Requirement X\n\n## Statement\n\nShall.\n';
 const _storyBText =
     '# Story B\n\n## Summary\n\nSecond.\n\n## Acceptance Criteria\n\nDone.\n';
 
+const _recordType = '''
+id: implementation
+description: One feature record.
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
+''';
+
 const Map<String, String> _fixture = {
   _feature: _featureText,
   _storyA: _storyAText,
@@ -98,6 +110,48 @@ void main() {
       expect(order, everyElement(isNonNegative));
       expect(order, [...order]..sort());
     });
+
+    test(
+      'a record under the records root gets no page and no warning',
+      () async {
+        final project = await fixtureProject({
+          ..._fixture,
+          '.specstone/templates/implementation.yaml': _recordType,
+          '.specstone/records/f03_template_packs/IMPLEMENTATION.md':
+              '# Packs record\n',
+        });
+        final runner = await runnerIn(project);
+
+        expect(await runner.run(['build', 'docs']), 0);
+        expect(err.toString(), isEmpty);
+        final html = read(project, '.specstone/build/docs.html');
+        expect(html, contains('F-03 Template packs'));
+        expect(html, isNot(contains('Packs record')));
+      },
+    );
+
+    for (final target in const [
+      '.specstone/records',
+      '.specstone/records/f03_template_packs/IMPLEMENTATION.md',
+    ]) {
+      test('a records target $target is 64 and writes nothing', () async {
+        final project = await fixtureProject({
+          ..._fixture,
+          '.specstone/templates/implementation.yaml': _recordType,
+          '.specstone/records/f03_template_packs/IMPLEMENTATION.md':
+              '# Packs record\n',
+        });
+        final runner = await runnerIn(project);
+
+        expect(await runner.run(['build', target, '--json']), 64);
+        expect(out.toString(), isEmpty);
+        final error =
+            (jsonDecode(err.toString()) as Map<String, dynamic>)['error']
+                as Map<String, dynamic>;
+        expect(error['code'], 'target_outside_docs_root');
+        expectNothingWritten(project, '.specstone/build/$target.html');
+      });
+    }
 
     test('a file keeps its .md in the output name', () async {
       final project = await fixtureProject(_fixture);
@@ -492,6 +546,32 @@ void main() {
         });
       });
     });
+
+    test(
+      'an --output inside the records root is 73 and renders nothing',
+      () async {
+        const recordPath =
+            '.specstone/records/f03_template_packs/IMPLEMENTATION.md';
+        const recordText = '---\nstatuses: []\n---\n\n# Record\n';
+        final project = await fixtureProject({
+          ..._fixture,
+          '.specstone/templates/implementation.yaml': _recordType,
+          recordPath: recordText,
+        });
+        final runner = await runnerIn(project);
+
+        expect(
+          await runner.run(['build', _featureDir, '--output', recordPath]),
+          73,
+        );
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          '$recordPath: the output path is inside the records root\n',
+        );
+        expect(read(project, recordPath), recordText);
+      },
+    );
 
     test('f05/us02/s9, f05/us02/fr05/e02, DP1: --paper letter --landscape '
         '--margin 1in writes the page rule', () async {

@@ -54,8 +54,9 @@ Future<Directory> writeTwinProject({
     without: {
       'docs/$loginArchitecture',
       'docs/$techStack',
-      // A target owns its records: the two-target project writes none here.
-      'docs/$loginRecord',
+      // A target owns its records: the two-target project writes none here,
+      // unless [extra] names that path.
+      if (!extra.containsKey(loginRecord)) loginRecord,
       'app/lib/login.dart',
       ...without,
     },

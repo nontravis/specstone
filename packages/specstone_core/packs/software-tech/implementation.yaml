@@ -13,7 +13,7 @@ description: |-
   Write one rule per ID: one entry per story and FR, each rule one sentence.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
-path: specs/f{nn}_{slug}/IMPLEMENTATION.md
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
 parent: feature
 per_target: true
 fields:

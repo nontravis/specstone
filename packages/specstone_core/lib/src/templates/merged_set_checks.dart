@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
@@ -72,11 +73,13 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// `doc_types` entry of a `doc_ref` field names a doc type id of the set
 /// (`unknown_value`), every `lint.required_field_groups` entry names a
 /// field of its doc type (`unknown_value`), every section `required_when`
-/// names a section of its doc type (`unknown_value`), at most one doc type
-/// holds a `record_status` field and its merged `per_target` is `true`, a
-/// `targets:` config without the record doc type is refused, and a doc type
-/// that carries the `patterns` field holds an enabled `out_of_scope` section
-/// (`unknown_value`).
+/// names a section of its doc type (`unknown_value`), every section
+/// `when_field` names a field of its doc type (`unknown_value`), at most one
+/// doc type holds a `record_status` field and its merged `per_target` is
+/// `true`, a `targets:` config without the record doc type is refused, and a
+/// doc type that carries the `patterns` field holds an enabled `out_of_scope`
+/// section (`unknown_value`), and a `path` under `.specstone/` belongs only to
+/// the record doc type, below `.specstone/records/` (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
@@ -87,11 +90,13 @@ void checkMergedSet(
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
   _checkNesting(sorted, layerLists, loadIndex);
   _checkPaths(sorted, layerLists, loadIndex);
+  _checkRecordPaths(sorted, layerLists);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
   _checkSummaryFor(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
+  _checkWhenField(sorted, layerLists);
   _checkRecords(sorted, layerLists, loadIndex, targetNames);
   _checkPatternCarriers(sorted, layerLists);
 }
@@ -210,6 +215,31 @@ void _checkPaths(
 }
 
 bool _wrotePath(DocTypeLayer layer) => layer.path != null;
+
+/// Throws `unknown_value` for a `path` under `.specstone/` that is not the
+/// record doc type's path below `.specstone/records/`.
+void _checkRecordPaths(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    final path = docType.path;
+    if (path == null || !path.startsWith(_specstoneFolder)) continue;
+    final isRecord = docType.fields.any(
+      (f) => f.type == FieldType.recordStatus,
+    );
+    if (isRecord && isRecordsDocPath(path)) continue;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the path $path of ${docType.id} lies under $_specstoneFolder; only the '
+      'record doc type may have a path, and only below $recordsRootDocPath',
+      file: _writerOf(docType.id, _wrotePath, layerLists),
+      key: 'path',
+    );
+  }
+}
+
+const _specstoneFolder = '.specstone/';
 
 /// The load position of [file], before every file when null.
 int _loadRank(String? file, LoadIndex loadIndex) =>
@@ -376,6 +406,33 @@ void _checkRequiredWhen(
           layerLists,
         ),
         key: 'sections.${section.id}.lint.required_when.section',
+      );
+    }
+  }
+}
+
+/// Throws `unknown_value` for a section `when_field` naming no field of its
+/// merged doc type.
+void _checkWhenField(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    final fieldIds = {for (final field in docType.fields) field.id};
+    for (final section in docType.sections) {
+      final rule = section.whenField;
+      if (rule == null || fieldIds.contains(rule.field)) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a when_field names no field of the doc type: ${rule.field}',
+        file: _writerOf(
+          docType.id,
+          (layer) => layer.sections.any(
+            (entry) => entry.id == section.id && entry.whenField != null,
+          ),
+          layerLists,
+        ),
+        key: 'sections.${section.id}.when_field.field',
       );
     }
   }

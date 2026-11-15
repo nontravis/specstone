@@ -1420,4 +1420,28 @@ void main() {
       expect(rebased(body), body);
     });
   });
+
+  group('mentions that leave the docs root', () {
+    test('a moved doc keeps a mention of a project-root path that only a '
+        'docs doc shares, and follows one of a file on disk', () async {
+      final mentioning = await writeWriteProject(
+        extra: {
+          'docs/prds/NOTES.md': '# Notes\n\nSee ../../prds/FEATURES.md, ../../src/main.dart, and FEATURES.md.\n',
+          'src/main.dart': 'void main() {}\n',
+        },
+      );
+
+      final steps = writeIn(
+        mentioning,
+        (s) =>
+            planRewrites(s, [(from: 'prds/NOTES.md', to: 'prds/sub/NOTES.md')]),
+      );
+      final notes = steps.singleWhere((step) => step.path.endsWith('NOTES.md'));
+
+      expect(
+        notes.text,
+        '# Notes\n\nSee ../../prds/FEATURES.md, ../../../src/main.dart, and ../FEATURES.md.\n',
+      );
+    });
+  });
 }

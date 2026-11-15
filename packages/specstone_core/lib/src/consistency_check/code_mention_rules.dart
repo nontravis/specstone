@@ -90,7 +90,7 @@ final class _DocMentionReader {
   final ProjectPathReader _paths;
 
   Iterable<Finding> mentionsIn(CodeTarget target, String codePath) sync* {
-    final extension = _extensionOf(codePath);
+    final extension = extensionOfCodePath(codePath);
     if (!readsNameMentions(extension)) return;
     final projectPath = _projectPathOf(target, codePath);
     if (projectPath == null || isAgentFile(projectPath)) return;
@@ -158,10 +158,4 @@ final class _DocMentionReader {
         'reverse',
     keys: {'mention': mention.text},
   );
-}
-
-String _extensionOf(String path) {
-  final name = path.substring(path.lastIndexOf(_separator) + 1);
-  final dot = name.lastIndexOf('.');
-  return dot <= 0 ? '' : name.substring(dot);
 }

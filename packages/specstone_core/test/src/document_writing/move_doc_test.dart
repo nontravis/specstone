@@ -2019,7 +2019,7 @@ void main() {
         final root = await writeCheckProject(
           extra: {'.specstone/config.yaml': config()},
           // The code lies outside the project, so no link can take a fingerprint.
-          unfingerprinted: {'docs/$loginRecord', 'docs/$loginArchitecture'},
+          unfingerprinted: {loginRecord, 'docs/$loginArchitecture'},
         );
         final before = outsideBytes();
 
@@ -2048,7 +2048,7 @@ void main() {
           final root = await writeCheckProject(
             extra: {'.specstone/config.yaml': config()},
             // The code lies outside the project, so no link can take a fingerprint.
-            unfingerprinted: {'docs/$loginRecord', 'docs/$loginArchitecture'},
+            unfingerprinted: {loginRecord, 'docs/$loginArchitecture'},
           );
 
           final answer = renameLogin(root);
@@ -2070,7 +2070,7 @@ void main() {
           // The code lies outside the project, so no link can take a fingerprint.
           unfingerprinted: {
             'docs/$shopArchitecture',
-            'docs/$loginRecord',
+            loginRecord,
             'docs/$loginArchitecture',
           },
         );
@@ -2160,10 +2160,12 @@ void main() {
   });
 
   group('with two code targets', () {
-    const flutterLogin = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-    const jasprLogin = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
-    const flutterSignup = 'specs/flutter/f02_signup/IMPLEMENTATION.md';
-    const jasprSignup = 'specs/jaspr/f02_signup/IMPLEMENTATION.md';
+    const flutterLogin =
+        '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprLogin = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterSignup =
+        '.specstone/records/flutter/f02_signup/IMPLEMENTATION.md';
+    const jasprSignup = '.specstone/records/jaspr/f02_signup/IMPLEMENTATION.md';
 
     final loginRecord = recordText(
       statuses: [
@@ -2194,10 +2196,10 @@ void main() {
               'id: architecture\nper_target: false\n',
           'flutter_ws/app/lib/login.dart': 'class SignIn {}\n',
           'jaspr_ws/app/lib/login.dart': 'class SignIn {}\n',
-          'docs/$flutterLogin': loginRecord,
-          'docs/$jasprLogin': loginRecord,
-          'docs/$flutterSignup': recordText(statuses: ['ghost:planned']),
-          'docs/$jasprSignup': recordText(statuses: ['ghost:planned']),
+          flutterLogin: loginRecord,
+          jasprLogin: loginRecord,
+          flutterSignup: recordText(statuses: ['ghost:planned']),
+          jasprSignup: recordText(statuses: ['ghost:planned']),
           ...extra,
         }.entries)
           if (!without.contains(key)) key: value,
@@ -2216,20 +2218,23 @@ void main() {
       final answer = reorder(root, 'feature:signup', '1');
       expect(movedPairs(answer), [
         'prds/features/f02_signup/ prds/features/f01_signup/',
+        '.specstone/records/flutter/f02_signup/ .specstone/records/flutter/f01_signup/',
+        '.specstone/records/jaspr/f02_signup/ .specstone/records/jaspr/f01_signup/',
         'specs/f02_signup/ specs/f01_signup/',
-        'specs/flutter/f02_signup/ specs/flutter/f01_signup/',
-        'specs/jaspr/f02_signup/ specs/jaspr/f01_signup/',
         'prds/features/f01_login/ prds/features/f02_login/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f02_login/',
+        '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f02_login/',
         'specs/f01_login/ specs/f02_login/',
-        'specs/flutter/f01_login/ specs/flutter/f02_login/',
-        'specs/jaspr/f01_login/ specs/jaspr/f02_login/',
       ]);
       expect(
-        readDoc(root, 'specs/flutter/f01_signup/IMPLEMENTATION.md'),
+        readDoc(
+          root,
+          '.specstone/records/flutter/f01_signup/IMPLEMENTATION.md',
+        ),
         signupBefore,
       );
       expect(
-        readDoc(root, 'specs/jaspr/f02_login/IMPLEMENTATION.md'),
+        readDoc(root, '.specstone/records/jaspr/f02_login/IMPLEMENTATION.md'),
         loginBefore,
       );
       expect(hasDoc(root, flutterSignup), isFalse);
@@ -2253,7 +2258,7 @@ void main() {
           statuses: ['reset_password:implemented'],
           code: ['reset_password:$f/us03_reset_password/USER_STORY.md:Page'],
         );
-        final root = await twinProject(extra: {'docs/$flutterLogin': spelled});
+        final root = await twinProject(extra: {flutterLogin: spelled});
         reorder(root, 'user_story:login/reset_password', '1');
         expect(readDoc(root, flutterLogin), spelled);
       },
@@ -2266,12 +2271,12 @@ void main() {
         final answer = rename(root, 'feature:login', 'signin');
         expect(movedPairs(answer), [
           'prds/features/f01_login/ prds/features/f01_signin/',
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
           'specs/f01_login/ specs/f01_signin/',
-          'specs/flutter/f01_login/ specs/flutter/f01_signin/',
-          'specs/jaspr/f01_login/ specs/jaspr/f01_signin/',
         ]);
         expect(
-          hasDoc(root, 'specs/jaspr/f01_signin/IMPLEMENTATION.md'),
+          hasDoc(root, '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md'),
           isTrue,
         );
       },
@@ -2280,12 +2285,12 @@ void main() {
     test(
       'E12: a target with no spec folder for the feature gets none',
       () async {
-        final root = await twinProject(without: {'docs/$jasprLogin'});
+        final root = await twinProject(without: {jasprLogin});
         final answer = rename(root, 'feature:login', 'signin');
         expect(movedPairs(answer), [
           'prds/features/f01_login/ prds/features/f01_signin/',
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
           'specs/f01_login/ specs/f01_signin/',
-          'specs/flutter/f01_login/ specs/flutter/f01_signin/',
         ]);
         expect(
           Directory('${root.path}/docs/specs/jaspr/f01_signin').existsSync(),
@@ -2400,11 +2405,17 @@ void main() {
         final root = await twinProject();
         rename(root, 'feature:login', 'signin');
         expect(
-          readDoc(root, 'specs/flutter/f01_signin/IMPLEMENTATION.md'),
+          readDoc(
+            root,
+            '.specstone/records/flutter/f01_signin/IMPLEMENTATION.md',
+          ),
           loginRecord,
         );
         expect(
-          readDoc(root, 'specs/jaspr/f01_signin/IMPLEMENTATION.md'),
+          readDoc(
+            root,
+            '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md',
+          ),
           loginRecord,
         );
       });
@@ -2452,7 +2463,7 @@ void main() {
   });
 
   group('with one unnamed code target', () {
-    const record = 'specs/f01_login/IMPLEMENTATION.md';
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     test(
       'E11: a story rename rewrites its entries in the one record',
@@ -2460,8 +2471,8 @@ void main() {
         final root = await writeWriteProject(
           extra: {
             '.specstone/config.yaml': oneTargetConfig(),
-            '.specstone/templates/implementation.yaml': recordLayer,
-            'docs/$record': recordText(
+            '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+            record: recordText(
               statuses: ['reset_password:implemented', 'sign_out:planned'],
             ),
           },
@@ -2476,15 +2487,15 @@ void main() {
   });
 
   group('with one unnamed code target and a tests line', () {
-    const record = 'specs/f01_login/IMPLEMENTATION.md';
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     test('a story rename renames its tests lines, so check finds no entry the rename left behind', () async {
       final root = await writeWriteProject(
         extra: {
           '.specstone/config.yaml': oneTargetConfig(),
-          '.specstone/templates/implementation.yaml': recordLayer,
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
           'app/test/reset_test.dart': 'void main() {}\n',
-          'docs/$record': recordText(
+          record: recordText(
             statuses: ['reset_password:implemented'],
             tests: [
               'reset_password:app/test/reset_test.dart',
@@ -2511,7 +2522,7 @@ void main() {
         extra: {
           '.specstone/config.yaml':
               '${shippedPinsConfig()}targets:\n  web:\n    code_root: web_ws\n',
-          '.specstone/templates/implementation.yaml': recordLayer,
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
           '.specstone/templates/architecture.yaml':
               'id: architecture\nper_target: true\n',
           'web_ws/app/lib/login.dart': 'class SignIn {}\n',
@@ -2524,10 +2535,14 @@ void main() {
   });
 
   group('move with record entries', () {
-    const cartFlutter = 'specs/flutter/f02_shop/f01_cart/IMPLEMENTATION.md';
-    const cartJaspr = 'specs/jaspr/f02_shop/f01_cart/IMPLEMENTATION.md';
-    const payFlutter = 'specs/flutter/f02_shop/f02_pay/IMPLEMENTATION.md';
-    const payJaspr = 'specs/jaspr/f02_shop/f02_pay/IMPLEMENTATION.md';
+    const cartFlutter =
+        '.specstone/records/flutter/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const cartJaspr =
+        '.specstone/records/jaspr/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payFlutter =
+        '.specstone/records/flutter/f02_shop/f02_pay/IMPLEMENTATION.md';
+    const payJaspr =
+        '.specstone/records/jaspr/f02_shop/f02_pay/IMPLEMENTATION.md';
     const addItem = 'user_story:shop/cart/add_item';
 
     final flutterCart = recordText(
@@ -2555,17 +2570,13 @@ void main() {
       Set<String> without = const {},
     }) => writeNestedProject(
       without: without,
-      unfingerprinted: {
-        'docs/$cartFlutter',
-        'docs/$cartJaspr',
-        'docs/$payJaspr',
-      },
+      unfingerprinted: {cartFlutter, cartJaspr, payJaspr},
       extra: {
         '.specstone/config.yaml': twinConfig(),
-        '.specstone/templates/implementation.yaml': recordLayer,
-        'docs/$cartFlutter': flutterCart,
-        'docs/$cartJaspr': jasprCart,
-        'docs/$payJaspr': jasprPay,
+        '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+        cartFlutter: flutterCart,
+        cartJaspr: jasprCart,
+        payJaspr: jasprPay,
         ...extra,
       },
     );
@@ -2594,13 +2605,10 @@ void main() {
 
       final created = readDoc(root, payFlutter);
       expect(created, contains('draft: true'));
-      expect(created, contains("'add_item:implemented'"));
-      expect(created, contains("'add_item/check_stock:implemented'"));
-      expect(created, contains("'add_item:app/lib/shop.dart:Shop'"));
-      expect(
-        created,
-        contains("'add_item/check_stock:app/lib/shop.dart:Shop'"),
-      );
+      expect(created, contains('add_item:implemented'));
+      expect(created, contains('add_item/check_stock:implemented'));
+      expect(created, contains('add_item:app/lib/shop.dart:Shop'));
+      expect(created, contains('add_item/check_stock:app/lib/shop.dart:Shop'));
       expect(created, isNot(contains('skipped')));
       expect(holdsApproval(root, payFlutter), isFalse);
 
@@ -2621,7 +2629,7 @@ void main() {
       () async {
         final root = await shopTwins(
           extra: {
-            'docs/$cartFlutter': recordText(
+            cartFlutter: recordText(
               statuses: ['add_item:implemented', 'drop_item:planned'],
               tests: [
                 'add_item:app/test/shop_test.dart',
@@ -2637,10 +2645,10 @@ void main() {
         expect(cart, contains("'drop_item:app/test/shop_test.dart'"));
         expect(cart, isNot(contains('add_item')));
         final created = readDoc(root, payFlutter);
-        expect(created, contains("'add_item:app/test/shop_test.dart'"));
+        expect(created, contains('add_item:app/test/shop_test.dart'));
         expect(
           created,
-          contains("'add_item/check_stock:app/test/shop_test.dart:checks'"),
+          contains('add_item/check_stock:app/test/shop_test.dart:checks'),
         );
       },
     );
@@ -2650,7 +2658,7 @@ void main() {
       () async {
         final root = await shopTwins(
           extra: {
-            'docs/$cartFlutter': recordText(
+            cartFlutter: recordText(
               statuses: ['add_item:implemented', 'drop_item:planned'],
               code: [
                 'add_item:app/lib/shop.dart:Shop 0123456789ab',
@@ -2666,7 +2674,7 @@ void main() {
         expect(cart, isNot(contains('add_item')));
         expect(
           readDoc(root, payFlutter),
-          contains("'add_item:app/lib/shop.dart:Shop 0123456789ab'"),
+          contains('add_item:app/lib/shop.dart:Shop 0123456789ab'),
         );
       },
     );
@@ -2694,8 +2702,8 @@ void main() {
     test('E20: a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
       final bare = recordText(statuses: ['drop_item:planned']);
       final root = await shopTwins(
-        extra: {'docs/$cartJaspr': bare},
-        without: {'docs/$payJaspr'},
+        extra: {cartJaspr: bare},
+        without: {payJaspr},
       );
       moveAddItem(root);
       expect(readDoc(root, cartJaspr), bare);
@@ -2704,9 +2712,7 @@ void main() {
     });
 
     test('E20: a target with no cart record changes nothing', () async {
-      final root = await shopTwins(
-        without: {'docs/$cartJaspr', 'docs/$payJaspr'},
-      );
+      final root = await shopTwins(without: {cartJaspr, payJaspr});
       moveAddItem(root);
       expect(hasDoc(root, cartJaspr), isFalse);
       expect(hasDoc(root, payJaspr), isFalse);
@@ -2733,7 +2739,7 @@ void main() {
     test('E19: two stories moved in one call keep the order of the record, whatever order the call names them', () async {
       final root = await shopTwins(
         extra: {
-          'docs/$cartFlutter': recordText(
+          cartFlutter: recordText(
             statuses: ['add_item:implemented', 'drop_item:planned'],
           ),
         },
@@ -2747,8 +2753,8 @@ void main() {
       );
       final created = readDoc(root, payFlutter);
       expect(
-        created.indexOf("'add_item:implemented'"),
-        lessThan(created.indexOf("'drop_item:planned'")),
+        created.indexOf('add_item:implemented'),
+        lessThan(created.indexOf('drop_item:planned')),
       );
       expect(readDoc(root, cartFlutter), isNot(contains('statuses')));
     });
@@ -2806,7 +2812,7 @@ void main() {
       expect(pay, contains("'card:planned'"));
       expect(pay, contains("'add_item:implemented'"));
       expect(pay, contains("'add_item/check_stock:implemented'"));
-      expect(pay, contains("'add_item:app/lib/shop.dart:Shop'"));
+      expect(pay, contains('add_item:app/lib/shop.dart:Shop'));
       expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
     });
 
@@ -2841,11 +2847,11 @@ void main() {
           '---\n\n# Record\n';
       final root = await shopTwins(
         extra: {
-          'docs/$cartJaspr': recordText(
+          cartJaspr: recordText(
             statuses: ['add_item:implemented', 'drop_item:planned'],
             code: ['add_item:web/lib/shop.dart'],
           ),
-          'docs/$payJaspr': broken,
+          payJaspr: broken,
         },
       );
       expect(
@@ -2871,7 +2877,7 @@ void main() {
           "---\nstatuses:\n  - 'add_item:implemented'\n"
           "implements:\n  - 'add_item:web/lib/shop.dart\n"
           '---\n\n# Record\n';
-      final root = await shopTwins(extra: {'docs/$cartJaspr': broken});
+      final root = await shopTwins(extra: {cartJaspr: broken});
       expect(
         () => moveAddItem(root),
         throwsA(
@@ -2889,16 +2895,19 @@ void main() {
       final root = await writeNestedProject(
         extra: {
           '.specstone/config.yaml': oneTargetConfig(),
-          '.specstone/templates/implementation.yaml': recordLayer,
-          'docs/specs/f02_shop/f01_cart/IMPLEMENTATION.md': flutterCart,
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md': flutterCart,
         },
       );
       moveAddItem(root);
-      final created = readDoc(root, 'specs/f02_shop/f02_pay/IMPLEMENTATION.md');
+      final created = readDoc(
+        root,
+        '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md',
+      );
       expect(created, contains('draft: true'));
-      expect(created, contains("'add_item/check_stock:implemented'"));
+      expect(created, contains('add_item/check_stock:implemented'));
       expect(
-        readDoc(root, 'specs/f02_shop/f01_cart/IMPLEMENTATION.md'),
+        readDoc(root, '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md'),
         isNot(contains('add_item')),
       );
     });
@@ -3161,6 +3170,451 @@ void main() {
       final apply = caught(false);
       expect(apply, isNotNull);
       expect(caught(true), apply);
+    });
+  });
+
+  group('records under .specstone/records/', () {
+    const loginRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const signupRecordPath = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+    final loginRecordText = recordText(statuses: ['email_login:implemented']);
+    final signupRecordText = recordText(statuses: ['ghost:planned']);
+
+    File recordFile(Directory root, String path) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${path.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> recordProject({Set<String> without = const {}}) =>
+        writeWriteProject(
+          extra: {
+            ...recordsRootTemplates,
+            if (!without.contains(loginRecordPath))
+              loginRecordPath: loginRecordText,
+            if (!without.contains(signupRecordPath))
+              signupRecordPath: signupRecordText,
+          },
+        );
+
+    void appendTo(File file, String text) =>
+        file.writeAsStringSync(text, mode: FileMode.append);
+
+    test('renaming a docs doc a record links to rewrites the record href', () async {
+      final root = await recordProject();
+      appendTo(
+        recordFile(root, loginRecordPath),
+        '\nSee [stories](../../../docs/$story2).\n',
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      rename(root, 'user_story:login/sign_out', 'log_out');
+
+      expect(
+        recordFile(root, loginRecordPath).readAsStringSync(),
+        contains(
+          '](../../../docs/prds/features/f01_login/us02_log_out/USER_STORY.md)',
+        ),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test(
+      'renaming a feature rewrites the href of a record link to its spec doc',
+      () async {
+        final root = await recordProject();
+        appendTo(
+          recordFile(root, loginRecordPath),
+          '\nSee [arch](../../../docs/$loginArch).\n',
+        );
+
+        rename(root, 'feature:login', 'signin');
+
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f01_signin/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          contains('](../../../docs/specs/f01_signin/ARCHITECTURE.md)'),
+        );
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      },
+    );
+
+    test('reordering stories rewrites a record file link into a moved story folder', () async {
+      final root = await recordProject();
+      const folder = 'prds/features/f01_login/us02_sign_out';
+      File(
+        '${docFile(root, '$folder/USER_STORY.md').parent.path}${Platform.pathSeparator}diagram.png',
+      ).writeAsBytesSync([1, 2, 3]);
+      appendTo(
+        recordFile(root, loginRecordPath),
+        '\nSee [diagram](../../../docs/$folder/diagram.png).\n',
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      reorder(root, 'user_story:login/reset_password', '1');
+
+      expect(
+        recordFile(root, loginRecordPath).readAsStringSync(),
+        contains(
+          '](../../../docs/prds/features/f01_login/us03_sign_out/diagram.png)',
+        ),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test('reordering features rewrites a docs file link into a moved record folder', () async {
+      final root = await recordProject();
+      File(
+        '${recordFile(root, loginRecordPath).parent.path}'
+        '${Platform.pathSeparator}notes.png',
+      ).writeAsBytesSync([1, 2, 3]);
+      docFile(root, persona).writeAsStringSync(
+        '\nSee [notes](../../../../.specstone/records/f01_login/notes.png).\n',
+        mode: FileMode.append,
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      reorder(root, 'feature:signup', '1');
+
+      expect(
+        readDoc(root, persona),
+        contains('](../../../../.specstone/records/f02_login/notes.png)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test(
+      'renaming a story rewrites a record prose mention of its doc',
+      () async {
+        final root = await recordProject();
+        appendTo(
+          recordFile(root, loginRecordPath),
+          '\nSee ../../../docs/$story2 for the flow.\n',
+        );
+
+        rename(root, 'user_story:login/sign_out', 'log_out');
+
+        expect(
+          recordFile(root, loginRecordPath).readAsStringSync(),
+          contains(
+            'See ../../../docs/prds/features/f01_login/us02_log_out/USER_STORY.md for the flow.',
+          ),
+        );
+      },
+    );
+
+    test(
+      'renaming a feature rewrites the href of a docs link to its record',
+      () async {
+        final root = await recordProject();
+        docFile(root, 'prds/d01_context.md').writeAsStringSync(
+          '\nSee [record](../../$loginRecordPath).\n',
+          mode: FileMode.append,
+        );
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+        rename(root, 'feature:login', 'signin');
+
+        expect(
+          readDoc(root, 'prds/d01_context.md'),
+          contains('](../../.specstone/records/f01_signin/IMPLEMENTATION.md)'),
+        );
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      },
+    );
+
+    test('a feature rename moves its record folder beside its spec folder, bytes kept', () async {
+      final root = await recordProject();
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(
+        answer.text,
+        contains(
+          'moved .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signin/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test(
+      'a feature reorder renumbers its record folder with the spec folder',
+      () async {
+        final root = await recordProject();
+        final answer = reorder(root, 'feature:signup', '1');
+        expect(
+          [
+            for (final move in answer.json['moved']! as List)
+              '${(move as Map)['from']} ${move['to']}',
+          ],
+          containsAll([
+            '.specstone/records/f02_signup/ .specstone/records/f01_signup/',
+            '.specstone/records/f01_login/ .specstone/records/f02_login/',
+          ]),
+        );
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f01_signup/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          signupRecordText,
+        );
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f02_login/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          loginRecordText,
+        );
+        expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
+      },
+    );
+
+    test('renames a feature that has no record yet', () async {
+      final root = await recordProject(without: {loginRecordPath});
+      final answer = rename(root, 'feature:login', 'signin');
+      expect([
+        for (final move in answer.json['moved']! as List)
+          '${(move as Map)['from']}',
+      ], isNot(contains(startsWith('.specstone/records/'))));
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('a dry run lists the record folder move', () async {
+      final root = await recordProject();
+      final answer = writeIn(
+        root,
+        (s) => answerRename(s, 'feature:login', slug: 'signin', dryRun: true),
+      );
+      expect(
+        answer.text,
+        contains(
+          'moves .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isTrue);
+    });
+
+    test('a rename that stops on the record folder leaves a journal the next write replays', () async {
+      final root = await recordProject();
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => rename(root, 'feature:login', 'signin'),
+          FailingRenameHook('.specstone/records/f01_login'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+
+      writeIn(root, (_) {});
+
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signin/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('a reorder that stops on a record folder leaves a journal the next write replays', () async {
+      final root = await recordProject();
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => reorder(root, 'feature:signup', '1'),
+          FailingRenameHook('.specstone/records/f02_signup'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+
+      writeIn(root, (_) {});
+
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signup/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        signupRecordText,
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_login/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+    });
+
+    test('a reorder of a feature with no record moves the records of its siblings alone', () async {
+      final root = await recordProject(without: {signupRecordPath});
+      final answer = reorder(root, 'feature:signup', '1');
+      final from = [
+        for (final move in answer.json['moved']! as List)
+          '${(move as Map)['from']}',
+      ];
+      expect(from, contains('.specstone/records/f01_login/'));
+      expect(from, isNot(contains('.specstone/records/f02_signup/')));
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_login/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(hasDoc(root, 'specs/f01_signup/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('with two targets each target record folder moves', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...recordsRootTemplates,
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          flutterRecord: loginRecordText,
+          jasprRecord: loginRecordText,
+        },
+      );
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(
+        [
+          for (final move in answer.json['moved']! as List)
+            '${(move as Map)['from']} ${move['to']}',
+        ],
+        containsAll([
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
+        ]),
+      );
+      for (final target in ['flutter', 'jaspr']) {
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/$target/f01_signin/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          loginRecordText,
+        );
+        expect(
+          recordFile(root, '.specstone/records/$target/f01_login').existsSync(),
+          isFalse,
+        );
+      }
+    });
+  });
+
+  group('nested feature records under .specstone/records/', () {
+    const cartRecordPath =
+        '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
+    const payRecordPath =
+        '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+    File recordFile(Directory root, String path) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${path.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> nestedRecordProject() => writeNestedProject(
+      extra: {
+        ...recordsRootTemplates,
+        cartRecordPath: recordText(statuses: ['add_item:implemented']),
+        payRecordPath: recordText(statuses: ['card:planned']),
+      },
+    );
+
+    String movedLines(ReadAnswer answer) => [
+      for (final move in answer.json['moved']! as List)
+        '${(move as Map)['from']} ${move['to']}',
+    ].join('\n');
+
+    test('renaming a sub-feature moves its nested record folder', () async {
+      final root = await nestedRecordProject();
+      final answer = rename(root, 'feature:shop/cart', 'basket');
+      expect(
+        movedLines(answer),
+        contains(
+          '.specstone/records/f02_shop/f01_cart/ '
+          '.specstone/records/f02_shop/f01_basket/',
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f01_basket/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'add_item:implemented'"),
+      );
+      expect(recordFile(root, cartRecordPath).existsSync(), isFalse);
+      expect(recordFile(root, payRecordPath).existsSync(), isTrue);
+    });
+
+    test('reordering a sub-feature renumbers its nested record folder and its sibling', () async {
+      final root = await nestedRecordProject();
+      final answer = reorder(root, 'feature:shop/pay', '1');
+      expect(
+        movedLines(answer),
+        allOf(
+          contains(
+            '.specstone/records/f02_shop/f02_pay/ '
+            '.specstone/records/f02_shop/f01_pay/',
+          ),
+          contains(
+            '.specstone/records/f02_shop/f01_cart/ '
+            '.specstone/records/f02_shop/f02_cart/',
+          ),
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f01_pay/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'card:planned'"),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f02_shop/f02_cart/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        contains("'add_item:implemented'"),
+      );
+    });
+
+    test('renaming the top feature moves the record folder that holds its sub-feature records', () async {
+      final root = await nestedRecordProject();
+      rename(root, 'feature:shop', 'market');
+      for (final path in [
+        '.specstone/records/f02_market/f01_cart/IMPLEMENTATION.md',
+        '.specstone/records/f02_market/f02_pay/IMPLEMENTATION.md',
+      ]) {
+        expect(recordFile(root, path).existsSync(), isTrue, reason: path);
+      }
+      expect(
+        Directory('${root.path}/.specstone/records/f02_shop').existsSync(),
+        isFalse,
+      );
     });
   });
 }

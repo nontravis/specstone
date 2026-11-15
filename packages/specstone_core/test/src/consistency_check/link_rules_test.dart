@@ -9,6 +9,7 @@ import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
 
@@ -929,8 +930,9 @@ void main() {
   });
 
   group('two targets', () {
-    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterRecord =
+        '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
     const record = '# Record\n';
     const relatedLayer =
         'id: architecture\n'
@@ -1141,8 +1143,8 @@ void main() {
             extra: {
               'docs/$flutterArchitecture': mention,
               'docs/$jasprArchitecture': mention,
-              'docs/$flutterRecord': record,
-              if (jasprHoldsOne) 'docs/$jasprRecord': record,
+              flutterRecord: record,
+              if (jasprHoldsOne) jasprRecord: record,
             },
           );
 
@@ -1167,8 +1169,8 @@ void main() {
               '.specstone/templates/architecture.yaml': relatedLayer,
               'docs/$flutterArchitecture': related,
               'docs/$jasprArchitecture': related,
-              'docs/$flutterRecord': record,
-              if (jasprHoldsOne) 'docs/$jasprRecord': record,
+              flutterRecord: record,
+              if (jasprHoldsOne) jasprRecord: record,
             },
           );
 
@@ -1194,7 +1196,7 @@ void main() {
         '.specstone/templates/implementation.yaml':
             'id: implementation\n'
             'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
             'parent: feature\n'
             'per_target: true\n'
             'fields:\n'
@@ -1447,6 +1449,56 @@ void main() {
           {'target': gnfrPerformance, 'item': 'NFR-P01'},
         ],
       );
+    });
+  });
+
+  group('a link across the docs root and the records root', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const rulesDoc = 'docs/specs/topics/rules.md';
+
+    Map<String, String> records(String recordBody, {String? rulesBody}) => {
+      ...recordsRootTemplates,
+      record:
+          '---\nstatuses:\n  - "email_login:planned"\n---\n\n# Record\n\n$recordBody\n',
+      rulesDoc: rulesBody ?? '# Rules\n\n## Purpose\nRules.\n',
+    };
+
+    List<String> linkFindings(Directory project) => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == FindingKind.linkUnresolved ||
+            f.kind == FindingKind.linkTargetMissing)
+          f.textLine,
+    ];
+
+    test(
+      'a record link to a docs doc resolves from the project root',
+      () async {
+        final project = await writeCheckProject(
+          extra: records(
+            'See [rules](../../../docs/specs/topics/rules.md#purpose).',
+          ),
+        );
+        expect(linkFindings(project), isEmpty);
+      },
+    );
+
+    test('a record link to a missing docs doc is link_unresolved', () async {
+      final project = await writeCheckProject(
+        extra: records('See [gone](../../../docs/specs/topics/gone.md).'),
+      );
+      expect(linkFindings(project), [
+        '$record:9: link_unresolved: link target ../../../docs/specs/topics/gone.md is no doc',
+      ]);
+    });
+
+    test('a docs doc link to a record resolves to that record', () async {
+      final project = await writeCheckProject(
+        extra: records(
+          'Record.',
+          rulesBody: '# Rules\n\n## Purpose\nSee [record](../../../.specstone/records/f01_login/IMPLEMENTATION.md).\n',
+        ),
+      );
+      expect(linkFindings(project), isEmpty);
     });
   });
 }

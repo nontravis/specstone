@@ -3,25 +3,26 @@ import 'dart:io';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// The hidden flag a bare `--out` is read as; see [withBareOut].
-const _bareOut = 'bare-out';
+/// The commands whose bare `--out` names its own file.
+const _outCommands = {'context', 'check', 'guide', 'get'};
 
-/// Returns [args] with each bare `--out` of a `context` call written as a
-/// hidden flag, since `package:args` gives an option no optional value.
+/// Returns [args] with each bare `--out` of a `context`, `check`, `guide`, or
+/// `get` call written as a hidden flag, since `package:args` gives an option
+/// no optional value.
 ///
 /// `--out` is bare when it is the last argument before any `--`, or the next
 /// one starts with `-`; any other next argument, `""` included, is its path.
 List<String> withBareOut(Iterable<String> args) {
   final list = args.toList();
   final command = list.indexWhere((arg) => !arg.startsWith('-'));
-  if (command < 0 || list[command] != 'context') return list;
+  if (command < 0 || !_outCommands.contains(list[command])) return list;
   final end = list.indexOf('--');
   final limit = end < 0 ? list.length : end;
   bool isBare(int i) => i + 1 >= limit || list[i + 1].startsWith('-');
   return [
     for (final (i, arg) in list.indexed)
       if (arg == '--out' && i > command && i < limit && isBare(i))
-        '--$_bareOut'
+        '--$bareOutFlag'
       else
         arg,
   ];
@@ -46,14 +47,6 @@ class ContextCommand extends SpecstoneCommand {
         'budget',
         help: 'Print no doc text when the bundle exceeds this many tokens.',
       )
-      ..addOption(
-        'out',
-        valueHelp: 'path',
-        help:
-            'Write the bundle to this file, or under .specstone/bundles/ '
-            'when given no path, and print its index.',
-      )
-      ..addFlag(_bareOut, negatable: false, hide: true)
       ..addFlag(
         'summary',
         negatable: false,
@@ -65,6 +58,7 @@ class ContextCommand extends SpecstoneCommand {
         help: 'Leave out the docs that join through `bundle:` lists.',
       )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
+    addOutOption();
     addTargetOption();
   }
 
@@ -87,8 +81,7 @@ class ContextCommand extends SpecstoneCommand {
     final rest = args.rest;
     final summary = args.flag('summary');
     final code = args.option('code');
-    final out = args.option('out');
-    final writesFile = out != null || args.flag(_bareOut);
+    final writesFile = writesOut(args);
     if (code != null && rest.isNotEmpty) {
       return fail(
         IndexFault(
@@ -103,6 +96,7 @@ class ContextCommand extends SpecstoneCommand {
     }
     final BundleMode mode;
     final int? budget;
+    final String? out;
     try {
       // An empty shell variable must not bundle the whole project.
       if (code != null && code.isEmpty) {
@@ -111,12 +105,7 @@ class ContextCommand extends SpecstoneCommand {
           '--code takes a file or folder, not ""',
         );
       }
-      if (out != null && out.isEmpty) {
-        throw IndexFault(
-          IndexFaultCode.argumentInvalid,
-          '--out takes a file path, not ""',
-        );
-      }
+      out = outPathOf(args);
       if (rest.isEmpty && code == null) {
         throw missingArgument(
           'context',

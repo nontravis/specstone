@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -84,12 +85,9 @@ String configText(
   final targetsLine = targetLines.isEmpty
       ? ''
       : 'targets:\n${targetLines.join()}';
-  final rootLines = [
-    for (final root in agentFileRoots) '  - ${_stringScalar(root)}\n',
-  ];
-  final agentFileRootsLine = rootLines.isEmpty
+  final agentFileRootsLine = agentFileRoots.isEmpty
       ? ''
-      : 'agent_file_roots:\n${rootLines.join()}';
+      : listBlockOf('agent_file_roots', agentFileRoots);
   final agentFilesVersionLine = agentFilesVersion == null
       ? ''
       : 'agent_files_version: $agentFilesVersion\n';
@@ -121,10 +119,8 @@ String _targetLines(CodeTarget target) {
       if (row.specPath == legacyFolder && row.codePath.isNotEmpty) row.codePath,
   ];
   if (paths.isEmpty) return null;
-  final lines = [for (final path in paths) '  - ${_stringScalar(path)}\n']
-      .join();
   return (
-    block: 'covers:\n$lines',
+    block: listBlockOf('covers', paths),
     label: paths.length == 1
         ? 'covers (1 path)'
         : 'covers (${paths.length} paths)',

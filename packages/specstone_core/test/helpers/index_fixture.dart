@@ -95,7 +95,7 @@ final loginProject = <String, String>{
 ///
 /// Keys are paths relative to the project root; a test adds them as `extra`.
 const loginRecords = <String, String>{
-  'docs/specs/f01_login/IMPLEMENTATION.md':
+  '.specstone/records/f01_login/IMPLEMENTATION.md':
       "---\nstatuses:\n  - 'email_login:planned'\n"
       "  - 'email_login/validate_credentials:implemented'\n"
       "  - 'email_login/lock_after_failures:planned'\n"
@@ -103,7 +103,7 @@ const loginRecords = <String, String>{
       "  - 'email_login:app/lib/src/login/sign_in_page.dart:SignInPage'\n"
       "  - 'email_login/validate_credentials:app/lib/src/login/credential_validator.dart:CredentialValidator'\n"
       '---\n\n# Login implementation\n',
-  'docs/specs/f02_signup/IMPLEMENTATION.md':
+  '.specstone/records/f02_signup/IMPLEMENTATION.md':
       "---\nstatuses:\n  - 'create_account:implemented'\n"
       "  - 'create_account/store_account:implemented'\nimplements:\n"
       "  - 'create_account/store_account:app/lib/src/signup/account_store.dart:AccountStore'\n"
@@ -125,15 +125,17 @@ const featureDoc = 'prds/features/f01_login/FEATURE.md';
 /// Opens a [ReadSession] on [project] with the built-in doc types.
 ///
 /// Registers no teardown, so it also runs inside `Isolate.run`; the caller
-/// closes the session.
+/// closes the session. [fillSearchRows] opens it for a search.
 ReadSession openSession(
   Directory project, {
   Duration busyTimeout = indexBusyTimeout,
+  bool fillSearchRows = false,
 }) => ReadSession.open(
   templates: TemplateResolver(),
   workingDirectory: project,
   homeDirectory: null,
   busyTimeout: busyTimeout,
+  fillSearchRows: fillSearchRows,
 );
 
 /// Opens a session on [loginProject] with [extra] files and returns its index.
@@ -141,6 +143,16 @@ ReadSession openSession(
 /// A key in [extra] replaces or adds a file. `addTearDown` closes the session.
 Future<DocIndex> indexWith([Map<String, String> extra = const {}]) async {
   final session = openSession(await writeLoginProject(extra: extra));
+  addTearDown(session.close);
+  return session.index;
+}
+
+/// Opens a session as [indexWith] does, with its search rows filled.
+Future<DocIndex> searchIndexWith([Map<String, String> extra = const {}]) async {
+  final session = openSession(
+    await writeLoginProject(extra: extra),
+    fillSearchRows: true,
+  );
   addTearDown(session.close);
   return session.index;
 }

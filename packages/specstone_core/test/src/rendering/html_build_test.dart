@@ -5,6 +5,7 @@ import 'package:specstone_core/src/rendering/html_build.dart';
 import 'package:specstone_core/src/rendering/html_page.dart';
 import 'package:specstone_core/src/rendering/mermaid_script.dart';
 import 'package:specstone_core/src/rendering/page_setup.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -15,6 +16,18 @@ const _zeta = '''
 id: zeta
 description: A second doc type on the same paths.
 path: prds/features/f{nn}_rendering/FEATURE.md
+''';
+
+const _recordType = '''
+id: implementation
+description: One feature record.
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
 ''';
 
 const _featureDir = 'prds/features/f05_rendering';
@@ -516,6 +529,66 @@ void main() {
       ]);
     }, skip: unreadablePathSkipReason() ?? false);
   });
+
+  test('a record under the records root gets no page and no warning', () async {
+    final build = await _build(
+      {_featurePath: _feature, _storyPath: _story},
+      beforeBuild: (root) {
+        File.fromUri(
+            root.uri.resolve('.specstone/templates/implementation.yaml'),
+          )
+          ..createSync(recursive: true)
+          ..writeAsStringSync(_recordType);
+        File.fromUri(
+            root.uri.resolve(
+              '.specstone/records/f05_rendering/IMPLEMENTATION.md',
+            ),
+          )
+          ..createSync(recursive: true)
+          ..writeAsStringSync('# Rendering record\n');
+      },
+    );
+
+    expect(build.html, contains('F-05 — Rendering'));
+    expect(build.html, isNot(contains('Rendering record')));
+    expect(build.html, isNot(contains('IMPLEMENTATION.md')));
+    expect(build.warnings, isEmpty);
+  });
+
+  for (final target in const [
+    '.specstone/records',
+    '.specstone/records/f05_rendering/IMPLEMENTATION.md',
+  ]) {
+    test('a records target $target is outside the docs root', () async {
+      await expectLater(
+        _build(
+          {_featurePath: _feature},
+          target: target,
+          beforeBuild: (root) {
+            File.fromUri(
+                root.uri.resolve('.specstone/templates/implementation.yaml'),
+              )
+              ..createSync(recursive: true)
+              ..writeAsStringSync(_recordType);
+            File.fromUri(
+                root.uri.resolve(
+                  '.specstone/records/f05_rendering/IMPLEMENTATION.md',
+                ),
+              )
+              ..createSync(recursive: true)
+              ..writeAsStringSync('# Rendering record\n');
+          },
+        ),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.targetOutsideDocsRoot,
+          ),
+        ),
+      );
+    });
+  }
 
   test('resolve_links E08: a link to another doc reaches the prefixed id of '
       'its heading, end to end', () async {

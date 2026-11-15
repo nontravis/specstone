@@ -69,6 +69,7 @@ void main() {
       'prds/features/f01_login/',
     );
     expect(specFoldersOf(set, set.lookup('feature')!, ['01', 'login']), [
+      '.specstone/records/f01_login/',
       'specs/f01_login/',
     ]);
   });
@@ -107,6 +108,7 @@ void main() {
   test('f03/unit-roots: unitRootsOf gives the own folder then the spec folders, or the one file', () {
     expect(unitRootsOf(set, set.lookup('feature')!, loginFeature), [
       'prds/features/f01_login/',
+      '.specstone/records/f01_login/',
       'specs/f01_login/',
     ]);
     expect(unitRootsOf(set, set.lookup('architecture')!, loginArch), [
@@ -155,13 +157,14 @@ void main() {
           '01',
           'cart',
         ], depth: 1),
-        ['specs/f02_shop/f01_cart/'],
+        ['.specstone/records/f02_shop/f01_cart/', 'specs/f02_shop/f01_cart/'],
       );
     });
 
     test('doc_model/s03/inv10: unitRootsOf cart is its prd folder and its spec folder', () {
       expect(unitRootsOf(nested, nested.lookup('feature')!, cartFeature), [
         'prds/features/f02_shop/f01_cart/',
+        '.specstone/records/f02_shop/f01_cart/',
         'specs/f02_shop/f01_cart/',
       ]);
     });

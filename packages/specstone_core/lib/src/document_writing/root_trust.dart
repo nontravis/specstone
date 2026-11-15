@@ -216,3 +216,21 @@ final class RootTrust {
     keepOut: () => [folder.path, projectRoot.path, docsRoot.path],
   );
 }
+
+/// Returns the project root and docs root of the project holding
+/// [workingDirectory], or null outside a project.
+///
+/// A read that writes a file, as `--out` does, needs the roots but no trust
+/// record.
+({Directory projectRoot, Directory docsRoot})? locateReadRoots(
+  Directory workingDirectory,
+) {
+  final match = matchProjectRoot(workingDirectory);
+  if (match == null) return null;
+  final roots = RootTrust.at(
+    folder: match.folder,
+    root: match.root,
+    homeDirectory: null,
+  );
+  return (projectRoot: roots.projectRoot, docsRoot: roots.docsRoot);
+}

@@ -451,6 +451,196 @@ void main() {
     );
   });
 
+  group('--out', () {
+    const journeyDoc = 'docs/prds/journeys/sign_in/JOURNEY.md';
+    const journeyText =
+        '# Sign in\n\n## Goal\nReach home.\n\n## Flow\n\n## Steps\n'
+        '### 1. Open the page\nstep: login/email_login S1\n';
+    const storyDoc =
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const storyText =
+        '# Agent signs in with email\n\n## Use Case\nSign in.\n\n'
+        '## Acceptance Criteria\n\n### Scenario 1 — [happy] Sign in\n'
+        '- **Given** an account\n- **Then** the Agent sees home\n';
+
+    test('writes the doc to .specstone/reports/get.<name>.txt and prints its '
+        'header', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['get', 'feature:login', '--out']),
+        0,
+        reason: run.err.toString(),
+      );
+      final file = File(
+        '${project.path}/.specstone/reports/get.feature-login.txt',
+      );
+      expect(file.readAsStringSync(), startsWith('==> login (feature) · '));
+      final lines = run.out.toString().trimRight().split('\n');
+      expect(lines, hasLength(1));
+      expect(lines.single, startsWith('==> get: '));
+      expect(lines.single, contains(file.resolveSymbolicLinksSync()));
+    });
+
+    test('--paths --out names its file get-paths.<journey>.txt', () async {
+      final project = await writeReadProject(
+        extra: {journeyDoc: journeyText, storyDoc: storyText},
+      );
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['get', 'sign_in', '--paths', '--out']),
+        0,
+        reason: run.err.toString(),
+      );
+      final file = File(
+        '${project.path}/.specstone/reports/get-paths.sign_in.txt',
+      );
+      expect(file.readAsStringSync(), contains('1. Open the page'));
+      expect(run.out.toString(), startsWith('==> get: '));
+    });
+
+    test(
+      '--json --out writes the JSON and prints out, lines, and tokens',
+      () async {
+        final project = await writeReadProject();
+        final run = readRunner(project);
+        expect(
+          await run.runner.run(['get', 'feature:login', '--json', '--out']),
+          0,
+          reason: run.err.toString(),
+        );
+        final file = File(
+          '${project.path}/.specstone/reports/get.feature-login.json',
+        );
+        final written =
+            jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+        expect(written['docs'], isA<List<Object?>>());
+        final printed = jsonDecode(run.out.toString()) as Map<String, Object?>;
+        expect(printed['out'], file.resolveSymbolicLinksSync());
+        expect(printed['lines'], isA<int>());
+        expect(printed['tokens'], isA<int>());
+      },
+    );
+
+    test('a typed name has its colon turned to a dash in the bare file name, '
+        'for --paths and --code', () async {
+      for (final option in ['paths', 'code']) {
+        final project = await writeReadProject(
+          extra: {journeyDoc: journeyText, storyDoc: storyText},
+        );
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'get',
+            'journey:sign_in',
+            '--$option',
+            '--out',
+          ]),
+          0,
+          reason: run.err.toString(),
+        );
+        final file = File(
+          [
+            project.path,
+            '.specstone',
+            'reports',
+            'get-$option.journey-sign_in.txt',
+          ].join(Platform.pathSeparator),
+        );
+        expect(file.existsSync(), isTrue, reason: option);
+        expect(run.out.toString(), startsWith('==> get: '), reason: option);
+      }
+    });
+
+    test(
+      '--json --out carries the session warnings in the file as printed',
+      () async {
+        final project = await writeReadProject();
+        File(
+          [
+            project.path,
+            '.specstone',
+            'index.sqlite',
+          ].join(Platform.pathSeparator),
+        ).writeAsStringSync('not a database');
+        final run = readRunner(project);
+        expect(
+          await run.runner.run(['get', 'feature:login', '--json', '--out']),
+          0,
+          reason: run.err.toString(),
+        );
+        final file = File(
+          [
+            project.path,
+            '.specstone',
+            'reports',
+            'get.feature-login.json',
+          ].join(Platform.pathSeparator),
+        );
+        final written =
+            jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+        expect(written['warnings'], isNotEmpty);
+        final printed = jsonDecode(run.out.toString()) as Map<String, Object?>;
+        expect(printed['warnings'], written['warnings']);
+      },
+    );
+
+    test('a path given names the file, and its folder is made', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['get', 'login', '--out', 'out/login.txt']),
+        0,
+        reason: run.err.toString(),
+      );
+      expect(
+        File('${project.path}/out/login.txt').readAsStringSync(),
+        startsWith('==> login (feature) · '),
+      );
+    });
+
+    test('--out "" is argument_invalid, exit 64, and writes no file', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(await run.runner.run(['get', 'login', '--out', '']), 64);
+      expect(run.out.toString(), isEmpty);
+      expect(
+        Directory('${project.path}/.specstone/reports').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a path under .specstone/ outside bundles/ and reports/ exits 73 and '
+        'the config stays whole', () async {
+      final project = await writeReadProject();
+      final config = File('${project.path}/.specstone/config.yaml');
+      final before = config.readAsBytesSync();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'get',
+          'login',
+          '--out',
+          '.specstone/config.yaml',
+        ]),
+        73,
+      );
+      expect(run.out.toString(), isEmpty);
+      expect(config.readAsBytesSync(), before);
+    });
+
+    test('a name that finds nothing exits 64 and writes no file', () async {
+      final project = await writeReadProject();
+      final run = readRunner(project);
+      expect(await run.runner.run(['get', 'nope', '--out']), 64);
+      expect(run.out.toString(), isEmpty);
+      expect(
+        Directory('${project.path}/.specstone/reports').existsSync(),
+        isFalse,
+      );
+    });
+  });
+
   group('index_query/read_doc_section/resolve_doc_name, --target', () {
     test("E19 to E21: --target jaspr keeps the name to jaspr's docs and the "
         'shared docs, a path whatever the target', () async {

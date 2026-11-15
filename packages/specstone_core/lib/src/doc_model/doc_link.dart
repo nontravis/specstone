@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show isRecordsDocPath;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 /// Where a markdown link points, relative to the doc that holds it.
@@ -65,15 +67,17 @@ DocLinkTarget resolveDocLink(String href, String docPath) {
 }
 
 /// Returns the path [href], written in the doc at [docPath], reaches from
-/// the docs root, decoded and normalized, or null when [href] names no file
-/// path.
+/// the root that doc is read from (the docs root, or the project root for a
+/// record), decoded and normalized, or null when [href] names no file path.
 ///
 /// A path that leaves the docs root keeps its leading `../` segments, except
 /// one that re-enters it as `../docs/...`, which names the same file as the
-/// path without those two segments. The fragment and query are not part of
-/// the path. Null for a web address, another scheme, an authority, a rooted
-/// path, an empty path, a path whose walk ends at the docs root itself, and a
-/// segment holding an encoded slash.
+/// path without those two segments. A record keeps its project-root path, so
+/// `../../../docs/x.md` stays `docs/x.md`. The fragment and query are not part
+/// of the path. Null for a web address, another scheme, an authority, a rooted
+/// path, an empty path, a path whose walk ends at the docs root itself (a
+/// record's too) or at the project root a record is read from, and a segment
+/// holding an encoded slash.
 String? relativeFilePathOf(String href, String docPath) {
   if (readLinkTarget(href) case RelativeLink(:final segments)) {
     // An empty path (`#frag`, `?q`) names no file.
@@ -84,16 +88,30 @@ String? relativeFilePathOf(String href, String docPath) {
   return null;
 }
 
+/// Returns [filePath], as [relativeFilePathOf] gives it for the doc at
+/// [docPath], as a path from the project root.
+String projectFilePathOf(String filePath, String docPath) {
+  if (isRecordsDocPath(docPath)) return filePath;
+  if (filePath == '..') return '';
+  return filePath.startsWith('../')
+      ? filePath.substring('../'.length)
+      : '$docsFolderName/$filePath';
+}
+
 /// The folder name of the docs root under the project root.
 const docsFolderName = 'docs';
 
 /// Returns the docPath [segments] reach from [docPath]'s folder, or null when
-/// a `..` pops past the docs root or a segment holds a `/`. An empty result
-/// names the docs root.
+/// the walk lands in neither the docs root nor the records root or a segment
+/// holds a `/`. An empty result names the docs root.
 ///
-/// A walk that leaves the docs root by exactly one `..` and re-enters it
-/// through [docsFolderName] resolves as if it never left. With [keepParents],
-/// any other `..` past the docs root stays in the result instead of failing.
+/// The walk runs from the project root, so a doc and a record share one rule:
+/// a path below `docs/` is a docs DocPath, one below `.specstone/records/` is
+/// a records DocPath, and a doc that leaves the docs root by one `..` and
+/// re-enters it through [docsFolderName] resolves as if it never left. With
+/// [keepParents] the result is a file path from the root [docPath] is read
+/// from: a path outside the docs root keeps its leading `../`, and a record's
+/// path stays from the project root.
 ///
 /// [segments] are already percent-decoded, so an encoded slash (`%2F`)
 /// decoded to one segment cannot name a doc.
@@ -102,7 +120,9 @@ String? _resolveSegments(
   String docPath, {
   bool keepParents = false,
 }) {
-  final path = docPath.split('/')..removeLast();
+  final isRecord = isRecordsDocPath(docPath);
+  final path = [if (!isRecord) docsFolderName, ...docPath.split('/')]
+    ..removeLast();
   for (final segment in segments) {
     switch (segment) {
       case '' || '.':
@@ -119,9 +139,14 @@ String? _resolveSegments(
         path.add(segment);
     }
   }
-  if (path.length >= 2 && path[0] == '..' && path[1] == docsFolderName) {
-    path.removeRange(0, 2);
+  if (keepParents && isRecord) {
+    final isDocsRoot = path.length == 1 && path.first == docsFolderName;
+    return isDocsRoot ? '' : path.join('/');
   }
-  if (!keepParents && path.isNotEmpty && path.first == '..') return null;
-  return path.join('/');
+  if (path.isNotEmpty && path.first == docsFolderName) {
+    return path.skip(1).join('/');
+  }
+  if (keepParents) return ['..', ...path].join('/');
+  final fromProject = path.join('/');
+  return isRecordsDocPath(fromProject) ? fromProject : null;
 }

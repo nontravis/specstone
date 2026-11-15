@@ -63,6 +63,7 @@ class SearchCommand extends SpecstoneCommand {
     return runRead(
       (session) => answerSearch(session.index, query, options),
       asJson: asJson,
+      fillSearchRows: true,
     );
   }
 }

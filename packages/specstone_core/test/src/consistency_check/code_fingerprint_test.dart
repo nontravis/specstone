@@ -25,21 +25,49 @@ String _rawHash(List<int> bytes) =>
 
 void main() {
   group('fileCodeFingerprint', () {
-    test('gives one fingerprint to UTF-8 text with CRLF and with LF', () {
-      final lf = fileCodeFingerprint(_utf8('a\nb\n'));
-      expect(fileCodeFingerprint(_utf8('a\r\nb\r\n')), lf);
+    String fp(String text, {String path = 'lib/a.dart'}) =>
+        fileCodeFingerprint(_utf8(text), path: path);
+
+    test('hashes the kept lines, each with one LF', () {
+      final lf = fp('a\nb\n');
       expect(lf, baseHashOf('a\nb\n'));
       expect(lf, matches(RegExp(_twelveHex)));
+      expect(fp('a\nb'), lf);
+    });
+
+    test('gives one fingerprint to UTF-8 text with CRLF and with LF', () {
+      expect(fp('a\r\nb\r\n'), fp('a\nb\n'));
     });
 
     test(
       'keeps a BOM and gives one fingerprint to BOM text with CRLF or LF',
       () {
-        final lf = fileCodeFingerprint([..._bom, ..._utf8('a\nb\n')]);
-        expect(fileCodeFingerprint([..._bom, ..._utf8('a\r\nb\r\n')]), lf);
-        expect(lf, isNot(fileCodeFingerprint(_utf8('a\nb\n'))));
+        final lf = fileCodeFingerprint([
+          ..._bom,
+          ..._utf8('a\nb\n'),
+        ], path: 'lib/a.dart');
+        final crlf = fileCodeFingerprint([
+          ..._bom,
+          ..._utf8('a\r\nb\r\n'),
+        ], path: 'lib/a.dart');
+        expect(crlf, lf);
+        expect(lf, isNot(fp('a\nb\n')));
         expect(lf, baseHashOf('\uFEFFa\nb\n'));
-        expect(fileCodeFingerprint(_bom), baseHashOf('\uFEFF'));
+        expect(
+          fileCodeFingerprint(_bom, path: 'lib/a.dart'),
+          baseHashOf('\uFEFF'),
+        );
+      },
+    );
+
+    test(
+      'hashes a BOM ahead of the kept lines, whatever the first line is',
+      () {
+        String withBom(String text) =>
+            fileCodeFingerprint([..._bom, ..._utf8(text)], path: 'lib/a.dart');
+        expect(withBom('// (c)\nint a;\n'), isNot(fp('// (c)\nint a;\n')));
+        expect(withBom('int a;\n'), isNot(fp('int a;\n')));
+        expect(withBom('// (c)\nint a;\n'), baseHashOf('\uFEFFint a;\n'));
       },
     );
 
@@ -53,28 +81,108 @@ void main() {
     });
 
     test('turns only a CRLF pair into LF, never a lone CR', () {
+      expect(fp('a\rb\n'), isNot(fp('a\nb\n')));
+    });
+
+    test('keeps a whole comment line added, changed, or removed out of it', () {
+      final plain = fp('a\nb\n');
+      expect(fp('// added\na\nb\n'), plain);
+      expect(fp('a\n  // note\nb\n'), plain);
+      expect(fp('a\n// changed\nb\n'), plain);
+      expect(fp('a\n//\nb\n'), plain);
+      expect(fp('a\n\t# note\nb\n', path: 'tool/a.sh'), plain);
+    });
+
+    test('drops a comment line by the mark of its extension alone', () {
+      expect(fp('a\n# note\n'), isNot(fp('a\n')));
+      expect(fp('a\n// note\n', path: 'tool/a.py'), isNot(fp('a\n')));
+      expect(fp('a\n# note\n', path: 'tool/a.py'), fp('a\n'));
+    });
+
+    test('drops a blank line, empty or of spaces and tabs only', () {
+      final plain = fp('a\nb\n');
+      expect(fp('a\n\nb\n'), plain);
+      expect(fp('a\n \t \nb\n'), plain);
+      expect(fp('a\nb\n\n\n'), plain);
+      expect(fp('\n\na\nb\n'), plain);
+      expect(fp('a\r\n\r\nb\r\n'), plain);
+    });
+
+    test('gives a new fingerprint to an end-of-line comment change', () {
+      expect(fp('show(); // was hide\n'), isNot(fp('show(); // was show\n')));
+    });
+
+    test('gives a new fingerprint to a code line change', () {
+      expect(fp('a\nb\n'), isNot(fp('a\nc\n')));
+      expect(fp('a\nb\n'), isNot(fp('a \nb\n')));
+      expect(fp('a\nb\n'), isNot(fp('a\n b\n')));
+    });
+
+    test('keeps a line inside a block comment', () {
+      expect(fp('/*\n note\n*/\n'), isNot(fp('/*\n other\n*/\n')));
+    });
+
+    test('drops a string literal line that opens with a comment mark', () {
+      expect(fp("var s = '''\n// text\n''';\n"), fp("var s = '''\n''';\n"));
+    });
+
+    test('keeps comment-like lines of an unmarked extension', () {
       expect(
-        fileCodeFingerprint(_utf8('a\rb\n')),
-        isNot(fileCodeFingerprint(_utf8('a\nb\n'))),
+        fp('// note\n{}\n', path: 'assets/a.json'),
+        isNot(fp('{}\n', path: 'assets/a.json')),
+      );
+      expect(fp('{}\n\n', path: 'assets/a.json'), fp('{}\n', path: 'a.json'));
+      expect(
+        fp('# note\na\n', path: 'Makefile'),
+        isNot(fp('a\n', path: 'Makefile')),
       );
     });
 
-    test('applies no layout and no trim', () {
-      final plain = fileCodeFingerprint(_utf8('a\n'));
-      expect(fileCodeFingerprint(_utf8('a\n\n')), isNot(plain));
-      expect(fileCodeFingerprint(_utf8('a \n')), isNot(plain));
-      expect(fileCodeFingerprint(_utf8('a')), isNot(plain));
+    test('hashes a file of comments and blank lines only as empty text', () {
+      expect(fp('// a\n\n  // b\n \n'), emptyBaseHash);
+      expect(fp('// a\n\n  // b\n \n'), 'e3b0c44298fc');
+      expect(fp(''), emptyBaseHash);
     });
 
     test('hashes bytes that are not UTF-8 raw, line ends and all', () {
       const png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0xFF];
-      expect(fileCodeFingerprint(png), _rawHash(png));
+      expect(fileCodeFingerprint(png, path: 'logo.png'), _rawHash(png));
       final changed = [...png]..[8] = 0xFE;
-      expect(fileCodeFingerprint(changed), isNot(fileCodeFingerprint(png)));
+      expect(
+        fileCodeFingerprint(changed, path: 'logo.png'),
+        isNot(fileCodeFingerprint(png, path: 'logo.png')),
+      );
+    });
+
+    test('hashes raw bytes that are not UTF-8 whatever the comment lines', () {
+      const bytes = [0x2F, 0x2F, 0x20, 0xFF, 0x0A];
+      expect(fileCodeFingerprint(bytes, path: 'a.dart'), _rawHash(bytes));
+    });
+  });
+
+  group('legacyFileCodeFingerprint', () {
+    test('hashes the whole text, comment and blank lines kept', () {
+      expect(
+        legacyFileCodeFingerprint(_utf8('a\n// c\n\nb\n')),
+        baseHashOf('a\n// c\n\nb\n'),
+      );
+      expect(
+        legacyFileCodeFingerprint(_utf8('a\r\nb\r\n')),
+        baseHashOf('a\nb\n'),
+      );
+      expect(
+        legacyFileCodeFingerprint([..._bom, ..._utf8('a')]),
+        baseHashOf('\uFEFFa'),
+      );
+    });
+
+    test('hashes bytes that are not UTF-8 raw', () {
+      const bytes = [0x89, 0xFF];
+      expect(legacyFileCodeFingerprint(bytes), _rawHash(bytes));
     });
 
     test('hashes an empty file as empty text', () {
-      expect(fileCodeFingerprint(const []), emptyBaseHash);
+      expect(legacyFileCodeFingerprint(const []), emptyBaseHash);
     });
   });
 
@@ -193,9 +301,15 @@ void main() {
       final context = CheckContext(session);
       final target = context.targets.single;
 
-      expect(context.codeBytesOf(target, 'blob.bin'), bytes);
+      expect(
+        context.codeBytesOf(target, 'blob.bin', reason: CodeRead.symbols),
+        bytes,
+      );
       File('${project.path}/blob.bin').deleteSync();
-      expect(context.codeBytesOf(target, 'blob.bin'), bytes);
+      expect(
+        context.codeBytesOf(target, 'blob.bin', reason: CodeRead.symbols),
+        bytes,
+      );
       expect(context.codeFilesRead, 1);
     });
 
@@ -209,7 +323,10 @@ void main() {
 
       expect(context.codeTextOf(target, 'a.dart'), 'class A {}\r\n');
       File('${project.path}/a.dart').deleteSync();
-      expect(context.codeBytesOf(target, 'a.dart'), _utf8('class A {}\r\n'));
+      expect(
+        context.codeBytesOf(target, 'a.dart', reason: CodeRead.symbols),
+        _utf8('class A {}\r\n'),
+      );
       expect(context.codeFilesRead, 1);
       expect(context.unstatedWarnings, isEmpty);
     });
@@ -223,15 +340,21 @@ void main() {
         final context = CheckContext(session);
         final target = context.targets.single;
 
-        expect(context.codeBytesOf(target, 'gone.dart'), isNull);
+        expect(
+          context.codeBytesOf(target, 'gone.dart', reason: CodeRead.symbols),
+          isNull,
+        );
         expect(context.codeTextOf(target, 'gone.dart'), isNull);
-        expect(context.codeBytesOf(target, 'gone.dart'), isNull);
+        expect(
+          context.codeBytesOf(target, 'gone.dart', reason: CodeRead.symbols),
+          isNull,
+        );
         expect(context.unstatedWarnings, [_goneWarning]);
       },
     );
 
     test(
-      'words the warning for a named target as for an unnamed one',
+      'opens the warning with the target name when the project has two targets',
       () async {
         final session = openSession(await writeTwinProject());
         addTearDown(session.close);
@@ -240,8 +363,11 @@ void main() {
           (target) => target.name == 'jaspr',
         );
 
-        expect(context.codeBytesOf(jaspr, 'gone.dart'), isNull);
-        expect(context.unstatedWarnings, [_goneWarning]);
+        expect(
+          context.codeBytesOf(jaspr, 'gone.dart', reason: CodeRead.symbols),
+          isNull,
+        );
+        expect(context.unstatedWarnings, ['jaspr: $_goneWarning']);
       },
     );
   });

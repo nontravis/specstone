@@ -12,6 +12,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -45,7 +47,7 @@ const loginFeature = 'prds/features/f01_login/FEATURE.md';
 const loginStory = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 
 /// The DocPath of the login record, the story's and the FR's status and code.
-const loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
+const loginRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
 /// The DocPath of the login functional requirement.
 const loginFr =
@@ -128,7 +130,7 @@ Map<String, String> checkProjectFiles() => {
       '# Check the password\n\n## Statement\n\n$checkPasswordStatement\n\n'
       '## Edge cases\n\n1. E01 — An empty password → refused.\n\n## Rationale\n\nA wrong password must not sign in.\n\n'
       '## Verification\n\nTest: a wrong password is refused.\n',
-  'docs/$loginRecord':
+  loginRecord:
       "---\nstatuses:\n  - 'email_login:implemented'\n"
       "  - 'email_login/check_password:implemented'\nimplements:\n"
       "  - 'email_login:app/lib/login.dart:SignInPage'\n"
@@ -153,7 +155,8 @@ Map<String, String> checkProjectFiles() => {
   'docs/$loginApi':
       '---\nconfirmed:\n  - email_login/check_password ${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n'
       '# Login API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
-      '| email_login/check_password | `signIn` |\n\n## Operations\n\n### signIn\n\nSigns the Agent in.\n',
+      '| email_login/check_password | `signIn` |\n\n## Operations\n\n### signIn\n\nSigns the Agent in.\n\n'
+      '**Response example — success**\n\n**Response example — error**\n',
   'app/lib/login.dart': 'class SignInPage {}\n\nbool checkPassword(String password) => password.isNotEmpty;\n',
 };
 
@@ -193,7 +196,7 @@ Map<String, String> withCodeFingerprints(
   final codeFiles = {
     for (final MapEntry(:key, :value) in files.entries)
       if (!key.startsWith('docs/') && !key.startsWith('.specstone/'))
-        key: fileCodeFingerprint(utf8.encode(value)),
+        key: fileCodeFingerprint(utf8.encode(value), path: key),
   };
   final config = _configOf(files);
   final codeByRoot = <String, Map<String, String>>{};
@@ -207,7 +210,7 @@ Map<String, String> withCodeFingerprints(
 
   return {
     for (final MapEntry(:key, :value) in files.entries)
-      key: key.startsWith('docs/') && !unfingerprinted.contains(key)
+      key: _isDocKey(key) && !unfingerprinted.contains(key)
           ? stamped(key, value)
           : value,
   };
@@ -234,7 +237,10 @@ String? _codeRootOf(String docKey, Map<Object?, Object?> config) {
   final targets = config['targets'];
   if (targets is! Map) return _normalRoot(config['code_root']);
   for (final MapEntry(:key, :value) in targets.entries) {
-    if (!docKey.startsWith('docs/specs/$key/')) continue;
+    if (!docKey.startsWith('docs/specs/$key/') &&
+        !docKey.startsWith('.specstone/records/$key/')) {
+      continue;
+    }
     return switch (value) {
       null => '',
       final Map<Object?, Object?> target => _normalRoot(target['code_root']),
@@ -261,6 +267,15 @@ Map<String, String> _codeUnder(String root, Map<String, String> codeFiles) {
       if (key.startsWith('$root/')) key.substring(root.length + 1): value,
   };
 }
+
+/// Whether the fixture key [key] holds a doc: a file under `docs/` or under
+/// `.specstone/records/`.
+bool _isDocKey(String key) =>
+    key.startsWith('docs/') || key.startsWith('.specstone/records/');
+
+/// Returns the DocPath of the doc key [key].
+String _docPathOfKey(String key) =>
+    key.startsWith('docs/') ? key.substring('docs/'.length) : key;
 
 final _codeLinkLine = RegExp(r"^(  - )('?)(.+?)\2$");
 
@@ -374,12 +389,12 @@ MergedDocType fixtureDocTypeOf(String docPath) =>
     };
 
 String _stamped(DocTypeMatcher matcher, String path, String text) {
-  if (!path.startsWith('docs/')) return text;
+  if (!_isDocKey(path)) return text;
   final fields = ApprovalFields.of(Doc.parse(toLf(text)));
   if (fields.isDraft || fields.approvedValue != null) return text;
   // The check reports an invalid frontmatter alone; a stamp would mend it.
   if (DocLines.of(text).frontmatterErrorLine != null) return text;
-  return switch (matcher.match(path.substring('docs/'.length))) {
+  return switch (matcher.match(_docPathOfKey(path))) {
     MatchedDocType(:final docType) => _withEndings(
       text,
       // The matcher resolves the shipped packs, so their rule applies.
@@ -417,10 +432,10 @@ List<String> spots(CheckReport report, [FindingKind? kind]) => [
 
 /// Returns the fixture file of [docPath] with each change applied once.
 ///
-/// The key is `docs/<docPath>`. Throws an [ArgumentError] naming the anchor
+/// The key is `docs/<docPath>`, or the DocPath of a record. Throws an [ArgumentError] naming the anchor
 /// when a `from` text does not occur, so a negative test cannot pass vacuously.
 Map<String, String> edit(String docPath, List<(String, String)> changes) {
-  final key = 'docs/$docPath';
+  final key = projectPathOfDocPath(docPath);
   return {key: _changed(checkProjectFiles()[key]!, docPath, changes)};
 }
 
@@ -432,7 +447,7 @@ Map<String, String> editedAfterApproval(
   String docPath,
   List<(String, String)> changes,
 ) {
-  final key = 'docs/$docPath';
+  final key = projectPathOfDocPath(docPath);
   final approved = withApprovalHashes(checkProjectFiles())[key]!;
   return {key: _changed(approved, docPath, changes)};
 }

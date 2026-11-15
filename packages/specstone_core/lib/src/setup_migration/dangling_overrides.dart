@@ -137,9 +137,9 @@ final class RecordPathOverride {
 /// Returns the record override [steps] need, or null when none is needed.
 ///
 /// The record doc type is the one with a `record_status` field. None is needed
-/// without a `move_to_record` step, once a project layer sets
-/// the record's `path`, when no `architecture` path is known, or when the
-/// folder of the `architecture` path is the folder the record's own path
+/// without a `move_to_record` step, once a project layer sets the record's
+/// `path`, when no project layer sets an `architecture` path, or when the
+/// folder of that `architecture` path is the folder the record's own path
 /// already names. Otherwise the override names the `architecture` folder plus
 /// the record file name of [target]. It is unwritable when the `architecture`
 /// file is named by the feature's `{slug}`, since that folder holds no
@@ -158,13 +158,11 @@ RecordPathOverride? recordPathOverrideOf(
       .where((layer) => layer.docTypeId == recordId)
       .firstOrNull;
   if (recordLayer?.path != null) return null;
-  final architecture =
-      overrides
-          .where((layer) => layer.docTypeId == _architectureType)
-          .map((layer) => layer.path)
-          .nonNulls
-          .firstOrNull ??
-      target.lookup(_architectureType)?.path;
+  final architecture = overrides
+      .where((layer) => layer.docTypeId == _architectureType)
+      .map((layer) => layer.path)
+      .nonNulls
+      .firstOrNull;
   final recordPath = target.lookup(recordId)?.path;
   if (architecture == null || recordPath == null) return null;
   final file = '.specstone/templates/$recordId.yaml';

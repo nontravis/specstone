@@ -2,11 +2,13 @@
 // ignore_for_file: lines_longer_than_80_chars
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -611,6 +613,50 @@ void main() {
       );
       expect(answer.exitStatus, 1);
       expect(answer.entries, isEmpty);
+    });
+  });
+
+  group('answerBundleFile refuses a path under .specstone/', () {
+    test('the config is refused and its bytes stay whole', () async {
+      final project = await writeLoginProject();
+      final config = File('${project.path}/.specstone/config.yaml');
+      final before = config.readAsBytesSync();
+      final session = openSession(project);
+      addTearDown(session.close);
+      final answer = answerContext(
+        session.index,
+        pickBundle(
+          session.index,
+          'login/email_login',
+          BundleMode.implement,
+          noProject: false,
+        ),
+        label: 'login/email_login',
+        byCode: false,
+      );
+      expect(
+        () => answerBundleFile(
+          answer,
+          config,
+          project: session.project,
+          isBare: false,
+        ),
+        throwsA(
+          isA<RenderFault>()
+              .having(
+                (fault) => fault.code,
+                'code',
+                RenderFaultCode.outputNotWritable,
+              )
+              .having(
+                (fault) => fault.message,
+                'message',
+                'the output path is inside .specstone/ but outside its '
+                    'bundles/ and reports/',
+              ),
+        ),
+      );
+      expect(config.readAsBytesSync(), before);
     });
   });
 }

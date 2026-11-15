@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
@@ -68,16 +69,6 @@ DocText readDocText(List<int> bytes) {
     bom: startsWithUtf8Bom(bytes),
     hash: textHashOf(text),
   );
-}
-
-/// Returns the file of [docPath] under [docsRoot], possibly leaving it.
-///
-/// A path is joined as text: a URI reads `#` in a doc name as a fragment.
-File docFileOf(Directory docsRoot, String docPath) {
-  final root = docsRoot.path;
-  final separator = Platform.pathSeparator;
-  final base = root.endsWith(separator) ? root : '$root$separator';
-  return File('$base${docPath.split('/').join(separator)}');
 }
 
 /// Reads the doc [file] at [docPath] into LF text, or returns null when its
@@ -207,8 +198,8 @@ DocRewrite rewriteLegacyDoc(
 /// the path [moves] leave it at.
 ///
 /// [docPath] is where the doc sits before the moves, and [exists] reads the
-/// legacy tree as it stands before them. The label is `1 mention` or
-/// `<n> mentions`, and null when no mention changes.
+/// legacy tree as it stands before them, from the docs root. The label is
+/// `1 mention` or `<n> mentions`, and null when no mention changes.
 ({String lf, String? label}) rewriteMentions(
   String lf, {
   required String docPath,
@@ -219,7 +210,7 @@ DocRewrite rewriteLegacyDoc(
     lf,
     docPath: docPath,
     moves: moves,
-    exists: exists,
+    exists: (projectPath) => exists(_docsRootPathOf(projectPath)),
   );
   if (result == null) return (lf: lf, label: null);
   return (
@@ -227,6 +218,13 @@ DocRewrite rewriteLegacyDoc(
     label: result.count == 1 ? '1 mention' : '${result.count} mentions',
   );
 }
+
+/// Returns [projectPath], a path from the project root, as a path from the
+/// docs root, leaving it by `../` when it lies outside the docs folder.
+String _docsRootPathOf(String projectPath) =>
+    projectPath.startsWith('$docsFolderName/')
+    ? projectPath.substring(docsFolderName.length + 1)
+    : '../$projectPath';
 
 /// Returns [lf] with the Feature name section folded into the title, or null
 /// when the section holds no `- **Human:** <name>` line.

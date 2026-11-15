@@ -221,6 +221,8 @@ void main() {
   _syncBootstrapTests();
   _planFilesTests();
   _shippedTreeTests();
+  _outAndReplaceTests();
+  _docLevelPointTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -3519,8 +3521,8 @@ void _agentTests() {
   test('E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
-      'through one set --batch, and sdd-engineer allows only the redirect '
-      'that makes a batch file', () {
+      'through one set --batch, and sdd-engineer makes its batch file '
+      'with get --out', () {
     final author = _pluginText(_author);
     final read = _oneLine(_sectionOf(author, '1. Read'));
     for (final point in _authorRereadPoints) {
@@ -3561,12 +3563,10 @@ void _agentTests() {
     );
     final scope = _sectionOf(agent, 'Scope Boundaries');
     expect(_oneLine(scope), contains(_batchFileRedirect));
-    expect(_redirectSpan.allMatches(scope).map((span) => span[0]), [
-      '`specstone get … > "<file>"`',
-    ]);
+    expect(_redirectSpan.allMatches(scope), isEmpty);
     expect(
       _oneLine(scope),
-      contains('- Write a file by any other shell redirect, or a PRD or spec'),
+      contains('- Write a file by a shell redirect, or a PRD or spec'),
     );
     bool ofAuthor(String problem) => problem.startsWith('$_author:');
     expect(oversizedSkillFiles(contentFiles()).where(ofAuthor), isEmpty);
@@ -3626,10 +3626,9 @@ const _auditReadPoints = [
 /// The restatement gap of `audit_drafts_by_reading` E10, as step 2 of
 /// audit.md words it, cut at line width.
 const _restatementGapPoints = [
-  '| Rule restated | a draft stating a rule another doc owns instead of',
-  'citing it (`specstone-expert-sdd` rule 7) |',
-  '**Rule restated:** name the owner doc and the item; its fix is an item',
-  'link in the draft.',
+  '**Rule restated:** a draft stating a rule another doc owns instead of',
+  'citing it (`specstone-expert-sdd` rule 7); name the owner doc and the item;',
+  'its fix is an item link in the draft.',
 ];
 
 /// The `Audited:` lines, E11's lists, and E13's `[behavior]` tag of
@@ -3807,7 +3806,7 @@ const _authorBatchPoints = [
   'A decision no doc can take is not landed: flag it, never force it.',
   '**Guide**: before your first write, run `specstone guide <type> …` once,',
   'naming every type you write.',
-  '**Several docs in one step**: run `specstone get <names> > "<file>"`,',
+  '**Several docs in one step**: run `specstone get <names> --out "<file>"`,',
   '`<file>` `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`,',
   '`<folder>` the path `specstone folder` prints; edit its blocks, each',
   'naming line kept; then run `specstone set --batch "<file>"`.',
@@ -3845,12 +3844,11 @@ const _laterPassInputs = [
   "round or pass added; in a fix round, the audit's `Findings:` lines too.",
 ];
 
-/// The one shell redirect sdd-engineer may run,
-/// as its Scope Boundaries word it.
+/// The batch file sdd-engineer makes, as its Scope Boundaries word it.
 const _batchFileRedirect =
-    'and a batch file: made by `specstone get … > "<file>"`, `<file>` '
-    '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell '
-    'redirect you run, and passed to `specstone set --batch "<file>"`.';
+    'and a batch file: made by `specstone get … --out "<file>"`, `<file>` '
+    '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to '
+    '`specstone set --batch "<file>"`.';
 
 /// A code span that redirects output into a file.
 final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
@@ -5693,5 +5691,131 @@ void _shippedTreeTests() {
       expect(skillHeadProblems(files), isEmpty);
       expect(unresolvedPaths(files), isEmpty);
     });
+  });
+}
+
+/// A `specstone get` call whose output a shell redirect writes to a file.
+final _getRedirect = RegExp(r'specstone get [^`]*\s>>?\s');
+
+void _outAndReplaceTests() {
+  test('the sdd-engineer makes its batch file with get --out and runs no get '
+      'shell redirect', () {
+    final text = _oneLine(_pluginText('specstone-sdd-engineer.md'));
+
+    expect(text, contains('made by `specstone get … --out "<file>"`'));
+    expect(text, isNot(matches(_getRedirect)));
+  });
+
+  test('the author procedure saves long output with --out and edits a passage '
+      'with set --replace', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
+    );
+
+    expect(text, contains('`specstone get <names> --out "<file>"`'));
+    expect(text, isNot(matches(_getRedirect)));
+    expect(
+      text,
+      contains('long `check`, `guide`, or `get` output with `--out`'),
+    );
+    expect(text, contains('`==> old <==`, the passage, `==> new <==`'));
+    expect(
+      text,
+      contains('`specstone set <type>:<name>#<key> --base <hash> --replace`'),
+    );
+  });
+
+  test('the read skill names --out for long output and set --replace for a '
+      'passage', () {
+    final text = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
+
+    expect(text, contains('long `check`, `guide`, or `get` output'));
+    expect(text, contains('bare `--out`'));
+    expect(text, contains('Change one passage with `set --replace`'));
+    expect(
+      text,
+      contains(
+        'Write no file by shell redirect, `sed -i`, `perl -pi`, or `tee`; '
+        'hand edit no doc file.',
+      ),
+    );
+  });
+}
+
+void _docLevelPointTests() {
+  test('the sdd-engineer stops on a message that names no mode and writes only '
+      'its report', () {
+    final text = _oneLine(_pluginText('specstone-sdd-engineer.md'));
+
+    expect(
+      text,
+      contains('a message that names no `mode`, a later round included'),
+    );
+    expect(text, contains('write only `OPEN QUESTIONS:` naming the missing'));
+    expect(text, contains('asking for a fresh dispatch with it'));
+    expect(
+      text,
+      contains('as the report and its relay block; overwrite no other file'),
+    );
+  });
+
+  test('rounds dispatches every re-audit anew in audit mode with its '
+      'targets', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
+    );
+
+    expect(
+      text,
+      contains(
+        "Dispatch a fresh `mode: audit` with the document's path and, as its "
+        'targets',
+      ),
+    );
+    expect(
+      text,
+      contains(
+        'Send every re-audit so, never as a follow-up message to the agent of '
+        'an earlier audit',
+      ),
+    );
+  });
+
+  test('design sends no design with an open doc-level point to the author and '
+      'leaves code-level points to the builder', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/design.md'),
+    );
+
+    expect(text, contains('such as a refusal or a name rule'));
+    expect(text, contains('naming the one owner item its rule takes'));
+    expect(
+      text,
+      contains('a design holding such a point open goes to no author'),
+    );
+    expect(text, contains('such as a class name, to the builder'));
+    expect(text, contains('with no decision and no open question'));
+  });
+
+  test('audit checks each draft against its decision and each repoint', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/audit.md'),
+    );
+
+    expect(text, contains('departs from the decision it carries out'));
+    expect(text, contains('a decision the design gives an owner item'));
+    expect(text, contains('a citer a size-fix move repointed or kept'));
+    expect(text, contains('name the citer and the item it should link'));
+  });
+
+  test('size-fix repoints each citer of a moved item through refs', () {
+    final text = _oneLine(
+      _pluginText('specstone-expert-sdd/references/size-fix.md'),
+    );
+
+    expect(text, contains('a new item ID'));
+    expect(text, contains("`specstone refs <old item's doc>`"));
+    expect(text, contains('repoint each citer that cites the moved part'));
+    expect(text, contains('keep each other citer'));
   });
 }

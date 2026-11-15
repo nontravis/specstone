@@ -66,6 +66,13 @@ sections:
     description: |-
       List the public entry points as `path:Symbol` pointers, in the order of the code.
       Copy no signature; a copy drifts from the code.
+    lint:
+      line_prefix: "- "
+      banned_patterns:
+        - id: interface_pointer
+          pattern: '^- (?!`[^`]+:[^`]+`)'
+          message: 'interface item does not open with a `path:Symbol` code span; guide line: List the public entry points as `path:Symbol` pointers'
+          in: all
   - id: model
     header: Model
     description: |-

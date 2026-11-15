@@ -11,6 +11,18 @@ import '../../helpers/temp_tree.dart';
 const _formatUsage =
     'Usage: specstone format [<file|folder>] [--check] [--json]';
 
+const _recordType = '''
+id: implementation
+description: One feature record.
+path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+parent: feature
+per_target: true
+fields:
+  - id: statuses
+    type: record_status
+    list: true
+''';
+
 const _featureDir = 'docs/prds/features/f05_rendering';
 const _feature = '$_featureDir/FEATURE.md';
 const _notes = '$_featureDir/notes.md';
@@ -71,6 +83,20 @@ void main() {
       expect(out.toString(), '$_feature: formatted\n');
       expect(err.toString(), isEmpty);
       expect(read(project, _feature), _featureFormatted);
+    });
+
+    test('formats a record named by its path under the records root', () async {
+      const record = '.specstone/records/f05_rendering/IMPLEMENTATION.md';
+      final project = await fixtureProject({
+        '.specstone/templates/implementation.yaml': _recordType,
+        record: '# Record\nbody   \n',
+      });
+      final runner = await runnerIn(project);
+
+      expect(await runner.run(['format', record]), 0);
+      expect(out.toString(), '$record: formatted\n');
+      expect(err.toString(), isEmpty);
+      expect(read(project, record), '# Record\n\nbody\n');
     });
 
     test('f05/us01/s2, f05/us01/fr01: with no target formats every doc under '

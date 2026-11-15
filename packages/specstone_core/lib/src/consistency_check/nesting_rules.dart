@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 
 /// The most characters a doc's path from the project root may hold.
@@ -63,9 +63,10 @@ Finding _tooSmall(
   keys: {'minimum': _minimumChildren, 'actual': held},
 );
 
-/// Returns `path_over_limit` for [doc] when `docs/<DocPath>` is too long.
+/// Returns `path_over_limit` for [doc] when its path from the project root is
+/// too long.
 Iterable<Finding> checkPathLength(CheckContext context, IndexedDoc doc) sync* {
-  final length = '$docsFolderName/${doc.docPath}'.length;
+  final length = projectPathOfDocPath(doc.docPath).length;
   if (length <= pathLengthLimit) return;
   yield context.finding(
     doc,

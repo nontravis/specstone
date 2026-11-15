@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
@@ -16,6 +17,10 @@ typedef _SectionSize = ({String key, int chars, List<ItemFact> items});
 /// line with no folder line. [codeTarget], when given, keeps a name to that
 /// code target's docs and the shared docs, and the tree holds no other
 /// target's doc.
+///
+/// The tree holds no record, whether a subtree or the whole tree reaches it,
+/// unless every doc [target] resolves to is a record, as `implementation:login`
+/// does; each status still reads from the records.
 ///
 /// Each feature, story, and FR line holds its status in each code target, in
 /// [DocIndex.targetNames] order, `<target>: <status>` joined by `, `, or its
@@ -36,7 +41,13 @@ ReadAnswer answerStructure(
   final resolved = target == null
       ? null
       : index.resolve(target, codeTarget: codeTarget);
-  final shown = resolved == null ? index.docs : _withoutNested(index, resolved);
+  final named = resolved == null ? index.docs : _withoutNested(index, resolved);
+  final namesRecords =
+      resolved != null && resolved.isNotEmpty && resolved.every(_isRecord);
+  final shown = [
+    for (final doc in named)
+      if (namesRecords || !_isRecord(doc)) doc,
+  ];
   final sized = switch (resolved) {
     [final doc] when doc.isTyped => doc,
     _ => null,
@@ -88,6 +99,8 @@ ReadAnswer answerStructure(
   );
 }
 
+bool _isRecord(IndexedDoc doc) => isRecordsDocPath(doc.docPath);
+
 /// Returns [doc]'s line with each code target's status [index] computes.
 String _docLine(DocIndex index, IndexedDoc doc, String? codeTarget) =>
     docLineWithStatus(doc, statusPartOf(index, doc, codeTarget));
@@ -113,15 +126,15 @@ Map<String, List<IndexedDoc>> _untypedByFolder(List<IndexedDoc> docs) {
   return folders;
 }
 
-/// Returns the children of [doc] the tree holds: every child, or, with
-/// [codeTarget], the shared ones and that target's alone.
+/// Returns the children of [doc] the tree holds: every child but a record, or,
+/// with [codeTarget], the shared ones and that target's alone.
 List<IndexedDoc> _childrenShown(
   DocIndex index,
   IndexedDoc doc,
   String? codeTarget,
 ) => [
   for (final child in index.childrenOf(doc))
-    if (child.inTarget(codeTarget)) child,
+    if (child.inTarget(codeTarget) && !_isRecord(child)) child,
 ];
 
 void _writeTree(

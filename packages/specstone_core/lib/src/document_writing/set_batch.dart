@@ -91,6 +91,7 @@ final class _Planned {
     LeadTarget() => leadKey,
     FieldTarget(:final fieldId) => fieldId,
     TitleTarget() => _titleKey,
+    ReplaceTarget() => throw _noReplaceInBatch,
   };
 
   /// Tells one part of a doc from another; a field named like a section is
@@ -98,11 +99,16 @@ final class _Planned {
   String get partId => switch (target) {
     SectionTarget(:final key) => 'section:$key',
     FieldTarget(:final fieldId) => 'field:$fieldId',
+    ReplaceTarget() => throw _noReplaceInBatch,
     _ => key,
   };
 
   String get base => block.naming.base!;
 }
+
+/// A batch block names a part to write whole; `set --replace` takes no batch
+/// form, so no block resolves to a [ReplaceTarget].
+final _noReplaceInBatch = StateError('a batch block never replaces a passage');
 
 BatchFault _refused(List<_Refusal> refusals) {
   final ordered = [...refusals]..sort((a, b) => a.line.compareTo(b.line));

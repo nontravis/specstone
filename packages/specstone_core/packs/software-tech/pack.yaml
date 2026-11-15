@@ -1,5 +1,5 @@
 name: software-tech
-version: 1.7.0
+version: 1.8.0
 extends: prd-core
 migrations:
   - from: 1.4.0
@@ -11,3 +11,10 @@ migrations:
   - from: 1.6.0
     steps:
       - stamp_code_fingerprints: {}
+  - from: 1.7.0
+    steps:
+      - move_file:
+          doc_type: implementation
+          from: specs/f{nn}_{slug}/IMPLEMENTATION.md
+          to: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md
+      - restamp_code_fingerprints: {}

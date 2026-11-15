@@ -8,6 +8,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/write_fixture.dart';
 
 /// The folder of the sub-feature `shop/cart/a/b/c`, depth 4 below `shop`.
@@ -304,6 +305,31 @@ void main() {
         expect(spots(report, FindingKind.pathOverLimit), [
           '$path:1: path_over_limit',
         ]);
+      },
+    );
+
+    test(
+      'a record at 200 characters from the project root gives none, at 201 one',
+      () async {
+        String recordPath(int length) {
+          const head = '.specstone/records/f01_';
+          const tail = '/IMPLEMENTATION.md';
+          return '$head${'a' * (length - head.length - tail.length)}$tail';
+        }
+
+        for (final (length, expected) in [(200, 0), (201, 1)]) {
+          final path = recordPath(length);
+          final report = checkOf(
+            await writeNestedProject(
+              extra: {...recordsRootTemplates, path: '# Record\n'},
+            ),
+          );
+          expect(
+            spots(report, FindingKind.pathOverLimit),
+            hasLength(expected),
+            reason: '$length characters',
+          );
+        }
       },
     );
   });

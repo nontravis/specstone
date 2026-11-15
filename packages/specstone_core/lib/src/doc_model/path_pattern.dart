@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/records_root.dart';
+
 /// A doc type path pattern, matched against a whole DocPath.
 ///
 /// `{nn}` matches `[0-9]+`, `{slug}` matches `[a-z0-9_]+`, and every other
@@ -20,20 +22,23 @@ final class PathPattern {
   final RegExp _values;
 
   /// Returns this pattern with [target] as a literal folder right after its
-  /// first segment: a pattern with no folder takes the target as
-  /// its folder.
+  /// first segment, or right after `.specstone/records/` for a records path:
+  /// a pattern with no folder takes the target as its folder.
   PathPattern forTarget(String target) {
     final (:head, :rest) = _splitAtFirstFolder();
     return PathPattern('$head$target/$rest');
   }
 
   /// Returns the folder, ending in `/`, that holds [target]'s docs of this
-  /// pattern: its first folder, then the target folder.
+  /// pattern: its first folder, or the records root, then the target folder.
   String targetFolder(String target) => '${_splitAtFirstFolder().head}$target/';
 
-  // The text up to and including the first `/`, and the rest.
+  // The text up to and including the first `/`, or the records root, and the
+  // rest.
   ({String head, String rest}) _splitAtFirstFolder() {
-    final cut = source.indexOf('/') + 1;
+    final cut = isRecordsDocPath(source)
+        ? recordsRootDocPath.length
+        : source.indexOf('/') + 1;
     return (head: source.substring(0, cut), rest: source.substring(cut));
   }
 

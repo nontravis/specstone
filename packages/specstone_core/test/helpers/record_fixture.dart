@@ -28,6 +28,13 @@ const recordLayer =
     '    list: true\n'
     '    pointer: item_test\n';
 
+/// [recordLayer] with the record path of the shipped pack, under
+/// `.specstone/records/`.
+final String recordLayerAtRoot = recordLayer.replaceFirst(
+  'path: specs/f{nn}_{slug}/IMPLEMENTATION.md',
+  'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
+);
+
 /// The config that names the targets `flutter` and `jaspr`.
 String twinConfig() =>
     '${shippedPinsConfig()}targets:\n'
@@ -93,3 +100,14 @@ bool holdsApproval(
             );
   });
 }
+
+/// The project-layer template that moves the shipped `implementation` doc
+/// type's records under `.specstone/records/`.
+const recordsRootLayer =
+    'id: implementation\n'
+    'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n';
+
+/// The fixture files that put `implementation` under `.specstone/records/`.
+const recordsRootTemplates = <String, String>{
+  '.specstone/templates/implementation.yaml': recordsRootLayer,
+};

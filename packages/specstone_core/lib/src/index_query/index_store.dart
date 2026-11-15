@@ -55,8 +55,10 @@ const _notWritableMessage =
 /// statuses rule; the other stores the cite candidates, link texts with each
 /// destination as written, and heading levels and lines in the line facts and
 /// the `item_words` table. Layout 18 holds both, so an index of any earlier
-/// layout, which lacks one or the other, is rebuilt.
-const indexLayoutVersion = 18;
+/// layout, which lacks one or the other, is rebuilt. Layout 19 adds the
+/// `search_hash` column, so an index of layout 18, whose `putDoc` wrote the
+/// search rows with no hash to tell a lagging doc by, is rebuilt.
+const indexLayoutVersion = 19;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -82,6 +84,7 @@ CREATE TABLE docs (
   ord INTEGER NOT NULL,
   warnings TEXT NOT NULL,
   content_hash TEXT NOT NULL,
+  search_hash TEXT,
   text TEXT NOT NULL,
   frontmatter_text TEXT,
   head TEXT NOT NULL,
@@ -442,7 +445,10 @@ final class IndexStore {
       );
   }
 
-  /// Replaces every row of the doc [parsed] describes.
+  /// Replaces every row of the doc [parsed] describes, but its search rows.
+  ///
+  /// The doc ends with no search rows and no `search_hash`; [fillSearchRows]
+  /// writes them.
   void putDoc(ParsedDoc parsed) {
     final doc = parsed.doc;
     final content = parsed.content;
@@ -477,23 +483,6 @@ final class IndexStore {
         jsonEncode(content.itemFacts.toJson()),
       ],
     );
-    final docId = _db.lastInsertRowId;
-    final firstKey = content.sections.firstOrNull?.key;
-    final searchRows = <(String, String?)>[
-      for (final heading in [?doc.title, ...doc.valuesOf('slug')])
-        (heading, firstKey),
-      for (final section in content.sections) (section.body, section.key),
-    ];
-    for (final (n, (text, sectionKey)) in searchRows.indexed) {
-      if (n >= _searchRowsPerDoc) {
-        throw StateError('${doc.docPath} has too many search rows');
-      }
-      _db.execute(
-        'INSERT INTO doc_search (rowid, text, path, section_key) '
-        'VALUES (?, ?, ?, ?)',
-        [(docId << 32) + n, text, doc.docPath, sectionKey],
-      );
-    }
     for (final (position, section) in content.sections.indexed) {
       final counts = content.lineFacts.sectionCounts[position];
       _db.execute(
@@ -525,16 +514,86 @@ final class IndexStore {
     }
   }
 
+  /// Whether any doc's search rows lag its indexed text.
+  bool get searchRowsLag => _db
+      .select(
+        'SELECT 1 FROM docs '
+        'WHERE search_hash IS NULL OR search_hash != content_hash LIMIT 1',
+      )
+      .isNotEmpty;
+
+  /// Brings the search rows of every doc whose rows lag its indexed text up to
+  /// date, in one write transaction.
+  ///
+  /// A doc lags when `search_hash` is not its `content_hash`. Rebuilds the rows
+  /// from the stored title, `slug` values, and sections, and reads no file.
+  /// Call it outside a snapshot, before the snapshot that reads the rows.
+  ///
+  /// Throws [IndexFault] when another call holds the write lock or the index
+  /// cannot be written.
+  void fillSearchRows() {
+    if (!searchRowsLag) return;
+    write(_writeLaggingRows);
+  }
+
+  void _writeLaggingRows() {
+    final lagging = _db.select(
+      'SELECT id, doc_path, title, frontmatter FROM docs '
+      'WHERE search_hash IS NULL OR search_hash != content_hash',
+    );
+    for (final row in lagging) {
+      final id = row['id'] as int;
+      final docPath = row['doc_path'] as String;
+      final title = row['title'] as String?;
+      final slugs = IndexedDoc(
+        docPath: docPath,
+        name: docPath,
+        frontmatter:
+            jsonDecode(row['frontmatter'] as String) as Map<String, Object?>,
+        tokens: 0,
+      ).valuesOf('slug');
+      final sections = _db.select(
+        'SELECT section_key, body FROM sections WHERE doc_path = ? '
+        'ORDER BY position',
+        [docPath],
+      );
+      final firstKey = sections.firstOrNull?.columnAt(0) as String?;
+      final searchRows = <(String, String?)>[
+        for (final heading in [?title, ...slugs]) (heading, firstKey),
+        for (final section in sections)
+          (section.columnAt(1) as String, section.columnAt(0) as String),
+      ];
+      _deleteSearchRows(id);
+      for (final (n, (text, sectionKey)) in searchRows.indexed) {
+        if (n >= _searchRowsPerDoc) {
+          throw StateError('$docPath has too many search rows');
+        }
+        _db.execute(
+          'INSERT INTO doc_search (rowid, text, path, section_key) '
+          'VALUES (?, ?, ?, ?)',
+          [(id << 32) + n, text, docPath, sectionKey],
+        );
+      }
+      _db.execute('UPDATE docs SET search_hash = content_hash WHERE id = ?', [
+        id,
+      ]);
+    }
+  }
+
+  void _deleteSearchRows(int docId) {
+    final firstRowid = docId << 32;
+    _db.execute('DELETE FROM doc_search WHERE rowid BETWEEN ? AND ?', [
+      firstRowid,
+      firstRowid + _searchRowsPerDoc - 1,
+    ]);
+  }
+
   /// Removes every row of the doc at [docPath]; an unknown path is a no-op.
   void deleteDoc(String docPath) {
     final ids = _db.select('SELECT id FROM docs WHERE doc_path = ?', [docPath]);
     if (ids.isEmpty) return;
-    final firstRowid = (ids.single['id'] as int) << 32;
+    _deleteSearchRows(ids.single['id'] as int);
     _db
-      ..execute('DELETE FROM doc_search WHERE rowid BETWEEN ? AND ?', [
-        firstRowid,
-        firstRowid + _searchRowsPerDoc - 1,
-      ])
       ..execute('DELETE FROM docs WHERE doc_path = ?', [docPath])
       ..execute('DELETE FROM sections WHERE doc_path = ?', [docPath])
       ..execute('DELETE FROM links WHERE source = ?', [docPath])

@@ -50,7 +50,7 @@ DocAnchors anchorsOf(List<Node> body) {
 /// Returns the anchors of the body text [body], or null when the anchor parse
 /// fails.
 DocAnchors? anchorsOfBody(String body) {
-  final nodes = parseBodyForAnchors(body);
+  final nodes = parseMarkdownTreeByBlock(body)?.nodes;
   return nodes == null ? null : anchorsOf(nodes);
 }
 

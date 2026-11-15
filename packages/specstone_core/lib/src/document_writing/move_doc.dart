@@ -344,11 +344,7 @@ List<PathMove> _storyMoves(
       (throw StateError(
         '${docType.id} has no path at depth ${parentShape.depth}',
       ));
-  final siblings = siblingsOnDisk(
-    session.project.docsRoot,
-    landedShape,
-    parentValues,
-  );
+  final siblings = siblingsOnDisk(session.project, landedShape, parentValues);
   final highest = siblings.fold(0, (top, s) => max(top, s.number ?? 0));
   final firstOfSlug = <String, IndexedDoc>{};
   final moves = <PathMove>[];
@@ -439,11 +435,7 @@ List<PathMove> _renameMoves(
       shape.valuesOf(target.docPath) ??
       (throw StateError('${target.docPath} does not match its doc type'));
   final parentValues = oldValues.take(shape.parentCount).toList();
-  final siblings = siblingsOnDisk(
-    session.project.docsRoot,
-    shape,
-    parentValues,
-  );
+  final siblings = siblingsOnDisk(session.project, shape, parentValues);
   final own = _ownEntry(
     siblings,
     target.docPath.split('/')[shape.ownIndex],
@@ -562,11 +554,7 @@ List<PathMove> _movesFor(
       shape.valuesOf(target.docPath) ??
       (throw StateError('${target.docPath} does not match its doc type'));
   final parentValues = targetValues.take(shape.parentCount).toList();
-  final siblings = siblingsOnDisk(
-    session.project.docsRoot,
-    shape,
-    parentValues,
-  );
+  final siblings = siblingsOnDisk(session.project, shape, parentValues);
   if (wanted < 1 || wanted > siblings.length) {
     throw WriteFault(
       WriteFaultCode.positionOutOfRange,

@@ -18,8 +18,8 @@ import '../../helpers/temp_tree.dart';
 
 const _flutterTech = 'specs/flutter/TECH_STACK.md';
 const _jasprTech = 'specs/jaspr/TECH_STACK.md';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 const _implemented = 'email_login/check_password:implemented';
 const _sharedTopic = 'specs/topics/doc_model.md';
 const _sharedTopic1 =
@@ -45,7 +45,7 @@ String _tech(List<String> roots) => doc(
 /// Returns the login story and FR as written by a project that has not
 /// implemented either.
 Map<String, String> _planned() => {
-  'docs/$loginRecord': _record([
+  loginRecord: _record([
     'email_login:planned',
     'email_login/check_password:planned',
   ]),
@@ -371,7 +371,7 @@ void main() {
         final done = checkOf(
           await writeCheckProject(
             extra: {
-              'docs/$loginRecord': _record([
+              loginRecord: _record([
                 'email_login:implemented',
                 'email_login/check_password:planned',
               ]),
@@ -396,7 +396,7 @@ void main() {
             'docs/prds/features/f02_shop/us01_email_login/USER_STORY.md':
                 checkProjectFiles()['docs/$loginStory']!,
             'docs/specs/f02_shop/ARCHITECTURE.md': _arch('app/lib/shop/'),
-            'docs/specs/f02_shop/IMPLEMENTATION.md': _record([
+            '.specstone/records/f02_shop/IMPLEMENTATION.md': _record([
               'email_login:implemented',
             ]),
           },
@@ -417,9 +417,8 @@ void main() {
                 checkProjectFiles()['docs/$loginFeature']!,
             'docs/prds/features/f01_login/f01_remember/us01_remember_me/USER_STORY.md':
                 checkProjectFiles()['docs/$loginStory']!,
-            'docs/specs/f01_login/f01_remember/IMPLEMENTATION.md': _record([
-              'remember_me:implemented',
-            ]),
+            '.specstone/records/f01_login/f01_remember/IMPLEMENTATION.md':
+                _record(['remember_me:implemented']),
           },
         ),
       );
@@ -494,8 +493,8 @@ void main() {
     test('each target resolves its covers and code roots against its own code root', () async {
       final project = await _twin(
         extra: {
-          'docs/$_flutterRecord': _record([_implemented]),
-          'docs/$_jasprRecord': _record([_implemented]),
+          _flutterRecord: _record([_implemented]),
+          _jasprRecord: _record([_implemented]),
           'flutter_ws/app/lib/extra/x.dart': '',
           'docs/$flutterArchitecture': _arch('app/lib/extra/'),
           'docs/$jasprArchitecture': _arch('app/lib/extra/'),
@@ -516,8 +515,8 @@ void main() {
     test('a target with an implemented entry resolves its paths and a target with none raises nothing', () async {
       final project = await _twin(
         extra: {
-          'docs/$_flutterRecord': _record([_implemented]),
-          'docs/$_jasprRecord': _record(['email_login/check_password:planned']),
+          _flutterRecord: _record([_implemented]),
+          _jasprRecord: _record(['email_login/check_password:planned']),
           'docs/$flutterArchitecture': _arch('app/lib/gone/'),
           'docs/$jasprArchitecture': _arch('app/lib/gone/'),
           'docs/$_flutterTech': _tech(['app/lib/', 'api/']),
@@ -567,7 +566,7 @@ void main() {
       () async {
         final project = await _twin(
           extra: {
-            'docs/$_flutterRecord': _record([_implemented]),
+            _flutterRecord: _record([_implemented]),
             'docs/$_jasprTech': _tech(['web/']),
             'docs/$flutterArchitecture': _arch('app/lib/'),
             'docs/$jasprArchitecture': _arch('web/'),

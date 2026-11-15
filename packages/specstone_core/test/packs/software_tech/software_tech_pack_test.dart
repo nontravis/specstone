@@ -15,7 +15,7 @@ import '../../helpers/temp_tree.dart';
 
 void main() {
   group('software-tech manifest', () {
-    test('software-tech ships at 1.7.0 and extends prd-core', () {
+    test('software-tech ships at 1.8.0 and extends prd-core', () {
       final bytes = shippedPackFiles['software-tech/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -23,7 +23,7 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.7.0');
+      expect(manifest.version.toString(), '1.8.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 
@@ -74,8 +74,9 @@ void main() {
       }
     });
 
-    test('every spec doc path starts specs/, and the seven '
-        'per-feature doc types take parent feature', () {
+    test('every spec doc path starts specs/, the record lies under '
+        '.specstone/records/, and the seven per-feature doc types take '
+        'parent feature', () {
       const perFeature = <String, String>{
         'architecture': 'ARCHITECTURE',
         'domain': 'DOMAIN',
@@ -87,11 +88,16 @@ void main() {
       };
       for (final MapEntry(:key, :value) in perFeature.entries) {
         final docType = prdCoreDocType(set, key);
-        expect(docType.path, 'specs/f{nn}_{slug}/$value.md', reason: key);
+        final folder = key == 'implementation' ? '.specstone/records' : 'specs';
+        expect(docType.path, '$folder/f{nn}_{slug}/$value.md', reason: key);
         expect(docType.parent, 'feature', reason: key);
       }
       for (final id in softwareTechIds) {
-        expect(prdCoreDocType(set, id).path, startsWith('specs/'), reason: id);
+        expect(
+          prdCoreDocType(set, id).path,
+          startsWith(id == 'implementation' ? '.specstone/records/' : 'specs/'),
+          reason: id,
+        );
       }
     });
 

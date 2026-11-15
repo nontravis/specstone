@@ -388,7 +388,8 @@ String _blockText(String source) {
   return text.endsWith('\n') ? text.substring(0, text.length - 1) : text;
 }
 
-/// Returns the malformed and stale `confirmed` entries of [doc].
+/// Returns the malformed, repeated, and stale entries of [doc]'s `confirmed`
+/// and `overrides` fields.
 ///
 /// Only a doc type that defines `confirmed` or carries override lines is
 /// read, each entry field against its own links; a draft is read too.
@@ -404,6 +405,7 @@ Iterable<Finding> checkConfirmedEntries(
       for (final link in links)
         if (link.entryKey == key) linkIdentityOf(link.label),
     };
+    final firstLineOf = <Object, int>{};
     for (final item in context.linesOf(doc).entriesOf(key)) {
       // A block map item's span ends with its line break.
       final text = item.text.trim();
@@ -426,7 +428,23 @@ Iterable<Finding> checkConfirmedEntries(
         continue;
       }
       final label = entry.label;
-      if (tracked.contains(linkIdentityOf(label))) continue;
+      final identity = linkIdentityOf(label);
+      final first = firstLineOf[identity];
+      if (first == null) {
+        firstLineOf[identity] = item.line;
+      } else {
+        yield context.finding(
+          doc,
+          FindingKind.confirmedEntryRepeated,
+          line: item.line,
+          message:
+              '$text names $label again; line $first records it, keep one '
+              'entry',
+          keys: {'entry': text, 'link': label, 'first': first},
+        );
+        continue;
+      }
+      if (tracked.contains(identity)) continue;
       yield context.finding(
         doc,
         FindingKind.confirmedEntryStale,

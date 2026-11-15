@@ -84,11 +84,12 @@ Iterable<Finding> checkCodeLinks(
     linesOf: () => context.linesOf(doc),
   );
   for (final link in links) {
+    final reason = link.item == null ? CodeRead.codeLink : CodeRead.symbols;
     final current = currentCodeFingerprint(
       link.path,
       codeRoot: context.codeRootOf(target),
       nestedRoots: context.nestedRootsOf(target),
-      bytesOf: (file) => context.codeBytesOf(target, file),
+      bytesOf: (file) => context.codeBytesOf(target, file, reason: reason),
       onUnlistable: (folder) => context.warn(
         '$folder: cannot list the folder; files under it are not checked for '
         'covers or fingerprints',
@@ -236,20 +237,24 @@ Iterable<CodeLink> _coversLinks(
 ///   stay out.
 /// - [bytesOf]: the bytes of a file from [codeRoot], null when unreadable.
 /// - [onUnlistable]: told each folder that cannot be listed.
+/// - [fileHash]: the fingerprint of a file's bytes and its path from
+///   [codeRoot]; the current rule when null.
 String? currentCodeFingerprint(
   String path, {
   required Directory codeRoot,
   required List<String> nestedRoots,
   required List<int>? Function(String file) bytesOf,
   required void Function(String folder) onUnlistable,
+  String Function(List<int> bytes, String path)? fileHash,
 }) {
+  final hashOf = fileHash ?? _currentFileHash;
   final normal = normalCodeEntry(path);
   final isFile =
       FileSystemEntity.typeSync('${codeRoot.path}/$normal') ==
       FileSystemEntityType.file;
   if (isFile) {
     final bytes = bytesOf(normal);
-    return bytes == null ? null : fileCodeFingerprint(bytes);
+    return bytes == null ? null : hashOf(bytes, normal);
   }
   var isReadable = true;
   final listed = codeLinkFiles(
@@ -267,8 +272,11 @@ String? currentCodeFingerprint(
     if (bytes == null) {
       isReadable = false;
     } else {
-      files.add((path: file, fingerprint: fileCodeFingerprint(bytes)));
+      files.add((path: file, fingerprint: hashOf(bytes, file)));
     }
   }
   return isReadable ? folderCodeFingerprint(files) : null;
 }
+
+String _currentFileHash(List<int> bytes, String path) =>
+    fileCodeFingerprint(bytes, path: path);

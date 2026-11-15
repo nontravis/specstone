@@ -9,7 +9,7 @@ import '../../specstone_core/test/helpers/shipped_pins.dart';
 import 'helpers/built_cli.dart';
 import 'helpers/temp_tree.dart';
 
-const _record = 'specs/f01_login/IMPLEMENTATION.md';
+const _record = '.specstone/records/f01_login/IMPLEMENTATION.md';
 const _featureDoc = 'prds/features/f01_login/FEATURE.md';
 
 void main() {
@@ -59,7 +59,7 @@ void main() {
     final project = await writeCheckProject(
       extra: {
         '.specstone/config.yaml': '${shippedPinsConfig()}code_root: code\n',
-        'docs/$_record':
+        _record:
             "---\nstatuses:\n  - 'email_login/check_password:implemented'\n"
             "implements:\n  - 'email_login/check_password:lib/a.dart'\n"
             '---\n\n# Record\n',

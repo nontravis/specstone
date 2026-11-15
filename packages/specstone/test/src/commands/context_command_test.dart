@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone/src/commands/context_command.dart' show withBareOut;
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
@@ -13,6 +14,27 @@ import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 void main() {
+  test('a bare --out of context, check, guide, and get is read as a flag', () {
+    for (final command in ['context', 'check', 'guide', 'get']) {
+      expect(withBareOut([command, 'x', '--out']), [
+        command,
+        'x',
+        '--bare-out',
+      ]);
+      expect(withBareOut([command, '--out', '--json']), [
+        command,
+        '--bare-out',
+        '--json',
+      ]);
+      expect(withBareOut([command, '--out', 'a.txt']), [
+        command,
+        '--out',
+        'a.txt',
+      ]);
+    }
+    expect(withBareOut(['list', '--out']), ['list', '--out']);
+  });
+
   test('f01/us05/s1: context for a story prints the bundle and its doc list, exit 0', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(
@@ -1246,6 +1268,33 @@ void main() {
       );
       expect(run.err.toString(), contains('it lies under .git'));
       expect(File('${project.path}/.git/bundle.txt').existsSync(), isFalse);
+    });
+
+    test('an --out path under .specstone/ outside bundles/ and reports/ is output_not_writable, exit 73, and the config stays whole', () async {
+      final project = await writeReadProject();
+      final config = File('${project.path}/.specstone/config.yaml');
+      final before = config.readAsBytesSync();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run([
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          '.specstone/config.yaml',
+        ]),
+        73,
+      );
+      expect(
+        run.err.toString(),
+        endsWith(
+          'the output path is inside .specstone/ but outside its bundles/ '
+          'and reports/\n',
+        ),
+      );
+      expect(run.out.toString(), isEmpty);
+      expect(config.readAsBytesSync(), before);
     });
 
     test('--for design --summary --no-project names <target>.design-summary-no-project.txt', () async {

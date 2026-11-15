@@ -86,7 +86,8 @@ final class MigrateRequest {
 ///
 /// A legacy or upgrade run, with or without `--dry-run`, checks trust and git
 /// first, then prints the plan; bare `migrate` applies it on the Owner's `y`,
-/// or under `--yes` with no prompt, after checking git again.
+/// or under `--yes` with no prompt, after checking git again. Only a run that
+/// writes refuses a dirty tree; a dry run on one says so on its last line.
 ///
 /// A pending journal is finished first: a document-writing journal is
 /// replayed before the git checks, and a migrate journal is resumed with no
@@ -148,7 +149,7 @@ int _migrate(MigrateRequest request) {
       MoveJournal.replay(target);
     }
     requireGitWorkTree(root, request.runGit);
-    requireCleanWorkTree(root, request.runGit);
+    if (!request.dryRun) requireCleanWorkTree(root, request.runGit);
   }
   final kind = chooseRun(
     root,
@@ -225,12 +226,19 @@ int _plannedRun(
   required Directory? linkFolder,
 }) {
   final trust = _trustOf(root, linkFolder, request);
-  _preflight(request, root, trust, checksCleanTree: true);
+  _preflight(request, root, trust, checksCleanTree: !request.dryRun);
+  final isTreeDirty = request.dryRun && isWorkTreeDirty(root, request.runGit);
   final plan = _planOf(request, root, kind, linkFolder);
   _nameSkipped(request, plan);
   final planText = plan.toText();
   if (request.dryRun) {
-    _printDryRun(request, planText, plan.inputs, plan.lists);
+    _printDryRun(
+      request,
+      planText,
+      plan.inputs,
+      plan.lists,
+      isTreeDirty: isTreeDirty,
+    );
     return 0;
   }
   _printPlan(request, planText, plan.lists);
@@ -311,7 +319,7 @@ String? _fromRoot(Directory root, String? absolute) =>
 ///
 /// The dry run and the apply of a legacy run, an upgrade, and a resume share
 /// it; a resume leaves the clean-tree check off, since its stopped run left
-/// the tree dirty.
+/// the tree dirty, and a dry run does too, since it writes nothing.
 void _preflight(
   MigrateRequest request,
   Directory root,
@@ -396,17 +404,26 @@ void _printPlan(MigrateRequest request, String planText, PlanLists lists) {
 }
 
 /// Prints the plan as [_printPlan] does, closed by its `plan <hash>` line
-/// over [inputs]; as text, the dry-run closing line follows.
+/// over [inputs]; as text, the dry-run closing line follows, naming the clean
+/// tree the run needs when [isTreeDirty].
 void _printDryRun(
   MigrateRequest request,
   String planText,
   PlanInputs inputs,
-  PlanLists lists,
-) {
+  PlanLists lists, {
+  bool isTreeDirty = false,
+}) {
   final hashLine = 'plan ${planHashOf(planText, inputs)}\n';
   _printPlan(request, '$planText$hashLine', lists);
-  if (!request.asJson) request.out.writeln('dry run: nothing written');
+  if (request.asJson) return;
+  request.out.writeln(
+    isTreeDirty
+        ? '$_dryRunLine; the run needs a clean working tree'
+        : _dryRunLine,
+  );
 }
+
+const _dryRunLine = 'dry run: nothing written';
 
 /// Says [text] after the plan: on [MigrateRequest.out], or under `--json` on
 /// its warnings, so the object stays alone on `out`.

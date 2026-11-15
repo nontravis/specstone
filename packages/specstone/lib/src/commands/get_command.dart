@@ -16,6 +16,7 @@ class GetCommand extends SpecstoneCommand {
         negatable: false,
         help: 'Print the code each step of a journey reaches.',
       );
+    addOutOption();
     addTargetOption();
   }
 
@@ -29,7 +30,7 @@ class GetCommand extends SpecstoneCommand {
   @override
   String get invocation =>
       'specstone get <name | path>[#<section key>] … [--paths | --code] '
-      '[--json]';
+      '[--json] [--out [<path>]]';
 
   @override
   Future<int> run() async {
@@ -53,6 +54,12 @@ class GetCommand extends SpecstoneCommand {
         asJson: asJson,
       );
     }
+    final String? out;
+    try {
+      out = outPathOf(args);
+    } on IndexFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
     final option = paths ? '--paths' : (code ? '--code' : null);
     if (option != null && rest.length > 1) {
       return fail(
@@ -71,7 +78,7 @@ class GetCommand extends SpecstoneCommand {
           '$option takes no #<section key>',
         );
       }
-      return switch ((paths, code)) {
+      final answer = switch ((paths, code)) {
         (true, _) => answerJourneyPaths(
           session.index,
           rest.first,
@@ -84,6 +91,50 @@ class GetCommand extends SpecstoneCommand {
         ),
         _ => answerGet(session.index, rest, codeTarget: targetOf(args)),
       };
+      return writesOut(args)
+          ? _written(
+              session,
+              answer,
+              out,
+              asJson: asJson,
+              paths: paths,
+              code: code,
+              rest: rest,
+              codeTarget: targetOf(args),
+            )
+          : answer;
     }, asJson: asJson);
+  }
+
+  /// Writes [answer] to the `--out` file, bare when [out] is null, and returns
+  /// the reply that names it.
+  ReadAnswer _written(
+    ReadSession session,
+    ReadAnswer answer,
+    String? out, {
+    required bool asJson,
+    required bool paths,
+    required bool code,
+    required List<String> rest,
+    required String? codeTarget,
+  }) {
+    final project = session.project;
+    final printed = printedJson(answer, session.warnings);
+    final text = asJson
+        ? '${SpecstoneCommand.pretty.convert(printed)}\n'
+        : answer.text;
+    return answerOut(
+      command: 'get',
+      text: text,
+      outPath: out,
+      projectRoot: project.projectRoot,
+      docsRoot: project.docsRoot,
+      asJson: asJson,
+      flags: [if (paths) 'paths', if (code) 'code'],
+      args: rest,
+      codeTarget: codeTarget,
+      warnings: answer.warnings,
+      exitStatus: answer.exitStatus,
+    );
   }
 }

@@ -32,8 +32,10 @@ final class ReadSession {
   /// date, and reads every doc from one snapshot.
   ///
   /// [homeDirectory] is where user-level doc types are read from; null reads
-  /// none. A fault from the project, the templates, or the index propagates
-  /// unchanged, and no index is opened before the project and templates load.
+  /// none. [fillSearchRows] brings the search rows up to date before the
+  /// snapshot begins; only a session that searches needs it. A fault from the
+  /// project, the templates, or the index propagates unchanged, and no index
+  /// is opened before the project and templates load.
   /// An index that fails with a damage error is deleted and rebuilt once,
   /// with [damagedIndexWarning]; any other database error is an
   /// [IndexFault].
@@ -42,6 +44,7 @@ final class ReadSession {
     required Directory workingDirectory,
     required Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
+    bool fillSearchRows = false,
   }) {
     final project = DocsProject.open(
       templates: templates,
@@ -53,12 +56,13 @@ final class ReadSession {
         project,
         IndexStore.open(project.projectRoot, busyTimeout: busyTimeout),
         workingDirectory: workingDirectory,
+        fillSearchRows: fillSearchRows,
       );
     } on SqliteException catch (e) {
       if (!IndexStore.isDamage(e)) throw IndexStore.faultOf(e);
     }
     // A page the first read hit is lost: discard the index and read once more.
-    return _rebuilt(project, workingDirectory, busyTimeout);
+    return _rebuilt(project, workingDirectory, busyTimeout, fillSearchRows);
   }
 
   /// Opens a session as [open] does, returns what [answer] computes from it,
@@ -73,12 +77,14 @@ final class ReadSession {
     required Directory workingDirectory,
     required Directory? homeDirectory,
     Duration busyTimeout = indexBusyTimeout,
+    bool fillSearchRows = false,
   }) {
     final session = open(
       templates: templates,
       workingDirectory: workingDirectory,
       homeDirectory: homeDirectory,
       busyTimeout: busyTimeout,
+      fillSearchRows: fillSearchRows,
     );
     try {
       return _answer(session, answer);
@@ -88,7 +94,12 @@ final class ReadSession {
     // A page only the answer reads is lost: discard the index and answer again.
     try {
       return _answer(
-        _rebuilt(session.project, session.workingDirectory, busyTimeout),
+        _rebuilt(
+          session.project,
+          session.workingDirectory,
+          busyTimeout,
+          fillSearchRows,
+        ),
         answer,
       );
     } on SqliteException catch (e) {
@@ -100,12 +111,14 @@ final class ReadSession {
     DocsProject project,
     Directory workingDirectory,
     Duration busyTimeout,
+    bool fillSearchRows,
   ) {
     try {
       return readFrom(
         project,
         IndexStore.openRebuilt(project.projectRoot, busyTimeout: busyTimeout),
         workingDirectory: workingDirectory,
+        fillSearchRows: fillSearchRows,
       );
     } on SqliteException catch (e) {
       throw IndexStore.faultOf(e);
@@ -126,17 +139,23 @@ final class ReadSession {
   /// Refreshes [store], then reads every doc from one snapshot of it.
   ///
   /// [workingDirectory] is the folder a path target is read from.
+  /// [fillSearchRows] fills the lagging search rows after each refresh and
+  /// before the snapshot, so the stamp and the docs the snapshot reads are
+  /// those the rows were filled under.
   /// A peer with another doc-type set can rewrite the index between the
   /// refresh and the snapshot; the stamp is read again inside the snapshot,
-  /// and a mismatch ends it and refreshes again. After [_stampAttempts]
-  /// mismatches the index is [IndexFaultCode.indexBusy]. [afterRefresh] runs
-  /// after each refresh, before the snapshot begins. Closes [store] on any
-  /// error.
+  /// and a mismatch, or a doc still lagging for a search, ends it and
+  /// refreshes again. After [_stampAttempts] such attempts the index is
+  /// [IndexFaultCode.indexBusy]. [afterRefresh] runs after each refresh and
+  /// [afterFill] after each fill, both before the snapshot begins. Closes
+  /// [store] on any error.
   static ReadSession readFrom(
     DocsProject project,
     IndexStore store, {
     required Directory workingDirectory,
     void Function()? afterRefresh,
+    void Function()? afterFill,
+    bool fillSearchRows = false,
   }) {
     try {
       final stamp = IndexStamp.of(
@@ -146,8 +165,12 @@ final class ReadSession {
       for (var attempt = 1; ; attempt++) {
         final refreshed = refreshIndex(store, project);
         afterRefresh?.call();
+        if (fillSearchRows) store.fillSearchRows();
+        afterFill?.call();
         store.beginSnapshot();
-        if (store.readStamp() == stamp) {
+        // A same-stamp peer write after the fill leaves a doc lagging.
+        final searchReady = !fillSearchRows || !store.searchRowsLag;
+        if (store.readStamp() == stamp && searchReady) {
           return ReadSession._(
             project: project,
             store: store,
@@ -199,6 +222,7 @@ final class ReadSession {
     store,
     (path) => project.docPathAt(path, workingDirectory: workingDirectory),
     docsRoot: project.docsRoot,
+    projectRoot: project.projectRoot,
     targetNames: project.targetNames,
   );
 

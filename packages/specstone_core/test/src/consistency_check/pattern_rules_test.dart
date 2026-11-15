@@ -378,4 +378,66 @@ sections:
     );
     expect(absent, isEmpty);
   });
+
+  group('per_subsection', () {
+    const layer = '''
+sections:
+  - id: edge_cases
+    lint:
+      required_patterns:
+        - id: labelled
+          pattern: 'Label:'
+          message: Write a Label
+          per_subsection: true
+''';
+
+    Map<String, String> edgeCases(String body) =>
+        fr('1. E01 — An empty password → refused.', body);
+
+    test('a subsection lacking the pattern reports at its heading with the '
+        'subsection key', () async {
+      final found = await _findings(
+        layer,
+        edits: edgeCases(
+          '### First\n\nLabel: set\n\n### Second\n\nno label here',
+        ),
+        kind: FindingKind.patternMissing,
+      );
+      expect(found, hasLength(1));
+      expect(found.single.line, 22);
+      expect(found.single.message, 'Write a Label');
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('pattern', 'labelled'),
+          containsPair('section', 'edge_cases'),
+          containsPair('subsection', 'Second'),
+        ),
+      );
+      expect(found.single.waitsFor, WaitsFor.agent);
+    });
+
+    test('a pattern held by one subsection does not cover the other', () async {
+      final found = await _findings(
+        layer,
+        edits: edgeCases('### First\n\nLabel: set\n\n### Second\n\nnone'),
+        kind: FindingKind.patternMissing,
+      );
+      expect(found.map((f) => f.toJson()['subsection']), ['Second']);
+    });
+
+    test('a section with no subsection has no finding', () async {
+      final found = await _findings(layer, kind: FindingKind.patternMissing);
+      expect(found, isEmpty);
+    });
+
+    test('a fenced ### line opens no subsection', () async {
+      final found = await _findings(
+        layer,
+        edits: edgeCases('### First\n\nLabel: set\n\n```\n### Fake\n```'),
+        kind: FindingKind.patternMissing,
+      );
+      expect(found, isEmpty);
+    });
+  });
 }

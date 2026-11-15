@@ -116,8 +116,7 @@ ReadAnswer answerNew(
   final lineEnding = LineEnding.of(text);
 
   return session.locked(() {
-    final docsRoot = session.project.docsRoot;
-    final siblings = siblingsOnDisk(docsRoot, placed, parentValues);
+    final siblings = siblingsOnDisk(session.project, placed, parentValues);
     _checkNoClash(
       session,
       docType,
