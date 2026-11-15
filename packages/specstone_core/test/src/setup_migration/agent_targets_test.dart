@@ -12,6 +12,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/record_fixture.dart';
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/skill_files.dart';
 import '../../helpers/temp_tree.dart';
 
 const _write = 'setup_migration/set_up_new_project/write_agent_files';
@@ -58,6 +59,14 @@ AgentWrite _writeAt(AgentWritePlan plan, String path) => [
   ...plan.rootWrites,
   ...plan.topWrites,
 ].singleWhere((write) => write.path == path);
+
+/// The text of every skill and agent file under [prefix], keyed by path, as a
+/// fixture that leaves a full run no skill or agent file to write.
+Map<String, String> _skillFiles([String prefix = '']) => skillFileTexts(prefix);
+
+/// The canonical path of [path] under the project of [base].
+String _real(Directory base, String path) =>
+    File.fromUri(_at(base, 'proj/').uri.resolve(path)).path;
 
 List<String> _paths(AgentWritePlan plan) => [
   for (final write in [...plan.rootWrites, ...plan.topWrites]) write.path,
@@ -185,8 +194,124 @@ void main() {
         File.fromUri(_at(base, 'proj/').uri.resolve(_agentMd)).path,
         File.fromUri(_at(base, 'proj/').uri.resolve('AGENTS.md')).path,
         File.fromUri(_at(base, 'proj/vendor/').uri.resolve('AGENTS.md')).path,
+        for (final path in [...skillPaths(), ...skillPaths('vendor/')])
+          File.fromUri(_at(base, 'proj/').uri.resolve(path)).path,
       });
     });
+  });
+
+  group('AgentWritePlan.trash', () {
+    Map<String, String> settled(Map<String, String> extra) => {
+      'proj/AGENTS.md': _inline(),
+      'proj/.specstone/AGENT.md': agentMdText,
+      for (final MapEntry(:key, :value) in _skillFiles().entries)
+        'proj/$key': value,
+      ...extra,
+    };
+
+    test('an unshipped entry is listed, counted on the line, and keeps the '
+        'plan from being empty', () async {
+      final base = await _base(
+        settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, ['.claude/skills/specstone-old']);
+      expect(plan.trashFiles, ['.claude/skills/specstone-old/SKILL.md']);
+      expect(_paths(plan), isEmpty);
+      expect(plan.line, 'agent files: 1 files');
+      expect(plan.isEmpty, isFalse);
+    });
+
+    test('an unshipped folder counts each file under it once', () async {
+      final base = await _base(
+        settled({
+          'proj/.claude/skills/specstone-old/SKILL.md': 'old\n',
+          'proj/.claude/skills/specstone-old/references/more.md': 'old\n',
+          'proj/.claude/skills/specstone-old/references/less.md': 'old\n',
+        }),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, ['.claude/skills/specstone-old']);
+      expect(plan.trashFiles, [
+        '.claude/skills/specstone-old/SKILL.md',
+        '.claude/skills/specstone-old/references/less.md',
+        '.claude/skills/specstone-old/references/more.md',
+      ]);
+      expect(plan.line, 'agent files: 3 files');
+      expect(plan.listed, plan.trashFiles);
+    });
+
+    test('an entry holding a repository folder is left out of the trash and '
+        'named', () async {
+      final base = await _base(
+        settled({
+          'proj/.claude/skills/specstone-old/SKILL.md': 'old\n',
+          'proj/.claude/skills/specstone-old/.git/HEAD': 'ref\n',
+          'proj/.claude/skills/specstone-old/.git/objects/ab/cd': 'x\n',
+        }),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, isEmpty);
+      expect(plan.writeSet, isEmpty);
+      expect(plan.skipped, [
+        '.claude/skills/specstone-old lies under .git; left as it is',
+      ]);
+      expect(plan.line, '');
+    });
+
+    test('the write set holds the place of each entry it moves', () async {
+      final base = await _base(
+        settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),
+      );
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.writeSet, {_real(base, '.claude/skills/specstone-old')});
+    });
+
+    test('two links to one folder are two entries, both listed', () async {
+      final base = await _base(settled({'proj/shared/SKILL.md': 'shared\n'}));
+      for (final name in ['specstone-a', 'specstone-b']) {
+        Link(_at(base, 'proj/.claude/skills/$name').path)
+            .createSync('../../shared');
+      }
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, [
+        '.claude/skills/specstone-a',
+        '.claude/skills/specstone-b',
+      ]);
+      expect(plan.trashFiles, plan.trash);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
+
+    test('a plan with nothing to trash has an empty trash', () async {
+      final base = await _base(settled({}));
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, isEmpty);
+      expect(plan.isEmpty, isTrue);
+    });
+
+    test('a linked skill folder lists the same unshipped entry once', () async {
+      final base = await _base(
+        settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),
+      );
+      final shared = _at(base, 'proj/.agents/skills')
+        ..deleteSync(recursive: true);
+      Link(shared.path).createSync('../.claude/skills');
+
+      final plan = planAgentWrites(_inputs(base), full: false);
+
+      expect(plan.trash, ['.claude/skills/specstone-old']);
+    }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
   });
 
   group('codeRootFolders', () {
@@ -313,8 +438,11 @@ void main() {
       expect(_paths(plan), [
         _agentMd,
         'AGENTS.md',
+        ...skillPaths(),
         'jaspr-stratum-ui/AGENTS.md',
         'stratum_ui/AGENTS.md',
+        ...skillPaths('jaspr-stratum-ui/'),
+        ...skillPaths('stratum_ui/'),
       ]);
       expect(plan.addedRoots, ['jaspr-stratum-ui', 'stratum_ui']);
     });
@@ -347,7 +475,13 @@ void main() {
 
       final plan = planAgentWrites(inputs, full: true);
 
-      expect(_paths(plan), [_agentMd, 'AGENTS.md', 'mono/AGENTS.md']);
+      expect(_paths(plan), [
+        _agentMd,
+        'AGENTS.md',
+        ...skillPaths(),
+        'mono/AGENTS.md',
+        ...skillPaths('mono/'),
+      ]);
       expect(plan.addedRoots, ['mono']);
     });
 
@@ -571,15 +705,16 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_paths(plan), [_agentMd, 'AGENTS.md']);
+      final expected = [_agentMd, 'AGENTS.md', ...skillPaths()];
+      expect(_paths(plan), expected);
       expect(_writeAt(plan, _agentMd).text, agentMdText);
       expect(_writeAt(plan, _agentMd).isNew, isTrue);
       expect(_writeAt(plan, 'AGENTS.md').text, _inline());
       expect(_writeAt(plan, 'AGENTS.md').isAtTop, isFalse);
       expect(plan.topWrites, isEmpty);
       expect(plan.agentFileRoots, isEmpty);
-      expect(plan.line, 'agent files: 2 files');
-      expect(plan.paths, [_agentMd, 'AGENTS.md']);
+      expect(plan.line, 'agent files: ${expected.length} files');
+      expect(plan.paths, expected);
     });
 
     test('$_write E08: a plan with no write prints no line and lists no '
@@ -621,6 +756,8 @@ void main() {
       final base = await _base({
         'proj/AGENTS.md': older,
         'proj/.specstone/AGENT.md': agentMdText,
+        for (final MapEntry(:key, :value) in _skillFiles().entries)
+          'proj/$key': value,
       });
 
       for (final full in [true, false]) {
@@ -737,12 +874,40 @@ void main() {
 
         final plan = planAgentWrites(_inputs(base), full: true);
 
-        expect(_paths(plan), [_agentMd, _cursor]);
+        expect(_paths(plan), [_agentMd, _cursor, ...skillPaths()]);
         expect(
           _writeAt(plan, _cursor).text,
           cursorRulesText(cliVersion: specstoneVersion),
         );
         expect(_writeAt(plan, _cursor).isNew, isTrue);
+      },
+    );
+
+    test('a .cursor folder holding only specstone- agents is no .cursor '
+        'folder', () async {
+      final base = await _base({
+        'proj/.cursor/agents/specstone-x.md': 'x\n',
+        'proj/.cursor/agents/specstone-y.md': 'y\n',
+      });
+
+      final plan = planAgentWrites(_inputs(base), full: true);
+
+      expect(_paths(plan), contains('AGENTS.md'));
+      expect(_paths(plan), isNot(contains(_cursor)));
+    });
+
+    test(
+      'an agent without the specstone- prefix makes a .cursor folder',
+      () async {
+        final base = await _base({
+          'proj/.cursor/agents/specstone-x.md': 'x\n',
+          'proj/.cursor/agents/my-agent.md': 'mine\n',
+        });
+
+        final plan = planAgentWrites(_inputs(base), full: true);
+
+        expect(_paths(plan), contains(_cursor));
+        expect(_paths(plan), isNot(contains('AGENTS.md')));
       },
     );
 
@@ -753,7 +918,13 @@ void main() {
 
         final plan = planAgentWrites(_inputs(base), full: true);
 
-        expect(_paths(plan), [_agentMd, 'AGENTS.md']);
+        expect(_paths(plan), [
+          _agentMd,
+          'AGENTS.md',
+          for (final path in skillPaths())
+            if (!path.startsWith('.cursor/')) path,
+        ]);
+        expect(plan.skipped, ['.cursor is not a folder; left as it is']);
       },
     );
 
@@ -907,7 +1078,13 @@ void main() {
         full: true,
       );
 
-      expect(_paths(plan), [_agentMd, 'AGENTS.md', 'other/CLAUDE.md']);
+      expect(_paths(plan), [
+        _agentMd,
+        'AGENTS.md',
+        ...skillPaths(),
+        'other/CLAUDE.md',
+        ...skillPaths('other/'),
+      ]);
       final write = _writeAt(plan, 'other/CLAUDE.md');
       expect(write.text, 'Owner\n\n${_imports('../')}');
       expect(write.isAtTop, isTrue);
@@ -928,7 +1105,10 @@ void main() {
         full: true,
       );
 
-      expect(plan.topWrites.map((w) => w.path), ['other/AGENTS.md']);
+      expect(plan.topWrites.map((w) => w.path), [
+        'other/AGENTS.md',
+        ...skillPaths('other/'),
+      ]);
       expect(plan.agentFileRoots, ['other']);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
@@ -950,7 +1130,10 @@ void main() {
       );
 
       expect(plan.agentFileRoots, ['other']);
-      expect(plan.topWrites.map((w) => w.path), ['other/AGENTS.md']);
+      expect(plan.topWrites.map((w) => w.path), [
+        'other/AGENTS.md',
+        ...skillPaths('other/'),
+      ]);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
     test('R48: a listed top that no code root reaches is neither refreshed '
@@ -982,14 +1165,21 @@ void main() {
         full: true,
       );
 
-      expect(plan.topWrites.map((w) => w.path), ['vendor/AGENTS.md']);
-      expect(plan.topWrites.single.isAtTop, isTrue);
+      expect(plan.topWrites.map((w) => w.path), [
+        'vendor/AGENTS.md',
+        ...skillPaths('vendor/'),
+      ]);
+      expect(plan.topWrites.every((write) => write.isAtTop), isTrue);
       expect(plan.agentFileRoots, ['vendor']);
     });
 
     test('R48: an instruction file that is not UTF-8 is skipped, with no '
         'write and no drift', () async {
-      final base = await _base({'proj/.specstone/AGENT.md': agentMdText});
+      final base = await _base({
+        'proj/.specstone/AGENT.md': agentMdText,
+        for (final MapEntry(:key, :value) in _skillFiles().entries)
+          'proj/$key': value,
+      });
       File.fromUri(_at(base, 'proj/').uri.resolve('CLAUDE.md'))
           .writeAsBytesSync([0xFF, 0xFE, 0x41, 0x80]);
       final inputs = _inputs(base);
@@ -1090,6 +1280,8 @@ void main() {
         'proj/other/AGENTS.md': _inline(),
         'proj/AGENTS.md': _inline(),
         'proj/.specstone/AGENT.md': agentMdText,
+        for (final MapEntry(:key, :value) in _skillFiles().entries)
+          'proj/other/$key': value,
       });
 
       final plan = planAgentWrites(
@@ -1140,7 +1332,11 @@ void main() {
         full: false,
       );
 
-      expect(_paths(plan), [_agentMd, 'other/GEMINI.md']);
+      expect(_paths(plan), [
+        _agentMd,
+        'other/GEMINI.md',
+        ...skillPaths('other/'),
+      ]);
     });
 
     test('$_write E22: two names for one file give one inline write', () async {
@@ -1150,7 +1346,7 @@ void main() {
 
       final plan = planAgentWrites(_inputs(base), full: true);
 
-      expect(_paths(plan), [_agentMd, 'CLAUDE.md']);
+      expect(_paths(plan), [_agentMd, 'CLAUDE.md', ...skillPaths()]);
       expect(_writeAt(plan, 'CLAUDE.md').text, 'Owner\n\n${_inline()}');
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
@@ -1181,9 +1377,10 @@ void main() {
 
       final plan = planAgentWrites(inputs, full: true);
 
-      expect(_paths(plan), [_agentMd, 'AGENTS.md']);
+      expect(_paths(plan), [_agentMd, 'AGENTS.md', ...skillPaths()]);
       expect(plan.skipped, [
         '../other/CLAUDE.md reaches outside the project root; left as it is',
+        '../other reaches outside the project root; left as it is',
       ]);
       expect(plan.agentFileRoots, isEmpty);
       expect(plan.addedRoots, isEmpty);
@@ -1204,12 +1401,12 @@ void main() {
 
       final plan = planAgentWrites(inputs, full: true);
 
-      expect(_paths(plan), [_agentMd]);
+      expect(_paths(plan), [_agentMd, ...skillPaths()]);
       expect(plan.skipped, [
         'CLAUDE.md reaches outside the project root; left as it is',
       ]);
       expect(plan.writeSet, {
-        File.fromUri(_at(base, 'proj/').uri.resolve(_agentMd)).path,
+        for (final path in [_agentMd, ...skillPaths()]) _real(base, path),
       });
       expect(agentFileDrifts(inputs), isEmpty);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
@@ -1233,8 +1430,10 @@ void main() {
         '.specstone/AGENT.md reaches outside the project root; left as it is',
         'CLAUDE.md lies under .git; left as it is',
       ]);
-      expect(_paths(plan), isEmpty);
-      expect(plan.writeSet, isEmpty);
+      expect(_paths(plan), skillPaths());
+      expect(plan.writeSet, {
+        for (final path in skillPaths()) _real(base, path),
+      });
       expect(agentFileDrifts(inputs), isEmpty);
     }, skip: Platform.isWindows ? 'symbolic links need a privilege' : null);
 
@@ -1275,7 +1474,7 @@ void main() {
           full: false,
         );
 
-        expect(_paths(plan), ['AGENTS.md']);
+        expect(_paths(plan), ['AGENTS.md', ...skillPaths('other/')]);
         expect(_writeAt(plan, 'AGENTS.md').text, 'Owner\n\n${_inline()}');
         expect(plan.addedRoots, ['other']);
       });

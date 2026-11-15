@@ -120,7 +120,8 @@ warn_unwritten() {
 }
 
 # Appends the line $2 to the file $1 unless a whole line already matches it,
-# and says so; a file whose last byte is not a newline gets one first.
+# and notes the file in the added_* list; a file whose last byte is not a
+# newline gets one first.
 add_path_line() {
   grep_status=0
   if [ -e "$1" ]; then
@@ -149,7 +150,28 @@ add_path_line() {
     warn_unwritten "$1" "$2"
     return 0
   fi
-  printf '%s\n' "Added ~/.specstone/bin to the PATH in $1. Open a new terminal to use specstone."
+  note_added "$1"
+}
+
+# Adds the file $1 to the files this run wrote: all but the last in added_head,
+# the last in added_last, so the note can join them without a list to split.
+note_added() {
+  if [ "$added_count" -gt 0 ]; then
+    added_head=${added_head:+$added_head, }$added_last
+  fi
+  added_last=$1
+  added_count=$((added_count + 1))
+}
+
+# Says which files this run wrote, as "a", "a and b", or "a, b, and c".
+say_added() {
+  case "$added_count" in
+    0) return 0 ;;
+    1) added_files=$added_last ;;
+    2) added_files="$added_head and $added_last" ;;
+    *) added_files="$added_head, and $added_last" ;;
+  esac
+  printf '%s\n' "Added ~/.specstone/bin to the PATH in $added_files. Open a new terminal to use specstone."
 }
 
 # Prints the file a macOS bash login shell reads first, or ~/.bash_profile when none exists.
@@ -163,14 +185,21 @@ bash_login_file() {
   printf '%s\n' "$home_dir/.bash_profile"
 }
 
-# Puts ~/.specstone/bin first on the PATH of new shells, once per profile file.
+# Puts ~/.specstone/bin first on the PATH of new shells, once per profile file:
+# the shell's own files, then ~/.profile, which every login shell can read.
 add_path_entry() {
   # shellcheck disable=SC2016  # the profile must hold a literal $HOME and $PATH
   posix_line='export PATH="$HOME/.specstone/bin:$PATH"'
   # shellcheck disable=SC2016  # same: the line is written unexpanded
   fish_line='set -gx PATH "$HOME/.specstone/bin" $PATH'
+  added_head=''
+  added_last=''
+  added_count=0
   case "${SHELL:-}" in
-    */zsh | zsh) add_path_line "$home_dir/.zshrc" "$posix_line" ;;
+    */zsh | zsh)
+      add_path_line "$home_dir/.zshrc" "$posix_line"
+      add_path_line "${ZDOTDIR:-$home_dir}/.zshenv" "$posix_line"
+      ;;
     */bash | bash)
       add_path_line "$home_dir/.bashrc" "$posix_line"
       if [ "$(uname -s)" = 'Darwin' ]; then
@@ -178,8 +207,9 @@ add_path_entry() {
       fi
       ;;
     */fish | fish) add_path_line "$home_dir/.config/fish/conf.d/specstone.fish" "$fish_line" ;;
-    *) add_path_line "$home_dir/.profile" "$posix_line" ;;
   esac
+  add_path_line "$home_dir/.profile" "$posix_line"
+  say_added
 }
 
 # Prints the first non-blank line of stdin without its trailing CR. Always succeeds.

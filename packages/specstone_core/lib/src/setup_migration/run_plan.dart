@@ -130,7 +130,8 @@ final class PlanLists {
   /// rewrites or cannot fully rewrite.
   final List<String> renumberIds;
 
-  /// The path from the project root of each agent file the run writes.
+  /// The path from the project root of each skill or agent file the run writes
+  /// and each it moves to the trash.
   final List<String> agentFiles;
 
   /// The DocPath of each doc the stamp pass leaves for its frontmatter.
@@ -323,9 +324,11 @@ final class RunPlan {
   /// Returns the journal steps that apply the plan on top of HEAD [base].
   ///
   /// Moves and prunes, commit 1 when any file moves, the writes and creates,
-  /// then commit 2. No step deletes a file. Commit 1 carries each move
-  /// once as a ProjectPath pair, its stage hops left out, so a tracked file
-  /// moved onto an ignored path still commits as a rename.
+  /// the moves of unshipped agent files to the trash, then commit 2. No step
+  /// deletes a file. Commit 1 carries each move once as a ProjectPath pair,
+  /// its stage hops left out, so a tracked file moved onto an ignored path
+  /// still commits as a rename. Commit 2 carries each file moved to the trash
+  /// from the project root, none from a repository top.
   ///
   /// An agent file reached through a symbolic link, of the file or of a folder
   /// above it, gets its step on the real path from [projectRoot], so the link
@@ -362,6 +365,7 @@ final class RunPlan {
       for (final write in agentFiles?.topWrites ?? const <AgentWrite>[])
         (write: write, path: _realPath(write.path, projectRoot)),
     ];
+    final trashed = _trashedEntries(projectRoot);
     final movedPaths = [
       for (final move in moves) ...[
         '$_docsPrefix${move.from}',
@@ -373,6 +377,8 @@ final class RunPlan {
       for (final create in creates) create.path,
       for (final (:write, :path) in agentWrites)
         if (!write.isAtTop) path,
+      for (final entry in trashed)
+        if (!entry.isAtTop) ...entry.files,
       specstoneGitignorePath,
     };
     return [
@@ -396,12 +402,53 @@ final class RunPlan {
           WriteStep(path, write.text, before: before)
         else
           CreateStep(path, write.text),
+      for (final entry in trashed)
+        MoveStep(entry.place, '${MoveJournal.trashPath}/files/${entry.place}'),
       CommitStep(
         message: commit2Message,
         paths: commit2Paths.toList(),
         base: base,
       ),
     ];
+  }
+
+  /// Returns each skill or agent entry the run moves to the trash: its place
+  /// and what a commit stages for it, from [projectRoot], and whether it lies
+  /// at a repository top.
+  ///
+  /// The entry's own place is staged too, as the path of a nested repository
+  /// the project repository tracks as one entry; for any other entry git
+  /// finds nothing at it and skips it.
+  ///
+  /// The place is the entry itself below its real folder, so a linked folder
+  /// above it is resolved and a link entry stays a link.
+  List<({String place, List<String> files, bool isAtTop})> _trashedEntries(
+    Directory projectRoot,
+  ) {
+    final plan = agentFiles;
+    if (plan == null) return const [];
+    return [
+      for (final entry in plan.trash)
+        (
+          place: _placeOf(entry, projectRoot),
+          files: [
+            _placeOf(entry, projectRoot),
+            for (final file in plan.trashFilesOf(entry))
+              '${_placeOf(entry, projectRoot)}${file.substring(entry.length)}',
+          ],
+          isAtTop: plan.topTrash.contains(entry),
+        ),
+    ];
+  }
+
+  /// Returns [path] with every symbolic link on its folders resolved, as a
+  /// `/`-separated path from [projectRoot]; the last name is kept as given.
+  static String _placeOf(String path, Directory projectRoot) {
+    final cut = path.lastIndexOf('/');
+    return cut < 0
+        ? path
+        : '${_realPath(path.substring(0, cut), projectRoot)}'
+              '${path.substring(cut)}';
   }
 
   /// Returns [path] with every symbolic link on it resolved, as a

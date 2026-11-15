@@ -4,35 +4,293 @@ import 'dart:io';
 import 'package:markdown/markdown.dart';
 import 'package:specstone/src/command_runner.dart';
 import 'package:specstone_core/specstone_core.dart';
+import 'package:specstone_core/src/setup_migration/host_render.dart';
+import 'package:yaml/yaml.dart';
 
 import 'package_root.dart';
 
 final _specstoneCall = RegExp(r'\bspecstone\s+(\S+)');
 final _skillName = RegExp(r'^([a-z0-9-]+):[a-z0-9-]+$');
 final _nonLatinLetter = RegExp(r'[^\P{L}\p{Script=Latin}]', unicode: true);
+final _claudeVariable = RegExp(r'\$\{CLAUDE_\w*\}?');
+final _relativeMarkdownPath = RegExp(
+  r'^(?:\.\.|\.|references|\.agents|\.claude|specstone-[\w-]+)(?:/[\w.-]+)+\.md$',
+);
+
+const _hostToolNames = {'Skill', 'Agent', 'Write', 'Edit', 'Read'};
+const _claudeSkillsFolder = '.claude/skills/';
+const _maxDescriptionLength = 1024;
+const _frontmatterFence = '---\n';
+const _frontmatterEndFence = '\n---\n';
+const _tomlBodyStart = 'developer_instructions = """\n';
+const _tomlBodyEnd = '"""';
 
 /// Returns the shipped plugin folder, two levels above the specstone package.
 Directory pluginRoot() =>
     Directory.fromUri(packageRoot().uri.resolve('../../plugin/'));
 
-/// Returns the problems in every CLI call that `.md` files under `skills/` and
-/// `agents/` of [plugin] name, sorted.
+/// Returns every file of the skill folders `specstone-<name>/` and the agent
+/// files `specstone-<name>.md` under [root], sorted by path.
+///
+/// Any other entry of [root], the `AGENT.md` asset among them, is left out.
+List<File> agentSourceFiles(Directory root) {
+  final files = <File>[];
+  for (final entity in root.listSync()) {
+    final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+    if (!name.startsWith('specstone-')) continue;
+    if (entity is Directory) {
+      files.addAll(entity.listSync(recursive: true).whereType<File>());
+    } else if (entity is File && name.endsWith('.md')) {
+      files.add(entity);
+    }
+  }
+  return files..sort((a, b) => a.path.compareTo(b.path));
+}
+
+/// Returns every shipped file, the skill and agent sources first and the
+/// plugin folder's files after them.
+List<File> shippedFiles() => [
+  ...agentSourceFiles(agentAssetsRoot()),
+  ...pluginRoot().listSync(recursive: true).whereType<File>(),
+];
+
+/// Returns the path of [file] below the folder it ships from, [agentAssetsRoot]
+/// or [pluginRoot], with `/` separators.
+String shippedPathOf(File file) {
+  final path = file.uri.toFilePath(windows: false);
+  for (final root in [agentAssetsRoot(), pluginRoot()]) {
+    if (path.startsWith(root.uri.toFilePath(windows: false))) {
+      return _relativePath(root, file);
+    }
+  }
+  throw ArgumentError('not a shipped file: $path');
+}
+
+/// Returns the folder that holds the skill and agent sources, beside the
+/// `AGENT.md` asset in the core package.
+Directory agentAssetsRoot() => Directory.fromUri(
+  packageRoot().uri.resolve('../specstone_core/assets/agent/'),
+);
+
+/// One skill or agent file as a host reads it, with `\n` line ends.
+///
+/// `path` runs from the folder the file sits in: below the sources folder for
+/// a source, from the project root for a render, with `/` separators.
+/// `frontmatter` is the text before `body`, its fences included, or null when
+/// the file has none; for a Codex TOML file it is everything before the
+/// `developer_instructions` value, and `body` is that value unescaped.
+typedef ContentFile = ({
+  String path,
+  String body,
+  String? frontmatter,
+  bool isSkillFile,
+});
+
+/// Returns the skill and agent sources and every host's render of them.
+List<ContentFile> contentFiles() => [
+  ...contentFilesOf(agentAssetsRoot()),
+  ...renderedContentFiles(renderHostFiles()),
+];
+
+/// Whether [path] of the skill and agent sources is a file in a skill folder.
+bool isSkillSourcePath(String path) => path.contains('/');
+
+/// Returns the files [agentSourceFiles] finds under [root], as sources.
+List<ContentFile> contentFilesOf(Directory root) => [
+  for (final file in agentSourceFiles(root))
+    _contentFile(
+      _relativePath(root, file),
+      file.readAsStringSync(),
+      isSkillFile: isSkillSourcePath(_relativePath(root, file)),
+    ),
+];
+
+/// Returns [rendered] as content files, a Codex TOML file read by its
+/// `developer_instructions` value.
+List<ContentFile> renderedContentFiles(List<RenderedFile> rendered) => [
+  for (final file in rendered)
+    _contentFile(
+      file.path,
+      file.text,
+      isSkillFile:
+          file.folder == AgentFolder.claudeSkills ||
+          file.folder == AgentFolder.agentsSkills,
+    ),
+];
+
+ContentFile _contentFile(
+  String path,
+  String rawText, {
+  required bool isSkillFile,
+}) {
+  final text = rawText.replaceAll('\r\n', '\n');
+  final (frontmatter, body) = switch (path) {
+    _ when path.endsWith('.toml') => _tomlParts(text),
+    _ when path.endsWith('.md') => _markdownParts(text),
+    _ => (null, text),
+  };
+  return (
+    path: path,
+    body: body,
+    frontmatter: frontmatter,
+    isSkillFile: isSkillFile,
+  );
+}
+
+(String?, String) _markdownParts(String text) {
+  final end = text.indexOf(_frontmatterEndFence);
+  if (!text.startsWith(_frontmatterFence) || end < 0) return (null, text);
+  final split = end + _frontmatterEndFence.length;
+  return (text.substring(0, split), text.substring(split));
+}
+
+(String?, String) _tomlParts(String text) {
+  final start = text.indexOf(_tomlBodyStart);
+  final end = text.lastIndexOf(_tomlBodyEnd);
+  if (start < 0 || end < start) return (null, text);
+  final bodyStart = start + _tomlBodyStart.length;
+  return (
+    text.substring(0, bodyStart),
+    _tomlUnescape(text.substring(bodyStart, end)),
+  );
+}
+
+String _tomlUnescape(String value) => value.replaceAllMapped(
+  RegExp(r'\\(?:u([0-9a-fA-F]{4})|(.))', dotAll: true),
+  (match) => match[1] != null
+      ? String.fromCharCode(int.parse(match[1]!, radix: 16))
+      : match[2]!,
+);
+
+String _textOf(ContentFile file) => '${file.frontmatter ?? ''}${file.body}';
+
+/// Returns the problems in every CLI call that `.md` and `.toml` files of
+/// [files] name, sorted.
 ///
 /// Scans inline code spans and code block lines. A `specstone <word>` must
 /// name a command of [runner], then one of its subcommands when it has any;
 /// each `--flag` after it must be an option of that command or `help`.
-List<String> unknownCliNames(Directory plugin, SpecstoneCommandRunner runner) {
+List<String> unknownCliNames(
+  List<ContentFile> files,
+  SpecstoneCommandRunner runner,
+) {
   final problems = <String>{};
-  for (final file in _markdownFiles(plugin)) {
-    final path = _relativePath(plugin, file);
-    for (final scanned in _codeTexts(file.readAsStringSync())) {
+  for (final file in _markdownFiles(files)) {
+    for (final scanned in _codeTexts(_textOf(file))) {
       for (final call in _specstoneCall.allMatches(scanned)) {
         final problem = _problemOf(runner, scanned, call);
-        if (problem != null) problems.add('$path: $problem');
+        if (problem != null) problems.add('${file.path}: $problem');
       }
     }
   }
   return problems.toList()..sort();
+}
+
+/// Returns one problem per host-tied text in the body of a file of [files],
+/// sorted.
+///
+/// Host-tied text is a `${CLAUDE_` variable, a `.claude/skills/` path in a file
+/// outside `.claude/`, or an inline code span that is a host's tool name:
+/// `Skill`, `Agent`, `Write`, `Edit`, or `Read`. Frontmatter is never read.
+List<String> hostTiedText(List<ContentFile> files) {
+  final problems = <String>{};
+  for (final file in files) {
+    for (final variable in _claudeVariable.allMatches(file.body)) {
+      problems.add('${file.path}: ${variable[0]}');
+    }
+    if (!file.path.startsWith('.claude/') &&
+        file.body.contains(_claudeSkillsFolder)) {
+      problems.add('${file.path}: $_claudeSkillsFolder');
+    }
+    for (final span in _inlineSpans(file.body)) {
+      if (_hostToolNames.contains(span)) problems.add('${file.path}: `$span`');
+    }
+  }
+  return problems.toList()..sort();
+}
+
+/// Returns one problem per `SKILL.md` of [files] whose `name` differs from its
+/// folder or whose `description` passes 1,024 characters, sorted.
+List<String> skillHeadProblems(List<ContentFile> files) {
+  final problems = <String>[];
+  for (final file in files) {
+    final segments = file.path.split('/');
+    if (!file.isSkillFile || segments.last != 'SKILL.md') continue;
+    final folder = segments[segments.length - 2];
+    final head = _headOf(file);
+    final name = head?['name'];
+    if (name != folder) {
+      problems.add(
+        name == null
+            ? '${file.path}: no name'
+            : '${file.path}: name $name is not $folder',
+      );
+    }
+    final length = '${head?['description'] ?? ''}'.runes.length;
+    if (length > _maxDescriptionLength) {
+      problems.add(
+        '${file.path}: description is $length characters, over '
+        '$_maxDescriptionLength',
+      );
+    }
+  }
+  return problems..sort();
+}
+
+YamlMap? _headOf(ContentFile file) {
+  final frontmatter = file.frontmatter;
+  if (frontmatter == null) return null;
+  final inner = frontmatter.substring(
+    _frontmatterFence.length,
+    frontmatter.length - _frontmatterEndFence.length,
+  );
+  final head = loadYaml(inner);
+  return head is YamlMap ? head : null;
+}
+
+/// Returns one problem per backticked relative `.md` path in a render of
+/// [files] that names no file of [files], sorted.
+///
+/// A path is read from the folder of a skill file, or from the project root in
+/// an agent file. A sources folder holds its agents beside its skills, so
+/// only renders are read. A span is a path only when its first segment is
+/// `..`, `.`, `references`, `.agents`, `.claude`, or a `specstone-*` folder:
+/// a project doc path such as `specs/x.md` is never read.
+List<String> unresolvedPaths(List<ContentFile> files) {
+  final known = {for (final file in files) file.path};
+  final problems = <String>{};
+  for (final file in files.where(_isRender)) {
+    final folder = file.isSkillFile
+        ? file.path.substring(0, file.path.lastIndexOf('/'))
+        : '';
+    for (final span in _inlineSpans(_textOf(file))) {
+      if (!_relativeMarkdownPath.hasMatch(span)) continue;
+      if (!known.contains(_joined(folder, span))) {
+        problems.add('${file.path}: $span names no rendered file');
+      }
+    }
+  }
+  return problems.toList()..sort();
+}
+
+bool _isRender(ContentFile file) =>
+    AgentFolder.values.any((folder) => file.path.startsWith('${folder.path}/'));
+
+/// Returns [relative] from [folder] with `.` and `..` resolved, or null when
+/// it climbs out of the root.
+String? _joined(String folder, String relative) {
+  final segments = <String>[
+    ...folder.split('/').where((segment) => segment.isNotEmpty),
+  ];
+  for (final segment in relative.split('/')) {
+    if (segment == '..') {
+      if (segments.isEmpty) return null;
+      segments.removeLast();
+    } else if (segment != '.') {
+      segments.add(segment);
+    }
+  }
+  return segments.join('/');
 }
 
 /// Returns the word after every `specstone ` in the code spans and code block
@@ -60,87 +318,69 @@ Set<String> shippedDocTypes() {
   }
 }
 
-/// Returns one problem per inline code span in a `.md` file under `skills/` and
-/// `agents/` of [plugin] that names another plugin's skill, sorted.
+/// Returns one problem per inline code span in a `.md` or `.toml` file of
+/// [files] that names another plugin's skill, sorted.
 ///
 /// A span names a skill when its whole text is `<prefix>:<name>`, two words of
-/// lowercase letters, digits, and hyphens, and the prefix is neither
-/// `specstone` nor in [docTypes]. Code blocks are never read: they hold whole
-/// commands.
-List<String> otherPluginSkillNames(Directory plugin, Set<String> docTypes) {
+/// lowercase letters, digits, and hyphens, and the prefix is not in
+/// [docTypes]. Code blocks are never read: they hold whole commands.
+List<String> otherPluginSkillNames(
+  List<ContentFile> files,
+  Set<String> docTypes,
+) {
   final problems = <String>{};
-  for (final file in _markdownFiles(plugin)) {
-    final path = _relativePath(plugin, file);
-    for (final span in _inlineSpans(file.readAsStringSync())) {
+  for (final file in _markdownFiles(files)) {
+    for (final span in _inlineSpans(_textOf(file))) {
       final prefix = _skillName.firstMatch(span)?.group(1);
-      if (prefix == null ||
-          prefix == 'specstone' ||
-          docTypes.contains(prefix)) {
-        continue;
-      }
-      problems.add("$path: $span is another plugin's skill");
+      if (prefix == null || docTypes.contains(prefix)) continue;
+      problems.add("${file.path}: $span is another plugin's skill");
     }
   }
   return problems.toList()..sort();
 }
 
-int _codePointsOf(File file) =>
-    file.readAsStringSync().replaceAll('\r\n', '\n').runes.length;
-
-/// Returns one problem per file under `skills/` of [plugin] over [limit]
-/// estimated tokens, each file sized alone, sorted; empty when the folder is
-/// absent. Agent files are never sized.
+/// Returns one problem per file of a skill in [files] over [limit] estimated
+/// tokens, each file sized alone, sorted. Agent files are never sized.
 ///
-/// A file's estimated tokens are its code points, with `\r\n` folded to `\n`,
-/// divided by 4 and rounded down.
-List<String> oversizedSkillFiles(Directory plugin, {int limit = 1500}) {
-  final skills = Directory.fromUri(plugin.uri.resolve('skills/'));
-  if (!skills.existsSync()) return [];
+/// A file's estimated tokens are its code points divided by 4 and rounded
+/// down.
+List<String> oversizedSkillFiles(List<ContentFile> files, {int limit = 1500}) {
   final problems = <String>[];
-  for (final file in skills.listSync(recursive: true).whereType<File>()) {
-    final tokens = _codePointsOf(file) ~/ 4;
+  for (final file in files.where((file) => file.isSkillFile)) {
+    final tokens = _textOf(file).runes.length ~/ 4;
     if (tokens > limit) {
-      problems.add(
-        '${_relativePath(plugin, file)}: $tokens est. tokens, over $limit',
-      );
+      problems.add('${file.path}: $tokens est. tokens, over $limit');
     }
   }
   return problems..sort();
 }
 
-/// Returns `<file>:<line>` for each line of a file under [plugin] that holds
-/// a letter outside the Latin script, sorted.
+/// Returns `<file>:<line>` for each line of a file under [root] that holds a
+/// letter outside the Latin script, sorted.
 ///
 /// The plugin is written in English; the agent speaks the Owner's language, so
 /// a label in another script presumes one Owner's language.
-List<String> nonLatinLetterLines(Directory plugin) {
+List<String> nonLatinLetterLines(Directory root) {
   final problems = <String>[];
-  for (final file in plugin.listSync(recursive: true).whereType<File>()) {
+  for (final file in root.listSync(recursive: true).whereType<File>()) {
     final lines = file.readAsLinesSync();
     for (var index = 0; index < lines.length; index++) {
       if (_nonLatinLetter.hasMatch(lines[index])) {
-        problems.add('${_relativePath(plugin, file)}:${index + 1}');
+        problems.add('${_relativePath(root, file)}:${index + 1}');
       }
     }
   }
   return problems..sort();
 }
 
-Iterable<File> _markdownFiles(Directory plugin) sync* {
-  for (final top in const ['skills', 'agents']) {
-    final folder = Directory.fromUri(plugin.uri.resolve('$top/'));
-    if (!folder.existsSync()) continue;
-    yield* folder
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((file) => file.path.endsWith('.md'));
-  }
-}
+Iterable<ContentFile> _markdownFiles(List<ContentFile> files) => files.where(
+  (file) => file.path.endsWith('.md') || file.path.endsWith('.toml'),
+);
 
-String _relativePath(Directory plugin, FileSystemEntity entity) {
+String _relativePath(Directory root, FileSystemEntity entity) {
   final path = entity.uri
       .toFilePath(windows: false)
-      .substring(plugin.uri.toFilePath(windows: false).length);
+      .substring(root.uri.toFilePath(windows: false).length);
   return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 }
 

@@ -19,6 +19,8 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show skillFolderOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -190,11 +192,13 @@ AgentWritePlan _planAgentFiles(Directory root, MergedSet set) {
   );
 }
 
-/// Writes each file of [plan] and prints `created <path>` or `updated <path>`.
+/// Writes each file of [plan] and prints `created <path>` or `updated <path>`,
+/// then one `created <folder>: <n> files` line per skill or agent folder.
 ///
 /// A symbolic-link instruction file is written through to its target, so the
 /// path stays a link.
 void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
+  final counts = <String, int>{};
   for (final write in [...plan.rootWrites, ...plan.topWrites]) {
     _writeNew(
       root,
@@ -203,7 +207,15 @@ void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
       shown: write.path,
       followLink: true,
     );
-    out.writeln('${write.isNew ? 'created' : 'updated'} ${write.path}');
+    final folder = skillFolderOf(write.path);
+    if (folder == null) {
+      out.writeln('${write.isNew ? 'created' : 'updated'} ${write.path}');
+    } else {
+      counts.update(folder, (count) => count + 1, ifAbsent: () => 1);
+    }
+  }
+  for (final MapEntry(:key, :value) in counts.entries) {
+    out.writeln('created $key: $value files');
   }
 }
 

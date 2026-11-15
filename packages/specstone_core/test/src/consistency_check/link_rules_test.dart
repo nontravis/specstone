@@ -796,7 +796,8 @@ void main() {
         await writeCheckProject(
           extra: featureWriting(
             'see `shop/checkout`, `architecture:shop`, `origin/develop`, '
-            '`specstone:init`, `user_id`, and `check architecture:login`.',
+            '`superpowers:writing-plans`, `user_id`, and '
+            '`check architecture:login`.',
           ),
         ),
       );
