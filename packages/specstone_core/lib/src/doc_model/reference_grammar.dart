@@ -171,6 +171,16 @@ IdRead? readItemIdAt(String text, int at, String prefix) {
   return _readIdAt(text, prefix, at + prefix.length);
 }
 
+/// Reads the ID at the start of [text] that carries no declared prefix: the
+/// letters and hyphens before its first digit, after one optional `**`, are
+/// the prefix; null when [text] opens with no such prefix and digit.
+IdRead? readItemIdOfWrittenPrefix(String text) {
+  final prefix = _writtenPrefix.firstMatch(text)?.group(1);
+  return prefix == null ? null : readItemId(text, prefix);
+}
+
+final _writtenPrefix = RegExp(r'^(?:\*\*)?([A-Za-z][A-Za-z-]*)\d');
+
 /// Returns each item ID of [prefixes] written in [prose], in order, with its
 /// offset.
 ///

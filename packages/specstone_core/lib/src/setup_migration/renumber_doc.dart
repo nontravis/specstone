@@ -17,7 +17,6 @@ const frTypeId = 'fr';
 const statementSectionId = 'statement';
 
 const _scenarioRefPrefix = 'S';
-const _statementPrefix = '- **Statement:**';
 
 // MARK: - Types
 
@@ -89,14 +88,21 @@ final class RenumberDoc {
 
   /// The first unfenced `- **Statement:**` line of [item], trimmed, as
   /// `check` fingerprints an NFR; empty without one.
-  String statementOf(IdAt item) {
-    for (var line = item.line; line <= item.endLine; line++) {
-      if (content.lineFacts.isFenced(line)) continue;
-      final text = lines[line - 1].trim();
-      if (text.startsWith(_statementPrefix)) return text;
-    }
-    return '';
-  }
+  String statementOf(IdAt item) => nfrStatementOf([
+    for (var line = item.line; line <= item.endLine; line++)
+      (
+        text: lines[line - 1],
+        line: line,
+        fenced: content.lineFacts.isFenced(line),
+      ),
+  ]);
+
+  /// The Statement of each NFR block of a gnfr doc's held sections with no
+  /// `prefix_id`, keyed by the ID the grammar reads at its `###` heading, as
+  /// `check` keys it; empty for any other doc.
+  late final Map<String, String> unprefixedNfrStatements = type.id == gnfrTypeId
+      ? _unprefixedNfrStatementsOf()
+      : const {};
 
   /// The body of the held `statement` section, as `check` fingerprints an
   /// FR; null without one.
@@ -137,6 +143,24 @@ final class RenumberDoc {
           if (next[index] case final to?)
             (docPath: docPath, item: item, from: id.written, to: to),
     ];
+  }
+
+  Map<String, String> _unprefixedNfrStatementsOf() {
+    final statements = <String, String>{};
+    for (final (i, template) in heldTemplatesOf(
+      content.sections,
+      type,
+    ).indexed) {
+      if (template == null || template.prefixId != null) continue;
+      final body = sectionBodyLines(content.sections, content.lineFacts, i);
+      for (final (:key, :lines) in headingBlocksOf(
+        body,
+        (heading) => itemHeadingKeyOf(heading, null),
+      )) {
+        statements.putIfAbsent(key, () => nfrStatementOf(lines));
+      }
+    }
+    return statements;
   }
 
   Map<String, String> _scenarioBlocksOf() {

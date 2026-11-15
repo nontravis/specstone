@@ -17,6 +17,8 @@ const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _draftFrPath = 'prds/features/f01_a/us01_b/fr02_d.md';
 const _notesPath = 'notes/free.md';
 const _recordPath = 'specs/f01_a/IMPLEMENTATION.md';
+const _gnfrPath = 'prds/GNFR.md';
+const _nfPath = 'prds/features/f01_a/us01_b/nf01_d.md';
 
 const _one = '### Scenario 1 — [happy] one\n\n- **Given** g';
 const _lettered = '### Scenario 6a — [edge] lettered\n- **Given** g\n';
@@ -375,6 +377,42 @@ void main() {
       final type = _typeAt(_frPath);
       expect(stamped, contains('approved: "${_hashOf(stamped, type)}"'));
       expect(_hashOf(stamped, type), isNot(_hashOf(after[_frPath]!, type)));
+    });
+
+    test('an entry naming an NFR of a gnfr section with no prefix_id takes the '
+        'fingerprint of its Statement', () {
+      const statement = '- **Statement:** The tool shall pass WCAG 2.2 AA.';
+      const reworded = '- **Statement:** The tool shall pass WCAG 2.2 AAA.';
+      String gnfr(String text) =>
+          '# GNFR\n\n## Usability\n\n### NFR-U01 — WCAG\n$text\n';
+      final shipped = _typeAt(_gnfrPath)!;
+      final type = shipped.copyWith(
+        sections: [
+          ...shipped.sections,
+          const MergedSection(id: 'usability', header: 'Usability'),
+        ],
+      );
+      final nf =
+          '---\nkind: tighten\noverrides: NFR-U01\nconfirmed:\n'
+          '  - NFR-U01 ${fingerprintOf(statement)}\n---\n# D\n';
+      StampDoc doc(String path, String lf) => (
+        docPath: path,
+        lf: lf,
+        type: path == _gnfrPath ? type : _typeAt(path),
+      );
+
+      final pass = StampPass.plan(
+        [doc(_gnfrPath, gnfr(statement)), doc(_nfPath, nf)],
+        [doc(_gnfrPath, gnfr(reworded)), doc(_nfPath, nf)],
+        pins: _belowBoth,
+        pinsAfter: _belowBoth,
+        restampsFingerprints: true,
+      );
+
+      expect(
+        pass.apply(_nfPath, nf),
+        contains('  - NFR-U01 ${fingerprintOf(reworded)}\n'),
+      );
     });
 
     test('an entry naming a block the run lacks is left as written', () {

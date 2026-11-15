@@ -9,7 +9,6 @@ import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
-import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show normalCodeEntry;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -364,7 +363,7 @@ final class CheckContext {
       if (prefix == null && !isGnfr) continue;
       yield* headingBlocksOf(
         bodyLinesOf(doc, i),
-        (heading) => _itemKeyOf(heading, prefix),
+        (heading) => itemHeadingKeyOf(heading, prefix),
       );
     }
   }
@@ -386,14 +385,9 @@ final class CheckContext {
     for (final doc in index.docs) {
       if (doc.docTypeId != _gnfrType) continue;
       for (final (:key, :lines) in _itemHeadingBlocksOf(doc)) {
-        final statement = lines
-            .where((line) => !line.fenced)
-            .map((line) => line.text.trim())
-            .where((text) => text.startsWith(_statementPrefix))
-            .firstOrNull;
         statements.putIfAbsent(
           key,
-          () => (path: doc.docPath, text: statement ?? ''),
+          () => (path: doc.docPath, text: nfrStatementOf(lines)),
         );
       }
     }
@@ -464,19 +458,3 @@ final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
-const _statementPrefix = '- **Statement:**';
-
-/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
-/// other heading, a lettered ID, and an unreadable ID.
-///
-/// A null [prefix] reads the letters and hyphens before the first digit.
-String? _itemKeyOf(String heading, String? prefix) {
-  final text = itemHeadingTextOf(heading);
-  if (text == null) return null;
-  final own = prefix ?? _writtenPrefix.firstMatch(text)?.group(1);
-  final id = own == null ? null : readItemId(text, own);
-  return id is ItemId ? id.written : null;
-}
-
-/// The letters and hyphens that open an item heading, ahead of its digits.
-final _writtenPrefix = RegExp(r'^(?:\*\*)?([A-Za-z][A-Za-z-]*)\d');
