@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_prune.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
@@ -57,14 +58,19 @@ String bundleFileName({
   return '$named.$modePart$targetPart.txt';
 }
 
-/// Returns the file a bare `--out` writes: [name] under the project root's
-/// `.specstone/bundles/`.
-File bareBundleFile(Directory projectRoot, String name) {
+/// Returns the folder under [projectRoot] that holds the files a bare `--out`
+/// writes.
+Directory bundlesFolderOf(Directory projectRoot) {
   final separator = Platform.pathSeparator;
-  return File(
-    '${projectRoot.path}$separator.specstone${separator}bundles$separator$name',
+  return Directory(
+    '${projectRoot.path}$separator.specstone${separator}bundles',
   );
 }
+
+/// Returns the file a bare `--out` writes: [name] under the project root's
+/// `.specstone/bundles/`.
+File bareBundleFile(Directory projectRoot, String name) =>
+    File('${bundlesFolderOf(projectRoot).path}${Platform.pathSeparator}$name');
 
 /// Returns the refs file of the read-first file at [path]: `.refs` before the
 /// extension of its name, or at its end when the name has none.
@@ -85,11 +91,12 @@ int _nameStartOf(String path) {
 // MARK: - Write
 
 /// Writes [answer]'s bundle text to [file], and its refs text to the refs file
-/// beside it when the answer is split.
+/// beside it when the answer is split, then prunes old bundle files.
 ///
 /// The reply names each file by its canonical path. Throws
 /// `output_not_writable` for a path [requireOutPath] refuses, judged for both
-/// files before either is written, or for a write that fails.
+/// files before either is written, or for a write that fails; a call that
+/// throws prunes nothing.
 ReadAnswer answerBundleFile(
   ContextAnswer answer,
   File file, {
@@ -112,6 +119,11 @@ ReadAnswer answerBundleFile(
   for (final MapEntry(key: path, value: text) in writes.entries) {
     writeBuildOutput(File(path), utf8.encode(text), displayPath: path);
   }
+  pruneBundles(
+    Directory(canonicalPath(bundlesFolderOf(project.projectRoot).path)),
+    keep: writes.keys.toSet(),
+    now: DateTime.now(),
+  );
   return ReadAnswer(
     text: bundleIndex(answer, shownPath, refsPath: refsPath),
     json: bundleIndexJson(answer, shownPath, refsPath: refsPath),

@@ -1624,6 +1624,119 @@ void main() {
     });
   });
 
+  group('context --out prunes old bundle files', () {
+    const story = 'login/email_login';
+    final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
+
+    /// Writes [path] under [project], two days old, and returns it.
+    File aged(Directory project, String path) {
+      final file = File('${project.path}/$path')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('old\n')
+        ..setLastModifiedSync(twoDaysAgo);
+      return file;
+    }
+
+    Future<(int, String)> run(Directory project, List<String> args) async {
+      final result = readRunner(project);
+      final status = await result.runner.run(args);
+      return (status, result.out.toString());
+    }
+
+    test('an aged file under bundles/, a subfolder included, is gone; reports/ and a fresh file stay; stdout is unchanged', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      final nested = aged(project, '.specstone/bundles/sub/old.txt');
+      final report = aged(project, '.specstone/reports/old.txt');
+      final fresh = File('${project.path}/.specstone/bundles/fresh.txt')
+        ..writeAsStringSync('fresh\n');
+      final args = ['context', story, '--for', 'implement', '--out'];
+      final (status, first) = await run(project, args);
+      expect(status, 0);
+      expect(old.existsSync(), isFalse);
+      expect(nested.existsSync(), isFalse);
+      expect(nested.parent.existsSync(), isTrue);
+      expect(report.existsSync(), isTrue);
+      expect(fresh.existsSync(), isTrue);
+      expect(first, isNot(contains('old.txt')));
+      expect((await run(project, args)).$2, first);
+      for (final name in [
+        'login-email_login.implement',
+        'login-email_login.implement.refs',
+      ]) {
+        expect(
+          File('${project.path}/.specstone/bundles/$name.txt').existsSync(),
+          isTrue,
+        );
+      }
+    });
+
+    test('an --out <path> run prunes the bundles folder too', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      final (status, _) = await run(project, [
+        'context',
+        story,
+        '--for',
+        'implement',
+        '--out',
+        'out/b.txt',
+      ]);
+      expect(status, 0);
+      expect(old.existsSync(), isFalse);
+    });
+
+    test(
+      'a project with no bundles folder exits 0 with an --out path',
+      () async {
+        final project = await writeReadProject();
+        final (status, _) = await run(project, [
+          'context',
+          story,
+          '--for',
+          'implement',
+          '--out',
+          'out/b.txt',
+        ]);
+        expect(status, 0);
+        expect(File('${project.path}/out/b.txt').existsSync(), isTrue);
+      },
+    );
+
+    test('a refused context --out prunes nothing', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      for (final args in [
+        ['--out', 'docs/prds/b.txt'],
+        ['--out', ''],
+        ['--out', '--budget', '10'],
+      ]) {
+        final (status, _) = await run(project, [
+          'context',
+          story,
+          '--for',
+          'implement',
+          ...args,
+        ]);
+        expect(status, anyOf(64, 73), reason: '$args');
+        expect(old.existsSync(), isTrue, reason: '$args');
+      }
+    });
+
+    test('get --out, and context with no --out, prune nothing', () async {
+      final project = await writeReadProject();
+      final old = aged(project, '.specstone/bundles/old.txt');
+      for (final args in [
+        ['get', story, '--out'],
+        ['context', story, '--for', 'implement'],
+      ]) {
+        final (status, _) = await run(project, args);
+        expect(status, 0, reason: '$args');
+        expect(old.existsSync(), isTrue, reason: '$args');
+      }
+    });
+  });
+
   group('the over-budget next step names --out', () {
     test('without --summary', () async {
       final project = await writeReadProject();
