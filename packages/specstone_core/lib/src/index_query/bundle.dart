@@ -288,9 +288,9 @@ int Function(IndexedDoc, IndexedDoc) _compareSiblings(DocIndex index) =>
 /// Returns the bundle [target] holds for [mode].
 ///
 /// `--no-project` drops the docs that join through `bundle:` lists. [summary]
-/// prints a top doc's ChainType children in summary and throws
-/// `argument_conflict` outside `BundleMode.design`. [codeTarget] keeps the
-/// per-target docs of that code target alone and is required for
+/// prints the ChainType children of a top doc or a nested feature in summary
+/// and throws `argument_conflict` outside `BundleMode.design`. [codeTarget]
+/// keeps the per-target docs of that code target alone and is required for
 /// `BundleMode.implement` with two or more targets.
 Bundle pickBundle(
   DocIndex index,
@@ -330,11 +330,11 @@ Bundle pickBundle(
       : resolved;
   if (summary) {
     for (final doc in picked) {
-      if (index.parentOf(doc) != null || index.childrenOf(doc).isEmpty) {
+      if (!_takesSummary(index, doc)) {
         throw IndexFault(
           IndexFaultCode.argumentConflict,
-          '--summary takes a doc with children and no parent, such as a '
-          'feature; ${nameWithType(doc)} is not one',
+          '--summary takes a doc with children, such as a feature; '
+          '${nameWithType(doc)} is not one',
         );
       }
     }
@@ -347,6 +347,11 @@ Bundle pickBundle(
   bundle.join(index, noProject: noProject);
   return bundle;
 }
+
+/// Whether [doc] has children and is a top doc or a doc of the nesting type.
+bool _takesSummary(DocIndex index, IndexedDoc doc) =>
+    index.childrenOf(doc).isNotEmpty &&
+    (index.parentOf(doc) == null || doc.docTypeId == index.set.nestingType?.id);
 
 /// Throws `argument_missing` for an implement bundle over two or more code
 /// targets with none picked.

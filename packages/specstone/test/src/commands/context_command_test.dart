@@ -120,7 +120,7 @@ void main() {
       );
       expect(
         r.err.toString(),
-        '--summary takes a doc with children and no parent, such as a feature; login/email_login (user_story) is not one\n',
+        '--summary takes a doc with children, such as a feature; login/email_login (user_story) is not one\n',
       );
     },
   );
@@ -264,6 +264,31 @@ void main() {
       ),
     );
   });
+  test(
+    'context --summary on a sub-feature prints its stories in summary',
+    () async {
+      final (:runner, :out, :err) = readRunner(await writeNestedProject());
+      expect(
+        await runner.run([
+          'context',
+          'shop/cart',
+          '--for',
+          'design',
+          '--summary',
+        ]),
+        0,
+      );
+      expect(
+        out.toString(),
+        contains('- shop/cart/add_item (user_story) · summary\n'),
+      );
+      expect(
+        out.toString(),
+        contains('- shop/cart/drop_item (user_story) · summary\n'),
+      );
+      expect(out.toString(), isNot(contains('shop/pay/card')));
+    },
+  );
 
   test(
     'a design bundle keeps a line whose code span holds an HTML comment',
