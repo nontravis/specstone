@@ -702,4 +702,100 @@ void main() {
       );
     });
   });
+
+  group('when_field', () {
+    const layerPath = '.specstone/templates/fr.yaml';
+    String layer(String values) =>
+        'sections:\n  - id: input_output\n    required: true\n'
+        '    when_field: {field: verify_method, values: [$values]}\n';
+    final withSection = fr(
+      '## Edge cases',
+      '## Input / Output\n\nA password.\n\n## Edge cases',
+    );
+
+    List<Finding> found(Directory project, FindingKind kind) => [
+      for (final f in checkOf(project).findings)
+        if (f.kind == kind) f,
+    ];
+
+    test('a doc whose field holds a value lacking the section reports it '
+        'missing', () async {
+      final project = await writeCheckProject(
+        extra: {layerPath: layer('test')},
+      );
+      final missing = found(project, FindingKind.requiredSectionMissing);
+      expect(missing, hasLength(1));
+      expect(missing.single.toJson(), containsPair('section', 'input_output'));
+      expect(missing.single.line, 1);
+    });
+
+    test('a doc whose field holds none of the values lacking the section has '
+        'no finding', () async {
+      final project = await writeCheckProject(
+        extra: {layerPath: layer('demo')},
+      );
+      expect(found(project, FindingKind.requiredSectionMissing), isEmpty);
+    });
+
+    test('a doc whose field holds none of the values and the section reports '
+        'it at its header', () async {
+      final project = await writeCheckProject(
+        extra: {layerPath: layer('demo'), ...withSection},
+      );
+      final outside = found(project, FindingKind.sectionOutsideFieldValue);
+      expect(outside, hasLength(1));
+      expect(
+        outside.single.line,
+        File('${project.path}/docs/$loginFr')
+                .readAsLinesSync()
+                .indexWhere((line) => line == '## Input / Output') +
+            1,
+      );
+      expect(outside.single.toJson(), containsPair('section', 'input_output'));
+      expect(outside.single.waitsFor, WaitsFor.agent);
+    });
+
+    test('a doc whose field is unset counts as outside the values', () async {
+      final project = await writeCheckProject(
+        extra: {
+          layerPath: layer('test'),
+          ...edit(loginFr, [
+            ('verify_method: test\n', ''),
+            (
+              '## Edge cases',
+              '## Input / Output\n\nA password.\n\n## Edge cases',
+            ),
+          ]),
+        },
+      );
+      expect(
+        found(project, FindingKind.sectionOutsideFieldValue),
+        hasLength(1),
+      );
+      expect(
+        found(
+          project,
+          FindingKind.requiredSectionMissing,
+        ).where((f) => f.toJson()['section'] == 'input_output'),
+        isEmpty,
+      );
+    });
+
+    test(
+      'a doc whose field holds a value and the section has no finding',
+      () async {
+        final project = await writeCheckProject(
+          extra: {layerPath: layer('test'), ...withSection},
+        );
+        expect(found(project, FindingKind.sectionOutsideFieldValue), isEmpty);
+        expect(
+          found(
+            project,
+            FindingKind.requiredSectionMissing,
+          ).where((f) => f.toJson()['section'] == 'input_output'),
+          isEmpty,
+        );
+      },
+    );
+  });
 }
