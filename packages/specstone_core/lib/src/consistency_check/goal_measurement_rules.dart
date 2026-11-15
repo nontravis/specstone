@@ -30,10 +30,9 @@ final _goalLinksOf = Expando<_GoalLinks>();
 /// Returns the findings of a project or measurement [doc] that join a goal to
 /// its measurement.
 ///
-/// A project goal needs one measurement whose head links it, and each
-/// measurement head needs one goal link. A goal whose Metric link names a
-/// measurement that does not link it is a mismatch. Runs only when the merged
-/// set holds the project and measurement doc types.
+/// A goal needs one measurement whose head links it, and a head needs one goal
+/// link. A Metric link to a measurement that does not link the goal is a
+/// mismatch. Runs only when the merged set holds both doc types.
 Iterable<Finding> checkGoalMeasurements(
   CheckContext context,
   IndexedDoc doc,
@@ -51,14 +50,7 @@ _GoalLinks _linksOf(CheckContext context) =>
     _goalLinksOf[context] ??= _readGoalLinks(context);
 
 _GoalLinks _readGoalLinks(CheckContext context) {
-  final goals = <_Goal, List<BodyLine>>{};
-  for (final project in context.index.docs) {
-    if (project.docTypeId != _projectType) continue;
-    for (final (:key, :lines) in _goalBlocksOf(context, project)) {
-      goals[(docPath: project.docPath, line: lines.first.line, key: key)] =
-          lines;
-    }
-  }
+  final goals = _goalsOf(context);
   final goalsOfMeasurement = <String, List<_Goal>>{};
   final measurementsOfGoal = <_Goal, List<IndexedDoc>>{};
   for (final measurement in context.index.docs) {
@@ -75,6 +67,13 @@ _GoalLinks _readGoalLinks(CheckContext context) {
     measurementsOfGoal: measurementsOfGoal,
   );
 }
+
+Map<_Goal, List<BodyLine>> _goalsOf(CheckContext context) => {
+  for (final project in context.index.docs)
+    if (project.docTypeId == _projectType)
+      for (final (:key, :lines) in _goalBlocksOf(context, project))
+        (docPath: project.docPath, line: lines.first.line, key: key): lines,
+};
 
 List<({String key, List<BodyLine> lines})> _goalBlocksOf(
   CheckContext context,
@@ -130,26 +129,35 @@ Iterable<Finding> _goalFindings(CheckContext context, IndexedDoc doc) sync* {
   for (final MapEntry(key: goal, value: lines) in links.goals.entries) {
     if (goal.docPath != doc.docPath) continue;
     final named = links.measurementsOfGoal[goal] ?? const <IndexedDoc>[];
-    if (named.isEmpty) {
-      yield context.finding(
-        doc,
-        FindingKind.goalMeasurementMissing,
-        line: goal.line,
-        message: '${goal.key} is linked by no measurement head',
-        keys: {'goal': goal.key},
-      );
-    } else if (named.length > 1) {
-      yield context.finding(
-        doc,
-        FindingKind.goalMeasurementDuplicate,
-        line: goal.line,
-        message:
-            '${goal.key} is linked by ${named.length} measurements: '
-            '${_namesOf(named)}',
-        keys: {'goal': goal.key},
-      );
-    }
+    yield* _coverageFinding(context, doc, goal, named);
     yield* _metricMismatch(context, doc, goal, lines);
+  }
+}
+
+Iterable<Finding> _coverageFinding(
+  CheckContext context,
+  IndexedDoc doc,
+  _Goal goal,
+  List<IndexedDoc> named,
+) sync* {
+  if (named.isEmpty) {
+    yield context.finding(
+      doc,
+      FindingKind.goalMeasurementMissing,
+      line: goal.line,
+      message: '${goal.key} is linked by no measurement head',
+      keys: {'goal': goal.key},
+    );
+  } else if (named.length > 1) {
+    yield context.finding(
+      doc,
+      FindingKind.goalMeasurementDuplicate,
+      line: goal.line,
+      message:
+          '${goal.key} is linked by ${named.length} measurements: '
+          '${_namesOf(named)}',
+      keys: {'goal': goal.key},
+    );
   }
 }
 
@@ -159,22 +167,9 @@ Iterable<Finding> _metricMismatch(
   _Goal goal,
   List<BodyLine> block,
 ) sync* {
-  final metricAt = block
-      .where((line) => !line.fenced && _metricLine.hasMatch(line.text))
-      .map((line) => line.line)
-      .firstOrNull;
+  final metricAt = _metricLineOf(block);
   if (metricAt == null) return;
-  final links = _linksOf(context);
-  final mismatched = <IndexedDoc>[];
-  for (final place in context.contentOf(doc).lineFacts.links) {
-    if (place.line != metricAt) continue;
-    final target = context.index.at(place.target);
-    if (target == null || target.docTypeId != _measurementType) continue;
-    final held = links.goalsOfMeasurement[target.docPath] ?? const <_Goal>[];
-    if (!held.contains(goal) && !mismatched.contains(target)) {
-      mismatched.add(target);
-    }
-  }
+  final mismatched = _mismatchedMeasurements(context, doc, goal, metricAt);
   if (mismatched.isEmpty) return;
   yield context.finding(
     doc,
@@ -185,6 +180,33 @@ Iterable<Finding> _metricMismatch(
         'not link ${goal.key}',
     keys: {'goal': goal.key},
   );
+}
+
+int? _metricLineOf(List<BodyLine> block) => block
+    .where((line) => !line.fenced && _metricLine.hasMatch(line.text))
+    .map((line) => line.line)
+    .firstOrNull;
+
+/// The measurements the Metric line [metricAt] links whose head does not link
+/// [goal], each once.
+List<IndexedDoc> _mismatchedMeasurements(
+  CheckContext context,
+  IndexedDoc doc,
+  _Goal goal,
+  int metricAt,
+) {
+  final goalsOfMeasurement = _linksOf(context).goalsOfMeasurement;
+  final mismatched = <IndexedDoc>[];
+  for (final place in context.contentOf(doc).lineFacts.links) {
+    if (place.line != metricAt) continue;
+    final target = context.index.at(place.target);
+    if (target == null || target.docTypeId != _measurementType) continue;
+    final held = goalsOfMeasurement[target.docPath] ?? const <_Goal>[];
+    if (!held.contains(goal) && !mismatched.contains(target)) {
+      mismatched.add(target);
+    }
+  }
+  return mismatched;
 }
 
 Iterable<Finding> _measurementFindings(

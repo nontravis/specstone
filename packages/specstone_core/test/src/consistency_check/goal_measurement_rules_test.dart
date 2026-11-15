@@ -17,6 +17,8 @@ const _goal1Link = '[Fewer resets](../../prds/PROJECT.md#pg-01--fewer-resets)';
 const _goal2Link =
     '[Faster sign-in](../../prds/PROJECT.md#pg-02--faster-sign-in)';
 const _secondMeasurement = 'measurements/faster_sign_in/MEASUREMENT.md';
+const _thirdMeasurement = 'measurements/third_run/MEASUREMENT.md';
+const _thirdMetricLink = '[third](../measurements/third_run/MEASUREMENT.md)';
 const _metricLink =
     '[measurement](../measurements/fewer_resets/MEASUREMENT.md)';
 const _secondMetricLink =
@@ -223,6 +225,27 @@ void main() {
     expect(mismatch.line, _lineOf(project, projectDoc, '- **Metric:** 50'));
     expect(mismatch.toJson()['goal'], 'PG-01');
     expect(mismatch.message, contains('faster_sign_in'));
+  });
+
+  test('E11: a Metric line that links two mismatched measurements names each in one finding', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ..._project(
+          secondGoal: true,
+          metric:
+              '- **Metric:** 50%, see $_secondMetricLink and $_thirdMetricLink',
+        ),
+        'docs/$_secondMeasurement': _measurement(_goal2Link),
+        'docs/$_thirdMeasurement': _measurement('No link here.'),
+      },
+    );
+    final mismatches = checkOf(project).findings
+        .where((f) => f.kind == FindingKind.goalMetricMismatch);
+    expect(mismatches, hasLength(1));
+    expect(
+      mismatches.single.message,
+      allOf(contains('faster_sign_in'), contains('third_run')),
+    );
   });
 
   test('E12: a Metric that links a measurement with no goal link is a mismatch beside its unresolved', () async {
