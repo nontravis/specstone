@@ -221,6 +221,7 @@ void main() {
   _syncBootstrapTests();
   _planFilesTests();
   _shippedTreeTests();
+  _outAndReplaceTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -3519,8 +3520,8 @@ void _agentTests() {
   test('E01, E03, '
       'E11, E12, domain:agent_plugin INV-10: the author re-reads its drafts '
       'in one get, loads every guide in one call, writes several docs '
-      'through one set --batch, and sdd-engineer allows only the redirect '
-      'that makes a batch file', () {
+      'through one set --batch, and sdd-engineer makes its batch file '
+      'with get --out', () {
     final author = _pluginText(_author);
     final read = _oneLine(_sectionOf(author, '1. Read'));
     for (final point in _authorRereadPoints) {
@@ -3561,9 +3562,7 @@ void _agentTests() {
     );
     final scope = _sectionOf(agent, 'Scope Boundaries');
     expect(_oneLine(scope), contains(_batchFileRedirect));
-    expect(_redirectSpan.allMatches(scope).map((span) => span[0]), [
-      '`specstone get … > "<file>"`',
-    ]);
+    expect(_redirectSpan.allMatches(scope), isEmpty);
     expect(
       _oneLine(scope),
       contains('- Write a file by any other shell redirect, or a PRD or spec'),
@@ -3807,7 +3806,7 @@ const _authorBatchPoints = [
   'A decision no doc can take is not landed: flag it, never force it.',
   '**Guide**: before your first write, run `specstone guide <type> …` once,',
   'naming every type you write.',
-  '**Several docs in one step**: run `specstone get <names> > "<file>"`,',
+  '**Several docs in one step**: run `specstone get <names> --out "<file>"`,',
   '`<file>` `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`,',
   '`<folder>` the path `specstone folder` prints; edit its blocks, each',
   'naming line kept; then run `specstone set --batch "<file>"`.',
@@ -3845,12 +3844,11 @@ const _laterPassInputs = [
   "round or pass added; in a fix round, the audit's `Findings:` lines too.",
 ];
 
-/// The one shell redirect sdd-engineer may run,
-/// as its Scope Boundaries word it.
+/// The batch file sdd-engineer makes, as its Scope Boundaries word it.
 const _batchFileRedirect =
-    'and a batch file: made by `specstone get … > "<file>"`, `<file>` '
-    '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell '
-    'redirect you run, and passed to `specstone set --batch "<file>"`.';
+    'and a batch file: made by `specstone get … --out "<file>"`, `<file>` '
+    '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to '
+    '`specstone set --batch "<file>"`.';
 
 /// A code span that redirects output into a file.
 final _redirectSpan = RegExp(r'`[^`\n]* >>? [^`\n]*`');
@@ -5693,5 +5691,39 @@ void _shippedTreeTests() {
       expect(skillHeadProblems(files), isEmpty);
       expect(unresolvedPaths(files), isEmpty);
     });
+  });
+}
+
+void _outAndReplaceTests() {
+  test('the sdd-engineer makes its batch file with get --out and runs no get '
+      'shell redirect', () {
+    final text = _oneLine(_pluginText('specstone-sdd-engineer.md'));
+
+    expect(text, contains('made by `specstone get … --out "<file>"`'));
+    expect(text, isNot(contains(' > "<file>"')));
+  });
+
+  test('the author procedure saves long output with --out and edits a passage '
+      'with set --replace', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/author.md'),
+    );
+
+    expect(text, contains('`specstone get <names> --out "<file>"`'));
+    expect(text, isNot(contains(' > "<file>"')));
+    expect(
+      text,
+      contains('long `check`, `guide`, or `get` output with `--out`'),
+    );
+    expect(text, contains('--replace`'));
+  });
+
+  test('the read skill names --out for long output and set --replace for a '
+      'passage', () {
+    final text = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
+
+    expect(text, contains('long `check`, `guide`, or `get` output'));
+    expect(text, contains('bare `--out`'));
+    expect(text, contains('change one passage with `set --replace`'));
   });
 }

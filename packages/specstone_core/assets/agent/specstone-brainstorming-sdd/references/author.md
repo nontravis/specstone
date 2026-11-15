@@ -16,8 +16,9 @@ nothing: each gap goes in your report.
 
 ## 2. Place each decision
 
-Place each decision in a doc, noting its section. A decision no doc can take is not landed: flag it, never
-force it. Write each Docs to change row that holds no decision too, such as a `design_references` link.
+Save long `check`, `guide`, or `get` output with `--out`, not a redirect.
+
+A decision no doc can take is not landed: flag it, never force it. Write each Docs to change row, `design_references` links.
 
 - **Guide**: before your first write, run `specstone guide <type> …` once, naming every type you write.
 - **Code target** (two or more `targets:`): pass `--target <name>`, the one its design document's row names, on each
@@ -28,7 +29,9 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
   `specstone set <type>:<name>#<key> --base <hash>`.
 - **Field**: base from `bases.fields.<id>` of `specstone get <type>:<name> --json`; pipe the value to
   `specstone set <type>:<name> --field <id> --base <hash>`.
-- **Several docs in one step**: run `specstone get <names> > "<file>"`, `<file>`
+- **Passage**: pipe `==> old <==`, the passage, `==> new <==`, its replacement to
+  `specstone set <type>:<name>#<key> --base <hash> --replace`.
+- **Several docs in one step**: run `specstone get <names> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, `<folder>` the path `specstone folder` prints; edit its
   blocks, each naming line kept; then run `specstone set --batch "<file>"`. A block printed ` · unchanged`
   wrote nothing and adds no draft.
@@ -88,5 +91,4 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
   list names; the output names a moved one, while its `Move:` line is unrun, by its name before the move; once the
   runner runs it, by its name after. Name each other draft it lists under `Other drafts:`, never counted; one of
   yours it shows as no draft goes under `Findings:`.
-- **Move**: only when the design moves stories, one line per target feature; copy each into the relay block. Run no
-  `move`; the runner does.
+- **Move**: only when the design moves stories, one line per target feature; copy each into the relay block.

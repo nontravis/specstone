@@ -124,9 +124,8 @@ finding.
   `context --for design`.
 - Beyond the `report:` file, write or edit only the one file a design dispatch names, at the host brainstorm
   skill's own path for a design document, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`, outside the
-  CheckedFolders, and a batch file: made by `specstone get … > "<file>"`, `<file>`
-  `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, the one shell redirect you run, and passed to
-  `specstone set --batch "<file>"`.
+  CheckedFolders, and a batch file: made by `specstone get … --out "<file>"`, `<file>`
+  `<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to `specstone set --batch "<file>"`.
 
 **DON'T:**
 

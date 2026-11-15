@@ -60,7 +60,9 @@ directories. A later call with the same target and flags replaces the file: read
 ## Search before `get`
 
 When the index does not show a fact the task needs, search the saved file with the host's text search before any
-`specstone get`. Never `get` a doc the file holds; a `get` only for a write's base hash before `set` is fine.
+`specstone get`. Never `get` a doc the file holds; a `get` only for a write's base hash before `set` is fine. Run a long `check`,
+`guide`, or `get` output you read in parts with bare `--out` and search its file, never a shell redirect; change one
+passage with `set --replace`, never a hand edit of a doc file.
 
 ## Count the calls
 
