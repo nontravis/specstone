@@ -20,8 +20,8 @@ Pass no `--target`: a design read spans every code target.
 specstone context <target> --for design --out
 ```
 
-- **0:** the saved files are the ground: read them per the `specstone-read-sdd` skill, a doc they lack grounded by its own
-  `specstone context <doc> --for design --out`, never `get`; open no doc file.
+- **0:** the saved files are the ground: read them per the `specstone-read-sdd` skill, a doc they lack grounded by
+  its own `specstone context <doc> --for design --out`, never `get`; open no doc file.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.

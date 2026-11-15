@@ -35,8 +35,9 @@ type's writing guide says it needs; a gap goes to the Owner.
    conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
    Owner gave. The CLI opens none. Never edit, move, or delete the
    source.
-4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the grounding,
-   and no second narrow call runs. Otherwise target the doc the source decides, by the skill's step 1 target rule.
+4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the
+   grounding, and no second narrow call runs. Otherwise target the doc the source decides, by the skill's step 1
+   target rule.
    `--no-project` leaves out the project's docs, which the gate's bundle already holds:
 
    ```

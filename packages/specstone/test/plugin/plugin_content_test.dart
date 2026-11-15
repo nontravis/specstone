@@ -3731,7 +3731,8 @@ const _sourcePoints = [
 const _roundsPoints = [
   'adds or changes behavior when it brings a new state, input, output,',
   'edge case, error, or reader of a rule.',
-  "append it to the design document's Rulings yourself",
+  "append it to the design document's Rulings yourself, as design mode writes",
+  'them, and dispatch nothing;',
   'the author, or the fix round under way, goes on.',
   'or needs more PRD or spec grounding',
   "dispatch `mode: design` again with the brief's path and the document's",
