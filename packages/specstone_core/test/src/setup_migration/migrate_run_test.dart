@@ -1158,6 +1158,105 @@ sections:
     expect(planLine, 'plan ${planHashOf(plan, inputs)}');
   }, skip: hasGit ? null : 'git is not available');
 
+  group('a dry run on a dirty tree', () {
+    const dirtyLine =
+        'dry run: nothing written; the run needs a clean working tree';
+
+    test('prints the plan, its hash line, and the dirty-tree line, exits 0, '
+        'and writes nothing', () async {
+      final root = await gitFixture(acmeLegacy);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final before = _bytesUnder(root);
+      final head = headOf(root);
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true), 0);
+
+      final lines = out.toString().split('\n');
+      expect(out.toString(), startsWith('legacy migration: '));
+      expect(lines[lines.length - 2], dirtyLine);
+      expect(lines[lines.length - 3], matches(RegExp(r'^plan [0-9a-f]{12}$')));
+      expect(_bytesUnder(root), before);
+      expect(headOf(root), head);
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('hashes the files as they are, edits not yet committed '
+        'included', () async {
+      final root = await gitFixture(acmeLegacy);
+      final clean = _dryRunPlanHash(root);
+      File('${root.path}/docs/prds/d01_context.md')
+          .writeAsStringSync('edited\n');
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true), 0);
+
+      final text = out.toString();
+      final planLine = 'plan ${_planHashIn(text)}\n';
+      final plan = text.substring(0, text.lastIndexOf(planLine));
+      final inputs = planLegacyRun(
+        root,
+        templates: TemplateResolver(),
+        homeDirectory: testHome(),
+      ).inputs;
+      expect(_planHashIn(text), planHashOf(plan, inputs));
+      expect(_planHashIn(text), isNot(clean));
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a clean tree prints the plain last line', () async {
+      final root = await gitFixture(acmeLegacy);
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true), 0);
+
+      expect(out.toString(), endsWith('\ndry run: nothing written\n'));
+      expect(out.toString(), isNot(contains('clean working tree')));
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('--plan with its hash is still working_tree_dirty and writes '
+        'nothing', () async {
+      final root = await gitFixture(acmeLegacy);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final hash = _dryRunPlanHash(root);
+      final before = _bytesUnder(root);
+      final head = headOf(root);
+
+      expect(
+        () => _run(
+          root,
+          StringBuffer(),
+          confirmation: OwnerConfirmation.given,
+          planHash: hash,
+        ),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.workingTreeDirty,
+          ),
+        ),
+      );
+      expect(_bytesUnder(root), before);
+      expect(headOf(root), head);
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('outside a git work tree is still git_work_tree_required', () async {
+      final root = await writeTree(acmeLegacy);
+      final out = StringBuffer();
+
+      expect(
+        () => _run(root, out, dryRun: true),
+        throwsA(
+          isA<MigrateFault>().having(
+            (f) => f.code,
+            'code',
+            MigrateFaultCode.gitWorkTreeRequired,
+          ),
+        ),
+      );
+      expect(out.toString(), isEmpty);
+    }, skip: hasGit ? null : 'git is not available');
+  });
+
   test('f06/us01/fr02/e11, f06/us01/s18: a committed edit to a doc between '
       'the dry run and --yes changes the plan hash, so --yes refuses '
       'plan_mismatch and writes nothing', () async {
@@ -2289,25 +2388,6 @@ sections:
       ),
     );
 
-    test('a dry run over a dirty tree refuses and prints '
-        'no plan', () async {
-      final root = await gitFixture(acmeLegacy);
-      File('${root.path}/notes.txt').writeAsStringSync('x\n');
-      final out = StringBuffer();
-
-      expect(
-        () => _run(root, out, dryRun: true),
-        throwsA(
-          isA<MigrateFault>().having(
-            (f) => f.code,
-            'code',
-            MigrateFaultCode.workingTreeDirty,
-          ),
-        ),
-      );
-      expect(out.toString(), isEmpty);
-    }, skip: skipGit);
-
     test('a dry run outside a work tree, or under git '
         '2.24, refuses git_work_tree_required, as does a resume dry run '
         'outside one', () async {
@@ -2445,7 +2525,7 @@ sections:
         throwsA(isA<MigrateFault>().having((f) => f.code, 'code', code));
 
     test('a dry run over a pending F-02 journal whose step '
-        'is applied refuses the tree as it stands', () async {
+        'is applied plans the tree as it stands and names it dirty', () async {
       final root = await gitFixture({
         ...acmeLegacy,
         '.specstone/.gitignore': '${specstoneGitignoreLines.join('\n')}\n',
@@ -2458,17 +2538,16 @@ sections:
       final out = StringBuffer();
       final calls = <List<String>>[];
 
-      expect(
-        () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
-        refusesWith(MigrateFaultCode.workingTreeDirty),
-      );
+      expect(_run(root, out, dryRun: true, runGit: _fakeGit(calls)), 0);
 
+      expect(calls, isNotEmpty);
+      expect(out.toString(), contains('\nplan '));
       expect(
-        calls,
-        isNotEmpty,
-        reason: 'the git check refused, not the journal',
+        out.toString(),
+        endsWith(
+          'dry run: nothing written; the run needs a clean working tree\n',
+        ),
       );
-      expect(out.toString(), isEmpty);
       expect(journal.readAsStringSync(), before);
     }, skip: skipGit);
 
@@ -2590,18 +2669,21 @@ sections:
     group('an upgrade dry run', () {
       final upgrade = {'.specstone/config.yaml': _belowSince};
 
-      test('f06/us02/fr02, f06/us01/fr02/e04: over a dirty tree refuses '
-          'working_tree_dirty and prints no plan', () async {
+      test('f06/us02/fr02, f06/us01/fr02/e04: over a dirty tree prints the '
+          'plan and names the clean tree the run needs', () async {
         final root = await gitFixture(upgrade);
         File('${root.path}/notes.txt').writeAsStringSync('x\n');
         final out = StringBuffer();
 
-        expect(
-          () => _run(root, out, dryRun: true),
-          refusesWith(MigrateFaultCode.workingTreeDirty),
-        );
+        expect(_run(root, out, dryRun: true), 0);
 
-        expect(out.toString(), isEmpty);
+        expect(out.toString(), contains('\nplan '));
+        expect(
+          out.toString(),
+          endsWith(
+            'dry run: nothing written; the run needs a clean working tree\n',
+          ),
+        );
       }, skip: skipGit);
 
       test('f06/us02/fr02, f06/us01/fr02/e03: outside a work tree refuses '
@@ -2670,12 +2752,14 @@ sections:
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final out = StringBuffer();
 
-      expect(
-        () => _run(root, out, dryRun: true),
-        refusesWith(MigrateFaultCode.workingTreeDirty),
-      );
+      expect(_run(root, out, dryRun: true), 0);
 
-      expect(out.toString(), isEmpty);
+      expect(
+        out.toString(),
+        endsWith(
+          'dry run: nothing written; the run needs a clean working tree\n',
+        ),
+      );
     }, skip: skipGit);
 
     test('an up-to-date project outside git has nothing '
