@@ -2414,7 +2414,9 @@ agent_file_roots:
           ]);
 
           expect(applied.status, 0, reason: applied.err);
+          expect(File('${root.path}/$oldPath').existsSync(), isFalse);
           expect(File('${root.path}/$oldNested').existsSync(), isFalse);
+          expect(_read(root, recordPath), record(current));
           expect(_read(root, nestedPath), record(current));
           final check = await _run(root, h, ['check', '--json']);
           final kinds = [
