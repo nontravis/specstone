@@ -41,8 +41,8 @@ and changed code or a batch's findings into drafts.
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
 - **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
 - **No `mode`**: a message that names no `mode`, a later round included, gets the missing-input stop: write only
-  `OPEN QUESTIONS:` naming the missing `mode` and asking for a fresh dispatch with it, as the report; overwrite no
-  other file.
+  `OPEN QUESTIONS:` naming the missing `mode` and asking for a fresh dispatch with it, as the report and its relay
+  block; overwrite no other file.
 - **Any other `mode`**, `plan` included: stop the same way; for `plan`, the line names `specstone-plan-sdd`, which
   writes plans.
 - **Two design documents** in one design dispatch: stop the same way, naming both; write neither.

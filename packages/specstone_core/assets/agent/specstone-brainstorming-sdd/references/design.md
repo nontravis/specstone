@@ -3,8 +3,8 @@
 
 ## 1. Check the inputs
 
-- **Brief**: the Owner's approved answers (decisions, rulings, the approach picked, open questions). Read it whole. When it names a file to re-read, also follow `## Map the source` in
-  `source.md`.
+- **Brief**: the Owner's approved answers (decisions, rulings, the approach picked, open questions). Read it whole.
+  When it names a file to re-read, also follow `## Map the source` in `source.md`.
 - **Design path**: the document to write or amend.
 
 ## 2. Ground each claim
@@ -68,11 +68,11 @@ Before the Docs to change table closes, search each decision's dependents:
   terms and adds its rows and searched terms before the author writes it.
 
 Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the brief leaves open, naming the
-one owner item its rule takes, or list it as an open question; a design holding one open goes to no author. Leave a
-code-level point, such as a class name, to the builder, with no decision and no open question.
+one owner item its rule takes, or list it as an open question; a design holding such a point open goes to no author.
+Leave a code-level point, such as a class name, to the builder, with no decision and no open question.
 
 Leave out what a doc will carry verbatim (story text, FR statement, scenario, edge case, endpoint shape, an entity's
-field list): name the decision; the doc holds the content.
+field list): name the decision.
 
 On an amend, sweep each ruling: search the document for the text it supersedes and edit every place that still states
 it.

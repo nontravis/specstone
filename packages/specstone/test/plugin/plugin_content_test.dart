@@ -5753,7 +5753,10 @@ void _docLevelPointTests() {
     );
     expect(text, contains('write only `OPEN QUESTIONS:` naming the missing'));
     expect(text, contains('asking for a fresh dispatch with it'));
-    expect(text, contains('overwrite no other file'));
+    expect(
+      text,
+      contains('as the report and its relay block; overwrite no other file'),
+    );
   });
 
   test('rounds dispatches every re-audit anew in audit mode with its '
@@ -5786,7 +5789,10 @@ void _docLevelPointTests() {
 
     expect(text, contains('such as a refusal or a name rule'));
     expect(text, contains('naming the one owner item its rule takes'));
-    expect(text, contains('a design holding one open goes to no author'));
+    expect(
+      text,
+      contains('a design holding such a point open goes to no author'),
+    );
     expect(text, contains('such as a class name, to the builder'));
     expect(text, contains('with no decision and no open question'));
   });
