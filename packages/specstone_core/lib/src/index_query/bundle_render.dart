@@ -19,16 +19,27 @@ const _overBudgetNextStep =
 const _overBudgetSummaryNextStep =
     'narrow the target, or run it again with --summary --out and no --budget';
 
-/// One doc or appended part a bundle text prints, with the lines it spans
-/// there, counted from 1: its naming line `first` to its `last` line, and
-/// the header line of each `##` section it prints whole. A cited part names
-/// the `##` section that holds it and its item ID, when it has them. A
-/// feature pattern part's `doc` is the doc that lists it and its
-/// `featurePattern` the pattern id; null for any other entry.
+/// What one entry of a bundle text is.
+///
+/// - [doc]: a picked, joined, or summary doc.
+/// - [cited]: a part a link appended.
+/// - [pattern]: a feature pattern part.
+/// - [names]: a `==> names:` block of a top doc's chain children.
+/// - [citedBy]: the cited-by lines of one item, a part of its own in a split
+///   bundle.
+enum BundleEntryKind { doc, cited, pattern, names, citedBy }
+
+/// One doc or part a bundle text prints, with the lines it spans there,
+/// counted from 1: its naming line `first` to its `last` line, and the
+/// header line of each `##` section it prints whole. A cited part names
+/// the `##` section that holds it and its item ID, when it has them, and so
+/// does a cited-by part. A feature pattern part's `doc` is the doc that
+/// lists it and its `featurePattern` the pattern id; null for any other
+/// entry. A names block's `doc` is its top doc.
 typedef BundleEntry = ({
   IndexedDoc doc,
+  BundleEntryKind kind,
   bool summary,
-  bool cited,
   String? sectionKey,
   String? itemId,
   String? featurePattern,
@@ -36,6 +47,10 @@ typedef BundleEntry = ({
   int last,
   List<({String key, int first})> sections,
 });
+
+/// One file's text of a bundle: the text, each doc and part it prints in
+/// print order, and its est. token size as its closing line gives it.
+typedef BundleText = ({String text, List<BundleEntry> entries, int tokens});
 
 /// A `context` answer, with where each doc and part sits in its text.
 final class ContextAnswer extends ReadAnswer {
@@ -47,18 +62,26 @@ final class ContextAnswer extends ReadAnswer {
     required this.entries,
     required this.tokens,
     this.codeTarget,
+    this.refs,
   });
 
-  /// Each doc and appended part [text] prints, in print order; empty when
-  /// it prints no doc text, as over budget.
+  /// Each doc and part [text] prints, in print order; empty when it prints no
+  /// doc text, as over budget.
   final List<BundleEntry> entries;
 
-  /// The bundle's est. token size, as its closing line gives it.
+  /// The est. token size of [text], as its closing line gives it.
   final int tokens;
 
   /// The code target [text] names first, for a `--code` call in a project
   /// with two or more; null otherwise.
   final String? codeTarget;
+
+  /// The refs file's text, entries, and size when the answer is split; null
+  /// otherwise, when [text] holds the whole bundle.
+  final BundleText? refs;
+
+  /// The read-first file: [text] with its [entries] and [tokens].
+  BundleText get readFirst => (text: text, entries: entries, tokens: tokens);
 }
 
 String _overBudgetLine(String listName, int tokens) =>
@@ -124,17 +147,27 @@ String codeTargetLine(String? name) =>
 /// project has two or more. A bundle larger than [budget] prints its sizes and
 /// the next step instead of doc text, with exit status 1; an equal one prints
 /// whole. The answer places each doc and part in its text, for `--out`'s index.
+///
+/// With [split], an `implement` or `design` bundle puts each part in one of
+/// two texts: [ContextAnswer.text] holds the read-first part, and
+/// [ContextAnswer.refs] the refs part, each with its own entries, closing
+/// line, and list. A `design` bundle's cited-by lines then print as parts of
+/// the refs text, never after their item. [split] changes no other output.
 ContextAnswer answerContext(
   DocIndex index,
   Bundle bundle, {
   required String label,
   required bool byCode,
   int? budget,
+  bool split = false,
 }) {
+  final splits = split && bundle.mode != BundleMode.query;
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
   bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
-  final citedBy = bundle.mode == BundleMode.design ? citedByIndex(index) : null;
+  final citedBy = bundle.mode == BundleMode.design
+      ? citedByIndex(index, inline: !splits)
+      : null;
   final docPrints = [
     for (final doc in ordered)
       _docBlock(
@@ -155,23 +188,63 @@ ContextAnswer answerContext(
     for (final (:doc, :part) in slots)
       if (doc == null) patternBlocks[part!] else docBlocks[doc],
   ];
-  final mapBlocks = [
-    for (final top in _byTreeOrder(index, bundle.mapTops))
-      _mapBlock(index, index.at(top)!, bundle.codeTarget),
-  ];
-  final namesBlocks = [
-    for (final top in _byTreeOrder(index, bundle.nameListTops))
-      _namesBlock(index, index.at(top)!, bundle.codeTarget),
-  ];
+  final mapTops = _byTreeOrder(index, bundle.mapTops);
+  final nameTops = _byTreeOrder(index, bundle.nameListTops);
   final parts = followLinks(index, bundle, citedBy: citedBy);
   final partBlocks = [for (final part in parts) _partBlock(part)];
-  final shown = [
-    ...slotBlocks,
-    ...mapBlocks,
-    ...namesBlocks,
-    ...partBlocks,
-  ].join('\n\n');
-  final tokens = tokenSizeOf(shown);
+  final pieces = [
+    for (final (k, (:doc, :part)) in slots.indexed) ...[
+      if (doc == null)
+        _Piece(
+          slotBlocks[k],
+          doc: patternParts[part!].lister,
+          kind: BundleEntryKind.pattern,
+          listName: featurePatternListName(patternParts[part].pattern.id),
+          featurePattern: patternParts[part].pattern.id,
+        )
+      else
+        _Piece(
+          slotBlocks[k],
+          doc: ordered[doc],
+          listName: _listName(ordered[doc], inSummary(ordered[doc])),
+          inRefs:
+              splits &&
+              (inSummary(ordered[doc]) ||
+                  bundle.joinsRefs(index, ordered[doc])),
+          summary: inSummary(ordered[doc]),
+          sections: docPrints[doc].sections,
+        ),
+      if (splits && doc != null)
+        ..._citedByPieces(ordered[doc], docPrints[doc].cited),
+    ],
+    for (final top in mapTops)
+      _Piece(_mapBlock(index, index.at(top)!, bundle.codeTarget)),
+    for (final top in nameTops)
+      _Piece(
+        _namesBlock(index, index.at(top)!, bundle.codeTarget),
+        // An unsplit answer's index leaves a names block out, as it always has.
+        doc: splits ? index.at(top) : null,
+        kind: BundleEntryKind.names,
+      ),
+    for (final (i, part) in parts.indexed) ...[
+      _Piece(
+        partBlocks[i],
+        doc: part.doc,
+        kind: BundleEntryKind.cited,
+        listName: _partListName(part),
+        inRefs: splits,
+        summary: part.summary,
+        sections: [
+          for (final section in part.sections)
+            (key: section.key, line: section.line + 1),
+        ],
+        sectionKey: part.sectionKey,
+        itemId: part.itemId,
+      ),
+      if (splits) ..._citedByPieces(part.doc, part.cited),
+    ],
+  ];
+  final tokens = tokenSizeOf(_shownOf(pieces));
   final named = byCode && index.hasTwins ? bundle.codeTarget : null;
   if (budget != null && tokens > budget) {
     return _overBudget(
@@ -191,61 +264,25 @@ ContextAnswer answerContext(
       codeTarget: named,
     );
   }
-  final list = [
-    for (final (:doc, :part) in slots)
-      if (doc == null)
-        '- ${featurePatternListName(patternParts[part!].pattern.id)}\n'
-      else
-        '- ${_listName(ordered[doc], inSummary(ordered[doc]))}\n',
-    for (final part in parts) '- ${_partListName(part)}\n',
-  ];
-  final listsSummary =
-      summaryOnly.isNotEmpty || parts.any((part) => part.summary);
-  final starts = _blockStarts([
-    ...slotBlocks,
-    ...mapBlocks,
-    ...namesBlocks,
-    ...partBlocks,
-  ], firstLine: named == null ? 1 : 2);
-  final partsFrom = slotBlocks.length + mapBlocks.length + namesBlocks.length;
-  final entries = <BundleEntry>[
-    for (final (k, (:doc, :part)) in slots.indexed)
-      if (doc == null)
-        _entry(
-          patternParts[part!].lister,
-          slotBlocks[k],
-          const [],
-          first: starts[k],
-          summary: false,
-          featurePattern: patternParts[part].pattern.id,
+  final readFirst = _textOf(
+    [
+      for (final piece in pieces)
+        if (!piece.inRefs) piece,
+    ],
+    mode: bundle.mode,
+    codeTargetLine: codeTargetLine(named),
+  );
+  final refs = splits
+      ? _textOf(
+          [
+            for (final piece in pieces)
+              if (piece.inRefs) piece,
+          ],
+          mode: bundle.mode,
+          codeTargetLine: '',
+          isRefs: true,
         )
-      else
-        _entry(
-          ordered[doc],
-          slotBlocks[k],
-          docPrints[doc].sections,
-          first: starts[k],
-          summary: inSummary(ordered[doc]),
-        ),
-    for (final (i, part) in parts.indexed)
-      _entry(
-        part.doc,
-        partBlocks[i],
-        [
-          for (final section in part.sections)
-            (key: section.key, line: section.line + 1),
-        ],
-        first: starts[partsFrom + i],
-        summary: part.summary,
-        cited: (sectionKey: part.sectionKey, itemId: part.itemId),
-      ),
-  ];
-  final text =
-      '${codeTargetLine(named)}'
-      '$shown\n'
-      '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
-      '${list.join()}'
-      '${listsSummary ? '${_summaryNextStep(bundle.mode)}\n' : ''}';
+      : null;
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
     'codeTarget': ?named,
@@ -279,12 +316,126 @@ ContextAnswer answerContext(
     ..._namesJson(index, bundle.nameListTops, bundle.codeTarget),
   };
   return ContextAnswer(
-    text: text,
+    text: readFirst.text,
     json: json,
     warnings: [...bundle.warnings],
-    entries: entries,
-    tokens: tokens,
+    entries: readFirst.entries,
+    tokens: readFirst.tokens,
     codeTarget: named,
+    refs: refs,
+  );
+}
+
+/// One block of a bundle text, in the whole bundle's print order, with what
+/// its closing list and its entry need.
+final class _Piece {
+  const new(
+    this.block, {
+    this.doc,
+    this.kind = BundleEntryKind.doc,
+    this.listName,
+    this.inRefs = false,
+    this.summary = false,
+    this.sections = const [],
+    this.sectionKey,
+    this.itemId,
+    this.featurePattern,
+  });
+
+  final String block;
+
+  /// The doc the entry names; null for a block with no entry, a query map.
+  final IndexedDoc? doc;
+  final BundleEntryKind kind;
+
+  /// The closing-list line of the block, without its `- `; null for a block
+  /// the list leaves out.
+  final String? listName;
+
+  /// Whether a split bundle puts the block in the refs text.
+  final bool inRefs;
+  final bool summary;
+
+  /// The `##` sections the block prints whole, each with its header's line
+  /// in the block, counted from 0.
+  final List<SectionLine> sections;
+  final String? sectionKey;
+  final String? itemId;
+  final String? featurePattern;
+
+  /// Returns the entry of the block, which starts on line [first] of its text.
+  BundleEntry? entryAt(int first) {
+    final doc = this.doc;
+    if (doc == null) return null;
+    return (
+      doc: doc,
+      kind: kind,
+      summary: summary,
+      sectionKey: sectionKey,
+      itemId: itemId,
+      featurePattern: featurePattern,
+      first: first,
+      last: first + lineCountOf(block) - 1,
+      sections: [
+        for (final section in sections)
+          (key: section.key, first: first + section.line),
+      ],
+    );
+  }
+}
+
+/// Returns the cited-by part of each of [items] of [doc], in the refs text.
+List<_Piece> _citedByPieces(IndexedDoc doc, List<CitedItem> items) => [
+  for (final item in items)
+    _Piece(
+      citedByPartBlock(doc, item),
+      doc: doc,
+      kind: BundleEntryKind.citedBy,
+      listName: citedByListName(doc, item),
+      inRefs: true,
+      sectionKey: item.sectionKey,
+      itemId: item.item,
+    ),
+];
+
+String _shownOf(List<_Piece> pieces) =>
+    [for (final piece in pieces) piece.block].join('\n\n');
+
+/// Returns the text of [pieces], one file of the bundle: the blocks joined by
+/// one blank line, then the closing line and list, with the next-step line
+/// after a list that holds a summary.
+///
+/// [codeTargetLine] opens the text and shifts its entries one line down.
+BundleText _textOf(
+  List<_Piece> pieces, {
+  required BundleMode mode,
+  required String codeTargetLine,
+  bool isRefs = false,
+}) {
+  final shown = _shownOf(pieces);
+  final tokens = tokenSizeOf(shown);
+  final starts = _blockStarts([
+    for (final piece in pieces) piece.block,
+  ], firstLine: codeTargetLine.isEmpty ? 1 : 2);
+  final docs = pieces.where(
+    (piece) => piece.doc != null && piece.kind == BundleEntryKind.doc,
+  );
+  final list = [
+    for (final piece in pieces)
+      if (piece.listName case final name?) '- $name\n',
+  ];
+  final listsSummary = pieces.any((piece) => piece.summary);
+  final blocks = isRefs && pieces.isEmpty ? '' : '$shown\n';
+  final closing =
+      '==> bundle: ${docs.length} docs, $tokens tokens <==\n'
+      '${list.join()}'
+      '${listsSummary ? '${_summaryNextStep(mode)}\n' : ''}';
+  return (
+    text: '$codeTargetLine$blocks$closing',
+    entries: [
+      for (final (i, piece) in pieces.indexed) ?piece.entryAt(starts[i]),
+    ],
+    tokens: tokens,
   );
 }
 
@@ -321,35 +472,6 @@ List<_Slot> _slotsOf(
   }
   return slots;
 }
-
-/// Returns the entry of a doc or part whose printed [block] starts on line
-/// [first], its [sections] counted from that line.
-///
-/// - [cited]: an appended part's section key and item ID; null for a picked
-///   doc.
-/// - [featurePattern]: the pattern id of a feature pattern part's entry.
-BundleEntry _entry(
-  IndexedDoc doc,
-  String block,
-  List<SectionLine> sections, {
-  required int first,
-  required bool summary,
-  ({String? sectionKey, String? itemId})? cited,
-  String? featurePattern,
-}) => (
-  doc: doc,
-  summary: summary,
-  cited: cited != null,
-  sectionKey: cited?.sectionKey,
-  itemId: cited?.itemId,
-  featurePattern: featurePattern,
-  first: first,
-  last: first + lineCountOf(block) - 1,
-  sections: [
-    for (final section in sections)
-      (key: section.key, first: first + section.line),
-  ],
-);
 
 /// Returns the name, doc type, path, and printed size of [part], whose block
 /// is [block]; a path gives its path and size alone.

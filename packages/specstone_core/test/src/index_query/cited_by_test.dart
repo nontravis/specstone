@@ -3,6 +3,8 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -178,13 +180,17 @@ void main() {
   test('nested items that end on one line keep every line, inner first', () {
     const outer = (
       item: 'INV-14',
+      sectionKey: 'invariants',
       after: 7,
       by: [(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
+      inline: true,
     );
     const inner = (
       item: 'INV-15',
+      sectionKey: 'invariants',
       after: 7,
       by: [(name: 'b', docType: 'fr', byItem: 'E01', line: 'inner')],
+      inline: true,
     );
     expect(citedLinesAfter([inner, outer]), {
       7: ['  · cited by b (fr) E01: inner', '  · cited by a (fr) —: outer'],
@@ -214,6 +220,102 @@ void main() {
       expect(cited.single.line, 'Lock, by $_inv14.');
     },
   );
+
+  group('a split design bundle', () {
+    const edge = '1. E01 — A wrong password → refused, by $_inv14.';
+    const invHead =
+        '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14';
+
+    Future<ContextAnswer> splitDesign() async {
+      final i = await _index('Check it.', edge: edge);
+      return answerContext(
+        i,
+        pickBundle(i, _frName, BundleMode.design, noProject: false),
+        label: _frName,
+        byCode: false,
+        split: true,
+      );
+    }
+
+    test('prints cited-by lines as refs parts', () async {
+      final a = await splitDesign();
+
+      expect(a.text, isNot(contains('cited by')));
+      expect(
+        a.refs!.text,
+        contains(
+          '$invHead · cited <==\n'
+          '- **INV-14** An account locks after five failures.\n\n'
+          '$invHead · cited by <==\n'
+          '  · cited by $_frName (fr) E01: $edge\n'
+          '==> bundle: ',
+        ),
+      );
+    });
+    test('lists each cited-by part after the item it cites', () async {
+      final a = await splitDesign();
+
+      expect(
+        a.refs!.text,
+        contains(
+          '- signup (domain) · cited invariants [INV-14]\n'
+          '- signup (domain) · cited by [INV-14]\n',
+        ),
+      );
+    });
+    test('marks each cited-by part as one in its entry', () async {
+      final a = await splitDesign();
+
+      final entry = a.refs!.entries.singleWhere(
+        (e) => e.kind == BundleEntryKind.citedBy,
+      );
+      final lines = a.refs!.text.split('\n');
+      expect(entry.doc.name, 'signup');
+      expect(entry.sectionKey, 'invariants');
+      expect(entry.itemId, 'INV-14');
+      expect(lines[entry.first - 1], '$invHead · cited by <==');
+      expect(entry.last, entry.first + 1);
+    });
+    test('an item whose lines print inline leaves no part for them', () async {
+      final i = await _index('Check it.', edge: edge);
+      final a = answerContext(
+        i,
+        pickBundle(i, _frName, BundleMode.design, noProject: false),
+        label: _frName,
+        byCode: false,
+      );
+
+      expect(a.text, contains('  · cited by $_frName (fr) E01: $edge\n'));
+      expect(a.text, isNot(contains('· cited by <==')));
+      expect(a.refs, isNull);
+    });
+  });
+
+  test('an item marked not inline gives no line to print after it', () {
+    const item = (
+      item: 'E01',
+      sectionKey: 'edge_cases',
+      after: 3,
+      by: <CitedBy>[(name: 'guide', docType: 'topic', byItem: null, line: 'x')],
+      inline: false,
+    );
+
+    expect(citedLinesAfter([item]), isEmpty);
+    expect(
+      citedLinesAfter([
+        (
+          item: item.item,
+          sectionKey: item.sectionKey,
+          after: item.after,
+          by: item.by,
+          inline: true,
+        ),
+      ]),
+      {
+        3: ['  · cited by guide (topic) —: x'],
+      },
+    );
+  });
 
   group('printedBodyOf', () {
     test(

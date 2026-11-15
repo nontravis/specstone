@@ -99,6 +99,14 @@ final class Bundle {
   /// target's docs.
   bool keepsTarget(IndexedDoc doc) => doc.inTarget(codeTarget);
 
+  /// Whether [doc] joins through its doc type's `bundle:` list and that type
+  /// sets `bundle_refs`, so a split bundle places it in the refs file.
+  ///
+  /// A doc the chain rule also picks is no join, and stays read-first.
+  bool joinsRefs(DocIndex index, IndexedDoc doc) =>
+      joinedPaths.contains(doc.docPath) &&
+      index.typeOf(doc)?.bundleRefs == true;
+
   /// Adds [target] and its chain docs by [mode]'s rule.
   void addTarget(DocIndex index, IndexedDoc target) {
     final typeId = target.docTypeId;

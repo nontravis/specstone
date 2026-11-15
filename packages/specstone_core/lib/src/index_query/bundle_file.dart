@@ -155,7 +155,7 @@ Map<String, Object> bundleIndexJson(ContextAnswer answer, String shownPath) => {
         'docPath': entry.doc.docPath,
         'lines': [entry.first, entry.last],
         'summary': entry.summary,
-        'cited': entry.cited,
+        'cited': entry.kind == BundleEntryKind.cited,
         'sections': [
           for (final section in entry.sections)
             {'key': section.key, 'first': section.first},
@@ -187,7 +187,7 @@ String _indexLine(BundleEntry entry, {required bool withSections}) {
     nameWithType(entry.doc),
     '${entry.first}-${entry.last}',
     if (entry.summary) 'summary',
-    if (entry.cited) _citedField(entry),
+    if (entry.kind == BundleEntryKind.cited) _citedField(entry),
     if (withSections && entry.sections.isNotEmpty)
       [for (final section in entry.sections) '${section.key} ${section.first}']
           .join(', '),
@@ -210,6 +210,8 @@ Iterable<BundleEntry> _docEntries(ContextAnswer answer) =>
 /// Returns the number of picked docs [answer] prints; appended parts and
 /// feature pattern parts aside.
 int _docCountOf(ContextAnswer answer) =>
-    _docEntries(answer).where((entry) => !entry.cited).length;
+    _docEntries(answer)
+        .where((entry) => entry.kind != BundleEntryKind.cited)
+        .length;
 
 int _lineCountOf(String text) => const LineSplitter().convert(text).length;

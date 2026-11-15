@@ -53,7 +53,7 @@ ContextAnswer _answerOf(
       (
         doc: _doc('d$i'),
         summary: false,
-        cited: false,
+        kind: BundleEntryKind.doc,
         sectionKey: null,
         itemId: null,
         featurePattern: null,
@@ -159,7 +159,7 @@ void main() {
           (
             doc: _doc('one'),
             summary: false,
-            cited: false,
+            kind: BundleEntryKind.doc,
             sectionKey: null,
             itemId: null,
             featurePattern: null,
@@ -173,7 +173,7 @@ void main() {
           (
             doc: _doc('two'),
             summary: false,
-            cited: true,
+            kind: BundleEntryKind.cited,
             sectionKey: 'statement',
             itemId: null,
             featurePattern: null,
@@ -184,7 +184,7 @@ void main() {
           (
             doc: _doc('three'),
             summary: false,
-            cited: true,
+            kind: BundleEntryKind.cited,
             sectionKey: 'edge_cases',
             itemId: 'E01',
             featurePattern: null,
@@ -195,7 +195,7 @@ void main() {
           (
             doc: _doc('four'),
             summary: true,
-            cited: false,
+            kind: BundleEntryKind.doc,
             sectionKey: null,
             itemId: null,
             featurePattern: null,
@@ -206,7 +206,7 @@ void main() {
           (
             doc: _doc('five'),
             summary: true,
-            cited: true,
+            kind: BundleEntryKind.cited,
             sectionKey: null,
             itemId: null,
             featurePattern: null,
@@ -222,7 +222,7 @@ void main() {
               tokens: 0,
             ),
             summary: false,
-            cited: true,
+            kind: BundleEntryKind.cited,
             sectionKey: null,
             itemId: null,
             featurePattern: null,
@@ -343,7 +343,7 @@ void main() {
     BundleEntry docEntry(String name, int first, int last) => (
       doc: _doc(name),
       summary: false,
-      cited: false,
+      kind: BundleEntryKind.doc,
       sectionKey: null,
       itemId: null,
       featurePattern: null,
@@ -360,7 +360,7 @@ void main() {
         tokens: 1,
       ),
       summary: false,
-      cited: false,
+      kind: BundleEntryKind.pattern,
       sectionKey: null,
       itemId: null,
       featurePattern: id,
@@ -512,7 +512,10 @@ void main() {
           answer,
           r'- signup/create_account \(user_story\) · \d+-\d+ · summary · cited · use_case \d+',
         );
-        expect(answer.entries.where((e) => !e.cited), hasLength(12));
+        expect(
+          answer.entries.where((e) => e.kind != BundleEntryKind.cited),
+          hasLength(12),
+        );
       },
     );
     test(

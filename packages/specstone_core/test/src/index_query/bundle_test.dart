@@ -385,6 +385,43 @@ void main() {
       isEmpty,
     );
   });
+  group('joinsRefs', () {
+    Bundle implementBundle(DocIndex i, String target) =>
+        pickBundle(i, target, BundleMode.implement, noProject: false);
+
+    test('joinsRefs reads bundleRefs, never a type id', () async {
+      final i = await indexWith({
+        '.specstone/templates/gnfr.yaml': 'bundle_refs: false\n',
+      });
+      final b = implementBundle(i, 'login/email_login');
+
+      bool joinsRefs(String docPath) => b.joinsRefs(i, i.at(docPath)!);
+      expect(joinsRefs('prds/PROJECT.md'), isTrue);
+      expect(joinsRefs('prds/GNFR.md'), isFalse);
+      expect(joinsRefs('specs/TECH_STACK.md'), isFalse);
+    });
+    test(
+      'a doc the chain picks never joins refs, whatever its doc type sets',
+      () async {
+        final i = await indexWith();
+        final b = implementBundle(i, 'project');
+
+        expect(b.joinsRefs(i, i.at('prds/PROJECT.md')!), isFalse);
+        expect(b.joinsRefs(i, i.at('prds/GNFR.md')!), isTrue);
+      },
+    );
+    test('a doc the bundle does not hold joins no refs', () async {
+      final i = await indexWith();
+      final b = pickBundle(
+        i,
+        'login/email_login',
+        BundleMode.implement,
+        noProject: true,
+      );
+
+      expect(b.joinsRefs(i, i.at('prds/PROJECT.md')!), isFalse);
+    });
+  });
   const shopSpecs = {shopDomain, shopArchitecture, shopApi};
   test("f01/us05/fr01/e19, s03/inv12: implement on shop/cart/add_item gives the chain, shop's spec docs, cartDomain, and the FR", () async {
     final b = pickBundle(
