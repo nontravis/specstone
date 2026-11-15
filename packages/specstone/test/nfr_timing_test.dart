@@ -169,6 +169,27 @@ void main() {
     );
   });
 
+  test('NFR-P01: specstone context for a story, ending with the stale-project '
+      'line, answers within 500 ms in the fastest of five calls', () {
+    const call = ['context', 'feature_1/story_1', '--for', 'implement'];
+    final agentMd = File('${project.path}/.specstone/AGENT.md');
+    addTearDown(() {
+      if (agentMd.existsSync()) agentMd.deleteSync();
+    });
+    agentMd.writeAsStringSync('hand edit\n');
+    final first = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+    ); // warm-up: the index is current after it
+    expect(first.exitCode, 0, reason: '${first.stderr}');
+    expect(first.stderr.toString(), contains('run specstone migrate'));
+    expect(
+      bestOf(timingRuns, () => timed(call), label: 'stale-line context calls'),
+      lessThanOrEqualTo(const Duration(milliseconds: 500)),
+    );
+  });
+
   test('specstone context --for design, with its '
       'cited-by lines, answers within 500 ms in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'design'];

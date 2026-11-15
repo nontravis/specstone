@@ -144,6 +144,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final Map<String, String> _environment;
   final Duration _busyTimeout;
   final Console _console;
+  var _refusedOnPin = false;
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -181,6 +182,10 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   @override
   void printUsage() => _out.writeln(usage);
 
+  /// Records that the running command was refused on a pack pin, which names
+  /// its own fix.
+  void recordPinRefusal() => _refusedOnPin = true;
+
   @override
   Future<int?> runCommand(ArgResults topLevelResults) async {
     if (topLevelResults.flag('version') &&
@@ -190,7 +195,27 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       _out.writeln(specstoneVersion);
       return 0;
     }
-    return super.runCommand(topLevelResults);
+    _refusedOnPin = false;
+    final status = await super.runCommand(topLevelResults);
+    _printStaleLine(topLevelResults.command);
+    return status;
+  }
+
+  /// Prints the stale-project line when the command that just ended is a row
+  /// of the table that gets it.
+  ///
+  /// Never throws: the line is a courtesy, so a failed lookup or write leaves
+  /// the command's output and exit status as they are.
+  void _printStaleLine(ArgResults? command) {
+    try {
+      if (_refusedOnPin || !_endsWithStaleLine(command)) return;
+      final root = matchProjectRoot(workingDirectory)?.root;
+      if (root == null) return;
+      final line = staleProjectLine(root, runningVersion: specstoneVersion);
+      if (line != null) _err.writeln(line);
+    } on Object {
+      // The command's own result stands whatever the line's read or write did.
+    }
   }
 
   @override
@@ -205,6 +230,28 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       return usageExitCode;
     }
   }
+}
+
+/// The commands that end with no stale-project line: the fix itself, a command
+/// that speaks to another program, and a command that finds no project root.
+const Set<String> _noStaleLineCommands = {
+  'migrate',
+  'init',
+  'hook',
+  'mcp',
+  'help',
+  'upgrade',
+};
+
+/// Whether [command] ends with the stale-project line when its project is
+/// stale: every command but [_noStaleLineCommands], `--help`, and `check` with
+/// no target, whose findings already name the fix.
+bool _endsWithStaleLine(ArgResults? command) {
+  if (command == null || _noStaleLineCommands.contains(command.name)) {
+    return false;
+  }
+  if (command.options.contains('help') && command.flag('help')) return false;
+  return command.name != 'check' || command.rest.isNotEmpty;
 }
 
 /// Returns [args] with an empty value on each `--target` that has none, so the

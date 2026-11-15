@@ -48,6 +48,11 @@ abstract class SpecstoneCommand extends Command<int> {
     required bool asJson,
     List<String> warnings = const [],
   }) {
+    if (fault is TemplateFault &&
+        (fault.code == FaultCode.packPinOlder ||
+            fault.code == FaultCode.packPinNewer)) {
+      specstoneRunner.recordPinRefusal();
+    }
     if (asJson) {
       specstoneRunner.err.writeln(
         pretty.convert({
