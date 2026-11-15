@@ -285,6 +285,7 @@ final class TemplateResolver {
     final loadIndex = loadIndexOf(loadOrder);
     _checkGeneratorKinds(loadOrder);
     _checkRecordTargets(packs);
+    _checkBulletLineTargets(packs, layerLists);
     _checkExtendsInOverride(loadOrder, layerLists);
     final docTypes = _resolveInDependencyOrder(layerLists, merger, loadIndex);
     checkMergedSet(
@@ -314,6 +315,17 @@ final class TemplateResolver {
           if (other == pack || reaches(pack, other, extendsOf: extendsOf))
             ...layers.keys,
       });
+    }
+  }
+
+  /// Throws `unknown_value` for the first `bullet_lines` step whose doc type
+  /// or section no layer of [layerLists] defines.
+  void _checkBulletLineTargets(
+    List<ParsedPack> packs,
+    Map<String, DocTypeLayers> layerLists,
+  ) {
+    for (final (:pack, layers: _) in packs) {
+      pack.manifest.checkBulletLineTargets(layerLists);
     }
   }
 

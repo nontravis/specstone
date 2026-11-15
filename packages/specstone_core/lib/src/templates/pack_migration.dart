@@ -133,6 +133,31 @@ final class StampCodeFingerprints extends MigrationStep {
   String get kind => 'stamp_code_fingerprints';
 }
 
+/// A `bullet_lines` step: each line of one section that opens with a listed
+/// prefix becomes a markdown bullet.
+final class BulletLines extends MigrationStep {
+  const new({
+    required this.docType,
+    required this.section,
+    required this.prefixes,
+  });
+
+  /// The id of the doc type this step touches.
+  final String docType;
+
+  /// The id of the section whose lines this step bullets.
+  final String section;
+
+  /// The non-empty line openings that mark a line to bullet.
+  final List<String> prefixes;
+
+  @override
+  bool touches(String docTypeId) => docTypeId == docType;
+
+  @override
+  String get kind => 'bullet_lines';
+}
+
 /// Parses a `migrations:` [node] of a `pack.yaml` read from [file].
 ///
 /// A null node gives no entries; entries keep file order. A bad `from:` is
@@ -239,6 +264,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'stamp_code_fingerprints' => _parseStampCodeFingerprints(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'bullet_lines' => _parseBulletLines(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -393,6 +424,41 @@ StampCodeFingerprints _parseStampCodeFingerprints(
     prefix: 'migrations[$i].steps[$j].stamp_code_fingerprints.',
   );
   return const StampCodeFingerprints();
+}
+
+BulletLines _parseBulletLines(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  final prefix = 'migrations[$i].steps[$j].bullet_lines.';
+  checkKeys(
+    map,
+    const {'doc_type', 'section', 'prefixes'},
+    file: file,
+    format: 'bullet_lines step',
+    prefix: prefix,
+  );
+  final prefixes = stringsOf(
+    requireValue<YamlList>(map, 'prefixes', file: file, prefix: prefix),
+    'prefixes',
+    file: file,
+    prefix: prefix,
+  );
+  if (prefixes.isEmpty || prefixes.any((p) => p.isEmpty)) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the key prefixes must hold at least one non-empty string',
+      file: file,
+      key: '${prefix}prefixes',
+    );
+  }
+  return BulletLines(
+    docType: requireValue<String>(map, 'doc_type', file: file, prefix: prefix),
+    section: requireValue<String>(map, 'section', file: file, prefix: prefix),
+    prefixes: prefixes,
+  );
 }
 
 /// A `move_file` `to` pattern must hold the `from` placeholders in the same
