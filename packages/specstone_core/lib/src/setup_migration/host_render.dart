@@ -202,12 +202,7 @@ bool _isPlainYamlString(String value) {
 }
 
 bool _isNonPrintable(int rune) =>
-    rune < 0x20 ||
-    rune == 0x7F ||
-    rune == 0x85 ||
-    rune == 0x2028 ||
-    rune == 0x2029 ||
-    rune == 0xFEFF;
+    rune < 0x20 || rune == 0x85 || rune == 0x2028 || rune == 0x2029;
 
 String _tomlString(String value) =>
     '"${_tomlEscape(value, keepNewlines: false)}"';
