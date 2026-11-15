@@ -1,0 +1,42 @@
+id: notification
+description: In-app, push, and email notices and their opt-out.
+items:
+  - id: consent_first
+    text: No notice is sent until the user has agreed to receive it.
+  - id: per_type_control
+    text: Users can turn each type of notice on or off on its own rather than all notices at once.
+  - id: importance_level
+    text: Each type of notice has an importance level that sets how much it interrupts the user.
+  - id: no_repeat_notices
+    text: Further updates on one topic update or group the existing notice rather than send a new one each time.
+  - id: no_private_content
+    text: A notice holds no private or sensitive data, since others may see it on a lock screen or preview.
+  - id: hidden_preview_text
+    text: A notice carries short generic text for when previews are hidden, such as New comment.
+  - id: tap_opens_content
+    text: Tapping a notice opens the content it is about.
+  - id: locked_device_actions
+    text: An action taken from a notice on a locked device can require unlocking first.
+  - id: in_app_arrival
+    text: A notice about content already on screen updates that view quietly instead of alerting.
+  - id: errors_in_app
+    text: An error is shown as an alert in the app, never as a notice.
+  - id: badge_count
+    text: A badge counts only unread notices and clears as soon as they are read.
+  - id: not_badge_or_sound_alone
+    text: Important information never relies on a badge or a sound alone, since users can turn both off.
+  - id: one_click_unsubscribe
+    text: Each bulk email offers one-click unsubscribe that works with no sign-in and no confirmation page.
+  - id: unsubscribe_token
+    text: The unsubscribe link carries a hard-to-forge token naming the recipient and the list, and the server checks it.
+  - id: signed_bulk_email
+    text: Bulk email is signed so the receiving mail system can trust its one-click unsubscribe.
+reference:
+  - title: Apple HIG Notifications
+    url: https://developer.apple.com/design/human-interface-guidelines/notifications
+  - title: Android notifications
+    url: https://developer.android.com/develop/ui/views/notifications
+  - title: RFC 8058
+    url: https://www.rfc-editor.org/rfc/rfc8058
+  - title: Android About notifications
+    url: https://developer.android.com/develop/ui/compose/notifications

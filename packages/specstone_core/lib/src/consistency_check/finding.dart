@@ -126,7 +126,9 @@ enum FindingKind {
   formatDrift('format_drift'),
   agentBlockStale('agent_block_stale'),
   tbrOpen('tbr_open'),
-  approvalStale('approval_stale');
+  approvalStale('approval_stale'),
+  featurePatternMissing('feature_pattern_missing'),
+  featurePatternItemMissing('feature_pattern_item_missing');
 
   new(this.wire);
 

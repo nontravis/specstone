@@ -11,6 +11,7 @@ import 'package:specstone_core/src/consistency_check/code_mention_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/cross_doc_rules.dart';
 import 'package:specstone_core/src/consistency_check/diagram_rules.dart';
+import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/format_rules.dart';
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart';
@@ -98,6 +99,7 @@ CheckReport runCheck(
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkCodeLinks(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
+      ..addAll(checkFeaturePatterns(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
       ..addAll(checkOldCites(context, doc))

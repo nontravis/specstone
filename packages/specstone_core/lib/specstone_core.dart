@@ -80,6 +80,7 @@ export 'src/setup_migration/migrate_fault.dart'
     show MigrateFault, MigrateFaultCode;
 export 'src/setup_migration/migrate_run.dart' show MigrateRequest, runMigrate;
 export 'src/setup_migration/trust_roots.dart' show TrustRequest, runTrust;
+export 'src/templates/feature_pattern.dart' show ChecklistItem, FeaturePattern;
 export 'src/templates/generator_kinds.dart' show shippedGeneratorKinds;
 export 'src/templates/merged_doc_type.dart';
 export 'src/templates/merged_set.dart';

@@ -19,6 +19,51 @@ const _builtInFields = <MergedField>[
   MergedField(id: 'reference', type: FieldType.docRef, list: true),
 ];
 
+/// Returns [base] with [write] applied, or [base] when [write] is null.
+///
+/// A [PlainList] is accepted only where [base] is null. A [ListChange] starts
+/// from an empty list when [base] is null and must remove only names [base]
+/// holds, else it throws the [notFound] fault. Faults name [file] and [key].
+List<T>? mergeList<T>(
+  List<T>? base,
+  ListWrite<T>? write, {
+  required String file,
+  required String key,
+  required String Function(T) nameOf,
+  required FaultCode notFound,
+}) {
+  switch (write) {
+    case null:
+      return base;
+    case PlainList(:final items):
+      if (base == null) return List.unmodifiable(items);
+      throw TemplateFault(
+        FaultCode.listOverrideNeedsAddRemove,
+        'a lower layer already defines $key; write add and remove to '
+        'change it',
+        file: file,
+        key: key,
+      );
+    case ListChange(:final add, :final remove):
+      final lower = base ?? <T>[];
+      final names = lower.map(nameOf).toSet();
+      for (final name in remove) {
+        if (names.contains(name)) continue;
+        throw TemplateFault(
+          notFound,
+          'cannot remove $name from $key; no lower layer holds it',
+          file: file,
+          key: key,
+        );
+      }
+      return List.unmodifiable([
+        for (final item in lower)
+          if (!remove.contains(nameOf(item))) item,
+        ...add,
+      ]);
+  }
+}
+
 /// Folds sparse doc-type layers onto a base, matching entries by id.
 final class DocTypeMerger {
   const new();
@@ -54,18 +99,18 @@ final class DocTypeMerger {
       path: layer.path,
       maxDepth: layer.maxDepth,
       isPerTarget: layer.perTarget,
-      bundle: _mergeList<String>(
+      bundle: mergeList<String>(
         base.bundle,
         layer.bundle,
-        layer,
+        file: layer.file,
         key: 'bundle',
         nameOf: (mode) => mode,
         notFound: FaultCode.bundleModeNotFound,
       ),
-      generators: _mergeList<String>(
+      generators: mergeList<String>(
         base.generators,
         layer.generators,
-        layer,
+        file: layer.file,
         key: 'generators',
         nameOf: (kind) => kind,
         notFound: FaultCode.unknownValue,
@@ -98,18 +143,18 @@ final class DocTypeMerger {
       maxChars: lint.maxChars,
       maxLines: lint.maxLines,
       maxItemChars: lint.maxItemChars,
-      bannedWords: _mergeList<String>(
+      bannedWords: mergeList<String>(
         base.bannedWords,
         lint.bannedWords,
-        layer,
+        file: layer.file,
         key: 'lint.banned_words',
         nameOf: (word) => word,
         notFound: FaultCode.lintWordNotFound,
       ),
-      allowedWords: _mergeList<String>(
+      allowedWords: mergeList<String>(
         base.allowedWords,
         lint.allowedWords,
-        layer,
+        file: layer.file,
         key: 'lint.allowed_words',
         nameOf: (word) => word,
         notFound: FaultCode.lintWordNotFound,
@@ -152,19 +197,19 @@ final class DocTypeMerger {
     required String Function(T) keyOf,
   }) {
     if (write is! ListChange<T>) {
-      return _mergeList<T>(
+      return mergeList<T>(
         base,
         write,
-        layer,
+        file: layer.file,
         key: key,
         nameOf: keyOf,
         notFound: FaultCode.overrideIdNotFound,
       );
     }
-    final kept = _mergeList<T>(
+    final kept = mergeList<T>(
       base,
       ListChange<T>(<T>[], write.remove),
-      layer,
+      file: layer.file,
       key: key,
       nameOf: keyOf,
       notFound: FaultCode.overrideIdNotFound,
@@ -180,59 +225,14 @@ final class DocTypeMerger {
   List<ReferenceEntry>? _mergeReference(
     List<ReferenceEntry>? base,
     DocTypeLayer layer,
-  ) => _mergeList<ReferenceEntry>(
+  ) => mergeList<ReferenceEntry>(
     base,
     layer.reference,
-    layer,
+    file: layer.file,
     key: 'reference',
     nameOf: (entry) => entry.title,
     notFound: FaultCode.referenceTitleNotFound,
   );
-
-  /// Returns [base] with [write] applied, or [base] when [write] is null.
-  ///
-  /// A [PlainList] is accepted only where [base] is null. A [ListChange]
-  /// starts from an empty list when [base] is null and must remove only names
-  /// [base] holds, else it throws the [notFound] fault.
-  List<T>? _mergeList<T>(
-    List<T>? base,
-    ListWrite<T>? write,
-    DocTypeLayer layer, {
-    required String key,
-    required String Function(T) nameOf,
-    required FaultCode notFound,
-  }) {
-    switch (write) {
-      case null:
-        return base;
-      case PlainList(:final items):
-        if (base == null) return List.unmodifiable(items);
-        throw TemplateFault(
-          FaultCode.listOverrideNeedsAddRemove,
-          'a lower layer already defines $key; write add and remove to '
-          'change it',
-          file: layer.file,
-          key: key,
-        );
-      case ListChange(:final add, :final remove):
-        final lower = base ?? <T>[];
-        final names = lower.map(nameOf).toSet();
-        for (final name in remove) {
-          if (names.contains(name)) continue;
-          throw TemplateFault(
-            notFound,
-            'cannot remove $name from $key; no lower layer holds it',
-            file: layer.file,
-            key: key,
-          );
-        }
-        return List.unmodifiable([
-          for (final item in lower)
-            if (!remove.contains(nameOf(item))) item,
-          ...add,
-        ]);
-    }
-  }
 
   List<MergedField> _mergeFields(List<MergedField> base, DocTypeLayer layer) {
     final fields = [...base];
@@ -450,10 +450,10 @@ final class DocTypeMerger {
     DocTypeLayer layer,
     String sectionId,
     String name,
-  ) => _mergeList<String>(
+  ) => mergeList<String>(
     base,
     write,
-    layer,
+    file: layer.file,
     key: 'sections.$sectionId.lint.$name',
     nameOf: (word) => word,
     notFound: FaultCode.lintWordNotFound,

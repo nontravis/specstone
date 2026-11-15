@@ -55,7 +55,11 @@ void main() {
   test('the pack writes no layer over nf or any other prd-core '
       'doc type', () {
     final files = shippedPackFiles.keys
-        .where((k) => k.startsWith('software-tech/'))
+        .where(
+          (k) =>
+              k.startsWith('software-tech/') &&
+              !k.startsWith('software-tech/patterns/'),
+        )
         .toList();
     expect(
       files,

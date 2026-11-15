@@ -1,0 +1,49 @@
+id: crud
+description: Create, read, list, update, and delete of one resource.
+items:
+  - id: get_and_list
+    text: Each record kind offers read and list, so a caller can check the result of every change.
+  - id: read_after_write
+    text: Right after a create, update, or delete, a read returns the new state, or not found for a deleted record.
+  - id: create_duplicate_id
+    text: Creating a record with an id already in use fails as already existing, unless the caller may not see that record.
+  - id: missing_record
+    text: Reading, updating, or deleting a record that does not exist fails as not found.
+  - id: paged_list
+    text: Every list is paged from its first release, with an opaque token for the next page.
+  - id: page_size
+    text: A list caps its page size at a stated maximum, lowers a larger request to it, and refuses a negative size.
+  - id: sort_and_filter
+    text: A list adds sorting or filtering only for a known need, since removing either later breaks callers.
+  - id: partial_update
+    text: An update changes only the fields it names, and an update naming no field changes nothing.
+  - id: no_state_writes
+    text: An update never writes state fields or triggers side effects, which run through separate actions.
+  - id: writable_fields_only
+    text: Create and update accept only fields the caller may set, so a request cannot inject fields such as owner or role.
+  - id: record_level_access
+    text: Every read, list, update, and delete checks that the caller may access that record, not only its kind.
+  - id: unguessable_ids
+    text: Record ids exposed to callers are hard to guess, and access checks still apply when an id is known.
+  - id: stale_version
+    text: An update or delete may carry the version the caller read, and a version that no longer matches is refused.
+  - id: delete_with_children
+    text: Deleting a record that has child records fails unless the caller explicitly asks for a cascading delete.
+  - id: soft_delete
+    text: A record that supports undelete is marked deleted, left out of lists by default, and restorable until it is purged.
+reference:
+  - title: Google AIP-121
+    url: https://google.aip.dev/121
+  - title: Google AIP-131 to AIP-135
+    url: https://google.aip.dev/131
+    locator: AIP-131 to AIP-135
+  - title: Google AIP-158 Pagination
+    url: https://google.aip.dev/158
+  - title: Google AIP-164 Soft delete
+    url: https://google.aip.dev/164
+  - title: Google AIP-154 Resource freshness validation
+    url: https://google.aip.dev/154
+  - title: OWASP Mass Assignment Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Mass_Assignment_Cheat_Sheet.html
+  - title: OWASP IDOR Prevention Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/Insecure_Direct_Object_Reference_Prevention_Cheat_Sheet.html

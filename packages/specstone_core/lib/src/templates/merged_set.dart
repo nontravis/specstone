@@ -2,16 +2,28 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
 
-/// The merged doc types of one resolve, sorted by id in code point order.
+/// The merged doc types and feature patterns of one resolve, each sorted by id
+/// in code point order.
 final class MergedSet {
-  new({required List<MergedDocType> docTypes})
-    : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes)));
+  new({
+    required List<MergedDocType> docTypes,
+    List<FeaturePattern> featurePatterns = const [],
+  }) : docTypes = List.unmodifiable(withNestedPaths(_sortedCopy(docTypes))),
+       featurePatterns = List.unmodifiable(
+         List<FeaturePattern>.of(featurePatterns)
+           ..sort((a, b) => compareCodePoints(a.id, b.id)),
+       );
 
   /// The merged doc types, sorted by id; the caller's list is untouched.
   final List<MergedDocType> docTypes;
+
+  /// The merged feature patterns, sorted by id; the caller's list is
+  /// untouched.
+  final List<FeaturePattern> featurePatterns;
 
   /// The doc type that writes `max_depth`, 0 included; null when none does.
   MergedDocType? get nestingType => nestingTypeOf(docTypes);
@@ -35,6 +47,14 @@ final class MergedSet {
     return null;
   }
 
+  /// Returns the feature pattern [id], or null when the set holds none.
+  FeaturePattern? featurePattern(String id) {
+    for (final pattern in featurePatterns) {
+      if (pattern.id == id) return pattern;
+    }
+    return null;
+  }
+
   /// Returns one JSON object per doc type: `id`, `pack` when a pack supplies
   /// the doc type, and the first line of `description`.
   List<Map<String, Object>> listJson() => [
@@ -49,6 +69,22 @@ final class MergedSet {
   /// Returns the doc type ids, one per line, each ending with a newline.
   String listText() =>
       [for (final docType in docTypes) '${docType.id}\n'].join();
+
+  /// Returns one JSON object per feature pattern: `id`, `pack` when a pack
+  /// supplies it, and the first line of `description`.
+  List<Map<String, Object>> featurePatternListJson() => [
+    for (final pattern in featurePatterns)
+      {
+        'id': pattern.id,
+        'pack': ?pattern.pack,
+        'description': ?_firstLine(pattern.description),
+      },
+  ];
+
+  /// Returns the feature pattern ids, one per line, each ending with a
+  /// newline.
+  String featurePatternListText() =>
+      [for (final pattern in featurePatterns) '${pattern.id}\n'].join();
 
   /// Returns the first line of [text], `''` for an empty text, or null.
   static String? _firstLine(String? text) => text == null

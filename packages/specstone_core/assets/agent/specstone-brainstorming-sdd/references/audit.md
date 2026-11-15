@@ -3,7 +3,7 @@
 file: no doc, no other file, no fix. As the agent, ask the Owner nothing: each gap goes into your report.
 
 `specstone check` reads each doc's form, not what it means. Read the docs as a reader who did not write them, and
-report what the author's own coverage table cannot show.
+report what the author's coverage table cannot show.
 
 ## 1. Read
 
@@ -44,6 +44,10 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 
 - **Rule restated:** name the owner doc and the item; its fix is an item link in the draft.
 - **No design document:** skip the first two rows; every other comparison and `check` still run.
+- **Feature pattern:** for each item of a bundle's pattern part, search the doc listing the pattern, its subtree, and
+  its feature's spec folder, if any, for covering text or a skip line in that doc's `out_of_scope`; else report
+  `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
+  as the part's bundle line.
 - **A gap you could fix:** report it and fix nothing. The author fixes it in a fix round, or the Owner decides.
 
 ## 3. Report

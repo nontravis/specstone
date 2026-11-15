@@ -262,6 +262,64 @@ void main() {
     expect(findings, isEmpty);
   });
 
+  group('a skip line of a listed feature pattern', () {
+    /// The login feature listing [patterns] and holding [skip] under its
+    /// Out-of-scope section, beside a story the span `crud/paged_list` names.
+    Future<List<Finding>> citesWithSkip(
+      String skip, {
+      List<String> patterns = const ['crud'],
+    }) => _citeFindings({
+      '.specstone/templates/feature.yaml':
+          'fields:\n  - id: patterns\n    type: string\n    list: true\n',
+      'docs/prds/features/f02_crud/FEATURE.md': '# Crud\n',
+      'docs/prds/features/f02_crud/us01_paged_list/USER_STORY.md':
+          '# Paged list\n',
+      ...edit(loginFeature, [
+        (
+          'goals:\n  - PG-01\n',
+          'goals:\n  - PG-01\npatterns:\n'
+              '${[for (final id in patterns) '  - $id\n'].join()}',
+        ),
+        (
+          '- Social sign-in — not planned\n',
+          '- Social sign-in — not planned\n$skip\n',
+        ),
+      ]),
+    });
+
+    test('a skip line of a listed pattern is no cite candidate', () async {
+      final findings = await citesWithSkip(
+        '- `crud/paged_list` — one page is enough',
+      );
+      expect(findings, isEmpty);
+    });
+
+    test('the same span in a feature that does not list the pattern '
+        'still gives cite_unlinked', () async {
+      final findings = await citesWithSkip(
+        '- `crud/paged_list` — one page is enough',
+        patterns: const [],
+      );
+      expect([for (final f in findings) f.keys['cite']], ['crud/paged_list']);
+    });
+
+    test('guard: a hyphen separator makes it no skip line, so its span is '
+        'a cite', () async {
+      final findings = await citesWithSkip(
+        '- `crud/paged_list` - one page is enough',
+      );
+      expect([for (final f in findings) f.keys['cite']], ['crud/paged_list']);
+    });
+
+    test('guard: a double hyphen separator makes it no skip line, so its '
+        'span is a cite', () async {
+      final findings = await citesWithSkip(
+        '- `crud/paged_list` -- one page is enough',
+      );
+      expect([for (final f in findings) f.keys['cite']], ['crud/paged_list']);
+    });
+  });
+
   test('a one-doc check scope reports the cites of that doc', () async {
     final project = await writeCheckProject(
       extra: {

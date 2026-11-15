@@ -831,6 +831,87 @@ void main() {
       expect(findings, isEmpty);
     });
 
+    /// The login feature with a `crud` feature beside it, listing [patterns]
+    /// and holding [skips] under its Out-of-scope section.
+    Future<Directory> skipProject({
+      List<String> patterns = const ['crud'],
+      required List<String> skips,
+    }) => writeCheckProject(
+      extra: {
+        '.specstone/templates/feature.yaml':
+            'fields:\n  - id: patterns\n    type: string\n    list: true\n',
+        'docs/prds/features/f02_crud/FEATURE.md': '# Crud\n',
+        ...edit(loginFeature, [
+          (
+            'goals:\n  - PG-01\n',
+            'goals:\n  - PG-01\npatterns:\n${[for (final id in patterns) '  - $id\n'].join()}',
+          ),
+          (
+            '- Social sign-in — not planned\n',
+            '- Social sign-in — not planned\n${skips.join('\n')}\n',
+          ),
+        ]),
+      },
+    );
+
+    test('a skip line of a listed pattern is no doc-name mention, even '
+        'when a feature of the pattern name exists', () async {
+      final findings = mentionsOf(
+        await skipProject(skips: ['- `crud/paged_list` — one page is enough']),
+      );
+      expect(findings, isEmpty);
+    });
+
+    test('the same span in a feature that does not list the pattern is '
+        'read as any doc-name mention', () async {
+      final project = await skipProject(
+        patterns: const [],
+        skips: ['- `crud/paged_list` — one page is enough'],
+      );
+      expect(
+        [for (final f in mentionsOf(project)) f.keys],
+        [
+          {'name': 'crud/paged_list'},
+        ],
+      );
+    });
+
+    test(
+      'a second span on a skip line still reads as a doc-name mention',
+      () async {
+        final findings = mentionsOf(
+          await skipProject(
+            skips: ['- `crud/paged_list` — instead of `crud/paged_lis`'],
+          ),
+        );
+        expect(
+          [for (final f in findings) f.keys],
+          [
+            {'name': 'crud/paged_lis'},
+          ],
+        );
+      },
+    );
+
+    test('guard: a bullet with a hyphen or two as its separator is no skip '
+        'line, so its span reads as any doc-name mention', () async {
+      final findings = mentionsOf(
+        await skipProject(
+          skips: [
+            '- `crud/paged_list` - one page is enough',
+            '- `crud/paged_list` -- one page is enough',
+          ],
+        ),
+      );
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'name': 'crud/paged_list'},
+          {'name': 'crud/paged_list'},
+        ],
+      );
+    });
+
     test('S14: an '
         'untyped doc is checked and the finding names the doc, the line, and '
         'the name', () async {

@@ -35,6 +35,22 @@ const _softwareTechIds = <String>[
   'topic',
 ];
 
+const _tenPatternIds = <String>[
+  'audit_log',
+  'auth',
+  'crud',
+  'file_upload',
+  'import_export',
+  'notification',
+  'payment',
+  'role_permission',
+  'settings_profile',
+  'signup',
+];
+
+/// The item lines `auth` prints; `signup` prints them first, then its own.
+const _authItemCount = 15;
+
 /// The ids of the `Map` entries of [list], read from key [key].
 List<Object?> _idsOf(Object? list, [String key = 'id']) => [
   for (final entry in list! as List<Object?>)
@@ -623,6 +639,44 @@ void main() {
               as Map<String, Object?>;
       expect(error['code'], 'doc_type_unknown');
       expect(out.toString(), isEmpty);
+    });
+
+    test('guide --pattern lists exactly the ten shipped ids', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', '--pattern']), 0);
+      expect(out.toString(), _tenPatternIds.map((id) => '$id\n').join());
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide --pattern <id> prints 5 to 15 item lines of one sentence '
+        'each', () async {
+      final runner = await runnerFor(_bothPacks);
+      for (final id in _tenPatternIds) {
+        out.clear();
+        expect(await runner.run(['guide', '--pattern', id]), 0, reason: id);
+        final lines = [
+          for (final line in out.toString().split('\n'))
+            if (line.startsWith('- **')) line,
+        ];
+        final own = id == 'signup' ? lines.length - _authItemCount : null;
+        expect(
+          own ?? lines.length,
+          inInclusiveRange(5, 15),
+          reason: '$id has ${lines.length} item lines',
+        );
+        for (final line in lines) {
+          final text = line.substring(line.indexOf('** ') + 3);
+          expect(text.length, lessThanOrEqualTo(160), reason: line);
+          expect(text, endsWith('.'), reason: line);
+          expect(
+            RegExp(r'[.!?](\s|$)').allMatches(text),
+            hasLength(1),
+            reason: line,
+          );
+          expect(text, isNot(matches(RegExp(r'[`/\\]|\.dart'))), reason: line);
+        }
+      }
+      expect(err.toString(), isEmpty);
     });
 
     test('software-tech without prd-core is '

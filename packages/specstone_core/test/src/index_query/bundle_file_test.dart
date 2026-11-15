@@ -56,6 +56,7 @@ ContextAnswer _answerOf(
         cited: false,
         sectionKey: null,
         itemId: null,
+        featurePattern: null,
         first: 2 * i + 1,
         last: 2 * i + 1,
         sections: [
@@ -161,6 +162,7 @@ void main() {
             cited: false,
             sectionKey: null,
             itemId: null,
+            featurePattern: null,
             first: 1,
             last: 3,
             sections: const [
@@ -174,6 +176,7 @@ void main() {
             cited: true,
             sectionKey: 'statement',
             itemId: null,
+            featurePattern: null,
             first: 5,
             last: 6,
             sections: const [(key: 'statement', first: 5)],
@@ -184,6 +187,7 @@ void main() {
             cited: true,
             sectionKey: 'edge_cases',
             itemId: 'E01',
+            featurePattern: null,
             first: 8,
             last: 8,
             sections: const [],
@@ -194,6 +198,7 @@ void main() {
             cited: false,
             sectionKey: null,
             itemId: null,
+            featurePattern: null,
             first: 10,
             last: 10,
             sections: const [(key: 'use_case', first: 10)],
@@ -204,6 +209,7 @@ void main() {
             cited: true,
             sectionKey: null,
             itemId: null,
+            featurePattern: null,
             first: 12,
             last: 12,
             sections: const [],
@@ -219,6 +225,7 @@ void main() {
             cited: true,
             sectionKey: null,
             itemId: null,
+            featurePattern: null,
             first: 14,
             last: 14,
             sections: const [],
@@ -329,6 +336,110 @@ void main() {
           {'key': 'statement0', 'first': 1},
         ],
       });
+    });
+  });
+
+  group('bundleIndex and its --json hold each feature pattern part', () {
+    BundleEntry docEntry(String name, int first, int last) => (
+      doc: _doc(name),
+      summary: false,
+      cited: false,
+      sectionKey: null,
+      itemId: null,
+      featurePattern: null,
+      first: first,
+      last: last,
+      sections: [(key: 'statement', first: first)],
+    );
+    BundleEntry partEntry(String id, int first, int last) => (
+      doc: const IndexedDoc(
+        docPath: 'prds/features/f01_login/FEATURE.md',
+        docTypeId: 'feature',
+        name: 'login',
+        frontmatter: {},
+        tokens: 1,
+      ),
+      summary: false,
+      cited: false,
+      sectionKey: null,
+      itemId: null,
+      featurePattern: id,
+      first: first,
+      last: last,
+      sections: const [],
+    );
+    ContextAnswer answerOf(String mode) => ContextAnswer(
+      text: 'a\nb\n\nc\nd\n\ne\nf\n',
+      json: {'for': mode},
+      entries: [
+        docEntry('login', 1, 2),
+        partEntry('auth', 4, 5),
+        docEntry('story', 7, 8),
+      ],
+      tokens: 9,
+    );
+
+    test('a part gets `- <id> (feature pattern) · <first>-<last>` with no section, where it prints', () {
+      expect(
+        bundleIndex(answerOf('design'), '/p/b.txt'),
+        '==> bundle: 2 docs, 9 tokens, 8 lines · /p/b.txt <==\n'
+        '- login (fr) · 1-2 · statement 1\n'
+        '- auth (feature pattern) · 4-5\n'
+        '- story (fr) · 7-8 · statement 7\n',
+      );
+    });
+    test(
+      'a part stays one line without sections when the index drops them',
+      () {
+        final base = answerOf('design');
+        final padding = _answerOf(200);
+        final answer = ContextAnswer(
+          text: base.text,
+          json: base.json,
+          entries: [...base.entries, ...padding.entries],
+          tokens: base.tokens,
+        );
+        final index = bundleIndex(answer, '/p');
+        expect(index, contains('- auth (feature pattern) · 4-5\n'));
+        expect(index, isNot(contains('statement')));
+      },
+    );
+    test('in a design reply --json lists docs without parts, then featurePatterns as {id, doc, lines}', () {
+      final json = bundleIndexJson(answerOf('design'), '/p/b.txt');
+      expect(json.keys.toList(), [
+        'out',
+        'tokens',
+        'lines',
+        'docs',
+        'featurePatterns',
+      ]);
+      expect(
+        [for (final doc in json['docs']! as List) (doc as Map)['name']],
+        ['login', 'story'],
+      );
+      expect(json['featurePatterns'], [
+        {
+          'id': 'auth',
+          'doc': 'feature:login',
+          'lines': [4, 5],
+        },
+      ]);
+    });
+    test('a design reply where no part joins gives featurePatterns: []', () {
+      final base = _answerOf(1);
+      final answer = ContextAnswer(
+        text: base.text,
+        json: const {'for': 'design'},
+        entries: base.entries,
+        tokens: base.tokens,
+      );
+      expect(bundleIndexJson(answer, '/p')['featurePatterns'], isEmpty);
+    });
+    test('outside design --json has no featurePatterns key', () {
+      for (final mode in ['implement', 'query']) {
+        final json = bundleIndexJson(answerOf(mode), '/p/b.txt');
+        expect(json, isNot(contains('featurePatterns')));
+      }
     });
   });
 

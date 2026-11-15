@@ -1302,6 +1302,60 @@ void _handOffTests() {
     }
   });
 
+  test('the Rules section of expert-sdd has a new feature pick its patterns '
+      'with guide --pattern and cover each checklist item or name it in the '
+      "feature's Out-of-scope", () {
+    final rules = _oneLine(
+      _sectionOf(_pluginText('specstone-expert-sdd/SKILL.md'), 'Rules'),
+    );
+    expect(
+      rules,
+      contains(
+        'For a new feature, pick its patterns with `specstone guide '
+        "--pattern`; cover each checklist item or name it in the feature's "
+        'Out-of-scope as a skip line.',
+      ),
+    );
+  });
+
+  test('step 2 of brainstorming-sdd has the design document propose each '
+      "new or reshaped feature's patterns from guide --pattern", () {
+    final step = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+        '2. Reach an approved design document',
+      ),
+    );
+    expect(
+      step,
+      contains(
+        "The design document proposes each new or reshaped feature's "
+        '`patterns:` value, picked from `specstone guide --pattern`.',
+      ),
+    );
+  });
+
+  test('the audit compares each feature pattern item of a design bundle with '
+      'the docs and reports an item neither covered nor skipped', () {
+    final compare = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/references/audit.md'),
+        '2. Compare',
+      ),
+    );
+    expect(
+      compare,
+      contains(
+        "- **Feature pattern:** for each item of a bundle's pattern part, "
+        'search the doc listing the pattern, its subtree, and its '
+        "feature's spec folder, if any, for covering text or a skip line in "
+        "that doc's `out_of_scope`; else report `<type>:<name>#out_of_scope: "
+        '<pattern>/<item> neither covered nor skipped`, `<type>:<name>` '
+        "the listing doc, typed as the part's bundle line.",
+      ),
+    );
+  });
+
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final hits = <String>[];

@@ -275,6 +275,11 @@ void main() {
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
       expect(json['path'], 'prds/features/f{nn}_{slug}/FEATURE.md');
       expect(json.containsKey('parent'), isFalse);
+      expect([
+        for (final field
+            in (json['fields']! as List).cast<Map<String, Object?>>())
+          field['id'],
+      ], contains('patterns'));
     });
 
     test('f03/us06/s4, f03/us06/fr03: guide fr --json gives the NASA word '

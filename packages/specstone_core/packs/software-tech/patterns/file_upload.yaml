@@ -1,0 +1,39 @@
+id: file_upload
+description: Upload, store, and download a file.
+items:
+  - id: allowed_types
+    text: Each upload accepts only the file types and extensions the business needs, from an allowlist.
+  - id: content_matches_type
+    text: A file's content is checked against its extension, since the declared type and name are easy to spoof.
+  - id: max_size
+    text: Each upload has a maximum file size the system can process without loss of performance.
+  - id: archive_limits
+    text: A compressed file is checked against a maximum unpacked size and file count before it is unpacked.
+  - id: archive_paths
+    text: Unpacking ignores paths and symbolic links inside an archive, so no file lands outside its folder.
+  - id: user_quota
+    text: Each user has a storage quota and a maximum number of files.
+  - id: image_pixel_limit
+    text: An image larger than the maximum pixel size is rejected.
+  - id: generated_name
+    text: A stored file gets a name the system generates, and a kept user file name is length-limited and checked.
+  - id: never_executed
+    text: Uploaded files are stored outside the public web root and are never run as server code.
+  - id: malware_scan
+    text: A file from an untrusted source is scanned for malware before anyone can download it.
+  - id: download_name
+    text: A download sets and encodes its own file name rather than using one the request supplies.
+  - id: upload_permission
+    text: Only identified users with the right permission can upload, read, or replace a file.
+  - id: download_rate_limit
+    text: Downloads are rate limited so a flood of small requests cannot overload the server.
+  - id: abuse_report
+    text: Users can report illegal content, and copyright owners can report abuse.
+  - id: upload_csrf
+    text: The upload request is protected against cross-site request forgery.
+reference:
+  - title: OWASP ASVS 5.0
+    url: https://github.com/OWASP/ASVS/tree/v5.0.0
+    locator: V5 File Handling
+  - title: OWASP File Upload Cheat Sheet
+    url: https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html

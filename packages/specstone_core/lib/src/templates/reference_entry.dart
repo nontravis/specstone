@@ -98,6 +98,16 @@ final class ReferenceEntry {
 
 const _entryKeys = {'title', 'url', 'file', 'doc', 'locator'};
 
+/// Returns the guide line of [entry]: `- <title>[, <locator>][: <target>]`,
+/// where the target is its url, file, or doc.
+String referenceSourceLine(ReferenceEntry entry) {
+  final locator = entry.locator;
+  final target = entry.url ?? entry.file ?? entry.doc;
+  return '- ${entry.title}'
+      '${locator == null ? '' : ', $locator'}'
+      '${target == null ? '' : ': $target'}';
+}
+
 /// Resolves [written] against [templateFolder] and checks it exists.
 ///
 /// [written] is a plain layer-relative path, never a URI reference, so names

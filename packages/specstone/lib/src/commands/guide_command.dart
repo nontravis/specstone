@@ -1,18 +1,21 @@
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Prints the doc type list, one doc type's writing guide, or its merged
-/// schema.
+/// Prints the doc type list, one doc type's writing guide or merged schema,
+/// or, with `--pattern`, the feature pattern list or each named feature
+/// pattern.
 ///
 /// A template fault reaches only the commands that resolve templates, `guide`
 /// and `format`.
 class GuideCommand extends SpecstoneCommand {
   new() {
-    argParser.addFlag(
-      'json',
-      negatable: false,
-      help: 'Print JSON instead of text.',
-    );
+    argParser
+      ..addFlag('json', negatable: false, help: 'Print JSON instead of text.')
+      ..addFlag(
+        'pattern',
+        negatable: false,
+        help: 'Read feature patterns in place of doc types.',
+      );
   }
 
   @override
@@ -20,10 +23,13 @@ class GuideCommand extends SpecstoneCommand {
 
   @override
   String get description =>
-      "Print a doc type's writing guide, or list the doc types.";
+      "Print a doc type's writing guide, or list the doc types; "
+      'with --pattern, a feature pattern, or list them.';
 
   @override
-  String get invocation => 'specstone guide [type …] [--json]';
+  String get invocation =>
+      'specstone guide [type …] [--json]\n'
+      '       specstone guide --pattern [id …] [--json]';
 
   @override
   Future<int> run() async {
@@ -39,6 +45,10 @@ class GuideCommand extends SpecstoneCommand {
       );
     } on TemplateFault catch (fault) {
       return fail(fault, asJson: asJson);
+    }
+
+    if (argResults!.flag('pattern')) {
+      return _printPatterns(set, rest, asJson: asJson);
     }
 
     if (rest.isEmpty) {
@@ -62,7 +72,7 @@ class GuideCommand extends SpecstoneCommand {
       }
     }
     if (unknown.isNotEmpty) {
-      final message = _unknownMessage(unknown);
+      final message = _unknownMessage('doc type', unknown);
       if (!asJson) usageException(message);
       return fail(
         TemplateFault(FaultCode.docTypeUnknown, message),
@@ -74,11 +84,50 @@ class GuideCommand extends SpecstoneCommand {
     return 0;
   }
 
-  static String _unknownMessage(List<String> unknown) {
-    final quoted = unknown.map((type) => '"$type"').join(', ');
+  int _printPatterns(MergedSet set, List<String> ids, {required bool asJson}) {
+    final out = specstoneRunner.out;
+    if (ids.isEmpty) {
+      final list = set.featurePatternListJson();
+      out.write(
+        asJson
+            ? '${SpecstoneCommand.pretty.convert(list)}\n'
+            : set.featurePatternListText(),
+      );
+      return 0;
+    }
+
+    final patterns = <FeaturePattern>[];
+    final unknown = <String>[];
+    for (final id in ids.toSet()) {
+      final pattern = set.featurePattern(id);
+      if (pattern == null) {
+        unknown.add(id);
+      } else {
+        patterns.add(pattern);
+      }
+    }
+    if (unknown.isNotEmpty) {
+      return fail(
+        TemplateFault(
+          FaultCode.featurePatternUnknown,
+          _unknownMessage('feature pattern', unknown),
+        ),
+        asJson: asJson,
+      );
+    }
+
+    out.write(
+      asJson ? _renderPatternJson(patterns) : _renderPatterns(patterns),
+    );
+    return 0;
+  }
+
+  /// Names each of [unknown] after [noun], in the singular form for one.
+  static String _unknownMessage(String noun, List<String> unknown) {
+    final quoted = unknown.map((id) => '"$id"').join(', ');
     return unknown.length == 1
-        ? 'Could not find a doc type named $quoted.'
-        : 'Could not find doc types named $quoted.';
+        ? 'Could not find a $noun named $quoted.'
+        : 'Could not find ${noun}s named $quoted.';
   }
 
   static String _renderJson(List<MergedDocType> docTypes) {
@@ -93,6 +142,21 @@ class GuideCommand extends SpecstoneCommand {
     return [
       for (final docType in docTypes)
         '==> ${docType.id} <==\n${docType.renderGuide()}',
+    ].join();
+  }
+
+  static String _renderPatternJson(List<FeaturePattern> patterns) {
+    final json = patterns.length == 1
+        ? patterns.single.toJson()
+        : [for (final pattern in patterns) pattern.toJson()];
+    return '${SpecstoneCommand.pretty.convert(json)}\n';
+  }
+
+  static String _renderPatterns(List<FeaturePattern> patterns) {
+    if (patterns.length == 1) return patterns.single.renderBody();
+    return [
+      for (final pattern in patterns)
+        '==> ${pattern.id} <==\n${pattern.renderBody()}',
     ].join();
   }
 }

@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
+import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
+    show isSkipSpan, skipLinesOf;
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart'
     show architectureTypeId, concernsSectionId, seeTargetIn;
@@ -31,8 +33,10 @@ Iterable<Finding> checkOldCites(CheckContext context, IndexedDoc doc) sync* {
     contentOf: context.contentOf,
   );
   final seeTargets = seeTargetsIn(context.contentOf(doc), context.typeOf(doc));
+  final skips = skipLinesOf(context, doc);
   for (final candidate in candidates) {
     if (isSeeTargetCite(seeTargets[candidate.line], candidate)) continue;
+    if (isSkipSpan(skips, candidate.line, candidate.written)) continue;
     final message = _messageOf(
       resolveCite(tree, doc.docPath, candidate),
       doc,

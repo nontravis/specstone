@@ -405,7 +405,13 @@ final class DocTypeLayer {
       fields: _parseFields(map, file: file),
       sections: _parseSections(map, file: file),
       lint: lintMap == null ? null : _parseLint(lintMap, file: file),
-      reference: _parseReference(map, file: file, kind: kind, files: files),
+      reference: parseReferenceList(
+        map,
+        file: file,
+        kind: kind,
+        files: files,
+        templateFolder: '',
+      ),
       bundle: _parseBundle(map, file: file),
       generators: _listWrite(map, 'generators', file: file, prefix: ''),
     );
@@ -494,13 +500,14 @@ ListWrite<String>? _parseBundle(YamlMap map, {required String file}) {
 
 /// Reads the `reference` key of [map] as a [ListWrite] of entries.
 ///
-/// A doc-type file sits at the top of its layer folder, so its entries
-/// resolve `file` links against an empty template folder.
-ListWrite<ReferenceEntry>? _parseReference(
+/// Entries resolve `file` links against [templateFolder], the folder of the
+/// template file relative to its layer folder (`''` at the top).
+ListWrite<ReferenceEntry>? parseReferenceList(
   YamlMap map, {
   required String file,
   required LayerKind kind,
   required LayerFiles files,
+  required String templateFolder,
 }) {
   final value = map['reference'];
   return switch (value) {
@@ -512,7 +519,7 @@ ListWrite<ReferenceEntry>? _parseReference(
           file: file,
           key: 'reference[$i]',
           kind: kind,
-          templateFolder: '',
+          templateFolder: templateFolder,
           files: files,
         ),
     ]),
@@ -521,6 +528,7 @@ ListWrite<ReferenceEntry>? _parseReference(
       file: file,
       kind: kind,
       files: files,
+      templateFolder: templateFolder,
     ),
     _ => throw TemplateFault(
       FaultCode.unknownValue,
@@ -536,6 +544,7 @@ ListChange<ReferenceEntry> _referenceChange(
   required String file,
   required LayerKind kind,
   required LayerFiles files,
+  required String templateFolder,
 }) {
   checkKeys(
     map,
@@ -566,7 +575,7 @@ ListChange<ReferenceEntry> _referenceChange(
                 file: file,
                 key: 'reference.add[$i]',
                 kind: kind,
-                templateFolder: '',
+                templateFolder: templateFolder,
                 files: files,
               ),
           ],

@@ -11,10 +11,11 @@ only rewrites one section or field of an existing doc, and adds no story or FR, 
 
 ## 1. Ground: the first call
 
-Make this your first CLI call, before any other command or file read. Target the smallest doc that holds the whole
-change, one call per target: the story for a change inside one story, the feature for one across stories, the feature
-with `--summary` to add a story, and the project doc to add a feature. Keep `--out` bare and last, and pass no
-`--budget` on any host. Pass no `--target`: a design read spans every code target.
+Make this call, the gate, your first CLI call, before any other command or file read.
+Target the smallest doc that holds the whole change, one call per target: the story for a change inside one story,
+the feature for one across stories, the feature with `--summary` to add a story, and the project doc to add a feature.
+Keep `--out` bare and last, and pass no `--budget` on any host.
+Pass no `--target`: a design read spans every code target.
 
 ```
 specstone context <target> --for design --out
@@ -27,11 +28,11 @@ specstone context <target> --for design --out
 - **Any other exit:** report the CLI's error and stop.
 
 For a change from a source, another tool's spec or design, that first call is
-`specstone context project --for design --out`, never with `--budget`. Read or open the source, a link or an issue
+`specstone context project --for design --out`. Read or open the source, a link or an issue
 included, only after it exits 0; then follow `## Take in the source` in
 `references/source.md`.
 
-That call is the gate. Never look for `.specstone/` first: the CLI searches upward.
+Never look for `.specstone/` first: the CLI searches upward.
 
 For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
 questions, and show the Owner each answer; go on only after their yes.
@@ -39,15 +40,17 @@ questions, and show the Owner each answer; go on only after their yes.
 ## 2. Reach an approved design document
 
 The brainstorm skill is the one in your skill list whose description says it turns a change into a design through
-dialogue with the user. Judge by that alone, never by name. No Specstone skill qualifies. When two qualify,
+dialogue with the user. Judge by that, never by name. No Specstone skill qualifies. When two qualify,
 take the one the project's instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed.
+
+The design document proposes each new or reshaped feature's `patterns:` value, picked from `specstone guide --pattern`.
 
 - **A skill qualifies:** run it on the change, grounded in step 1's docs. It keeps the conversation and the approval;
   at its write step, write through step 3. At its own hand-off to a plan or build skill, invoke nothing: once the
   Owner approves the document, go to step 4. Specstone's rules win on a conflict.
 - **None qualifies:** run this flow; it ends at the same document and approval.
-  1. Ask the Owner one question per message until scope, behavior, edge cases, and what stays out are clear.
-  2. Offer two or three approaches with their trade-offs, and recommend one.
+  1. Ask the Owner one question per message until scope, behavior, edge cases, and exclusions are clear.
+  2. Offer two or three approaches with trade-offs; recommend one.
   3. Write the document through step 3.
   4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
 
@@ -70,7 +73,7 @@ Route each later Owner answer or change per `references/rounds.md`.
 
 ## 4. Write the drafts, then audit them
 
-1. After the approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
+1. After approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
    list as its targets.
 3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.

@@ -953,4 +953,179 @@ void main() {
       }
     });
   });
+
+  group('feature pattern parts', () {
+    const feature = 'docs/prds/features/f01_login/FEATURE.md';
+    const partHead = '==> sign_in_checks (feature pattern) · login <==\n';
+    const partText =
+        '${partHead}Sign-in checklist.\n'
+        '- **lockout** Name the lockout rule.\n'
+        'Pattern sources:\n- Handbook: https://example.com/handbook\n';
+    Future<DocIndex> patterned({
+      String patterns = '[sign_in_checks, link_notes]',
+    }) => indexWith({
+      '.specstone/templates/feature.yaml':
+          'fields:\n  - id: patterns\n    type: string\n    list: true\n',
+      feature:
+          '---\nvision:\n  - PV-01\npatterns: $patterns\n---\n\n# Login\n\n## Problem\nUsers sign in.\n',
+      '.specstone/templates/patterns/sign_in_checks.yaml':
+          'id: sign_in_checks\ndescription: Sign-in checklist.\nitems:\n'
+          '  - id: lockout\n    text: Name the lockout rule.\n'
+          'reference:\n  - title: Handbook\n    url: https://example.com/handbook\n',
+      '.specstone/templates/patterns/link_notes.yaml':
+          'id: link_notes\ndescription: Notes.\nitems:\n'
+          '  - id: see\n    text: See [components](../../../specs/f02_signup/ARCHITECTURE.md#components).\n',
+      'docs/specs/f02_signup/ARCHITECTURE.md':
+          '# Sign-up architecture\n\n## Components\nThe parts.\n',
+    });
+    ContextAnswer designOf(
+      DocIndex i, {
+      String target = 'login/email_login',
+      BundleMode mode = BundleMode.design,
+      bool noProject = false,
+      bool summary = false,
+      int? budget,
+    }) => answerContext(
+      i,
+      pickBundle(i, target, mode, noProject: noProject, summary: summary),
+      label: target,
+      byCode: false,
+      budget: budget,
+    );
+
+    test('the part prints right after its doc, before the next doc, and lists in the closing list', () async {
+      final a = designOf(await patterned());
+
+      expect(
+        a.text,
+        contains('$partText\n==> link_notes (feature pattern) · login <==\n'),
+      );
+      final feature = a.text.indexOf('==> login (feature) · ');
+      final story = a.text.indexOf('==> login/email_login (user_story) · ');
+      expect(a.text.indexOf(partHead), inInclusiveRange(feature, story));
+      expect(
+        a.text,
+        contains(
+          '- login (feature)\n- sign_in_checks (feature pattern)\n- link_notes (feature pattern)\n- login/email_login (user_story)\n',
+        ),
+      );
+      final plain = designOf(await indexWith());
+      expect(
+        RegExp(r'==> bundle: (\d+) docs').firstMatch(a.text)!.group(1),
+        RegExp(r'==> bundle: (\d+) docs').firstMatch(plain.text)!.group(1),
+      );
+    });
+    test('--no-project and --summary keep the parts', () async {
+      final i = await patterned();
+
+      expect(designOf(i, noProject: true).text, contains(partText));
+      expect(
+        designOf(i, target: 'login', summary: true).text,
+        contains(partText),
+      );
+    });
+    test('the parts count toward the size, and an over-budget reply lists each with its size', () async {
+      final i = await patterned();
+      final whole = designOf(i);
+      final without = designOf(await indexWith());
+
+      expect(whole.tokens, greaterThan(without.tokens));
+      expect(designOf(i, budget: whole.tokens).exitStatus, 0);
+      final over = designOf(i, budget: whole.tokens - 1);
+      expect(over.exitStatus, 1);
+      expect(
+        over.text,
+        matches(RegExp(r'- sign_in_checks \(feature pattern\) · \d+ tokens\n')),
+      );
+      final listed = (over.json['featurePatterns']! as List)
+          .cast<Map<String, Object?>>();
+      expect(
+        [for (final p in listed) p['id']],
+        ['sign_in_checks', 'link_notes'],
+      );
+      expect(listed.first['doc'], 'feature:login');
+      expect(listed.first['tokens'], isA<int>());
+      expect(listed.first.containsKey('items'), isFalse);
+    });
+    test(
+      'a link in a part adds no appended part and no cited-by line',
+      () async {
+        final a = designOf(await patterned());
+
+        expect(a.text, isNot(contains('==> signup (architecture)')));
+        expect(a.text, isNot(contains('==> signup/')));
+        final block = a.text.substring(
+          a.text.indexOf('==> link_notes (feature pattern)'),
+          a.text.indexOf('==> login/email_login (user_story)'),
+        );
+        expect(block, isNot(contains('cited by')));
+        expect(block.trimRight().split('\n').length, 3);
+      },
+    );
+    test('an implement or query bundle prints no part and its JSON no featurePatterns key', () async {
+      final i = await patterned();
+      for (final mode in [BundleMode.implement, BundleMode.query]) {
+        final a = designOf(i, mode: mode);
+
+        expect(a.text, isNot(contains('(feature pattern)')), reason: mode.wire);
+        expect(
+          a.json.containsKey('featurePatterns'),
+          isFalse,
+          reason: mode.wire,
+        );
+      }
+    });
+    test(
+      'a design bundle where no part joins carries featurePatterns: []',
+      () async {
+        final none = designOf(await indexWith());
+        final unknown = designOf(await patterned(patterns: '[nothing]'));
+
+        expect(none.json['featurePatterns'], isEmpty);
+        expect(unknown.json['featurePatterns'], isEmpty);
+        expect(none.json.containsKey('featurePatterns'), isTrue);
+      },
+    );
+    test('the design JSON carries one entry per part: id, typed doc, description, printed items, reference', () async {
+      final a = designOf(await patterned());
+
+      expect((a.json['featurePatterns']! as List).first, {
+        'id': 'sign_in_checks',
+        'doc': 'feature:login',
+        'description': 'Sign-in checklist.',
+        'items': [
+          {'id': 'lockout', 'text': 'Name the lockout rule.'},
+        ],
+        'reference': [
+          {'title': 'Handbook', 'url': 'https://example.com/handbook'},
+        ],
+      });
+      expect(
+        (a.json['docs']! as List).any(
+          (d) => (d as Map)['name'] == 'sign_in_checks',
+        ),
+        isFalse,
+      );
+    });
+    test('the entry of a part names its lister doc and pattern id and spans the part', () async {
+      final a = designOf(await patterned());
+
+      final part = a.entries.firstWhere(
+        (e) => e.featurePattern == 'sign_in_checks',
+      );
+      final lines = a.text.split('\n');
+      expect(part.doc.name, 'login');
+      expect(part.cited, isFalse);
+      expect(part.summary, isFalse);
+      expect(lines[part.first - 1], partHead.trimRight());
+      expect(
+        lines.sublist(part.first - 1, part.last).join('\n'),
+        partText.trimRight(),
+      );
+      expect(
+        a.entries.where((e) => e.featurePattern == null).length,
+        a.entries.length - 2,
+      );
+    });
+  });
 }
