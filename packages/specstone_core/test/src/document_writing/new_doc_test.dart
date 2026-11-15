@@ -777,6 +777,10 @@ sections:
     skeleton: true
   - id: c
     header: C
+  - id: d
+    header: D
+    required: true
+    template: "Then this.\n"
 ''',
         file: 'packs/prd-core/note.yaml',
         docTypeId: 'note',
@@ -787,7 +791,8 @@ sections:
 
     expect(
       skeletonOf(docType, 'note'),
-      '---\ndraft: true\n---\n\n# note\n\n## A\n\nSay it.\n\n## B\n',
+      '---\ndraft: true\n---\n\n# note\n\n## A\n\nSay it.\n\n## B\n'
+      '\n## D\n\nThen this.\n',
     );
   });
 
