@@ -672,4 +672,102 @@ void main() {
       );
     });
   });
+
+  group('checkMergedSet pattern carriers', () {
+    const lowerFile = '~/.specstone/packs/runbook.yaml';
+    const upperFile = '.specstone/templates/runbook.yaml';
+    const header = 'path: a.md\n';
+    const field = 'fields: [{id: patterns, type: string, list: true}]\n';
+    const section = 'sections: [{id: out_of_scope, header: Out of scope}]\n';
+    const disableSection = 'sections: [{id: out_of_scope, disabled: true}]\n';
+    const disableField = 'fields: [{id: patterns, disabled: true}]\n';
+
+    /// The runbook merged over [texts], one layer each, lowest first.
+    void checkRunbook(List<String> texts) {
+      final layers = [
+        for (final (i, text) in texts.indexed)
+          layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
+      ];
+      var type = const DocTypeMerger().builtInBase('runbook');
+      for (final entry in layers) {
+        type = const DocTypeMerger().apply(type, entry.layer);
+      }
+      check([type], {'runbook': layers});
+    }
+
+    Matcher refusesAt(String file) => throwsA(
+      isA<TemplateFault>()
+          .having((f) => f.code, 'code', FaultCode.unknownValue)
+          .having((f) => f.code.exitStatus, 'exit status', 78)
+          .having((f) => f.key, 'key', 'sections.out_of_scope')
+          .having((f) => f.file, 'file', file),
+    );
+
+    test('E37: a doc type with the patterns field and no out_of_scope '
+        'section is unknown_value at the layer that wrote the field', () {
+      expect(() => checkRunbook(['$header$field']), refusesAt(lowerFile));
+    });
+
+    test('E37: a higher layer that disables the section is named, not the '
+        'layer that wrote the field', () {
+      expect(
+        () => checkRunbook(['$header$field$section', disableSection]),
+        refusesAt(upperFile),
+      );
+    });
+
+    test('E37: a project layer that writes the field over a type with no '
+        'section is named', () {
+      expect(
+        () => checkRunbook(['${header}description: Runbook\n', field]),
+        refusesAt(upperFile),
+      );
+    });
+
+    test('E37: the highest layer that writes the field is named when '
+        'several do', () {
+      expect(
+        () => checkRunbook(['$header$field', field]),
+        refusesAt(upperFile),
+      );
+    });
+
+    test('E37: a doc type with the field and an enabled section loads', () {
+      expect(() => checkRunbook(['$header$field$section']), returnsNormally);
+    });
+
+    test('E37: a doc type that takes both through extends loads, whatever its '
+        'id', () {
+      expect(
+        () => check(
+          [
+            builtIn('epic').copyWith(
+              fields: [
+                const MergedField(
+                  id: 'patterns',
+                  type: FieldType.string,
+                  list: true,
+                ),
+              ],
+              sections: [
+                const MergedSection(id: 'out_of_scope', header: 'Out of scope'),
+              ],
+            ),
+          ],
+          {
+            'epic': [layerOf('epic', 'extends: feature\n', file: _epicFile)],
+          },
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('E37: a doc type whose patterns field a layer disables loads with '
+        'no section', () {
+      expect(
+        () => checkRunbook(['$header$field', disableField]),
+        returnsNormally,
+      );
+    });
+  });
 }

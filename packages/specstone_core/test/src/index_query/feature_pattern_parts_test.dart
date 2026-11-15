@@ -203,7 +203,9 @@ void main() {
     'any doc type with the patterns field lists parts, right after that doc',
     () async {
       final index = await indexWith({
-        '.specstone/templates/user_story.yaml': _patternsField,
+        '.specstone/templates/user_story.yaml':
+            '$_patternsField'
+            'sections:\n  - id: out_of_scope\n    header: Out-of-scope\n',
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md': '---\npatterns: [records]\ngoals:\n  - PG-01\n---\n\n# Agent signs in\n\n## Use Case\nSign in.\n',
         ..._allPatterns,
       });
