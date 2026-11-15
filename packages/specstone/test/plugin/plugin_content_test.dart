@@ -1921,9 +1921,9 @@ void _agentTests() {
     expect(
       _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
       contains(
-        'the saved file is the docs, as they stand: read it per the '
-        '`specstone-read-sdd` skill, in parts, searching it with `Grep` '
-        'before any `get`.',
+        'the saved files are the docs, as they stand: read them per the '
+        '`specstone-read-sdd` skill, the read-first file whole and the refs '
+        'file by line range, searching them with `Grep` before any `get`.',
       ),
     );
   });
@@ -1940,7 +1940,7 @@ void _agentTests() {
       scope,
       contains(
         '- Run `specstone context` for the Ground, `specstone get` only after '
-        'searching its saved file with `Grep`, and one `specstone check`,',
+        'searching its saved files with `Grep`, and one `specstone check`,',
       ),
     );
     expect(
@@ -1978,13 +1978,13 @@ void _agentTests() {
     expect(
       skill,
       contains(
-        "search the saved file with the host's text search before any "
-        '`specstone get`. Never `get` a doc the file holds',
+        "search the saved files with the host's text search before any "
+        '`specstone get`. Never `get` a doc the files hold',
       ),
     );
     expect(
       skill,
-      contains('find a section by searching the file for its `## ` header'),
+      contains('find a section by searching the files for its `## ` header'),
     );
   });
 
@@ -1994,15 +1994,16 @@ void _agentTests() {
     expect(
       reader,
       contains(
-        "the path of a bundle file the main session's `context --out` call "
-        'saved, exactly as its header printed it',
+        "the paths of the bundle files the main session's `context --out` "
+        'call saved, the read-first file and, in `implement` or `design`, the '
+        'refs file, each exactly as its header printed it',
       ),
     );
     expect(
       reader,
       contains(
-        "read that file with the host's file read, in parts as the task "
-        'needs, and run no `context`',
+        "read them with the host's file read, the read-first file whole and "
+        'the refs file by line range from the index, and run no `context`',
       ),
     );
     expect(
@@ -2017,10 +2018,10 @@ void _agentTests() {
     final tools = _toolsOf(reader, 'tools');
     expect(tools, containsAll(['Read', 'Grep']));
     expect(tools, isNot(anyOf(contains('Write'), contains('Edit'))));
-    expect(_oneLine(reader), contains('searching the file with `Grep`'));
+    expect(_oneLine(reader), contains('searching the files with `Grep`'));
     expect(
       _oneLine(_sectionOf(reader, 'Scope Boundaries')),
-      contains('search it with `Grep`'),
+      contains('search them with `Grep`'),
     );
   });
 
@@ -2090,10 +2091,50 @@ void _agentTests() {
     expect(
       _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains(
-        "Hand it the saved file's path exactly as the header printed it, the "
+        "Hand it each saved file's path exactly as its header printed it, the "
         'mode, and the task: no doc text, no index lines, and no path you '
         'join yourself.',
       ),
+    );
+  });
+
+  test('read-sdd takes the read-first file in full and the refs file in '
+      'ranges, and grounds a doc design work lacks with its own context', () {
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains('the read-first file whole and the refs file by line range'),
+    );
+    expect(
+      skill,
+      contains(
+        'in design work, ground a doc they lack with its own `specstone '
+        'context <doc> --for design --out`, never `get`',
+      ),
+    );
+  });
+
+  test('the reader takes both saved paths', () {
+    final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
+    expect(
+      reader,
+      contains(
+        'the read-first file and, in `implement` or `design`, the refs file',
+      ),
+    );
+  });
+
+  test('the plan engineer reads both files', () {
+    expect(
+      _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
+      contains('the read-first file whole and the refs file by line range'),
+    );
+  });
+
+  test('the sync procedure names both files', () {
+    expect(
+      _oneLine(_pluginText('specstone-sync-sdd/references/procedure.md')),
+      contains('parts of its read-first and refs files'),
     );
   });
 
@@ -2491,7 +2532,7 @@ void _agentTests() {
           "For each listed code path but a `tests_unresolved` line's (step "
           '4.4), run `specstone context --code <code root>/<path> --for '
           "implement --out`, which takes its path's target and no "
-          "`--target`; read its saved file's parts per "
+          '`--target`; read parts of its read-first and refs files per '
           '`specstone-read-sdd`.',
         ),
       );
@@ -5242,18 +5283,21 @@ void _groundInitUpdateTests() {
       expect(skill, isNot(contains('rung')));
     });
 
-    test('sdd-reader runs no specstone folder and takes the saved-file path as '
-        'given', () {
-      final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
-      expect(reader, isNot(contains('specstone folder')));
-      expect(reader, contains('Use it as given; join no folder to it.'));
-      expect(reader, contains('and no other command.'));
-    });
+    test(
+      'sdd-reader runs no specstone folder and takes the saved-file paths as '
+      'given',
+      () {
+        final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
+        expect(reader, isNot(contains('specstone folder')));
+        expect(reader, contains('Use them as given; join no folder to them.'));
+        expect(reader, contains('and no other command.'));
+      },
+    );
 
     test("sdd-reader reads through the host's file read and stays read-only "
         'by its own text', () {
       final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
-      expect(reader, contains("read that file with the host's file read"));
+      expect(reader, contains("read them with the host's file read"));
       expect(
         _sectionOf(_pluginText('specstone-sdd-reader.md'), 'Scope Boundaries'),
         contains(

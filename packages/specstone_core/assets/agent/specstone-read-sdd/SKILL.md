@@ -5,7 +5,7 @@ description: Use when a task in a Specstone project needs its PRD or spec docs, 
 
 # Ground a task in its Specstone docs
 
-One `specstone context` call saves the docs a task needs to a file and prints its index. Ground from IDs: never walk
+One `specstone context` call saves the docs a task needs and prints its index. Ground from IDs: never walk
 the docs folder, and never work from text a plan or brief quotes.
 
 ## Pick the target and mode
@@ -39,50 +39,49 @@ in every mode:
 specstone context <target> --for <mode> --out
 ```
 
-The CLI names the file under the project root's `.specstone/bundles/`; never pick a path yourself. Then act on its
+The CLI names the files under the project root's `.specstone/bundles/`; never pick a path yourself. Then act on its
 exit status:
 
-1. **0:** stdout is the index: a `==> bundle: … · <path> <==` header naming the saved file, then one line per doc
-   with its line range in that file and, while the index stays within 200 lines and 8 KiB, its sections' first
-   lines. Read the parts the task needs from that file with the host's file read, now or at any later point of the
-   task. Once the index lists docs only, find a section by searching the file for its `## ` header. The file is the
-   task's docs: open none of the doc files. When a plan words a requirement differently, the file wins: someone may
-   have edited the doc since the plan was made.
+1. **0:** stdout is the index: per saved file a `==> bundle: … · <path> <==` header, then one line per doc with its
+   line range in that file and, while the index stays within 200 lines and 8 KiB, its sections' first lines. In
+   `implement` and `design`, read the read-first file whole and the refs file by line range, for the parts the task
+   needs, at any point of the task; `query` saves one file. Once the index lists docs only, find a section
+   by searching the files for its `## ` header. The files are the task's docs: open none of the doc files. When a plan
+   words a requirement differently, the files win: someone may have edited the doc since the plan was made.
 2. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
    is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
    second command, and neither read nor write a doc.
 3. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
 That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward, so a run
-from a subfolder goes on as normal; to read the file, such a session needs the project root among its working
-directories. A later call with the same target and flags replaces the file: read by the newest index.
+from a subfolder goes on as normal; to read the files, such a session needs the project root among its working
+directories. A later call with the same target and flags replaces the files: read by the newest index.
 
 ## Search before `get`
 
-When the index does not show a fact the task needs, search the saved file with the host's text search before any
-`specstone get`. Never `get` a doc the file holds; a `get` only for a write's base hash before `set` is fine.
+When the index does not show a fact the task needs, search the saved files with the host's text search before any
+`specstone get`. Never `get` a doc the files hold; in design work, ground a doc they lack with its own
+`specstone context <doc> --for design --out`, never `get`. A `get` only for a write's base hash before `set` is fine.
 
 ## Count the calls
 
 One target takes three tool calls at most up to the task's first other action, its first code or task-file read,
 edit, or design output: the `context` call and each search or part read before that action; an `argument_missing`
-refusal counts among them. Loading this skill counts as none. Each further target the task cites takes a call of its
-own. Part reads after that action fall outside the bound.
+refusal counts among them. Loading this skill counts as none. Each further target, or doc design work newly reaches,
+takes a call of its own. Part reads after that action fall outside the bound.
 
 ## Whole sections from the reader
 
 You may dispatch `specstone-sdd-reader` for whole sections, each cited by doc and section, as
 `../specstone-expert-sdd/references/dispatch.md` gives.
-Hand it the saved file's path exactly as the header printed it, the mode, and the task: no doc text, no index lines,
-and no path you join yourself. It reads that file and runs no `context` of its own. No bundle size calls for it.
+Hand it each saved file's path exactly as its header printed it, the mode, and the task: no doc text, no index lines,
+and no path you join yourself. It reads those files and runs no `context` of its own. No bundle size calls for it.
 
 ## Red flags
 
 | Thought                                         | Do instead                                         |
 |-------------------------------------------------|----------------------------------------------------|
 | "The plan already quotes the FR."               | Ground from its IDs; the doc may have moved on.    |
-| "Check that `.specstone/` exists first."        | The `context` call is the check.                   |
 | "The bundle is big: hand it to the reader."     | Read the parts you need; size hands nothing off.   |
-| "`get` the doc to be sure of one fact."         | Search the saved file first.                       |
-| "Paste the index so the reader saves a call."   | Hand over the saved file's path only.              |
-| "Open the doc files to be sure."                | The saved file is the docs.                        |
+| "`get` the doc to be sure of one fact."         | Search the saved files first.                      |
+| "Paste the index so the reader saves a call."   | Hand over the saved files' paths only.             |
