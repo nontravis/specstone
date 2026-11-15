@@ -14,7 +14,6 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
-import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -228,10 +227,7 @@ void main() {
   });
   test('an uncovered path still gets the root spec docs', () async {
     final project = await writeLoginProject(
-      extra: {
-        ...projectDomainTemplate,
-        'docs/specs/DOMAIN.md': '# Project domain\n',
-      },
+      extra: {'docs/specs/DOMAIN.md': '# Project domain\n'},
     );
     final session = openSession(project);
     addTearDown(session.close);
@@ -476,7 +472,6 @@ void main() {
       final (session, root) = await writeFeedbackProject(
         extra: {
           'jaspr_lib/lib/toast.dart': '',
-          ...projectDomainTemplate,
           'docs/specs/flutter/DOMAIN.md': '# Flutter domain\n',
           'docs/specs/jaspr/DOMAIN.md': '# Jaspr domain\n',
         },

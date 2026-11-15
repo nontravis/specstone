@@ -9,16 +9,23 @@ import 'package:test/test.dart';
 
 import '../../helpers/temp_tree.dart';
 
-MergedDocType _docType(String id, {String? pack, String? description}) =>
-    MergedDocType(
-      id: id,
-      pack: pack,
-      description: description,
-      fields: const [],
-      sections: const [],
-      lint: const MergedLint(),
-      files: const [],
-    );
+MergedDocType _docType(
+  String id, {
+  String? pack,
+  String? description,
+  String? parent,
+  List<String> extendsChain = const [],
+}) => MergedDocType(
+  id: id,
+  pack: pack,
+  description: description,
+  parent: parent,
+  extendsChain: extendsChain,
+  fields: const [],
+  sections: const [],
+  lint: const MergedLint(),
+  files: const [],
+);
 
 FeaturePattern _pattern(String id) => FeaturePattern(
   id: id,
@@ -46,6 +53,28 @@ void main() {
 
       expect(merged.lookup('feature')!.id, 'feature');
       expect(merged.lookup('runbook'), isNull);
+    });
+
+    test('a root type built on a type with a parent is a project spec '
+        'type', () {
+      final domain = _docType('domain', parent: 'feature');
+      final edge = _docType('edge_domain', extendsChain: ['domain']);
+      final merged = MergedSet(docTypes: [domain, edge]);
+
+      expect(merged.isProjectSpecType(edge), isTrue);
+      expect(merged.isProjectSpecType(domain), isFalse);
+    });
+
+    test('tech_stack and a plain project-layer singular type are no project '
+        'spec type', () {
+      final techStack = _docType('tech_stack');
+      final extra = _docType('extra', extendsChain: ['project']);
+      final merged = MergedSet(
+        docTypes: [techStack, extra, _docType('project')],
+      );
+
+      expect(merged.isProjectSpecType(techStack), isFalse);
+      expect(merged.isProjectSpecType(extra), isFalse);
     });
 
     test('holds no feature pattern when none is given', () {

@@ -234,16 +234,16 @@ void main() {
     });
 
     test('the cite pass skips see targets of a type built on architecture', () {
-      const built = 'specs/PROJECT_ARCHITECTURE.md';
+      const built = 'specs/EDGE_ARCHITECTURE_ROOT.md';
       const text =
-          '# Project architecture\n\n## Concerns\n\n'
+          '# Edge architecture\n\n## Concerns\n\n'
           '- **Data** — one email; see `domain:login`\n';
       final set = TemplateResolver().resolveCarried(
         packNames: const ['prd-core', 'software-tech'],
         homeDirectory: null,
         projectLayers: parseOverrides({
-          '.specstone/templates/project_architecture.yaml':
-              'id: project_architecture\nextends: architecture\n'
+          '.specstone/templates/edge_architecture_root.yaml':
+              'id: edge_architecture_root\nextends: architecture\n'
               'path: $built\nparent:\n',
         }),
       );

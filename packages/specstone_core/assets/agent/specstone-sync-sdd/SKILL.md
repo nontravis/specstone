@@ -55,6 +55,8 @@ When you followed the procedure yourself, its report stands in for item 1.
    `bases.fields.implements` (or `bases.fields.covers`) of `specstone get <doc> --json` for the same doc, with the
    same `--target`. A waiting match is written whole: the
    fingerprint ends the entry, and a `planned` entry's `implemented` goes to `statuses` through `--field statuses` with
-   `bases.fields.statuses`.
+   `bases.fields.statuses`. For each waiting removal, once its draft is approved, run
+   `specstone set --remove-task <task> ...` (with `--target <name>` when the project has two or more), then name the
+   removed tasks to the Owner.
 5. Follow the `specstone-brainstorming-sdd` skill for each behavior the report hands over and each pick that lands in
    a story or FR, since the sync writes no PRD doc.

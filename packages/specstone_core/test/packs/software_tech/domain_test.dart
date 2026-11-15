@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -43,11 +44,14 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: domain sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and nine '
-      'sections', () {
+      'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
+      'fields, and nine sections', () {
     expect(domain.path, 'specs/f{nn}_{slug}/DOMAIN.md');
     expect(domain.parent, 'feature');
-    expectOwnFields(domain, const []);
+    expectOwnFields(domain, const [
+      FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
+    ]);
     expectSections(domain, const [
       SectionSpec('entities', 'Entities', required: true),
       SectionSpec('value_objects', 'Value objects'),
@@ -103,6 +107,13 @@ void main() {
       'A DOMAIN cites its own ARCHITECTURE by a section link, '
       'such as `[architecture:rendering](ARCHITECTURE.md#components)`.',
     );
+  });
+
+  test('the guide states where its rules belong', () {
+    expectDescriptionSays(domain, const [
+      "holds one feature's spec",
+      "a rule every feature uses goes to the project's DOMAIN",
+    ]);
   });
 
   test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: domain caps 400 lines and '

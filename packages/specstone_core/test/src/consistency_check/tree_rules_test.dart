@@ -232,33 +232,27 @@ void main() {
       final report = checkOf(
         await writeCheckProject(
           extra: {
-            '.specstone/templates/project_api.yaml': 'id: project_api\nextends: api\npath: specs/PROJECT_API.md\nparent:\n',
-            'docs/specs/PROJECT_API.md': '# Project API\n',
+            '.specstone/templates/edge_api_root.yaml': 'id: edge_api_root\nextends: api\npath: specs/EDGE_API_ROOT.md\nparent:\n',
+            'docs/specs/EDGE_API_ROOT.md': '# Edge API root\n',
           },
         ),
       );
       expect(spots(report, FindingKind.parentMissing), isEmpty);
       expect(spots(report, FindingKind.requiredSectionMissing), [
-        'specs/PROJECT_API.md:1: required_section_missing',
-        'specs/PROJECT_API.md:1: required_section_missing',
+        'specs/EDGE_API_ROOT.md:1: required_section_missing',
+        'specs/EDGE_API_ROOT.md:1: required_section_missing',
       ]);
     },
   );
 
   group('override lines and the parent gate', () {
-    const overridesField =
-        'fields:\n  - id: overrides\n    type: string\n    list: true\n';
     const malformedLine = '- Overrides: INV-3 — carts expire after 7 days';
     const ghostDomain = 'specs/f09_ghost/DOMAIN.md';
     const topic = 'specs/topics/rules.md';
-    const templates = {
-      '.specstone/templates/domain.yaml': overridesField,
-      '.specstone/templates/topic.yaml': overridesField,
-    };
 
     Future<CheckReport> run(Map<String, String> files) async => checkOf(
       await writeCheckProject(
-        extra: {...templates, ...files},
+        extra: files,
         unstamped: {for (final path in files.keys) path},
       ),
     );

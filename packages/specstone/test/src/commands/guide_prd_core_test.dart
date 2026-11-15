@@ -40,6 +40,12 @@ const _softwareTechIds = <String>[
   'error',
   'auth',
   'implementation',
+  'project_architecture',
+  'project_domain',
+  'project_api',
+  'project_integration',
+  'project_error',
+  'project_auth',
 ];
 
 /// The `guide` listing of [ids]: sorted, each followed by a newline.

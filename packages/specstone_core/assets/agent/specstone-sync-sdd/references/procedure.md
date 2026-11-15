@@ -12,8 +12,8 @@ out, each keeping its state.
 
 ## 3. Find the covering docs
 
-A finding's `path` is relative to its target's code root (`code_root:` in `.specstone/config.yaml`, under `targets:`
-per target; default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
+A finding's `path` is relative to its target's code root (`code_root:` per `targets:` entry in `.specstone/config.yaml`;
+default `.`). From the project root, `--code` and each git pathspec take `<code root>/<path>`.
 
 For each listed code path but a `tests_unresolved` line's (step 4.4), run
 `specstone context --code <code root>/<path> --for implement --out`, which takes its path's target and no
@@ -38,7 +38,7 @@ For each listed code path but a `tests_unresolved` line's (step 4.4), run
    pointer, written whole once it is approved (fingerprint, and on a `planned` entry `implemented`). Else a named
    feature's `clean` link takes no fingerprint, only a `planned` entry's `implemented`:
    - **Match:** the finding's `fingerprint` ending the link's entry, any pointer fix, and for a `planned` entry
-     `implemented` in its `statuses`; never `skipped` or `deprecated`.
+     `implemented` in its `statuses`; never `skipped` or `deprecated`. Then `task-refs.md` removes closed tasks' refs.
    - **A `planned` entry's code lacking its planned behavior yet** is no mismatch, no question: the fingerprint alone;
      the entry stays `planned`.
    - **Mismatch**, code behavior the approved text contradicts: nothing for the link; report each point under
@@ -76,5 +76,4 @@ After your last write, run one `specstone approve --dry-run --json`, the source 
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
 shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer fixed, each
-behavior handed to `specstone-brainstorming-sdd`, and each pointer that waits on an approval, with its doc, its code
-target, and its code path.
+task removed, each behavior handed to `specstone-brainstorming-sdd`, and each waiting pointer: its code target, and its doc and code path, or its tasks.

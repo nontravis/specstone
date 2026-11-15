@@ -48,11 +48,12 @@ bool statusesOutsideApproval(Map<String, PackVersion> pins) =>
     };
 
 /// Whether [field] stays outside the ApprovalHash, so its write leaves the
-/// draft flag: an `output_ref` field, or a `record_status` one when
-/// [statusesOutside].
+/// draft flag: an `output_ref` or a `task_ref` field, or a `record_status` one
+/// when [statusesOutside].
 bool isOutsideApproval(MergedField field, {required bool statusesOutside}) =>
     switch (field.type) {
       FieldType.outputRef => true,
+      FieldType.taskRef => true,
       FieldType.recordStatus => statusesOutside,
       _ => false,
     };

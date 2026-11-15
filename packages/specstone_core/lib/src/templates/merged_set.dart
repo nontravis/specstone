@@ -47,6 +47,11 @@ final class MergedSet {
     return null;
   }
 
+  /// Whether [type] has no parent and builds on a doc type that has one.
+  bool isProjectSpecType(MergedDocType type) =>
+      type.parent == null &&
+      type.extendsChain.any((id) => lookup(id)?.parent != null);
+
   /// Returns the feature pattern [id], or null when the set holds none.
   FeaturePattern? featurePattern(String id) {
     for (final pattern in featurePatterns) {

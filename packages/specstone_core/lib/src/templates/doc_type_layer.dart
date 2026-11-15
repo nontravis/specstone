@@ -17,7 +17,8 @@ enum FieldType {
   enumType('enum'),
   docRef('doc_ref'),
   outputRef('output_ref'),
-  recordStatus('record_status');
+  recordStatus('record_status'),
+  taskRef('task_ref');
 
   new(this.wire);
 
@@ -34,7 +35,7 @@ enum FieldType {
     if (type != null) return type;
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key type must be one of the eight field types',
+      'the key type must be one of the nine field types',
       file: file,
       key: '${prefix}type',
     );

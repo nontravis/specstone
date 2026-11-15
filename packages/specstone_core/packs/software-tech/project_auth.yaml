@@ -1,0 +1,31 @@
+id: project_auth
+extends: auth
+description: |-
+  The project's access rules: who may do what on which resource, and what the project logs about it.
+  Title it `# <Project name> auth`, such as `# Specstone auth`, with no number.
+  Write this doc only when every feature follows one access rule.
+  Aim for about 150 to 200 lines; keep one file per spec folder.
+  Never write `status:`; whether code exists in a target lives in that target's record, its `implementation` docs, only.
+  Hold only rules every feature uses; write any other rule in a per-feature spec doc, or in a `topic` when two or more features share it.
+  Write one rule per ID: one matrix row per resource and operation, each rule one sentence.
+  Cite a rule another doc owns by a link to the item that holds it, never restate it.
+  This includes a rule of a project spec doc or of an ancestor feature's spec doc.
+path: specs/AUTH.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true
+sections:
+  - id: roles
+    description: |-
+      Write a table with the columns Role, Scope inheritance, Introduced by, Notes.
+      Write one row per role the project defines.
+      Write Scope inheritance as the parent role whose scopes the role inherits, or `—` for a root role.
+      Name in Introduced by the PRD feature that introduces the role, or PROJECT for a role it registers,
+      so every role traces back.
+  - id: authentication_and_sessions
+    description: |-
+      Write the session idle timeout, the absolute lifetime, and the limit on concurrent sessions.
+      List the auth pathways: every one the project offers.
+      Write the anti-automation controls, such as rate limiting against credential stuffing.

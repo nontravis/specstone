@@ -1016,7 +1016,7 @@ List<String> prunesOf(List<PathMove> moves) => {
 }.toList()..sort((a, b) => compareCodePoints(b, a));
 
 /// Returns a draft for each singular doc type whose path the moved tree
-/// lacks.
+/// lacks, project spec doc types excluded.
 ///
 /// With two or more [targetNames] a per-target doc type's path is read in the
 /// first target's folder.

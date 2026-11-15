@@ -11,6 +11,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
 const _configPath = '.specstone/config.yaml';
@@ -2664,6 +2665,51 @@ items:
       expect(
         crlfSet.featurePattern('crud')!.toJson(),
         lfSet.featurePattern('crud')!.toJson(),
+      );
+    });
+  });
+
+  group('TemplateResolver pattern carriers', () {
+    Future<MergedSet> resolveShipped(Map<String, String> project) async {
+      final projectDir = await writeTree({
+        _configPath: shippedPinsConfig(),
+        ...project,
+      });
+      final homeDir = await writeTree({});
+      return TemplateResolver().resolve(
+        workingDirectory: projectDir,
+        homeDirectory: homeDir,
+      );
+    }
+
+    test('the shipped packs alone load with no fault', () async {
+      final merged = await resolveShipped({});
+
+      final feature = merged.lookup('feature')!;
+      expect(feature.fields.any((f) => f.id == 'patterns'), isTrue);
+      expect(feature.sections.any((s) => s.id == 'out_of_scope'), isTrue);
+    });
+
+    test('a project doc type with the patterns field and no out_of_scope '
+        'section is refused at the project file', () {
+      expect(
+        resolveShipped({
+          '.specstone/templates/epic.yaml': '''
+id: epic
+description: One epic
+path: epics/{slug}.md
+fields:
+  - id: patterns
+    type: string
+    list: true
+''',
+        }),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'sections.out_of_scope')
+              .having((f) => f.file, 'file', '.specstone/templates/epic.yaml'),
+        ),
       );
     });
   });

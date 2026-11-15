@@ -201,6 +201,125 @@ void main() {
       },
     );
 
+    test('a second layer disabling a section a lower layer disabled keeps the '
+        'doc type as it is', () {
+      final once = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+      final twice = project(once, 'sections: [{id: scope, disabled: true}]');
+
+      expect(ids(twice.sections), ['goal']);
+    });
+
+    test('a second layer disabling a field a lower layer disabled keeps the '
+        'doc type as it is', () {
+      final once = project(shipped(), 'fields: [{id: owner, disabled: true}]');
+      final twice = project(once, 'fields: [{id: owner, disabled: true}]');
+
+      expect(ids(twice.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+      ]);
+    });
+
+    test('a section disabled in a doc type it builds on is disabled again '
+        'without a fault', () {
+      final target = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+      final extending = merger.apply(
+        target.copyWith(extendsId: 'feature'),
+        layer(
+          'sections: [{id: scope, disabled: true}]',
+          docTypeId: 'project_feature',
+        ),
+      );
+
+      expect(ids(extending.sections), ['goal']);
+    });
+
+    test('a field disabled in a doc type it builds on is disabled again '
+        'without a fault', () {
+      final target = project(
+        shipped(),
+        'fields: [{id: owner, disabled: true}]',
+      );
+      final extending = merger.apply(
+        target.copyWith(extendsId: 'feature'),
+        layer(
+          'fields: [{id: owner, disabled: true}]',
+          docTypeId: 'project_feature',
+        ),
+      );
+
+      expect(ids(extending.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+      ]);
+    });
+
+    test(
+      'a section added back after it was disabled can be disabled again',
+      () {
+        final off = project(
+          shipped(),
+          'sections: [{id: scope, disabled: true}]',
+        );
+        final back = project(off, 'sections: [{id: scope, header: Back}]');
+        final offAgain = project(
+          back,
+          'sections: [{id: scope, disabled: true}]',
+        );
+
+        expect(ids(back.sections), ['goal', 'scope']);
+        expect(ids(offAgain.sections), ['goal']);
+      },
+    );
+
+    test('a section no lower layer defined is still override_id_not_found '
+        'after another section was disabled', () {
+      final once = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+
+      expect(
+        () =>
+            project(once, 'sections: [{id: nope, header: N, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.nope',
+            message: 'no section "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
+    test('a field no lower layer defined is still override_id_not_found '
+        'after another field was disabled', () {
+      final once = project(shipped(), 'fields: [{id: owner, disabled: true}]');
+
+      expect(
+        () => project(once, 'fields: [{id: nope, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.nope',
+            message: 'no field "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
     test('f03/us02/s1, f03/us02/fr01: disabled: true drops a section', () {
       final merged = project(
         shipped(),

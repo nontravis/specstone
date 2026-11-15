@@ -577,6 +577,8 @@ final class TemplateResolver {
           ? null
           : List.unmodifiable(target.reference!),
       files: const [],
+      disabledFieldIds: target.disabledFieldIds,
+      disabledSectionIds: target.disabledSectionIds,
     );
   }
 

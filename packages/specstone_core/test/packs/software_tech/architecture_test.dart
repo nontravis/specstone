@@ -68,6 +68,8 @@ void main() {
         required: true,
         pointer: PointerKind.prefix,
       ),
+      FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expect(
       fieldOf(architecture, 'covers').description,
@@ -142,5 +144,12 @@ void main() {
       'A DOMAIN cites its own ARCHITECTURE by a section link, '
       'such as `[architecture:rendering](ARCHITECTURE.md#components)`.',
     );
+  });
+
+  test('the guide states where its rules belong', () {
+    expectDescriptionSays(architecture, const [
+      "holds one feature's spec",
+      "a rule every feature uses goes to the project's ARCHITECTURE",
+    ]);
   });
 }

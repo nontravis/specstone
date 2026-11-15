@@ -73,8 +73,10 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`unknown_value`), every `lint.required_field_groups` entry names a
 /// field of its doc type (`unknown_value`), every section `required_when`
 /// names a section of its doc type (`unknown_value`), at most one doc type
-/// holds a `record_status` field and its merged `per_target` is `true`, and
-/// a `targets:` config without the record doc type is refused.
+/// holds a `record_status` field and its merged `per_target` is `true`, a
+/// `targets:` config without the record doc type is refused, and a doc type
+/// that carries the `patterns` field holds an enabled `out_of_scope` section
+/// (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
@@ -91,6 +93,7 @@ void checkMergedSet(
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
   _checkRecords(sorted, layerLists, loadIndex, targetNames);
+  _checkPatternCarriers(sorted, layerLists);
 }
 
 /// Throws `unknown_value` for an invalid `max_depth`.
@@ -440,6 +443,40 @@ Never _throwSecondRecordHolder(
     relatedFiles: related,
   );
 }
+
+/// Throws `unknown_value` for a doc type that carries the `patterns` field and
+/// holds no enabled `out_of_scope` section.
+///
+/// `file` holds the top-most layer that disables the section, else the
+/// top-most layer that writes the field.
+void _checkPatternCarriers(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    if (!docType.fields.any((f) => f.id == _patternsField)) continue;
+    if (docType.sections.any((s) => s.id == _outOfScopeSection)) continue;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'a doc type with the $_patternsField field needs an enabled '
+      '$_outOfScopeSection section, for the skip lines of a feature pattern',
+      file:
+          _writerOf(docType.id, _disabledOutOfScope, layerLists) ??
+          _writerOf(docType.id, _wrotePatterns, layerLists),
+      key: 'sections.$_outOfScopeSection',
+    );
+  }
+}
+
+const _patternsField = 'patterns';
+const _outOfScopeSection = 'out_of_scope';
+
+bool _disabledOutOfScope(DocTypeLayer layer) => layer.sections.any(
+  (entry) => entry.id == _outOfScopeSection && entry.disabled,
+);
+
+bool _wrotePatterns(DocTypeLayer layer) =>
+    layer.fields.any((entry) => entry.id == _patternsField && !entry.disabled);
 
 bool _wrotePerTarget(DocTypeLayer layer) => layer.perTarget != null;
 

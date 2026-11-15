@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -34,11 +35,14 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: auth sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and eight '
-      'sections', () {
+      'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
+      'fields, and eight sections', () {
     expect(auth.path, 'specs/f{nn}_{slug}/AUTH.md');
     expect(auth.parent, 'feature');
-    expectOwnFields(auth, const []);
+    expectOwnFields(auth, const [
+      FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
+    ]);
     expectSections(auth, const [
       SectionSpec('roles', 'Roles', required: true),
       SectionSpec('scopes', 'Scopes', required: true),
@@ -74,5 +78,12 @@ void main() {
       'Write one rule per ID: one matrix row per resource and operation, '
       'each rule one sentence.',
     );
+  });
+
+  test('the guide states where its rules belong', () {
+    expectDescriptionSays(auth, const [
+      "holds one feature's spec",
+      "a rule every feature uses goes to the project's AUTH",
+    ]);
   });
 }

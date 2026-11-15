@@ -524,10 +524,22 @@ final class MergedDocType {
     this.generators,
     this.reference,
     this.pack,
+    this.disabledFieldIds = const {},
+    this.disabledSectionIds = const {},
   });
 
   /// The doc type id.
   final String id;
+
+  /// The ids of fields a lower layer defined and a layer then disabled.
+  ///
+  /// A later `disabled: true` on one of them leaves the doc type as it is.
+  final Set<String> disabledFieldIds;
+
+  /// The ids of sections a lower layer defined and a layer then disabled.
+  ///
+  /// A later `disabled: true` on one of them leaves the doc type as it is.
+  final Set<String> disabledSectionIds;
 
   /// What the doc type is for.
   final String? description;
@@ -629,6 +641,8 @@ final class MergedDocType {
     List<ReferenceEntry>? reference,
     String? pack,
     List<String>? files,
+    Set<String>? disabledFieldIds,
+    Set<String>? disabledSectionIds,
   }) => MergedDocType(
     id: id,
     description: description ?? this.description,
@@ -648,6 +662,8 @@ final class MergedDocType {
     reference: reference ?? this.reference,
     pack: pack ?? this.pack,
     files: files ?? this.files,
+    disabledFieldIds: disabledFieldIds ?? this.disabledFieldIds,
+    disabledSectionIds: disabledSectionIds ?? this.disabledSectionIds,
   );
 
   /// Returns the JSON object of the merged schema with only the keys set.

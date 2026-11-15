@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/doc_model/task_ref.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -103,7 +104,7 @@ bool _fits(MergedField field, Object value) {
 }
 
 /// Whether [item] is one value [field]'s type and `enum` take, a
-/// `record_status` line naming one of the four statuses.
+/// `record_status` line naming one of the four statuses or a `task_ref` entry.
 ///
 /// The one value rule: `check` reports a value it refuses, and `set` refuses
 /// to write one.
@@ -111,6 +112,7 @@ bool fieldTakesItem(MergedField field, Object? item) => switch (field.type) {
   FieldType.string || FieldType.docRef || FieldType.outputRef => item is String,
   FieldType.recordStatus =>
     item is String && recordStatusLineOf(item)?.status != null,
+  FieldType.taskRef => item is String && TaskRef.parse(item) != null,
   FieldType.integer => item is int,
   FieldType.boolean => item is bool,
   FieldType.date => item is String && _isRealDate(item),
@@ -136,10 +138,15 @@ final String recordStatusLineShape =
     'a line <item>:<status>, the status '
     '${_orList([for (final s in RecordStatus.values) s.wire])}';
 
+/// What one `task_ref` entry takes, as a refusal of a value names it.
+const String taskRefEntryShape =
+    'an entry <item>:<task id> or a task id alone, with no empty part';
+
 String _takes(MergedField field) {
   final one = switch (field.type) {
     FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
     FieldType.recordStatus => recordStatusLineShape,
+    FieldType.taskRef => taskRefEntryShape,
     FieldType.integer => 'an integer',
     FieldType.boolean => 'true or false',
     FieldType.date => 'a date written YYYY-MM-DD',

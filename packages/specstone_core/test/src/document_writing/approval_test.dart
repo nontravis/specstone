@@ -56,6 +56,7 @@ const _docType = MergedDocType(
       list: true,
       pointer: PointerKind.exact,
     ),
+    MergedField(id: 'tasks', type: FieldType.taskRef, list: true),
   ],
   sections: [MergedSection(id: 'statement', header: 'Statement')],
   lint: MergedLint(),
@@ -199,6 +200,20 @@ void main() {
 
     test('report_stale_approvals E03: a changed implements entry keeps it', () {
       expect(hash(body.replaceFirst('a.dart:one', 'b.dart:two')), hash(body));
+    });
+
+    test('a task_ref key block is not hashed, at any pin', () {
+      final tasked = body.replaceFirst(
+        'status: planned\n',
+        'status: planned\ntasks:\n  - T-1\n  - "a/b:T-2"\n',
+      );
+      expect(tasked, isNot(body));
+      for (final outside in [true, false]) {
+        expect(
+          approvalHashOf(tasked, _docType, statusesOutside: outside),
+          approvalHashOf(body, _docType, statusesOutside: outside),
+        );
+      }
     });
 
     test(

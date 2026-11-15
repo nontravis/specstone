@@ -183,11 +183,12 @@ List<BodyLine> withGeneratedFenced(
     ),
 ];
 
-/// Returns the lead of [doc]: its counts, from its first line of text to its
-/// last with the line feeds between, and its items.
+/// Returns the body lines of the lead of [doc], the head after its title line,
+/// each a line of the file [text].
 ///
-/// The counts are null when the lead holds no text.
-({SectionCounts? counts, List<ItemFact> items}) _leadOf(
+/// A fenced line and a line [isGenerated] marks are fenced, so they hold no
+/// item.
+List<BodyLine> leadBodyLinesOf(
   Doc doc,
   String text,
   LineFacts lines,
@@ -199,7 +200,7 @@ List<BodyLine> withGeneratedFenced(
     null => 0,
   };
   final head = lfLinesOf(doc.head);
-  final body = <BodyLine>[
+  return [
     for (var k = skip; k < head.length; k++)
       (
         text: head[k],
@@ -208,6 +209,19 @@ List<BodyLine> withGeneratedFenced(
             lines.isFenced(firstBodyLine + k) || isGenerated(firstBodyLine + k),
       ),
   ];
+}
+
+/// Returns the lead of [doc]: its counts, from its first line of text to its
+/// last with the line feeds between, and its items.
+///
+/// The counts are null when the lead holds no text.
+({SectionCounts? counts, List<ItemFact> items}) _leadOf(
+  Doc doc,
+  String text,
+  LineFacts lines,
+  bool Function(int line) isGenerated,
+) {
+  final body = leadBodyLinesOf(doc, text, lines, isGenerated);
   bool holdsText(BodyLine line) => line.text.trim().isNotEmpty;
   final first = body.indexWhere(holdsText);
   if (first < 0) return (counts: null, items: const []);

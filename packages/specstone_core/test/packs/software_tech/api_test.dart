@@ -57,6 +57,8 @@ void main() {
     expect(api.parent, 'feature');
     expectOwnFields(api, const [
       FieldSpec('confirmed', FieldType.string, list: true),
+      FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(api, const [
       SectionSpec('source_of_truth', 'Source-of-truth'),
@@ -85,5 +87,12 @@ void main() {
       'Write one rule per ID: one `###` per operation, each rule one '
       'sentence.',
     );
+  });
+
+  test('the guide states where its rules belong', () {
+    expectDescriptionSays(api, const [
+      "holds one feature's spec",
+      "a rule every feature uses goes to the project's API",
+    ]);
   });
 }

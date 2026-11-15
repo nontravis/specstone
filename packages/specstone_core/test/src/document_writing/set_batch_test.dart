@@ -1320,6 +1320,47 @@ void main() {
     },
   );
 
+  test('a whole-doc block that changes only a task_ref field keeps an approved doc approved', () async {
+    final root = await writeWriteProject(
+      extra: {
+        '.specstone/templates/feature.yaml':
+            'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+      },
+    );
+    final text = edit(
+      getText(root, [loginFeature]),
+      'vision:\n  - PV-01\n',
+      'vision:\n  - PV-01\ntasks:\n  - T-1\n',
+    );
+
+    final answer = runBatch(root, text);
+
+    expect(readDoc(root, loginFeature), contains('tasks:'));
+    expect(readDoc(root, loginFeature), isNot(contains('draft:')));
+    expect(answer.json['blocks'], [containsPair('draft', false)]);
+    expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+  });
+
+  test('a whole-doc block that changes only a task_ref field keeps a draft doc a draft', () async {
+    final root = await writeWriteProject(
+      extra: {
+        '.specstone/templates/feature.yaml':
+            'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+      },
+    );
+    final text = edit(
+      getText(root, [signupFeature]),
+      'draft: true\n',
+      'draft: true\ntasks:\n  - T-1\n',
+    );
+
+    final answer = runBatch(root, text);
+
+    expect(readDoc(root, signupFeature), contains('tasks:'));
+    expect(readDoc(root, signupFeature), contains('draft: true\n'));
+    expect(answer.json['blocks'], [containsPair('draft', true)]);
+  });
+
   group('a whole-doc block that changes only a record status', () {
     const from = 'email_login/check_password:implemented';
     const to = 'email_login/check_password:planned';
