@@ -31,13 +31,14 @@ word, each cited by doc and section.
   `implement` mode.
 - **Task** (required): what the docs are for.
 - **Missing input**: reply `OPEN QUESTIONS:`, one line per missing input, and stop.
-- **Doc text or a doc list in the prompt**: no source. The saved files hold each doc as they stood at that call.
+- **Doc text or a doc list in the prompt**: no source. The saved files hold each doc as it stood at that call.
 
 ## Workflow
 
 1. **Saved files**: when the hand-off names them, read them with the host's file read, the read-first file whole and the
-   refs file by line range, found with `Grep` by its parts' headers, and run no `context`; the main session's grounding is then read once. Find a
-   section by searching the files with `Grep` for its `## ` header. Go on at step 5.
+   refs file by line range, found with `Grep` by its parts' headers, and run no `context`; the main session's
+   grounding is then read once. Find a section by searching the files with `Grep` for its `## ` header. Go on at
+   step 5.
 2. **Pull**: with no saved file, through Bash, make this your first CLI call, on the first target ID:
 
    ```

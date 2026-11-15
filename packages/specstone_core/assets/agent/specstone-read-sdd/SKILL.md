@@ -43,11 +43,11 @@ The CLI names the files under the project root's `.specstone/bundles/`; never pi
 exit status:
 
 1. **0:** stdout is the index: per saved file a `==> bundle: … · <path> <==` header, then one line per doc with its
-   line range in that file and, while the index stays within 200 lines and 8 KiB, its sections' first lines. With
-   the host's file read, at any point of the task: in `implement` and `design`, the read-first file whole and the refs
-   file by line range, for the parts needed; in `query`, the parts of its one file. Once the index lists docs only, find a section
-   by searching the files for its `## ` header. The files are the task's docs: open no doc file. When a plan
-   words a requirement differently, the files win: someone may have edited the doc since the plan was made.
+   line range in that file and, while the index stays within 200 lines and 8 KiB, its sections' first lines. Read
+   with the host's file read, at any point of the task: in `implement` and `design`, the read-first file whole and the
+   refs file by line range, for the parts needed; in `query`, the parts of its one file. Once the index lists docs
+   only, find a section by searching the files for its `## ` header. The files are the task's docs: open no doc file.
+   When a plan words a requirement differently, the files win: someone may have edited the doc since the plan was made.
 2. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
    is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
    second command, and neither read nor write a doc.
