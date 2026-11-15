@@ -9,7 +9,7 @@ description: |-
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
   This doc holds one feature's spec; a rule every feature uses goes to the project's AUTH doc.
-  Write an `Overrides:` line right after an item that departs from a rule above, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
+  Write an `Overrides:` line right after an item that departs from a rule above, or right under the table when that item is a table row, its how-clause naming the row, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
 path: specs/f{nn}_{slug}/AUTH.md
 parent: feature
 per_target: true
@@ -25,7 +25,7 @@ fields:
     list: true
     description: |-
       Lists the tasks that track the doc's work, each `<item>:<task>`, or `<task>` alone for the whole doc, such as `INV-4:ENG-42`.
-      `specstone:sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.
+      `specstone-sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.
 sections:
   - id: roles
     header: Roles

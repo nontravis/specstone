@@ -80,13 +80,6 @@ void main() {
     );
   });
 
-  test('the guide extends the cite rule to project and ancestor rules', () {
-    expectDescriptionSays(topic, const [
-      'by a link to the item that holds it, never restate it',
-      "a rule of a project spec doc or of an ancestor feature's spec doc",
-    ]);
-  });
-
   test('the guide states where its rules belong', () {
     expectDescriptionSays(topic, const [
       'code or a rule set that two or more features share and none owns',
@@ -94,11 +87,9 @@ void main() {
     ]);
   });
 
-  test('the guide asks an Overrides line and its entry, from a project spec '
-      "doc's rule alone", () {
+  test("the guide takes an Overrides line from a project spec doc's rule "
+      'alone', () {
     expectDescriptionSays(topic, const [
-      '`Overrides:` line',
-      '`overrides` entry',
       'only from a rule of a project spec doc',
     ]);
   });

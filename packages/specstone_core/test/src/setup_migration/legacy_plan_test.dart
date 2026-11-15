@@ -320,6 +320,27 @@ name: Login API
     expect(_createdPaths(plan), isNot(contains('docs/specs/TECH_STACK.md')));
   });
 
+  test('a tree gets no draft for a project spec doc type', () async {
+    final plan = await _plan(acmeLegacy);
+
+    expect(
+      _createdPaths(plan),
+      isNot(
+        anyOf([
+          for (final file in [
+            'API',
+            'ARCHITECTURE',
+            'AUTH',
+            'DOMAIN',
+            'ERROR',
+            'INTEGRATION',
+          ])
+            contains('docs/specs/$file.md'),
+        ]),
+      ),
+    );
+  });
+
   test('f06/us01/fr06/e04, f06/us01/s7: a legacy FR gets no traced_from and '
       'no confirmed', () async {
     final plan = await _plan(acmeLegacy);

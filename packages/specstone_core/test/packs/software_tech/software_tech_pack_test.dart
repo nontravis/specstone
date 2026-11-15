@@ -128,9 +128,8 @@ void main() {
       }
     });
 
-    test('template_packs/write_spec_docs_from_software_tech/'
-        'ship_software_tech_pack: eight doc types carry an optional tasks '
-        'list of task refs, and implementation carries none', () {
+    test('eight doc types carry an optional tasks list of task refs that its '
+        'guide ties to the sync skill, and implementation carries none', () {
       const withTasks = [
         'api',
         'architecture',
@@ -149,7 +148,15 @@ void main() {
         expect(tasks.type, FieldType.taskRef, reason: id);
         expect(tasks.list, isTrue, reason: id);
         expect(tasks.required, isFalse, reason: id);
-        expect(tasks.description, isNotEmpty, reason: id);
+        expect(
+          tasks.description,
+          allOf(
+            contains('`<item>:<task>`, or `<task>` alone'),
+            contains('`specstone-sync-sdd` removes an entry'),
+            contains('closing word'),
+          ),
+          reason: id,
+        );
       }
       expect(
         prdCoreDocType(

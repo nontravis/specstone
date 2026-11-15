@@ -134,8 +134,8 @@ Directory? _linkFolderOf(Directory folder, Directory root) {
   return own.path == root.path ? null : own;
 }
 
-/// Plans the agent files, writes each singular draft, then the agent files,
-/// then the config last.
+/// Plans the agent files, writes each singular draft, project spec doc types
+/// excepted, then the agent files, then the config last.
 ///
 /// Keeps each draft that already exists and names it `kept`; starts no git
 /// process, so the new files stay untracked. Throws

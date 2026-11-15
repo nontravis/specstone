@@ -2593,7 +2593,7 @@ items:
       );
     }
 
-    test('E37: the shipped packs alone load with no fault', () async {
+    test('the shipped packs alone load with no fault', () async {
       final merged = await resolveShipped({});
 
       final feature = merged.lookup('feature')!;
@@ -2601,8 +2601,8 @@ items:
       expect(feature.sections.any((s) => s.id == 'out_of_scope'), isTrue);
     });
 
-    test('E37: a project doc type with the patterns field and no '
-        'out_of_scope section is refused at the project file', () {
+    test('a project doc type with the patterns field and no out_of_scope '
+        'section is refused at the project file', () {
       expect(
         resolveShipped({
           '.specstone/templates/epic.yaml': '''

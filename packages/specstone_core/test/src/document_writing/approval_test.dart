@@ -202,7 +202,7 @@ void main() {
       expect(hash(body.replaceFirst('a.dart:one', 'b.dart:two')), hash(body));
     });
 
-    test('INV-39: a task_ref key block is not hashed, at any pin', () {
+    test('a task_ref key block is not hashed, at any pin', () {
       final tasked = body.replaceFirst(
         'status: planned\n',
         'status: planned\ntasks:\n  - T-1\n  - "a/b:T-2"\n',

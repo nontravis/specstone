@@ -262,7 +262,7 @@ void main() {
     const record = 'docs/$loginRecord';
     const sso = 'prds/features/f01_login/us02_sso/USER_STORY.md';
     const story = 'email_login';
-    const fr = 'email_login/check_password';
+    const frName = 'email_login/check_password';
 
     String recordOf(List<String> statuses) =>
         '---\n${statuses.isEmpty ? '' : "statuses:\n${statuses.map((s) => "  - '$s'\n").join()}"}'
@@ -289,7 +289,7 @@ void main() {
     test('is one finding at the entry line with its task, item, feature, and the fix', () async {
       final project = await projectWith([
         '$story:implemented',
-        '$fr:implemented',
+        '$frName:implemented',
       ]);
 
       final found = _leftover(project);
@@ -305,12 +305,17 @@ void main() {
       expect(
         finding.message,
         'task ENG-42 is left on the done feature login; '
-        'drop the entry with specstone set domain:login --field tasks',
+        'drop the entry with specstone set domain:login --field tasks '
+        '--base <bases.fields.tasks of get --json>, '
+        'the list less the entry on stdin',
       );
     });
 
     test('is none while one FR is planned or has no statuses line', () async {
-      final planned = await projectWith(['$story:implemented', '$fr:planned']);
+      final planned = await projectWith([
+        '$story:implemented',
+        '$frName:planned',
+      ]);
       final noLine = await projectWith(['$story:implemented']);
       final bare = await projectWith([]);
 
@@ -328,7 +333,7 @@ void main() {
         ], extra: secondStory());
         final deprecated = await projectWith([
           '$story:implemented',
-          '$fr:deprecated',
+          '$frName:deprecated',
         ]);
 
         expect(_leftover(skipped), hasLength(1));
@@ -339,11 +344,11 @@ void main() {
     test('is none when every entry is skipped or deprecated and none is implemented', () async {
       final deprecated = await projectWith([
         '$story:deprecated',
-        '$fr:deprecated',
+        '$frName:deprecated',
       ]);
       final mixed = await projectWith([
-        '$story:skipped:no web',
-        '$fr:deprecated',
+        '$story:deprecated',
+        '$frName:skipped:no web',
       ]);
 
       expect(_leftover(deprecated), isEmpty);
@@ -354,7 +359,7 @@ void main() {
       final project = await projectWith([
         ':skipped:no web',
         '$story:implemented',
-        '$fr:implemented',
+        '$frName:implemented',
       ]);
 
       expect(_leftover(project), isEmpty);
@@ -409,6 +414,9 @@ void main() {
               'fields:\n  - id: tickets\n    type: task_ref\n    list: true\n',
           '.specstone/templates/feature.yaml':
               'fields:\n  - id: tickets\n    type: task_ref\n    list: true\n',
+          '.specstone/templates/topic.yaml':
+              'fields:\n  - id: tickets\n    type: task_ref\n    list: true\n',
+          'docs/specs/topics/rules.md': '---\ncovers:\n  - app/lib/\ntickets:\n  - ENG-46\n---\n\n# Rules\n\n## Rules\n\n- **R-1** A rule.\n',
           ...edit(techStack, [
             (
               'code:\n  - app/lib/\n',
@@ -429,7 +437,7 @@ void main() {
 
     test('is one finding for a whole-doc entry with an empty item', () async {
       final project = await projectWith(
-        ['$story:implemented', '$fr:implemented'],
+        ['$story:implemented', '$frName:implemented'],
         tasks: ['ENG-42'],
       );
 
@@ -449,7 +457,10 @@ void main() {
         },
       );
 
-      expect(_leftover(project).single.message, endsWith('--field tickets'));
+      expect(
+        _leftover(project).single.message,
+        contains('--field tickets --base <bases.fields.tickets of get --json>'),
+      );
     });
 
     group('on a doc shared across code targets', () {
@@ -470,9 +481,9 @@ void main() {
         );
       }
 
-      const done = ['$story:implemented', '$fr:implemented'];
+      const done = ['$story:implemented', '$frName:implemented'];
       const skipped = [':skipped:no jaspr'];
-      const planned = ['$story:implemented', '$fr:planned'];
+      const planned = ['$story:implemented', '$frName:planned'];
 
       List<Finding> leftoverOn(Directory project) => [
         for (final f in _leftover(project))
@@ -508,7 +519,7 @@ void main() {
           '.specstone/templates/implementation.yaml': 'id: implementation\npath: records/f{nn}_{slug}/IMPLEMENTATION.md\n',
           'docs/records/f01_login/IMPLEMENTATION.md': recordOf([
             '$story:implemented',
-            '$fr:implemented',
+            '$frName:implemented',
           ]),
         },
       );
@@ -518,7 +529,7 @@ void main() {
 
     test('comes with the missing-item finding when the entry names an item the doc lacks', () async {
       final project = await projectWith(
-        ['$story:implemented', '$fr:implemented'],
+        ['$story:implemented', '$frName:implemented'],
         tasks: ['INV-9:ENG-42'],
       );
 

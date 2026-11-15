@@ -221,22 +221,24 @@ void main() {
     },
   );
 
-  test('a doc of an extending type with a cleared parent gets no parent_missing', () async {
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          '.specstone/templates/edge_api.yaml':
-              'id: edge_api\nextends: api\npath: specs/EDGE_API.md\nparent:\n',
-          'docs/specs/EDGE_API.md': '# Edge API\n',
-        },
-      ),
-    );
-    expect(spots(report, FindingKind.parentMissing), isEmpty);
-    expect(spots(report, FindingKind.requiredSectionMissing), [
-      'specs/EDGE_API.md:1: required_section_missing',
-      'specs/EDGE_API.md:1: required_section_missing',
-    ]);
-  });
+  test(
+    'a doc of an extending type with a cleared parent gets no parent_missing',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/edge_api_root.yaml': 'id: edge_api_root\nextends: api\npath: specs/EDGE_API_ROOT.md\nparent:\n',
+            'docs/specs/EDGE_API_ROOT.md': '# Edge API root\n',
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.parentMissing), isEmpty);
+      expect(spots(report, FindingKind.requiredSectionMissing), [
+        'specs/EDGE_API_ROOT.md:1: required_section_missing',
+        'specs/EDGE_API_ROOT.md:1: required_section_missing',
+      ]);
+    },
+  );
 
   group('override lines and the parent gate', () {
     const malformedLine = '- Overrides: INV-3 — carts expire after 7 days';

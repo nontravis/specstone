@@ -57,14 +57,12 @@ Iterable<Finding> checkTaskRefs(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-/// Returns a `task_ref_leftover` finding per task ref of [doc] once the feature
-/// the doc sits under is done in the doc's code target.
+/// Returns a `task_ref_leftover` finding per task ref of [doc] once its
+/// feature is done.
 ///
-/// Only a doc whose doc type has the `feature` type as parent takes the rule.
-/// A feature is done when it is not skipped, each story and FR of its subtree
-/// has a record entry, none is `planned`, and at least one is `implemented`. A
-/// doc shared across targets is judged in each target that does not skip the
-/// feature: done in each and in one at least.
+/// A feature is done when it is not skipped, each story and FR under it has a
+/// record entry, none is `planned`, and one is `implemented`. A doc shared
+/// across targets needs each target that does not skip the feature done.
 Iterable<Finding> checkLeftoverTaskRefs(
   CheckContext context,
   IndexedDoc doc,
@@ -82,7 +80,8 @@ Iterable<Finding> checkLeftoverTaskRefs(
       message:
           'task ${ref.task} is left on the done feature ${feature.name}; '
           'drop the entry with specstone set ${doc.docTypeId}:${doc.name} '
-          '--field $field$target',
+          '--field $field$target --base <bases.fields.$field of get --json>, '
+          'the list less the entry on stdin',
       keys: {'task': ref.task, 'item': ref.item ?? '', 'feature': feature.name},
     );
   }
@@ -126,12 +125,13 @@ bool _isFeatureDoneIn(DocIndex index, IndexedDoc feature, String? target) {
 
 Set<String> _itemNamesOf(CheckContext context, IndexedDoc doc) {
   final content = context.contentOf(doc);
+  final lead = context.leadItemsOf(doc);
   return {
     for (final items in content.itemFacts.sectionItems)
       for (final item in items) ?item.id,
-    ..._leadIdsOf(context, doc),
+    ..._leadIdsOf(context, doc, lead),
     for (final items in [
-      context.leadItemsOf(doc),
+      lead,
       for (var i = 0; i < content.sections.length; i++) context.itemsIn(doc, i),
     ])
       for (final item in items)
@@ -149,14 +149,18 @@ String _headingNameOf(String text) {
   return name.substring(ticks, name.length - ticks);
 }
 
-/// Returns the item IDs the lead's items open with, read by each ID prefix a
+/// Returns the item IDs the [lead] items open with, read by each ID prefix a
 /// section of the doc's type holds.
-Iterable<String> _leadIdsOf(CheckContext context, IndexedDoc doc) sync* {
+Iterable<String> _leadIdsOf(
+  CheckContext context,
+  IndexedDoc doc,
+  Iterable<SectionItem> lead,
+) sync* {
   final prefixes = {
     for (final section in context.typeOf(doc)!.sections) ?section.prefixId,
   };
   if (prefixes.isEmpty) return;
-  for (final item in context.leadItemsOf(doc)) {
+  for (final item in lead) {
     for (final prefix in prefixes) {
       if (readItemId(item.head, prefix) case final ItemId id) yield id.written;
     }

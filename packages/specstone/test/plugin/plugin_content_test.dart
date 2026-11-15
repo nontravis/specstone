@@ -2436,8 +2436,8 @@ void _agentTests() {
       );
     });
 
-    test('update_covering_docs pointers row: the report lists each waiting '
-        'pointer with its code target and its doc and code path', () {
+    test('the report lists each waiting pointer with its code target and its '
+        'doc and code path', () {
       expect(
         procedure(),
         contains(
@@ -4685,7 +4685,7 @@ void _planTests() {
     );
   });
 
-  group('$_runPlanSkill E21: the ticket tools of plan-sdd', () {
+  group('the ticket tools of plan-sdd', () {
     const ticketsFile = 'specstone-plan-sdd/references/tickets.md';
     String tickets() => _oneLine(_pluginText(ticketsFile));
 
@@ -4717,7 +4717,9 @@ void _planTests() {
       expect(text, contains('`<item>:<task>`'));
       expect(text, contains('`<task>` alone for the whole doc'));
       expect(text, contains('One item takes several refs'));
-      expect(text, contains('Write the whole list'));
+      expect(text, contains('Write the whole list as YAML `- <entry>` lines'));
+      expect(text, contains('Quote an entry YAML reads as a comment'));
+      expect(text, contains('`- "#123"`'));
     });
 
     test('it has the work commits name the task id and the finishing commit '
@@ -5620,8 +5622,8 @@ void _planFilesTests() {
         paths,
         hasLength(3 + 4 + 4),
         reason:
-            'source: engineer, skill, tickets.md; 2 skill renders hold '
-            'the skill and tickets.md; 4 engineer renders',
+            '3 source files: engineer, skill, tickets.md; 4 skill renders, '
+            'the skill and tickets.md in each of 2 hosts; 4 engineer renders',
       );
     });
 

@@ -16,6 +16,9 @@ import '../../helpers/nested_fixture.dart';
 const _patternsField =
     'fields:\n  - id: patterns\n    type: string\n    list: true\n';
 
+const _outOfScopeSection =
+    'sections:\n  - id: out_of_scope\n    header: Out-of-scope\n';
+
 // The ids stay clear of the shipped feature patterns, which a project layer
 // would merge over.
 const _signIn = '''
@@ -204,8 +207,7 @@ void main() {
     () async {
       final index = await indexWith({
         '.specstone/templates/user_story.yaml':
-            '$_patternsField'
-            'sections:\n  - id: out_of_scope\n    header: Out-of-scope\n',
+            '$_patternsField$_outOfScopeSection',
         'docs/prds/features/f01_login/us01_email_login/USER_STORY.md': '---\npatterns: [records]\ngoals:\n  - PG-01\n---\n\n# Agent signs in\n\n## Use Case\nSign in.\n',
         ..._allPatterns,
       });

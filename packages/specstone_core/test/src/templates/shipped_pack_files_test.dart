@@ -55,7 +55,7 @@ void main() {
       prdOnly = await resolvePrdCore();
     });
 
-    test('E01: the merged set holds the eleven prd-core and the fifteen '
+    test('the merged set holds the eleven prd-core and the fifteen '
         'software-tech doc types, the record among them', () {
       expect(
         both.docTypes.map((d) => d.id).toList(),

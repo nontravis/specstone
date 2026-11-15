@@ -316,8 +316,15 @@ void main() {
       'docs/$recordPath': '---\n$tasks---\n\n# Login record\n',
     };
 
-    for (final entry in ['""', '"login:"', '":T-1"']) {
-      test('the entry $entry mismatches, naming the field', () async {
+    const mismatches = {
+      'an empty string': '""',
+      'a missing task': '"login:"',
+      'a missing item': '":T-1"',
+      'a number': '42',
+      'an empty item': '',
+    };
+    for (final MapEntry(key: label, value: entry) in mismatches.entries) {
+      test('$label mismatches, naming the field', () async {
         final report = checkOf(
           await writeCheckProject(
             unstamped: {'docs/$recordPath'},

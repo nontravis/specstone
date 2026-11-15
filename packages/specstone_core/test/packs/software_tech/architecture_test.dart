@@ -146,24 +146,10 @@ void main() {
     );
   });
 
-  test('the guide extends the cite rule to project and ancestor rules', () {
-    expectDescriptionSays(architecture, const [
-      'by a link to the item that holds it, never restate it',
-      "a rule of a project spec doc or of an ancestor feature's spec doc",
-    ]);
-  });
-
   test('the guide states where its rules belong', () {
     expectDescriptionSays(architecture, const [
       "holds one feature's spec",
       "a rule every feature uses goes to the project's ARCHITECTURE",
-    ]);
-  });
-
-  test('the guide asks an Overrides line and its entry', () {
-    expectDescriptionSays(architecture, const [
-      '`Overrides:` line',
-      '`overrides` entry',
     ]);
   });
 }

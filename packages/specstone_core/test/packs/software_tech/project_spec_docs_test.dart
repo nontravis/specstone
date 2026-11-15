@@ -44,6 +44,9 @@ const _overridesCarriers = [
   'topic',
 ];
 
+/// The Overrides carriers whose items include table rows.
+const _tableRowCarriers = ['architecture', 'auth', 'error'];
+
 /// Each project spec doc type's title form and its own example title.
 const _projectTitles = <String, ({String form, String example})>{
   'project_architecture': (
@@ -80,9 +83,12 @@ const _domainCitesArchitecture =
     "The project's DOMAIN cites the project's ARCHITECTURE by a section link, "
     'such as `[architecture](ARCHITECTURE.md#components)`.';
 
-/// Names one feature: "the feature", "this feature", "one feature", and so on.
+/// Names one feature: "the feature", "each feature", "per feature", and so on.
+///
+/// "a feature" stays out: "A feature's `error_envelope` departs from it" names
+/// every feature alike.
 final _namesOneFeature = RegExp(
-  r'\b(?:the|this|that|one|its)\s+feature\b',
+  r'\b(?:the|this|that|one|its|each|per)\s+feature\b',
   caseSensitive: false,
 );
 
@@ -102,8 +108,12 @@ Future<MergedSet> _resolveWith({
   );
 }
 
-List<(String, String, String?, bool)> _sectionShapes(MergedDocType type) => [
-  for (final s in type.sections) (s.id, s.header, s.prefixId, s.required),
+List<(String, String, String?, bool)> _sectionShapes(
+  MergedDocType type, {
+  Set<String> except = const {},
+}) => [
+  for (final s in type.sections)
+    if (!except.contains(s.id)) (s.id, s.header, s.prefixId, s.required),
 ];
 
 void main() {
@@ -154,8 +164,15 @@ void main() {
         kept,
         reason: id,
       );
-      if (id == 'project_api' || id == 'project_error') continue;
-      expect(_sectionShapes(type), _sectionShapes(base), reason: id);
+      if (id == 'project_api') continue;
+      final except = id == 'project_error'
+          ? const {'error_envelope'}
+          : const <String>{};
+      expect(
+        _sectionShapes(type, except: except),
+        _sectionShapes(base, except: except),
+        reason: id,
+      );
     }
   });
 
@@ -310,6 +327,35 @@ void main() {
       expectDescriptionSays(prdCoreDocType(set, id), const [
         'by a link to the item that holds it, never restate it',
         "a rule of a project spec doc or of an ancestor feature's spec doc",
+      ]);
+    }
+  });
+
+  test('each Overrides carrier guide extends the cite rule to project and '
+      'ancestor rules', () {
+    for (final id in _overridesCarriers) {
+      expectDescriptionSays(prdCoreDocType(set, id), const [
+        'by a link to the item that holds it, never restate it',
+        "a rule of a project spec doc or of an ancestor feature's spec doc",
+      ]);
+    }
+  });
+
+  test('each Overrides carrier guide asks an Overrides line and its entry', () {
+    for (final id in _overridesCarriers) {
+      expectDescriptionSays(prdCoreDocType(set, id), const [
+        '`Overrides:` line',
+        '`overrides` entry',
+      ]);
+    }
+  });
+
+  test('a carrier whose items include table rows places the Overrides line '
+      'under the table and names the row', () {
+    for (final id in _tableRowCarriers) {
+      expectDescriptionSays(prdCoreDocType(set, id), const [
+        'right under the table when that item is a table row',
+        'its how-clause naming the row',
       ]);
     }
   });

@@ -169,23 +169,20 @@ void main() {
     },
   );
 
-  test(
-    '$_name E03: a change of a task_ref list raises no approval_stale',
-    () async {
-      final report = checkOf(
-        await writeCheckProject(
-          extra: {
-            '.specstone/templates/feature.yaml':
-                'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
-            ...editedAfterApproval(loginFeature, [
-              ('  - PG-01\n---', '  - PG-01\ntasks:\n  - T-1\n---'),
-            ]),
-          },
-        ),
-      );
-      expect(_stales(report), isEmpty);
-    },
-  );
+  test('a change of a task_ref list raises no approval_stale', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          '.specstone/templates/feature.yaml':
+              'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+          ...editedAfterApproval(loginFeature, [
+            ('  - PG-01\n---', '  - PG-01\ntasks:\n  - T-1\n---'),
+          ]),
+        },
+      ),
+    );
+    expect(_stales(report), isEmpty);
+  });
 
   group('a record status edited by hand after approval', () {
     const from = 'email_login/check_password:implemented';

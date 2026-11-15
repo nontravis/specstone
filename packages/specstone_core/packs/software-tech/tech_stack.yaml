@@ -25,7 +25,7 @@ fields:
     list: true
     description: |-
       Lists the tasks that track the doc's work, each `<item>:<task>`, or `<task>` alone for the whole doc, such as `INV-4:ENG-42`.
-      `specstone:sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.
+      `specstone-sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.
 sections:
   - id: stack
     header: Stack

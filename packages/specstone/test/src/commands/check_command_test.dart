@@ -1598,7 +1598,9 @@ void main() {
       final project = await domainWith('- **INV-4** An email is unique.');
       const message =
           'task ENG-42 is left on the done feature login; '
-          'drop the entry with specstone set domain:login --field tasks';
+          'drop the entry with specstone set domain:login --field tasks '
+          '--base <bases.fields.tasks of get --json>, '
+          'the list less the entry on stdin';
 
       final (text, json) = await run(project);
 
