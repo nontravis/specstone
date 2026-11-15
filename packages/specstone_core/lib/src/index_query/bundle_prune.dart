@@ -29,6 +29,6 @@ void _deleteIfOlder(File file, DateTime oldest) {
   try {
     if (file.lastModifiedSync().isBefore(oldest)) file.deleteSync();
   } on FileSystemException {
-    // Gone already, held, or not permitted: the file stays.
+    // Held or not permitted: the file stays; one already gone needs nothing.
   }
 }
