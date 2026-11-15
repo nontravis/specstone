@@ -6,6 +6,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
+import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
@@ -457,12 +458,20 @@ void main() {
     });
   });
 
-  test(
-    'the shipped prd-core pack is 1.11.0, so the scoped lint keys ride it',
-    () {
-      expect(shippedPackVersions()['prd-core'], '1.11.0');
-    },
-  );
+  test('the shipped prd-core pack is at least 1.11.0, so the scoped lint '
+      'keys ride it', () {
+    final version = PackVersion.parse(
+      shippedPackVersions()['prd-core']!,
+      file: 'pack.yaml',
+      key: 'version',
+    );
+    expect(
+      version.compareTo(
+        PackVersion.parse('1.11.0', file: 'pack.yaml', key: 'version'),
+      ),
+      greaterThanOrEqualTo(0),
+    );
+  });
 
   group('the prd-core guide-rule lint', () {
     late MergedSet set;
@@ -593,13 +602,14 @@ void main() {
 
     test('the five misuser sections are required and held only when '
         'anti_type is misuser, and no other section sets when_field', () {
-      for (final id in [
+      const misuserSections = [
         'motivations',
         'actions',
         'tools',
         'needs',
         'consequences',
-      ]) {
+      ];
+      for (final id in misuserSections) {
         final s = section('anti_persona', id);
         expect(s.required, isTrue, reason: id);
         expect(s.whenField?.field, 'anti_type', reason: id);
@@ -610,11 +620,7 @@ void main() {
           for (final s in docType.sections)
             if (s.whenField != null) '${docType.id}.${s.id}',
       };
-      expect(found, {
-        for (final id in ['motivations', 'actions', 'tools', 'needs'])
-          'anti_persona.$id',
-        'anti_persona.consequences',
-      });
+      expect(found, {for (final id in misuserSections) 'anti_persona.$id'});
     });
 
     test('no other section sets a count key', () {
@@ -850,6 +856,7 @@ const _guideRules = <_GuideRule>[
       'Run `test/x_test.dart`.',
       'Run `tests/fixtures/a.json`.',
       'Run `packages/app/test/`.',
+      'Read `test/README` first.',
       '- **Pass criteria:** login_test.dart passes.',
       'See login.test.ts and login.spec.js.',
     ],
@@ -857,6 +864,8 @@ const _guideRules = <_GuideRule>[
       'Test: a wrong password is refused.',
       '- **Level:** unit/integration',
       'Level: test/analysis, per the test method.',
+      'Level: test/analysis/inspection',
+      'Level: analysis/test/demonstration.',
       'A test-driven check of the latest sign-in.',
     ],
   ),

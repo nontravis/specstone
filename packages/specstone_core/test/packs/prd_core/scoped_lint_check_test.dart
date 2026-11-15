@@ -71,6 +71,8 @@ void main() {
         'Run `test/x_test.dart` to check it.',
         'Run `tests/fixtures/login.json` to check it.',
         'Run `packages/app/test/` to check it.',
+        'Read `test/README` first.',
+        'Level: unit, see packages/app/test/analysis for it.',
         'See login_test.dart.',
         'See login.test.ts.',
         'See login.spec.js.',
@@ -85,6 +87,8 @@ void main() {
         'The test passes when the sign-in is refused.',
         '- **Level:** unit/integration',
         'Level: test/analysis, per the test method.',
+        'Level: test/analysis/inspection',
+        'Level: analysis/test/demonstration.',
         'A test-driven check of the latest sign-in.',
       ]) {
         expect(await banned(text), isEmpty, reason: text);
