@@ -3,7 +3,8 @@ description: |-
   The project-wide context doc: name, vision, goals, roles, scope limits, and glossary.
   Title it `# Project context`, with no number. A project has exactly one PROJECT.
   Write one rule per `PV-*` or `PG-*` ID, and leave mechanics to the spec docs.
-  Keep a goal's bound in its own `**Metric:**` and `**By:**` lines, and its trace in its `**Serves:**` line.
+  Keep a goal's bound in its own `- **Metric:**` and `- **By:**` lines, and its trace in its `- **Serves:**` line.
+  PROJECT holds no measured number; a vision's evidence goes to the Baseline of the measurement of a goal that serves it.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: prds/PROJECT.md
@@ -36,7 +37,7 @@ sections:
     description: |-
       Put one `> <lang>: <sentence>` line per language right under each PV heading.
       Use an ISO 639-1 code, give at least one language, and keep each sentence to 15 words or fewer.
-      Then write Why, Problem, and Audience, one sentence each.
+      Then write Why, Problem, and Audience, one sentence each, with Problem in general words.
       Add one more PV entry for each extra angle, such as a business vision beside a product vision.
       Write at least one entry before the first feature.
     template: |-
@@ -68,17 +69,23 @@ sections:
     description: |-
       Optional. Skip it until the project has a committed metric; no gate blocks the doc without it.
       Each PG entry names the PV it serves, a statement, a numeric metric with unit, and a date or milestone.
+      The Metric holds the goal's pass bound and its unit, and names no other project, no scope item, and no baseline number.
+      Every goal has one measurement; link the goal's measurement in its Metric.
     template: |-
       ### PG-01 — <short name>
-      **Serves:** PV-01
-      **Statement:** <goal statement>
-      **Metric:** <numeric target with unit>
-      **By:** <date or milestone>
+      - **Serves:** PV-01
+      - **Statement:** <goal statement>
+      - **Metric:** <numeric target with unit>
+      - **By:** <date or milestone>
     lint:
       banned_patterns:
         - id: metric_number
           pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\d)'
           message: 'Metric line holds no number; guide line: a numeric metric with unit'
+          in: all
+        - id: metric_measurement
+          pattern: '^(?:- )?\*\*Metric:\*\*(?!.*\]\((?:[^)\s]*/)?MEASUREMENT\.md(?:#[^)\s]*)?\))'
+          message: "Metric line links no measurement; guide line: link the goal's measurement"
           in: all
   - id: roles
     header: Role

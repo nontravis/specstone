@@ -301,6 +301,44 @@ void main() {
       expect(_head(root), head);
     });
   });
+  group('prd-core 1.9.0 pin upgrade', () {
+    const projectPath = 'docs/prds/PROJECT.md';
+    const bareGoals =
+        '### PG-01 — Fast\n\n**Serves:** PV-01\n**Statement:** Be fast.\n'
+        '**Metric:** 3 calls\n**By:** v1\n';
+    const bulletGoals =
+        '### PG-01 — Fast\n\n- **Serves:** PV-01\n- **Statement:** Be fast.\n'
+        '- **Metric:** 3 calls\n- **By:** v1\n';
+    String project(String goals) =>
+        '---\nowner: sre\n---\n# Project context\n\n'
+        '## Project name\n\n- **Human:** Acme\n\n'
+        '## Project goals\n\n$goals\n'
+        '## Role\n\n- `Owner` — runs it.\n';
+
+    test(
+      'a project pinned at the 1.9.0 prd-core pack migrates to 1.10.0 '
+      'with its bare goal lines bulleted and no other line changed',
+      () async {
+        final home = await writeTree({});
+        final root = await gitFixture({
+          '.specstone/config.yaml':
+              'packs:\n  prd-core: 1.9.0\n'
+              '  software-tech: ${shippedPackVersions()['software-tech']}\n',
+          _gitignore: _ignoreFile,
+          projectPath: project(bareGoals),
+        });
+
+        final result = await _run(root, home, ['migrate'], console: _owner());
+
+        expect(result.status, 0, reason: result.err);
+        expect(_read(root, projectPath), project(bulletGoals));
+        expect(
+          _read(root, '.specstone/config.yaml'),
+          contains('prd-core: ${shippedPackVersions()['prd-core']}\n'),
+        );
+      },
+    );
+  });
   group('upgrade a pack pin', () {
     test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
         'only adds makes one commit that changes only the pins', () async {

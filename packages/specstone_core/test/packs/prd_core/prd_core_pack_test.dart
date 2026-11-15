@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
+import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -12,7 +13,7 @@ import '../../helpers/prd_core.dart';
 
 void main() {
   group('prd-core manifest', () {
-    test('prd-core ships at 1.9.0 with no extends', () {
+    test('prd-core ships at 1.10.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -20,35 +21,53 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.9.0');
+      expect(manifest.version.toString(), '1.10.0');
       expect(manifest.extendsPack, isNull);
     });
 
-    test(
-      'prd-core '
-      'writes no migrations entry, so a 1.7.0 pin re-pins with no pack step',
-      () {
-        final manifest = PackManifest.parse(
-          utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-          file: 'packs/prd-core/pack.yaml',
+    test('prd-core writes one migrations entry from 1.9.0 that bullets the '
+        'four goal field prefixes of the project doc type', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+        file: 'packs/prd-core/pack.yaml',
+      );
+      final entry = manifest.migrations.single;
+      expect(entry.from.toString(), '1.9.0');
+      final step = entry.steps.single as BulletLines;
+      expect(step.docType, 'project');
+      expect(step.section, 'goals');
+      expect(step.prefixes, [
+        '**Serves:**',
+        '**Statement:**',
+        '**Metric:**',
+        '**By:**',
+      ]);
+    });
+
+    test('a 1.7.0 or 1.9.0 pin upgrades to 1.10.0 with the bullet step', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+        file: 'packs/prd-core/pack.yaml',
+      );
+      for (final pin in ['1.7.0', '1.9.0']) {
+        final upgrades = selectUpgrades(
+          {
+            'prd-core': PackVersion.parse(
+              pin,
+              file: 'config.yaml',
+              key: 'packs.prd-core',
+            ),
+          },
+          {'prd-core': manifest},
         );
-        expect(manifest.migrations, isEmpty);
-        for (final pin in ['1.7.0', '1.0.0']) {
-          final upgrades = selectUpgrades(
-            {
-              'prd-core': PackVersion.parse(
-                pin,
-                file: 'config.yaml',
-                key: 'packs.prd-core',
-              ),
-            },
-            {'prd-core': manifest},
-          );
-          expect(upgrades.single.target.toString(), '1.9.0', reason: pin);
-          expect(upgrades.single.steps, isEmpty, reason: pin);
-        }
-      },
-    );
+        expect(upgrades.single.target.toString(), '1.10.0', reason: pin);
+        expect(
+          upgrades.single.steps.single.step,
+          isA<BulletLines>(),
+          reason: pin,
+        );
+      }
+    });
 
     test('a project pinning the shipped prd-core resolves with '
         'no fault', () async {

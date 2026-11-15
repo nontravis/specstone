@@ -16,10 +16,10 @@ const _templates = {
       '- **Audience:** <one sentence>',
   'goals':
       '### PG-01 — <short name>\n'
-      '**Serves:** PV-01\n'
-      '**Statement:** <goal statement>\n'
-      '**Metric:** <numeric target with unit>\n'
-      '**By:** <date or milestone>',
+      '- **Serves:** PV-01\n'
+      '- **Statement:** <goal statement>\n'
+      '- **Metric:** <numeric target with unit>\n'
+      '- **By:** <date or milestone>',
   'roles': '- `<RoleName>` — <one-line definition>',
   'out_of_scope': '- <thing the project will NOT do>',
   'glossary': '- **<Term>** — <one-line definition tying to a concrete entity>',
@@ -95,9 +95,76 @@ void main() {
       project,
       'Write one rule per `PV-*` or `PG-*` ID, '
       'and leave mechanics to the spec docs.\n'
-      "Keep a goal's bound in its own `**Metric:**` and "
-      '`**By:**` lines, and its trace in its `**Serves:**` '
+      "Keep a goal's bound in its own `- **Metric:**` and "
+      '`- **By:**` lines, and its trace in its `- **Serves:**` '
       'line.',
     );
+  });
+
+  test('the guides keep measured numbers out of PROJECT and ask for a '
+      'general Problem and a linked measurement', () {
+    expectItemShape(
+      project,
+      "PROJECT holds no measured number; a vision's evidence goes to the "
+      'Baseline of the measurement of a goal that serves it.',
+    );
+    expect(
+      sectionOf(project, 'vision').description,
+      contains('with Problem in general words.'),
+    );
+    final goals = sectionOf(project, 'goals').description!;
+    expect(
+      goals,
+      allOf(
+        contains('pass bound and its unit, and names no other project'),
+        contains('no scope item, and no baseline number'),
+        contains("link the goal's measurement"),
+      ),
+    );
+    expect(goals.split('\n').length, lessThanOrEqualTo(5));
+  });
+
+  group('metric lint', () {
+    late Map<String, RegExp> lint;
+    setUpAll(() {
+      lint = {
+        for (final p in sectionOf(project, 'goals').bannedPatterns!)
+          p.id: p.regExp,
+      };
+    });
+
+    test('metric_measurement hits a bare and a bullet Metric line that '
+        'links no measurement', () {
+      final pattern = lint['metric_measurement']!;
+      for (final line in [
+        '**Metric:** at most 3 tool calls',
+        '- **Metric:** at most 3 tool calls',
+        '- **Metric:** at most 3 calls, [bench](../benchmarks/README.md)',
+        '- **Metric:** 3 calls, [bench](../x/NOTMEASUREMENT.md)',
+        '- **Metric:** 3 calls, [bench](../x/MEASUREMENT.md.bak)',
+        '- **Metric:** 3 calls, MEASUREMENT.md',
+      ]) {
+        expect(pattern.hasMatch(line), isTrue, reason: line);
+      }
+    });
+
+    test('metric_measurement misses a Metric line that links a '
+        'MEASUREMENT.md, with or without an anchor, and other lines', () {
+      final pattern = lint['metric_measurement']!;
+      for (final line in [
+        '- **Metric:** 3 calls, [m](../../measurements/x/MEASUREMENT.md)',
+        '**Metric:** 3 calls, [m](../../measurements/x/MEASUREMENT.md#results)',
+        '- **Metric:** 3 calls, [m](MEASUREMENT.md)',
+        '- **Serves:** PV-02',
+      ]) {
+        expect(pattern.hasMatch(line), isFalse, reason: line);
+      }
+    });
+
+    test('metric_number still hits a digit-free Metric line', () {
+      final pattern = lint['metric_number']!;
+      expect(pattern.hasMatch('- **Metric:** a fast tool'), isTrue);
+      expect(pattern.hasMatch('**Metric:** 3 calls'), isFalse);
+    });
   });
 }
