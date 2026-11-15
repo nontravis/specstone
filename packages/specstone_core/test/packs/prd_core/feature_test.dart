@@ -17,6 +17,7 @@ const _ownFields = <FieldSpec>[
   FieldSpec('persona', FieldType.docRef, list: true, docTypes: ['persona']),
   FieldSpec('system', FieldType.string),
   FieldSpec('depends_on', FieldType.docRef, list: true, docTypes: ['feature']),
+  FieldSpec('patterns', FieldType.string, list: true),
 ];
 
 const _templates = {
@@ -25,7 +26,9 @@ const _templates = {
       'flowchart LR\n'
       '  <Step1> --> <Step2> --> <Step3>\n'
       '```',
-  'out_of_scope': '- <thing> — <owning feature | not planned>',
+  'out_of_scope':
+      '- <thing> — <owning feature | not planned>\n'
+      '- `<pattern>/<item>` — <why the feature skips the item>',
   'success_measures': '- <behavior change> — <target> by <date>',
 };
 
@@ -46,6 +49,14 @@ const _placementLines = [
 const _dependsOnDescription =
     'Names the features this feature needs built first; each name must resolve to a feature.\n'
     'Leave it out when the feature depends on no other feature.';
+const _patternsDescription =
+    'Names the feature patterns this feature follows; list the ids with `specstone guide --pattern`.\n'
+    'Leave it out when no feature pattern fits the feature.';
+const _outOfScopeDescription =
+    'List the use cases left out to fit the appetite or keep the problem tractable, one line each.\n'
+    'Write each line as `<thing> — <owning feature | not planned>`; mark a deferred item with its owning feature.\n'
+    'Write the skip line of a pattern item as `<pattern>/<item>` in a code span, then ` — `, then the reason.\n'
+    'The list has no cap on the number of lines.';
 const _workspaceLayer =
     'fields:\n  - id: depends_on\n    type: doc_ref\n    list: true\n    doc_types: [feature]\n'
     '    description: |-\n'
@@ -161,6 +172,19 @@ void main() {
       expectOwnFields(merged, _ownFields);
     },
   );
+
+  test('patterns is a free string list that points at guide --pattern', () {
+    final patterns = fieldOf(feature, 'patterns');
+    expect(patterns.enumValues, isNull);
+    expect(patterns.description, _patternsDescription);
+  });
+
+  test('the Out-of-scope guide gives both line forms', () {
+    expect(
+      sectionOf(feature, 'out_of_scope').description,
+      _outOfScopeDescription,
+    );
+  });
 
   test('f03/us06/fr01, sf-r5: feature carries max_depth 3', () {
     expect(feature.maxDepth, 3);
