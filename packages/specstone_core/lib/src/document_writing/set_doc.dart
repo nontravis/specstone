@@ -205,7 +205,8 @@ String markDraft(String lfText, MergedDocType docType) =>
 /// empty [text] empties it. Throws [IndexFault] for a body that holds a
 /// `## ` line, a lead that holds a `# ` line, a doc, section, or field that is
 /// not there, a title that is not one line, and [WriteFault] `base_mismatch`,
-/// `required_target`, or a refused field.
+/// `required_target`, `replace_unmatched`, `replace_ambiguous`, or a refused
+/// field.
 ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   final doc = session.target(request.address, codeTarget: request.codeTarget);
   final docType =
@@ -261,7 +262,8 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// `lfText` of the result is the spliced text and `marksDraft` tells whether
 /// the write marks the doc a draft: false only for a field outside the
 /// approval hash by the rule [statusesOutside] names ([isOutsideApproval]).
-/// Touches no disk and takes no lock. Runs [checkPartText] first, then throws
+/// Touches no disk and takes no lock. Runs [checkPartText] first, except for
+/// a [ReplaceTarget], which reads its stdin itself, then throws
 /// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
 /// part's current text included.
 ({String lfText, bool marksDraft}) splicePart({
@@ -274,6 +276,19 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
   required String text,
   required bool statusesOutside,
 }) {
+  // A replace parses its stdin once, in `_spliceReplace`, so it skips the
+  // check that would parse it again; `answerSet` already ran that check.
+  if (target case ReplaceTarget(:final key)) {
+    return _spliceReplace(
+      doc: doc,
+      docType: docType,
+      lfText: lfText,
+      sections: sections,
+      key: key,
+      base: base,
+      stdin: text,
+    );
+  }
   checkPartText(doc: doc, docType: docType, target: target, text: text);
   final stdin = toLf(text);
   return switch (target) {
@@ -286,15 +301,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
       base: base,
       stdin: stdin,
     ),
-    ReplaceTarget(:final key) => _spliceReplace(
-      doc: doc,
-      docType: docType,
-      lfText: lfText,
-      sections: sections,
-      key: key,
-      base: base,
-      stdin: text,
-    ),
+    ReplaceTarget() => throw StateError('handled before the check'),
     FieldTarget(:final fieldId) => _spliceField(
       doc: doc,
       docType: docType,
@@ -779,8 +786,9 @@ void _requireSectionBase(
 /// holds, then writes the result as a section body.
 ///
 /// The old passage is matched against the section body as `get` prints it.
-/// The base is checked before the match, so a stale base wins over a missing
-/// passage.
+/// The stdin is read first, then the base is checked before the match, so a
+/// stale base wins over a missing passage. [_spliceSection] checks the base
+/// again on the new body; it is the same hash and cannot differ.
 ({String lfText, bool marksDraft}) _spliceReplace({
   required IndexedDoc doc,
   required MergedDocType docType,
@@ -790,9 +798,9 @@ void _requireSectionBase(
   required String base,
   required String stdin,
 }) {
+  final (:oldPassage, :newPassage) = parseReplaceStdin(stdin);
   final held = _heldSectionIndex(doc, docType, sections, key);
   _requireSectionBase(doc, docType, sections, held, key, base);
-  final (:oldPassage, :newPassage) = parseReplaceStdin(stdin);
   final currentBase = _sectionBaseOnDisk(docType, sections, held);
   final body = replacedBody(
     held < 0 ? '' : toLf(sections[held].body),

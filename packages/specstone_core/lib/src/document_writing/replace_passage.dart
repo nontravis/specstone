@@ -15,8 +15,8 @@ const _newMarker = '==> new <==';
 /// new passage is read in LF line ends.
 /// Throws [IndexFault] `argument_invalid` for a first line that is not the old
 /// marker, a missing or repeated marker line, and an empty old passage.
-({String oldPassage, String newPassage}) parseReplaceStdin(String lf) {
-  final lines = lf.split('\n');
+({String oldPassage, String newPassage}) parseReplaceStdin(String stdin) {
+  final lines = stdin.split('\n');
   if (_withoutCr(lines.first) != _oldMarker) {
     throw _invalid('the first line must be exactly "$_oldMarker"');
   }

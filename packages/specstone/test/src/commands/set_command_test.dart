@@ -733,6 +733,46 @@ void main() {
       expect(err.toString(), isEmpty);
     });
 
+    test('exits 75 as replace_unmatched and prints the current section', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = getDoc(root, target)['base']! as String;
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(
+          input: '==> old <==\nBlue fish.\n==> new <==\nx\n',
+        ),
+      );
+      expect(
+        await runner.run(['set', target, '--base', base, '--replace']),
+        75,
+      );
+      expect(
+        out.toString(),
+        '==> login/email_login (user_story) · $story1#use_case · base $base <==\n'
+        '## Use Case\n\nSign in with an email.\n',
+      );
+      expect(err.toString(), contains('the old passage is not in the section'));
+      expect(readDoc(root, story1), before);
+    });
+
+    test('exits 64 as replace_ambiguous naming the count', () async {
+      final root = await writeWriteProject();
+      final before = readDoc(root, story1);
+      final base = getDoc(root, target)['base']! as String;
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(input: '==> old <==\na\n==> new <==\nx\n'),
+      );
+      expect(
+        await runner.run(['set', target, '--base', base, '--replace']),
+        64,
+      );
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('occurs 2 times'));
+      expect(readDoc(root, story1), before);
+    });
+
     test('exits 64 as argument_conflict beside --field, --title, --batch, a lead target, or a whole-doc target, and writes nothing', () async {
       final root = await writeWriteProject();
       final before = readDoc(root, story1);

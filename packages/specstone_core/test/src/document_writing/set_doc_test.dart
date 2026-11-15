@@ -3919,15 +3919,70 @@ void main() {
       expect(readDoc(root, story1), before);
     });
 
-    test('refuses malformed stdin before it reads the doc', () async {
+    test('refuses malformed stdin before it checks the base', () async {
       final root = await writeWriteProject();
+      final stale = sectionBase(root, useCase);
+      writeIn(
+        root,
+        (s) => answerSet(s, req(useCase, stale), 'Someone else wrote this.\n'),
+      );
+      final before = readDoc(root, story1);
+      for (final bad in ['Sign in\n', '==> old <==\n\n==> new <==\nx\n']) {
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerSet(s, replaceReq(useCase, stale), bad),
+          ),
+          throwsIndexFault(IndexFaultCode.argumentInvalid),
+          reason: bad,
+        );
+      }
+      expect(readDoc(root, story1), before);
+    });
+
+    test('refuses a stale base before it matches the old passage', () async {
+      final root = await writeWriteProject();
+      final stale = sectionBase(root, useCase);
+      writeIn(
+        root,
+        (s) => answerSet(s, req(useCase, stale), 'Someone else wrote this.\n'),
+      );
       final before = readDoc(root, story1);
       expect(
-        () => replace(root, useCase, 'Sign in\n'),
-        throwsIndexFault(IndexFaultCode.argumentInvalid),
+        () => writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            replaceReq(useCase, stale),
+            stdin('Blue fish.', 'x'),
+          ),
+        ),
+        throwsWriteFault(WriteFaultCode.baseMismatch),
       );
       expect(readDoc(root, story1), before);
     });
+
+    test(
+      'refuses a CRLF old passage on a CRLF doc and writes nothing',
+      () async {
+        final root = await writeWriteProject();
+        docFile(
+          root,
+          story1,
+        ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
+        final before = readDoc(root, story1);
+        expect(
+          () => replace(
+            root,
+            criteria,
+            '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
+            '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
+          ),
+          throwsWriteFault(WriteFaultCode.replaceUnmatched),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
 
     test('refuses a section the doc neither holds nor defines', () async {
       final root = await writeWriteProject();
