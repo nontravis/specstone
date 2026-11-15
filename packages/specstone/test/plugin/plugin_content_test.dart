@@ -4767,7 +4767,7 @@ void _hostRenderTests() {
       ]);
       expect(
         files.map((file) => file.frontmatter),
-        contains(contains('tools: "Read, Grep"')),
+        contains(contains('tools: Read, Grep')),
         reason: 'the Claude Code render keeps the tools',
       );
       expect(hostTiedText(files), isEmpty);
