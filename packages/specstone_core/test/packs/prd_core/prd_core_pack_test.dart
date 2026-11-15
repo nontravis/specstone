@@ -15,7 +15,7 @@ void main() {
   final shipped = shippedPackVersions()['prd-core']!;
 
   group('prd-core manifest', () {
-    test('prd-core ships at 1.11.0 with no extends', () {
+    test('prd-core ships at 1.12.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -23,17 +23,29 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.11.0');
+      expect(manifest.version.toString(), '1.12.0');
       expect(manifest.extendsPack, isNull);
     });
 
-    test('prd-core writes one migrations entry from 1.9.0 that bullets the '
+    test('prd-core carries 1.12.0 with a no-step entry from 1.11.0', () {
+      final manifest = PackManifest.parse(
+        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+        file: 'packs/prd-core/pack.yaml',
+      );
+      expect(manifest.migrations.map((e) => e.from.toString()), [
+        '1.9.0',
+        '1.11.0',
+      ]);
+      expect(manifest.migrations.last.steps, isEmpty);
+    });
+
+    test('prd-core writes an entry from 1.9.0 that bullets the '
         'four goal field prefixes of the project doc type', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
       );
-      final entry = manifest.migrations.single;
+      final entry = manifest.migrations.first;
       expect(entry.from.toString(), '1.9.0');
       final step = entry.steps.single as BulletLines;
       expect(step.docType, 'project');
@@ -72,24 +84,26 @@ void main() {
       }
     });
 
-    test('a 1.10.0 pin takes the shipped pin alone, with no step', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-        file: 'packs/prd-core/pack.yaml',
-      );
-      final upgrades = selectUpgrades(
-        {
-          'prd-core': PackVersion.parse(
-            '1.10.0',
-            file: 'config.yaml',
-            key: 'packs.prd-core',
-          ),
-        },
-        {'prd-core': manifest},
-      );
-      expect(upgrades.single.target.toString(), shipped);
-      expect(upgrades.single.steps, isEmpty);
-    });
+    for (final pin in ['1.10.0', '1.11.0']) {
+      test('a $pin pin takes the shipped pin alone, with no step', () {
+        final manifest = PackManifest.parse(
+          utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
+          file: 'packs/prd-core/pack.yaml',
+        );
+        final upgrades = selectUpgrades(
+          {
+            'prd-core': PackVersion.parse(
+              pin,
+              file: 'config.yaml',
+              key: 'packs.prd-core',
+            ),
+          },
+          {'prd-core': manifest},
+        );
+        expect(upgrades.single.target.toString(), shipped);
+        expect(upgrades.single.steps, isEmpty);
+      });
+    }
 
     test('a project pinning the shipped prd-core resolves with '
         'no fault', () async {
@@ -122,6 +136,17 @@ void main() {
   });
 
   group('prd-core doc types', () {
+    test('only project and gnfr set bundle_refs', () async {
+      final set = await resolvePrdCore();
+      expect(
+        {
+          for (final d in set.docTypes)
+            if (d.bundleRefs != null) d.id: d.bundleRefs,
+        },
+        {'project': true, 'gnfr': true},
+      );
+    });
+
     test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
         'holds exactly the twelve doc types', () async {
       final set = await resolvePrdCore();

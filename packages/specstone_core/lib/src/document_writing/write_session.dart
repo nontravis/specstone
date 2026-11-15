@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -137,14 +138,11 @@ final class WriteSession {
 
   /// Returns the one typed doc [address] names.
   ///
-  /// [address] is `<doc type>:<name>`, a bare name, or a path to the doc, as
-  /// [DocIndex.resolve] reads it; [codeTarget], when given, keeps a name to
-  /// that code target's docs and the shared docs, as it does there.
-  /// Throws [IndexFault] `untyped_target` for a doc with no doc type, before
-  /// any doc-type test, `argument_invalid` for an address that names 2 or
-  /// more docs, listing each as `<doc type>:<name>` or, when that names 2
-  /// docs, its DocPath, and `doc_not_found` when it names none; a
-  /// `TemplateFault` for an unknown doc type id passes through.
+  /// [address] is read as [DocIndex.resolve] reads it, [codeTarget] included.
+  /// Throws [IndexFault] `untyped_target` for a doc with no doc type and
+  /// `argument_invalid` for an address that names 2 or more docs, listing each
+  /// as `<doc type>:<name>` or its DocPath, or whose end 2 or more names share;
+  /// `doc_not_found` when it names none; a `TemplateFault` passes through.
   IndexedDoc target(String address, {String? codeTarget}) {
     final found = index.resolve(address, codeTarget: codeTarget);
     final typed = [
@@ -170,13 +168,11 @@ final class WriteSession {
 
   /// Returns the one doc of [parentTypeId] among the docs [value] names.
   ///
-  /// [value] is read as any target, as [target] reads it, and only the docs of
-  /// [parentTypeId] count; [codeTarget] narrows it as it does there.
+  /// [value] is read as [target] reads it, with [parentTypeId] as its doc type
+  /// when it names none; only the docs of [parentTypeId] count.
   /// Throws [IndexFault] `doc_not_found` naming [value] when none counts and
-  /// `argument_invalid` listing each as `<doc type>:<name>` or, when that names
-  /// 2 docs, its DocPath, when 2 or more count; a `TemplateFault` for a doc
-  /// type id the set lacks and `argument_invalid` for a `#` or `@` suffix pass
-  /// through from [DocIndex.resolve].
+  /// `argument_invalid` when 2 or more count, when 2 or more names end with
+  /// [value], or for a `#` or `@` suffix; a `TemplateFault` passes through.
   IndexedDoc parentTarget(
     String value,
     String parentTypeId, {
@@ -184,7 +180,11 @@ final class WriteSession {
   }) {
     final List<IndexedDoc> named;
     try {
-      named = index.resolve(value, codeTarget: codeTarget);
+      final hasTypePrefix = readDocAddress(value).typeId != null;
+      named = index.resolve(
+        hasTypePrefix ? value : '$parentTypeId:$value',
+        codeTarget: codeTarget,
+      );
     } on IndexFault catch (fault) {
       if (fault.code != IndexFaultCode.docNotFound) rethrow;
       throw _noParent(parentTypeId, value);

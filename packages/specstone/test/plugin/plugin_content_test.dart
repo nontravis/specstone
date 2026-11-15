@@ -218,6 +218,7 @@ void main() {
   _dispatchReferenceTests();
   _groundInitUpdateTests();
   _brainstormTests();
+  _designBriefTests();
   _syncBootstrapTests();
   _planFilesTests();
   _shippedTreeTests();
@@ -778,7 +779,7 @@ const _procedures = <_Procedure>[
   (
     file: 'specstone-brainstorming-sdd/references/design.md',
     tags: 'f08/us02/fr01, f08/us02/fr06',
-    commands: ['context', 'refs', 'search'],
+    commands: ['refs', 'search'],
   ),
   (
     file: 'specstone-brainstorming-sdd/references/audit.md',
@@ -1726,7 +1727,6 @@ const _groundingFiles = [
   'specstone-read-sdd/SKILL.md',
   'specstone-sdd-reader.md',
   'specstone-brainstorming-sdd/SKILL.md',
-  'specstone-brainstorming-sdd/references/design.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/source.md',
   'specstone-plan-sdd/SKILL.md',
@@ -1915,17 +1915,16 @@ void _agentTests() {
     expect(
       _oneLine(_sectionOf(engineer, 'Scope Boundaries')),
       contains(
-        'Read the file each `context --out` call saves per the '
-        '`specstone-read-sdd` skill, searching it with `Grep` before any '
-        '`get`.',
+        'Read the files each `context --out` call saves per the '
+        '`specstone-read-sdd` skill.',
       ),
     );
     expect(
       _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
       contains(
-        'the saved file is the docs, as they stand: read it per the '
-        '`specstone-read-sdd` skill, in parts, searching it with `Grep` '
-        'before any `get`.',
+        'the saved files are the docs, as they stand: read them per the '
+        '`specstone-read-sdd` skill, the read-first file whole and the refs '
+        'file by line range, searching them with `Grep` before any `get`.',
       ),
     );
   });
@@ -1942,7 +1941,7 @@ void _agentTests() {
       scope,
       contains(
         '- Run `specstone context` for the Ground, `specstone get` only after '
-        'searching its saved file with `Grep`, and one `specstone check`,',
+        'searching its saved files with `Grep`, and one `specstone check`,',
       ),
     );
     expect(
@@ -1980,13 +1979,13 @@ void _agentTests() {
     expect(
       skill,
       contains(
-        "search the saved file with the host's text search before any "
-        '`specstone get`. Never `get` a doc the file holds',
+        "search the saved files with the host's text search before any "
+        '`specstone get`. Never `get` a doc the files hold',
       ),
     );
     expect(
       skill,
-      contains('find a section by searching the file for its `## ` header'),
+      contains('find a section by searching the files for its `## ` header'),
     );
   });
 
@@ -1996,15 +1995,17 @@ void _agentTests() {
     expect(
       reader,
       contains(
-        "the path of a bundle file the main session's `context --out` call "
-        'saved, exactly as its header printed it',
+        "the paths of the bundle files the main session's `context --out` "
+        'call saved, the read-first file and, in `implement` or `design`, the '
+        'refs file, each exactly as its header printed it',
       ),
     );
     expect(
       reader,
       contains(
-        "read that file with the host's file read, in parts as the task "
-        'needs, and run no `context`',
+        "read them with the host's file read, the read-first file whole and "
+        "the refs file by line range, found with `Grep` by its parts' headers, "
+        'and run no `context`',
       ),
     );
     expect(
@@ -2019,10 +2020,10 @@ void _agentTests() {
     final tools = _toolsOf(reader, 'tools');
     expect(tools, containsAll(['Read', 'Grep']));
     expect(tools, isNot(anyOf(contains('Write'), contains('Edit'))));
-    expect(_oneLine(reader), contains('searching the file with `Grep`'));
+    expect(_oneLine(reader), contains('searching the files with `Grep`'));
     expect(
       _oneLine(_sectionOf(reader, 'Scope Boundaries')),
-      contains('search it with `Grep`'),
+      contains('search them with `Grep`'),
     );
   });
 
@@ -2092,10 +2093,50 @@ void _agentTests() {
     expect(
       _oneLine(_pluginText('specstone-read-sdd/SKILL.md')),
       contains(
-        "Hand it the saved file's path exactly as the header printed it, the "
+        "Hand it each saved file's path exactly as its header printed it, the "
         'mode, and the task: no doc text, no index lines, and no path you '
         'join yourself.',
       ),
+    );
+  });
+
+  test('read-sdd takes the read-first file in full and the refs file in '
+      'ranges, and grounds a doc design work lacks with its own context', () {
+    final skill = _oneLine(_pluginText('specstone-read-sdd/SKILL.md'));
+    expect(
+      skill,
+      contains('the read-first file whole and the refs file by line range'),
+    );
+    expect(
+      skill,
+      contains(
+        'in design work, ground a doc they lack with its own `specstone '
+        'context <doc> --for design --out`, never `get`',
+      ),
+    );
+  });
+
+  test('the reader takes both saved paths', () {
+    final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
+    expect(
+      reader,
+      contains(
+        'the read-first file and, in `implement` or `design`, the refs file',
+      ),
+    );
+  });
+
+  test('the plan engineer reads both files', () {
+    expect(
+      _oneLine(_sectionOf(_pluginText(_planAgent), 'Workflow')),
+      contains('the read-first file whole and the refs file by line range'),
+    );
+  });
+
+  test('the sync procedure names both files', () {
+    expect(
+      _oneLine(_pluginText('specstone-sync-sdd/references/procedure.md')),
+      contains('parts of its read-first and refs files'),
     );
   });
 
@@ -2259,14 +2300,9 @@ void _agentTests() {
   });
 
   test('E20: design '
-      'mode grounds with no --target and names a code target on each '
-      'per-target row', () {
+      'mode names a code target on each per-target row', () {
     final design = _oneLine(
       _pluginText('specstone-brainstorming-sdd/references/design.md'),
-    );
-    expect(
-      design,
-      contains('Pass no `--target`: a design read spans every code target.'),
     );
     expect(
       design,
@@ -2292,8 +2328,8 @@ void _agentTests() {
     expect(
       _oneLine(_pluginText('specstone-sdd-engineer.md')),
       contains(
-        'design writes a code target on each per-target spec doc row; design '
-        'and audit pass no `--target` on `context --for design`.',
+        'design writes a code target on each per-target spec doc row; audit '
+        'passes no `--target` on `context --for design`.',
       ),
     );
   });
@@ -2493,7 +2529,7 @@ void _agentTests() {
           "For each listed code path but a `tests_unresolved` line's (step "
           '4.4), run `specstone context --code <code root>/<path> --for '
           "implement --out`, which takes its path's target and no "
-          "`--target`; read its saved file's parts per "
+          '`--target`; read parts of its read-first and refs files per '
           '`specstone-read-sdd`.',
         ),
       );
@@ -3307,21 +3343,6 @@ void _agentTests() {
     }
   });
 
-  test('f08/us02/fr01, db-r5: design.md names the smallest doc itself, as the '
-      'design-mode agent never reads SKILL.md', () {
-    final text = _pluginText('specstone-brainstorming-sdd/references/design.md')
-        .replaceAll(RegExp(r'\s+'), ' ');
-    expect(
-      text,
-      contains(
-        "on the smallest doc that holds the brief's whole change: the story "
-        'for a change inside one story, the feature for one across stories, '
-        'the feature with `--summary` to add a story, and the project doc to '
-        'add a feature.',
-      ),
-    );
-  });
-
   test('agent_plugin/write_prd_and_spec/write_design_and_plan E09-E12, '
       'E10-E13: '
       "design mode searches each decision's dependents, and the audit hashes "
@@ -3491,9 +3512,8 @@ void _agentTests() {
 
   test('Map each source item in the design document '
       'verification; write_design_document input_output; take_in_a_source '
-      'E02, E03, E08: design.md points design mode to source.md, and the '
-      'runner grounds on the gate bundle plus any narrow bundle or the '
-      "reader's sections", () {
+      'E02, E03, E08: design.md points design mode to source.md, and design '
+      "mode grounds on the brief's saved file and line ranges", () {
     final design = _pluginText(
       'specstone-brainstorming-sdd/references/design.md',
     );
@@ -3502,15 +3522,10 @@ void _agentTests() {
       contains('`source.md`'),
     );
     final ground = _oneLine(_sectionOf(design, '2. Ground each claim'));
-    for (final point in [
-      "As the skill's runner, run no other call: your ground is what its",
-      "step 1 gave, the bundle or `specstone-sdd-reader`'s sections,",
-      "for a change from a source, the gate call's bundle plus any",
-      "`--no-project` call's or the reader's sections.",
-      'Cite only what your ground holds.',
-    ]) {
-      expect(ground, contains(point), reason: point);
-    }
+    expect(
+      ground,
+      contains('the saved file and line range the brief gives under it'),
+    );
     expect(ground, isNot(contains('--for design --no-project')));
     expect(
       _pluginText('specstone-sdd-engineer.md'),
@@ -3677,7 +3692,7 @@ const _sourcePoints = [
   'Read no source and open no link or issue before it.',
   'Read none of it with any tool',
   // E02: a source that adds a feature runs no narrow call.
-  'no second call runs',
+  'no second narrow call runs',
   // The narrow call's bare --out, and both saved bundles whatever size.
   'specstone context <target> --for design --no-project --out',
   'both saved bundles are the grounding, whatever their size',
@@ -3696,7 +3711,7 @@ const _sourcePoints = [
   // E12: a typed doc is the change's target, its path call the narrow call.
   'no source, no copy, no Source map',
   'That call was your narrow call',
-  'run no further `context` call',
+  'run no further narrow `context` call',
   // map_source_items E01 to E05 and the Source map's place.
   'after Docs to change and before Open questions',
   'one row per source item, 0 items left out',
@@ -3714,7 +3729,8 @@ const _sourcePoints = [
 const _roundsPoints = [
   'adds or changes behavior when it brings a new state, input, output,',
   'edge case, error, or reader of a rule.',
-  "append it to the design document's Rulings yourself",
+  "append it to the design document's Rulings yourself, as design mode writes",
+  'them, and dispatch nothing;',
   'the author, or the fix round under way, goes on.',
   'or needs more PRD or spec grounding',
   "dispatch `mode: design` again with the brief's path and the document's",
@@ -5240,18 +5256,21 @@ void _groundInitUpdateTests() {
       expect(skill, isNot(contains('rung')));
     });
 
-    test('sdd-reader runs no specstone folder and takes the saved-file path as '
-        'given', () {
-      final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
-      expect(reader, isNot(contains('specstone folder')));
-      expect(reader, contains('Use it as given; join no folder to it.'));
-      expect(reader, contains('and no other command.'));
-    });
+    test(
+      'sdd-reader runs no specstone folder and takes the saved-file paths as '
+      'given',
+      () {
+        final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
+        expect(reader, isNot(contains('specstone folder')));
+        expect(reader, contains('Use them as given; join no folder to them.'));
+        expect(reader, contains('and no other command.'));
+      },
+    );
 
     test("sdd-reader reads through the host's file read and stays read-only "
         'by its own text', () {
       final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
-      expect(reader, contains("read that file with the host's file read"));
+      expect(reader, contains("read them with the host's file read"));
       expect(
         _sectionOf(_pluginText('specstone-sdd-reader.md'), 'Scope Boundaries'),
         contains(
@@ -5285,7 +5304,7 @@ const _brainstormFiles = [
   'specstone-sdd-engineer.',
 ];
 
-/// The brainstorm skill, its five references, and the engineer, in the source
+/// The brainstorm skill, its six references, and the engineer, in the source
 /// and in each host's render.
 List<ContentFile> _brainstormContent() => [
   for (final file in contentFiles())
@@ -5296,7 +5315,7 @@ void _brainstormTests() {
   group('the brainstorm skill family and the engineer', () {
     test('each of the seven reaches the source and every host render', () {
       final paths = _brainstormContent().map((file) => file.path);
-      expect(paths, hasLength(7 + 6 + 6 + 4));
+      expect(paths, hasLength(8 + 7 + 7 + 4));
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
@@ -5400,6 +5419,165 @@ void _brainstormTests() {
 
     test('each of the six skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_brainstormContent()), isEmpty);
+    });
+  });
+}
+
+/// The skill and agent files that do design work with a saved bundle: the
+/// design brief's runner, its readers, and the audit.
+const _designWorkFiles = [
+  'specstone-read-sdd/SKILL.md',
+  'specstone-brainstorming-sdd/SKILL.md',
+  'specstone-brainstorming-sdd/references/audit.md',
+  'specstone-brainstorming-sdd/references/source.md',
+  'specstone-brainstorming-sdd/references/rounds.md',
+  'specstone-sdd-engineer.md',
+];
+
+void _designBriefTests() {
+  group('the design brief and design mode', () {
+    String skillStep3() => _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+        '3. Write the document: design mode',
+      ),
+    );
+    String designGround() => _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/references/design.md'),
+        '2. Ground each claim',
+      ),
+    );
+    String engineer() => _oneLine(_pluginText('specstone-sdd-engineer.md'));
+
+    test('the brief carries a saved file and line range per claim', () {
+      expect(
+        skillStep3(),
+        contains(
+          "under each claim of the brief the saved bundle file's path and "
+          'the line range that grounds it',
+        ),
+      );
+      expect(
+        designGround(),
+        contains('the saved file and line range the brief gives under it'),
+      );
+    });
+
+    test('design mode runs no context', () {
+      const rule = 'run no `context` and no `get` for a doc';
+      expect(designGround().toLowerCase(), contains(rule));
+      expect(engineer().toLowerCase(), contains(rule));
+      expect(
+        _contextCalls(
+          _pluginText('specstone-brainstorming-sdd/references/design.md'),
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a claim with no range is an open question', () {
+      expect(designGround(), contains('a claim with no range is an open'));
+      expect(engineer(), contains('a claim with no range is an open question'));
+      expect(skillStep3(), contains('a claim with no range is an open'));
+    });
+
+    test('main holds same-flag context until design mode replies', () {
+      expect(
+        skillStep3(),
+        contains(
+          'run no `context` call with the same target and flags until design '
+          'mode replies',
+        ),
+      );
+    });
+
+    test('main reruns the cited context calls before each design dispatch', () {
+      expect(
+        skillStep3(),
+        contains(
+          'Before each `mode: design` dispatch, first or amend, rerun each '
+          '`context` call whose file the brief cites and rewrite every range '
+          'from the new index',
+        ),
+      );
+    });
+
+    test('rounds.md points to the skill step for the range refresh', () {
+      final rounds = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
+      );
+
+      expect(
+        rounds,
+        contains(
+          "refresh the ranges as the skill's step 3 says and dispatch "
+          '`mode: design` again',
+        ),
+      );
+      expect(rounds, isNot(contains('rerun each `context` call')));
+    });
+
+    test('a missing cited file or a range naming another doc is an open '
+        'question that names the file', () {
+      expect(
+        designGround(),
+        contains(
+          'So is a missing cited file or a range whose `==> ` line is not '
+          "the claim's doc; name the file.",
+        ),
+      );
+    });
+
+    test('step 3 lists what the brief holds', () {
+      expect(
+        skillStep3(),
+        contains(
+          "(the decisions, the rulings in the Owner's words, the approach "
+          'picked, the open questions)',
+        ),
+      );
+    });
+
+    test('the Intent section stays in a few lines', () {
+      final design = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/design.md'),
+      );
+
+      expect(design, contains('it advances, in a few lines.'));
+    });
+
+    test('with no brainstorm skill the skill runs the dialogue file', () {
+      final skill = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+      );
+      final dialogue = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/dialogue.md'),
+      );
+
+      expect(skill, contains('run `references/dialogue.md`'));
+      expect(skill, isNot(contains('Offer two or three approaches')));
+      expect(dialogue, contains('Ask the Owner one question per message'));
+      expect(
+        dialogue,
+        contains('Offer two or three approaches with trade-offs'),
+      );
+    });
+
+    test('design grounds a newly reached doc with context --for design, '
+        'never get', () {
+      for (final file in _designWorkFiles) {
+        expect(
+          _oneLine(_pluginText(file)),
+          matches(
+            RegExp(
+              '`(?:specstone )?context <doc> --for design --out`, '
+              'never `get`',
+            ),
+          ),
+          reason: file,
+        );
+      }
     });
   });
 }

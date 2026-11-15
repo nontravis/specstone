@@ -1,6 +1,6 @@
 `specstone-sdd-engineer` runs this in `mode: audit`, its gate already made; so does the runner of
 `specstone-brainstorming-sdd` when it runs the mode itself. Write nothing but the agent's `report:`
-file: no doc, no other file, no fix. As the agent, ask the Owner nothing: each gap goes into your report.
+file: no doc, no other file, no fix. Ask the Owner nothing: each gap goes into your report.
 
 `specstone check` reads each doc's form, not what it means. Read the docs as a reader who did not write them, and
 report what the author's coverage table cannot show.
@@ -17,11 +17,12 @@ report what the author's coverage table cannot show.
    is a finding and drops each name it names too. Run the call again on the rest; when no target is left, skip the
    rerun and the steps below. A dropped name is no target for the steps below: no bundle and no `check` for it.
 3. **Bundles**: run `specstone context <target> --for design --out` once for each feature the targets fall under
-   (the project doc for a project-level one), not once per target: a design bundle already holds the whole feature.
-   Pass no `--budget`. Pass no `--target`: the bundle takes every code target's spec docs. Read each saved file whole,
-   per the `specstone-read-sdd` skill.
+   (the project doc for a project-level one). Pass no `--budget`.
+   Pass no `--target`: the bundle takes every code target's spec docs. Read the saved files per the `specstone-read-sdd`
+   skill, the read-first one whole; ground a doc they lack with its own
+   `specstone context <doc> --for design --out`, never `get`.
    - **0:** the bundle is what you audit.
-   - **Any other exit:** report the CLI's error for that call as a finding, and go on with the rest.
+   - **Any other exit:** report the CLI's error as a finding, and go on with the rest.
 4. **Design document**, when given: read it whole, and list each decision and ruling by its ID or label. Then run
    `specstone list user_story --draft`, `specstone list fr --draft`, and `specstone list nf --draft`: the drafts
    among the targets are what this change wrote.
@@ -32,22 +33,22 @@ report what the author's coverage table cannot show.
 
 Record one gap per line, `<type>:<name>#<section>: <gap>`, for each of these:
 
-- **Decision dropped:** a decision, ruling, or Docs to change row of the design document that no target doc carries.
+- **Decision dropped:** a decision, ruling, or Docs to change row of the design document no target doc carries.
 - **Requirement invented:** a draft story, FR, or NFR, or a draft section of one, tracing to no decision of the
   document.
 - **PRD and spec apart:** a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for.
 - **Docs contradict:** two docs that state different values or behavior for one thing; name both.
-- **Statement untested:** an FR statement, or a clause of one, that no scenario of its story and no edge case covers.
+- **Statement untested:** an FR statement, or a clause of one, no scenario of its story and no edge case covers.
 - **Rule restated:** a draft stating a rule another doc owns instead of citing it (`specstone-expert-sdd` rule 7); name
   the owner doc and the item; its fix is an item link in the draft.
-- **No design document:** skip the first two gaps and the draft-and-decision lens; every other comparison and `check`
+- **No design document:** skip the first two gaps and the draft-and-decision lens; the other comparisons and `check`
   still run.
 - **Feature pattern:** for each item of a bundle's pattern part, search the doc listing the pattern, its subtree, and
   its feature's spec folder, if any, for covering text or a skip line in that doc's `out_of_scope`; else report
   `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
   as the part's bundle line.
-- **Draft and decision:** a draft whose text departs from the decision it carries out, or a decision the design gives
-  an owner item that no draft states; name the draft or the owner item's doc, and the decision.
+- **Draft and decision:** a draft that departs from the decision it carries out, or a decision the design gives
+  an owner item no draft states; name the draft or the owner item's doc, and the decision.
 - **Repoint:** a citer a size-fix move repointed or kept that still links the old item though it cites the moved part,
   or links the new item though it means the part left behind; name the citer and the item it should link.
 

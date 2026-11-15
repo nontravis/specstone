@@ -5,9 +5,8 @@ description: Use when a change to a Specstone project adds a feature, a user sto
 
 # Brainstorm a change into an approved design
 
-A change this skill takes reaches the PRD and spec only after the Owner approves its design document. A change that
-only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: follow the
-`specstone-update-sdd` skill instead.
+A change that only rewrites one section or field of an existing doc, and adds no story or FR, is a small edit: follow
+the `specstone-update-sdd` skill instead.
 
 ## 1. Ground: the first call
 
@@ -21,8 +20,8 @@ Pass no `--target`: a design read spans every code target.
 specstone context <target> --for design --out
 ```
 
-- **0:** the saved file is the ground: read it per the `specstone-read-sdd` skill, searching it before any `get`;
-  open no doc file.
+- **0:** the saved files are the ground: read them per the `specstone-read-sdd` skill, a doc they lack grounded by
+  its own `specstone context <doc> --for design --out`, never `get`; open no doc file.
 - **78, `project_not_found`:** tell the Owner the project is still on the old format; `specstone migrate` moves it,
   or they keep using the old skills. Stop: run nothing more; read or write no doc.
 - **Any other exit:** report the CLI's error and stop.
@@ -32,15 +31,13 @@ For a change from a source, another tool's spec or design, that first call is
 included, only after it exits 0; then follow `## Take in the source` in
 `references/source.md`.
 
-Never look for `.specstone/` first: the CLI searches upward.
-
 For a change that adds a story or a feature, run `specstone guide feature` after that call, answer its placement
 questions, and show the Owner each answer; go on only after their yes.
 
 ## 2. Reach an approved design document
 
-The brainstorm skill is the one in your skill list whose description says it turns a change into a design through
-dialogue with the user. Judge by that, never by name. No Specstone skill qualifies. When two qualify,
+The brainstorm skill is the one in your skill list whose description, never its name, says it turns a change into a
+design through dialogue with the user. No Specstone skill qualifies. When two qualify,
 take the one the project's instruction file (`CLAUDE.md`, `AGENTS.md`) names, else the first listed.
 
 The design document proposes each new or reshaped feature's `patterns:` value, picked from `specstone guide --pattern`.
@@ -48,11 +45,7 @@ The design document proposes each new or reshaped feature's `patterns:` value, p
 - **A skill qualifies:** run it on the change, grounded in step 1's docs. It keeps the conversation and the approval;
   at its write step, write through step 3. At its own hand-off to a plan or build skill, invoke nothing: once the
   Owner approves the document, go to step 4. Specstone's rules win on a conflict.
-- **None qualifies:** run this flow; it ends at the same document and approval.
-  1. Ask the Owner one question per message until scope, behavior, edge cases, and exclusions are clear.
-  2. Offer two or three approaches with trade-offs; recommend one.
-  3. Write the document through step 3.
-  4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
+- **None qualifies:** run `references/dialogue.md`; it ends at the same document and approval.
 
 Until the Owner approves, write no PRD or spec doc and dispatch no `mode: author`. Ask for approval only once the
 document holds no open question; approval of an approach is not approval of the document.
@@ -65,9 +58,12 @@ After step 1's calls, take `<folder>` the path `specstone folder` prints, run on
 file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
 Write the Owner's approved answers (the decisions, the rulings in the Owner's words, the approach picked, the open
-questions) to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in. Dispatch
-`mode: design` once, with that brief's path and the document's: the brainstorm skill's own design path, else
-`docs/designs/<YYYY-MM-DD>-<topic>-design.md`.
+questions) to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in.
+Write under each claim of the brief the saved bundle file's path and the line range that grounds it; a claim with no
+range is an open question. Before each `mode: design` dispatch, first or amend, rerun each `context` call whose file
+the brief cites and rewrite every range from the new index. Dispatch `mode: design` once, with that brief's path and
+the document's: the brainstorm skill's own design path, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`; run no
+`context` call with the same target and flags until design mode replies.
 
 Route each later Owner answer or change per `references/rounds.md`.
 
@@ -83,15 +79,12 @@ Route each later Owner answer or change per `references/rounds.md`.
 ## 5. Hand the approved drafts to the plan skill
 
 After the Owner approves the drafts, follow the `specstone-plan-sdd` skill with the approved drafts list, whole, and the
-document's path. It writes the plan and asks the Owner how to run it.
+document's path.
 
 ## Without a dispatch
 
-A mode you run yourself follows its procedure:
-
-- author: `references/author.md`
-- design: `references/design.md`
-- audit: `references/audit.md`
+A mode you run yourself follows its procedure: `references/author.md`, `references/design.md`, or
+`references/audit.md`.
 
 ## Red flags
 
@@ -99,4 +92,3 @@ A mode you run yourself follows its procedure:
 |---|---|
 | "The design is clear; draft the docs now." | No `mode: author` before the document's approval. |
 | "The coverage table is clean; skip the audit." | A fresh reader finds what the author's own table cannot. |
-| "The brainstorm hands off to a plan skill now." | Invoke nothing; step 4 first, then `specstone-plan-sdd`. |

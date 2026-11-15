@@ -94,7 +94,7 @@ summaryPrintOf(
   final block = sectionBlockOf(
     printed,
     bodyLine: content.lineFacts.sectionLines[at] + 1,
-    after: citedLinesAfter(items),
+    after: citedLinesAfter(citedBy, items),
   );
   return (block: block, cited: items);
 }

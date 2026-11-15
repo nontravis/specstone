@@ -137,6 +137,7 @@ class ContextCommand extends SpecstoneCommand {
       return fail(fault, asJson: asJson);
     }
     final noProject = args.flag('no-project');
+    final splits = writesFile && mode != BundleMode.query;
     final workingDirectory = specstoneRunner.workingDirectory;
 
     /// Returns the bare `--out` file; a `--code` path is named from the
@@ -190,6 +191,7 @@ class ContextCommand extends SpecstoneCommand {
           label: codePath.path,
           byCode: true,
           budget: budget,
+          split: splits,
         );
         return answered(session, answer);
       }, asJson: asJson);
@@ -209,6 +211,7 @@ class ContextCommand extends SpecstoneCommand {
         label: target,
         byCode: false,
         budget: budget,
+        split: splits,
       );
       return answered(session, answer);
     }, asJson: asJson);
