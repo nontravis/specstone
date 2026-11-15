@@ -135,7 +135,7 @@ void main() {
         final read = _readAll(
           _doc(
             '`==> login (domain) · ../f01_login/DOMAIN.md#invariants · base 01 <==`\n'
-            '`run domain:login now` and `lib/src/journeys/`\n'
+            '`see ../f01_login/DOMAIN.md now` and `lib/src/journeys/`\n'
             '`domain:login#invariants`\n'
             'See ../f01_login/DOMAIN.md here.\n',
           ),
