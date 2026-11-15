@@ -23,12 +23,6 @@ import 'package:specstone_core/src/templates/project_config.dart'
     show projectConfigPath;
 import 'package:specstone_core/src/templates/template_resolver.dart';
 
-/// The docs root as a journal step spells it.
-///
-/// Literal, as `DocsProject.displayPath` prints it: a `docs` link to a folder
-/// outside the project still resolves through `<project root>/docs`.
-const _docsPrefix = 'docs/';
-
 /// One write command's view of a project: a replayed journal, a resolved
 /// index, and the write lock on demand.
 ///
@@ -132,14 +126,14 @@ final class WriteSession {
   /// root and `/`-separated.
   String projectPathOf(String docPath) => projectPathOfDocPath(docPath);
 
-  /// Returns the DocPath of [projectPath], the inverse of [projectPathOf].
-  String docPathOf(String projectPath) => docPathOfProjectPath(projectPath);
+  /// Returns the DocPath of [projectPath], the inverse of [projectPathOf], or
+  /// null when it lies under neither root.
+  String? docPathOf(String projectPath) => docPathOfProjectPath(projectPath);
 
   /// Returns [projectPath] as a write is listed: a doc by its DocPath, any
   /// other file, a code file, by its project path; a record's two are one.
-  String listedPathOf(String projectPath) => projectPath.startsWith(_docsPrefix)
-      ? docPathOf(projectPath)
-      : projectPath;
+  String listedPathOf(String projectPath) =>
+      docPathOf(projectPath) ?? projectPath;
 
   /// Returns the one typed doc [address] names.
   ///

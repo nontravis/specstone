@@ -643,12 +643,13 @@ CodeStampStep _codeStampOf(
         target: work.target,
       ),
     for (final create in recordCreates)
-      (
-        docPath: docPathOfProjectPath(create.path),
-        lf: after[docPathOfProjectPath(create.path)] ?? create.text,
-        type: set.recordDocType,
-        target: firstTarget,
-      ),
+      if (docPathOfProjectPath(create.path) case final docPath?)
+        (
+          docPath: docPath,
+          lf: after[docPath] ?? create.text,
+          type: set.recordDocType,
+          target: firstTarget,
+        ),
   ],
   projectRoot: Directory(root.resolveSymbolicLinksSync()),
   set: set,

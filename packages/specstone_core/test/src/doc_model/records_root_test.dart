@@ -127,4 +127,22 @@ void main() {
       expect(recordsRootOf(root), isNull);
     });
   });
+
+  group('docPathOfProjectPath', () {
+    test('inverts a project path in either root to its DocPath', () {
+      expect(docPathOfProjectPath('docs/prds/x.md'), 'prds/x.md');
+      expect(docPathOfProjectPath('docs/'), '');
+      expect(
+        docPathOfProjectPath('.specstone/records/f01_x/IMPLEMENTATION.md'),
+        '.specstone/records/f01_x/IMPLEMENTATION.md',
+      );
+    });
+
+    test('gives null for a project path under neither root', () {
+      expect(docPathOfProjectPath('prds/x.md'), isNull);
+      expect(docPathOfProjectPath('src/main.dart'), isNull);
+      expect(docPathOfProjectPath('docs'), isNull);
+      expect(docPathOfProjectPath('.specstone/config.yaml'), isNull);
+    });
+  });
 }

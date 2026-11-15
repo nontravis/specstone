@@ -520,5 +520,6 @@ final class RunPlan {
       '${_shown(rewrite.path)}: ${rewrite.changes.join(', ')}${rewrite.note}',
   ];
 
-  static String _shown(String projectPath) => docPathOfProjectPath(projectPath);
+  static String _shown(String projectPath) =>
+      docPathOfProjectPath(projectPath) ?? projectPath;
 }

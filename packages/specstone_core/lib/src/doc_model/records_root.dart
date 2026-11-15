@@ -92,8 +92,14 @@ String projectPathOfDocPath(String docPath) =>
     isRecordsDocPath(docPath) ? docPath : '$docsFolderName/$docPath';
 
 /// Returns the DocPath of [projectPath], the inverse of
-/// [projectPathOfDocPath]; a path under neither root stays as it is.
-String docPathOfProjectPath(String projectPath) =>
-    projectPath.startsWith('$docsFolderName/')
-    ? projectPath.substring(docsFolderName.length + 1)
-    : projectPath;
+/// [projectPathOfDocPath], or null when it lies under neither root.
+///
+/// A path under neither root names no doc, so it never reads as one: the
+/// project file `prds/x.md` is not the doc at `docs/prds/x.md`.
+String? docPathOfProjectPath(String projectPath) {
+  const docsPrefix = '$docsFolderName/';
+  if (projectPath.startsWith(docsPrefix)) {
+    return projectPath.substring(docsPrefix.length);
+  }
+  return isRecordsDocPath(projectPath) ? projectPath : null;
+}

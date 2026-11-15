@@ -516,7 +516,7 @@ bool _mentionsMovedFile(
 ///
 /// Planning runs before the moves, so this reads the tree as it stands.
 bool _existsBeforeMoves(WriteSession session, String path) =>
-    session.index.at(docPathOfProjectPath(path)) != null ||
+    _isIndexedDoc(session, path) ||
     FileSystemEntity.typeSync(
           [
             session.project.projectRoot.path,
@@ -524,6 +524,12 @@ bool _existsBeforeMoves(WriteSession session, String path) =>
           ].join(Platform.pathSeparator),
         ) !=
         FileSystemEntityType.notFound;
+
+/// Whether [projectPath] names a doc of the session's index.
+bool _isIndexedDoc(WriteSession session, String projectPath) {
+  final docPath = docPathOfProjectPath(projectPath);
+  return docPath != null && session.index.at(docPath) != null;
+}
 
 /// Returns the doc at [docPath], on disk but not in the session's snapshot, as
 /// a step reads it: typed by the matcher, with no parent indexed.

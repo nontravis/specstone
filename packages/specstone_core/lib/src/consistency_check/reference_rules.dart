@@ -263,7 +263,7 @@ bool _anchorHeld(DocAnchors? anchors, String? named) =>
     named == null || _holds(anchors, named);
 
 /// Whether the file at [path] under the root [doc] is read from exists and,
-/// when it is an indexed doc, holds the anchor [named].
+/// when it is an indexed doc of either root, holds the anchor [named].
 bool _fileHolds(
   CheckContext context,
   IndexedDoc doc,
@@ -276,7 +276,8 @@ bool _fileHolds(
     projectRoot: context.projectRoot,
   );
   if (!_namesFileBeside(root.path, path)) return false;
-  final file = context.index.at(path);
+  final docPath = docPathOfProjectPath(projectFilePathOf(path, doc.docPath));
+  final file = docPath == null ? null : context.index.at(docPath);
   return named == null ||
       file == null ||
       _holds(context.contentOf(file).lineFacts.anchors, named);

@@ -127,7 +127,8 @@ final class TestNamePass {
     if (testsKey == null) return _empty();
     final tree = _ItemTree(set, recordType, docs, [
       for (final create in pendingCreates)
-        (docPath: docPathOfProjectPath(create.path), text: create.text),
+        if (docPathOfProjectPath(create.path) case final docPath?)
+          (docPath: docPath, text: create.text),
     ], isTaken);
     final names = _scan(
       root: root,

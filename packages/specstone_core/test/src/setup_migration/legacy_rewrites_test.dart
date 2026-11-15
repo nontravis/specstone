@@ -813,4 +813,36 @@ name: login
       expect(result.lf, 'After `login/email_login`.\n');
     });
   });
+
+  group('rewriteMentions', () {
+    test('asks for each mention from the docs root, a path outside the docs '
+        'folder by ../, and follows a moved doc', () {
+      final asked = <String>[];
+      final result = rewriteMentions(
+        'See b/c.md and ../../src/x.dart.\n',
+        docPath: 'prds/a.md',
+        moves: [(from: 'prds/a.md', to: 'prds/sub/a.md')],
+        exists: (path) {
+          asked.add(path);
+          return true;
+        },
+      );
+
+      expect(asked, ['prds/b/c.md', '../src/x.dart']);
+      expect(result.lf, 'See ../b/c.md and ../../../src/x.dart.\n');
+      expect(result.label, '2 mentions');
+    });
+
+    test('keeps a mention the docs root does not hold', () {
+      final result = rewriteMentions(
+        'See b/c.md.\n',
+        docPath: 'prds/a.md',
+        moves: [(from: 'prds/a.md', to: 'prds/sub/a.md')],
+        exists: (path) => false,
+      );
+
+      expect(result.lf, 'See b/c.md.\n');
+      expect(result.label, isNull);
+    });
+  });
 }
