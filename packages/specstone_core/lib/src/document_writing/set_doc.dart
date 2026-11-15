@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/consistency_check/frontmatter_rules.dart'
-    show fieldTakesItem, recordStatusLineShape;
+    show fieldTakesItem, recordStatusLineShape, taskRefEntryShape;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -483,6 +483,7 @@ void _checkedValue(IndexedDoc doc, MergedField field, String stdin) {
 String _typeOf(MergedField field) => switch (field.type) {
   FieldType.string || FieldType.docRef || FieldType.outputRef => 'a string',
   FieldType.recordStatus => recordStatusLineShape,
+  FieldType.taskRef => taskRefEntryShape,
   FieldType.integer => 'a whole number',
   FieldType.boolean => 'true or false',
   FieldType.date => 'a date as YYYY-MM-DD',

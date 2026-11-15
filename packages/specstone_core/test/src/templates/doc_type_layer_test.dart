@@ -84,6 +84,26 @@ void main() {
       expect(layer.fields.single.type, FieldType.recordStatus);
     });
 
+    test('template_packs/add_doc_type/read_doc_type_file, INV-13: '
+        'task_ref is an accepted field type', () {
+      final layer = _parse('fields: [{id: tasks, type: task_ref}]');
+      expect(layer.fields.single.type, FieldType.taskRef);
+    });
+
+    test('E05, INV-13: '
+        'an unknown field type is unknown_value counting nine types', () {
+      expect(
+        () => _parse('fields: [{id: tasks, type: ticket}]'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'fields.tasks.type').having(
+            (f) => f.message,
+            'message',
+            'the key type must be one of the nine field types',
+          ),
+        ),
+      );
+    });
+
     test('E17, INV-13: '
         'item_exact is an accepted pointer kind', () {
       final layer = _parse(

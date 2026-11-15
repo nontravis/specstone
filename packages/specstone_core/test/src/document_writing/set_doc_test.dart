@@ -2819,6 +2819,26 @@ void main() {
       checkFieldIn(root, fr, 'verify_method', 'test');
     });
 
+    test(
+      'E16: a task_ref entry with no task or no item is field_value_invalid',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            '.specstone/templates/feature.yaml':
+                'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+          },
+        );
+        for (final value in ['- ""', '- "login:"', '- ":T-1"', 'T-1']) {
+          expect(
+            () => checkFieldIn(root, 'feature:login', 'tasks', value),
+            throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+            reason: value,
+          );
+        }
+        checkFieldIn(root, 'feature:login', 'tasks', '- T-1\n- "a/b:T-2"');
+      },
+    );
+
     test('E08: removing a required field is required_target', () async {
       final root = await writeWriteProject();
       const fr = 'fr:login/reset_password/expire_reset_link';

@@ -305,6 +305,58 @@ void main() {
     });
   });
 
+  group('a task_ref list field', () {
+    const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+
+    /// The record doc with [tasks] as its `tasks` frontmatter, under a project
+    /// template that adds the field to the shipped record doc type.
+    Map<String, String> projectWith(String tasks) => {
+      '.specstone/templates/implementation.yaml':
+          'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+      'docs/$recordPath': '---\n$tasks---\n\n# Login record\n',
+    };
+
+    for (final entry in ['""', '"login:"', '":T-1"']) {
+      test('the entry $entry mismatches, naming the field', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: projectWith('tasks:\n  - $entry\n'),
+          ),
+        );
+        final mismatch = report.findings.singleWhere(
+          (f) => f.kind == FindingKind.fieldValueMismatch,
+        );
+        expect('${mismatch.path}:${mismatch.line}', '$recordPath:2');
+        expect(mismatch.toJson()['field'], 'tasks');
+      });
+    }
+
+    for (final entry in ['"login/email_login:T-1"', 'T-1']) {
+      test('the entry $entry fits', () async {
+        final report = checkOf(
+          await writeCheckProject(
+            unstamped: {'docs/$recordPath'},
+            extra: projectWith('tasks:\n  - $entry\n'),
+          ),
+        );
+        expect(spots(report, FindingKind.fieldValueMismatch), isEmpty);
+      });
+    }
+
+    test('a scalar in place of the list mismatches', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          unstamped: {'docs/$recordPath'},
+          extra: projectWith('tasks: T-1\n'),
+        ),
+      );
+      expect(spots(report, FindingKind.fieldValueMismatch), [
+        '$recordPath:2: field_value_mismatch',
+      ]);
+    });
+  });
+
   test('an FR that still writes implements under the shipped pack, which declares no such field on fr, is field_undeclared naming the field', () async {
     final report = checkOf(
       await writeCheckProject(
