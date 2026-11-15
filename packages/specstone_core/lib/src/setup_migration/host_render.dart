@@ -181,8 +181,33 @@ String _markdown(Map<String, Object> fields, String body) {
   return '$_frontmatterFence${lines.join('\n')}$_frontmatterEnd$body';
 }
 
-String _yamlScalar(Object value) =>
-    value is String ? jsonEncode(value) : '$value';
+String _yamlScalar(Object value) => switch (value) {
+  String() when _isPlainYamlString(value) => value,
+  String() => jsonEncode(value),
+  _ => '$value',
+};
+
+/// Reports whether [value] written bare reads back as the same string.
+///
+/// A host that does not decode quotes keeps them in the value, so a quoted
+/// scalar is the fallback, never the default.
+bool _isPlainYamlString(String value) {
+  if (value.runes.any(_isNonPrintable)) return false;
+  try {
+    final parsed = loadYaml('key: $value');
+    return parsed is YamlMap && parsed['key'] == value;
+  } on YamlException {
+    return false;
+  }
+}
+
+bool _isNonPrintable(int rune) =>
+    rune < 0x20 ||
+    rune == 0x7F ||
+    rune == 0x85 ||
+    rune == 0x2028 ||
+    rune == 0x2029 ||
+    rune == 0xFEFF;
 
 String _tomlString(String value) =>
     '"${_tomlEscape(value, keepNewlines: false)}"';
