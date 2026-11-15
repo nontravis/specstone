@@ -49,6 +49,7 @@ class FormatCommand extends SpecstoneCommand {
         rest.firstOrNull,
         workingDirectory: runner.workingDirectory,
         defaultsToDocsRoot: true,
+        includeRecordsRoot: true,
       );
       report = runFormat<DocIndex>(
         project,

@@ -162,19 +162,24 @@ final class DocsProject {
   final MergedSet set;
 
   /// Resolves [target] from [workingDirectory] to an existing file or folder
-  /// inside the docs root.
+  /// inside the docs root, or, with [includeRecordsRoot], the records root.
   ///
   /// A null [target] takes the docs root when [defaultsToDocsRoot] is set and
   /// is `target_missing` otherwise. Throws `target_not_found` for a path that
   /// does not exist and `target_outside_docs_root` for one whose canonical
-  /// path is neither the docs root nor below it.
+  /// path lies in no root the call accepts.
   Target resolveTarget(
     String? target, {
     required Directory workingDirectory,
     required bool defaultsToDocsRoot,
+    bool includeRecordsRoot = false,
   }) {
     if (target != null) {
-      return _targetAt(absoluteFrom(workingDirectory, target), asGiven: target);
+      return _targetAt(
+        absoluteFrom(workingDirectory, target),
+        asGiven: target,
+        includeRecordsRoot: includeRecordsRoot,
+      );
     }
     if (!defaultsToDocsRoot) {
       throw RenderFault(
@@ -182,7 +187,11 @@ final class DocsProject {
         'no target given: name a file or folder under the docs root to build',
       );
     }
-    return _targetAt(docsRoot.path, asGiven: 'docs/');
+    return _targetAt(
+      docsRoot.path,
+      asGiven: 'docs/',
+      includeRecordsRoot: includeRecordsRoot,
+    );
   }
 
   /// Returns the DocPath of the file [path] names from [workingDirectory], or
@@ -222,7 +231,11 @@ final class DocsProject {
   bool isInsideDocsRoot(FileSystemEntity entity) =>
       _docsDocPathOf(canonicalPath(entity.absolute.path)) != null;
 
-  Target _targetAt(String path, {required String asGiven}) {
+  Target _targetAt(
+    String path, {
+    required String asGiven,
+    required bool includeRecordsRoot,
+  }) {
     final type = FileSystemEntity.typeSync(path);
     if (type == FileSystemEntityType.notFound) {
       throw RenderFault(
@@ -231,7 +244,9 @@ final class DocsProject {
       );
     }
     final canonical = File(path).resolveSymbolicLinksSync();
-    final docPath = _docPathOf(canonical);
+    final docPath = includeRecordsRoot
+        ? _docPathOf(canonical)
+        : _docsDocPathOf(canonical);
     if (docPath == null) {
       throw RenderFault(
         RenderFaultCode.targetOutsideDocsRoot,

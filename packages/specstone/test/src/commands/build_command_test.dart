@@ -130,6 +130,26 @@ void main() {
       },
     );
 
+    for (final target in const [
+      '.specstone/records',
+      '.specstone/records/f03_template_packs/IMPLEMENTATION.md',
+    ]) {
+      test('a records target $target is 64 and writes nothing', () async {
+        final project = await fixtureProject({
+          ..._fixture,
+          '.specstone/templates/implementation.yaml': _recordType,
+          '.specstone/records/f03_template_packs/IMPLEMENTATION.md':
+              '# Packs record\n',
+        });
+        final runner = await runnerIn(project);
+
+        expect(await runner.run(['build', target]), 64);
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), contains('docs'));
+        expectNothingWritten(project, '.specstone/build/$target.html');
+      });
+    }
+
     test('a file keeps its .md in the output name', () async {
       final project = await fixtureProject(_fixture);
       final runner = await runnerIn(project);
