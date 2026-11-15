@@ -17,6 +17,7 @@ final class FakeConsole implements Console {
     this.input = '',
     this.stdinIsTerminal = false,
     this.stdoutIsTerminal = false,
+    this.stderrIsTerminal = false,
     this.noColor = false,
     this.approveModeVariable,
     this.answers = const [],
@@ -31,6 +32,9 @@ final class FakeConsole implements Console {
 
   @override
   final bool stdoutIsTerminal;
+
+  @override
+  final bool stderrIsTerminal;
 
   @override
   final bool noColor;

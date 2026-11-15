@@ -28,6 +28,7 @@ import 'package:specstone/src/commands/structure_command.dart';
 import 'package:specstone/src/commands/trust_command.dart';
 import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:specstone/src/console.dart';
+import 'package:specstone/src/update_notice.dart';
 import 'package:specstone_core/specstone_core.dart';
 
 /// Exit status for a usage error (`EX_USAGE` from sysexits), returned when an
@@ -63,6 +64,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
     UpgradeCommand? upgrade,
+    UpdateNotice? updateNotice,
     Future<void> Function(String line)? courtesy,
   }) : this._(
          registry: generators ?? journeyGenerators(),
@@ -75,6 +77,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
          busyTimeout: busyTimeout,
          console: console,
          upgrade: upgrade,
+         updateNotice: updateNotice,
          courtesy: courtesy,
        );
 
@@ -91,6 +94,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     required Duration busyTimeout,
     required Console? console,
     required UpgradeCommand? upgrade,
+    required UpdateNotice? updateNotice,
     required Future<void> Function(String line)? courtesy,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
@@ -103,6 +107,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
            homeDirectory ?? homeFrom(environment ?? Platform.environment),
        _busyTimeout = busyTimeout,
        _console = console ?? SystemConsole(),
+       _updateNoticeOverride = updateNotice,
        _courtesy = courtesy,
        super(
          'specstone',
@@ -148,8 +153,17 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final Map<String, String> _environment;
   final Duration _busyTimeout;
   final Console _console;
+  final UpdateNotice? _updateNoticeOverride;
   final Future<void> Function(String line)? _courtesy;
   var _refusedOnPin = false;
+
+  late final UpdateNotice _updateNotice =
+      _updateNoticeOverride ??
+      UpdateNotice(
+        console: _console,
+        environment: _environment,
+        home: _homeDirectory,
+      );
 
   /// Sink that receives normal output: version, usage, and command results.
   StringSink get out => _out;
@@ -201,9 +215,34 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
       return 0;
     }
     _refusedOnPin = false;
-    final status = await super.runCommand(topLevelResults);
-    await _printStaleLine(topLevelResults.command);
-    return status;
+    _updateNotice.start(_namesOf(topLevelResults.command));
+    try {
+      final status = await super.runCommand(topLevelResults);
+      await _printStaleLine(topLevelResults.command);
+      await _printUpdateNotice();
+      return status;
+    } finally {
+      _updateNotice.abandon();
+    }
+  }
+
+  /// Prints the update notice the check beside the command found, if any.
+  ///
+  /// Never throws: the notice is a courtesy, so a failed write leaves the
+  /// command's output and exit status as they are.
+  Future<void> _printUpdateNotice() async {
+    try {
+      final line = _updateNotice.lineAfter();
+      if (line == null) return;
+      final courtesy = _courtesy;
+      if (courtesy == null) {
+        _err.writeln(line);
+      } else {
+        await courtesy(line);
+      }
+    } on Object {
+      // The command's own result stands whatever the line's write did.
+    }
   }
 
   /// Prints the stale-project line when the command that just ended is a row
@@ -264,6 +303,11 @@ bool _endsWithStaleLine(ArgResults? command) {
   if (command.options.contains('help') && command.flag('help')) return false;
   return command.name != 'check' || command.rest.isNotEmpty;
 }
+
+/// Returns the names of [command] and the commands under it, top first.
+List<String> _namesOf(ArgResults? command) => [
+  for (var level = command; level != null; level = level.command) ?level.name,
+];
 
 /// Returns [args] with an empty value on each `--target` that has none, so the
 /// command answers `argument_missing` naming the targets, as the shared

@@ -158,6 +158,77 @@ String _comparable(Directory folder, {required bool windows}) {
   return windows ? bare.toLowerCase() : bare;
 }
 
+/// Reads the Version of the latest full release from the `tag_name` of [url].
+///
+/// The reply is untrusted, so it must be a JSON object holding `v<Version>`.
+/// The record holds the Version, or null with the reason when the read fails.
+/// A completed [abandon] closes the request at once, so a caller that stops
+/// waiting leaves nothing pending.
+Future<({ReleaseVersion? version, String? failure})> readLatestRelease(
+  Uri url, {
+  Future<void>? abandon,
+}) async {
+  final (:body, :failure) = await _get(url, abandon: abandon);
+  if (body == null) return (version: null, failure: failure);
+  final Object? json;
+  try {
+    json = jsonDecode(utf8.decode(body));
+  } on FormatException {
+    return (version: null, failure: 'the body is not JSON');
+  }
+  final tag = json is Map<String, Object?> ? json['tag_name'] : null;
+  if (tag is! String) return (version: null, failure: 'no tag_name');
+  final version = tag.startsWith('v')
+      ? ReleaseVersion.tryParse(tag.substring(1))
+      : null;
+  if (version != null) return (version: version, failure: null);
+  return (
+    version: null,
+    failure: 'tag_name ${_printable(tag)} is not v<Version>',
+  );
+}
+
+// Returns the body of one complete 2xx reply of [url], else why there is none:
+// `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
+Future<({List<int>? body, String? failure})> _get(
+  Uri url, {
+  Future<void>? abandon,
+}) async {
+  final client = HttpClient()..connectionTimeout = _connectTimeout;
+  unawaited(abandon?.then((_) => client.close(force: true)));
+  try {
+    final request = await client.getUrl(url);
+    // A redirect could lead off GitHub, so a 3xx counts as a failed status.
+    request.followRedirects = false;
+    final response = await request.close().timeout(_idleTimeout);
+    final status = response.statusCode;
+    // An error body is never read: the closed client drops it, so it cannot
+    // stall, fail to decode, or grow without a cap.
+    if (status < 200 || status >= 300) {
+      return (body: null, failure: 'HTTP $status');
+    }
+    final quiet = response.timeout(_idleTimeout);
+    // HttpClient throws on a body cut short, so a finished loop is complete.
+    final body = BytesBuilder(copy: false);
+    await for (final chunk in quiet) {
+      body.add(chunk);
+      if (body.length > _maxReplyBytes) {
+        return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
+      }
+    }
+    return (body: body.takeBytes(), failure: null);
+  } on IOException catch (e) {
+    return (body: null, failure: e is HttpException ? e.message : '$e');
+  } on FormatException catch (e) {
+    // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
+    return (body: null, failure: e.message);
+  } on TimeoutException {
+    return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
+  } finally {
+    client.close(force: true);
+  }
+}
+
 /// Upgrades the CLI and the plugin to the latest release.
 ///
 /// Refuses unless the running binary sits in `<home>/.specstone/bin`. A
@@ -262,7 +333,7 @@ class UpgradeCommand extends SpecstoneCommand {
   Future<int?> _keepNewerPreRelease() async {
     final running = ReleaseVersion.tryParse(runningVersion);
     if (running == null || !running.isPreRelease) return null;
-    final (:version, :failure) = await _readLatestRelease();
+    final (:version, :failure) = await readLatestRelease(latestReleaseUrl);
     if (version == null) {
       return fail(
         UpgradeFault(
@@ -283,31 +354,6 @@ class UpgradeCommand extends SpecstoneCommand {
         'To put the plugin on $running too, run: ${_installLineFor(running)}',
       );
     return 0;
-  }
-
-  // Reads the Version of the latest full release from the `tag_name` of
-  // [latestReleaseUrl]; the reply is untrusted, so it must be a JSON object
-  // holding `v<Version>`.
-  Future<({ReleaseVersion? version, String? failure})>
-  _readLatestRelease() async {
-    final (:body, :failure) = await _get(latestReleaseUrl);
-    if (body == null) return (version: null, failure: failure);
-    final Object? json;
-    try {
-      json = jsonDecode(utf8.decode(body));
-    } on FormatException {
-      return (version: null, failure: 'the body is not JSON');
-    }
-    final tag = json is Map<String, Object?> ? json['tag_name'] : null;
-    if (tag is! String) return (version: null, failure: 'no tag_name');
-    final version = tag.startsWith('v')
-        ? ReleaseVersion.tryParse(tag.substring(1))
-        : null;
-    if (version != null) return (version: version, failure: null);
-    return (
-      version: null,
-      failure: 'tag_name ${_printable(tag)} is not v<Version>',
-    );
   }
 
   // The install line of the version, which fetches the script of its own tag
@@ -399,43 +445,6 @@ class UpgradeCommand extends SpecstoneCommand {
       return null;
     } on FileSystemException catch (e) {
       return '$e';
-    }
-  }
-
-  // Returns the body of one complete 2xx reply of [url], else why there is
-  // none: `HTTP <status>`, `no data for 60 s`, or the I/O or decoder message.
-  Future<({List<int>? body, String? failure})> _get(Uri url) async {
-    final client = HttpClient()..connectionTimeout = _connectTimeout;
-    try {
-      final request = await client.getUrl(url);
-      // A redirect could lead off GitHub, so a 3xx counts as a failed status.
-      request.followRedirects = false;
-      final response = await request.close().timeout(_idleTimeout);
-      final status = response.statusCode;
-      // An error body is never read: the closed client drops it, so it cannot
-      // stall, fail to decode, or grow without a cap.
-      if (status < 200 || status >= 300) {
-        return (body: null, failure: 'HTTP $status');
-      }
-      final quiet = response.timeout(_idleTimeout);
-      // HttpClient throws on a body cut short, so a finished loop is complete.
-      final body = BytesBuilder(copy: false);
-      await for (final chunk in quiet) {
-        body.add(chunk);
-        if (body.length > _maxReplyBytes) {
-          return (body: null, failure: 'the reply is over $_maxReplyMiB MiB');
-        }
-      }
-      return (body: body.takeBytes(), failure: null);
-    } on IOException catch (e) {
-      return (body: null, failure: e is HttpException ? e.message : '$e');
-    } on FormatException catch (e) {
-      // The SDK's decoder of a `Content-Encoding` reply throws it on bad data.
-      return (body: null, failure: e.message);
-    } on TimeoutException {
-      return (body: null, failure: 'no data for ${_idleTimeout.inSeconds} s');
-    } finally {
-      client.close(force: true);
     }
   }
 
