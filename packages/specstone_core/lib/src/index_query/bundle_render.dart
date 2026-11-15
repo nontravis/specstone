@@ -9,8 +9,9 @@ import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
-const _summaryNextStep =
-    'Read a summary doc whole with: specstone context <name> --for implement';
+String _summaryNextStep(BundleMode mode) =>
+    'Read a summary doc whole with: '
+    'specstone context <name> --for ${mode.wire}';
 
 const _overBudgetNextStep =
     'narrow the target, or run it again with --out and no --budget';
@@ -244,7 +245,7 @@ ContextAnswer answerContext(
       '$shown\n'
       '==> bundle: ${ordered.length} docs, $tokens tokens <==\n'
       '${list.join()}'
-      '${listsSummary ? '$_summaryNextStep\n' : ''}';
+      '${listsSummary ? '${_summaryNextStep(bundle.mode)}\n' : ''}';
   final json = <String, Object>{
     byCode ? 'code' : 'target': label,
     'codeTarget': ?named,

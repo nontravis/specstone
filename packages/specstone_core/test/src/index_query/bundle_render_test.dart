@@ -78,6 +78,16 @@ void main() {
       '- login (architecture)',
     ]);
   });
+  test("a design bundle's next-step line names --for design", () {
+    final a = ctx('login/email_login', BundleMode.design);
+
+    expect(
+      a.text,
+      endsWith(
+        'Read a summary doc whole with: specstone context <name> --for design\n',
+      ),
+    );
+  });
   test('f01/us05/s2, f01/us05/fr02, s03/inv25, db-r1: a sibling prints marked, title and summary sections only', () {
     final a = ctx('login/email_login', BundleMode.design);
     expect(
@@ -104,7 +114,7 @@ void main() {
         '- login/reset_password (user_story) · summary\n'
         '- login/reset_password/send_reset_link (fr) · summary\n- login (api)\n- login (architecture)\n'
         '- login (domain)\n- login (error)\n- password_rules (reference) · summary · cited\n'
-        'Read a summary doc whole with: specstone context <name> --for implement\n',
+        'Read a summary doc whole with: specstone context <name> --for design\n',
       ),
     );
     final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
@@ -1315,6 +1325,19 @@ void main() {
           a.text,
           endsWith(
             '- fewer_resets (measurement) · summary · cited results\n'
+            'Read a summary doc whole with: specstone context <name> --for implement\n',
+          ),
+        );
+      },
+    );
+    test(
+      "an implement bundle's next-step line keeps --for implement",
+      () async {
+        final a = await projectBundle();
+
+        expect(
+          a.text,
+          endsWith(
             'Read a summary doc whole with: specstone context <name> --for implement\n',
           ),
         );
