@@ -193,7 +193,7 @@ void main() {
       'docs/$loginFr': _frCase(
         'a locked account → `account_locked` is refused',
       ),
-      'docs/$loginRecord':
+      loginRecord:
           "---\nstatuses:\n  - 'email_login:implemented'\n"
           "  - 'email_login/check_password:skipped:no web view'\n---\n\n"
           '# Login implementation\n',
@@ -319,7 +319,7 @@ void main() {
               'An empty password → `bad_password` is refused.',
             ),
           ]),
-          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md':
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md':
               "---\nstatuses:\n  - 'email_login:skipped:no web'\n---\n\n"
               '# Jaspr implementation\n',
         },

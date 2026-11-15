@@ -930,8 +930,9 @@ void main() {
   });
 
   group('two targets', () {
-    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterRecord =
+        '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
     const record = '# Record\n';
     const relatedLayer =
         'id: architecture\n'
@@ -1142,8 +1143,8 @@ void main() {
             extra: {
               'docs/$flutterArchitecture': mention,
               'docs/$jasprArchitecture': mention,
-              'docs/$flutterRecord': record,
-              if (jasprHoldsOne) 'docs/$jasprRecord': record,
+              flutterRecord: record,
+              if (jasprHoldsOne) jasprRecord: record,
             },
           );
 
@@ -1168,8 +1169,8 @@ void main() {
               '.specstone/templates/architecture.yaml': relatedLayer,
               'docs/$flutterArchitecture': related,
               'docs/$jasprArchitecture': related,
-              'docs/$flutterRecord': record,
-              if (jasprHoldsOne) 'docs/$jasprRecord': record,
+              flutterRecord: record,
+              if (jasprHoldsOne) jasprRecord: record,
             },
           );
 
@@ -1195,7 +1196,7 @@ void main() {
         '.specstone/templates/implementation.yaml':
             'id: implementation\n'
             'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
             'parent: feature\n'
             'per_target: true\n'
             'fields:\n'

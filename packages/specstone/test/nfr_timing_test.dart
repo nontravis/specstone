@@ -108,11 +108,13 @@ void main() {
   }
 
   test('F1-D26, F1-D35: the generated tree matches the baseline figures', () {
-    final files = Directory('${project.path}/docs')
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.md'))
-        .toList();
+    final files = [
+      for (final folder in ['docs', '.specstone/records'])
+        ...Directory('${project.path}/$folder')
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.md')),
+    ];
     expect(files, hasLength(1826));
     expect(files.fold<int>(0, (sum, f) => sum + f.lengthSync()), 19056244);
   });
@@ -253,7 +255,7 @@ void main() {
       code,
       hasLength(1042),
     ); // one file per FR, 52 x 5 x 4, and one per topic
-    final records = Directory('${project.path}/docs/specs')
+    final records = Directory('${project.path}/.specstone/records')
         .listSync(recursive: true)
         .whereType<File>()
         .where((f) => f.path.endsWith('IMPLEMENTATION.md'))
@@ -367,7 +369,7 @@ void main() {
   test('NFR-P03: a broken code path in a record shows in the check, so the '
       'timed runs read the records', () {
     final record = File(
-      '${project.path}/docs/specs/f01_feature_1/IMPLEMENTATION.md',
+      '${project.path}/.specstone/records/f01_feature_1/IMPLEMENTATION.md',
     );
     final original = record.readAsStringSync();
     addTearDown(() => record.writeAsStringSync(original));
@@ -382,7 +384,7 @@ void main() {
       run.stdout.toString(),
       matches(
         RegExp(
-          r'specs/f01_feature_1/IMPLEMENTATION\.md:\d+: '
+          r'\.specstone/records/f01_feature_1/IMPLEMENTATION\.md:\d+: '
           'implements_path_unresolved',
         ),
       ),

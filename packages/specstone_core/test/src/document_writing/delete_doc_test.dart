@@ -53,9 +53,9 @@ const Map<String, String> approvedSignOut = {
       '---\napproved: true\n---\n\n# Clear cookies\n',
 };
 
-const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
-const _signupRecord = 'specs/f02_signup/IMPLEMENTATION.md';
-const _cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
+const _loginRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
+const _signupRecord = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+const _cartRecord = '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
 
 /// The `login` record of the write project: the statuses and code paths of
 /// [story1] and of [story3] with its two FRs.
@@ -77,10 +77,10 @@ final String _loginRecordText = recordText(
 /// on top of [freeStory3].
 Map<String, String> _withRecords({String? login}) => {
   ...withoutLink,
-  '.specstone/templates/implementation.yaml': recordLayer,
+  '.specstone/templates/implementation.yaml': recordLayerAtRoot,
   '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
-  'docs/$_loginRecord': login ?? _loginRecordText,
-  'docs/$_signupRecord': recordText(statuses: ['ghost:planned']),
+  _loginRecord: login ?? _loginRecordText,
+  _signupRecord: recordText(statuses: ['ghost:planned']),
 };
 
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -1853,15 +1853,15 @@ void main() {
     test('E16: a nested feature record names its items relative to it, and a record of another feature is left', () async {
       final root = await writeNestedProject(
         extra: {
-          '.specstone/templates/implementation.yaml': recordLayer,
-          'docs/$_cartRecord': recordText(
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          _cartRecord: recordText(
             statuses: [
               'add_item:implemented',
               'add_item/check_stock:implemented',
               'drop_item:planned',
             ],
           ),
-          'docs/specs/f02_shop/IMPLEMENTATION.md': recordText(
+          '.specstone/records/f02_shop/IMPLEMENTATION.md': recordText(
             statuses: ['drop_item:planned'],
           ),
         },
@@ -1878,7 +1878,7 @@ void main() {
       );
       expect(readDoc(root, _cartRecord), isNot(contains('drop_item')));
       expect(
-        readDoc(root, 'specs/f02_shop/IMPLEMENTATION.md'),
+        readDoc(root, '.specstone/records/f02_shop/IMPLEMENTATION.md'),
         contains("'drop_item:planned'"),
       );
     });
@@ -1962,8 +1962,8 @@ void main() {
     test('E17: a feature delete removes no entry, its record leaving with the spec folder', () async {
       final root = await writeNestedProject(
         extra: {
-          '.specstone/templates/implementation.yaml': recordLayer,
-          'docs/$_cartRecord': recordText(statuses: ['add_item:implemented']),
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          _cartRecord: recordText(statuses: ['add_item:implemented']),
           // no doc links into the sub-feature once the API doc is freed
           'docs/$shopApi': '# Shop API\n',
           'docs/$cartDomain': recordText(),
@@ -2132,13 +2132,14 @@ void main() {
       'email_login/check_password:implemented',
     ];
     const twinItems = ['email_login', 'email_login/check_password'];
-    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterRecord =
+        '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
     Future<Directory> twins() => writeTwinProject(
       extra: {
-        'docs/$flutterRecord': recordText(statuses: twinStatuses),
-        'docs/$jasprRecord': recordText(statuses: twinStatuses),
+        flutterRecord: recordText(statuses: twinStatuses),
+        jasprRecord: recordText(statuses: twinStatuses),
         // the API doc names the story's FR in its trace; free it of the link
         'docs/${check.loginApi}': '# Login API\n',
       },

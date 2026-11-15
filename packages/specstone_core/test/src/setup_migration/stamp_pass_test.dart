@@ -16,7 +16,7 @@ const _storyPath = 'prds/features/f01_a/us01_b/USER_STORY.md';
 const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _draftFrPath = 'prds/features/f01_a/us01_b/fr02_d.md';
 const _notesPath = 'notes/free.md';
-const _recordPath = 'specs/f01_a/IMPLEMENTATION.md';
+const _recordPath = '.specstone/records/f01_a/IMPLEMENTATION.md';
 const _gnfrPath = 'prds/GNFR.md';
 const _nfPath = 'prds/features/f01_a/us01_b/nf01_d.md';
 
@@ -499,7 +499,7 @@ void main() {
           '---\n',
           '---\napproved: "000000000000"\n',
         ),
-        'specs/f02_c/IMPLEMENTATION.md': record.replaceFirst(
+        '.specstone/records/f02_c/IMPLEMENTATION.md': record.replaceFirst(
           '---\n',
           '---\ndraft: true\n',
         ),

@@ -1758,7 +1758,7 @@ name: Login API
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
     const frPath =
         'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
-    const recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+    const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
     const config = 'packs:\n  prd-core: 0.0.1\n';
     const twin =
         '${config}targets:\n  flutter:\n    code_root: flutter_ws\n'
@@ -1784,9 +1784,7 @@ name: Login API
         'writes it', () async {
       final plan = await _plan(recorded());
 
-      final record = plan.creates.singleWhere(
-        (c) => c.path == 'docs/$recordPath',
-      );
+      final record = plan.creates.singleWhere((c) => c.path == recordPath);
       final set = _carriedSet();
       final expected = newRecordOf(
         set,
@@ -1831,7 +1829,7 @@ name: Login API
       () async {
         final plan = await _plan({...acmeLegacy, legacyFrPath: fr('')});
 
-        expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
+        expect(_createdPaths(plan), isNot(contains(recordPath)));
       },
     );
 
@@ -1850,10 +1848,10 @@ name: Login API
       },
     );
 
-    test('E14: a file at the record path the run cannot read as a record '
-        'refuses with value_unplaced instead of losing the values', () async {
+    test('E14: a file at the record path the run would create refuses with '
+        'value_unplaced instead of being overwritten', () async {
       final root = await writeTree(recorded());
-      File('${root.path}/docs/$recordPath')
+      File('${root.path}/$recordPath')
         ..parent.createSync(recursive: true)
         ..writeAsBytesSync([0xff, 0xfe, 0x00]);
 
@@ -1866,24 +1864,24 @@ name: Login API
         throwsA(
           isA<MigrateFault>()
               .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
-              .having((f) => f.file, 'file', storyPath)
+              .having((f) => f.file, 'file', recordPath)
               .having((f) => f.message, 'message', contains(recordPath)),
         ),
       );
     });
 
-    test('E14: a record the tree already holds gains the entry as an edit, '
-        'never a second create', () async {
-      final plan = await _plan({
-        ...recorded(),
-        'docs/$recordPath': recordText(statuses: ['email_login:implemented']),
-      });
-
-      expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
-      final record = _rewrite(plan, recordPath);
-      expect(
-        record.text,
-        contains("  - 'email_login/validate_credentials:planned'\n"),
+    test('E14: a record the tree already holds at the record path refuses '
+        'value_unplaced, never a second create or an overwrite', () async {
+      await expectLater(
+        _plan({
+          ...recorded(),
+          recordPath: recordText(statuses: ['email_login:implemented']),
+        }),
+        throwsA(
+          isA<MigrateFault>()
+              .having((f) => f.code, 'code', MigrateFaultCode.valueUnplaced)
+              .having((f) => f.file, 'file', recordPath),
+        ),
       );
     });
 
@@ -1923,9 +1921,9 @@ name: Login API
       expect(plan.rewriteLines, contains('.specstone/config.yaml: pins'));
       expect(
         _createdPaths(plan),
-        contains('docs/specs/flutter/f01_login/IMPLEMENTATION.md'),
+        contains('.specstone/records/flutter/f01_login/IMPLEMENTATION.md'),
       );
-      expect(_createdPaths(plan), isNot(contains('docs/$recordPath')));
+      expect(_createdPaths(plan), isNot(contains(recordPath)));
     });
 
     test('E15: with two targets the spec docs the run places sit in the '
@@ -2016,7 +2014,7 @@ name: Login API
         '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: '
         'flutter_ws\n$_stamp',
       );
-      expect(_createdPaths(plan), contains('docs/$recordPath'));
+      expect(_createdPaths(plan), contains(recordPath));
     });
   });
 }

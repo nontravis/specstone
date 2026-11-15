@@ -183,7 +183,7 @@ void main() {
         '${'  # comment filler\n' * 299}---\n\n# Login implementation\n'
         '${'x\n' * 40}';
     final report = checkOf(
-      await writeCheckProject(extra: {'docs/$loginRecord': record}),
+      await writeCheckProject(extra: {loginRecord: record}),
     );
     expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });

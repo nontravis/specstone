@@ -388,11 +388,11 @@ void main() {
             ),
             ("check_password:$entry'", "check_password:$entry$suffix'"),
           ]),
-          unfingerprinted: {'docs/$loginRecord'},
+          unfingerprinted: {loginRecord},
         );
 
     int lineOf(Directory dir, [String suffix = ' $recorded']) =>
-        File('${dir.path}/docs/$loginRecord')
+        File('${dir.path}/$loginRecord')
             .readAsLinesSync()
             .indexWhere((l) => l.contains('$entry$suffix')) +
         1;
@@ -1982,10 +1982,9 @@ void main() {
     const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
     Future<Directory> recordProject() => writeCheckProject(
-      without: {'docs/$loginRecord'},
       extra: {
         ...recordsRootTemplates,
-        record: checkProjectFiles()['docs/$loginRecord']!,
+        record: checkProjectFiles()[loginRecord]!,
       },
     );
 
@@ -1998,10 +1997,9 @@ void main() {
       expect(ok.stdout, '0 findings\n');
 
       final broken = await writeCheckProject(
-        without: {'docs/$loginRecord'},
         extra: {
           ...recordsRootTemplates,
-          record: checkProjectFiles()['docs/$loginRecord']!.replaceFirst(
+          record: checkProjectFiles()[loginRecord]!.replaceFirst(
             'email_login/check_password:implemented',
             'email_login/check_pasword:implemented',
           ),
@@ -2092,10 +2090,9 @@ void main() {
 
     test('format reaches the record in a whole-tree run', () async {
       final project = await writeCheckProject(
-        without: {'docs/$loginRecord'},
         extra: {
           ...recordsRootTemplates,
-          record: checkProjectFiles()['docs/$loginRecord']!.replaceFirst(
+          record: checkProjectFiles()[loginRecord]!.replaceFirst(
             '# Login implementation\n',
             '# Login implementation\n\n\n\nText.\n',
           ),

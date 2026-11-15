@@ -28,6 +28,13 @@ const recordLayer =
     '    list: true\n'
     '    pointer: item_test\n';
 
+/// [recordLayer] with the record path of the shipped pack, under
+/// `.specstone/records/`.
+final String recordLayerAtRoot = recordLayer.replaceFirst(
+  'path: specs/f{nn}_{slug}/IMPLEMENTATION.md',
+  'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
+);
+
 /// The config that names the targets `flutter` and `jaspr`.
 String twinConfig() =>
     '${shippedPinsConfig()}targets:\n'

@@ -594,7 +594,7 @@ void main() {
       expect(await dry.run(['migrate', '--dry-run']), 0);
       expect(
         dryOut.toString(),
-        contains('  specs/f01_login/IMPLEMENTATION.md (draft)\n'),
+        contains('  .specstone/records/f01_login/IMPLEMENTATION.md (draft)\n'),
       );
       final hash = await _dryRunPlanHash(root);
       final (:runner, :out, :err) = writeRunner(root);
@@ -602,8 +602,9 @@ void main() {
       expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
 
       expect(err.toString(), isEmpty);
-      final record = File('${root.path}/docs/specs/f01_login/IMPLEMENTATION.md')
-          .readAsStringSync();
+      final record = File(
+        '${root.path}/.specstone/records/f01_login/IMPLEMENTATION.md',
+      ).readAsStringSync();
       expect(record, contains('draft: true\n'));
       expect(record, contains('  - email_login:implemented\n'));
       expect(record, contains('  - email_login:lib/a.dart:A\n'));
@@ -619,7 +620,10 @@ void main() {
         '--format=',
         'HEAD',
       ]).stdout;
-      expect(committed, contains('docs/specs/f01_login/IMPLEMENTATION.md'));
+      expect(
+        committed,
+        contains('.specstone/records/f01_login/IMPLEMENTATION.md'),
+      );
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
     });
 

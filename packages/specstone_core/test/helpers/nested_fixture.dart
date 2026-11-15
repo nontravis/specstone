@@ -35,23 +35,23 @@ const payCard = 'prds/features/f02_shop/f02_pay/us01_card/USER_STORY.md';
 const payRefund = 'prds/features/f02_shop/f02_pay/us02_refund/USER_STORY.md';
 
 /// The DocPath of the record of the sub-feature `shop/cart`.
-const cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
+const cartRecord = '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
 
 /// The DocPath of the record of the sub-feature `shop/pay`.
-const payRecord = 'specs/f02_shop/f02_pay/IMPLEMENTATION.md';
+const payRecord = '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
 
 /// The records of `shop/cart` and `shop/pay`, keyed by path from the project
 /// root: every story `implemented` but `refund`, which is [refund].
 ///
 /// A test adds them as `extra`; the nested project holds no record itself.
 Map<String, String> nestedRecords({String refund = 'planned'}) => {
-  'docs/$cartRecord':
+  cartRecord:
       "---\nstatuses:\n  - 'add_item:implemented'\n"
       "  - 'add_item/check_stock:implemented'\n  - 'drop_item:implemented'\n"
       "implements:\n  - 'add_item:app/lib/shop.dart:Shop'\n"
       "  - 'add_item/check_stock:app/lib/shop.dart:Shop'\n"
       '---\n\n# Cart implementation\n',
-  'docs/$payRecord':
+  payRecord:
       "---\nstatuses:\n  - 'card:implemented'\n  - 'refund:$refund'\n"
       "implements:\n  - 'card:app/lib/shop.dart:Shop'\n"
       '---\n\n# Pay implementation\n',

@@ -18,9 +18,9 @@ import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
-const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 const _fr = 'email_login/check_password';
 const _implemented = '$_fr:implemented';
 const _login = 'app/lib/login.dart';
@@ -69,10 +69,10 @@ Future<Directory> _project(
   Set<String> without = const {},
   Set<String> unfingerprinted = const {},
 }) => writeCheckProject(
-  extra: {'docs/$_recordPath': record, ...extra},
+  extra: {_recordPath: record, ...extra},
   without: without,
-  unstamped: {'docs/$_recordPath'},
-  unfingerprinted: {'docs/$_recordPath', ...unfingerprinted},
+  unstamped: {_recordPath},
+  unfingerprinted: {_recordPath, ...unfingerprinted},
 );
 
 /// Returns the architecture doc of the fixture covering [covers].
@@ -638,11 +638,11 @@ void main() {
       final project = await writeCheckProject(
         extra: {
           ..._covering('  - app/lib/\n'),
-          'docs/$_recordPath': _record(
+          _recordPath: _record(
             statuses: ['email_login:planned', '$_fr:planned'],
           ),
         },
-        unstamped: {'docs/$_recordPath'},
+        unstamped: {_recordPath},
         unfingerprinted: {'docs/$loginArchitecture'},
       );
       final (:context, :findings) = _checked(project, loginArchitecture);
@@ -655,11 +655,11 @@ void main() {
       final project = await writeCheckProject(
         extra: {
           ..._covering('  - app/lib/ $_stale\n'),
-          'docs/$_recordPath': _record(
+          _recordPath: _record(
             statuses: ['email_login:planned', '$_fr:planned'],
           ),
         },
-        unstamped: {'docs/$_recordPath'},
+        unstamped: {_recordPath},
       );
       final (:context, :findings) = _checked(project, loginArchitecture);
 
@@ -901,7 +901,7 @@ void main() {
       code: ['$_fr:$_pointer ${_fingerprintOf(flutterText, _login)}'],
     );
     for (final path in [_flutterRecord, _jasprRecord]) {
-      File('${project.path}/docs/$path')
+      File('${project.path}/$path')
         ..createSync(recursive: true)
         ..writeAsStringSync(record);
     }

@@ -18,7 +18,7 @@ import '../../helpers/target_fixture.dart';
 const _recordLayer =
     'id: implementation\n'
     'description: One feature record per target.\n'
-    'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+    'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
     'parent: feature\n'
     'per_target: true\n'
     'fields:\n'
@@ -44,11 +44,11 @@ const _proofsLayer =
     '    list: true\n'
     '    pointer: item_test\n';
 
-const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
-const _cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
-const _payRecord = 'specs/f02_shop/f02_pay/IMPLEMENTATION.md';
+const _loginRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+const _cartRecord = '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
+const _payRecord = '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
 
 // The FR and the story of the login fixture, relative to `login`.
 const _fr = 'email_login/check_password';
@@ -74,10 +74,7 @@ String _record({
 
 /// The fixture files that add the record layer and one record at [path].
 Map<String, String> _withRecord(String record, [String path = _loginRecord]) =>
-    {
-      '.specstone/templates/implementation.yaml': _recordLayer,
-      'docs/$path': record,
-    };
+    {'.specstone/templates/implementation.yaml': _recordLayer, path: record};
 
 /// Checks the single-target fixture holding [record] as the login record.
 ///
@@ -90,7 +87,7 @@ Future<CheckReport> _checkLogin(
   await writeCheckProject(
     extra: {..._withRecord(record), ...extra},
     without: without,
-    unstamped: {'docs/$_loginRecord'},
+    unstamped: {_loginRecord},
   ),
 );
 
@@ -100,8 +97,8 @@ Map<String, String> _twinRecords({
   required String jaspr,
 }) => {
   '.specstone/templates/implementation.yaml': _recordLayer,
-  'docs/$_flutterRecord': flutter,
-  'docs/$_jasprRecord': jaspr,
+  _flutterRecord: flutter,
+  _jasprRecord: jaspr,
 };
 
 Future<CheckReport> _checkTwin({
@@ -786,7 +783,7 @@ void main() {
               checkProjectFiles()['docs/$loginFeature']!,
           'docs/prds/features/f02_shop/us01_email_login/USER_STORY.md':
               checkProjectFiles()['docs/$loginStory']!,
-          'docs/specs/f02_shop/IMPLEMENTATION.md': _record(
+          '.specstone/records/f02_shop/IMPLEMENTATION.md': _record(
             statuses: ['$_story:implemented'],
           ),
         },
@@ -839,7 +836,7 @@ void main() {
             ),
             _cartRecord,
           ),
-          'docs/$_payRecord': _record(
+          _payRecord: _record(
             statuses: ['card:implemented'],
             code: ['card:app/lib/shop.dart:Shop'],
           ),

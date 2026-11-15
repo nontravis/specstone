@@ -156,9 +156,13 @@ DocsProject openProject(Directory root) => DocsProject.open(
   homeDirectory: null,
 );
 
-/// Returns the file of [docPath], a path relative to `docs/`.
+/// Returns the file of [docPath], a path relative to `docs/`, or to the
+/// project root for a record under `.specstone/records/`.
 File docFile(Directory root, String docPath) =>
-    File('${root.path}/docs/$docPath');
+    File('${root.path}/${_projectPathOf(docPath)}');
+
+String _projectPathOf(String docPath) =>
+    docPath.startsWith('.specstone/records/') ? docPath : 'docs/$docPath';
 
 /// Returns the text of the doc at [docPath].
 String readDoc(Directory root, String docPath) =>

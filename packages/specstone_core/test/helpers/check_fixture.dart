@@ -45,7 +45,7 @@ const loginFeature = 'prds/features/f01_login/FEATURE.md';
 const loginStory = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 
 /// The DocPath of the login record, the story's and the FR's status and code.
-const loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
+const loginRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
 /// The DocPath of the login functional requirement.
 const loginFr =
@@ -128,7 +128,7 @@ Map<String, String> checkProjectFiles() => {
       '# Check the password\n\n## Statement\n\n$checkPasswordStatement\n\n'
       '## Edge cases\n\n1. E01 — An empty password → refused.\n\n## Rationale\n\nA wrong password must not sign in.\n\n'
       '## Verification\n\nTest: a wrong password is refused.\n',
-  'docs/$loginRecord':
+  loginRecord:
       "---\nstatuses:\n  - 'email_login:implemented'\n"
       "  - 'email_login/check_password:implemented'\nimplements:\n"
       "  - 'email_login:app/lib/login.dart:SignInPage'\n"
@@ -153,7 +153,8 @@ Map<String, String> checkProjectFiles() => {
   'docs/$loginApi':
       '---\nconfirmed:\n  - email_login/check_password ${fingerprintFor('\n$checkPasswordStatement')}\n---\n\n'
       '# Login API\n\n## FR trace\n\n| FR | Operation |\n|---|---|\n'
-      '| email_login/check_password | `signIn` |\n\n## Operations\n\n### signIn\n\nSigns the Agent in.\n',
+      '| email_login/check_password | `signIn` |\n\n## Operations\n\n### signIn\n\nSigns the Agent in.\n\n'
+      '**Response example — success**\n\n**Response example — error**\n',
   'app/lib/login.dart': 'class SignInPage {}\n\nbool checkPassword(String password) => password.isNotEmpty;\n',
 };
 
@@ -429,10 +430,10 @@ List<String> spots(CheckReport report, [FindingKind? kind]) => [
 
 /// Returns the fixture file of [docPath] with each change applied once.
 ///
-/// The key is `docs/<docPath>`. Throws an [ArgumentError] naming the anchor
+/// The key is `docs/<docPath>`, or the DocPath of a record. Throws an [ArgumentError] naming the anchor
 /// when a `from` text does not occur, so a negative test cannot pass vacuously.
 Map<String, String> edit(String docPath, List<(String, String)> changes) {
-  final key = 'docs/$docPath';
+  final key = _keyOf(docPath);
   return {key: _changed(checkProjectFiles()[key]!, docPath, changes)};
 }
 
@@ -444,10 +445,13 @@ Map<String, String> editedAfterApproval(
   String docPath,
   List<(String, String)> changes,
 ) {
-  final key = 'docs/$docPath';
+  final key = _keyOf(docPath);
   final approved = withApprovalHashes(checkProjectFiles())[key]!;
   return {key: _changed(approved, docPath, changes)};
 }
+
+String _keyOf(String docPath) =>
+    docPath.startsWith('.specstone/records/') ? docPath : 'docs/$docPath';
 
 String _changed(String text, String docPath, List<(String, String)> changes) {
   var changed = text;

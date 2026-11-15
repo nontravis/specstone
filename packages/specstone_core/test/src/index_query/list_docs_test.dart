@@ -182,7 +182,7 @@ void main() {
           '.specstone/templates/implementation.yaml':
               'id: implementation\n'
               'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
               'parent: feature\n'
               'per_target: true\n'
               'fields:\n'
@@ -206,11 +206,11 @@ void main() {
           'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
           'docs/prds/features/f01_login/us02_hide/fr01_close.md':
               '---\nstatus: implemented\n---\n\n# Close it\n',
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md': record(
             flutterStatuses,
             flutterImplements,
           ),
-          'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': record(
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md': record(
             jasprStatuses,
             jasprImplements,
           ),
@@ -337,7 +337,7 @@ void main() {
           '.specstone/templates/implementation.yaml':
               'id: implementation\n'
               'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
               'parent: feature\n'
               'per_target: true\n'
               'fields:\n'
@@ -359,7 +359,7 @@ void main() {
           'docs/prds/features/f01_login/us02_hide/USER_STORY.md': '---\nstatus: implemented\n---\n\n# Agent hides it\n\n## Use Case\n.\n',
           'docs/prds/features/f01_login/us02_hide/fr01_close.md':
               '---\nstatus: implemented\n---\n\n# Close it\n',
-          'docs/specs/f01_login/IMPLEMENTATION.md': record(
+          '.specstone/records/f01_login/IMPLEMENTATION.md': record(
             '  - show/open:lib/open.dart\n  - show:lib/show.dart\n'
             '  - hide/close:lib/close.dart\n  - hide:lib/hide.dart\n',
           ),

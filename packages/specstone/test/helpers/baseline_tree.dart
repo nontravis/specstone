@@ -72,7 +72,11 @@ Future<Directory> writeBaselineTree() async {
     final size = isRecord
         ? recordSizes.current
         : sizes[(other++ * _stride) % sizes.length];
-    final file = File.fromUri(root.uri.resolve('docs/${spec.path}'));
+    final file = File.fromUri(
+      root.uri.resolve(
+        spec.path.startsWith('.specstone/') ? spec.path : 'docs/${spec.path}',
+      ),
+    );
     await file.parent.create(recursive: true);
     final text = isRecord
         ? _renderRecord(spec, size, padding)
@@ -193,7 +197,7 @@ List<_DocSpec> _featureSpecs(int f) {
     _spec('api', 'specs/$key/API.md', 'Api $f'),
     _spec(
       _recordType,
-      'specs/$key/IMPLEMENTATION.md',
+      '.specstone/records/$key/IMPLEMENTATION.md',
       'Feature $f implementation',
       _recordFrontmatter(f),
     ),

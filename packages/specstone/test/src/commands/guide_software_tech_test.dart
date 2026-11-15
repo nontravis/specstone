@@ -264,7 +264,7 @@ void main() {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', 'implementation', '--json']), 0);
       final json = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(json['path'], 'specs/f{nn}_{slug}/IMPLEMENTATION.md');
+      expect(json['path'], '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md');
       expect(json['parent'], 'feature');
       expect(json['perTarget'], isTrue);
       final fields = (json['fields']! as List<Object?>)
@@ -503,6 +503,47 @@ void main() {
             "headed with the row's Component cell.",
           ),
         ),
+      );
+    });
+
+    test('guide api --json holds the two per-subsection response examples '
+        'and guide topic --json the interface pointer rule on its `- ` '
+        'lines', () async {
+      final runner = await runnerFor(_bothPacks);
+      Map<String, Object?> sectionOf(String id) {
+        final sections = jsonDecode(out.toString()) as Map<String, Object?>;
+        return (sections['sections']! as List<Object?>)
+            .cast<Map<String, Object?>>()
+            .singleWhere((section) => section['id'] == id);
+      }
+
+      expect(await runner.run(['guide', 'api', '--json']), 0);
+      final operations = sectionOf('operations');
+      final required =
+          ((operations['lint']! as Map<String, Object?>)['requiredPatterns']!
+                  as List<Object?>)
+              .cast<Map<String, Object?>>();
+      expect(
+        [for (final entry in required) entry['id']],
+        ['response_success', 'response_error'],
+      );
+      expect(
+        [for (final entry in required) entry['perSubsection']],
+        [true, true],
+      );
+
+      out.clear();
+      expect(await runner.run(['guide', 'topic', '--json']), 0);
+      final lint = sectionOf('interface')['lint']! as Map<String, Object?>;
+      expect(lint['linePrefix'], '- ');
+      expect(
+        [
+          for (final entry
+              in (lint['bannedPatterns']! as List<Object?>)
+                  .cast<Map<String, Object?>>())
+            entry['id'],
+        ],
+        ['interface_pointer'],
       );
     });
 

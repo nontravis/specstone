@@ -1353,7 +1353,12 @@ void _agentFilesTests() {
         'CLAUDE.md',
         ...skillPaths(),
       ]);
-      expect(plan.toText(), contains('software-tech 1.3.0 -> 1.7.0'));
+      expect(
+        plan.toText(),
+        contains(
+          'software-tech 1.3.0 -> ${shippedPackVersions()['software-tech']}',
+        ),
+      );
     });
 
     test('a pin between agentFilesSince and the cite rule writes '
@@ -2550,6 +2555,7 @@ const _loginStoryPath =
 const _loginFrPath =
     'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
 const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+const _shippedRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 const _overrideFile = '.specstone/templates/implementation.yaml';
 
 const _implementedStory =
@@ -2966,7 +2972,7 @@ void _moveToRecordTests() {
       ]);
     });
 
-    group('$_fr, the shipped software-tech 1.7.0 pack', () {
+    group('$_fr, the shipped software-tech pack', () {
       Future<Directory> shippedProject({
         Map<String, String> extra = const {},
       }) => writeTree({
@@ -2978,8 +2984,9 @@ void _moveToRecordTests() {
         ...extra,
       });
 
-      test('the move from 1.4.0 to 1.7.0 runs no one-time pass and '
-          'writes the skill and agent files alone, the move_to_record and '
+      test('the move from 1.4.0 to the shipped version runs no one-time '
+          'pass and writes the skill and agent files alone, the '
+          'move_to_record and '
           'stamp_code_fingerprints steps beside the passes every upgrade '
           'runs', () async {
         final project = await shippedProject(
@@ -2989,7 +2996,12 @@ void _moveToRecordTests() {
         final plan = _planAt(project);
 
         final text = plan.toText();
-        expect(text, contains('software-tech 1.4.0 -> 1.7.0'));
+        expect(
+          text,
+          contains(
+            'software-tech 1.4.0 -> ${shippedPackVersions()['software-tech']}',
+          ),
+        );
         expect(
           text,
           contains(
@@ -3022,7 +3034,7 @@ void _moveToRecordTests() {
           final plan = _planAt(await shippedProject());
 
           final record = plan.creates.singleWhere(
-            (create) => create.path == 'docs/$_recordPath',
+            (create) => create.path == _shippedRecordPath,
           );
           expect(record.note, ' (draft)');
           expect(_valuesOf(record.text), {
@@ -3040,7 +3052,7 @@ void _moveToRecordTests() {
           }
           expect(
             plan.toText(),
-            contains('commit 2, creates:\n  $_recordPath (draft)\n'),
+            contains('commit 2, creates:\n  $_shippedRecordPath (draft)\n'),
           );
         },
       );
@@ -3104,12 +3116,84 @@ void _moveToRecordTests() {
       });
     });
 
+    group('$_fr E117, the shipped software-tech pack from 1.7.0', () {
+      const oldRecord = 'specs/f01_login/IMPLEMENTATION.md';
+      const newRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      const recordText =
+          '---\nstatuses:\n  - email_login:implemented\n---\n'
+          '# Login implementation\n';
+
+      Future<Directory> pinned1x7({
+        List<String> records = const [oldRecord],
+        String targets = '',
+      }) => writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+            '  software-tech: 1.7.0\n$targets',
+        'docs/$_featurePath': '# Login\n',
+        for (final record in records) 'docs/$record': recordText,
+      });
+
+      test('commit 1 moves each record to its path under .specstone/records/, '
+          'printed from the project root, and the run restamps in commit '
+          '2', () async {
+        final plan = _planAt(await pinned1x7());
+
+        final text = plan.toText();
+        final version = shippedPackVersions()['software-tech'];
+        expect(text, contains('software-tech 1.7.0 -> $version'));
+        expect(
+          text,
+          contains('commit 1, moves:\n  $oldRecord -> $newRecord\n'),
+        );
+        expect(
+          text,
+          contains(
+            '  from 1.7.0: move_file implementation '
+            'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
+            '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md: 1 docs\n',
+          ),
+        );
+        expect(
+          text,
+          contains(
+            '  from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
+          ),
+        );
+        expect(plan.moves.map((move) => (move.from, move.to)), [
+          (oldRecord, newRecord),
+        ]);
+        expect(plan.lists.steps.first.paths, [newRecord]);
+      });
+
+      test('with two code targets each target moves its record to its folder '
+          'under .specstone/records/', () async {
+        final plan = _planAt(
+          await pinned1x7(
+            targets:
+                'targets:\n  flutter:\n    code_root: app\n'
+                '  jaspr:\n    code_root: web\n',
+            records: [
+              'specs/flutter/f01_login/IMPLEMENTATION.md',
+              'specs/jaspr/f01_login/IMPLEMENTATION.md',
+            ],
+          ),
+        );
+
+        expect(plan.moves.map((move) => move.to), [
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md',
+        ]);
+      });
+    });
+
     test('$_fr E35: with no doc type holding record_status every value '
         'refuses', () async {
       final fault = _refusedPlan(
         await _recordFixture(
           packFiles: {
             '.specstone/packs/acme/implementation.yaml':
+                'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
                 'fields:\n  - {id: statuses, disabled: true}\n'
                 '  - {id: implements, disabled: true}\n',
           },
@@ -3645,7 +3729,10 @@ sections:
         final record = plan.creates.singleWhere(
           (create) => create.path.endsWith('IMPLEMENTATION.md'),
         );
-        expect(record.path, 'docs/specs/flutter/f01_login/IMPLEMENTATION.md');
+        expect(
+          record.path,
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
+        );
         expect(record.note, ' (draft)');
         expect(_valuesOf(record.text)['statuses'], [
           'email_login:implemented',
@@ -3655,7 +3742,7 @@ sections:
         expect(plan.toText(), contains('commit 1, moves:\n'));
         expect(
           plan.creates.map((create) => create.path),
-          isNot(contains(startsWith('docs/specs/jaspr/'))),
+          isNot(contains(startsWith('.specstone/records/jaspr/'))),
         );
       });
 
@@ -3675,12 +3762,12 @@ sections:
 
         expect(
           plan.moves.map((move) => move.to),
-          contains('specs/flutter/f01_login/IMPLEMENTATION.md'),
+          contains('.specstone/records/flutter/f01_login/IMPLEMENTATION.md'),
         );
         expect(plan.creates, isEmpty);
         final record = _rewriteAt(
           plan,
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md',
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
         ).text;
         expect(_valuesOf(record)['statuses'], [
           'email_login:implemented',
@@ -3702,7 +3789,7 @@ sections:
         );
 
         expect(plan.creates.map((create) => create.path), [
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md',
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
         ]);
       });
     });
@@ -3712,7 +3799,7 @@ sections:
 // MARK: - Test-name pass
 
 const _testFile = 'app/test/auth_test.dart';
-const _testRecordPath = 'specs/f01_login/IMPLEMENTATION.md';
+const _testRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 
 String _testSource(String name) =>
     "void main() {\n  test('$name', () {});\n}\n";
@@ -3761,7 +3848,7 @@ void _testNameTests() {
         ),
       );
       final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_testRecordPath',
+        (create) => create.path == _testRecordPath,
       );
       expect(record.note, ' (draft)');
       expect(_valuesOf(record.text)['tests'], [
@@ -3832,7 +3919,7 @@ void _testNameTests() {
       final plan = _planTestNames(project);
 
       final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_testRecordPath',
+        (create) => create.path == _testRecordPath,
       );
       final values = _valuesOf(record.text);
       expect(values['statuses'], [
@@ -3987,9 +4074,9 @@ void _codeStampTests() {
         'docs and entries with its paths and unreadable list', () async {
       final plan = _planAt(await project());
 
-      expect(plan.moves, isEmpty);
+      expect(plan.moves.map((move) => move.to), [_shippedRecordPath]);
       expect(
-        _rewriteAt(plan, 'docs/$_recordPath').text,
+        _rewriteAt(plan, _shippedRecordPath).text,
         contains("  - 'email_login:$signIn:SignIn $signInFingerprint'\n"),
       );
       expect(
@@ -4004,14 +4091,12 @@ void _codeStampTests() {
           '  from 1.6.0: stamp_code_fingerprints: 2 docs; 2 entries\n',
         ),
       );
-      expect(plan.lists.toJson()['steps'], [
-        {
-          'from': '1.6.0',
-          'step': 'stamp_code_fingerprints',
-          'paths': [architecturePath, _recordPath],
-          'unreadable': <String>[],
-        },
-      ]);
+      expect((plan.lists.toJson()['steps']! as List).first, {
+        'from': '1.6.0',
+        'step': 'stamp_code_fingerprints',
+        'paths': [_shippedRecordPath, architecturePath],
+        'unreadable': <String>[],
+      });
     });
 
     test('the plan hash holds while no code file changes, and moves when a '
@@ -4025,7 +4110,7 @@ void _codeStampTests() {
       final edited = _planAt(root);
       expect(_hashOf(edited), isNot(first));
       expect(
-        _rewriteAt(edited, 'docs/$_recordPath').text,
+        _rewriteAt(edited, _shippedRecordPath).text,
         isNot(contains(signInFingerprint)),
       );
 
@@ -4048,7 +4133,7 @@ void _codeStampTests() {
       final plan = _planAt(root);
 
       final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_recordPath',
+        (create) => create.path == _shippedRecordPath,
       );
       expect(_valuesOf(record.text)['implements'], [
         'email_login:$signIn:SignIn $signInFingerprint',
@@ -4081,7 +4166,7 @@ void _codeStampTests() {
         '.specstone/config.yaml': _config('1.0.0'),
         'docs/$_featurePath': '# Login\n',
         'docs/$_loginStoryPath': '# Email login\n',
-        'docs/$_recordPath': recordText(
+        _shippedRecordPath: recordText(
           statuses: ['email_login:implemented'],
           code: code,
         ),
@@ -4103,10 +4188,10 @@ void _codeStampTests() {
       ]);
 
       expect(
-        _rewriteAt(plan, 'docs/$_recordPath').text,
+        _rewriteAt(plan, _shippedRecordPath).text,
         contains("  - 'email_login:$signIn:SignIn $current'\n"),
       );
-      expect(_rewriteAt(plan, 'docs/$_recordPath').changes, [
+      expect(_rewriteAt(plan, _shippedRecordPath).changes, [
         'restamp code fingerprints',
       ]);
       expect(
@@ -4120,7 +4205,7 @@ void _codeStampTests() {
         {
           'from': '1.0.0',
           'step': 'restamp_code_fingerprints',
-          'paths': [_recordPath],
+          'paths': [_shippedRecordPath],
           'unreadable': <String>[],
         },
       ]);
@@ -4150,10 +4235,10 @@ void _codeStampTests() {
       ]);
 
       expect(
-        _rewriteAt(plan, 'docs/$_recordPath').text,
+        _rewriteAt(plan, _shippedRecordPath).text,
         contains("  - 'email_login:$signIn:SignIn $current'\n"),
       );
-      expect(_rewriteAt(plan, 'docs/$_recordPath').changes, [
+      expect(_rewriteAt(plan, _shippedRecordPath).changes, [
         'stamp code fingerprints',
       ]);
       final text = plan.toText();

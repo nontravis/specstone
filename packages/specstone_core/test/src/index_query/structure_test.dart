@@ -85,7 +85,7 @@ void main() {
       index,
       target: 'login',
     ).text.trim().split('\n');
-    expect(lines, hasLength(12));
+    expect(lines, hasLength(11));
     expect(lines.first, startsWith('login (feature)'));
   });
   test(
@@ -436,7 +436,7 @@ void main() {
       expect(lines.where((l) => l.contains('(user_story)')), hasLength(2));
       expect(
         lines.where((l) => l.contains(' (') && l.contains(' tokens')),
-        hasLength(12),
+        hasLength(11),
       );
     });
 
@@ -632,7 +632,7 @@ void main() {
           '.specstone/templates/implementation.yaml':
               'id: implementation\n'
               'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
               'parent: feature\n'
               'per_target: true\n'
               'fields:\n'
@@ -653,12 +653,10 @@ void main() {
               swipeText,
           'docs/specs/flutter/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
           'docs/specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md': archText,
-          'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
-            flutterStatuses,
-          ),
-          'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
-            jasprStatuses,
-          ),
+          '.specstone/records/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              record(flutterStatuses),
+          '.specstone/records/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
+              record(jasprStatuses),
         }),
       );
       addTearDown(session.close);
@@ -684,12 +682,8 @@ void main() {
         '${tokenSizeOf(swipeText)} tokens\n'
         '  feedback/toast (architecture) — Toast architecture · '
         '${tokenSizeOf(archText)} tokens\n'
-        '  feedback/toast (implementation) — Record · '
-        '${tokenSizeOf(record(flutter))} tokens\n'
         '  feedback/toast (architecture) — Toast architecture · '
-        '${tokenSizeOf(archText)} tokens\n'
-        '  feedback/toast (implementation) — Record · '
-        '${tokenSizeOf(record(jaspr))} tokens\n',
+        '${tokenSizeOf(archText)} tokens\n',
       );
     });
 
@@ -783,7 +777,7 @@ void main() {
           '.specstone/templates/implementation.yaml':
               'id: implementation\n'
               'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
               'parent: feature\n'
               'per_target: true\n'
               'fields:\n'
@@ -798,7 +792,7 @@ void main() {
           'docs/prds/features/f02_feedback/f03_toast/FEATURE.md': featureText,
           'docs/prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md':
               showText,
-          'docs/specs/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
+          '.specstone/records/f02_feedback/f03_toast/IMPLEMENTATION.md': record(
             '  - show:implemented\n',
           ),
         }),
@@ -818,9 +812,7 @@ void main() {
         '$featureLine\n'
         '  problem · 24 chars\n'
         '    line 9 · 12 chars\n'
-        '$storyLine\n'
-        '  feedback/toast (implementation) — Record · '
-        '${tokenSizeOf(record('  - show:implemented\n'))} tokens\n',
+        '$storyLine\n',
       );
     });
 
@@ -853,7 +845,7 @@ void main() {
           '.specstone/templates/implementation.yaml':
               'id: implementation\n'
               'description: One feature record per target.\n'
-              'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+              'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
               'parent: feature\n'
               'per_target: true\n'
               'fields:\n'
@@ -888,9 +880,9 @@ void main() {
       underRoot = await indexWith({
         ...recordsRootTemplates,
         '$recordsRoot/f01_login/IMPLEMENTATION.md':
-            loginRecords['docs/specs/f01_login/IMPLEMENTATION.md']!,
+            loginRecords['.specstone/records/f01_login/IMPLEMENTATION.md']!,
         '$recordsRoot/f02_signup/IMPLEMENTATION.md':
-            loginRecords['docs/specs/f02_signup/IMPLEMENTATION.md']!,
+            loginRecords['.specstone/records/f02_signup/IMPLEMENTATION.md']!,
       });
     });
 

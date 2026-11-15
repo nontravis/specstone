@@ -25,6 +25,10 @@ void main() {
   test('dw-s03/inv7, H22: spec folder moves pair each folder with the one its child doc type holds after the move', () {
     final feature = set.lookup('feature')!;
     expect(specFolderMovesOf(set, feature, ['01', 'login'], ['02', 'login']), [
+      (
+        from: '.specstone/records/f01_login/',
+        to: '.specstone/records/f02_login/',
+      ),
       (from: 'specs/f01_login/', to: 'specs/f02_login/'),
     ]);
     expect(

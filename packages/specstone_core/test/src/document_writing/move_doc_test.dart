@@ -2196,10 +2196,10 @@ void main() {
               'id: architecture\nper_target: false\n',
           'flutter_ws/app/lib/login.dart': 'class SignIn {}\n',
           'jaspr_ws/app/lib/login.dart': 'class SignIn {}\n',
-          'docs/$flutterLogin': loginRecord,
-          'docs/$jasprLogin': loginRecord,
-          'docs/$flutterSignup': recordText(statuses: ['ghost:planned']),
-          'docs/$jasprSignup': recordText(statuses: ['ghost:planned']),
+          flutterLogin: loginRecord,
+          jasprLogin: loginRecord,
+          flutterSignup: recordText(statuses: ['ghost:planned']),
+          jasprSignup: recordText(statuses: ['ghost:planned']),
           ...extra,
         }.entries)
           if (!without.contains(key)) key: value,
@@ -2218,13 +2218,13 @@ void main() {
       final answer = reorder(root, 'feature:signup', '1');
       expect(movedPairs(answer), [
         'prds/features/f02_signup/ prds/features/f01_signup/',
+        '.specstone/records/flutter/f02_signup/ .specstone/records/flutter/f01_signup/',
+        '.specstone/records/jaspr/f02_signup/ .specstone/records/jaspr/f01_signup/',
         'specs/f02_signup/ specs/f01_signup/',
-        'specs/flutter/f02_signup/ specs/flutter/f01_signup/',
-        'specs/jaspr/f02_signup/ specs/jaspr/f01_signup/',
         'prds/features/f01_login/ prds/features/f02_login/',
+        '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f02_login/',
+        '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f02_login/',
         'specs/f01_login/ specs/f02_login/',
-        'specs/flutter/f01_login/ specs/flutter/f02_login/',
-        'specs/jaspr/f01_login/ specs/jaspr/f02_login/',
       ]);
       expect(
         readDoc(
@@ -2258,7 +2258,7 @@ void main() {
           statuses: ['reset_password:implemented'],
           code: ['reset_password:$f/us03_reset_password/USER_STORY.md:Page'],
         );
-        final root = await twinProject(extra: {'docs/$flutterLogin': spelled});
+        final root = await twinProject(extra: {flutterLogin: spelled});
         reorder(root, 'user_story:login/reset_password', '1');
         expect(readDoc(root, flutterLogin), spelled);
       },
@@ -2271,9 +2271,9 @@ void main() {
         final answer = rename(root, 'feature:login', 'signin');
         expect(movedPairs(answer), [
           'prds/features/f01_login/ prds/features/f01_signin/',
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
           'specs/f01_login/ specs/f01_signin/',
-          'specs/flutter/f01_login/ specs/flutter/f01_signin/',
-          'specs/jaspr/f01_login/ specs/jaspr/f01_signin/',
         ]);
         expect(
           hasDoc(root, '.specstone/records/jaspr/f01_signin/IMPLEMENTATION.md'),
@@ -2285,12 +2285,12 @@ void main() {
     test(
       'E12: a target with no spec folder for the feature gets none',
       () async {
-        final root = await twinProject(without: {'docs/$jasprLogin'});
+        final root = await twinProject(without: {jasprLogin});
         final answer = rename(root, 'feature:login', 'signin');
         expect(movedPairs(answer), [
           'prds/features/f01_login/ prds/features/f01_signin/',
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
           'specs/f01_login/ specs/f01_signin/',
-          'specs/flutter/f01_login/ specs/flutter/f01_signin/',
         ]);
         expect(
           Directory('${root.path}/docs/specs/jaspr/f01_signin').existsSync(),
@@ -2471,7 +2471,7 @@ void main() {
         final root = await writeWriteProject(
           extra: {
             '.specstone/config.yaml': oneTargetConfig(),
-            '.specstone/templates/implementation.yaml': recordLayer,
+            '.specstone/templates/implementation.yaml': recordLayerAtRoot,
             record: recordText(
               statuses: ['reset_password:implemented', 'sign_out:planned'],
             ),
@@ -2493,7 +2493,7 @@ void main() {
       final root = await writeWriteProject(
         extra: {
           '.specstone/config.yaml': oneTargetConfig(),
-          '.specstone/templates/implementation.yaml': recordLayer,
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
           'app/test/reset_test.dart': 'void main() {}\n',
           record: recordText(
             statuses: ['reset_password:implemented'],
@@ -2522,7 +2522,7 @@ void main() {
         extra: {
           '.specstone/config.yaml':
               '${shippedPinsConfig()}targets:\n  web:\n    code_root: web_ws\n',
-          '.specstone/templates/implementation.yaml': recordLayer,
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
           '.specstone/templates/architecture.yaml':
               'id: architecture\nper_target: true\n',
           'web_ws/app/lib/login.dart': 'class SignIn {}\n',
@@ -2570,17 +2570,13 @@ void main() {
       Set<String> without = const {},
     }) => writeNestedProject(
       without: without,
-      unfingerprinted: {
-        'docs/$cartFlutter',
-        'docs/$cartJaspr',
-        'docs/$payJaspr',
-      },
+      unfingerprinted: {cartFlutter, cartJaspr, payJaspr},
       extra: {
         '.specstone/config.yaml': twinConfig(),
-        '.specstone/templates/implementation.yaml': recordLayer,
-        'docs/$cartFlutter': flutterCart,
-        'docs/$cartJaspr': jasprCart,
-        'docs/$payJaspr': jasprPay,
+        '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+        cartFlutter: flutterCart,
+        cartJaspr: jasprCart,
+        payJaspr: jasprPay,
         ...extra,
       },
     );
@@ -2633,7 +2629,7 @@ void main() {
       () async {
         final root = await shopTwins(
           extra: {
-            'docs/$cartFlutter': recordText(
+            cartFlutter: recordText(
               statuses: ['add_item:implemented', 'drop_item:planned'],
               tests: [
                 'add_item:app/test/shop_test.dart',
@@ -2662,7 +2658,7 @@ void main() {
       () async {
         final root = await shopTwins(
           extra: {
-            'docs/$cartFlutter': recordText(
+            cartFlutter: recordText(
               statuses: ['add_item:implemented', 'drop_item:planned'],
               code: [
                 'add_item:app/lib/shop.dart:Shop 0123456789ab',
@@ -2706,8 +2702,8 @@ void main() {
     test('E20: a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
       final bare = recordText(statuses: ['drop_item:planned']);
       final root = await shopTwins(
-        extra: {'docs/$cartJaspr': bare},
-        without: {'docs/$payJaspr'},
+        extra: {cartJaspr: bare},
+        without: {payJaspr},
       );
       moveAddItem(root);
       expect(readDoc(root, cartJaspr), bare);
@@ -2716,9 +2712,7 @@ void main() {
     });
 
     test('E20: a target with no cart record changes nothing', () async {
-      final root = await shopTwins(
-        without: {'docs/$cartJaspr', 'docs/$payJaspr'},
-      );
+      final root = await shopTwins(without: {cartJaspr, payJaspr});
       moveAddItem(root);
       expect(hasDoc(root, cartJaspr), isFalse);
       expect(hasDoc(root, payJaspr), isFalse);
@@ -2745,7 +2739,7 @@ void main() {
     test('E19: two stories moved in one call keep the order of the record, whatever order the call names them', () async {
       final root = await shopTwins(
         extra: {
-          'docs/$cartFlutter': recordText(
+          cartFlutter: recordText(
             statuses: ['add_item:implemented', 'drop_item:planned'],
           ),
         },
@@ -2853,11 +2847,11 @@ void main() {
           '---\n\n# Record\n';
       final root = await shopTwins(
         extra: {
-          'docs/$cartJaspr': recordText(
+          cartJaspr: recordText(
             statuses: ['add_item:implemented', 'drop_item:planned'],
             code: ['add_item:web/lib/shop.dart'],
           ),
-          'docs/$payJaspr': broken,
+          payJaspr: broken,
         },
       );
       expect(
@@ -2883,7 +2877,7 @@ void main() {
           "---\nstatuses:\n  - 'add_item:implemented'\n"
           "implements:\n  - 'add_item:web/lib/shop.dart\n"
           '---\n\n# Record\n';
-      final root = await shopTwins(extra: {'docs/$cartJaspr': broken});
+      final root = await shopTwins(extra: {cartJaspr: broken});
       expect(
         () => moveAddItem(root),
         throwsA(
@@ -2901,7 +2895,7 @@ void main() {
       final root = await writeNestedProject(
         extra: {
           '.specstone/config.yaml': oneTargetConfig(),
-          '.specstone/templates/implementation.yaml': recordLayer,
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
           '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md': flutterCart,
         },
       );

@@ -95,7 +95,7 @@ final loginProject = <String, String>{
 ///
 /// Keys are paths relative to the project root; a test adds them as `extra`.
 const loginRecords = <String, String>{
-  'docs/specs/f01_login/IMPLEMENTATION.md':
+  '.specstone/records/f01_login/IMPLEMENTATION.md':
       "---\nstatuses:\n  - 'email_login:planned'\n"
       "  - 'email_login/validate_credentials:implemented'\n"
       "  - 'email_login/lock_after_failures:planned'\n"
@@ -103,7 +103,7 @@ const loginRecords = <String, String>{
       "  - 'email_login:app/lib/src/login/sign_in_page.dart:SignInPage'\n"
       "  - 'email_login/validate_credentials:app/lib/src/login/credential_validator.dart:CredentialValidator'\n"
       '---\n\n# Login implementation\n',
-  'docs/specs/f02_signup/IMPLEMENTATION.md':
+  '.specstone/records/f02_signup/IMPLEMENTATION.md':
       "---\nstatuses:\n  - 'create_account:implemented'\n"
       "  - 'create_account/store_account:implemented'\nimplements:\n"
       "  - 'create_account/store_account:app/lib/src/signup/account_store.dart:AccountStore'\n"

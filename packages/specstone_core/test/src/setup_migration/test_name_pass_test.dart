@@ -28,7 +28,7 @@ const _featurePath = 'prds/features/f01_login/FEATURE.md';
 const _storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 const _frPath =
     'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
-const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
+const _recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
 const _otherFeaturePath = 'prds/features/f02_billing/FEATURE.md';
 const _otherStoryPath = 'prds/features/f02_billing/us01_pay/USER_STORY.md';
 const _testPath = 'app/test/auth_test.dart';
@@ -574,7 +574,10 @@ void main() {
       final pass = _run(project, home: await _home()).pass;
 
       final record = pass.recordCreates.single;
-      expect(record.docPath, 'specs/f02_billing/IMPLEMENTATION.md');
+      expect(
+        record.docPath,
+        '.specstone/records/f02_billing/IMPLEMENTATION.md',
+      );
       expect(_valuesOf(record.text)['draft'], true);
       expect(_testsOf(record.text), ['pay:test/auth_test.dart']);
     });
@@ -834,7 +837,7 @@ void _legacyTests() {
         ),
       );
       final record = plan.creates.singleWhere(
-        (create) => create.path == 'docs/$_recordPath',
+        (create) => create.path == _recordPath,
       );
       expect(record.note, ' (draft)');
       expect(_testsOf(record.text), [

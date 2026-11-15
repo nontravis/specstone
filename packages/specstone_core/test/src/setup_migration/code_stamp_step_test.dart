@@ -22,17 +22,17 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
-import '../../helpers/write_fixture.dart' show writeIn;
+import '../../helpers/write_fixture.dart' show docFile, writeIn;
 
 const _login = 'app/lib/login.dart';
 const _stale = '0123456789ab';
 const _from = '1.6.0';
 const _step = 'stamp_code_fingerprints';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
 /// Every doc whose code links the fixture writes, left with none recorded.
-const _linkedDocs = {'docs/$loginRecord', 'docs/$loginArchitecture'};
+const Set<String> _linkedDocs = {loginRecord, 'docs/$loginArchitecture'};
 
 String _fingerprintOf(String text, String path) =>
     fileCodeFingerprint(utf8.encode(text), path: path);
@@ -112,7 +112,7 @@ CodeStampDoc _docOf(DocTypeMatcher matcher, String docPath, File file) {
 /// Writes each rewrite of [step] under [project].
 void _write(Directory project, CodeStampStep step) {
   for (final MapEntry(key: docPath, value: lf) in step.rewrites.entries) {
-    File('${project.path}/docs/$docPath').writeAsStringSync(lf);
+    docFile(project, docPath).writeAsStringSync(lf);
   }
 }
 
@@ -133,14 +133,14 @@ List<Finding> _codeFindings(CheckReport report) => [
 ];
 
 String _read(Directory project, String docPath) =>
-    File('${project.path}/docs/$docPath').readAsStringSync();
+    docFile(project, docPath).readAsStringSync();
 
 /// Returns the real-path resolves of planning the step over a record that
 /// holds [links] implemented entries for one code file.
 Future<int> _resolvesOfPlan(int links) async {
   final project = await _project(
     extra: {
-      'docs/$loginRecord': _record(
+      loginRecord: _record(
         code: [for (var i = 0; i < links; i++) 'email_login:$_login:Symbol$i'],
       ),
     },
@@ -188,7 +188,7 @@ void main() {
     test('a stale fingerprint is replaced in place, with no compare', () async {
       final project = await _project(
         extra: {
-          'docs/$loginRecord': _record(
+          loginRecord: _record(
             code: ['email_login:$_login:SignInPage $_stale'],
           ),
         },
@@ -240,7 +240,7 @@ void main() {
         ],
         tests: ['email_login:$_login'],
       );
-      final project = await _project(extra: {'docs/$loginRecord': record});
+      final project = await _project(extra: {loginRecord: record});
 
       final step = _planAt(project);
 
@@ -251,7 +251,7 @@ void main() {
         'waits and stays as written', () async {
       final project = await _project(
         extra: {
-          'docs/$loginRecord': _record(
+          loginRecord: _record(
             statuses: ['email_login:planned'],
             code: ['email_login:app/lib/missing.dart'],
           ),
@@ -272,7 +272,7 @@ void main() {
       () async {
         final project = await _project(
           extra: {
-            'docs/$loginRecord': _record(
+            loginRecord: _record(
               statuses: ['email_login:deprecated'],
               code: ['email_login:$_login:SignInPage'],
             ),
@@ -342,7 +342,7 @@ void main() {
       () async {
         final project = await _project(
           extra: {
-            'docs/$loginRecord':
+            loginRecord:
                 "---\nstatuses:\n  - 'email_login:implemented'\n"
                 'implements:\n  - >-\n    email_login:$_login:SignInPage\n'
                 '---\n\n# Login implementation\n',
@@ -405,11 +405,11 @@ void main() {
         line.text,
         'from 1.6.0: stamp_code_fingerprints: 2 docs; 3 entries',
       );
-      expect(line.paths, [loginArchitecture, loginRecord]);
+      expect(line.paths, [loginRecord, loginArchitecture]);
       expect(line.toJson(), {
         'from': '1.6.0',
         'step': _step,
-        'paths': [loginArchitecture, loginRecord],
+        'paths': [loginRecord, loginArchitecture],
         'unreadable': <String>[],
       });
     });
@@ -429,7 +429,7 @@ void main() {
         ),
       };
       for (final MapEntry(key: path, value: text) in records.entries) {
-        File('${project.path}/docs/$path')
+        docFile(project, path)
           ..createSync(recursive: true)
           ..writeAsStringSync(text);
       }
@@ -441,7 +441,7 @@ void main() {
         'from 1.6.0: stamp_code_fingerprints: 2 docs; flutter: 2 entries; '
         'jaspr: 0 entries',
       );
-      expect(step.paths, [flutterArchitecture, _flutterRecord]);
+      expect(step.paths, [_flutterRecord, flutterArchitecture]);
     });
 
     test(
@@ -451,9 +451,7 @@ void main() {
       () async {
         final project = await _project(
           extra: {
-            'docs/$loginRecord': _record(
-              code: ['email_login:$_login:SignInPage'],
-            ),
+            loginRecord: _record(code: ['email_login:$_login:SignInPage']),
             'docs/$loginArchitecture':
                 checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
                   '  - app/lib/\n',
@@ -495,7 +493,7 @@ void main() {
       List<String> statuses = const ['email_login:implemented'],
     }) => _project(
       extra: {
-        'docs/$loginRecord': _record(statuses: statuses, code: code),
+        loginRecord: _record(statuses: statuses, code: code),
         'docs/$loginArchitecture':
             checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
               'covers:\n  - app/lib/\n',
@@ -565,7 +563,7 @@ void main() {
       final project = await _project(
         extra: {
           _login: plainCode,
-          'docs/$loginRecord': _record(
+          loginRecord: _record(
             code: ['email_login:$_login:SignInPage ${_legacyOf(plainCode)}'],
           ),
         },
@@ -609,7 +607,7 @@ void main() {
         ),
       };
       for (final MapEntry(key: path, value: text) in records.entries) {
-        File('${project.path}/docs/$path')
+        docFile(project, path)
           ..createSync(recursive: true)
           ..writeAsStringSync(text);
       }

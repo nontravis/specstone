@@ -342,7 +342,7 @@ void main() {
             ),
             (
               '### signIn\n\nSigns the Agent in.',
-              '### signIn\n\nSigns the Agent in.\n\n### `lock`\n\nLocks it.',
+              '### signIn\n\nSigns the Agent in.\n\n**Response example — success**\n\n**Response example — error**\n\n### `lock`\n\nLocks it.',
             ),
           ]),
           ...fr(

@@ -925,7 +925,7 @@ void main() {
         final root = await writeTwinProject(
           extra: {
             ...edit(loginStory, [('goals:\n', 'draft: true\ngoals:\n')]),
-            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
+            '.specstone/records/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
           },
         );
         final (:runner, :out, :err) = writeRunner(root);

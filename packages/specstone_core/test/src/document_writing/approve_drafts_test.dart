@@ -2130,10 +2130,12 @@ void main() {
             ...check.edit(check.loginStory, [
               ('goals:\n', 'draft: true\ngoals:\n'),
             ]),
-            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': record(
+            '.specstone/records/flutter/f01_login/IMPLEMENTATION.md': record(
               'implemented',
             ),
-            'docs/specs/jaspr/f01_login/IMPLEMENTATION.md': record('planned'),
+            '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md': record(
+              'planned',
+            ),
           },
         );
         Object? statusUnder(String target) {
@@ -2159,9 +2161,8 @@ void main() {
           ...check.edit(check.loginStory, [
             ('goals:\n', 'draft: true\ngoals:\n'),
           ]),
-          'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _unstampedRecord(
-            'email_login:implemented',
-          ),
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md':
+              _unstampedRecord('email_login:implemented'),
         },
       );
 
@@ -2207,9 +2208,8 @@ void main() {
             ...check.edit(check.loginStory, [
               ('goals:\n', 'draft: true\ngoals:\n'),
             ]),
-            'docs/specs/flutter/f01_login/IMPLEMENTATION.md': _unstampedRecord(
-              'email_login:implemented',
-            ),
+            '.specstone/records/flutter/f01_login/IMPLEMENTATION.md':
+                _unstampedRecord('email_login:implemented'),
           },
         );
         final twinAnswer = writeIn(
@@ -2259,7 +2259,7 @@ void main() {
 
       bool walksRecord(Directory root) => at(
         root,
-        (s) => approveDryRun(s).text.contains('`docs/${check.loginRecord}`'),
+        (s) => approveDryRun(s).text.contains('`${check.loginRecord}`'),
       );
 
       test(
