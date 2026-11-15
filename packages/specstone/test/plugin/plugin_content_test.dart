@@ -798,6 +798,11 @@ const _procedures = <_Procedure>[
     commands: ['context', 'set', 'check'],
   ),
   (
+    file: 'specstone-sync-sdd/references/task-refs.md',
+    tags: 'agent_plugin/sync_code_and_docs/remove_done_task_refs',
+    commands: ['set'],
+  ),
+  (
     file: 'specstone-bootstrap-prd/references/procedure.md',
     tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
     commands: ['check', 'guide', 'new', 'set', 'delete'],
@@ -2436,8 +2441,8 @@ void _agentTests() {
       expect(
         procedure(),
         contains(
-          'and each pointer that waits on an approval, with its doc, its code '
-          'target, and its code path.',
+          'and each pointer that waits on an approval, with its doc, code '
+          'target, and code path.',
         ),
       );
     });
@@ -2555,8 +2560,8 @@ void _agentTests() {
         text,
         contains(
           "A finding's `path` is relative to its target's code root "
-          '(`code_root:` in `.specstone/config.yaml`, under `targets:` per '
-          'target; default `.`). From the project root, `--code` and each '
+          '(`code_root:` per `targets:` entry in `.specstone/config.yaml`; '
+          'default `.`). From the project root, `--code` and each '
           'git pathspec take `<code root>/<path>`.',
         ),
       );
@@ -2921,7 +2926,8 @@ void _agentTests() {
       expect(
         output,
         contains(
-          'each pointer fixed; each `Mismatches:` point and each `Uncovered:` '
+          'each pointer fixed; each task whose refs the sync removed; each '
+          '`Mismatches:` point and each `Uncovered:` '
           'file; each behavior handed to `specstone-brainstorming-sdd`; each '
           'pointer that waits on an approval; open questions; then '
           '`Findings:`.',
@@ -5349,9 +5355,9 @@ void _syncBootstrapTests() {
   group('the sync and bootstrap skills', () {
     const bootstraps = ['bootstrap-prd', 'bootstrap-spec'];
 
-    test('each of the six reaches the source and every host render', () {
+    test('each of the seven reaches the source and every host render', () {
       final paths = _syncBootstrapContent().map((file) => file.path);
-      expect(paths, hasLength(6 + 6 + 6));
+      expect(paths, hasLength(7 + 7 + 7));
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
@@ -5429,8 +5435,76 @@ void _syncBootstrapTests() {
       );
     });
 
-    test('each of the six skill files stays within 1,500 est. tokens', () {
+    test('each of the seven skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_syncBootstrapContent()), isEmpty);
+    });
+
+    group('the task refs file of the sync skill', () {
+      String refs() =>
+          _oneLine(_pluginText('specstone-sync-sdd/references/task-refs.md'));
+
+      test('step 4.2 of the procedure points at it, and the report lists the '
+          'removed tasks', () {
+        final text = _pluginText('specstone-sync-sdd/references/procedure.md');
+        final procedure = _oneLine(text);
+        final step = procedure.substring(
+          procedure.indexOf('2. Write by outcome'),
+          procedure.indexOf('3. Fix each record'),
+        );
+        expect(step, contains('`task-refs.md`'));
+        expect(
+          _oneLine(_sectionOf(text, 'Report to the Owner')),
+          contains('each task removed'),
+        );
+      });
+
+      test('it takes the candidates from the bundle and the messages from '
+          'git log, with and without a base', () {
+        final text = refs();
+        expect(text, contains('`context --code` bundle'));
+        expect(text, contains('git log --format=%B <base>..HEAD --'));
+        expect(text, contains('With none, read the messages of every commit'));
+      });
+
+      test('it names every closing word, both forms, and the mention rule', () {
+        final text = refs();
+        for (final word in [
+          'close',
+          'closes',
+          'closed',
+          'fix',
+          'fixes',
+          'fixed',
+          'resolve',
+          'resolves',
+          'resolved',
+        ]) {
+          expect(text, contains('`$word`'), reason: word);
+        }
+        expect(text, contains('Keyword form'));
+        expect(text, contains('Command form'));
+        expect(text, contains('`done`'));
+        expect(text, contains('a mention and closes nothing'));
+        expect(text, contains('`Refs ENG-42`'));
+      });
+
+      test('it runs one set --remove-task, with --target for two or more '
+          'targets, and waits under a pending draft', () {
+        final text = refs();
+        expect(text, contains('specstone set --remove-task <task>'));
+        expect(text, contains('run once'));
+        expect(text, contains('when the project has 2 or more code targets'));
+        expect(text, contains('waiting pointer'));
+        expect(text, contains('pending draft'));
+        expect(text, contains('in your report to the Owner'));
+      });
+
+      test('the sdd-engineer sync report names the removed tasks', () {
+        final sync = _oneLine(
+          _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Output Format'),
+        );
+        expect(sync, contains('each task whose refs the sync removed'));
+      });
     });
   });
 }
