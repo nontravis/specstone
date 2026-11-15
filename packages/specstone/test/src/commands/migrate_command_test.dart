@@ -379,21 +379,26 @@ void main() {
       expect(err.toString(), contains('not in a git work tree'));
     });
 
-    test('migrate refuses a malformed settings file, exit 65, writing '
-        'nothing', () async {
-      final root = await gitFixture({
-        ...acmeLegacy,
-        '.claude/settings.json': '{ not json',
-      });
-      final before = _bytesUnder(root);
-      final (:runner, :out, :err) = writeRunner(root);
+    for (final (name, args) in [
+      ('--dry-run', ['migrate', '--dry-run']),
+      ('--yes --plan', ['migrate', '--yes', '--plan', '000000000000']),
+    ]) {
+      test('migrate $name refuses a malformed settings file, exit 65, '
+          'writing nothing', () async {
+        final root = await gitFixture({
+          ...acmeLegacy,
+          '.claude/settings.json': '{ not json',
+        });
+        final before = _bytesUnder(root);
+        final (:runner, :out, :err) = writeRunner(root);
 
-      expect(await runner.run(['migrate', '--dry-run']), 65);
+        expect(await runner.run(args), 65);
 
-      expect(out.toString(), isEmpty);
-      expect(err.toString(), contains('.claude/settings.json'));
-      expect(_bytesUnder(root), before);
-    }, skip: hasGit ? null : 'git is not available');
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), contains('.claude/settings.json'));
+        expect(_bytesUnder(root), before);
+      }, skip: hasGit ? null : 'git is not available');
+    }
   });
 
   test('migrate takes no argument', () async {

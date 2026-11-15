@@ -96,7 +96,8 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
            templates ?? TemplateResolver(generatorKinds: registry.kinds),
        _workingDirectory = workingDirectory,
        _environment = environment ?? Platform.environment,
-       _homeDirectory = homeDirectory ?? homeFrom(Platform.environment),
+       _homeDirectory =
+           homeDirectory ?? homeFrom(environment ?? Platform.environment),
        _busyTimeout = busyTimeout,
        _console = console ?? SystemConsole(),
        super(

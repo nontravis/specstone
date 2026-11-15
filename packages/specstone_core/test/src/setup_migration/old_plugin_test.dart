@@ -8,8 +8,6 @@ import '../../helpers/temp_tree.dart';
 const _on = '{"enabledPlugins": {"specstone@specstone": true}}';
 const _off = '{"enabledPlugins": {"specstone@specstone": false}}';
 
-Future<Directory> _folder(Map<String, String> files) => writeTree(files);
-
 bool _enabled({
   required Directory root,
   Directory? home,
@@ -19,23 +17,23 @@ bool _enabled({
 void main() {
   for (final path in ['.claude/settings.json', '.claude/settings.local.json']) {
     test('the project file $path enabling the plugin reads as on', () async {
-      final root = await _folder({path: _on});
+      final root = await writeTree({path: _on});
 
       expect(_enabled(root: root), isTrue);
     });
   }
 
   test('the home settings file enabling the plugin reads as on', () async {
-    final root = await _folder({});
-    final home = await _folder({'.claude/settings.json': _on});
+    final root = await writeTree({});
+    final home = await writeTree({'.claude/settings.json': _on});
 
     expect(_enabled(root: root, home: home), isTrue);
   });
 
   test('CLAUDE_CONFIG_DIR wins over the home folder', () async {
-    final root = await _folder({});
-    final home = await _folder({'.claude/settings.json': _on});
-    final config = await _folder({'settings.json': _off});
+    final root = await writeTree({});
+    final home = await writeTree({'.claude/settings.json': _on});
+    final config = await writeTree({'settings.json': _off});
 
     expect(
       _enabled(
@@ -48,8 +46,8 @@ void main() {
   });
 
   test('CLAUDE_CONFIG_DIR holding the plugin reads as on', () async {
-    final root = await _folder({});
-    final config = await _folder({'settings.json': _on});
+    final root = await writeTree({});
+    final config = await writeTree({'settings.json': _on});
 
     expect(
       _enabled(root: root, environment: {'CLAUDE_CONFIG_DIR': config.path}),
@@ -58,8 +56,8 @@ void main() {
   });
 
   test('an empty CLAUDE_CONFIG_DIR falls back to the home folder', () async {
-    final root = await _folder({});
-    final home = await _folder({'.claude/settings.json': _on});
+    final root = await writeTree({});
+    final home = await writeTree({'.claude/settings.json': _on});
 
     expect(
       _enabled(root: root, home: home, environment: {'CLAUDE_CONFIG_DIR': ''}),
@@ -67,50 +65,71 @@ void main() {
     );
   });
 
-  test('a plugin set to false, absent, or listed beside others reads as '
-      'off or on by its own key', () async {
-    final off = await _folder({'.claude/settings.json': _off});
-    final absent = await _folder({'.claude/settings.json': '{}'});
-    final other = await _folder({
+  test('a plugin set to false reads as off', () async {
+    final root = await writeTree({'.claude/settings.json': _off});
+
+    expect(_enabled(root: root), isFalse);
+  });
+
+  test('a file without the key reads as off', () async {
+    final root = await writeTree({'.claude/settings.json': '{}'});
+
+    expect(_enabled(root: root), isFalse);
+  });
+
+  test('another plugin enabled alone reads as off', () async {
+    final root = await writeTree({
       '.claude/settings.json': '{"enabledPlugins": {"other@market": true}}',
     });
-    final beside = await _folder({
+
+    expect(_enabled(root: root), isFalse);
+  });
+
+  test('the plugin enabled beside another plugin reads as on', () async {
+    final root = await writeTree({
       '.claude/settings.json':
           '{"enabledPlugins": {"other@market": true, '
           '"specstone@specstone": true}}',
     });
 
-    expect(_enabled(root: off), isFalse);
-    expect(_enabled(root: absent), isFalse);
-    expect(_enabled(root: other), isFalse);
-    expect(_enabled(root: beside), isTrue);
+    expect(_enabled(root: root), isTrue);
   });
 
   test('a missing file, a missing home, and no files read as off', () async {
-    final root = await _folder({});
+    final root = await writeTree({});
 
     expect(_enabled(root: root), isFalse);
     expect(_enabled(root: root, home: Directory('${root.path}/none')), isFalse);
   });
 
-  test('an unparseable file reads as holding no key, and the others still '
-      'count', () async {
-    final root = await _folder({
-      '.claude/settings.json': '{ not json',
-      '.claude/settings.local.json': _on,
-    });
-    final broken = await _folder({'.claude/settings.json': '[1, 2]'});
-    final shape = await _folder({
+  test(
+    'an unparseable file holds no key, and the others still count',
+    () async {
+      final root = await writeTree({
+        '.claude/settings.json': '{ not json',
+        '.claude/settings.local.json': _on,
+      });
+
+      expect(_enabled(root: root), isTrue);
+    },
+  );
+
+  test('a file whose top level is no object reads as off', () async {
+    final root = await writeTree({'.claude/settings.json': '[1, 2]'});
+
+    expect(_enabled(root: root), isFalse);
+  });
+
+  test('an enabledPlugins that is no object reads as off', () async {
+    final root = await writeTree({
       '.claude/settings.json': '{"enabledPlugins": ["specstone@specstone"]}',
     });
 
-    expect(_enabled(root: root), isTrue);
-    expect(_enabled(root: broken), isFalse);
-    expect(_enabled(root: shape), isFalse);
+    expect(_enabled(root: root), isFalse);
   });
 
   test('the string "true" does not enable the plugin', () async {
-    final root = await _folder({
+    final root = await writeTree({
       '.claude/settings.json':
           '{"enabledPlugins": {"specstone@specstone": "true"}}',
     });

@@ -13,6 +13,7 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/git_gate.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/old_plugin.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/run_kind.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
@@ -38,6 +39,7 @@ final class MigrateRequest {
     this.planHash,
     this.runGit = runMigrateGit,
     this.warn = warnOnStderr,
+    this.environment = const {},
   });
 
   /// The folder the project root is searched from.
@@ -75,6 +77,9 @@ final class MigrateRequest {
   /// Reports one warning line, such as an agent file the run leaves outside
   /// the project root; writes it to stderr unless replaced.
   final void Function(String line) warn;
+
+  /// The process environment, where `CLAUDE_CONFIG_DIR` is read from.
+  final Map<String, String> environment;
 }
 
 /// Runs `specstone migrate` and returns its exit status.
@@ -124,6 +129,7 @@ MigrateFault _gitFailed(String command, String line) => MigrateFault(
 
 int _migrate(MigrateRequest request) {
   final (:root, :linkFolder) = locateMigrateRoot(request.workingDirectory);
+  _warnOldPlugin(request, root);
   final trust = _trustOf(root, linkFolder, request);
   requireSpecstoneFolder(root);
   if (!MoveJournal.pendingMigrate(root) && MoveJournal.pending(root)) {
@@ -160,6 +166,22 @@ int _migrate(MigrateRequest request) {
       return _resume(request, root, trust);
   }
 }
+
+/// Reports on [request]'s warnings that the old Claude Code plugin is on.
+void _warnOldPlugin(MigrateRequest request, Directory root) {
+  if (oldPluginEnabled(
+    projectRoot: root,
+    environment: request.environment,
+    home: request.homeDirectory,
+  )) {
+    request.warn(_oldPluginLine);
+  }
+}
+
+const _oldPluginLine =
+    'specstone: the Specstone plugin for Claude Code is still on; its hook '
+    'now comes from .claude/settings.json. Run: claude plugin uninstall '
+    'specstone@specstone';
 
 /// Runs the bare legacy migration of [root] from its git checks on.
 ///
