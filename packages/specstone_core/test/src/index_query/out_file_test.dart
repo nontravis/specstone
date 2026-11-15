@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/out_file.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -8,6 +9,15 @@ import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/temp_tree.dart';
+
+/// Returns [below], `/`-separated, under [root] in native separators.
+String under(String root, String below) =>
+    [root, ...below.split('/')].join(Platform.pathSeparator);
+
+/// Matches the `output_not_writable` fault whose message holds [message].
+Matcher _notWritable(String message) => isA<RenderFault>()
+    .having((fault) => fault.code, 'code', RenderFaultCode.outputNotWritable)
+    .having((fault) => fault.message, 'message', contains(message));
 
 void main() {
   group('outFileName', () {
@@ -104,6 +114,7 @@ void main() {
     late Directory project;
     late Directory docsRoot;
     late String real;
+    final outside = Directory.systemTemp.resolveSymbolicLinksSync();
 
     setUp(() async {
       project = await writeTree({
@@ -114,11 +125,11 @@ void main() {
         'reports/keep.txt': 'keep\n',
       });
       real = project.resolveSymbolicLinksSync();
-      docsRoot = Directory('$real/docs');
+      docsRoot = Directory(under(real, 'docs'));
     });
 
     void requireOut(String below, {bool isBare = false}) => requireOutPath(
-      '$real/$below',
+      under(real, below),
       projectRoot: project,
       docsRoot: docsRoot,
       isBare: isBare,
@@ -176,13 +187,17 @@ void main() {
     test('refuses a bare path outside the project', () {
       expect(
         () => requireOutPath(
-          '${Directory.systemTemp.resolveSymbolicLinksSync()}/b.txt',
+          under(outside, 'b.txt'),
           projectRoot: project,
           docsRoot: docsRoot,
           isBare: true,
         ),
-        throwsA(isA<RenderFault>()),
+        throwsA(_notWritable('it leads outside the project')),
       );
+    });
+
+    test('refuses the docs root itself', () {
+      expectRefused('docs', message: 'the output path is inside the docs root');
     });
 
     test(
@@ -196,7 +211,7 @@ void main() {
 
     test('accepts a named path outside the project', () {
       requireOutPath(
-        '${Directory.systemTemp.resolveSymbolicLinksSync()}/b.txt',
+        under(outside, 'b.txt'),
         projectRoot: project,
         docsRoot: docsRoot,
         isBare: false,
@@ -209,22 +224,16 @@ void main() {
 
     test('a bare path with no project is refused', () {
       expect(
-        () => requireOutPath('/tmp/b.txt', isBare: true),
-        throwsA(isA<RenderFault>()),
+        () => requireOutPath(under(outside, 'b.txt'), isBare: true),
+        throwsA(_notWritable('a bare --out names its file under a project')),
       );
     });
 
     test('a named path with no project checks only .git', () {
-      requireOutPath('/tmp/b.txt', isBare: false);
+      requireOutPath(under(outside, 'b.txt'), isBare: false);
       expect(
-        () => requireOutPath('/tmp/.git/b.txt', isBare: false),
-        throwsA(
-          isA<RenderFault>().having(
-            (fault) => fault.message,
-            'message',
-            contains('it lies under .git'),
-          ),
-        ),
+        () => requireOutPath(under(outside, '.git/b.txt'), isBare: false),
+        throwsA(_notWritable('it lies under .git')),
       );
     });
   });
@@ -241,7 +250,7 @@ void main() {
     setUp(() async {
       project = await writeTree({'.specstone/config.yaml': 'pins: {}\n'});
       real = project.resolveSymbolicLinksSync();
-      file = File('$real/.specstone/reports/deep/check.all.txt');
+      file = File(under(real, '.specstone/reports/deep/check.all.txt'));
     });
 
     ReadAnswer write(
@@ -255,7 +264,7 @@ void main() {
       text: text,
       file: to ?? file,
       projectRoot: project,
-      docsRoot: Directory('$real/docs'),
+      docsRoot: Directory(under(real, 'docs')),
       isBare: true,
       asJson: asJson,
       warnings: warnings,
@@ -265,7 +274,10 @@ void main() {
     test('writes the text, makes missing folders, prints the header', () {
       final answer = write('one\ntwo\nthree\n');
       expect(file.readAsStringSync(), 'one\ntwo\nthree\n');
-      expect(answer.text, '==> check: 3 lines, 3 tokens · ${file.path} <==\n');
+      expect(
+        answer.text,
+        '==> check: 3 lines, 3 tokens · ${canonicalPath(file.path)} <==\n',
+      );
     });
 
     test('carries warnings and the exit status through', () {
@@ -278,12 +290,16 @@ void main() {
       final body = '${jsonEncode({'findings': <String>[]})}\n';
       final answer = write(body, asJson: true);
       expect(file.readAsStringSync(), body);
-      expect(answer.json, {'out': file.path, 'lines': 1, 'tokens': 4});
+      expect(answer.json, {
+        'out': canonicalPath(file.path),
+        'lines': 1,
+        'tokens': 4,
+      });
       expect(answer.json.keys, ['out', 'lines', 'tokens']);
     });
 
     test('refuses a path under .specstone/ and leaves it whole', () {
-      final config = File('$real/.specstone/config.yaml');
+      final config = File(under(real, '.specstone/config.yaml'));
       expect(
         () => write('overwritten\n', to: config),
         throwsA(isA<SpecstoneFault>()),
@@ -292,9 +308,9 @@ void main() {
     });
 
     test('refuses a reports link into the config and leaves it whole', () {
-      Directory('$real/.specstone/reports').createSync(recursive: true);
-      final config = File('$real/.specstone/config.yaml');
-      final link = Link('$real/.specstone/reports/link.txt')
+      Directory(under(real, '.specstone/reports')).createSync(recursive: true);
+      final config = File(under(real, '.specstone/config.yaml'));
+      final link = Link(under(real, '.specstone/reports/link.txt'))
         ..createSync(config.path);
       expect(
         () => write('overwritten\n', to: File(link.path)),

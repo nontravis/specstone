@@ -3,7 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
-    show isGitEntry, pathFromProjectRoot, requireWritableTarget;
+    show pathFromProjectRoot, requireNotUnderGit, requireWritableTarget;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
 import 'package:specstone_core/src/index_query/read_answer.dart'
@@ -88,7 +88,7 @@ void requireOutPath(
     return;
   }
   final shown = pathFromProjectRoot(realPath, projectRoot, docsRoot);
-  if (docsRoot != null && _isBelow(realPath, _realOf(docsRoot))) {
+  if (docsRoot != null && _isAtOrBelow(realPath, _realOf(docsRoot))) {
     throw _refusal(_insideDocsRoot, shown);
   }
   if (_isInsideSpecstoneFolder(realPath, _realOf(projectRoot))) {
@@ -104,13 +104,14 @@ void requireOutPath(
 
 void _requireOutsideProject(String realPath, {required bool isBare}) {
   if (isBare) throw _refusal(_bareNeedsProject, realPath);
-  if (realPath.split(Platform.pathSeparator).any(isGitEntry)) {
-    throw _refusal('it lies under .git', realPath, prefix: 'cannot write');
-  }
+  requireNotUnderGit(realPath);
 }
 
 String _realOf(Directory root) =>
     root.existsSync() ? root.resolveSymbolicLinksSync() : root.absolute.path;
+
+bool _isAtOrBelow(String path, String root) =>
+    path == root || _isBelow(path, root);
 
 bool _isBelow(String path, String root) =>
     path.startsWith('$root${Platform.pathSeparator}');
@@ -126,12 +127,8 @@ bool _isInsideSpecstoneFolder(String realPath, String projectRoot) {
   return below.length < 3 || !_outFolders.contains(below[1]);
 }
 
-RenderFault _refusal(String message, String file, {String? prefix}) =>
-    RenderFault(
-      RenderFaultCode.outputNotWritable,
-      prefix == null ? message : '$prefix $file: $message',
-      file: file,
-    );
+RenderFault _refusal(String message, String file) =>
+    RenderFault(RenderFaultCode.outputNotWritable, message, file: file);
 
 // MARK: - Write
 
