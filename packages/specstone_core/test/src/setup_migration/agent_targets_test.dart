@@ -218,6 +218,21 @@ void main() {
       );
     });
 
+    test('a dev stamp above the running Version is kept', () async {
+      final base = await _base(settled({}));
+      final inputs = _inputs(base);
+      final dev = ReleaseVersion.tryParse('1.3.0-dev.39');
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: dev,
+        ),
+        same(dev),
+      );
+    });
+
     test('a stale block the plan leaves keeps the stamp as it was', () async {
       final base = await _base(settled({'proj/CLAUDE.md': staleBlock}));
       final inputs = _inputs(base);
@@ -2193,6 +2208,13 @@ void main() {
 
     test('the running Version picks migrate', () {
       expect(agentFixDirectionOf(runningVersion), AgentFixDirection.migrate);
+    });
+
+    test('a dev stamp above the running Version picks upgrade', () {
+      expect(
+        agentFixDirectionOf(ReleaseVersion.tryParse('1.3.0-dev.39')),
+        AgentFixDirection.upgrade,
+      );
     });
 
     test('a stamp above the running Version picks upgrade', () {
