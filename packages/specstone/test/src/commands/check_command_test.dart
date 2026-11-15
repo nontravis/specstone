@@ -1593,6 +1593,38 @@ void main() {
 
       expect(text.stdout, isNot(contains('task_item_missing')));
     });
+
+    test('an entry on a feature whose every story and FR is implemented is one finding naming the fix, in text and --json', () async {
+      final project = await domainWith('- **INV-4** An email is unique.');
+      const message =
+          'task ENG-42 is left on the done feature login; '
+          'drop the entry with specstone set domain:login --field tasks';
+
+      final (text, json) = await run(project);
+
+      expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+      expect(text.stdout, contains('$domain:3: task_ref_leftover: $message\n'));
+      expect(
+        [
+          for (final finding
+              in (jsonDecode(json.stdout as String) as Map)['findings'] as List)
+            if ((finding as Map)['kind'] == 'task_ref_leftover') finding,
+        ],
+        [
+          {
+            'kind': 'task_ref_leftover',
+            'docPath': domain,
+            'name': 'login',
+            'line': 3,
+            'message': message,
+            'waitsFor': 'agent',
+            'task': 'ENG-42',
+            'item': 'INV-4',
+            'feature': 'login',
+          },
+        ],
+      );
+    });
   });
 
   group('skill and agent files', () {

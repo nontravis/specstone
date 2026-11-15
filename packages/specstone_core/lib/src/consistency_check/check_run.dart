@@ -103,6 +103,7 @@ CheckReport runCheck(
       ..addAll(checkCodeLinks(context, work, doc))
       ..addAll(checkDocLinks(context, doc))
       ..addAll(checkTaskRefs(context, doc))
+      ..addAll(checkLeftoverTaskRefs(context, doc))
       ..addAll(checkFeaturePatterns(context, doc))
       ..addAll(checkJourneySteps(context, doc))
       ..addAll(checkNumberLabels(context, doc))
