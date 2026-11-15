@@ -1761,6 +1761,84 @@ void main() {
     });
   });
 
+  group('--out', () {
+    Future<Directory> oneFinding() =>
+        writeCheckProject(extra: frWith('verify_method: maybe'));
+
+    test('writes the report to .specstone/reports/check.all.txt, prints one header line, and exits 1', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['check', '--out']),
+        1,
+        reason: run.err.toString(),
+      );
+      final file = File('${project.path}/.specstone/reports/check.all.txt');
+      expect(file.readAsStringSync(), endsWith('1 finding\n'));
+      expect(file.readAsStringSync(), contains('field_value_mismatch'));
+      final lines = run.out.toString().trimRight().split('\n');
+      expect(lines, hasLength(1));
+      expect(lines.single, startsWith('==> check: '));
+      expect(lines.single, contains(file.resolveSymbolicLinksSync()));
+    });
+
+    test('--repeats --out names its file check-repeats.all.txt', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['check', '--repeats', '--out']),
+        0,
+        reason: run.err.toString(),
+      );
+      expect(
+        File('${project.path}/.specstone/reports/check-repeats.all.txt')
+            .existsSync(),
+        isTrue,
+      );
+      expect(run.out.toString(), startsWith('==> check: '));
+    });
+
+    test('a target with --json --out writes the JSON report and prints out, lines, and tokens', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      expect(
+        await run.runner.run(['check', 'feature:login', '--json', '--out']),
+        1,
+        reason: run.err.toString(),
+      );
+      final file = File(
+        '${project.path}/.specstone/reports/check.feature-login.json',
+      );
+      final report =
+          jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+      expect(report['count'], 1);
+      final printed = jsonDecode(run.out.toString()) as Map<String, Object?>;
+      expect(printed['out'], file.resolveSymbolicLinksSync());
+      expect(printed['lines'], isA<int>());
+      expect(printed['tokens'], isA<int>());
+    });
+
+    test('--out "" is argument_invalid, exit 64, and writes no file', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      expect(await run.runner.run(['check', '--out', '']), 64);
+      expect(run.out.toString(), isEmpty);
+      expect(
+        Directory('${project.path}/.specstone/reports').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a warning still goes to stderr', () async {
+      final project = await writeCheckProject();
+      File('${project.path}/.specstone/index.sqlite')
+          .writeAsStringSync('not a database');
+      final run = readRunner(project);
+      expect(await run.runner.run(['check', '--out']), 0);
+      expect(run.err.toString(), startsWith('⚠️ WARNING: '));
+    });
+  });
+
   test('an untyped .md under measurements/ is untyped_doc, and one outside the '
       'checked folders gets no check', () async {
     final (:runner, :out, :err) = readRunner(
