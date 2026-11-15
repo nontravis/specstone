@@ -303,7 +303,6 @@
         if (-not $failed -and -not ($results -contains 'removed')) {
             Write-Host 'specstone: nothing to remove'
         }
-        Write-Host 'claude plugin uninstall specstone@specstone'
         if ($failed) {
             throw 'specstone: the uninstall is incomplete; the lines above name what stays'
         }

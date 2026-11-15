@@ -184,7 +184,6 @@ main() {
   if [ "$removed_any" -eq 0 ] && [ "$failed" -eq 0 ]; then
     printf '%s\n' 'specstone: nothing to remove'
   fi
-  printf '%s\n' 'claude plugin uninstall specstone@specstone'
   [ "$failed" -eq 0 ] || exit 1
 }
 
