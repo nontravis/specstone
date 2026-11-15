@@ -2361,6 +2361,74 @@ agent_file_roots:
       });
 
       test(
+        'a 1.7.0 project moves the record of a sub-feature beside its '
+        "feature's record and restamps both, with no untyped doc left",
+        () async {
+          final h = await writeTree({});
+          const oldPath = 'docs/specs/f01_login/IMPLEMENTATION.md';
+          const oldNested = 'docs/specs/f01_login/f01_sso/IMPLEMENTATION.md';
+          const nestedPath =
+              '.specstone/records/f01_login/f01_sso/IMPLEMENTATION.md';
+          const signIn = 'app/lib/login/sign_in.dart';
+          const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+          final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+          final current = fileCodeFingerprint(
+            utf8.encode(signInCode),
+            path: signIn,
+          );
+          String record(String fingerprint) =>
+              "---\nstatuses:\n  - 'email_login:implemented'\nimplements:\n"
+              "  - 'email_login:$signIn:SignIn $fingerprint'\n---\n\n"
+              '# Login implementation\n';
+          final root = await gitFixture({
+            '.specstone/config.yaml':
+                'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
+                '  software-tech: 1.7.0\n',
+            _gitignore: _ignoreFile,
+            featurePath: '# Login\n',
+            storyPath: '# Email login\n',
+            'docs/prds/features/f01_login/f01_sso/FEATURE.md': '# SSO\n',
+            'docs/prds/features/f01_login/f01_sso/us01_email_login/'
+                    'USER_STORY.md':
+                '# Email login\n',
+            oldPath: record(legacy),
+            oldNested: record(legacy),
+            signIn: signInCode,
+          });
+
+          final dry = await _run(root, h, ['migrate', '--dry-run']);
+
+          expect(dry.status, 0, reason: dry.err);
+          expect(
+            dry.out,
+            contains(
+              '  specs/f01_login/f01_sso/IMPLEMENTATION.md -> $nestedPath\n',
+            ),
+          );
+          final lines = dry.out.split('\n');
+          final applied = await _run(root, h, [
+            'migrate',
+            '--yes',
+            '--plan',
+            lines[lines.length - 3].substring('plan '.length),
+          ]);
+
+          expect(applied.status, 0, reason: applied.err);
+          expect(File('${root.path}/$oldNested').existsSync(), isFalse);
+          expect(_read(root, nestedPath), record(current));
+          final check = await _run(root, h, ['check', '--json']);
+          final kinds = [
+            for (final finding
+                in (jsonDecode(check.out) as Map<String, Object?>)['findings']!
+                    as List<Object?>)
+              (finding! as Map<String, Object?>)['kind'],
+          ];
+          expect(kinds, isNot(contains('untyped_doc')));
+          expect(_gitOut(root, ['status', '--porcelain']), isEmpty);
+        },
+      );
+
+      test(
         'a second code target moves a record under .specstone/records/ '
         'into the first target folder and leaves no empty folder behind',
         () async {

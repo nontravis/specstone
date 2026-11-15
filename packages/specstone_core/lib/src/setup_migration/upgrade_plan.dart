@@ -44,6 +44,8 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/nested_paths.dart'
+    show movePatternsAtEveryDepth;
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
@@ -174,7 +176,7 @@ RunPlan _upgradeRunOf(
     olderPatterns: [
       for (final (:step, from: _) in steps)
         if (step is MoveFile && _isPerTargetStep(step, finalSet, firstTarget))
-          step.from,
+          for (final pair in _movePatternsOf(step, finalSet)) pair.from,
     ],
   );
   final (:planned, :movedAt, :movedBy, :treeMoved) = _plannedPaths(
@@ -1033,6 +1035,16 @@ String _withKeyBlock(String text, String key, String block) {
 bool _isPerTargetStep(MoveFile step, MergedSet set, String? firstTarget) =>
     firstTarget != null && (set.lookup(step.docType)?.isPerTarget ?? false);
 
+/// Returns the patterns [step] moves by: its `from` and `to`, repeated once per
+/// nesting depth when its doc type nests in [set].
+List<({String from, String to})> _movePatternsOf(MoveFile step, MergedSet set) {
+  final nesting = set.nestingType;
+  if (nesting == null || set.lookup(step.docType)?.nestedPaths == null) {
+    return [(from: step.from, to: step.to)];
+  }
+  return movePatternsAtEveryDepth(step.from, step.to, nesting);
+}
+
 /// Returns the final path of each doc of [docPaths], the final paths each
 /// move step's docs end at, the last move step that touched each doc, and the
 /// docs the tree move moved.
@@ -1071,7 +1083,11 @@ _plannedPaths(
           in _isPerTargetStep(step, set, firstTarget)
               ? targetNames
               : const <String?>[null])
-        (from: _patternIn(step.from, target), to: _patternIn(step.to, target)),
+        for (final pair in _movePatternsOf(step, set))
+          (
+            from: _patternIn(pair.from, target),
+            to: _patternIn(pair.to, target),
+          ),
     ];
     for (final (:from, :to) in patterns) {
       for (final entry in planned.entries.toList()) {

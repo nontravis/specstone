@@ -3136,12 +3136,19 @@ void _moveToRecordTests() {
       Future<Directory> pinned1x7({
         List<String> records = const [oldRecord],
         String targets = '',
+        List<String> subFeatures = const [],
       }) => writeTree({
         '.specstone/config.yaml':
             'packs:\n  prd-core: ${shippedPackVersions()['prd-core']}\n'
             '  software-tech: 1.7.0\n$targets',
         'docs/$_featurePath': '# Login\n',
         'docs/$_loginStoryPath': '# Email login\n',
+        for (final folder in subFeatures) ...{
+          'docs/prds/features/f01_login/$folder/FEATURE.md': '# Sub\n',
+          'docs/prds/features/f01_login/$folder/us01_email_login/'
+                  'USER_STORY.md':
+              '# Email login\n',
+        },
         for (final path in records) projectPathOfDocPath(path): record,
         signIn: signInCode,
       });
@@ -3231,6 +3238,80 @@ void _moveToRecordTests() {
           '.specstone/records/flutter/f01_login/IMPLEMENTATION.md',
           '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md',
         ]);
+      });
+
+      test('a record of a sub-feature at every depth moves with its '
+          "feature's record, each kept under its own folder", () async {
+        const oldPaths = [
+          oldRecord,
+          'specs/f01_login/f01_sso/IMPLEMENTATION.md',
+          'specs/f01_login/f01_sso/f02_saml/IMPLEMENTATION.md',
+          'specs/f01_login/f01_sso/f02_saml/f03_okta/IMPLEMENTATION.md',
+        ];
+        final plan = _planAt(
+          await pinned1x7(
+            records: oldPaths,
+            subFeatures: [
+              'f01_sso',
+              'f01_sso/f02_saml',
+              'f01_sso/f02_saml/f03_okta',
+            ],
+          ),
+        );
+
+        expect(plan.moves.map((move) => (move.from, move.to)), [
+          (oldPaths[0], newRecord),
+          (
+            oldPaths[1],
+            '.specstone/records/f01_login/f01_sso/IMPLEMENTATION.md',
+          ),
+          (
+            oldPaths[2],
+            '.specstone/records/f01_login/f01_sso/f02_saml/IMPLEMENTATION.md',
+          ),
+          (
+            oldPaths[3],
+            '.specstone/records/f01_login/f01_sso/f02_saml/f03_okta/'
+                'IMPLEMENTATION.md',
+          ),
+        ]);
+        expect(
+          plan.toText(),
+          contains(
+            '  from 1.7.0: move_file implementation '
+            'specs/f{nn}_{slug}/IMPLEMENTATION.md -> '
+            '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md: 4 docs\n',
+          ),
+        );
+        expect(
+          plan.toText(),
+          contains(
+            '  from 1.7.0: restamp_code_fingerprints: 4 docs; 4 entries\n',
+          ),
+        );
+      });
+
+      test('with two code targets a sub-feature record moves to the first '
+          "target's folder", () async {
+        final plan = _planAt(
+          await pinned1x7(
+            targets:
+                'targets:\n  flutter:\n    code_root: app\n'
+                '  jaspr:\n    code_root: web\n',
+            records: [
+              'specs/f01_login/f01_sso/IMPLEMENTATION.md',
+              '.specstone/records/f01_login/f02_mfa/IMPLEMENTATION.md',
+            ],
+          ),
+        );
+
+        expect(
+          plan.moves.map((move) => move.to),
+          unorderedEquals([
+            '.specstone/records/flutter/f01_login/f01_sso/IMPLEMENTATION.md',
+            '.specstone/records/flutter/f01_login/f02_mfa/IMPLEMENTATION.md',
+          ]),
+        );
       });
     });
 
