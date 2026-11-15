@@ -77,8 +77,8 @@ const LinkPlaces noLinks = (
 ///
 /// Returns null when `markdown` fails on [lfBody] (see [parseMarkdown]), and
 /// [noLinks] for a body with no link syntax, which it never parses. Given
-/// [tree], `parseMarkdownTree(lfBody)`, the caller has passed that gate, so it
-/// is not run again.
+/// [tree], the tree either `parseMarkdownTree` or `parseMarkdownTreeByBlock`
+/// gives [lfBody], the caller has passed that gate, so it is not run again.
 LinkPlaces? linkPlacesOf(
   String lfBody, {
   required String docPath,
@@ -399,8 +399,9 @@ String _normalize(String dest) => dest.splitMapJoin(
 );
 
 /// Returns the hrefs of the links and images in [body], in source order, or
-/// null when `markdown` fails on it; [tree], when given, is
-/// `parseMarkdownTree(body)`, so it is parsed once.
+/// null when `markdown` fails on it; [tree], when given, is the tree either
+/// `parseMarkdownTree` or `parseMarkdownTreeByBlock` gives [body], so it is
+/// parsed once.
 ///
 /// Each link of a footnote definition is read where the definition is
 /// written; one in a definition `markdown` drops, which no reference names,

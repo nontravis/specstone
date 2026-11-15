@@ -2,6 +2,7 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -12,11 +13,21 @@ const _candidatesMarker = ' candidate parent docs: ';
 const _candidatesEnd = '; it has no parent doc';
 final _unreadableFile = RegExp(r'^(.*[^/]): cannot be read; skipped$');
 
-/// Returns the first path segment of every doc type `path` in [set].
+/// Returns the first path segment of every doc type `path` in [set], and
+/// `.specstone/records` for a records path.
 Set<String> checkedFoldersOf(MergedSet set) => {
   for (final type in set.docTypes)
-    if (type.path case final path?) path.split(_pathSeparator).first,
+    if (type.path case final path? when isRecordsDocPath(path))
+      recordsFolderDocPath
+    else if (type.path case final path?)
+      path.split(_pathSeparator).first,
 };
+
+/// Whether [docPath] lies in one of [folders], as [checkedFoldersOf] names
+/// them.
+bool isInCheckedFolder(Set<String> folders, String docPath) =>
+    folders.contains(docPath.split(_pathSeparator).first) ||
+    isRecordsDocPath(docPath) && folders.contains(recordsFolderDocPath);
 
 /// Returns the findings of an untyped [doc] in a checked folder.
 ///

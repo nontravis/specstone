@@ -383,7 +383,7 @@ void main() {
       expect(answer['rewritten'], containsAll([cartFlutter, cartJaspr]));
       expect(answer['rewritten'], contains(payFlutter));
       expect(readDoc(root, cartFlutter), isNot(contains('add_item')));
-      expect(readDoc(root, payFlutter), contains("'add_item:implemented'"));
+      expect(readDoc(root, payFlutter), contains('add_item:implemented'));
       expect(readDoc(root, payFlutter), contains('draft: true'));
     });
 

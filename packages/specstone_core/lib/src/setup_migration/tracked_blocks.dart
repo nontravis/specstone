@@ -24,6 +24,7 @@ Map<String, String> _scenarioBlocksOf(RenumberDoc doc) => {
 };
 
 Map<String, String> _nfrStatementsOf(RenumberDoc doc) => {
+  ...doc.unprefixedNfrStatements,
   for (final item in doc.items)
     if (item.id case final id?) id.written: doc.statementOf(item),
 };

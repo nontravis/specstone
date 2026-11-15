@@ -498,4 +498,48 @@ void main() {
       expect(dryErr.toString(), applyErr);
     });
   });
+
+  group('a feature record under .specstone/records/', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const moved = '.specstone/records/f01_signin/IMPLEMENTATION.md';
+
+    Future<Directory> recordProject({bool withRecord = true}) =>
+        writeWriteProject(
+          extra: {
+            ...recordsRootTemplates,
+            if (withRecord)
+              record: recordText(statuses: ['email_login:implemented']),
+          },
+        );
+
+    test('rename moves the record folder and prints its move', () async {
+      final root = await recordProject();
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['rename', 'feature:login', '--to', 'signin']),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        out.toString(),
+        contains(
+          'moved .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(File('${root.path}/$moved').existsSync(), isTrue);
+      expect(File('${root.path}/$record').existsSync(), isFalse);
+    });
+
+    test('rename of a feature with no record prints no record move', () async {
+      final root = await recordProject(withRecord: false);
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['rename', 'feature:login', '--to', 'signin']),
+        0,
+        reason: err.toString(),
+      );
+      expect(out.toString(), isNot(contains('.specstone/records')));
+    });
+  });
 }

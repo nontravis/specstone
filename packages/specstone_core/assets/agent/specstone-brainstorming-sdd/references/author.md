@@ -1,6 +1,6 @@
 `specstone-sdd-engineer` runs this in `mode: author`, its gate already made; so does the runner of
-`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner
-nothing: each gap goes in your report.
+`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner nothing: list each gap in
+your report.
 
 ## 1. Read
 
@@ -16,19 +16,23 @@ nothing: each gap goes in your report.
 
 ## 2. Place each decision
 
-Place each decision in a doc, noting its section. A decision no doc can take is not landed: flag it, never
-force it. Write each Docs to change row that holds no decision too, such as a `design_references` link.
+Place each decision in a doc. Save long `check`, `guide`, or `get` output with `--out`, not a redirect.
+
+A decision no doc can take is not landed: flag it, never force it. Write each Docs to change row, one with no
+decision too, as a `design_references` link.
 
 - **Guide**: before your first write, run `specstone guide <type> …` once, naming every type you write.
 - **Code target** (two or more `targets:`): pass `--target <name>`, the one its design document's row names, on each
   `new`, `get`, and `set` of a per-target spec doc, or address an existing doc by its DocPath.
-- **New doc**: pipe its text to `specstone new <type>` (`--parent <name>`, `--slug <slug>`, as the type takes
-  them), parents first.
+- **New doc**: pipe its text to `specstone new <type>` (`--parent`, `--slug`, as the type takes them),
+  parents first.
 - **Section**: base from the naming line of `specstone get <type>:<name>#<key>`; pipe the body to
   `specstone set <type>:<name>#<key> --base <hash>`.
 - **Field**: base from `bases.fields.<id>` of `specstone get <type>:<name> --json`; pipe the value to
   `specstone set <type>:<name> --field <id> --base <hash>`.
-- **Several docs in one step**: run `specstone get <names> > "<file>"`, `<file>`
+- **Passage**: pipe `==> old <==`, the passage, `==> new <==`, its replacement to
+  `specstone set <type>:<name>#<key> --base <hash> --replace`.
+- **Several docs in one step**: run `specstone get <names> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, `<folder>` the path `specstone folder` prints; edit its
   blocks, each naming line kept; then run `specstone set --batch "<file>"`. A block printed ` · unchanged`
   wrote nothing and adds no draft.
@@ -50,7 +54,7 @@ force it. Write each Docs to change row that holds no decision too, such as a `d
 ## 3. Sweep each ruling
 
 For each dated ruling that names text it supersedes, run `specstone search "<superseded wording>"`. Rewrite each
-hit in a doc the design changes, as step 2 writes. List each hit in any other doc under `Findings:`, leaving it.
+hit in a doc the design changes, as step 2 writes. List each hit in any other doc under `Findings:`.
 
 ## 4. Check
 
@@ -79,7 +83,6 @@ Move: specstone move <story> … --under <other feature>
 Findings: <each finding left after step 4, each finding or hit outside the drafts, or none>
 ```
 
-- **Rows**: one per decision; in a fix round, one per finding.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, the drafts list less each name step 1
   dropped, plus each doc this pass added. Audit mode and `specstone-plan-sdd` take it as is: names only, no
   `--target`. Name each draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
@@ -88,5 +91,5 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
   list names; the output names a moved one, while its `Move:` line is unrun, by its name before the move; once the
   runner runs it, by its name after. Name each other draft it lists under `Other drafts:`, never counted; one of
   yours it shows as no draft goes under `Findings:`.
-- **Move**: only when the design moves stories, one line per target feature; copy each into the relay block. Run no
-  `move`; the runner does.
+- **Move**: only when the design moves stories, one line per target feature; copy each into the relay block.
+  Run no `move`.

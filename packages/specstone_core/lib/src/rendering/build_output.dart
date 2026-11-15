@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/canonical_path.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 
@@ -44,6 +46,32 @@ File defaultOutputFile(
   return File(
     '${project.projectRoot.path}$separator.specstone$separator'
     'build$separator$relative',
+  );
+}
+
+/// Throws `output_not_writable` carrying [displayPath] when [output] lies
+/// inside the docs root or the records root of [project], where a build
+/// would overwrite a doc.
+///
+/// [output] may not exist yet; links and `..` segments resolve first.
+void requireOutputOutsideDocRoots(
+  DocsProject project,
+  File output, {
+  required String displayPath,
+}) {
+  final root = project.isInsideDocsRoot(output)
+      ? 'docs'
+      : isInsideRecordsRoot(
+          canonicalPath(output.absolute.path),
+          projectRoot: project.projectRoot,
+        )
+      ? 'records'
+      : null;
+  if (root == null) return;
+  throw RenderFault(
+    RenderFaultCode.outputNotWritable,
+    'the output path is inside the $root root',
+    file: displayPath,
   );
 }
 

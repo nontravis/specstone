@@ -9,16 +9,18 @@ import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
+import '../../helpers/temp_tree.dart';
 
-const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 const _fr = 'email_login/check_password';
 const _implemented = '$_fr:implemented';
 const _login = 'app/lib/login.dart';
@@ -26,18 +28,21 @@ const _pointer = '$_login:checkPassword';
 const _stale = '0123456789ab';
 const _unreadable =
     'cannot read the file; implements Symbols in it are not checked';
+const _unreadableLinks =
+    'cannot read the file; the code links that reach it are not checked';
 
-String _fingerprintOf(String text) => fileCodeFingerprint(utf8.encode(text));
+String _fingerprintOf(String text, String path) =>
+    fileCodeFingerprint(utf8.encode(text), path: path);
 
 /// Returns the fingerprint of a folder that lists [files], by path and text.
 String _folderFingerprintOf(Map<String, String> files) =>
     folderCodeFingerprint([
       for (final MapEntry(:key, :value) in files.entries)
-        (path: key, fingerprint: _fingerprintOf(value)),
+        (path: key, fingerprint: _fingerprintOf(value, key)),
     ]);
 
 final String _loginText = checkProjectFiles()[_login]!;
-final String _loginFingerprint = _fingerprintOf(_loginText);
+final String _loginFingerprint = _fingerprintOf(_loginText, _login);
 
 /// Returns a record: `statuses`, `implements`, and `tests`, one quoted line
 /// each, under a `draft: true` line when [isDraft].
@@ -64,10 +69,10 @@ Future<Directory> _project(
   Set<String> without = const {},
   Set<String> unfingerprinted = const {},
 }) => writeCheckProject(
-  extra: {'docs/$_recordPath': record, ...extra},
+  extra: {_recordPath: record, ...extra},
   without: without,
-  unstamped: {'docs/$_recordPath'},
-  unfingerprinted: {'docs/$_recordPath', ...unfingerprinted},
+  unstamped: {_recordPath},
+  unfingerprinted: {_recordPath, ...unfingerprinted},
 );
 
 /// Returns the architecture doc of the fixture covering [covers].
@@ -157,6 +162,37 @@ void main() {
       },
     );
 
+    test('whose file gained a comment line and a blank line gives no '
+        'code_suspect', () async {
+      final project = await _project(
+        _record(code: ['$_fr:$_pointer $_loginFingerprint']),
+      );
+      File(
+        '${project.path}/$_login',
+      ).writeAsStringSync('// added note\n\n$_loginText\n  // trailing note\n');
+
+      final report = _run(project);
+
+      expect(_suspects(report), isEmpty);
+      expect(_unconfirmed(report), isEmpty);
+    });
+
+    test(
+      'whose file gained an end-of-line comment gives code_suspect',
+      () async {
+        final project = await _project(
+          _record(code: ['$_fr:$_pointer $_loginFingerprint']),
+        );
+        final lines = _loginText.split('\n')
+          ..[0] = '${_loginText.split('\n')[0]} // x';
+        File('${project.path}/$_login').writeAsStringSync(lines.join('\n'));
+
+        expect([
+          for (final f in _suspects(_run(project))) f.path,
+        ], contains(_recordPath));
+      },
+    );
+
     test('that records no fingerprint waits for the agent in a draft record '
         'and an approved one', () async {
       for (final isDraft in [true, false]) {
@@ -197,7 +233,7 @@ void main() {
         ),
       );
       File('${project.path}/$_login').writeAsStringSync(changed);
-      final current = _fingerprintOf(changed);
+      final current = _fingerprintOf(changed, _login);
 
       final [finding] = _suspects(_run(project));
 
@@ -474,6 +510,19 @@ void main() {
       expect(_suspects(report), isEmpty);
     });
 
+    test('whose folder file gained a comment-only edit gives no '
+        'code_suspect, an end-of-line comment edit one', () async {
+      final project = await writeCheckProject(
+        extra: _covering('  - app/lib/ $folderFingerprint\n'),
+      );
+      final file = File('${project.path}/$_login')
+        ..writeAsStringSync('// note\n\n$_loginText// more\n');
+      expect(_suspects(_run(project)), isEmpty);
+
+      file.writeAsStringSync('${_loginText.trimRight()} // x\n');
+      expect(_suspects(_run(project)), isNotEmpty);
+    });
+
     test('whose folder gained, lost, or renamed a file gives '
         'code_suspect', () async {
       final recorded = _folderFingerprintOf({
@@ -501,7 +550,10 @@ void main() {
       const bytes = [0x89, 0x50, 0x4E, 0x47, 0x00, 0xFF];
       final recorded = folderCodeFingerprint([
         (path: _login, fingerprint: _loginFingerprint),
-        (path: 'app/lib/logo.png', fingerprint: fileCodeFingerprint(bytes)),
+        (
+          path: 'app/lib/logo.png',
+          fingerprint: fileCodeFingerprint(bytes, path: 'app/lib/logo.png'),
+        ),
       ]);
       final project = await writeCheckProject(
         extra: _covering('  - app/lib/ $recorded\n'),
@@ -586,11 +638,11 @@ void main() {
       final project = await writeCheckProject(
         extra: {
           ..._covering('  - app/lib/\n'),
-          'docs/$_recordPath': _record(
+          _recordPath: _record(
             statuses: ['email_login:planned', '$_fr:planned'],
           ),
         },
-        unstamped: {'docs/$_recordPath'},
+        unstamped: {_recordPath},
         unfingerprinted: {'docs/$loginArchitecture'},
       );
       final (:context, :findings) = _checked(project, loginArchitecture);
@@ -603,11 +655,11 @@ void main() {
       final project = await writeCheckProject(
         extra: {
           ..._covering('  - app/lib/ $_stale\n'),
-          'docs/$_recordPath': _record(
+          _recordPath: _record(
             statuses: ['email_login:planned', '$_fr:planned'],
           ),
         },
-        unstamped: {'docs/$_recordPath'},
+        unstamped: {_recordPath},
       );
       final (:context, :findings) = _checked(project, loginArchitecture);
 
@@ -634,7 +686,7 @@ void main() {
 
         expect([for (final f in _suspects(report)) f.keys['path']], [_login]);
         expect(report.warnings.where((w) => w.contains('locked/x.dart')), [
-          'app/lib/locked/x.dart: $_unreadable',
+          'app/lib/locked/x.dart: $_unreadableLinks',
           'app/lib/locked/x.dart: cannot read the file; doc names in it are not checked',
         ]);
       },
@@ -708,16 +760,148 @@ void main() {
     },
   );
 
+  test(
+    'an unreadable file that a covers entry and a record entry with a Symbol '
+    'both reach gives the Symbols warning once',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(code: ['$_fr:$_pointer $_stale']),
+        extra: _covering('  - app/lib/ $_stale\n'),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadable',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  test(
+    'an unreadable file a record entry with no Symbol names gives the '
+    'Symbols warning',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(code: ['$_fr:$_login $_stale']),
+        extra: _covering(''),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadable',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  test(
+    'an unreadable file only a covers entry reaches gives the code-link '
+    'warning',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(),
+        extra: _covering('  - $_login $_stale\n'),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadableLinks',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  group('CheckContext.codeBytesOf with a folder at the file path', () {
+    Future<(CheckContext, CodeTarget)> contextWithFolders() async {
+      final session = openSession(await writeTwinProject());
+      addTearDown(session.close);
+      for (final root in ['flutter_ws', 'jaspr_ws']) {
+        Directory.fromUri(
+          session.project.projectRoot.uri.resolve('$root/app/sealed.dart/'),
+        ).createSync(recursive: true);
+      }
+      final context = CheckContext(session);
+      return (context, context.targets.first);
+    }
+
+    test('states the code-link warning once per target and file, the target '
+        'first', () async {
+      final (context, flutter) = await contextWithFolders();
+      final jaspr = context.targets.last;
+
+      expect(
+        context.codeBytesOf(
+          flutter,
+          'app/sealed.dart',
+          reason: CodeRead.codeLink,
+        ),
+        isNull,
+      );
+      expect(
+        context.codeBytesOf(
+          flutter,
+          './app/sealed.dart',
+          reason: CodeRead.codeLink,
+        ),
+        isNull,
+      );
+      expect(
+        context.codeBytesOf(
+          jaspr,
+          'app/sealed.dart',
+          reason: CodeRead.codeLink,
+        ),
+        isNull,
+      );
+
+      expect(context.unstatedWarnings, [
+        'flutter: app/sealed.dart: $_unreadableLinks',
+        'jaspr: app/sealed.dart: $_unreadableLinks',
+      ]);
+    });
+
+    test('lets the Symbols reason win in either read order', () async {
+      final (context, flutter) = await contextWithFolders();
+      final jaspr = context.targets.last;
+
+      context
+        ..codeBytesOf(flutter, 'app/sealed.dart', reason: CodeRead.codeLink)
+        ..codeBytesOf(flutter, 'app/sealed.dart', reason: CodeRead.symbols)
+        ..codeBytesOf(jaspr, 'app/sealed.dart', reason: CodeRead.symbols)
+        ..codeBytesOf(jaspr, 'app/sealed.dart', reason: CodeRead.codeLink);
+
+      expect(context.unstatedWarnings, [
+        'flutter: app/sealed.dart: $_unreadable',
+        'jaspr: app/sealed.dart: $_unreadable',
+      ]);
+    });
+  });
+
   test('each code target compares its own file, and a target limits the '
       'run to its own records', () async {
     final project = await writeTwinProject();
     final flutterText = File('${project.path}/flutter_ws/$_login')
         .readAsStringSync();
     final record = _record(
-      code: ['$_fr:$_pointer ${_fingerprintOf(flutterText)}'],
+      code: ['$_fr:$_pointer ${_fingerprintOf(flutterText, _login)}'],
     );
     for (final path in [_flutterRecord, _jasprRecord]) {
-      File('${project.path}/docs/$path')
+      File('${project.path}/$path')
         ..createSync(recursive: true)
         ..writeAsStringSync(record);
     }
@@ -727,5 +911,53 @@ void main() {
     expect([for (final f in _suspects(report)) f.path], [_jasprRecord]);
     expect(_suspects(_run(project, codeTarget: 'flutter')), isEmpty);
     expect(_suspects(_run(project, codeTarget: 'jaspr')), hasLength(1));
+  });
+
+  group('currentCodeFingerprint', () {
+    test('hashes each file by the given file hash, the current rule by '
+        'default', () async {
+      final root = await writeTree({
+        'lib/a.dart': '// note\nint a;\n',
+        'lib/b.dart': 'int b;\n',
+      });
+      List<int>? bytesOf(String file) =>
+          File('${root.path}/$file').readAsBytesSync();
+      String? fingerprint({String Function(List<int>, String)? fileHash}) =>
+          fileHash == null
+          ? currentCodeFingerprint(
+              'lib/',
+              codeRoot: root,
+              nestedRoots: const [],
+              bytesOf: bytesOf,
+              onUnlistable: (_) {},
+            )
+          : currentCodeFingerprint(
+              'lib/',
+              codeRoot: root,
+              nestedRoots: const [],
+              bytesOf: bytesOf,
+              onUnlistable: (_) {},
+              fileHash: fileHash,
+            );
+      String of(String text, String path) =>
+          fileCodeFingerprint(utf8.encode(text), path: path);
+      String legacyOf(String text) =>
+          legacyFileCodeFingerprint(utf8.encode(text));
+
+      expect(
+        fingerprint(),
+        folderCodeFingerprint([
+          (path: 'lib/a.dart', fingerprint: of('int a;\n', 'lib/a.dart')),
+          (path: 'lib/b.dart', fingerprint: of('int b;\n', 'lib/b.dart')),
+        ]),
+      );
+      expect(
+        fingerprint(fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes)),
+        folderCodeFingerprint([
+          (path: 'lib/a.dart', fingerprint: legacyOf('// note\nint a;\n')),
+          (path: 'lib/b.dart', fingerprint: legacyOf('int b;\n')),
+        ]),
+      );
+    });
   });
 }

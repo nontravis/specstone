@@ -34,7 +34,7 @@ void main() {
     '$s/ARCHITECTURE.md',
     '$s/DOMAIN.md',
     '$s/ERROR.md',
-    '$s/IMPLEMENTATION.md',
+    '.specstone/records/f01_login/IMPLEMENTATION.md',
   };
   Bundle code(String p, BundleMode m, {bool noProject = false}) =>
       pickCodeBundle(
@@ -72,7 +72,7 @@ void main() {
             '# Login architecture\n\n'
             '## Components\n| Component | Responsibility |\n|---|---|\n'
             '| Login form | Collects the email |\n',
-        'docs/specs/f01_login/IMPLEMENTATION.md':
+        '.specstone/records/f01_login/IMPLEMENTATION.md':
             "---\nstatuses:\n  - 'email_login/validate_credentials:implemented'\n"
             'implements:\n'
             "  - 'email_login/validate_credentials:app/lib/src/login/credential_validator.dart 0123456789ab'\n"
@@ -149,7 +149,7 @@ void main() {
       extra: {
         'app/lib/schema.dbml': '',
         'app/test/auth_test.dart': '',
-        'docs/specs/f01_login/IMPLEMENTATION.md':
+        '.specstone/records/f01_login/IMPLEMENTATION.md':
             '---\nstatuses:\n'
             "  - 'email_login/validate_credentials:implemented'\n"
             "  - 'email_login/lock_after_failures:planned'\n"
@@ -389,7 +389,7 @@ void main() {
         '.specstone/templates/implementation.yaml':
             'id: implementation\n'
             'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
             'parent: feature\n'
             'per_target: true\n'
             'fields:\n'
@@ -421,13 +421,13 @@ void main() {
             '---\ncovers:\n  - lib/\n---\n\n# Toast architecture\n',
         'docs/specs/flutter/TECH_STACK.md': '# Toast stack\n',
         'docs/specs/jaspr/TECH_STACK.md': '# Toast stack\n',
-        'docs/specs/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
+        '.specstone/records/flutter/f02_feedback/f03_toast/IMPLEMENTATION.md':
             '---\nstatuses:\n'
             '  - show:implemented\n'
             'implements:\n'
             '  - show:lib/toast.dart:showToast\n'
             '---\n\n# Record\n',
-        'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
+        '.specstone/records/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
             '---\nstatuses:\n'
             '  - show:implemented\n'
             'implements:\n'
@@ -463,7 +463,7 @@ void main() {
         'prds/features/f02_feedback/f03_toast/FEATURE.md',
         'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md',
         'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
-        'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
+        '.specstone/records/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
       });
       expect(bundle.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
     });
@@ -492,7 +492,7 @@ void main() {
         'prds/features/f02_feedback/f03_toast/FEATURE.md',
         'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md',
         'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
-        'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
+        '.specstone/records/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
       });
       expect(bundle.joinedPaths, {
         'specs/jaspr/TECH_STACK.md',
@@ -532,7 +532,7 @@ void main() {
         '.specstone/templates/implementation.yaml':
             'id: implementation\n'
             'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+            'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
             'parent: feature\n'
             'per_target: true\n'
             'fields:\n'

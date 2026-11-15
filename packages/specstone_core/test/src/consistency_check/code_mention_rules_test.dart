@@ -298,7 +298,8 @@ void main() {
     });
 
     test(
-      'a file that cannot be read gives a warning and no stop',
+      'a file that only covers reaches and cannot be read gives a warning and '
+      'no stop',
       skip: unreadablePathSkipReason(),
       () async {
         final project = await writeCheckProject(
@@ -313,7 +314,7 @@ void main() {
         final report = checkOf(project);
         expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
         expect(report.warnings, [
-          'app/lib/locked.dart: cannot read the file; implements Symbols in it are not checked',
+          'app/lib/locked.dart: cannot read the file; the code links that reach it are not checked',
           'app/lib/locked.dart: cannot read the file; doc names in it are not checked',
         ]);
       },

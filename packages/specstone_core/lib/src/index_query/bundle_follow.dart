@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
@@ -228,7 +230,7 @@ final class _Walk {
     for (final (:link, :cited) in classified) {
       final range = cited == null ? null : rangeFrom[cited.link];
       if (cited == null) {
-        _appendPath(link);
+        _appendPath(link, view);
       } else if (_namesOnly(cited)) {
         _appendNameLine(cited.view);
       } else if (range != null) {
@@ -261,26 +263,44 @@ final class _Walk {
   /// Appends the path of the file no doc type describes that [link] names,
   /// once: an untyped doc, or a file that is no `.md` doc and exists on
   /// disk. Any other link that cites nothing adds nothing.
-  void _appendPath(_Link link) {
+  void _appendPath(_Link link, _DocView view) {
     final path = link.text.target;
-    if (_paths.contains(path)) return;
     if (link.file) {
-      if (!_onDisk(path)) return;
-      _paths.add(path);
-      _parts.add(AppendedPart.file(path));
+      final shown = _docsRootSpelling(path, view.doc.docPath);
+      if (_paths.contains(shown)) return;
+      if (!_onDisk(path, view.doc.docPath)) return;
+      _paths.add(shown);
+      _parts.add(AppendedPart.file(shown));
       return;
     }
+    if (_paths.contains(path)) return;
     final doc = index.at(path);
     if (doc == null || doc.isTyped) return;
     _paths.add(path);
     _parts.add(AppendedPart(doc: doc, text: ''));
   }
 
-  /// Whether [path], a path under the docs root, names a file or folder on
-  /// disk; a missing one is `check`'s `link_target_missing`, never followed.
-  bool _onDisk(String path) {
+  /// Returns the file link target [path] of the doc at [docPath] spelled
+  /// from the docs root, as a doc's own targets are; a record's targets are
+  /// project-root paths, so one outside `docs/` keeps a leading `../`.
+  String _docsRootSpelling(String path, String docPath) {
+    if (!isRecordsDocPath(docPath)) return path;
+    const docsPrefix = '$docsFolderName/';
+    return path.startsWith(docsPrefix)
+        ? path.substring(docsPrefix.length)
+        : '../$path';
+  }
+
+  /// Whether [path], a path under the root the doc at [docPath] is read from,
+  /// names a file or folder on disk; a missing one is `check`'s
+  /// `link_target_missing`, never followed.
+  bool _onDisk(String path, String docPath) {
     if (!isPortablePath(path)) return false;
-    final root = index.docsRoot.path;
+    final root = rootOfDocPath(
+      docPath,
+      docsRoot: index.docsRoot,
+      projectRoot: index.projectRoot,
+    ).path;
     final separator = Platform.pathSeparator;
     final onDisk = [
       if (root.endsWith(separator))

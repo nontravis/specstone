@@ -187,4 +187,72 @@ void main() {
       }
     });
   });
+
+  group('relativeFilePathOf for a record', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    test('a path in the project keeps its project-root spelling', () {
+      expect(relativeFilePathOf('../../../docs/x.md', record), 'docs/x.md');
+      expect(relativeFilePathOf('../../../lib/a.dart', record), 'lib/a.dart');
+    });
+
+    test('a walk ending at the docs root or the project root gives null', () {
+      expect(relativeFilePathOf('../../../docs/', record), isNull);
+      expect(relativeFilePathOf('../../../docs/.', record), isNull);
+      expect(relativeFilePathOf('../../../', record), isNull);
+    });
+  });
+
+  group('a link between the docs root and the records root', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const doc = 'prds/f/us/fr01.md';
+
+    String? docPathOf(String href, String from) =>
+        switch (resolveDocLink(href, from)) {
+          DocTarget(:final docPath) => docPath,
+          _ => null,
+        };
+
+    test('a record reaches a docs doc through the project root', () {
+      expect(
+        docPathOf('../../../docs/specs/topics/rules.md#r1', record),
+        'specs/topics/rules.md',
+      );
+    });
+
+    test('a record reaches another record by its records DocPath', () {
+      expect(
+        docPathOf('../f02_signup/IMPLEMENTATION.md', record),
+        '.specstone/records/f02_signup/IMPLEMENTATION.md',
+      );
+    });
+
+    test('a record link to a project file outside both roots is outside', () {
+      expect(
+        resolveDocLink('../../../README.md', record),
+        isA<OutsideTarget>(),
+      );
+      expect(resolveDocLink('../../../../x.md', record), isA<OutsideTarget>());
+    });
+
+    test('a docs doc reaches a record by its records DocPath', () {
+      expect(docPathOf('../../../../$record', doc), record);
+    });
+
+    test('a docs doc link to a project file outside both roots is outside', () {
+      expect(
+        resolveDocLink('../../../../README.md', doc),
+        isA<OutsideTarget>(),
+      );
+    });
+
+    test('a file path stays relative to the root of the doc that holds it', () {
+      expect(
+        relativeFilePathOf('../../../docs/specs/rules.md', record),
+        'docs/specs/rules.md',
+      );
+      expect(relativeFilePathOf('../../../README.md', record), 'README.md');
+      expect(relativeFilePathOf('../../../../$record', doc), '../$record');
+    });
+  });
 }

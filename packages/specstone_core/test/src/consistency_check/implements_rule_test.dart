@@ -19,7 +19,7 @@ import '../../helpers/temp_tree.dart';
 const _recordLayer =
     'id: implementation\n'
     'description: One feature record per target.\n'
-    'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
+    'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n'
     'parent: feature\n'
     'per_target: true\n'
     'fields:\n'
@@ -31,9 +31,9 @@ const _recordLayer =
     '    list: true\n'
     '    pointer: item_exact\n';
 
-const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
-const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-const _jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+const _recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+const _flutterRecord = '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+const _jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
 /// The FR of the login fixture, named relative to its feature.
 const _fr = 'email_login/check_password';
@@ -71,7 +71,7 @@ Map<String, String> _withRecord(
   String record, {
   String path = _recordPath,
   Map<String, String> config = const {},
-}) => {'docs/$path': record, ...config};
+}) => {path: record, ...config};
 
 Future<Directory> _project(
   String record, {
@@ -81,7 +81,7 @@ Future<Directory> _project(
   extra: {..._withRecord(record), ...extra},
   without: without,
   // A stamp would add an `approved:` line and move every line below it.
-  unstamped: {'docs/$_recordPath'},
+  unstamped: {_recordPath},
 );
 
 CheckReport _run(Directory project, {String? codeTarget}) {
@@ -192,10 +192,10 @@ void main() {
       extra: {
         '.specstone/templates/implementation.yaml': _recordLayer,
         'flutter_ws/app/lib/flutter_only.dart': code('Flutter'),
-        'docs/$_flutterRecord': _record(
+        _flutterRecord: _record(
           code: ['$_fr:$login:FlutterSignIn', '$_fr:app/lib/flutter_only.dart'],
         ),
-        'docs/$_jasprRecord': _record(
+        _jasprRecord: _record(
           code: ['$_fr:$login:FlutterSignIn', '$_fr:app/lib/flutter_only.dart'],
         ),
       },
@@ -209,12 +209,51 @@ void main() {
     ]);
   });
 
+  test(
+    'an unreadable file an implements path names gives the Symbols warning '
+    'once and no finding, once per code target',
+    skip: unreadablePathSkipReason(),
+    () async {
+      const text =
+          'cannot read the file; implements Symbols in it are not checked';
+      final single = await _project(_record(code: [point]));
+      Process.runSync('chmod', ['000', '${single.path}/$login']);
+      addTearDown(
+        () => Process.runSync('chmod', ['644', '${single.path}/$login']),
+      );
+
+      final report = _run(single);
+
+      expect(_found(report), isEmpty);
+      expect(report.warnings.where((w) => w.endsWith(text)), ['$login: $text']);
+
+      final twin = await writeTwinProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': _recordLayer,
+          _flutterRecord: _record(code: [point]),
+          _jasprRecord: _record(code: [point]),
+        },
+      );
+      for (final root in ['flutter_ws', 'jaspr_ws']) {
+        Process.runSync('chmod', ['000', '${twin.path}/$root/$login']);
+        addTearDown(
+          () => Process.runSync('chmod', ['644', '${twin.path}/$root/$login']),
+        );
+      }
+
+      expect(_run(twin).warnings.where((w) => w.endsWith(text)), [
+        'flutter: $login: $text',
+        'jaspr: $login: $text',
+      ]);
+    },
+  );
+
   test('a --target run resolves the records of that target only', () async {
     final project = await writeTwinProject(
       extra: {
         '.specstone/templates/implementation.yaml': _recordLayer,
-        'docs/$_flutterRecord': _record(code: ['$_fr:app/lib/gone.dart']),
-        'docs/$_jasprRecord': _record(code: ['$_fr:app/lib/gone.dart']),
+        _flutterRecord: _record(code: ['$_fr:app/lib/gone.dart']),
+        _jasprRecord: _record(code: ['$_fr:app/lib/gone.dart']),
       },
     );
 
@@ -249,8 +288,8 @@ void main() {
       without: {'jaspr_ws/app/lib/login.dart'},
       extra: {
         '.specstone/templates/implementation.yaml': _recordLayer,
-        'docs/$_flutterRecord': _record(code: ['$_fr:$login:checkPassword']),
-        'docs/$_jasprRecord': _record(code: ['$_fr:$login:checkPassword']),
+        _flutterRecord: _record(code: ['$_fr:$login:checkPassword']),
+        _jasprRecord: _record(code: ['$_fr:$login:checkPassword']),
       },
     );
 

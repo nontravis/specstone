@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -13,8 +14,6 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
-import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
-    show docFileOf;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migrate_run.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
@@ -153,7 +152,7 @@ int _scaffold(Directory root, InitRequest request) {
   for (final docType in singularDocTypes(set)) {
     final path = docType.path;
     if (path == null) continue;
-    final file = docFileOf(docsRoot, path);
+    final file = fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root);
     if (file.existsSync()) {
       request.out.writeln('kept docs/$path: exists');
       continue;
@@ -205,7 +204,10 @@ void _writeAgentFiles(Directory root, AgentWritePlan plan, StringSink out) {
   for (final write in [...plan.rootWrites, ...plan.topWrites]) {
     _writeNew(
       root,
-      docFileOf(root, write.path),
+      File(
+        '${root.path}${Platform.pathSeparator}'
+        '${write.path.split('/').join(Platform.pathSeparator)}',
+      ),
       write.text,
       shown: write.path,
       followLink: true,

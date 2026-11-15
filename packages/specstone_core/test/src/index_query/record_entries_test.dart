@@ -308,10 +308,10 @@ void main() {
           text,
           '---\n'
           'statuses:\n'
-          "  - 'show_toast:implemented'\n"
+          '  - show_toast:implemented\n'
           "  - ':skipped:no web view on the web'\n"
           'implements:\n'
-          "  - 'show_toast:lib/toast.dart:showToast'\n"
+          '  - show_toast:lib/toast.dart:showToast\n'
           'vision: PV-01\n'
           '---\n\n# Feedback implementation\n',
         );
@@ -327,7 +327,7 @@ void main() {
       );
 
       expect(text, contains("  - 'toast/queue_toasts:planned'\n"));
-      expect(text, contains("  - 'toast:lib/toast.dart:showToast'\n"));
+      expect(text, contains('  - toast:lib/toast.dart:showToast\n'));
       expect(text, contains("  - ':skipped:no web view on the web'\n"));
     });
 
@@ -355,17 +355,17 @@ void main() {
         renamed,
         '---\n'
         'tests:\n'
-        "  - 'toast:test/toast_test.dart:shows a toast'\n"
-        "  - 'show_toast/queue_toasts:test/queue_test.dart'\n"
-        "  - 'lib_only'\n"
+        '  - toast:test/toast_test.dart:shows a toast\n'
+        '  - show_toast/queue_toasts:test/queue_test.dart\n'
+        '  - lib_only\n'
         '---\n\n# R\n',
       );
       expect(
         dropped,
         '---\n'
         'tests:\n'
-        "  - 'show_toast:test/toast_test.dart:shows a toast'\n"
-        "  - 'lib_only'\n"
+        '  - show_toast:test/toast_test.dart:shows a toast\n'
+        '  - lib_only\n'
         '---\n\n# R\n',
       );
     });
@@ -419,14 +419,29 @@ void main() {
         expect(
           text,
           '---\nimplements:\n'
-          '  - {"lib/toast.dart":{"item":"show_toast"}}\n'
-          "  - 'no_colon_here'\n"
+          '  - lib/toast.dart: {item: show_toast}\n'
+          '  - no_colon_here\n'
           '---\n\n# R\n',
         );
       },
     );
 
-    test('a quote inside a reason is doubled', () {
+    test('a quote inside a changed reason is doubled in single quotes', () {
+      final text = rewriteRecordItems(
+        "---\nstatuses:\n  - 'a:skipped:it''s out'\n  - b:planned\n"
+        '---\n\n# R\n',
+        _recordType,
+        (item) => switch (item) {
+          'a' => 'c',
+          'b' => null,
+          _ => item,
+        },
+      );
+
+      expect(text, "---\nstatuses:\n  - 'c:skipped:it''s out'\n---\n\n# R\n");
+    });
+
+    test('a kept line keeps the quotes it was written in', () {
       final text = rewriteRecordItems(
         '---\nstatuses:\n  - "a:skipped:it\'s out"\n  - b:planned\n'
         '---\n\n# R\n',
@@ -434,7 +449,7 @@ void main() {
         (item) => item == 'b' ? null : item,
       );
 
-      expect(text, "---\nstatuses:\n  - 'a:skipped:it''s out'\n---\n\n# R\n");
+      expect(text, '---\nstatuses:\n  - "a:skipped:it\'s out"\n---\n\n# R\n');
     });
 
     test('an implements line with an empty item stays, as the parser skips '
@@ -451,7 +466,7 @@ void main() {
       );
 
       expect(seen, ['b']);
-      expect(text, "---\nimplements:\n  - ':lib/a.dart'\n---\n\n# R\n");
+      expect(text, '---\nimplements:\n  - ":lib/a.dart"\n---\n\n# R\n');
     });
   });
   group('recordLinesCarried and addRecordLines', () {
@@ -503,7 +518,7 @@ void main() {
     });
 
     test('E19: added lines follow the held ones, each field written as a block '
-        'list of quoted lines', () {
+        'list over the lines held', () {
       final text = addRecordLines(
         '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
         _recordType,
@@ -516,9 +531,9 @@ void main() {
 
       expect(
         text,
-        "---\nstatuses:\n  - 'c:planned'\n  - 'k/a:implemented'\n"
-        "implements:\n  - 'k/a:lib/a.dart:A'\n"
-        "tests:\n  - 'k/a:test/a_test.dart:holds'\n---\n\n# R\n",
+        '---\nstatuses:\n  - c:planned\n  - k/a:implemented\n'
+        'implements:\n  - k/a:lib/a.dart:A\n'
+        'tests:\n  - k/a:test/a_test.dart:holds\n---\n\n# R\n',
       );
     });
 
@@ -531,7 +546,7 @@ void main() {
 
       expect(
         text,
-        "---\ndraft: true\nstatuses:\n  - 'k/a:implemented'\n---\n\n# R\n",
+        '---\ndraft: true\nstatuses:\n  - k/a:implemented\n---\n\n# R\n',
       );
     });
 
@@ -581,7 +596,7 @@ void main() {
           code: const [],
           tests: const [],
         )),
-        contains("  - 'k/a:planned'\n"),
+        contains('  - k/a:planned\n'),
       );
     });
 

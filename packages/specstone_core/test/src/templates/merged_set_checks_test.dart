@@ -427,6 +427,63 @@ void main() {
       );
     });
 
+    test('a non-record doc type with a path under .specstone/ is unknown_value '
+        'naming the writer', () {
+      const path = '.specstone/records/f{nn}_{slug}/NOTE.md';
+      expect(
+        () => check(
+          [builtIn('runbook').copyWith(path: path)],
+          {
+            'runbook': [layerOf('runbook', 'path: $path\n')],
+          },
+        ),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'path')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test(
+      'the record doc type may hold a path below .specstone/records/ only',
+      () {
+        const recordField =
+            'fields:\n'
+            '  - id: entries\n'
+            '    type: record_status\n'
+            'per_target: true\n';
+        MergedDocType record(String path) => builtIn('runbook').copyWith(
+          path: path,
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+        );
+        void checkAt(String path) => check(
+          [record(path)],
+          {
+            'runbook': [layerOf('runbook', 'path: $path\n$recordField')],
+          },
+        );
+        expect(
+          () => checkAt('.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md'),
+          returnsNormally,
+        );
+        expect(
+          () => checkAt('.specstone/other/f{nn}_{slug}/IMPLEMENTATION.md'),
+          throwsA(
+            isA<TemplateFault>().having(
+              (f) => f.code,
+              'code',
+              FaultCode.unknownValue,
+            ),
+          ),
+        );
+      },
+    );
+
     test('E31, INV-31: two '
         'doc types holding a record_status field are unknown_value naming '
         'each holder', () {
@@ -700,6 +757,64 @@ void main() {
             (f) => f.key,
             'key',
             'sections.a.lint.required_when.section',
+          ),
+        ),
+      );
+    });
+  });
+
+  group('checkMergedSet when_field', () {
+    const lowerFile = '~/.specstone/packs/runbook.yaml';
+    const upperFile = '.specstone/templates/runbook.yaml';
+    const fieldKind = 'fields: [{id: kind, type: string}]\n';
+    const ruleOnA =
+        'path: a.md\nsections: [{id: a, header: A, '
+        'when_field: {field: kind, values: [api]}}]\n';
+
+    void checkRunbook(List<String> texts) {
+      final layers = [
+        for (final (i, text) in texts.indexed)
+          layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
+      ];
+      var type = const DocTypeMerger().builtInBase('runbook');
+      for (final entry in layers) {
+        type = const DocTypeMerger().apply(type, entry.layer);
+      }
+      check([type], {'runbook': layers});
+    }
+
+    test('a when_field naming a field of the doc type is accepted', () {
+      expect(() => checkRunbook([fieldKind, ruleOnA]), returnsNormally);
+    });
+
+    test('a field an upper layer adds is accepted', () {
+      expect(() => checkRunbook([ruleOnA, fieldKind]), returnsNormally);
+    });
+
+    test('a when_field naming no field is unknown_value at the layer that '
+        'wrote it', () {
+      expect(
+        () => checkRunbook([ruleOnA, 'description: Other\n']),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.file, 'file', lowerFile)
+              .having((f) => f.key, 'key', 'sections.a.when_field.field'),
+        ),
+      );
+    });
+
+    test('a layer that disables the named field is unknown_value', () {
+      expect(
+        () => checkRunbook([
+          '$fieldKind$ruleOnA',
+          'fields: [{id: kind, disabled: true}]\n',
+        ]),
+        throwsA(
+          isA<TemplateFault>().having(
+            (f) => f.key,
+            'key',
+            'sections.a.when_field.field',
           ),
         ),
       );

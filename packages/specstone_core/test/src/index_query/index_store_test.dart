@@ -666,6 +666,7 @@ void main() {
           ),
         ),
       );
+      store.fillSearchRows();
       expect(store.search('"ค้นหา"').single.sectionKey, 'notes');
       expect(store.search('"log"').single.docPath, 'README.md');
     });
@@ -680,6 +681,7 @@ void main() {
             ..putDoc(doc)
             ..putDoc(doc);
         });
+        store.fillSearchRows();
         expect(store.search('"zebra"'), hasLength(1));
         expect(store.search('"alpha"'), hasLength(1));
       },
@@ -695,6 +697,7 @@ void main() {
             ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nzebra herd\n'))
             ..deleteDoc('a.md');
         });
+        store.fillSearchRows();
         expect(store.search('"crossing"'), isEmpty);
         expect(store.search('"alpha"'), isEmpty);
         expect(store.search('"zebra"').map((r) => r.docPath), ['b.md']);
@@ -709,6 +712,7 @@ void main() {
           ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra crossing\n'))
           ..deleteDoc('missing.md');
       });
+      store.fillSearchRows();
       expect(store.search('"zebra"').map((r) => r.docPath), ['a.md']);
     });
     test(
@@ -723,6 +727,7 @@ void main() {
             ..deleteDoc('b.md')
             ..putDoc(parsed('c.md', '# Gamma\n\n## Notes\nheron marsh\n'));
         });
+        store.fillSearchRows();
         expect(store.search('"llama"'), isEmpty);
         expect(store.search('"beta"'), isEmpty);
         expect(store.search('"heron"').map((r) => r.docPath), ['c.md']);
@@ -740,11 +745,155 @@ void main() {
             ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nzebra herd\n'))
             ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nllama trail\n'));
         });
+        store.fillSearchRows();
         expect(store.search('"crossing"'), isEmpty);
         expect(store.search('"llama"').map((r) => r.docPath), ['a.md']);
         expect(store.search('"zebra"').map((r) => r.docPath), ['b.md']);
       },
     );
+    test(
+      'a refresh writes no search row; fillSearchRows writes the rows '
+      'putDoc wrote before, and a second call with no change writes none',
+      () async {
+        final r = await root();
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        store.write(() {
+          store
+            ..reset(
+              const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+            )
+            ..putDoc(
+              parsed(
+                'a.md',
+                '---\nslug:\n  - sign-in\n---\n\n# Alpha\n\n## Notes\n'
+                    'zebra crossing\n\n## More\nllama trail\n',
+              ),
+            );
+        });
+        final raw = sqlite3.open(file(r, indexFilePath).path);
+        addTearDown(raw.close);
+        int rowCount() =>
+            raw.select('SELECT count(*) FROM doc_search').single.columnAt(0)
+                as int;
+        expect(rowCount(), 0);
+        expect(store.search('"zebra"'), isEmpty);
+
+        store.fillSearchRows();
+        // The title, one alias, and two sections.
+        expect(rowCount(), 4);
+        expect(
+          store.search('"sign-in"').single.sectionKey,
+          'notes',
+          reason: 'an alias hit names the first section',
+        );
+        expect(store.search('"llama"').single.sectionKey, 'more');
+
+        raw.execute("UPDATE doc_search SET text = 'tampered text'");
+        store.fillSearchRows();
+        expect(
+          raw
+              .select('SELECT text FROM doc_search')
+              .every((row) => row.columnAt(0) == 'tampered text'),
+          isTrue,
+          reason: 'a doc whose rows are current is not written again',
+        );
+      },
+    );
+    test('a doc put again with an edit loses its search_hash, and the next '
+        'fillSearchRows rebuilds its rows from the new text', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      store.write(
+        () => store.putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra\n')),
+      );
+      store.fillSearchRows();
+      store.write(
+        () => store.putDoc(parsed('a.md', '# Alpha\n\n## Notes\nllama\n')),
+      );
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      expect(
+        raw.select('SELECT search_hash FROM docs').single.columnAt(0),
+        isNull,
+      );
+      store.fillSearchRows();
+      expect(store.search('"zebra"'), isEmpty);
+      expect(store.search('"llama"').single.docPath, 'a.md');
+    });
+    test(
+      'a doc whose search_hash differs from its content hash is rebuilt',
+      () async {
+        final r = await root();
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        store.write(
+          () => store.putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra\n')),
+        );
+        store.fillSearchRows();
+        final raw = sqlite3.open(file(r, indexFilePath).path);
+        addTearDown(raw.close);
+        raw
+          ..execute("UPDATE doc_search SET text = 'tampered text'")
+          ..execute("UPDATE docs SET search_hash = 'old'");
+        store.fillSearchRows();
+        expect(store.search('"tampered"'), isEmpty);
+        expect(store.search('"zebra"').single.docPath, 'a.md');
+      },
+    );
+    test(
+      'a fill that throws mid-way rolls back every row and search_hash',
+      () async {
+        final r = await root();
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        store.write(() {
+          store
+            ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra\n'))
+            ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nllama\n'));
+        });
+        final raw = sqlite3.open(file(r, indexFilePath).path);
+        addTearDown(raw.close);
+        // The second doc's frontmatter is no JSON, so its rebuild throws after
+        // the first doc's rows are written.
+        raw.execute(
+          "UPDATE docs SET frontmatter = 'x' WHERE doc_path = 'b.md'",
+        );
+        expect(store.fillSearchRows, throwsFormatException);
+        expect(
+          raw.select('SELECT count(*) FROM doc_search').single.columnAt(0),
+          0,
+        );
+        expect(
+          raw
+              .select('SELECT count(*) FROM docs WHERE search_hash IS NOT NULL')
+              .single
+              .columnAt(0),
+          0,
+        );
+      },
+    );
+    test('reset leaves the search table empty', () async {
+      final r = await root();
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+      store.write(
+        () => store
+          ..reset(stamp)
+          ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra\n')),
+      );
+      store.fillSearchRows();
+      store.write(() => store.reset(stamp));
+      final raw = sqlite3.open(file(r, indexFilePath).path);
+      addTearDown(raw.close);
+      expect(
+        raw.select('SELECT count(*) FROM doc_search').single.columnAt(0),
+        0,
+      );
+      expect(store.search('"zebra"'), isEmpty);
+    });
     test('Index each doc: '
         'formatted round-trips as true, false, and null', () async {
       final doc = (await resolveSoftwareTech()).lookup('feature')!;

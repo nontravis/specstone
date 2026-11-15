@@ -72,6 +72,8 @@ void main() {
         ],
         [
           ('base_mismatch', 75),
+          ('replace_unmatched', 75),
+          ('replace_ambiguous', 64),
           ('field_unknown', 64),
           ('field_value_invalid', 64),
           ('field_not_writable', 64),

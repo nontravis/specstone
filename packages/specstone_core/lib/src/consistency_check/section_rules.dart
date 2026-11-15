@@ -2,6 +2,8 @@ import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show WhenField;
 
 const _projectType = 'project';
 const _visionSection = 'vision';
@@ -27,7 +29,9 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   }
   yield* _titleNumberFinding(context, doc, type.lint.titleNoNumber ?? false);
   for (final section in type.sections) {
-    if (section.required && context.heldSection(doc, section.id) == null) {
+    if (section.required &&
+        _appliesTo(doc, section.whenField) &&
+        context.heldSection(doc, section.id) == null) {
       yield context.finding(
         doc,
         FindingKind.requiredSectionMissing,
@@ -79,6 +83,18 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         keys: {'header': header},
       );
     }
+    if (template?.whenField case final whenField?
+        when !_appliesTo(doc, whenField)) {
+      yield context.finding(
+        doc,
+        FindingKind.sectionOutsideFieldValue,
+        line: headerLine,
+        message:
+            'section $sectionKey is held only when ${whenField.field} is '
+            '${whenField.values.join(' or ')}',
+        keys: {'section': sectionKey},
+      );
+    }
     final maxLines = template?.maxLines ?? docMaxLines;
     final maxChars = template?.maxChars ?? docMaxChars;
     final (lines: actualLines, chars: actualChars) = lines.sectionCounts[i];
@@ -116,6 +132,12 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
     }
   }
 }
+
+/// Whether a section with [whenField] belongs on [doc]: it sets none, or the
+/// doc's field holds one of its values; an unset field holds none.
+bool _appliesTo(IndexedDoc doc, WhenField? whenField) =>
+    whenField == null ||
+    doc.valuesOf(whenField.field).any(whenField.values.contains);
 
 Iterable<Finding> _titleNumberFinding(
   CheckContext context,

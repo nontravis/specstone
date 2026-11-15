@@ -52,4 +52,5 @@ section 3 says.
    differs from their last `Audited:` hash, plus each doc the round or pass added.
    - A draft whose hash equals its last `Audited:` hash is not read again; its earlier finding stands.
    - A doc of the list that is no draft, approved between rounds or listed and never written, is no target.
+   - Send every re-audit so, never as a follow-up message to the agent of an earlier audit.
 4. In your round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.

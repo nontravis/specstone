@@ -53,9 +53,9 @@ const Map<String, String> approvedSignOut = {
       '---\napproved: true\n---\n\n# Clear cookies\n',
 };
 
-const _loginRecord = 'specs/f01_login/IMPLEMENTATION.md';
-const _signupRecord = 'specs/f02_signup/IMPLEMENTATION.md';
-const _cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
+const _loginRecord = '.specstone/records/f01_login/IMPLEMENTATION.md';
+const _signupRecord = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+const _cartRecord = '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
 
 /// The `login` record of the write project: the statuses and code paths of
 /// [story1] and of [story3] with its two FRs.
@@ -77,10 +77,10 @@ final String _loginRecordText = recordText(
 /// on top of [freeStory3].
 Map<String, String> _withRecords({String? login}) => {
   ...withoutLink,
-  '.specstone/templates/implementation.yaml': recordLayer,
+  '.specstone/templates/implementation.yaml': recordLayerAtRoot,
   '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
-  'docs/$_loginRecord': login ?? _loginRecordText,
-  'docs/$_signupRecord': recordText(statuses: ['ghost:planned']),
+  _loginRecord: login ?? _loginRecordText,
+  _signupRecord: recordText(statuses: ['ghost:planned']),
 };
 
 const _journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
@@ -1853,15 +1853,15 @@ void main() {
     test('E16: a nested feature record names its items relative to it, and a record of another feature is left', () async {
       final root = await writeNestedProject(
         extra: {
-          '.specstone/templates/implementation.yaml': recordLayer,
-          'docs/$_cartRecord': recordText(
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          _cartRecord: recordText(
             statuses: [
               'add_item:implemented',
               'add_item/check_stock:implemented',
               'drop_item:planned',
             ],
           ),
-          'docs/specs/f02_shop/IMPLEMENTATION.md': recordText(
+          '.specstone/records/f02_shop/IMPLEMENTATION.md': recordText(
             statuses: ['drop_item:planned'],
           ),
         },
@@ -1878,7 +1878,7 @@ void main() {
       );
       expect(readDoc(root, _cartRecord), isNot(contains('drop_item')));
       expect(
-        readDoc(root, 'specs/f02_shop/IMPLEMENTATION.md'),
+        readDoc(root, '.specstone/records/f02_shop/IMPLEMENTATION.md'),
         contains("'drop_item:planned'"),
       );
     });
@@ -1962,8 +1962,8 @@ void main() {
     test('E17: a feature delete removes no entry, its record leaving with the spec folder', () async {
       final root = await writeNestedProject(
         extra: {
-          '.specstone/templates/implementation.yaml': recordLayer,
-          'docs/$_cartRecord': recordText(statuses: ['add_item:implemented']),
+          '.specstone/templates/implementation.yaml': recordLayerAtRoot,
+          _cartRecord: recordText(statuses: ['add_item:implemented']),
           // no doc links into the sub-feature once the API doc is freed
           'docs/$shopApi': '# Shop API\n',
           'docs/$cartDomain': recordText(),
@@ -2132,13 +2132,14 @@ void main() {
       'email_login/check_password:implemented',
     ];
     const twinItems = ['email_login', 'email_login/check_password'];
-    const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
-    const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
+    const flutterRecord =
+        '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+    const jasprRecord = '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
     Future<Directory> twins() => writeTwinProject(
       extra: {
-        'docs/$flutterRecord': recordText(statuses: twinStatuses),
-        'docs/$jasprRecord': recordText(statuses: twinStatuses),
+        flutterRecord: recordText(statuses: twinStatuses),
+        jasprRecord: recordText(statuses: twinStatuses),
         // the API doc names the story's FR in its trace; free it of the link
         'docs/${check.loginApi}': '# Login API\n',
       },
@@ -2252,5 +2253,212 @@ void main() {
         ),
       );
     });
+  });
+
+  group('records under .specstone/records/', () {
+    // The files that leave no doc outside the login feature pointing into it.
+    final freeOfLoginReferrers = {
+      'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
+      'docs/$persona':
+          '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+    };
+
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    final recordBody = recordText(statuses: ['email_login:implemented']);
+
+    File recordFile(Directory root) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${record.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> recordProject() => writeWriteProject(
+      extra: {
+        ...freeOfLoginReferrers,
+        ...recordsRootTemplates,
+        record: recordBody,
+      },
+    );
+
+    test('a feature delete removes its record folder and names the record by its project path', () async {
+      final root = await recordProject();
+      final prompts = StringBuffer();
+      final answer = del(
+        root,
+        ['feature:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        prompts: prompts,
+      );
+      expect(answer.json['removed'], contains(record));
+      expect(prompts.toString(), contains('$record\n'));
+      expect(recordFile(root).existsSync(), isFalse);
+      expect(recordFile(root).parent.existsSync(), isFalse);
+    });
+
+    test('the delete plan lists the record by its project path', () async {
+      final root = await recordProject();
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['feature:login']),
+      );
+      expect(answer.json['files'], contains(record));
+      expect(answer.text, contains('$record (guarded)\n'));
+      expect(recordFile(root).existsSync(), isTrue);
+    });
+
+    group('an approved record is the only guard of a feature', () {
+      const signupRecord = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+
+      // signup holds only drafts, so its record is the one doc that can gate.
+      Future<Directory> signupProject({required bool approved}) =>
+          writeWriteProject(
+            extra: {
+              ...recordsRootTemplates,
+              'docs/prds/FEATURES.md':
+                  '# Feature index\n\n## Systems\n'
+                  '- [Login](features/f01_login/FEATURE.md)\n',
+              'docs/prds/d01_context.md': '# Context\n',
+              signupRecord: recordText(
+                front: approved ? 'approved: true\n' : 'draft: true\n',
+                statuses: ['ghost:planned'],
+              ),
+            },
+          );
+
+      test('guards the delete under its project path until the Owner says yes', () async {
+        final root = await signupProject(approved: true);
+        final answer = writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['feature:signup']),
+        );
+        expect(answer.json['guarded'], [signupRecord]);
+        expect(
+          () => del(root, ['feature:signup']),
+          refusesWith(WriteFaultCode.ownerTerminalRequired),
+        );
+        expect(
+          File(
+            '${root.path}/${signupRecord.replaceAll('/', Platform.pathSeparator)}',
+          ).existsSync(),
+          isTrue,
+        );
+      });
+
+      test('a draft record leaves the same feature free to delete', () async {
+        final root = await signupProject(approved: false);
+        final answer = del(root, ['feature:signup']);
+        expect(answer.json['removed'], contains(signupRecord));
+        expect(
+          Directory('${root.path}/.specstone/records/f02_signup').existsSync(),
+          isFalse,
+        );
+      });
+    });
+
+    test('a feature delete with two code targets removes the record folder of each target', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...freeOfLoginReferrers,
+          ...recordsRootTemplates,
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          flutterRecord: recordBody,
+          jasprRecord: recordBody,
+        },
+      );
+      final answer = del(
+        root,
+        ['feature:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+      );
+      expect(answer.json['removed'], containsAll([flutterRecord, jasprRecord]));
+      for (final target in ['flutter', 'jaspr']) {
+        expect(
+          Directory('${root.path}/.specstone/records/$target/f01_login')
+              .existsSync(),
+          isFalse,
+          reason: target,
+        );
+      }
+    });
+
+    group('nested feature records', () {
+      const cartRecord =
+          '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md';
+      const payRecord = '.specstone/records/f02_shop/f02_pay/IMPLEMENTATION.md';
+
+      Future<Directory> nestedProject() => writeNestedProject(
+        without: {'docs/$shopApi'},
+        extra: {
+          ...recordsRootTemplates,
+          cartRecord: recordText(statuses: ['add_item:planned']),
+          payRecord: recordText(statuses: ['card:planned']),
+        },
+      );
+
+      bool exists(Directory root, String path) => File(
+        '${root.path}${Platform.pathSeparator}'
+        '${path.replaceAll('/', Platform.pathSeparator)}',
+      ).existsSync();
+
+      test(
+        'deleting a sub-feature removes its nested record folder alone',
+        () async {
+          final root = await nestedProject();
+          final answer = del(
+            root,
+            ['feature:shop/cart'],
+            confirmation: OwnerConfirmation.prompt,
+            answers: ['y'],
+          );
+          expect(answer.json['removed'], contains(cartRecord));
+          expect(exists(root, cartRecord), isFalse);
+          expect(exists(root, payRecord), isTrue);
+        },
+      );
+
+      test(
+        'deleting the top feature removes the records of its sub-features',
+        () async {
+          final root = await nestedProject();
+          final answer = del(
+            root,
+            ['feature:shop'],
+            confirmation: OwnerConfirmation.prompt,
+            answers: ['y'],
+          );
+          expect(answer.json['removed'], containsAll([cartRecord, payRecord]));
+          expect(
+            Directory('${root.path}/.specstone/records/f02_shop').existsSync(),
+            isFalse,
+          );
+        },
+      );
+    });
+
+    test(
+      'a feature delete with no record folder removes the feature alone',
+      () async {
+        final root = await writeWriteProject(
+          extra: {...freeOfLoginReferrers, ...recordsRootTemplates},
+        );
+        final answer = del(
+          root,
+          ['feature:login'],
+          confirmation: OwnerConfirmation.prompt,
+          answers: ['y'],
+        );
+        expect(
+          (answer.json['removed']! as List).cast<String>(),
+          isNot(contains(startsWith('.specstone/records/'))),
+        );
+      },
+    );
   });
 }

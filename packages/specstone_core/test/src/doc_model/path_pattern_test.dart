@@ -181,6 +181,29 @@ void main() {
       expect(targeted.matches('flutter/deploy.md'), isFalse);
     });
 
+    test('a records pattern takes the target folder right after '
+        '.specstone/records/', () {
+      final targeted = PathPattern(
+        '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md',
+      ).forTarget('jaspr');
+
+      expect(
+        targeted.source,
+        '.specstone/records/jaspr/f{nn}_{slug}/IMPLEMENTATION.md',
+      );
+      expect(
+        targeted.matches(
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md',
+        ),
+        isTrue,
+      );
+      expect(
+        PathPattern('.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md')
+            .targetFolder('jaspr'),
+        '.specstone/records/jaspr/',
+      );
+    });
+
     test('doc_model/s03/rule-20: targetFolder is the first folder and the '
         'target, where forTarget puts it', () {
       expect(

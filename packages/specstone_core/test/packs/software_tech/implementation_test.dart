@@ -70,7 +70,7 @@ void main() {
           code.add("  - '$story/$fr:app/lib/login.dart:checkPassword'");
         }
       }
-      const recordPath = 'docs/specs/f09_big/IMPLEMENTATION.md';
+      const recordPath = '.specstone/records/f09_big/IMPLEMENTATION.md';
       docs[recordPath] =
           '---\nstatuses:\n${statuses.join('\n')}\nimplements:\n'
           '${code.join('\n')}\n---\n\n# Big implementation\n';
@@ -86,7 +86,7 @@ void main() {
 
       final sizeFindings = report.findings.where(
         (f) =>
-            f.path == 'specs/f09_big/IMPLEMENTATION.md' &&
+            f.path == '.specstone/records/f09_big/IMPLEMENTATION.md' &&
             (f.kind == FindingKind.linesOverLimit ||
                 f.kind == FindingKind.itemOverLimit),
       );
@@ -94,7 +94,7 @@ void main() {
       expect(
         report.findings.where(
           (f) =>
-              f.path == 'specs/f09_big/IMPLEMENTATION.md' &&
+              f.path == '.specstone/records/f09_big/IMPLEMENTATION.md' &&
               f.kind == FindingKind.untypedDoc,
         ),
         isEmpty,

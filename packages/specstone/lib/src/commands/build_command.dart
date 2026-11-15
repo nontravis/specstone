@@ -90,13 +90,7 @@ class BuildCommand extends SpecstoneCommand {
       final displayPath = outputOption != null && File(outputOption).isAbsolute
           ? outputOption
           : project.displayPath(output);
-      if (project.isInsideDocsRoot(output)) {
-        throw RenderFault(
-          RenderFaultCode.outputNotWritable,
-          'the output path is inside the docs root',
-          file: displayPath,
-        );
-      }
+      requireOutputOutsideDocRoots(project, output, displayPath: displayPath);
       final build = buildHtml(project, target, page: page);
       warnings.addAll(build.warnings);
       writeBuildOutput(

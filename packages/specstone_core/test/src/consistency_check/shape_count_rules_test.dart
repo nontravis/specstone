@@ -12,6 +12,7 @@ const Set<FindingKind> _shapeKinds = {
   FindingKind.itemCountOutOfRange,
   FindingKind.prefixCountMismatch,
   FindingKind.linesUnderLimit,
+  FindingKind.subsectionsOverLimit,
 };
 
 String _sectionLint(String section, String lint) =>
@@ -355,5 +356,59 @@ void main() {
       edits: _frWith('- a | b\n- | -\n| x | y |'),
     );
     expect(found, isEmpty);
+  });
+
+  group('max_subsections', () {
+    const cap = '      max_subsections: 6\n';
+
+    String scenario(int n) =>
+        '\n\n### Scenario $n — [error] Case $n\n\n'
+        '- **Given** a\n- **When** b\n- **Then** c';
+
+    Map<String, String> storyWith(int scenarios, {String after = ''}) => doc(
+      loginStory,
+      loginScenario2,
+      '$loginScenario2$after'
+      '${[for (var n = 3; n <= scenarios; n++) scenario(n)].join()}',
+    );
+
+    test('seven subsections under a cap of 6 report the section, limit, and '
+        'actual at its header', () async {
+      final found = await _found(
+        _storyLayer,
+        _sectionLint('acceptance_criteria', cap),
+        edits: storyWith(7),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.subsectionsOverLimit);
+      expect(found.single.line, _lineOf(loginStory, '## Acceptance Criteria'));
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('section', 'acceptance_criteria'),
+          containsPair('limit', 6),
+          containsPair('actual', 7),
+        ),
+      );
+      expect(found.single.waitsFor, WaitsFor.agent);
+    });
+
+    test('six subsections under a cap of 6 have no finding', () async {
+      final found = await _found(
+        _storyLayer,
+        _sectionLint('acceptance_criteria', cap),
+        edits: storyWith(6),
+      );
+      expect(found, isEmpty);
+    });
+
+    test('a fenced ### line counts as no subsection', () async {
+      final found = await _found(
+        _storyLayer,
+        _sectionLint('acceptance_criteria', cap),
+        edits: storyWith(6, after: '\n\n```\n### Scenario 9\n```'),
+      );
+      expect(found, isEmpty);
+    });
   });
 }

@@ -150,7 +150,8 @@ final class GeneratorRun<R> {
   final ({R resolver, void Function() close}) Function() open;
 }
 
-/// Formats the docs under [target] to their templates.
+/// Formats the docs under [target] to their templates; a [target] that is the
+/// docs root takes in the records root too.
 ///
 /// A doc is written, atomically and in its own line-ending style, only when
 /// its formatted text differs from its LF text and [check] is false. With
@@ -166,9 +167,11 @@ FormatReport runFormat<R>(
   required bool check,
   GeneratorRun<R>? generators,
 }) {
+  final targets = [target, if (target.isDocsRoot) ?project.recordsTarget];
   final reads = [
-    for (final docFile in collectDocEntries(target, project.matcher))
-      readDoc(project, docFile),
+    for (final target in targets)
+      for (final entry in collectDocEntries(target, project.matcher))
+        readDoc(project, entry),
   ];
   final run = generators;
   final needsResolver = reads.whereType<ReadableDoc>().any(

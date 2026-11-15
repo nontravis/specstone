@@ -182,4 +182,63 @@ void main() {
       );
     });
   });
+
+  group('requireOutputOutsideDocRoots', () {
+    Future<(DocsProject, Directory)> project() =>
+        _open({'$_featureDir/FEATURE.md': _feature});
+
+    Matcher refusedWith(String message) => throwsA(
+      isA<RenderFault>()
+          .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
+          .having((f) => f.message, 'message', message)
+          .having((f) => f.file, 'file', 'shown'),
+    );
+
+    test('refuses a path inside the docs root', () async {
+      final (docs, root) = await project();
+      expect(
+        () => requireOutputOutsideDocRoots(
+          docs,
+          File('${root.path}/docs/prds/page.html'),
+          displayPath: 'shown',
+        ),
+        refusedWith('the output path is inside the docs root'),
+      );
+    });
+
+    test('refuses the records folder and a path below it', () async {
+      final (docs, root) = await project();
+      for (final path in [
+        '.specstone/records',
+        '.specstone/records/f01_login/IMPLEMENTATION.md',
+        '.specstone/records/../records/x.html',
+      ]) {
+        expect(
+          () => requireOutputOutsideDocRoots(
+            docs,
+            File('${root.path}/$path'),
+            displayPath: 'shown',
+          ),
+          refusedWith('the output path is inside the records root'),
+          reason: path,
+        );
+      }
+    });
+
+    test('accepts the default build folder and a sibling of the records '
+        'folder', () async {
+      final (docs, root) = await project();
+      for (final path in [
+        '.specstone/build/docs/page.html',
+        '.specstone/records_old/x.html',
+        'out/page.html',
+      ]) {
+        requireOutputOutsideDocRoots(
+          docs,
+          File('${root.path}/$path'),
+          displayPath: 'shown',
+        );
+      }
+    });
+  });
 }

@@ -306,7 +306,7 @@ void main() {
       'gives a section finding', () async {
     final (:found, project: _) = await _run({
       ..._frWithSection('## TBR\n\n- **Value:** app/lib/login.dart\n'),
-      'docs/specs/f01_login/IMPLEMENTATION.md':
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
           "---\nstatuses:\n  - 'email_login/check_password:planned'\n"
           '---\n\n# Record\n',
     });
@@ -318,7 +318,7 @@ void main() {
   test('$_name E09: future code paths in a planned FR record entry give no '
       'tbr_open', () async {
     final (:found, project: _) = await _run({
-      'docs/specs/f01_login/IMPLEMENTATION.md':
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
           "---\nstatuses:\n  - 'email_login/check_password:planned'\n"
           "implements:\n  - 'email_login/check_password:app/lib/later.dart:later'\n"
           '---\n\n# Record\n',

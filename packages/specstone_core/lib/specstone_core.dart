@@ -24,8 +24,10 @@ export 'src/document_writing/new_doc.dart' show answerNew;
 export 'src/document_writing/owner_confirmation.dart' show OwnerConfirmation;
 export 'src/document_writing/remove_task_refs.dart'
     show answerRemoveTasks, requireTaskIds;
+export 'src/document_writing/root_trust.dart' show locateReadRoots;
 export 'src/document_writing/set_batch.dart' show answerSetBatch;
-export 'src/document_writing/set_doc.dart' show SetRequest, answerSet;
+export 'src/document_writing/set_doc.dart'
+    show SetRequest, answerSet, replaceConflictMessage;
 export 'src/document_writing/write_fault.dart'
     show CurrentTarget, WriteFault, WriteFaultCode;
 export 'src/document_writing/write_session.dart' show WriteSession;
@@ -44,6 +46,8 @@ export 'src/index_query/index_fault.dart'
 export 'src/index_query/index_store.dart' show indexBusyTimeout;
 export 'src/index_query/indexed_doc.dart' show IndexedDoc;
 export 'src/index_query/list_docs.dart' show ListFilters, answerList;
+export 'src/index_query/out_file.dart'
+    show answerOutFile, bareOutFile, outFileName, requireOutPath;
 export 'src/index_query/read_answer.dart'
     show
         ReadAnswer,
@@ -70,6 +74,7 @@ export 'src/rendering/build_output.dart'
         OutputFormat,
         defaultOutputFile,
         outputName,
+        requireOutputOutsideDocRoots,
         writeBuildOutput;
 export 'src/rendering/docs_project.dart' show DocsProject, Target;
 export 'src/rendering/format_run.dart'

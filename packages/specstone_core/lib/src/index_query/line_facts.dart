@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_anchors.dart';
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
-    show holdsLinkSyntax, parseLinkFreeBody, parseMarkdownTree;
+    show holdsLinkSyntax, parseMarkdownTreeByBlock;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
@@ -140,27 +140,24 @@ final class LineFacts {
     final bodyStart = linesBeforeBodyOf(doc, lfText);
     final whole = scanText(countedText);
     final body = doc.afterFrontmatter;
-    // One gate and one parse per doc, failed or not: a link-syntax body
-    // shares its full parse between the links and the anchors, so a failed
-    // parse is the links and the anchors both; any other body never parses
-    // its prose.
-    final hasLinks = holdsLinkSyntax(body);
-    final linkTree = hasLinks ? parseMarkdownTree(body) : null;
-    final links = !hasLinks
+    // One parse per doc, failed or not, shared by the anchors and the links:
+    // the inline pass runs only on the blocks that can hold either. A body
+    // with no link syntax is never read for links, so it never warns.
+    final tree = parseMarkdownTreeByBlock(body);
+    final links = !holdsLinkSyntax(body)
         ? noLinks
-        : linkTree == null
+        : tree == null
         ? null
         : linkPlacesOf(
             body,
             docPath: docPath,
             firstLine: bodyStart + 1,
-            tree: linkTree,
+            tree: tree,
           );
     if (linkWarningOf(docPath, links) case final warning?) {
       warnings.add(warning);
     }
-    final anchorNodes = hasLinks ? linkTree?.nodes : parseLinkFreeBody(body);
-    final anchors = anchorNodes == null ? null : anchorsOf(anchorNodes);
+    final anchors = tree == null ? null : anchorsOf(tree.nodes);
     final fenced = _fencedRanges(doc.afterFrontmatter, bodyStart);
     return LineFacts(
       links: links?.docLinks ?? const [],

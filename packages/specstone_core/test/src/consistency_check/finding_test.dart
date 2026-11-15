@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 112 snake_case kinds, no error code', () {
+  test('consistency_check: 116 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -18,6 +18,7 @@ void main() {
       'title_missing',
       'required_section_missing',
       'section_undeclared',
+      'section_outside_field_value',
       'lines_over_limit',
       'chars_over_limit',
       'item_over_limit',
@@ -27,6 +28,7 @@ void main() {
       'item_count_out_of_range',
       'prefix_count_mismatch',
       'lines_under_limit',
+      'subsections_over_limit',
       'item_field_missing',
       'section_unneeded',
       'system_unresolved',
@@ -88,6 +90,7 @@ void main() {
       'measurement_goal_unresolved',
       'goal_measurement_duplicate',
       'goal_metric_mismatch',
+      'goal_metric_unlinked',
       'fr_trace_unresolved',
       'architecture_missing',
       'implements_missing',
@@ -108,6 +111,7 @@ void main() {
       'unconfirmed',
       'confirmed_entry_malformed',
       'confirmed_entry_stale',
+      'confirmed_entry_repeated',
       'code_suspect',
       'code_unconfirmed',
       'format_drift',
@@ -182,6 +186,7 @@ void main() {
       FindingKind.measurementGoalUnresolved,
       FindingKind.goalMeasurementDuplicate,
       FindingKind.goalMetricMismatch,
+      FindingKind.goalMetricUnlinked,
     ]) {
       expect(kind.waitsFor, WaitsFor.agent, reason: kind.wire);
     }

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show statusesOutsideApproval, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -42,7 +43,7 @@ import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
     show stampsPlanLine;
 import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
-    show treeMovesOf;
+    show recordDocPathsOf, treeMovesOf;
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
     show orderedMoves;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -117,7 +118,8 @@ RunPlan _legacyRunOf(
   required PlanInputs inputs,
 }) {
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
-  final docPaths = _docPathsOf(docsRoot)..sort(compareCodePoints);
+  final docPaths = [..._docPathsOf(docsRoot), ...recordDocPathsOf(root)]
+    ..sort(compareCodePoints);
   final specMap = _specMapOf(docsRoot, docPaths);
   final features = scanLegacyFeatures(docPaths);
   refuseDuplicateGroups(features);
@@ -141,7 +143,7 @@ RunPlan _legacyRunOf(
       for (final section in gnfr.sections) section.id,
   };
 
-  final originals = _originalsOf(docsRoot, docPaths);
+  final originals = _originalsOf(docsRoot, root, docPaths);
   final titled = _titledWorksOf(
     originals,
     legacy: placed,
@@ -197,8 +199,8 @@ RunPlan _legacyRunOf(
     recordSteps: _recordStepsOf(
       templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
     ),
-    exists: (path) => _existsIn(docsRoot, path),
-    isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    exists: (path) => _existsIn(docsRoot, root, path),
+    isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
     statusesOutside: statusesOutsideApproval(pins),
     testNames: projectSet.recordDocType != null
         ? (
@@ -356,7 +358,8 @@ AgentFileInputs _agentInputsOf(
   );
 }
 
-/// Returns the DocPath of every file under `prds/` and `specs/`.
+/// Returns the DocPath of every file under `prds/` and `specs/` of
+/// [docsRoot].
 List<String> _docPathsOf(Directory docsRoot) {
   // A file URI path always uses `/`, so no platform separator is split on.
   final prefixLength = docsRoot.uri.path.length;
@@ -452,12 +455,18 @@ final class _Work {
 
 /// Returns the text of every `.md` doc of [docPaths] that is UTF-8, by
 /// legacy DocPath in [docPaths] order; any other file moves untouched.
-Map<String, DocText> _originalsOf(Directory docsRoot, List<String> docPaths) =>
-    {
-      for (final docPath in docPaths)
-        if (docPath.endsWith('.md'))
-          docPath: ?readDocFile(docFileOf(docsRoot, docPath), docPath: docPath),
-    };
+Map<String, DocText> _originalsOf(
+  Directory docsRoot,
+  Directory projectRoot,
+  List<String> docPaths,
+) => {
+  for (final docPath in docPaths)
+    if (docPath.endsWith('.md'))
+      docPath: ?readDocFile(
+        fileOfDocPath(docPath, docsRoot: docsRoot, projectRoot: projectRoot),
+        docPath: docPath,
+      ),
+};
 
 /// Returns the plan line part naming [inferred], empty when the run cited no
 /// code path or inferred none.
@@ -635,7 +644,7 @@ _Rewrites _rewritesOf(
     planned: [
       for (final work in written)
         PlannedRewrite(
-          path: '$_docsFolder${work.newPath}',
+          path: projectPathOfDocPath(work.newPath),
           text: writtenText(work.original, work.lf),
           before: work.original.hash,
           changes: work.changes,
@@ -894,8 +903,10 @@ void _rewriteRefs(
 
 /// Whether [path], from [docsRoot] and possibly leaving it, names a file or
 /// folder of the legacy tree.
-bool _existsIn(Directory docsRoot, String path) =>
-    FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
+bool _existsIn(Directory docsRoot, Directory projectRoot, String path) =>
+    FileSystemEntity.typeSync(
+      fileOfDocPath(path, docsRoot: docsRoot, projectRoot: projectRoot).path,
+    ) !=
     FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and the [codeRoot]
@@ -1022,7 +1033,7 @@ Map<String, String> _overridesOf(
 /// Returns the folders the moves empty, the deepest first, as ProjectPaths.
 List<String> prunesOf(List<PathMove> moves) => {
   for (final move in moves)
-    '$_docsFolder${move.from.substring(0, move.from.lastIndexOf('/'))}',
+    projectPathOfDocPath(move.from.substring(0, move.from.lastIndexOf('/'))),
 }.toList()..sort((a, b) => compareCodePoints(b, a));
 
 /// Returns a draft for each singular doc type whose path the moved tree

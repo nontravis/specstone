@@ -211,6 +211,21 @@ void main() {
     });
   });
 
+  test('a record keeps its DocPath as its project path and its file lies under the project root', () async {
+    final root = await writeWriteProject();
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    writeIn(root, (s) {
+      expect(s.projectPathOf(record), record);
+      expect(s.docPathOf(record), record);
+      expect(s.listedPathOf(record), record);
+      expect(
+        s.fileOf(record).path,
+        '${s.project.projectRoot.path}${Platform.pathSeparator}'
+        '${record.replaceAll('/', Platform.pathSeparator)}',
+      );
+    });
+  });
+
   test('X1, f02/us04/fr03: a docs root linked outside the project keeps the docs/ prefix', () async {
     final root = await writeWriteProject(
       without: {

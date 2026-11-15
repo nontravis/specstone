@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 
 const _driftMessage =
     'the file differs from what `specstone format` writes; run '
@@ -172,4 +173,28 @@ void main() {
       '$loginFr:1: format_drift',
     ]);
   });
+
+  test(
+    'a drifted record names the project path of its file in the fix',
+    () async {
+      const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            ...recordsRootTemplates,
+            record: '---\nstatuses:\n  - "email_login:planned"\n---\n\n# Record\n\n| Case       | Result  |\n|------------|---------|\n| wrong      | refused |\n',
+          },
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.formatDrift,
+      );
+      expect(finding.path, record);
+      expect(
+        finding.message,
+        'the file differs from what `specstone format` writes; run '
+        '`specstone format $record`',
+      );
+    },
+  );
 }

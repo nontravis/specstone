@@ -18,6 +18,28 @@ String shippedPinsConfig([
   return 'packs:\n${pins.join()}';
 }
 
+/// The `config.yaml` text of [shippedPinsConfig] with [pack] pinned one minor
+/// below its shipped version.
+///
+/// The pin is `MAJOR.MINOR-1.0`, so it stays one minor older after a bump.
+String shippedPinsOneMinorBelow(String pack) {
+  final shipped = PackVersion.parse(
+    shippedPackVersions()[pack]!,
+    file: 'shipped',
+    key: pack,
+  );
+  if (shipped.minor == 0) {
+    throw StateError('$pack ships at $shipped, with no minor below it');
+  }
+  final below = '${shipped.major}.${shipped.minor - 1}.0';
+  final pinned = '  $pack: $shipped\n';
+  final config = shippedPinsConfig();
+  if (!config.contains(pinned)) {
+    throw StateError('shippedPinsConfig does not pin $pack at $shipped');
+  }
+  return config.replaceFirst(pinned, '  $pack: $below\n');
+}
+
 /// Whether a project on the shipped pins keeps a record's statuses outside
 /// the approval hash, the rule every shipped-pin fixture hashes by.
 final bool shippedStatusesOutside = statusesOutsideApproval({

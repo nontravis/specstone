@@ -259,7 +259,7 @@ void main() {
   });
 
   group('a task ref left on a done feature', () {
-    const record = 'docs/$loginRecord';
+    const record = loginRecord;
     const sso = 'prds/features/f01_login/us02_sso/USER_STORY.md';
     const story = 'email_login';
     const frName = 'email_login/check_password';
@@ -367,7 +367,7 @@ void main() {
 
     group('with nested features', () {
       const cartDoc = 'docs/$cartDomain';
-      const shopRecord = 'docs/specs/f02_shop/IMPLEMENTATION.md';
+      const shopRecord = '.specstone/records/f02_shop/IMPLEMENTATION.md';
 
       Future<Directory> nested(
         String refund, {
@@ -464,8 +464,10 @@ void main() {
     });
 
     group('on a doc shared across code targets', () {
-      const flutterRecord = 'docs/specs/flutter/f01_login/IMPLEMENTATION.md';
-      const jasprRecord = 'docs/specs/jaspr/f01_login/IMPLEMENTATION.md';
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
 
       Future<Directory> twins(List<String> flutter, List<String> jaspr) {
         String twin(List<String> statuses) =>

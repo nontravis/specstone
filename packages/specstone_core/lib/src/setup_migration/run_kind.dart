@@ -110,7 +110,7 @@ bool _hasTreeMove(
     homeDirectory: homeDirectory,
   );
   return treeMovesOf(
-    docPathsOf(project.docsRoot),
+    docPathsOf(project.docsRoot, project.projectRoot),
     project.set,
     targetNames: project.targetNames,
   ).isNotEmpty;

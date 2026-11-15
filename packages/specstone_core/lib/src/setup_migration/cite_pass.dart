@@ -172,7 +172,7 @@ _DocResult _convertDoc(
     if (isSeeTargetCite(seeTargets[candidate.line], candidate)) continue;
     final resolved = resolveCite(tree, docPath, candidate);
     if (resolved is CiteNoDoc) continue;
-    if (resolved is CiteLink && !form.isInSpan) {
+    if (resolved is CiteLink) {
       edits.addAll(
         _editsOf(
           form,

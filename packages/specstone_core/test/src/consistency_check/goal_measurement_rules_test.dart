@@ -28,6 +28,7 @@ const Set<FindingKind> _goalKinds = {
   FindingKind.measurementGoalUnresolved,
   FindingKind.goalMeasurementDuplicate,
   FindingKind.goalMetricMismatch,
+  FindingKind.goalMetricUnlinked,
 };
 
 /// A measurement doc whose head holds [head] and whose body holds [scope].
@@ -73,15 +74,12 @@ List<Finding> _goalFindings(CheckReport report) => [
 ];
 
 void main() {
-  test(
-    'E01: a goal whose one measurement head links it gets no finding',
-    () async {
-      final (_, report) = await _run({});
-      expect(_goalFindings(report), isEmpty);
-    },
-  );
+  test('a goal whose one measurement head links it gets no finding', () async {
+    final (_, report) = await _run({});
+    expect(_goalFindings(report), isEmpty);
+  });
 
-  test('E02: a goal no measurement head links is goal_measurement_missing at its heading', () async {
+  test('a goal no measurement head links is goal_measurement_missing at its heading', () async {
     final project = await writeCheckProject(extra: _project(secondGoal: true));
     final report = checkOf(project);
     final finding = _goalFindings(report).single;
@@ -91,7 +89,7 @@ void main() {
     expect(finding.toJson()['goal'], 'PG-02');
   });
 
-  test('E03: two measurements that link one goal give one duplicate at the goal heading and no missing', () async {
+  test('two measurements that link one goal give one duplicate at the goal heading and no missing', () async {
     final project = await writeCheckProject(
       extra: {'docs/$_secondMeasurement': _measurement(_goal1Link)},
     );
@@ -106,7 +104,7 @@ void main() {
     );
   });
 
-  test('E04: a head that links two goals is one duplicate at its title; neither goal is missing', () async {
+  test('a head that links two goals is one duplicate at its title; neither goal is missing', () async {
     final project = await writeCheckProject(
       extra: {
         ..._project(secondGoal: true),
@@ -120,7 +118,7 @@ void main() {
     expect(finding.toJson()['measurement'], 'fewer_resets');
   });
 
-  test('E05: a head with no link, or one that links another doc, is measurement_goal_unresolved at its title', () async {
+  test('a head with no link, or one that links another doc, is measurement_goal_unresolved at its title', () async {
     for (final head in [
       'No link here.',
       '[Features](../../prds/FEATURES.md)',
@@ -141,7 +139,7 @@ void main() {
     }
   });
 
-  test('E06: a head link whose anchor no goal heading holds is unresolved, beside link_anchor_missing', () async {
+  test('a head link whose anchor no goal heading holds is unresolved, beside link_anchor_missing', () async {
     final project = await writeCheckProject(
       extra: {
         'docs/$measurementDoc': _measurement(
@@ -156,7 +154,7 @@ void main() {
     expect(spots(report, FindingKind.linkAnchorMissing), hasLength(1));
   });
 
-  test('E07: a goal link inside a measurement section is no goal link', () async {
+  test('a goal link inside a measurement section is no goal link', () async {
     final project = await writeCheckProject(
       extra: {
         'docs/$measurementDoc': _measurement(
@@ -171,7 +169,7 @@ void main() {
     ]);
   });
 
-  test('E08: a merged set with no measurement doc type runs no rule (the project type cannot be absent while measurement is held)', () async {
+  test('a merged set with no measurement doc type runs no rule (the project type cannot be absent while measurement is held)', () async {
     final project = await writeCheckProject(extra: _project(secondGoal: true));
     final session = ReadSession.open(
       templates: TemplateResolver(
@@ -187,7 +185,7 @@ void main() {
     expect(_goalFindings(runCheck(session)), isEmpty);
   });
 
-  test('E09: a lettered goal heading holds no goal, and a head link to it is no goal link', () async {
+  test('a lettered goal heading holds no goal, and a head link to it is no goal link', () async {
     final project = await writeCheckProject(
       extra: doc(projectDoc, '### PG-01 — ', '### PG-01a — '),
     );
@@ -196,7 +194,7 @@ void main() {
     expect(spots(report, FindingKind.measurementGoalUnresolved), hasLength(1));
   });
 
-  test('E10: a head whose only link names a vision heading is measurement_goal_unresolved', () async {
+  test('a head whose only link names a vision heading is measurement_goal_unresolved', () async {
     final project = await writeCheckProject(
       extra: {
         'docs/$measurementDoc': _measurement(
@@ -209,7 +207,7 @@ void main() {
     expect(spots(report, FindingKind.goalMeasurementMissing), hasLength(1));
   });
 
-  test('E11: a Metric that links the measurement of another goal is goal_metric_mismatch on the Metric line', () async {
+  test('a Metric that links the measurement of another goal is goal_metric_mismatch on the Metric line', () async {
     final project = await writeCheckProject(
       extra: {
         ..._project(
@@ -227,7 +225,7 @@ void main() {
     expect(mismatch.message, contains('faster_sign_in'));
   });
 
-  test('E11: a Metric line that links two mismatched measurements names each in one finding', () async {
+  test('a Metric line that links two mismatched measurements names each in one finding', () async {
     final project = await writeCheckProject(
       extra: {
         ..._project(
@@ -248,7 +246,7 @@ void main() {
     );
   });
 
-  test('E12: a Metric that links a measurement with no goal link is a mismatch beside its unresolved', () async {
+  test('a Metric that links a measurement with no goal link is a mismatch beside its unresolved', () async {
     final project = await writeCheckProject(
       extra: {
         ..._project(metric: '- **Metric:** 50%, see $_metricLink'),
@@ -262,7 +260,7 @@ void main() {
     expect(spots(report, FindingKind.measurementGoalUnresolved), hasLength(1));
   });
 
-  test('E13: a Metric that links a measurement whose head links two goals including its own is no mismatch', () async {
+  test('a Metric that links a measurement whose head links two goals including its own is no mismatch', () async {
     final project = await writeCheckProject(
       extra: {
         ..._project(
@@ -277,15 +275,115 @@ void main() {
     expect(spots(report, FindingKind.goalMeasurementDuplicate), hasLength(1));
   });
 
-  test(
-    'E14: a Metric line that links no measurement gets no mismatch',
-    () async {
-      final project = await writeCheckProject(
-        extra: _project(metric: '- **Metric:** 50%'),
+  test('a Metric line with no link is one goal_metric_unlinked on that line and no mismatch', () async {
+    final project = await writeCheckProject(
+      extra: _project(metric: '- **Metric:** 50%'),
+    );
+    final finding = _goalFindings(checkOf(project)).single;
+    expect(finding.kind, FindingKind.goalMetricUnlinked);
+    expect(finding.path, projectDoc);
+    expect(finding.line, _lineOf(project, projectDoc, '- **Metric:**'));
+    expect(finding.toJson()['goal'], 'PG-01');
+    expect(finding.message, contains('guide line: link the goal'));
+  });
+
+  test('a Metric line that links only non-measurement docs or URLs is goal_metric_unlinked', () async {
+    for (final metric in [
+      '- **Metric:** 50%, see [project](PROJECT.md)',
+      '- **Metric:** 50%, see [site](https://example.com/a)',
+      '- **Metric:** 50%, see <https://example.com/a>',
+      '- **Metric:** 50%, see [features](FEATURES.md#top) and [site](https://example.com/a)',
+    ]) {
+      final project = await writeCheckProject(extra: _project(metric: metric));
+      final report = checkOf(project);
+      expect(spots(report, FindingKind.goalMetricUnlinked), [
+        '$projectDoc:${_lineOf(project, projectDoc, '- **Metric:**')}: goal_metric_unlinked',
+      ], reason: metric);
+      expect(
+        spots(report, FindingKind.goalMetricMismatch),
+        isEmpty,
+        reason: metric,
       );
-      expect(_goalFindings(checkOf(project)), isEmpty);
+    }
+  });
+
+  test('a Metric link with a single-quoted title, a paren title, or a spaced angle destination counts', () async {
+    for (final metric in [
+      "- **Metric:** 50%, see [m](../measurements/fewer_resets/MEASUREMENT.md 'Results')",
+      '- **Metric:** 50%, see [m](../measurements/fewer_resets/MEASUREMENT.md (Results))',
+      '- **Metric:** 50%, see [m](<../measurements/fewer_resets/MEASUREMENT.md#grounding cost>)',
+      '- **Metric:** 50%, see [m][ref]\n\n[ref]: ../measurements/fewer_resets/MEASUREMENT.md',
+    ]) {
+      final project = await writeCheckProject(extra: _project(metric: metric));
+      final report = checkOf(project);
+      expect(
+        spots(report, FindingKind.goalMetricUnlinked),
+        isEmpty,
+        reason: metric,
+      );
+      expect(
+        spots(report, FindingKind.goalMetricMismatch),
+        isEmpty,
+        reason: metric,
+      );
+    }
+  });
+
+  test('a Metric line whose only link names a missing file is goal_metric_unlinked beside link_unresolved', () async {
+    final project = await writeCheckProject(
+      extra: _project(
+        metric:
+            '- **Metric:** 50%, see [m](../measurements/gone/MEASUREMENT.md)',
+      ),
+    );
+    final report = checkOf(project);
+    expect(spots(report, FindingKind.goalMetricUnlinked), [
+      '$projectDoc:${_lineOf(project, projectDoc, '- **Metric:**')}: goal_metric_unlinked',
+    ]);
+    expect(spots(report, FindingKind.goalMetricMismatch), isEmpty);
+    expect(spots(report, FindingKind.linkUnresolved), hasLength(1));
+  });
+
+  test('a Metric link with an anchor the measurement lacks gets neither kind, only link_anchor_missing', () async {
+    final project = await writeCheckProject(
+      extra: _project(
+        metric: '- **Metric:** 50%, see [m](../measurements/fewer_resets/MEASUREMENT.md#nope)',
+      ),
+    );
+    final report = checkOf(project);
+    expect(_goalFindings(report), isEmpty);
+    expect(spots(report, FindingKind.linkAnchorMissing), hasLength(1));
+  });
+
+  test(
+    'a goal block with no Metric line, or only a fenced one, gets neither kind',
+    () async {
+      for (final metric in [null, '```\n- **Metric:** 50%\n```']) {
+        final project = await writeCheckProject(
+          extra: _project(metric: metric),
+        );
+        expect(_goalFindings(checkOf(project)), isEmpty, reason: '$metric');
+      }
     },
   );
+
+  test('a Metric line that links no measurement gets no finding when the merged set has no measurement type', () async {
+    final project = await writeCheckProject(
+      extra: _project(metric: '- **Metric:** 50%'),
+    );
+    final session = ReadSession.open(
+      templates: TemplateResolver(
+        shippedFiles: {
+          for (final MapEntry(:key, :value) in shippedPackFiles.entries)
+            if (key != 'prd-core/measurement.yaml') key: value,
+        },
+      ),
+      workingDirectory: project,
+      homeDirectory: null,
+    );
+    addTearDown(session.close);
+    expect(_goalFindings(runCheck(session)), isEmpty);
+  });
 
   test('a Metric link to a section of the measurement counts as a Metric link', () async {
     final project = await writeCheckProject(

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:specstone_core/src/atomic_write.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/journal_records.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
@@ -358,9 +359,11 @@ final class PruneStep extends JournalStep {
   @override
   void apply(JournalTarget target) {
     try {
-      final docsRoot = target.docsRoot.path;
+      final root = isRecordsDocPath(folder)
+          ? _absolute(target, recordsFolderDocPath)
+          : target.docsRoot.path;
       var current = Directory(_underDocsRoot(target, folder));
-      while (current.path != docsRoot && _isInside(docsRoot, current.path)) {
+      while (current.path != root && _isInside(root, current.path)) {
         if (current.existsSync()) {
           if (current.listSync().isNotEmpty) return;
           current.deleteSync();

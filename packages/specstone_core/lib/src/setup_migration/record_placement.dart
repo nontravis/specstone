@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -20,7 +21,6 @@ import 'package:specstone_core/src/templates/pack_migration.dart';
 
 // MARK: - Constants
 
-const _docsFolder = 'docs/';
 const _statusKey = 'status';
 const _fixThenMigrate = 'fix it, then run specstone migrate again';
 
@@ -225,7 +225,7 @@ void throwFaultsPerDoc(List<MigrateFault> faults) {
 List<PlannedCreate> recordCreatesOf(RecordPlacement placement) => [
   for (final record in placement.creates)
     PlannedCreate(
-      path: '$_docsFolder${record.docPath}',
+      path: projectPathOfDocPath(record.docPath),
       text: record.text,
       note: draftNote,
     ),
