@@ -57,6 +57,7 @@ void main() {
     expect(api.parent, 'feature');
     expectOwnFields(api, const [
       FieldSpec('confirmed', FieldType.string, list: true),
+      FieldSpec('overrides', FieldType.string, list: true),
     ]);
     expectSections(api, const [
       SectionSpec('source_of_truth', 'Source-of-truth'),

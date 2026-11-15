@@ -68,6 +68,7 @@ void main() {
         required: true,
         pointer: PointerKind.prefix,
       ),
+      FieldSpec('overrides', FieldType.string, list: true),
     ]);
     expect(
       fieldOf(architecture, 'covers').description,

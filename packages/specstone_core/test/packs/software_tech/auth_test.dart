@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -34,11 +35,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: auth sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and eight '
+      'specs/f{nn}_{slug}/ with parent feature, only the overrides field, and eight '
       'sections', () {
     expect(auth.path, 'specs/f{nn}_{slug}/AUTH.md');
     expect(auth.parent, 'feature');
-    expectOwnFields(auth, const []);
+    expectOwnFields(auth, const [
+      FieldSpec('overrides', FieldType.string, list: true),
+    ]);
     expectSections(auth, const [
       SectionSpec('roles', 'Roles', required: true),
       SectionSpec('scopes', 'Scopes', required: true),

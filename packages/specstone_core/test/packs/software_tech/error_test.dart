@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -27,11 +28,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: error sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and four '
+      'specs/f{nn}_{slug}/ with parent feature, only the overrides field, and four '
       'sections', () {
     expect(error.path, 'specs/f{nn}_{slug}/ERROR.md');
     expect(error.parent, 'feature');
-    expectOwnFields(error, const []);
+    expectOwnFields(error, const [
+      FieldSpec('overrides', FieldType.string, list: true),
+    ]);
     expectSections(error, const [
       SectionSpec('error_envelope', 'Error envelope'),
       SectionSpec('error_catalog', 'Error catalog', required: true),

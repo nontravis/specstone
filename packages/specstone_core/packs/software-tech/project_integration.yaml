@@ -1,0 +1,8 @@
+id: project_integration
+extends: integration
+path: specs/INTEGRATION.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true

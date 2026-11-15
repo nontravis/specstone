@@ -419,14 +419,14 @@ void main() {
   });
 
   test('a doc of a type built on architecture gets the Concerns rule', () async {
-    const layer = '.specstone/templates/project_architecture.yaml';
-    const built = 'specs/PROJECT_ARCHITECTURE.md';
+    const layer = '.specstone/templates/edge_architecture_root.yaml';
+    const built = 'specs/EDGE_ARCHITECTURE_ROOT.md';
     final report = checkOf(
       await writeCheckProject(
         extra: {
           layer:
-              'id: project_architecture\nextends: architecture\npath: $built\nparent:\n',
-          'docs/$built': '# Project architecture\n\n## Concerns\n\n- Auth: see MISSING.md\n- Errors: N/A — no errors\n',
+              'id: edge_architecture_root\nextends: architecture\npath: $built\nparent:\n',
+          'docs/$built': '# Edge architecture\n\n## Concerns\n\n- Auth: see MISSING.md\n- Errors: N/A — no errors\n',
         },
         unstamped: {'docs/$built'},
       ),

@@ -1,0 +1,8 @@
+id: project_domain
+extends: domain
+path: specs/DOMAIN.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true

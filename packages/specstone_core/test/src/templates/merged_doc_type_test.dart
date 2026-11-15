@@ -699,11 +699,11 @@ sections:
       packNames: const ['prd-core', 'software-tech'],
       homeDirectory: null,
       projectLayers: parseOverrides({
-        '.specstone/templates/project_architecture.yaml':
-            'id: project_architecture\nextends: architecture\n'
-            'path: specs/PROJECT_ARCHITECTURE.md\nparent:\n',
+        '.specstone/templates/edge_architecture_root.yaml':
+            'id: edge_architecture_root\nextends: architecture\n'
+            'path: specs/EDGE_ARCHITECTURE_ROOT.md\nparent:\n',
         '.specstone/templates/edge_architecture.yaml':
-            'id: edge_architecture\nextends: project_architecture\n'
+            'id: edge_architecture\nextends: edge_architecture_root\n'
             'path: specs/EDGE_ARCHITECTURE.md\nparent:\n',
       }),
     );
@@ -712,10 +712,10 @@ sections:
       final set = resolved();
 
       expect(set.lookup('edge_architecture')!.extendsChain, [
-        'project_architecture',
+        'edge_architecture_root',
         'architecture',
       ]);
-      expect(set.lookup('project_architecture')!.extendsChain, [
+      expect(set.lookup('edge_architecture_root')!.extendsChain, [
         'architecture',
       ]);
       expect(set.lookup('architecture')!.extendsChain, isEmpty);
@@ -725,7 +725,7 @@ sections:
       final edge = resolved().lookup('edge_architecture')!;
 
       expect(edge.buildsOn('edge_architecture'), isTrue);
-      expect(edge.buildsOn('project_architecture'), isTrue);
+      expect(edge.buildsOn('edge_architecture_root'), isTrue);
       expect(edge.buildsOn('architecture'), isTrue);
       expect(edge.buildsOn('feature'), isFalse);
     });

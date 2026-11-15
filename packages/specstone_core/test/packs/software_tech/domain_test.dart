@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -43,11 +44,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: domain sits under '
-      'specs/f{nn}_{slug}/ with parent feature, no own field, and nine '
+      'specs/f{nn}_{slug}/ with parent feature, only the overrides field, and nine '
       'sections', () {
     expect(domain.path, 'specs/f{nn}_{slug}/DOMAIN.md');
     expect(domain.parent, 'feature');
-    expectOwnFields(domain, const []);
+    expectOwnFields(domain, const [
+      FieldSpec('overrides', FieldType.string, list: true),
+    ]);
     expectSections(domain, const [
       SectionSpec('entities', 'Entities', required: true),
       SectionSpec('value_objects', 'Value objects'),

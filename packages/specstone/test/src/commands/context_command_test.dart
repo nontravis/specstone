@@ -9,7 +9,6 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
-import '../../../../specstone_core/test/helpers/project_domain_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -26,10 +25,7 @@ void main() {
   test('context on a story lists the root spec doc in its index', () async {
     final (:runner, :out, :err) = readRunner(
       await writeReadProject(
-        extra: {
-          ...projectDomainTemplate,
-          'docs/specs/DOMAIN.md': '# Project domain\n',
-        },
+        extra: {'docs/specs/DOMAIN.md': '# Project domain\n'},
       ),
     );
     expect(

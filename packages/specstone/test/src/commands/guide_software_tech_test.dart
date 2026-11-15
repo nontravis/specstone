@@ -13,10 +13,12 @@ const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 final String _bothPacks = shippedPinsConfig();
 final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
 final String _softwareTechOnly = shippedPinsConfig(['software-tech']);
-const _twentyIds =
+const _twentySixIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
     'fr\ngnfr\nimplementation\nintegration\njourney\nnf\npersona\nproject\n'
-    'reference\ntech_stack\ntopic\nuser_story\n';
+    'project_api\nproject_architecture\nproject_auth\nproject_domain\n'
+    'project_error\nproject_integration\nreference\ntech_stack\ntopic\n'
+    'user_story\n';
 const _citeRule =
     'Cite a rule another doc owns by a link to the item that holds it, '
     'never restate it.';
@@ -31,6 +33,12 @@ const _softwareTechIds = <String>[
   'error',
   'implementation',
   'integration',
+  'project_api',
+  'project_architecture',
+  'project_auth',
+  'project_domain',
+  'project_error',
+  'project_integration',
   'tech_stack',
   'topic',
 ];
@@ -80,15 +88,15 @@ void main() {
         runnerIn(await writeTree({_configPath: packs}));
 
     test('f03/us07/s1, f03/us07/fr01/e01: guide lists the eleven prd-core and '
-        'the nine software-tech doc types and no other', () async {
+        'the fifteen software-tech doc types and no other', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide']), 0);
-      expect(out.toString(), _twentyIds);
+      expect(out.toString(), _twentySixIds);
       expect(err.toString(), isEmpty);
     });
 
     test('f03/us07/s1, f03/us07/fr02: guide --json names software-tech as '
-        'the pack of the nine, each with a one-line summary', () async {
+        'the pack of the fifteen, each with a one-line summary', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide', '--json']), 0);
       final entries = (jsonDecode(out.toString()) as List<Object?>)
@@ -167,6 +175,7 @@ void main() {
         'approved',
         'reference',
         'covers',
+        'overrides',
       ]);
       final covers = fields.cast<Map<String, Object?>>().singleWhere(
         (f) => f['id'] == 'covers',
@@ -192,6 +201,27 @@ void main() {
         'open_questions',
       ]);
     });
+
+    test(
+      'f03/us07/s8, f03/us07/fr01/e12: guide project_domain --json gives '
+      'the root path, no parent, and the implement and design modes',
+      () async {
+        final runner = await runnerFor(_bothPacks);
+        expect(await runner.run(['guide', 'project_domain', '--json']), 0);
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        expect(json['path'], 'specs/DOMAIN.md');
+        expect(json.containsKey('parent'), isFalse);
+        expect(json['bundle'], ['implement', 'design']);
+        expect(_idsOf(json['fields']), [
+          'slug',
+          'status',
+          'draft',
+          'approved',
+          'reference',
+        ]);
+        expect(err.toString(), isEmpty);
+      },
+    );
 
     test('f03/us07/s4, f03/us07/fr01/e08: guide fr --json holds the prd-core '
         'fields and no field that points at code', () async {

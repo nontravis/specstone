@@ -22,6 +22,12 @@ fields:
       Lists the folders or files of code that the feature's spec folder covers, each relative to the code root of the doc's target (`.specstone/config.yaml`, else the project root).
       A path matches by longest prefix, so a folder covers every file under it.
       An entry may end in one space and its code fingerprint, which `check` compares with the code it names.
+  - id: overrides
+    type: string
+    list: true
+    description: |-
+      Records one `<doc type>:<name>#<ID> <fingerprint>` entry per item the doc's `Overrides:` lines link.
+      Example: `project_domain:domain#INV-3 3f9a1c0b7e2d`; the entry counts once the Owner approves the doc.
 sections:
   - id: component_diagram
     header: Component diagram

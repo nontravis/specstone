@@ -1,0 +1,10 @@
+id: project_architecture
+extends: architecture
+path: specs/ARCHITECTURE.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: covers
+    disabled: true
+  - id: overrides
+    disabled: true

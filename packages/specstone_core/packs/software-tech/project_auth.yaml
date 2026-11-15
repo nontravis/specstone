@@ -1,0 +1,8 @@
+id: project_auth
+extends: auth
+path: specs/AUTH.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true

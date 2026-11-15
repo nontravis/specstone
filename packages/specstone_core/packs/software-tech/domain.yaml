@@ -10,6 +10,13 @@ description: |-
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
 per_target: true
+fields:
+  - id: overrides
+    type: string
+    list: true
+    description: |-
+      Records one `<doc type>:<name>#<ID> <fingerprint>` entry per item the doc's `Overrides:` lines link.
+      Example: `project_domain:domain#INV-3 3f9a1c0b7e2d`; the entry counts once the Owner approves the doc.
 sections:
   - id: entities
     header: Entities

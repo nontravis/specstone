@@ -55,7 +55,7 @@ void main() {
       prdOnly = await resolvePrdCore();
     });
 
-    test('E01: the merged set holds the eleven prd-core and the nine '
+    test('E01: the merged set holds the eleven prd-core and the fifteen '
         'software-tech doc types, the record among them', () {
       expect(
         both.docTypes.map((d) => d.id).toList(),
@@ -78,6 +78,12 @@ void main() {
         'auth': ('specs/f{nn}_{slug}/AUTH.md', 'feature'),
         'topic': ('specs/topics/{slug}.md', null),
         'implementation': ('specs/f{nn}_{slug}/IMPLEMENTATION.md', 'feature'),
+        'project_architecture': ('specs/ARCHITECTURE.md', null),
+        'project_domain': ('specs/DOMAIN.md', null),
+        'project_api': ('specs/API.md', null),
+        'project_integration': ('specs/INTEGRATION.md', null),
+        'project_error': ('specs/ERROR.md', null),
+        'project_auth': ('specs/AUTH.md', null),
       };
       expect(outputTable.keys, unorderedEquals(softwareTechIds));
       for (final MapEntry(key: id, value: (path, parent))
@@ -204,6 +210,7 @@ void main() {
           required: true,
           pointer: PointerKind.prefix,
         ),
+        FieldSpec('overrides', FieldType.string, list: true),
       ]);
       expectOwnFields(prdCoreDocType(both, 'topic'), const [
         FieldSpec(
@@ -213,6 +220,7 @@ void main() {
           required: true,
           pointer: PointerKind.prefix,
         ),
+        FieldSpec('overrides', FieldType.string, list: true),
       ]);
       expectOwnFields(prdCoreDocType(both, 'tech_stack'), const [
         FieldSpec('code', FieldType.string, list: true),
@@ -301,6 +309,12 @@ void main() {
           'auth.resource_matrix': ['matrix_cell'],
           'domain.entities': ['entity_kind'],
           'domain.invariants': ['numbered_invariant'],
+          'project_architecture.components': ['table_only'],
+          'project_architecture.concerns': ['concern_ending'],
+          'project_auth.scopes': ['scope_form'],
+          'project_auth.resource_matrix': ['matrix_cell'],
+          'project_domain.entities': ['entity_kind'],
+          'project_domain.invariants': ['numbered_invariant'],
         },
       );
       expect(
@@ -312,15 +326,16 @@ void main() {
               ],
         },
         {
-          'architecture.concerns': [
-            'concern_integration',
-            'concern_errors',
-            'concern_auth',
-            'concern_lifecycle',
-            'concern_events',
-            'concern_rollout',
-            'concern_observability',
-          ],
+          for (final id in ['architecture', 'project_architecture'])
+            '$id.concerns': [
+              'concern_integration',
+              'concern_errors',
+              'concern_auth',
+              'concern_lifecycle',
+              'concern_events',
+              'concern_rollout',
+              'concern_observability',
+            ],
         },
       );
     });
@@ -409,6 +424,12 @@ void main() {
         'domain.corrective_policies',
         'topic.rules',
         'error.error_catalog',
+        'project_architecture.component_diagram',
+        'project_architecture.components',
+        'project_domain.invariants',
+        'project_domain.corrective_policies',
+        'project_error.error_catalog',
+        'project_api.conventions',
       });
     });
 
@@ -418,7 +439,13 @@ void main() {
         if (docType.pack != 'software-tech') continue;
         expect(
           docType.lint.maxChars,
-          {'domain', 'architecture', 'implementation'}.contains(docType.id)
+          {
+                'domain',
+                'architecture',
+                'implementation',
+                'project_domain',
+                'project_architecture',
+              }.contains(docType.id)
               ? 60000
               : isNull,
           reason: docType.id,

@@ -17,6 +17,12 @@ fields:
     description: |-
       Records one `<FR ref> <fingerprint>` entry per FR trace row, the FR ref as the FR cell writes it.
       Example: `email_login/validate_credentials 5d1e0c4b7a92`; the entry counts once the Owner approves the doc.
+  - id: overrides
+    type: string
+    list: true
+    description: |-
+      Records one `<doc type>:<name>#<ID> <fingerprint>` entry per item the doc's `Overrides:` lines link.
+      Example: `project_domain:domain#INV-3 3f9a1c0b7e2d`; the entry counts once the Owner approves the doc.
 sections:
   - id: source_of_truth
     header: Source-of-truth

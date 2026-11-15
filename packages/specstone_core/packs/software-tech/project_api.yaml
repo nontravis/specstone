@@ -1,0 +1,26 @@
+id: project_api
+extends: api
+path: specs/API.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: confirmed
+    disabled: true
+  - id: overrides
+    disabled: true
+sections:
+  - id: fr_trace
+    disabled: true
+  - id: operations
+    disabled: true
+  - id: conventions
+    header: Conventions
+    after: source_of_truth
+    required: true
+    prefix_id: API-C
+    description: |-
+      Write one bullet per API convention every feature's operations follow, such as an ID format or a pagination rule.
+      Write each as `- **API-C<N>** <one sentence>`; IDs are append-only, never reused.
+    lint:
+      max_sentences:
+        - count: 1

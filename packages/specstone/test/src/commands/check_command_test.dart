@@ -297,6 +297,27 @@ void main() {
     });
   });
 
+  test('a file at a project spec doc path is typed and reports its template breaks', () async {
+    const docPath = 'specs/DOMAIN.md';
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {'docs/$docPath': '# Project domain\n'},
+        unstamped: {'docs/$docPath'},
+      ),
+    );
+    expect(await runner.run(['check', '--json']), 1);
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    final ofDoc = [
+      for (final f in (json['findings']! as List).cast<Map<String, Object?>>())
+        if (f['docPath'] == docPath) f['kind'],
+    ];
+    expect(
+      ofDoc.where((kind) => kind == 'required_section_missing'),
+      hasLength(2),
+    );
+    expect(err.toString(), isEmpty);
+  });
+
   test('check prints the override rule text before its current fingerprint', () async {
     final edited = rootRule.replaceFirst('7 days', '14 days');
     final files = overrideFiles(

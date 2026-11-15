@@ -1,0 +1,14 @@
+id: project_error
+extends: error
+path: specs/ERROR.md
+parent:
+bundle: [implement, design]
+fields:
+  - id: overrides
+    disabled: true
+sections:
+  - id: error_envelope
+    required: true
+    description: |-
+      Write the project's one error envelope, and show its shape.
+      A feature's `error_envelope` departs from it only with its reason.
