@@ -4685,6 +4685,73 @@ void _planTests() {
     );
   });
 
+  group('$_runPlanSkill E21: the ticket tools of plan-sdd', () {
+    const ticketsFile = 'specstone-plan-sdd/references/tickets.md';
+    String tickets() => _oneLine(_pluginText(ticketsFile));
+
+    test('step 5 points at the tickets file once', () {
+      final skill = _oneLine(_pluginText(_planSkill));
+      final step = skill.substring(skill.indexOf('## 5. Ask how to run'));
+      expect(step, contains('`references/tickets.md`'));
+      expect(
+        '`references/tickets.md`'.allMatches(skill),
+        hasLength(1),
+        reason: 'one pointer, no copy of the rule in the skill file',
+      );
+    });
+
+    test('it finds ticket tools by their descriptions and names them to the '
+        'Owner beside the run question, naming none when none qualifies', () {
+      final text = tickets();
+      expect(text, contains('description says it breaks work into tickets'));
+      expect(text, contains('beside the run question'));
+      expect(text, contains('never by a name'));
+      expect(text, contains('Specstone makes no ticket'));
+    });
+
+    test('it writes a ref through set --field tasks, several refs on one item '
+        'included', () {
+      final text = tickets();
+      expect(text, contains('specstone set <type>:<name> --field tasks'));
+      expect(text, contains('`bases.fields.tasks`'));
+      expect(text, contains('`<item>:<task>`'));
+      expect(text, contains('`<task>` alone for the whole doc'));
+      expect(text, contains('One item takes several refs'));
+      expect(text, contains('Write the whole list'));
+    });
+
+    test('it has the work commits name the task id and the finishing commit '
+        'close it as Closes <task>', () {
+      final text = tickets();
+      expect(text, contains('Name the task id in the message of each commit'));
+      expect(text, contains('`Closes <task>`'));
+      expect(text, contains('finishes'));
+    });
+
+    test('it names the CLI commands the shipped CLI has, no other plugin, '
+        'and stays within 1,500 est. tokens', () {
+      bool ofThisFile(String problem) => problem.startsWith('$ticketsFile:');
+      expect(oversizedSkillFiles(contentFiles()).where(ofThisFile), isEmpty);
+      expect(
+        unknownCliNames(
+          contentFiles(),
+          SpecstoneCommandRunner(),
+        ).where(ofThisFile),
+        isEmpty,
+      );
+      expect(
+        cliCommands(_pluginText(ticketsFile)),
+        containsAll(['get', 'set']),
+      );
+      expect(
+        _shippedOtherPluginSkills().where(
+          (problem) => problem.startsWith('specstone-plan-sdd/'),
+        ),
+        isEmpty,
+      );
+    });
+  });
+
   test('$_runPlanSkill, $_writePlan: neither plan-sdd nor plan-engineer names '
       "another plugin's skill", () {
     for (final file in [_planSkill, _planAgent]) {
@@ -5521,7 +5588,11 @@ void _planFilesTests() {
   group('the plan skill and the plan engineer', () {
     test('each of the two reaches the source and every host render', () {
       final paths = _planContent().map((file) => file.path);
-      expect(paths, hasLength(3 + 5));
+      expect(
+        paths,
+        hasLength(3 + 5 + 2),
+        reason: 'plus tickets.md in 2 renders',
+      );
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
