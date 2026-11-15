@@ -472,6 +472,7 @@ void main() {
         '$projectDoc:1: singular_doc_missing',
       ]);
       expect(_missingOf(report).single.keys, {'type': 'project'});
+      expect(_missingOf(report).single.name, isNull);
     });
 
     test('f04/us01/fr07/e15: a project-layer type at prds/GLOSSARY.md with no '
@@ -485,6 +486,7 @@ void main() {
         'prds/GLOSSARY.md:1: singular_doc_missing',
       ]);
       expect(_missingOf(report).single.keys, {'type': 'glossary'});
+      expect(_missingOf(report).single.name, isNull);
     });
 
     test('f04/us01/fr07/e15: a per_target type is one finding per target that '
@@ -503,6 +505,8 @@ void main() {
           if (f.keys['type'] == 'glossary') f,
       ];
       expect([for (final f in missing) f.path], ['prds/jaspr/GLOSSARY.md']);
+      expect(missing.single.line, 1);
+      expect(missing.single.name, isNull);
       expect(missing.single.keys, {'type': 'glossary', 'target': 'jaspr'});
     });
 
@@ -515,6 +519,7 @@ void main() {
         '$techStack:1: singular_doc_missing',
       ]);
       expect(_missingOf(report).single.keys, {'type': 'tech_stack'});
+      expect(_missingOf(report).single.name, isNull);
       expect(_missingOf(report).single.message, isNot(contains('--target')));
     });
 
@@ -546,10 +551,24 @@ void main() {
 
     test('f04/us01/fr07/e19: a merged set with no goal doc type is no goal '
         'finding', () async {
-      final report = checkOf(await writeCheckProject());
+      final project = await fixtureProject({});
+      final session = ReadSession.open(
+        templates: TemplateResolver(
+          shippedFiles: fixturePackFiles(
+            extra: {
+              'project.yaml': 'id: project\ndescription: The project.\npath: prds/PROJECT.md\n',
+            },
+          ),
+        ),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      addTearDown(session.close);
       expect([
-        for (final f in _missingOf(report)) f.keys['type'],
+        for (final type in session.index.set.docTypes) type.id,
       ], isNot(contains('goal')));
+      final report = runCheck(session);
+      expect(_missingOf(report).map((f) => f.keys['type']), ['project']);
     });
 
     test(
@@ -574,9 +593,13 @@ void main() {
           [for (final f in missing) f.path],
           ['specs/jaspr/TECH_STACK.md', 'specs/flutter/TECH_STACK.md'],
         );
+        expect([for (final f in missing) f.line], [1, 1]);
         expect(
-          [for (final f in missing) f.keys['target']],
-          ['jaspr', 'flutter'],
+          [for (final f in missing) f.keys],
+          [
+            {'type': 'tech_stack', 'target': 'jaspr'},
+            {'type': 'tech_stack', 'target': 'flutter'},
+          ],
         );
         expect(
           [for (final f in missing) f.message.split(' ').last],
