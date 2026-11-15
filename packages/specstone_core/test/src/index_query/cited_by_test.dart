@@ -183,16 +183,14 @@ void main() {
       sectionKey: 'invariants',
       after: 7,
       by: [(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
-      inline: true,
     );
     const inner = (
       item: 'INV-15',
       sectionKey: 'invariants',
       after: 7,
       by: [(name: 'b', docType: 'fr', byItem: 'E01', line: 'inner')],
-      inline: true,
     );
-    expect(citedLinesAfter([inner, outer]), {
+    expect(citedLinesAfter(null, [inner, outer]), {
       7: ['  · cited by b (fr) E01: inner', '  · cited by a (fr) —: outer'],
     });
   });
@@ -291,30 +289,20 @@ void main() {
     });
   });
 
-  test('an item marked not inline gives no line to print after it', () {
+  test('an index that prints its lines as parts gives no line to print after an item', () {
     const item = (
       item: 'E01',
       sectionKey: 'edge_cases',
       after: 3,
       by: <CitedBy>[(name: 'guide', docType: 'topic', byItem: null, line: 'x')],
-      inline: false,
     );
+    final inline = CitedByIndex(const {}, inline: true);
+    final parts = CitedByIndex(const {}, inline: false);
 
-    expect(citedLinesAfter([item]), isEmpty);
-    expect(
-      citedLinesAfter([
-        (
-          item: item.item,
-          sectionKey: item.sectionKey,
-          after: item.after,
-          by: item.by,
-          inline: true,
-        ),
-      ]),
-      {
-        3: ['  · cited by guide (topic) —: x'],
-      },
-    );
+    expect(citedLinesAfter(parts, [item]), isEmpty);
+    expect(citedLinesAfter(inline, [item]), {
+      3: ['  · cited by guide (topic) —: x'],
+    });
   });
 
   group('printedBodyOf', () {

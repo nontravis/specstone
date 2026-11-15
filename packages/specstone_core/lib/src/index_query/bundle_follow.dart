@@ -370,7 +370,7 @@ final class _Walk {
         text: sectionBlockOf(
           view.content.sections[at],
           bodyLine: view.facts.sectionLines[at] + 1,
-          after: citedLinesAfter(cited),
+          after: citedLinesAfter(citedBy, cited),
         ),
       ),
       view,
@@ -511,7 +511,7 @@ final class _Walk {
         text: printedBodyOf(
           lines.join('\n'),
           firstLine: extent.first,
-          after: citedLinesAfter(cited),
+          after: citedLinesAfter(citedBy, cited),
         ),
       ),
       view,

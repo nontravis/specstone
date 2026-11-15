@@ -29,14 +29,13 @@ final class CitedByIndex
 }
 
 /// An item a bundle prints whole, in the `##` section `sectionKey` of its
-/// doc, whose `by` lines print right after file line `after` of its doc when
-/// `inline`, and as a part of their own otherwise.
+/// doc, whose `by` lines print right after file line `after` of its doc, or
+/// as a part of their own ([CitedByIndex.inline]).
 typedef CitedItem = ({
   String item,
   String sectionKey,
   int after,
   List<CitedBy> by,
-  bool inline,
 });
 
 /// Returns who cites each item, from the links the index stores.
@@ -122,22 +121,21 @@ List<CitedItem> citedItemsIn(
   });
   return [
     for (final (:item, :extent, :by) in found)
-      (
-        item: item,
-        sectionKey: section.key,
-        after: extent.last,
-        by: by,
-        inline: cited.inline,
-      ),
+      (item: item, sectionKey: section.key, after: extent.last, by: by),
   ];
 }
 
-/// Returns the lines of the inline [items] by the file line each prints
-/// after; items that end on one line, nested, keep every line in [items]
-/// order.
-Map<int, List<String>> citedLinesAfter(List<CitedItem> items) {
+/// Returns the lines of [items] by the file line each prints after; items
+/// that end on one line, nested, keep every line in [items] order.
+///
+/// None when [cited] prints its lines as parts ([CitedByIndex.inline]).
+Map<int, List<String>> citedLinesAfter(
+  CitedByIndex? cited,
+  List<CitedItem> items,
+) {
   final after = <int, List<String>>{};
-  for (final item in items.where((item) => item.inline)) {
+  if (cited?.inline == false) return after;
+  for (final item in items) {
     (after[item.after] ??= []).addAll([
       for (final by in item.by) citedByLineOf(by),
     ]);

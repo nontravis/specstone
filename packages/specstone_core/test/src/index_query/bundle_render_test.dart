@@ -1529,9 +1529,10 @@ void main() {
       String target,
       BundleMode mode, {
       bool noProject = false,
+      bool summary = false,
     }) => answerContext(
       i,
-      pickBundle(i, target, mode, noProject: noProject),
+      pickBundle(i, target, mode, noProject: noProject, summary: summary),
       label: target,
       byCode: false,
       split: true,
@@ -1615,6 +1616,40 @@ void main() {
           '- login/reset_password/send_reset_link (fr) · summary\n'
           '- password_rules (reference) · summary · cited\n'
           'Read a summary doc whole with: specstone context <name> --for design\n',
+        ),
+      );
+    });
+    test('a split design --summary bundle lists each summary doc in the refs text, which the next-step line closes', () async {
+      final a = splitIn(
+        await indexWith(),
+        'login',
+        BundleMode.design,
+        summary: true,
+      );
+
+      expect(listOf(a.refs!.text), [
+        '- gnfr (gnfr)',
+        '- project (project)',
+        '- login/email_login (user_story) · summary',
+        '- login/email_login/validate_credentials (fr) · summary',
+        '- login/email_login/lock_after_failures (fr) · summary',
+        '- login/email_login/login_latency (nf) · summary',
+        '- login/reset_password (user_story) · summary',
+        '- login/reset_password/send_reset_link (fr) · summary',
+        '- password_rules (reference) · summary · cited',
+      ]);
+      expect(
+        a.refs!.text,
+        endsWith(
+          'Read a summary doc whole with: specstone context <name> --for design\n',
+        ),
+      );
+      expect(a.text, isNot(contains(' · summary')));
+      expect(a.text, isNot(contains('Read a summary doc whole with:')));
+      expect(
+        a.refs!.text,
+        contains(
+          '==> bundle: 8 docs, ${tokenSizeOf(beforeClosing(a.refs!.text))} tokens <==',
         ),
       );
     });
