@@ -124,6 +124,9 @@ sections:
 
 String _config(String acmePin) => '${shippedPinsConfig()}  acme: $acmePin\n';
 
+/// The key every run that writes the config sets: the running Version.
+const _stamp = 'agent_files_version: $specstoneVersion\n';
+
 /// The temp personal-pack home holding `acme`.
 Future<Directory> _home({
   String version = '1.2.0',
@@ -235,7 +238,10 @@ void main() {
           'commit 2 ${_head(root).substring(0, 7)}: upgrade pack pins\n',
         ),
       );
-      expect(_read(root, '.specstone/config.yaml'), _config('1.2.0'));
+      expect(
+        _read(root, '.specstone/config.yaml'),
+        '${_config('1.2.0')}$_stamp',
+      );
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
 
@@ -311,7 +317,10 @@ void main() {
       expect(_read(root, _runbookPath), contains('## Procedure\n'));
       expect(_read(root, _runbookPath), contains('on_call: sre\n'));
       expect(_read(root, _overridePath), contains('id: procedure'));
-      expect(_read(root, '.specstone/config.yaml'), _config('1.2.0'));
+      expect(
+        _read(root, '.specstone/config.yaml'),
+        '${_config('1.2.0')}$_stamp',
+      );
       expect(_subjects(root).first, 'upgrade pack pins');
       expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
     });
@@ -844,10 +853,15 @@ void main() {
         );
         expect(_subjects(root), hasLength(before.length + 1));
         expect(
-          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
-          'CLAUDE.md',
+          _gitOut(root, [
+            'show',
+            '--name-only',
+            '--format=',
+            'HEAD',
+          ]).trim().split('\n'),
+          unorderedEquals(['CLAUDE.md', '.specstone/config.yaml']),
         );
-        expect(_read(root, '.specstone/config.yaml'), config);
+        expect(_read(root, '.specstone/config.yaml'), '$config$_stamp');
         expect(
           _read(root, 'CLAUDE.md'),
           startsWith('# Owner rules\n\n$begin\n'),
@@ -1035,8 +1049,13 @@ void main() {
         expect(result.out, contains('  agent files: 1 files\n'));
         expect(_read(root, path), texts[path]);
         expect(
-          _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
-          path,
+          _gitOut(root, [
+            'show',
+            '--name-only',
+            '--format=',
+            'HEAD',
+          ]).trim().split('\n'),
+          unorderedEquals([path, '.specstone/config.yaml']),
         );
       });
 
@@ -1120,7 +1139,7 @@ void main() {
               '--format=',
               'HEAD',
             ]).trim().split('\n'),
-            unorderedEquals(unshipped),
+            unorderedEquals([...unshipped, '.specstone/config.yaml']),
           );
           expect(
             Directory('${root.path}/.specstone/trash').existsSync(),
@@ -1160,7 +1179,11 @@ agent_file_roots:
             Directory('${root.path}/code/$oldSkill').existsSync(),
             isFalse,
           );
-          expect(_subjects(root), before);
+          expect(_subjects(root), [refreshMessage, ...before]);
+          expect(
+            _gitOut(root, ['show', '--name-only', '--format=', 'HEAD']).trim(),
+            '.specstone/config.yaml',
+          );
           final rerun = await _run(root, home, ['migrate'], console: _owner());
           expect(rerun.out, 'nothing to migrate\n');
         });
@@ -1199,7 +1222,7 @@ agent_file_roots:
               '--format=',
               'HEAD',
             ]).trim().split('\n'),
-            unorderedEquals(unshipped),
+            unorderedEquals([...unshipped, '.specstone/config.yaml']),
           );
           expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
         }, skip: Platform.isWindows ? 'the hook is a sh script' : null);
@@ -1584,7 +1607,10 @@ agent_file_roots:
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0, reason: result.err);
-        expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
+        expect(
+          _read(root, '.specstone/config.yaml'),
+          '${shippedPinsConfig()}$_stamp',
+        );
         final lines = _read(root, domainPath).split('\n');
         expect(lines.where((line) => line.startsWith('- **INV-')), [invariant]);
         expect(lines, contains('  - **Enforcer:** Account'));

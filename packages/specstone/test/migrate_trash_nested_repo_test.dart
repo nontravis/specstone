@@ -87,8 +87,9 @@ void main() {
       expect(subjects(root), hasLength(before.length + 1));
       expect(
         '${git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout}'
-            .trim(),
-        _edited,
+            .trim()
+            .split('\n'),
+        unorderedEquals([_edited, '.specstone/config.yaml']),
       );
       expect('${git(root, ['status', '--porcelain']).stdout}'.trim(), isEmpty);
     });

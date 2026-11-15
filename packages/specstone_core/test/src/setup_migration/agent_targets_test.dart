@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/plan_hash.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -153,6 +154,113 @@ void main() {
         );
       },
     );
+  });
+
+  group('agentFilesStampAfter', () {
+    Map<String, String> settled(Map<String, String> extra) => {
+      'proj/AGENTS.md': _inline(),
+      'proj/.specstone/AGENT.md': agentMdText,
+      for (final MapEntry(:key, :value) in _skillFiles().entries)
+        'proj/$key': value,
+      ...extra,
+    };
+    const staleBlock =
+        '# Owner\n\n<!-- BEGIN specstone v1.0.0 -->\nold\n'
+        '<!-- END specstone -->\n';
+    final held = ReleaseVersion.tryParse('1.0.0');
+    const nothingWritten = AgentWritePlan(
+      rootWrites: [],
+      topWrites: [],
+      agentFileRoots: [],
+      addedRoots: [],
+      writeSet: {},
+    );
+
+    test('files that already match take the running Version, no byte '
+        'changed', () async {
+      final base = await _base(settled({}));
+      final inputs = _inputs(base);
+
+      final stamp = agentFilesStampAfter(
+        inputs,
+        planAgentWrites(inputs, full: false),
+        current: held,
+      );
+
+      expect(stamp.toString(), specstoneVersion);
+    });
+
+    test('a stale block the plan rewrites ends current', () async {
+      final base = await _base(settled({'proj/CLAUDE.md': staleBlock}));
+      final inputs = _inputs(base);
+
+      final stamp = agentFilesStampAfter(
+        inputs,
+        planAgentWrites(inputs, full: false),
+        current: null,
+      );
+
+      expect(stamp.toString(), specstoneVersion);
+    });
+
+    test('a stale block the plan leaves keeps the stamp as it was', () async {
+      final base = await _base(settled({'proj/CLAUDE.md': staleBlock}));
+      final inputs = _inputs(base);
+
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: held),
+        same(held),
+      );
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: null),
+        isNull,
+      );
+    });
+
+    test('a skill file the plan trashes ends current, one it leaves does '
+        'not', () async {
+      final base = await _base(
+        settled({'proj/.claude/skills/specstone-old/SKILL.md': 'old\n'}),
+      );
+      final inputs = _inputs(base);
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: held,
+        ).toString(),
+        specstoneVersion,
+      );
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: held),
+        same(held),
+      );
+    });
+
+    test('an unlisted top the plan lists ends current, one it leaves does '
+        'not', () async {
+      final base = await _base(
+        settled({
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/AGENTS.md': 'Owner\n',
+        }),
+      );
+      final inputs = _inputs(base, code: ['proj/other/']);
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: held,
+        ).toString(),
+        specstoneVersion,
+      );
+      expect(
+        agentFilesStampAfter(inputs, nothingWritten, current: held),
+        same(held),
+      );
+    });
   });
 
   group('repository tops', () {

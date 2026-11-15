@@ -220,6 +220,10 @@ void main() {
       });
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
       expect(
+        File('${root.path}/.specstone/config.yaml').readAsStringSync(),
+        endsWith('agent_files_version: $specstoneVersion\n'),
+      );
+      expect(
         Directory.fromUri(root.uri.resolve('.specstone/trash/')).existsSync(),
         isFalse,
       );
@@ -1020,11 +1024,28 @@ sections:
               .split('\n');
       expect(names, contains(settingsFilePath));
       expect(names, isNot(contains('.claude/skills/specstone-init/SKILL.md')));
+      expect(names, contains('.specstone/config.yaml'));
+      expect(
+        File('${root.path}/.specstone/config.yaml').readAsStringSync(),
+        '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n',
+      );
       final text = File('${root.path}/$settingsFilePath').readAsStringSync();
       expect(text, contains('"Bash(ls)"'));
       expect(text, isNot(contains('"matcher": "Write",')));
       expect(out.toString(), contains('  agent files: 1 files\n'));
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+    }, skip: hasGit ? null : 'git is not available');
+
+    test('a dry run writes no stamp and no file', () async {
+      final root = await fixture(stale);
+
+      expect(_run(root, StringBuffer(), dryRun: true), 0);
+
+      expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
+      expect(
+        File('${root.path}/.specstone/config.yaml').readAsStringSync(),
+        shippedPinsConfig(),
+      );
     }, skip: hasGit ? null : 'git is not available');
 
     test('a malformed file refuses the dry run and the apply before any '

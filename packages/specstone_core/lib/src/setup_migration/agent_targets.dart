@@ -19,7 +19,7 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart'
     show relativeFolderPath;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
-    show planSkillAndAgentFiles;
+    show planSkillAndAgentFiles, skillAndAgentFileDrifts;
 import 'package:specstone_core/src/setup_migration/tree_move.dart'
     show treeMovesOf;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -28,6 +28,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart'
     show isPortableCodeEntry;
+import 'package:specstone_core/src/version.dart' show specstoneVersion;
 
 const _agentMdPath = '.specstone/AGENT.md';
 const _cursorFolder = '.cursor';
@@ -521,6 +522,38 @@ AgentWritePlan planAgentWrites(
     trashContents: {for (final path in trash) path: _filesUnder(root, path)},
     skipped: [...skipped, ...skills.skipped],
   );
+}
+
+/// Returns the `agent_files_version` a config written by a run that applies
+/// [plan] to [inputs] holds: the running Version when the agent files end as
+/// the CLI writes them, else [current], the key as it was.
+///
+/// Reads [inputs] before any write: the end state is the drifts before the
+/// run, minus the paths [plan] writes or trashes and the tops it lists.
+ReleaseVersion? agentFilesStampAfter(
+  AgentFileInputs inputs,
+  AgentWritePlan plan, {
+  required ReleaseVersion? current,
+}) => _endsCurrent(inputs, plan) ? runningVersion : current;
+
+/// The running CLI's Version.
+final ReleaseVersion runningVersion =
+    ReleaseVersion.tryParse(specstoneVersion) ??
+    (throw StateError('specstoneVersion is no Version: $specstoneVersion'));
+
+bool _endsCurrent(AgentFileInputs inputs, AgentWritePlan plan) {
+  final fixed = {...plan.paths, ...plan.trash, ...plan.trashFiles};
+  final listed = plan.addedRoots.toSet();
+  final left = [
+    for (final (:path, line: _, :kind) in agentFileDrifts(inputs))
+      if (kind == AgentDriftKind.topUnlisted
+          ? !listed.contains(path)
+          : !fixed.contains(path))
+        path,
+    for (final (:path, kind: _) in skillAndAgentFileDrifts(inputs))
+      if (!fixed.contains(path)) path,
+  ];
+  return left.isEmpty;
 }
 
 /// Returns [paths] from [root] without the second name of one place.

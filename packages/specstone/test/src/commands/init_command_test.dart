@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
+import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -44,7 +45,7 @@ void main() {
     expect(out.toString(), endsWith(_configLine()));
     expect(
       File('${root.path}/.specstone/config.yaml').readAsStringSync(),
-      shippedPinsConfig(),
+      '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n',
     );
   });
 

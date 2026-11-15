@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
@@ -148,6 +149,45 @@ void main() {
           });
 
           expect(ProjectConfig.read(root).agentFileRoots, roots);
+        });
+      }
+    });
+
+    group('configText agent_files_version', () {
+      final pins = {
+        'prd-core': PackVersion.parse('1.2.3', file: 'f', key: 'k'),
+      };
+
+      test('no Version writes no key', () {
+        expect(configText(pins), isNot(contains('agent_files_version')));
+      });
+
+      test('the key ends the file, after agent_file_roots', () {
+        expect(
+          configText(
+            pins,
+            agentFileRoots: const ['../other'],
+            agentFilesVersion: ReleaseVersion.tryParse('1.3.0'),
+          ),
+          'packs:\n  prd-core: 1.2.3\n'
+          'agent_file_roots:\n  - ../other\n'
+          'agent_files_version: 1.3.0\n',
+        );
+      });
+
+      for (final version in ['1.3.0', '1.2.0-beta.1']) {
+        test('the config reader reads back $version', () async {
+          final root = await writeTree({
+            '.specstone/config.yaml': configText(
+              pins,
+              agentFilesVersion: ReleaseVersion.tryParse(version),
+            ),
+          });
+
+          expect(
+            ProjectConfig.read(root).agentFilesVersion.toString(),
+            version,
+          );
         });
       }
     });

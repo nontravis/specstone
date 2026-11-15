@@ -99,6 +99,9 @@ The story is F-01 US-01 and the feature F-01.
       '# FR-02 — Lock account\n',
 };
 
+/// The stamp every legacy config leaves: the running Version.
+const _stamp = 'agent_files_version: $specstoneVersion\n';
+
 const _legacySpec = 'docs/specs/shared/s01_architecture.md';
 
 const _storyKeys = 'status: implemented\nimplements:\n  - lib/a.dart:A\n';
@@ -890,7 +893,7 @@ name: NFR
     expect(
       rewrite.text,
       'packs:\n  my-pack: 1.0.0\n  prd-core: ${versions['prd-core']}\n'
-      '  software-tech: ${versions['software-tech']}\n',
+      '  software-tech: ${versions['software-tech']}\n$_stamp',
     );
     expect(_createdPaths(plan), isNot(contains('.specstone/config.yaml')));
     expect(
@@ -1111,7 +1114,7 @@ name: NFR
         (r) => r.path == '.specstone/config.yaml',
       );
       expect(rewrite.text, contains('code_root: code\n'));
-      expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
+      expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n$_stamp'));
       expect(plan.agentFiles!.topWrites.map((w) => w.path), [
         'code/AGENTS.md',
         ...skillPaths('code/'),
@@ -1138,7 +1141,7 @@ name: NFR
         final rewrite = plan.rewrites.singleWhere(
           (r) => r.path == '.specstone/config.yaml',
         );
-        expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n'));
+        expect(rewrite.text, endsWith('agent_file_roots:\n  - code\n$_stamp'));
         expect('agent_file_roots'.allMatches(rewrite.text), hasLength(1));
         expect('- code\n'.allMatches(rewrite.text), hasLength(1));
         expect(
@@ -1162,7 +1165,7 @@ name: NFR
 
       final create = _configCreate(plan);
       expect(create.text, startsWith('packs:\n'));
-      expect(create.text, endsWith('\ncode_root: code\n'));
+      expect(create.text, endsWith('\ncode_root: code\n$_stamp'));
       expect(create.note, endsWith('; code_root code (2 of 3 paths)'));
       expect(
         plan.toText(),
@@ -1217,7 +1220,7 @@ name: NFR
         'code/lib/a.dart': 'class A {}\n',
       });
 
-      expect(_configCreate(plan).text, endsWith('\ncode_root: code\n'));
+      expect(_configCreate(plan).text, endsWith('\ncode_root: code\n$_stamp'));
     });
 
     for (final linkName in [r'co\de', 'C:code']) {
@@ -1263,7 +1266,7 @@ name: NFR
         });
         final none = await _linkedPlan({'code/lib/a.dart': 'class A {}\n'});
 
-        expect(_configCreate(tie).text, endsWith('\ncode_root: code\n'));
+        expect(_configCreate(tie).text, endsWith('\ncode_root: code\n$_stamp'));
         expect(
           _configCreate(tie).note,
           endsWith('; code_root code (1 of 4 paths)'),
@@ -1302,13 +1305,13 @@ name: NFR
             .text,
         'packs:\n  prd-core: ${versions['prd-core']}\n'
         '  software-tech: ${versions['software-tech']}\n'
-        'code_root: ../code\n',
+        'code_root: ../code\n$_stamp',
       );
       expect(
         absent.rewrites
             .singleWhere((r) => r.path == '.specstone/config.yaml')
             .text,
-        endsWith('\ncode_root: code\n'),
+        endsWith('\ncode_root: code\n$_stamp'),
       );
     });
 
@@ -1409,11 +1412,11 @@ name: NFR
           '  software-tech: ${versions['software-tech']}\n';
       final keyed = await _plan({
         ...acmeLegacy,
-        '.specstone/config.yaml': '${pins}code_root: .\n',
+        '.specstone/config.yaml': '${pins}code_root: .\n$_stamp',
       });
       final inferred = await _plan({
         ...acmeLegacy,
-        '.specstone/config.yaml': pins,
+        '.specstone/config.yaml': '$pins$_stamp',
       });
 
       for (final plan in [keyed, inferred]) {
@@ -1430,8 +1433,42 @@ name: NFR
       });
 
       final create = _configCreate(plan);
-      expect(create.text, endsWith('\ncode_root: code\n'));
+      expect(create.text, endsWith('\ncode_root: code\n$_stamp'));
       expect(create.note, endsWith('; code_root code (1 of 2 paths)'));
+    });
+  });
+
+  group('agent_files_version', () {
+    test('a created config holds the running Version, written with the '
+        'agent files', () async {
+      final plan = await _plan(acmeLegacy);
+
+      expect(_configCreate(plan).text, endsWith('\n$_stamp'));
+      expect(plan.agentFiles!.paths, contains('.specstone/AGENT.md'));
+    });
+
+    test('an existing config takes the running Version over a lower one and '
+        'keeps its other keys', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\nagent_files_version: 1.0.0\n',
+      });
+
+      final text = _rewritesOf(plan, '.specstone/config.yaml').single.text;
+      expect(text, endsWith('\n$_stamp'));
+      expect('agent_files_version'.allMatches(text), hasLength(1));
+    });
+
+    test('commit 2 writes the Claude Code settings file with the skill and '
+        'agent files', () async {
+      final plan = await _plan(acmeLegacy);
+
+      final settings = plan.agentFiles!.rootWrites.singleWhere(
+        (write) => write.path == settingsFilePath,
+      );
+      expect(settings.isNew, isTrue);
+      expect(settings.text, settingsFileText);
     });
   });
 
@@ -1849,7 +1886,7 @@ name: Login API
       expect(
         _rewritesOf(plan, '.specstone/config.yaml').single.text,
         '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: '
-        'flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n',
+        'flutter_ws\n  jaspr:\n    code_root: jaspr_ws\n$_stamp',
       );
       expect(plan.rewriteLines, contains('.specstone/config.yaml: pins'));
       expect(
@@ -1945,7 +1982,7 @@ name: Login API
       expect(
         _rewritesOf(plan, '.specstone/config.yaml').single.text,
         '${shippedPinsConfig()}targets:\n  flutter:\n    code_root: '
-        'flutter_ws\n',
+        'flutter_ws\n$_stamp',
       );
       expect(_createdPaths(plan), contains('docs/$recordPath'));
     });

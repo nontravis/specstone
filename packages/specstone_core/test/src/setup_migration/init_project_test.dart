@@ -71,6 +71,10 @@ ProcessResult _noGit(
   throw StateError('init must start no git process: git $arguments');
 }
 
+/// The config `init` writes on the shipped pins: the running Version stamped.
+String _stampedConfig() =>
+    '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n';
+
 String _configLine() {
   final versions = shippedPackVersions();
   return 'created .specstone/config.yaml: '
@@ -114,10 +118,25 @@ void main() {
       ...skillCountLines(),
       _configLine(),
     ]);
-    expect(_read(root, '.specstone/config.yaml'), shippedPinsConfig());
+    expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
     for (final path in _draftPaths) {
       expect(_read(root, path), startsWith('---\ndraft: true\n'), reason: path);
     }
+  });
+
+  test('E42: a rerun that finds every agent file as written still stamps the '
+      'config', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    _run(root);
+    File('${root.path}/.specstone/config.yaml').deleteSync();
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines.where((line) => line.startsWith('created .')), [
+      _configLine(),
+    ]);
+    expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
   });
 
   test('init then check reports no format_drift on the four drafts', () async {

@@ -915,7 +915,10 @@ pack upgrade: acme 1.0.0 -> 1.2.0
 commit 2, rewrites:
   .specstone/config.yaml: acme 1.2.0
 ''');
-    expect(_rewriteAt(plan, '.specstone/config.yaml').text, _config('1.2.0'));
+    expect(
+      _rewriteAt(plan, '.specstone/config.yaml').text,
+      '${_config('1.2.0')}$_stamp',
+    );
     expect(plan.moves, isEmpty);
     expect(plan.prunes, isEmpty);
   });
@@ -1270,6 +1273,15 @@ sections:
 
 const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
+
+/// The stamp an upgrade that writes the config leaves: the running Version.
+const _stamp = 'agent_files_version: $specstoneVersion\n';
+
+/// The text of each config rewrite of [plan].
+List<String> _stampRewrites(RunPlan plan) => [
+  for (final rewrite in plan.rewrites)
+    if (rewrite.path == '.specstone/config.yaml') rewrite.text,
+];
 const _staleBlock = '$_begin\nold rules\n<!-- END specstone -->\n';
 const _belowSince = 'packs:\n  prd-core: 1.0.0\n  software-tech: 1.0.0\n';
 
@@ -1414,7 +1426,7 @@ void _agentFilesTests() {
       );
       expect(plan.lists.agentFiles, [path]);
       expect(plan.agentFiles!.rootWrites.single.isNew, isFalse);
-      expect(plan.rewrites, isEmpty);
+      expect(_stampRewrites(plan), ['${shippedPinsConfig()}$_stamp']);
     });
 
     test('pins equal and only the Claude Code settings file missing is the '
@@ -1659,7 +1671,7 @@ void _agentFilesTests() {
       );
       expect(plan.lists.agentFiles, ['CLAUDE.md']);
       expect(plan.commit2Message, 'refresh the Specstone agent files');
-      expect(plan.rewrites, isEmpty);
+      expect(_stampRewrites(plan), ['${shippedPinsConfig()}$_stamp']);
       expect(plan.moves, isEmpty);
     });
 
@@ -1687,6 +1699,7 @@ void _agentFilesTests() {
       );
       expect(plan.rewrites.map((rewrite) => rewrite.path), [
         'docs/prds/GNFR.md',
+        '.specstone/config.yaml',
       ]);
     });
 
@@ -1713,10 +1726,11 @@ void _agentFilesTests() {
       expect(
         _rewriteAt(plan, '.specstone/config.yaml').text,
         '${shippedPinsConfig()}code_root: code\nagent_file_roots:\n'
-        '  - code\n',
+        '  - code\n$_stamp',
       );
       expect(_rewriteAt(plan, '.specstone/config.yaml').changes, [
         'agent_file_roots',
+        'agent_files_version',
       ]);
     });
 
@@ -1734,7 +1748,7 @@ void _agentFilesTests() {
         expect(
           _rewriteAt(plan, '.specstone/config.yaml').text,
           '${shippedPinsConfig()}code_root: code\n'
-          'agent_file_roots:\n  - code\n',
+          'agent_file_roots:\n  - code\n$_stamp',
         );
       },
     );
@@ -1754,7 +1768,7 @@ void _agentFilesTests() {
         expect(
           _rewriteAt(plan, '.specstone/config.yaml').text,
           '${shippedPinsConfig()}code_root: code\n'
-          'agent_file_roots:\n  - other\n  - code\n',
+          'agent_file_roots:\n  - other\n  - code\n$_stamp',
         );
       },
     );
@@ -1776,6 +1790,54 @@ void _agentFilesTests() {
       expect(text, contains('  - old\n'));
       expect(text, contains('  - code\n'));
       expect(text, isNot(contains('prd-core: 1.0.0')));
+    });
+
+    test('a pin-moving upgrade replaces a lower stamp in place and '
+        'keeps every other key', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${_belowSince}code_root: code\nagent_files_version: 1.0.0\n',
+        'code/lib/a.dart': 'class A {}\n',
+      });
+
+      final plan = _planAt(project);
+
+      final rewrite = _rewriteAt(plan, '.specstone/config.yaml');
+      expect(rewrite.text, contains('code_root: code\n$_stamp'));
+      expect('agent_files_version'.allMatches(rewrite.text), hasLength(1));
+      expect(rewrite.changes, ['pins', 'agent_files_version']);
+    });
+
+    test('a layout-only upgrade writes no config and leaves the '
+        'stamp as it is', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}agent_files_version: 1.0.0\n',
+        ...skillFileTexts(),
+        'docs/prds/GNFR.md': '## Reliability\n\nr\n\n## Performance\n\np\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.rewrites.map((rewrite) => rewrite.path), [
+        'docs/prds/GNFR.md',
+      ]);
+    });
+
+    test('an agent-only upgrade whose stamp already holds the running '
+        'Version rewrites no config', () async {
+      final texts = skillFileTexts();
+      final path = texts.keys.first;
+      final project = await writeTree({
+        '.specstone/config.yaml': '${shippedPinsConfig()}$_stamp',
+        ...texts,
+        path: '${texts[path]}edit\n',
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, [path]);
+      expect(_stampRewrites(plan), isEmpty);
     });
 
     test(
