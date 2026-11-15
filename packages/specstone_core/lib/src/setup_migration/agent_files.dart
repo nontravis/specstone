@@ -37,7 +37,7 @@ final _beginMarker = RegExp(r'^<!-- BEGIN specstone v(\S+) -->$');
 String _beginLine(String cliVersion) =>
     '<!-- BEGIN specstone v$cliVersion -->\n';
 
-/// Returns the block of `CLAUDE.md` and `GEMINI.md`: both imports, as LF text.
+/// Returns the block of `CLAUDE.md` and `GEMINI.md`: the imports, as LF text.
 ///
 /// [agentMdPath], [projectDocPath], and [goalDocPath] read from the
 /// instruction file's folder.
