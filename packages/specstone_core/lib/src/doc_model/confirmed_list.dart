@@ -1,10 +1,9 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:yaml/yaml.dart';
 
 const _confirmedKey = 'confirmed';
-const _defaultItemPrefix = '  - ';
-final _itemPrefix = RegExp(r'^\s*-\s+', multiLine: true);
 
 /// The `confirmed` list of a doc that takes more entries as item lines.
 final class ConfirmedList {
@@ -45,8 +44,8 @@ ConfirmedList? readConfirmedList(Doc doc) {
 
 /// Returns [lfText] with [entries] added at the end of [list].
 ///
-/// Each entry takes the item prefix of the list's first item, `  - ` for an
-/// empty list.
+/// Each entry takes the indent and quotes of the list's first item, as the
+/// list writer gives them.
 ///
 /// An absent `confirmed` key lands at its slot in [fieldOrder], as
 /// [withKeyBlock] reads it.
@@ -56,14 +55,14 @@ String withConfirmedEntries(
   Iterable<String> entries, {
   List<String>? fieldOrder,
 }) {
-  final prefix = _itemPrefix.firstMatch(list.text)?.group(0);
-  final items = [
-    for (final entry in entries) '${prefix ?? _defaultItemPrefix}$entry\n',
-  ];
+  final block = KeyBlock(_confirmedKey, list.text);
   return withKeyBlock(
     lfText,
     _confirmedKey,
-    '${list.text}${items.join()}',
+    listBlockOf(_confirmedKey, [
+      ...?listEntriesOf(block),
+      ...entries,
+    ], onDisk: block),
     fieldOrder: fieldOrder,
   );
 }

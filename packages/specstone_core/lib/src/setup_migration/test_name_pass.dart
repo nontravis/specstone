@@ -4,6 +4,7 @@ import 'package:specstone_core/src/canonical_path.dart'
     show pathInside, withNativeSeparators;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
+import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
@@ -902,37 +903,8 @@ final class _RecordWriter {
       if (!present.contains(line)) line,
   ];
   if (added.isEmpty) return (text: lf, lines: const []);
-  final appended = block == null ? null : _withItemsAppended(block.text, added);
-  final listed = [
-    for (final line in [...held, ...added]) '  - ${_yamlOf(line)}\n',
-  ].join();
-  return (
-    text: withKeyBlock(
-      lf,
-      testsKey,
-      appended ?? '${block?.key ?? testsKey}:\n$listed',
-    ),
-    lines: added,
-  );
-}
-
-/// Returns [blockText], a `key:` line then block-list items, with [added]
-/// after its last item in the first item's indent; null when the block is
-/// not in that shape, so the caller writes the list anew.
-String? _withItemsAppended(String blockText, List<String> added) {
-  final [keyLine, ...rest] = blockText.split('\n')..removeLast();
-  if (!keyLine.trimRight().endsWith(':')) return null;
-  final items = [
-    for (final line in rest)
-      if (line.trim().isNotEmpty && !line.trimLeft().startsWith('#')) line,
-  ];
-  if (items.isEmpty || items.any((line) => !line.trimLeft().startsWith('- '))) {
-    return null;
-  }
-  final first = items.first;
-  final indent = first.substring(0, first.length - first.trimLeft().length);
-  final lines = [for (final line in added) '$indent- ${_yamlOf(line)}\n'];
-  return '$blockText${lines.join()}';
+  final written = listBlockOf(testsKey, [...held, ...added], onDisk: block);
+  return (text: withKeyBlock(lf, testsKey, written), lines: added);
 }
 
 bool _hasValidFrontmatter(List<KeyBlock> blocks) {
@@ -943,6 +915,3 @@ bool _hasValidFrontmatter(List<KeyBlock> blocks) {
     return false;
   }
 }
-
-/// Returns [value] as a single-quoted YAML scalar.
-String _yamlOf(Object? value) => "'${'$value'.replaceAll("'", "''")}'";

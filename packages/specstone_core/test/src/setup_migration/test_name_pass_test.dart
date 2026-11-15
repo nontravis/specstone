@@ -599,8 +599,8 @@ void main() {
       ]);
     });
 
-    test('a held line keeps its text, a new one takes the single-quoted '
-        'style', () async {
+    test('a held line keeps its text, a new one takes the style of the '
+        'first held line', () async {
       final project = await _project(
         docs: {
           ..._loginDocs,
@@ -617,7 +617,7 @@ void main() {
         pass.recordEdits[_recordPath],
         '---\ntests:\n    - "email_login:test/other_test.dart"\n'
         '    - email_login:test/plain_test.dart\n'
-        "    - 'email_login/validate_credentials:test/auth_test.dart'\n"
+        '    - "email_login/validate_credentials:test/auth_test.dart"\n'
         '---\n\n# Record\n',
       );
     });
