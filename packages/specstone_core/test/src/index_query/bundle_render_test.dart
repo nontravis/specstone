@@ -1273,4 +1273,102 @@ void main() {
       },
     );
   });
+
+  group('an appended cut', () {
+    const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+    const project =
+        '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+        'Login demo; see [results](../measurements/fewer_resets/MEASUREMENT.md#results).\n';
+    const cut =
+        '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |';
+    const naming =
+        '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md#results · summary · cited <==';
+    Future<ContextAnswer> projectBundle({int? budget}) async => ctxIn(
+      await indexWith({
+        _projectFile: project,
+        measurement:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+            'Newest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+            '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+      }),
+      'project',
+      BundleMode.implement,
+      budget: budget,
+    );
+
+    test(
+      'prints its naming line marked summary and cited, then the cut',
+      () async {
+        final a = await projectBundle();
+
+        expect(a.text, contains('$naming\n$cut\n'));
+        expect(a.text, isNot(contains('2026-11-01')));
+      },
+    );
+    test(
+      'lists as summary before cited, and brings the next-step line',
+      () async {
+        final a = await projectBundle();
+
+        expect(
+          a.text,
+          endsWith(
+            '- fewer_resets (measurement) · summary · cited results\n'
+            'Read a summary doc whole with: specstone context <name> --for implement\n',
+          ),
+        );
+      },
+    );
+    test('is a --json object with summary, cited, and section after text, and no item', () async {
+      final a = await projectBundle();
+      final part = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['name'] == 'fewer_resets');
+
+      expect(part.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'text',
+        'summary',
+        'cited',
+        'section',
+      ]);
+      expect(part['summary'], isTrue);
+      expect(part['section'], 'results');
+      expect(part['text'], cut);
+    });
+    test('lists marked in the over-budget reply, with its size and its keys', () async {
+      final a = await projectBundle(budget: 1);
+
+      expect(a.exitStatus, 1);
+      expect(
+        a.text,
+        contains(
+          '- fewer_resets (measurement) · summary · cited results · ${tokenSizeOf('$naming\n$cut')} tokens\n',
+        ),
+      );
+      final part = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['name'] == 'fewer_resets');
+      expect(part['summary'], isTrue);
+      expect(part['cited'], isTrue);
+      expect(part['section'], 'results');
+      expect(part.containsKey('item'), isFalse);
+    });
+    test(
+      'has an entry marked summary and cited that names its section',
+      () async {
+        final a = await projectBundle();
+        final entry = a.entries.firstWhere((e) => e.doc.name == 'fewer_resets');
+
+        expect(entry.summary, isTrue);
+        expect(entry.cited, isTrue);
+        expect(entry.sectionKey, 'results');
+        expect(entry.itemId, isNull);
+      },
+    );
+  });
 }

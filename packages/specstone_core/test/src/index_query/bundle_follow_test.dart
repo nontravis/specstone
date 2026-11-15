@@ -608,4 +608,148 @@ void main() {
       }
     });
   });
+
+  group('a link into a summary_rows section', () {
+    const results = '$_measurementFromProject#results';
+    const resultsFromStory = '$_measurementFromStory#results';
+    const cut =
+        '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |';
+    const plain =
+        '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
+        '## Baseline\n| Metric | Run | Value | Date | Source |\n|---|---|---|---|---|\n| resets | 1 | 4 | 2026-11-01 | log |\n\n'
+        '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n';
+    const itemLayer = {
+      '.specstone/templates/measurement.yaml':
+          'sections:\n  - id: results\n    prefix_id: RUN-\n',
+    };
+
+    Future<List<AppendedPart>> fromProject(
+      String links, {
+      String measurement = plain,
+      Map<String, String> extra = const {},
+    }) => followedFrom('project', {
+      _project: _projectLinking(links),
+      _measurementFile: measurement,
+      ...extra,
+    });
+
+    test(
+      'a section link appends the cut once, under a summary mark, with no item',
+      () async {
+        final parts = await fromProject('[results]($results)');
+
+        expect(parts.map(_id), ['$_measurementDoc#results summary']);
+        expect(parts.single.text, cut);
+        expect(parts.single.itemId, isNull);
+        expect(parts.single.nameOnly, isFalse);
+      },
+    );
+    test('an item link appends the cut and no item part', () async {
+      final parts = await fromProject(
+        '[RUN-1]($results)',
+        measurement: plain.replaceFirst(
+          '## Results\n',
+          '## Results\n- **RUN-1** First run.\n\n',
+        ),
+        extra: itemLayer,
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+      expect(parts.single.itemId, isNull);
+      expect(
+        parts.single.text,
+        startsWith('## Results\n- **RUN-1** First run.'),
+      );
+      expect(parts.single.text, isNot(contains('2026-11-01')));
+    });
+    test('a second link into the section appends nothing again', () async {
+      final parts = await fromProject(
+        '[results]($results), [again]($results), and [RUN-2]($results)',
+        measurement: plain.replaceFirst(
+          '## Results\n',
+          '## Results\n- **RUN-2** Second run.\n\n',
+        ),
+        extra: itemLayer,
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+    });
+    test(
+      'a section link after the doc link appends nothing the summary holds',
+      () async {
+        final parts = await fromProject(
+          '[resets]($_measurementFromProject) and [results]($results)',
+        );
+
+        expect(parts.map(_id), ['$_measurementDoc summary']);
+      },
+    );
+    test('a doc link after the cut still appends the summary with Scope and the cut', () async {
+      final parts = await fromProject(
+        '[results]($results) and [resets]($_measurementFromProject)',
+      );
+
+      expect(parts.map(_id), [
+        '$_measurementDoc#results summary',
+        '$_measurementDoc summary',
+      ]);
+      expect(parts.last.text, contains('## Scope\n- Resets per week.'));
+      expect(parts.last.text, contains(cut));
+      expect(parts.last.text, isNot(contains('2026-11-01 | 1')));
+    });
+    test('a link into a section that is no summary_rows section appends it whole', () async {
+      final parts = await fromProject(
+        '[resets]($_measurementFromProject) and [baseline]($_measurementFromProject#baseline)',
+      );
+
+      expect(parts.map(_id), [
+        '$_measurementDoc summary',
+        '$_measurementDoc#baseline',
+      ]);
+      expect(parts.last.summary, isFalse);
+    });
+    test('a section written as prose appends its text whole', () async {
+      final parts = await fromProject(
+        '[results]($results)',
+        measurement: '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\nRun one met the goal.\nRun two did not.\n',
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+      expect(
+        parts.single.text,
+        '## Results\nRun one met the goal.\nRun two did not.',
+      );
+    });
+    test(
+      'a layer that turns summary_rows off appends the section whole',
+      () async {
+        final parts = await fromProject(
+          '[resets]($_measurementFromProject) and [results]($results)',
+          extra: {
+            '.specstone/templates/measurement.yaml':
+                'sections:\n  - id: results\n    summary_rows: false\n',
+          },
+        );
+
+        expect(parts.map(_id), [
+          '$_measurementDoc summary',
+          '$_measurementDoc#results',
+        ]);
+        expect(parts.last.summary, isFalse);
+        expect(parts.last.text, contains('2026-11-01 | 1'));
+        expect(parts.first.text, isNot(contains('## Results')));
+      },
+    );
+    test('the naming line wins over the cut in a story bundle', () async {
+      final parts = await followedFrom('login/email_login', {
+        _measurementFile: plain,
+        _story:
+            '# Agent signs in with email\n\n## Use Case\nSee [results]($resultsFromStory).\n',
+      });
+
+      expect(parts.map(_id), ['$_measurementDoc name']);
+    });
+  });
 }

@@ -1604,5 +1604,37 @@ void main() {
         );
       },
     );
+    test('a link into Results alone appends its cut, marked summary in the doc list', () async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(
+          extra: {
+            'docs/prds/PROJECT.md':
+                '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+                'Login demo; see [results](../measurements/fewer_resets/MEASUREMENT.md#results).\n',
+            'docs/$measurementDoc': measurement(table),
+          },
+        ),
+      );
+      expect(await runner.run(['context', 'project', '--for', 'implement']), 0);
+      final text = out.toString();
+
+      expect(
+        text,
+        contains(
+          '==> fewer_resets (measurement) · $measurementDoc#results · summary · cited <==\n'
+          '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+          '| 2026-11-14 | 2 | no |\n',
+        ),
+      );
+      expect(text, isNot(contains('2026-11-01')));
+      expect(text, isNot(contains('Resets per week.')));
+      expect(
+        text,
+        endsWith(
+          '- fewer_resets (measurement) · summary · cited results\n'
+          'Read a summary doc whole with: specstone context <name> --for implement\n',
+        ),
+      );
+    });
   });
 }
