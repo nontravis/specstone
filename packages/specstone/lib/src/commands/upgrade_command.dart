@@ -266,22 +266,19 @@ class UpgradeCommand extends SpecstoneCommand {
 
   @override
   Future<int> run() async {
-    final folder = unmanagedBinFolder(
-      executable,
-      homeFrom(environment),
-      windows: windows,
-    );
-    if (folder != null) {
+    final home = homeFrom(environment);
+    final folder = unmanagedBinFolder(executable, home, windows: windows);
+    if (home == null || folder != null) {
       return fail(
         UpgradeFault(
           UpgradeFaultCode.installNotManaged,
           'specstone upgrade updates only a CLI installed in '
-          '~/.specstone/bin; this one runs from $folder',
+          '~/.specstone/bin; this one runs from ${folder ?? File(executable).parent.path}',
         ),
         asJson: false,
       );
     }
-    final kept = await _keepNewerPreRelease();
+    final kept = await _keepNewerPreRelease(home);
     if (kept != null) return kept;
     final Directory temp;
     try {
@@ -302,14 +299,14 @@ class UpgradeCommand extends SpecstoneCommand {
     } finally {
       await _remove(temp);
     }
-    await _nameProjectFix();
+    await _nameProjectFix(home);
     return 0;
   }
 
   // Returns null to go on to the install script, else the exit status to stop
   // with: 0 after a pre-release CLI that is not below the latest full release
   // is kept, 69 when that release cannot be read.
-  Future<int?> _keepNewerPreRelease() async {
+  Future<int?> _keepNewerPreRelease(Directory home) async {
     final running = ReleaseVersion.tryParse(runningVersion);
     if (running == null || !running.isPreRelease) return null;
     final (:version, :failure) = await readLatestRelease(latestReleaseUrl);
@@ -328,7 +325,7 @@ class UpgradeCommand extends SpecstoneCommand {
       'specstone $running is newer than the latest release $version; '
       'nothing to upgrade',
     );
-    await _nameProjectFix();
+    await _nameProjectFix(home);
     return 0;
   }
 
@@ -419,9 +416,7 @@ class UpgradeCommand extends SpecstoneCommand {
   // Runs the installed binary's `folder` in the working folder and passes its
   // stderr on when that run exits 0; a run that cannot start or exits non-zero
   // shows nothing, since the CLI step succeeded. Stdout is dropped.
-  Future<void> _nameProjectFix() async {
-    final home = homeFrom(environment);
-    if (home == null) return;
+  Future<void> _nameProjectFix(Directory home) async {
     final separator = Platform.pathSeparator;
     final binary =
         '${home.path}$separator.specstone${separator}bin$separator'

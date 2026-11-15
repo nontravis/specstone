@@ -623,7 +623,7 @@ void main() {
     });
 
     test(
-      '$_keep E01, upgrade_cli S6: a pre-release newer than the latest '
+      'a pre-release newer than the latest '
       'release is kept; one line, no script, then the folder run; exit 0',
       () async {
         await prepare(runningVersion: '1.2.0-beta.1');
@@ -643,7 +643,7 @@ void main() {
       },
     );
 
-    test('$_keep E02: a latest release above the pre-release runs the script '
+    test('a latest release above the pre-release runs the script '
         'and then the folder run', () async {
       await prepare(runningVersion: '1.2.0-beta.1');
       releaseReplies('{"tag_name": "v1.2.0"}');
