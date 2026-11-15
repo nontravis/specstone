@@ -313,7 +313,7 @@ void main() {
         final report = checkOf(project);
         expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
         expect(report.warnings, [
-          'app/lib/locked.dart: cannot read the file; implements Symbols in it are not checked',
+          'app/lib/locked.dart: cannot read the file; the code links that reach it are not checked',
           'app/lib/locked.dart: cannot read the file; doc names in it are not checked',
         ]);
       },

@@ -301,9 +301,15 @@ void main() {
       final context = CheckContext(session);
       final target = context.targets.single;
 
-      expect(context.codeBytesOf(target, 'blob.bin'), bytes);
+      expect(
+        context.codeBytesOf(target, 'blob.bin', reason: CodeRead.symbols),
+        bytes,
+      );
       File('${project.path}/blob.bin').deleteSync();
-      expect(context.codeBytesOf(target, 'blob.bin'), bytes);
+      expect(
+        context.codeBytesOf(target, 'blob.bin', reason: CodeRead.symbols),
+        bytes,
+      );
       expect(context.codeFilesRead, 1);
     });
 
@@ -317,7 +323,10 @@ void main() {
 
       expect(context.codeTextOf(target, 'a.dart'), 'class A {}\r\n');
       File('${project.path}/a.dart').deleteSync();
-      expect(context.codeBytesOf(target, 'a.dart'), _utf8('class A {}\r\n'));
+      expect(
+        context.codeBytesOf(target, 'a.dart', reason: CodeRead.symbols),
+        _utf8('class A {}\r\n'),
+      );
       expect(context.codeFilesRead, 1);
       expect(context.unstatedWarnings, isEmpty);
     });
@@ -331,15 +340,21 @@ void main() {
         final context = CheckContext(session);
         final target = context.targets.single;
 
-        expect(context.codeBytesOf(target, 'gone.dart'), isNull);
+        expect(
+          context.codeBytesOf(target, 'gone.dart', reason: CodeRead.symbols),
+          isNull,
+        );
         expect(context.codeTextOf(target, 'gone.dart'), isNull);
-        expect(context.codeBytesOf(target, 'gone.dart'), isNull);
+        expect(
+          context.codeBytesOf(target, 'gone.dart', reason: CodeRead.symbols),
+          isNull,
+        );
         expect(context.unstatedWarnings, [_goneWarning]);
       },
     );
 
     test(
-      'words the warning for a named target as for an unnamed one',
+      'opens the warning with the target name when the project has two targets',
       () async {
         final session = openSession(await writeTwinProject());
         addTearDown(session.close);
@@ -348,8 +363,11 @@ void main() {
           (target) => target.name == 'jaspr',
         );
 
-        expect(context.codeBytesOf(jaspr, 'gone.dart'), isNull);
-        expect(context.unstatedWarnings, [_goneWarning]);
+        expect(
+          context.codeBytesOf(jaspr, 'gone.dart', reason: CodeRead.symbols),
+          isNull,
+        );
+        expect(context.unstatedWarnings, ['jaspr: $_goneWarning']);
       },
     );
   });

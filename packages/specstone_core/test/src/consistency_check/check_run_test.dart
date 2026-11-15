@@ -687,7 +687,7 @@ void main() {
         expect(context.codeFilesRead, 2);
         expect(context.codeTextOf(jaspr, 'app/lib/gone.dart'), isNull);
         const warning =
-            'app/lib/gone.dart: cannot read the file; '
+            'jaspr: app/lib/gone.dart: cannot read the file; '
             'implements Symbols in it are not checked';
         expect(context.unstatedWarnings, [warning]);
       },

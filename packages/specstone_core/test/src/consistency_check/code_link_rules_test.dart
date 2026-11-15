@@ -9,6 +9,7 @@ import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_rule.dart';
+import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -27,6 +28,8 @@ const _pointer = '$_login:checkPassword';
 const _stale = '0123456789ab';
 const _unreadable =
     'cannot read the file; implements Symbols in it are not checked';
+const _unreadableLinks =
+    'cannot read the file; the code links that reach it are not checked';
 
 String _fingerprintOf(String text, String path) =>
     fileCodeFingerprint(utf8.encode(text), path: path);
@@ -683,7 +686,7 @@ void main() {
 
         expect([for (final f in _suspects(report)) f.keys['path']], [_login]);
         expect(report.warnings.where((w) => w.contains('locked/x.dart')), [
-          'app/lib/locked/x.dart: $_unreadable',
+          'app/lib/locked/x.dart: $_unreadableLinks',
           'app/lib/locked/x.dart: cannot read the file; doc names in it are not checked',
         ]);
       },
@@ -756,6 +759,116 @@ void main() {
       expect(report.warnings, contains('$_login: $_unreadable'));
     },
   );
+
+  test(
+    'an unreadable file that a covers entry and a record entry with a Symbol '
+    'both reach gives the Symbols warning once',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(code: ['$_fr:$_pointer $_stale']),
+        extra: _covering('  - app/lib/ $_stale\n'),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadable',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  test(
+    'an unreadable file only a covers entry reaches gives the code-link '
+    'warning',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(
+        _record(),
+        extra: _covering('  - $_login $_stale\n'),
+      );
+      final path = '${project.path}/$_login';
+      Process.runSync('chmod', ['000', path]);
+      addTearDown(() => Process.runSync('chmod', ['644', path]));
+
+      final report = _run(project);
+
+      expect(report.warnings.where((w) => w.startsWith('$_login: cannot')), [
+        '$_login: $_unreadableLinks',
+        '$_login: cannot read the file; doc names in it are not checked',
+      ]);
+    },
+  );
+
+  group('CheckContext.codeBytesOf with a folder at the file path', () {
+    Future<(CheckContext, CodeTarget)> contextWithFolders() async {
+      final session = openSession(await writeTwinProject());
+      addTearDown(session.close);
+      for (final root in ['flutter_ws', 'jaspr_ws']) {
+        Directory.fromUri(
+          session.project.projectRoot.uri.resolve('$root/app/sealed.dart/'),
+        ).createSync(recursive: true);
+      }
+      final context = CheckContext(session);
+      return (context, context.targets.first);
+    }
+
+    test('states the code-link warning once per target and file, the target '
+        'first', () async {
+      final (context, flutter) = await contextWithFolders();
+      final jaspr = context.targets.last;
+
+      expect(
+        context.codeBytesOf(
+          flutter,
+          'app/sealed.dart',
+          reason: CodeRead.codeLink,
+        ),
+        isNull,
+      );
+      expect(
+        context.codeBytesOf(
+          flutter,
+          './app/sealed.dart',
+          reason: CodeRead.codeLink,
+        ),
+        isNull,
+      );
+      expect(
+        context.codeBytesOf(
+          jaspr,
+          'app/sealed.dart',
+          reason: CodeRead.codeLink,
+        ),
+        isNull,
+      );
+
+      expect(context.unstatedWarnings, [
+        'flutter: app/sealed.dart: $_unreadableLinks',
+        'jaspr: app/sealed.dart: $_unreadableLinks',
+      ]);
+    });
+
+    test('lets the Symbols reason win in either read order', () async {
+      final (context, flutter) = await contextWithFolders();
+      final jaspr = context.targets.last;
+
+      context
+        ..codeBytesOf(flutter, 'app/sealed.dart', reason: CodeRead.codeLink)
+        ..codeBytesOf(flutter, 'app/sealed.dart', reason: CodeRead.symbols)
+        ..codeBytesOf(jaspr, 'app/sealed.dart', reason: CodeRead.symbols)
+        ..codeBytesOf(jaspr, 'app/sealed.dart', reason: CodeRead.codeLink);
+
+      expect(context.unstatedWarnings, [
+        'flutter: app/sealed.dart: $_unreadable',
+        'jaspr: app/sealed.dart: $_unreadable',
+      ]);
+    });
+  });
 
   test('each code target compares its own file, and a target limits the '
       'run to its own records', () async {

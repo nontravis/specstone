@@ -27,6 +27,21 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 export 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
     show BodyLine;
 
+/// Why a rule reads a code file, which names what an unreadable file leaves
+/// unchecked.
+enum CodeRead {
+  /// An `implements` Symbol is looked up in the file.
+  symbols('implements Symbols in it are not checked'),
+
+  /// A code link's fingerprint is taken from the file.
+  codeLink('the code links that reach it are not checked');
+
+  new(this.unchecked);
+
+  /// What goes unchecked when the file cannot be read.
+  final String unchecked;
+}
+
 /// What every rule of one check run reads: the index, per-doc caches, and the
 /// warnings the findings have stated.
 final class CheckContext {
@@ -36,6 +51,7 @@ final class CheckContext {
   final Map<String, DocContent> _contents = {};
   final Map<String, DocLines> _lines = {};
   final Map<(CodeTarget, String), List<int>?> _codeBytes = {};
+  final Map<(CodeTarget, String), CodeRead> _unreadable = {};
   final Set<String> _codeWarnings = {};
   final Set<String> _stated = {};
   final Map<String, Map<String, String>> _scenarioBlocks = {};
@@ -91,7 +107,7 @@ final class CheckContext {
   /// to U+FFFD instead of failing. Returns null for a file that cannot be
   /// read, and adds one warning for it.
   String? codeTextOf(CodeTarget target, String path) {
-    final bytes = codeBytesOf(target, path);
+    final bytes = codeBytesOf(target, path, reason: CodeRead.symbols);
     return bytes == null
         ? null
         : const Utf8Decoder(allowMalformed: true).convert(bytes);
@@ -101,14 +117,18 @@ final class CheckContext {
   /// run, and states the warning of a file that cannot be read.
   ///
   /// [path] is relative to [target]'s code root. Returns null for a file that
-  /// cannot be read; its warning is stated once per run, whoever reads it.
-  List<int>? codeBytesOf(CodeTarget target, String path) {
+  /// cannot be read; its warning is stated once per target and file, naming
+  /// what [reason] leaves unchecked, [CodeRead.symbols] when any read of the
+  /// file has that reason.
+  List<int>? codeBytesOf(
+    CodeTarget target,
+    String path, {
+    required CodeRead reason,
+  }) {
     final bytes = readCodeBytes(target, path);
     if (bytes == null) {
-      warn(
-        '${normalCodeEntry(path)}: cannot read the file; '
-        'implements Symbols in it are not checked',
-      );
+      final key = (target, normalCodeEntry(path));
+      if (_unreadable[key] != CodeRead.symbols) _unreadable[key] = reason;
     }
     return bytes;
   }
@@ -424,8 +444,16 @@ final class CheckContext {
   List<String> get unstatedWarnings => [
     for (final warning in _session.warnings)
       if (!_stated.contains(warning)) warning,
+    for (final MapEntry(key: (target, path), value: reason)
+        in _unreadable.entries)
+      _unreadableWarning(target, path, reason),
     ..._codeWarnings,
   ];
+
+  String _unreadableWarning(CodeTarget target, String path, CodeRead reason) {
+    final prefix = targets.length > 1 ? '${target.name}: ' : '';
+    return '$prefix$path: cannot read the file; ${reason.unchecked}';
+  }
 }
 
 const _gnfrType = 'gnfr';

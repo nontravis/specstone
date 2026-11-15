@@ -209,6 +209,45 @@ void main() {
     ]);
   });
 
+  test(
+    'an unreadable file an implements path names gives the Symbols warning '
+    'once and no finding, once per code target',
+    skip: unreadablePathSkipReason(),
+    () async {
+      const text =
+          'cannot read the file; implements Symbols in it are not checked';
+      final single = await _project(_record(code: [point]));
+      Process.runSync('chmod', ['000', '${single.path}/$login']);
+      addTearDown(
+        () => Process.runSync('chmod', ['644', '${single.path}/$login']),
+      );
+
+      final report = _run(single);
+
+      expect(_found(report), isEmpty);
+      expect(report.warnings.where((w) => w.endsWith(text)), ['$login: $text']);
+
+      final twin = await writeTwinProject(
+        extra: {
+          '.specstone/templates/implementation.yaml': _recordLayer,
+          'docs/$_flutterRecord': _record(code: [point]),
+          'docs/$_jasprRecord': _record(code: [point]),
+        },
+      );
+      for (final root in ['flutter_ws', 'jaspr_ws']) {
+        Process.runSync('chmod', ['000', '${twin.path}/$root/$login']);
+        addTearDown(
+          () => Process.runSync('chmod', ['644', '${twin.path}/$root/$login']),
+        );
+      }
+
+      expect(_run(twin).warnings.where((w) => w.endsWith(text)), [
+        'flutter: $login: $text',
+        'jaspr: $login: $text',
+      ]);
+    },
+  );
+
   test('a --target run resolves the records of that target only', () async {
     final project = await writeTwinProject(
       extra: {
