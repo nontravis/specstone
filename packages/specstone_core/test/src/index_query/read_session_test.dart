@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -168,6 +169,85 @@ void main() {
         expect(session.index.search('"lock"'), isNotEmpty);
       },
     );
+    test('a search session whose peer puts a doc between fill and snapshot '
+        'refills and answers from one state', () async {
+      final root = await writeLoginProject();
+      final project = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      final peer = IndexStore.open(project.projectRoot);
+      addTearDown(peer.close);
+      var fills = 0;
+      final session = ReadSession.readFrom(
+        project,
+        IndexStore.open(project.projectRoot),
+        workingDirectory: root,
+        fillSearchRows: true,
+        afterFill: () {
+          if (fills++ > 0) return;
+          peer.write(
+            () => peer.putDoc(
+              parseIndexedDoc(
+                docPath: 'README.md',
+                bytes: utf8.encode('# Readme\n\n## Body\nnarwhal\n'),
+                match: const NoDocType(),
+                statusesOutside: true,
+              ),
+            ),
+          );
+        },
+      );
+      addTearDown(session.close);
+      expect(fills, 2);
+      expect(session.store.searchRowsLag, isFalse);
+      // The retry's refresh restores the doc from disk; no row of the peer's
+      // text survives, and every doc's rows are filled.
+      expect(session.index.search('"narwhal"'), isEmpty);
+      expect(session.index.search('"Readme"').single.docPath, 'README.md');
+    });
+    test('a search session whose peer keeps putting docs ends as index_busy, '
+        'not a StateError', () async {
+      final root = await writeLoginProject();
+      final project = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      final peer = IndexStore.open(project.projectRoot);
+      addTearDown(peer.close);
+      var fills = 0;
+      expect(
+        () => ReadSession.readFrom(
+          project,
+          IndexStore.open(project.projectRoot),
+          workingDirectory: root,
+          fillSearchRows: true,
+          afterFill: () {
+            fills++;
+            peer.write(
+              () => peer.putDoc(
+                parseIndexedDoc(
+                  docPath: 'README.md',
+                  bytes: utf8.encode('# Readme\n\n## Body\nround $fills\n'),
+                  match: const NoDocType(),
+                  statusesOutside: true,
+                ),
+              ),
+            );
+          },
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexBusy,
+          ),
+        ),
+      );
+      expect(fills, 3);
+    });
     test('a search session whose peer keeps changing the stamp ends as '
         'index_busy', () async {
       final root = await writeLoginProject();

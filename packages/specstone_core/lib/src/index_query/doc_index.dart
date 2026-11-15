@@ -31,6 +31,7 @@ final class DocIndex {
     this._store,
     this._docPathOfFile, {
     required this.docsRoot,
+    required this.projectRoot,
     List<String> targetNames = const [],
   }) : statusTree = StatusTree(set, docs, targetNames: targetNames),
        _byName = _groupBy(docs, (doc) => doc.name),
@@ -45,6 +46,9 @@ final class DocIndex {
 
   /// The docs root on disk, which a file link's path is read under.
   final Directory docsRoot;
+
+  /// The project root on disk, which a record's file link is read under.
+  final Directory projectRoot;
 
   /// The config's target names, in config order; empty with one unnamed
   /// target.

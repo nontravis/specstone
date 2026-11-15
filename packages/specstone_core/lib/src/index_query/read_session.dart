@@ -144,15 +144,17 @@ final class ReadSession {
   /// those the rows were filled under.
   /// A peer with another doc-type set can rewrite the index between the
   /// refresh and the snapshot; the stamp is read again inside the snapshot,
-  /// and a mismatch ends it and refreshes again. After [_stampAttempts]
-  /// mismatches the index is [IndexFaultCode.indexBusy]. [afterRefresh] runs
-  /// after each refresh, before the snapshot begins. Closes [store] on any
-  /// error.
+  /// and a mismatch, or a doc still lagging for a search, ends it and
+  /// refreshes again. After [_stampAttempts] such attempts the index is
+  /// [IndexFaultCode.indexBusy]. [afterRefresh] runs after each refresh and
+  /// [afterFill] after each fill, both before the snapshot begins. Closes
+  /// [store] on any error.
   static ReadSession readFrom(
     DocsProject project,
     IndexStore store, {
     required Directory workingDirectory,
     void Function()? afterRefresh,
+    void Function()? afterFill,
     bool fillSearchRows = false,
   }) {
     try {
@@ -164,8 +166,11 @@ final class ReadSession {
         final refreshed = refreshIndex(store, project);
         afterRefresh?.call();
         if (fillSearchRows) store.fillSearchRows();
+        afterFill?.call();
         store.beginSnapshot();
-        if (store.readStamp() == stamp) {
+        // A same-stamp peer write after the fill leaves a doc lagging.
+        final searchReady = !fillSearchRows || !store.searchRowsLag;
+        if (store.readStamp() == stamp && searchReady) {
           return ReadSession._(
             project: project,
             store: store,
@@ -217,6 +222,7 @@ final class ReadSession {
     store,
     (path) => project.docPathAt(path, workingDirectory: workingDirectory),
     docsRoot: project.docsRoot,
+    projectRoot: project.projectRoot,
     targetNames: project.targetNames,
   );
 
