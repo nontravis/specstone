@@ -15,6 +15,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/target_fixture.dart';
+import '../../helpers/temp_tree.dart';
 
 const _recordPath = 'specs/f01_login/IMPLEMENTATION.md';
 const _flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
@@ -506,6 +507,19 @@ void main() {
       expect(_suspects(report), isEmpty);
     });
 
+    test('whose folder file gained a comment-only edit gives no '
+        'code_suspect, an end-of-line comment edit one', () async {
+      final project = await writeCheckProject(
+        extra: _covering('  - app/lib/ $folderFingerprint\n'),
+      );
+      final file = File('${project.path}/$_login')
+        ..writeAsStringSync('// note\n\n$_loginText// more\n');
+      expect(_suspects(_run(project)), isEmpty);
+
+      file.writeAsStringSync('${_loginText.trimRight()} // x\n');
+      expect(_suspects(_run(project)), isNotEmpty);
+    });
+
     test('whose folder gained, lost, or renamed a file gives '
         'code_suspect', () async {
       final recorded = _folderFingerprintOf({
@@ -762,5 +776,53 @@ void main() {
     expect([for (final f in _suspects(report)) f.path], [_jasprRecord]);
     expect(_suspects(_run(project, codeTarget: 'flutter')), isEmpty);
     expect(_suspects(_run(project, codeTarget: 'jaspr')), hasLength(1));
+  });
+
+  group('currentCodeFingerprint', () {
+    test('hashes each file by the given file hash, the current rule by '
+        'default', () async {
+      final root = await writeTree({
+        'lib/a.dart': '// note\nint a;\n',
+        'lib/b.dart': 'int b;\n',
+      });
+      List<int>? bytesOf(String file) =>
+          File('${root.path}/$file').readAsBytesSync();
+      String? fingerprint({String Function(List<int>, String)? fileHash}) =>
+          fileHash == null
+          ? currentCodeFingerprint(
+              'lib/',
+              codeRoot: root,
+              nestedRoots: const [],
+              bytesOf: bytesOf,
+              onUnlistable: (_) {},
+            )
+          : currentCodeFingerprint(
+              'lib/',
+              codeRoot: root,
+              nestedRoots: const [],
+              bytesOf: bytesOf,
+              onUnlistable: (_) {},
+              fileHash: fileHash,
+            );
+      String of(String text, String path) =>
+          fileCodeFingerprint(utf8.encode(text), path: path);
+      String legacyOf(String text) =>
+          legacyFileCodeFingerprint(utf8.encode(text));
+
+      expect(
+        fingerprint(),
+        folderCodeFingerprint([
+          (path: 'lib/a.dart', fingerprint: of('int a;\n', 'lib/a.dart')),
+          (path: 'lib/b.dart', fingerprint: of('int b;\n', 'lib/b.dart')),
+        ]),
+      );
+      expect(
+        fingerprint(fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes)),
+        folderCodeFingerprint([
+          (path: 'lib/a.dart', fingerprint: legacyOf('// note\nint a;\n')),
+          (path: 'lib/b.dart', fingerprint: legacyOf('int b;\n')),
+        ]),
+      );
+    });
   });
 }

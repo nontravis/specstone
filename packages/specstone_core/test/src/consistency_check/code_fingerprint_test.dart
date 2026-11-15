@@ -55,8 +55,19 @@ void main() {
         expect(lf, baseHashOf('\uFEFFa\nb\n'));
         expect(
           fileCodeFingerprint(_bom, path: 'lib/a.dart'),
-          baseHashOf('\uFEFF\n'),
+          baseHashOf('\uFEFF'),
         );
+      },
+    );
+
+    test(
+      'hashes a BOM ahead of the kept lines, whatever the first line is',
+      () {
+        String withBom(String text) =>
+            fileCodeFingerprint([..._bom, ..._utf8(text)], path: 'lib/a.dart');
+        expect(withBom('// (c)\nint a;\n'), isNot(fp('// (c)\nint a;\n')));
+        expect(withBom('int a;\n'), isNot(fp('int a;\n')));
+        expect(withBom('// (c)\nint a;\n'), baseHashOf('\uFEFFint a;\n'));
       },
     );
 
