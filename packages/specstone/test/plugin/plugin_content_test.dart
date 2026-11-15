@@ -799,7 +799,7 @@ const _procedures = <_Procedure>[
   ),
   (
     file: 'specstone-sync-sdd/references/task-refs.md',
-    tags: 'agent_plugin/sync_code_and_docs/remove_done_task_refs',
+    tags: 'the sync removes the refs of a closed task',
     commands: ['set'],
   ),
   (
@@ -2437,12 +2437,12 @@ void _agentTests() {
     });
 
     test('update_covering_docs pointers row: the report lists each waiting '
-        'pointer with its doc and its code path', () {
+        'pointer with its code target and its doc and code path', () {
       expect(
         procedure(),
         contains(
-          'and each pointer that waits on an approval, with its doc, code '
-          'target, and code path.',
+          'and each waiting pointer: its code target, and its doc and code '
+          'path, or its tasks.',
         ),
       );
     });
@@ -5533,6 +5533,11 @@ void _syncBootstrapTests() {
         expect(text, contains('With none, read the messages of every commit'));
       });
 
+      test('a mismatch and a planned entry without its behavior take no '
+          'removal', () {
+        expect(refs(), contains('take no removal: every ref stays'));
+      });
+
       test('it names every closing word, both forms, and the mention rule', () {
         final text = refs();
         for (final word in [
@@ -5566,6 +5571,29 @@ void _syncBootstrapTests() {
         expect(text, contains('in your report to the Owner'));
       });
 
+      test('the skill runs each waiting removal once its draft is approved, '
+          'and the procedure report names its tasks and code target', () {
+        final skill = _oneLine(_pluginText('specstone-sync-sdd/SKILL.md'));
+        expect(
+          skill,
+          contains(
+            'For each waiting removal, once its draft is approved, run '
+            '`specstone set --remove-task <task> ...`',
+          ),
+        );
+        expect(skill, contains('then name the removed tasks to the Owner'));
+        final report = _oneLine(
+          _sectionOf(
+            _pluginText('specstone-sync-sdd/references/procedure.md'),
+            'Report to the Owner',
+          ),
+        );
+        expect(
+          report,
+          contains('its code target, and its doc and code path, or its tasks'),
+        );
+      });
+
       test('the sdd-engineer sync report names the removed tasks', () {
         final sync = _oneLine(
           _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Output Format'),
@@ -5590,8 +5618,10 @@ void _planFilesTests() {
       final paths = _planContent().map((file) => file.path);
       expect(
         paths,
-        hasLength(3 + 5 + 2),
-        reason: 'plus tickets.md in 2 renders',
+        hasLength(3 + 4 + 4),
+        reason:
+            'source: engineer, skill, tickets.md; 2 skill renders hold '
+            'the skill and tickets.md; 4 engineer renders',
       );
     });
 

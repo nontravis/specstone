@@ -76,5 +76,4 @@ After your last write, run one `specstone approve --dry-run --json`, the source 
 Your drafts are the docs your own list names: list them with their count, each one's dropped and new sentence counts,
 and one sentence on why it changed, never its text; name each other draft it lists, never counted; one of yours it
 shows as no draft is a finding. Then list each `Mismatches:` point, each `Uncovered:` file, each pointer fixed, each
-task removed, each behavior handed to `specstone-brainstorming-sdd`, and each pointer that waits on an approval, with
-its doc, code target, and code path.
+task removed, each behavior handed to `specstone-brainstorming-sdd`, and each waiting pointer: its code target, and its doc and code path, or its tasks.
