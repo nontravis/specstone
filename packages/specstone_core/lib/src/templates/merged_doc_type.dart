@@ -502,6 +502,7 @@ final class MergedDocType {
     this.description,
     this.parent,
     this.extendsId,
+    this.extendsChain = const [],
     this.path,
     this.maxDepth,
     this.isPerTarget = false,
@@ -523,6 +524,14 @@ final class MergedDocType {
 
   /// The id of the doc type this one builds on.
   final String? extendsId;
+
+  /// The ids this doc type builds on, nearest target first; empty without
+  /// `extends`.
+  final List<String> extendsChain;
+
+  /// Whether this doc type is [docTypeId] or builds on it.
+  bool buildsOn(String docTypeId) =>
+      id == docTypeId || extendsChain.contains(docTypeId);
 
   /// The doc path pattern.
   final String? path;
@@ -581,6 +590,7 @@ final class MergedDocType {
     String? description,
     String? parent,
     String? extendsId,
+    List<String>? extendsChain,
     String? path,
     int? maxDepth,
     bool? isPerTarget,
@@ -598,6 +608,7 @@ final class MergedDocType {
     description: description ?? this.description,
     parent: parent ?? this.parent,
     extendsId: extendsId ?? this.extendsId,
+    extendsChain: extendsChain ?? this.extendsChain,
     path: path ?? this.path,
     maxDepth: maxDepth ?? this.maxDepth,
     isPerTarget: isPerTarget ?? this.isPerTarget,

@@ -1,9 +1,13 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show parseOverrides;
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 const _shippedFile = 'packs/prd-core/feature.yaml';
@@ -687,6 +691,49 @@ sections:
       expect(lint.titleNoNumber, isTrue);
       expect(lint.copyWith(maxChars: 3).titleNoNumber, isTrue);
       expect(const MergedLint().titleNoNumber, isNull);
+    });
+  });
+
+  group('MergedDocType.extendsChain', () {
+    MergedSet resolved() => TemplateResolver().resolveCarried(
+      packNames: const ['prd-core', 'software-tech'],
+      homeDirectory: null,
+      projectLayers: parseOverrides({
+        '.specstone/templates/project_architecture.yaml':
+            'id: project_architecture\nextends: architecture\n'
+            'path: specs/PROJECT_ARCHITECTURE.md\nparent:\n',
+        '.specstone/templates/edge_architecture.yaml':
+            'id: edge_architecture\nextends: project_architecture\n'
+            'path: specs/EDGE_ARCHITECTURE.md\nparent:\n',
+      }),
+    );
+
+    test('a doc type built on another reports the whole extends chain', () {
+      final set = resolved();
+
+      expect(set.lookup('edge_architecture')!.extendsChain, [
+        'project_architecture',
+        'architecture',
+      ]);
+      expect(set.lookup('project_architecture')!.extendsChain, [
+        'architecture',
+      ]);
+      expect(set.lookup('architecture')!.extendsChain, isEmpty);
+    });
+
+    test('buildsOn is true for the own id and every id of the chain', () {
+      final edge = resolved().lookup('edge_architecture')!;
+
+      expect(edge.buildsOn('edge_architecture'), isTrue);
+      expect(edge.buildsOn('project_architecture'), isTrue);
+      expect(edge.buildsOn('architecture'), isTrue);
+      expect(edge.buildsOn('feature'), isFalse);
+    });
+
+    test('copyWith keeps the chain', () {
+      final edge = resolved().lookup('edge_architecture')!;
+
+      expect(edge.copyWith(description: 'x').extendsChain, edge.extendsChain);
     });
   });
 }

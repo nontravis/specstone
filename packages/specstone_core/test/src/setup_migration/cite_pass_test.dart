@@ -233,6 +233,43 @@ void main() {
       expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 0');
     });
 
+    test('the cite pass skips see targets of a type built on architecture', () {
+      const built = 'specs/PROJECT_ARCHITECTURE.md';
+      const text =
+          '# Project architecture\n\n## Concerns\n\n'
+          '- **Data** — one email; see `domain:login`\n';
+      final set = TemplateResolver().resolveCarried(
+        packNames: const ['prd-core', 'software-tech'],
+        homeDirectory: null,
+        projectLayers: parseOverrides({
+          '.specstone/templates/project_architecture.yaml':
+              'id: project_architecture\nextends: architecture\n'
+              'path: $built\nparent:\n',
+        }),
+      );
+      final pass = CitePass.plan([
+        for (final MapEntry(key: docPath, value: lf) in {
+          ..._baseDocs,
+          built: text,
+        }.entries)
+          (
+            docPath: docPath,
+            lf: lf,
+            type: switch (DocTypeMatcher(
+              set,
+              targetNames: const [],
+            ).match(docPath)) {
+              MatchedDocType(:final docType) => docType,
+              _ => null,
+            },
+            target: null,
+          ),
+      ], idPrefixes: itemIdPrefixesOf(set.docTypes));
+
+      expect(pass.planLine, isNull);
+      expect(pass.apply(built, text), text);
+    });
+
     test('a tree with no old cite form has no cites line', () {
       final pass = _passOf({..._baseDocs, _citing: '# A\n\nNo cites here.\n'});
 

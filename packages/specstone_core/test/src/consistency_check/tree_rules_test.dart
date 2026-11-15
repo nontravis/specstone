@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
@@ -219,6 +220,72 @@ void main() {
       expect(targeted.warnings, isEmpty);
     },
   );
+
+  test(
+    'a doc of an extending type with a cleared parent gets no parent_missing',
+    () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            '.specstone/templates/project_api.yaml': 'id: project_api\nextends: api\npath: specs/PROJECT_API.md\nparent:\n',
+            'docs/specs/PROJECT_API.md': '# Project API\n',
+          },
+        ),
+      );
+      expect(spots(report, FindingKind.parentMissing), isEmpty);
+      expect(spots(report, FindingKind.requiredSectionMissing), [
+        'specs/PROJECT_API.md:1: required_section_missing',
+        'specs/PROJECT_API.md:1: required_section_missing',
+      ]);
+    },
+  );
+
+  group('override lines and the parent gate', () {
+    const overridesField =
+        'fields:\n  - id: overrides\n    type: string\n    list: true\n';
+    const malformedLine = '- Overrides: INV-3 — carts expire after 7 days';
+    const ghostDomain = 'specs/f09_ghost/DOMAIN.md';
+    const topic = 'specs/topics/rules.md';
+    const templates = {
+      '.specstone/templates/domain.yaml': overridesField,
+      '.specstone/templates/topic.yaml': overridesField,
+    };
+
+    Future<CheckReport> run(Map<String, String> files) async => checkOf(
+      await writeCheckProject(
+        extra: {...templates, ...files},
+        unstamped: {for (final path in files.keys) path},
+      ),
+    );
+
+    test(
+      'a doc whose type names a parent but has none gets no suspect finding',
+      () async {
+        final report = await run({
+          'docs/$ghostDomain': '# Domain\n\n## Invariants\n\n$malformedLine\n',
+        });
+        expect([
+          for (final f in report.findings)
+            if (f.path == ghostDomain) f.kind,
+        ], contains(FindingKind.parentMissing));
+        expect(spots(report, FindingKind.overrideLineMalformed), isEmpty);
+        expect(spots(report, FindingKind.overrideNotInChain), isEmpty);
+        expect(spots(report, FindingKind.suspect), isEmpty);
+        expect(spots(report, FindingKind.unconfirmed), isEmpty);
+      },
+    );
+
+    test('a topic with no parent still gets its override findings', () async {
+      final report = await run({
+        'docs/$topic':
+            '---\ncovers:\n  - app/lib/\n---\n\n# Rules\n\n## Rules\n\n$malformedLine\n',
+      });
+      expect(spots(report, FindingKind.overrideLineMalformed), [
+        '$topic:10: override_line_malformed',
+      ]);
+      expect(spots(report, FindingKind.parentMissing), isEmpty);
+    });
+  });
 
   test('a doc type with no parent is never parent_missing', () async {
     final report = checkOf(

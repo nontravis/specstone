@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
+import '../../../../specstone_core/test/helpers/project_domain_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -21,6 +22,28 @@ void main() {
     );
     expect(out.toString(), contains('==> bundle: '));
     expect(out.toString(), endsWith('- login (architecture)\n'));
+  });
+  test('context on a story lists the root spec doc in its index', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeReadProject(
+        extra: {
+          ...projectDomainTemplate,
+          'docs/specs/DOMAIN.md': '# Project domain\n',
+        },
+      ),
+    );
+    expect(
+      await runner.run(['context', 'login/email_login', '--for', 'implement']),
+      0,
+    );
+    final lines = out.toString().split('\n');
+    expect(lines, contains(startsWith('- project_domain (project_domain)')));
+    expect(
+      lines.where(
+        (l) => l == '==> project_domain (project_domain) · specs/DOMAIN.md <==',
+      ),
+      hasLength(1),
+    );
   });
   test('f01/us05/fr01/e10: no target, no --for, or another --for value refuses with exit 64', () async {
     final project = await writeReadProject();

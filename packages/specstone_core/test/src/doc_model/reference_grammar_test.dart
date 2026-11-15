@@ -346,6 +346,19 @@ void main() {
     });
   });
 
+  group('readLeadingLinkTarget', () {
+    test('reads the target of a link that opens the text', () {
+      expect(
+        readLeadingLinkTarget('[INV-3](../DOMAIN.md#invariants) — why'),
+        '../DOMAIN.md#invariants',
+      );
+    });
+
+    test('text that opens with no link reads as null', () {
+      expect(readLeadingLinkTarget('INV-3 — [x](a.md)'), isNull);
+    });
+  });
+
   group('readLinkLabel', () {
     test('reads S<N>', () {
       final label = readLinkLabel('S1');
@@ -397,6 +410,39 @@ void main() {
     test('plain digits read as null', () {
       expect(readLinkLabel('01'), isNull);
     });
+
+    test('an override address reads as an OverrideLabel with its doc address '
+        'and item id', () {
+      final label = readLinkLabel('project_domain:domain#INV-3');
+      expect(label, isA<OverrideLabel>());
+      final override = label! as OverrideLabel;
+      expect(override.address.typeId, 'project_domain');
+      expect(override.address.body, 'domain');
+      expect(override.itemId, 'INV-3');
+      expect(override.written, 'project_domain:domain#INV-3');
+    });
+
+    test('an item id with no doc address is no OverrideLabel', () {
+      expect(readLinkLabel('#INV-3'), isNull);
+      expect(readLinkLabel('domain#INV-3'), isNull);
+    });
+
+    test('a doc address with no item id is no OverrideLabel', () {
+      expect(readLinkLabel('project_domain:domain'), isNull);
+      expect(readLinkLabel('project_domain:domain#'), isNull);
+      expect(readLinkLabel('project_domain:domain#overview'), isNull);
+      expect(readLinkLabel('project_domain:domain#INV-3a'), isNull);
+    });
+
+    test(
+      'an override address identity ignores nothing but the written form',
+      () {
+        const text = 'project_domain:domain#INV-3';
+        expect(linkIdentityOf(text), text);
+        expect(linkIdentityOf(text), readLinkLabel(text)!.identity);
+        expect(linkIdentityOf('project_domain:domain#INV-03'), isNot(text));
+      },
+    );
   });
 
   group('linkIdentityOf', () {

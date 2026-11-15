@@ -14,6 +14,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -223,6 +224,36 @@ void main() {
     final b = code('app/lib/main.dart', BundleMode.implement);
     expect(b.docPaths, isEmpty);
     expect(b.joinedPaths, hasLength(3));
+    expect(b.warnings, ['no doc covers or implements app/lib/main.dart']);
+  });
+  test('an uncovered path still gets the root spec docs', () async {
+    final project = await writeLoginProject(
+      extra: {
+        ...projectDomainTemplate,
+        'docs/specs/DOMAIN.md': '# Project domain\n',
+      },
+    );
+    final session = openSession(project);
+    addTearDown(session.close);
+    final b = pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        'app/lib/main.dart',
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      ),
+      BundleMode.implement,
+      noProject: false,
+    );
+
+    expect(b.docPaths, isEmpty);
+    expect(b.joinedPaths, {
+      'prds/GNFR.md',
+      'prds/PROJECT.md',
+      'specs/TECH_STACK.md',
+      'specs/DOMAIN.md',
+    });
     expect(b.warnings, ['no doc covers or implements app/lib/main.dart']);
   });
   test('a path that does not exist is code_path_not_found naming it', () async {
@@ -439,6 +470,39 @@ void main() {
         'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
       });
       expect(bundle.joinedPaths, {'specs/jaspr/TECH_STACK.md'});
+    });
+
+    test("a root spec doc never matches a code path and joins only that path's target", () async {
+      final (session, root) = await writeFeedbackProject(
+        extra: {
+          'jaspr_lib/lib/toast.dart': '',
+          ...projectDomainTemplate,
+          'docs/specs/flutter/DOMAIN.md': '# Flutter domain\n',
+          'docs/specs/jaspr/DOMAIN.md': '# Jaspr domain\n',
+        },
+      );
+      final bundle = pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          'jaspr_lib/lib/toast.dart',
+          workingDirectory: root,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+      expect(bundle.docPaths, {
+        'prds/features/f02_feedback/FEATURE.md',
+        'prds/features/f02_feedback/f03_toast/FEATURE.md',
+        'prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md',
+        'specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md',
+        'specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md',
+      });
+      expect(bundle.joinedPaths, {
+        'specs/jaspr/TECH_STACK.md',
+        'specs/jaspr/DOMAIN.md',
+      });
     });
 
     test("a shared doc's covers count for no target, so the target's own architecture is the spec match", () async {

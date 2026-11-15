@@ -4,7 +4,8 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
-    show writeCheckProject;
+    show fingerprintFor, writeCheckProject;
+import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/write_runner.dart';
@@ -136,6 +137,51 @@ void main() {
     expect(err.toString(), isEmpty);
     final rewritten = (jsonDecode(out.toString()) as Map)['rewritten'] as List;
     expect(rewritten, contains(journey));
+  });
+
+  test('after a feature rename the overriding doc stays approved and check '
+      'reports nothing for it', () async {
+    const shopRule = '- **INV-3** A cart holds stock.';
+    final root = await writeCheckProject(
+      extra: overrideFiles(
+        extra: {
+          'docs/prds/features/f02_shop/FEATURE.md': '# Shop\n',
+          'docs/prds/features/f02_shop/f01_cart/FEATURE.md': '# Cart\n',
+          'docs/specs/f02_shop/DOMAIN.md': domainDoc([shopRule]),
+          'docs/specs/f02_shop/f01_cart/DOMAIN.md': domainDoc(
+            [
+              '- **INV-9** A cart is small.',
+              '- Overrides: [INV-3](../DOMAIN.md#invariants) — stock, because stock',
+            ],
+            entries: ['domain:shop#INV-3 ${fingerprintFor(shopRule)}'],
+          ),
+        },
+      ),
+    );
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(
+      readDoc(root, 'specs/f02_shop/f01_cart/DOMAIN.md'),
+      contains(RegExp('^approved: ', multiLine: true)),
+    );
+    // The fixture's own template findings stay; the rename adds no other.
+    await runner.run(['check', 'domain:shop/cart']);
+    final before = out.toString();
+    out.clear();
+    expect(await runner.run(['rename', 'feature:shop', '--to', 'store']), 0);
+    out.clear();
+    await runner.run(['check', 'domain:store/cart']);
+    expect(out.toString(), before.replaceAll('f02_shop', 'f02_store'));
+    expect(out.toString(), isNot(contains('suspect')));
+    expect(out.toString(), isNot(contains('stale')));
+    expect(err.toString(), isEmpty);
+    expect(
+      readDoc(root, 'specs/f02_store/f01_cart/DOMAIN.md'),
+      allOf(
+        contains('domain:store#INV-3'),
+        contains(RegExp('^approved: ', multiLine: true)),
+        isNot(contains('draft: true')),
+      ),
+    );
   });
 
   test('E07: rename writes a rewritten typed doc laid out', () async {

@@ -128,7 +128,9 @@ enum FindingKind {
   tbrOpen('tbr_open'),
   approvalStale('approval_stale'),
   featurePatternMissing('feature_pattern_missing'),
-  featurePatternItemMissing('feature_pattern_item_missing');
+  featurePatternItemMissing('feature_pattern_item_missing'),
+  overrideLineMalformed('override_line_malformed'),
+  overrideNotInChain('override_not_in_chain');
 
   new(this.wire);
 

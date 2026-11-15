@@ -1,8 +1,12 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
+import 'package:specstone_core/src/consistency_check/override_lines.dart'
+    show carriesOverrides;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
+import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
+    show renamedNameOf;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -17,24 +21,29 @@ const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
 const _confirmedKey = 'confirmed';
 const _tracedFromKey = 'traced_from';
+const _overridesKey = 'overrides';
 const _stepPrefix = 'step:';
 
 // MARK: - rewriteLinkLabels
 
-/// Whether a doc of [docTypeId] holds step identities, FR cells,
-/// `traced_from` entries, or `confirmed` labels that a rename can change.
-bool carriesLinkLabels(String? docTypeId) =>
-    docTypeId == journeyTypeId ||
-    docTypeId == apiTypeId ||
-    docTypeId == _frType;
+/// Whether a doc of [docType] holds step identities, FR cells, `traced_from`
+/// entries, `confirmed` labels, or `overrides` entries that a rename can
+/// change.
+bool carriesLinkLabels(MergedDocType? docType) =>
+    docType != null &&
+    (docType.id == journeyTypeId ||
+        docType.id == apiTypeId ||
+        docType.id == _frType ||
+        carriesOverrides(docType));
 
 /// Returns [lfText] with each step: identity, FR trace cell, `traced_from`
-/// entry, and confirmed label naming a renamed doc set to its new name; null
-/// when nothing changes.
+/// entry, confirmed label, and override entry naming a renamed doc set to its
+/// new name; null when nothing changes.
 ///
 /// [renamed] maps `(doc type id, old name)` to the new name. An FR cell is the
 /// FR's Name less `<feature>/`: it resolves under [featureName] and becomes
-/// the new Name less `<newFeatureName>/`, kept when that prefix is missing.
+/// the new Name less `<newFeatureName>/`, kept when that prefix is missing. An
+/// override entry changes only the Name of its address.
 String? rewriteLinkLabels(
   String lfText, {
   required MergedDocType? docType,
@@ -42,8 +51,8 @@ String? rewriteLinkLabels(
   String? newFeatureName,
   required Map<(String, String), String> renamed,
 }) {
-  if (docType == null || renamed.isEmpty) return null;
-  final newLabel = switch (docType.id) {
+  if (!carriesLinkLabels(docType) || renamed.isEmpty) return null;
+  final newLabel = switch (docType!.id) {
     journeyTypeId ||
     _frType => (String label) => _scenarioEntryLabel(label, renamed),
     apiTypeId => (String label) => _frCell(
@@ -54,22 +63,33 @@ String? rewriteLinkLabels(
     ),
     _ => null,
   };
-  if (newLabel == null) return null;
   final doc = Doc.parse(lfText);
-  var result = docType.id == _frType
-      ? _withRenamedBlock(
-          lfText,
-          doc,
-          _tracedFromKey,
-          (block) => renameKeyBlockValues(block.text, block.key, newLabel),
-        )
-      : _withRewrittenBody(lfText, doc, docType, newLabel, renamed);
-  result = _withRenamedBlock(
-    result,
-    doc,
-    _confirmedKey,
-    (block) => _renameEntries(block, newLabel),
-  );
+  var result = lfText;
+  if (newLabel != null) {
+    result = docType.id == _frType
+        ? _withRenamedBlock(
+            result,
+            doc,
+            _tracedFromKey,
+            (block) => renameKeyBlockValues(block.text, block.key, newLabel),
+          )
+        : _withRewrittenBody(result, doc, docType, newLabel, renamed);
+    result = _withRenamedBlock(
+      result,
+      doc,
+      _confirmedKey,
+      (block) => _renameEntries(block, newLabel),
+    );
+  }
+  if (carriesOverrides(docType)) {
+    result = _withRenamedBlock(
+      result,
+      doc,
+      _overridesKey,
+      (block) =>
+          _renameEntries(block, (label) => _overrideEntryLabel(label, renamed)),
+    );
+  }
   return result == lfText ? null : result;
 }
 
@@ -221,9 +241,22 @@ String? _scenarioEntryLabel(
   return null;
 }
 
-/// Returns the `confirmed` key [block] with each entry label set to
-/// [newLabel], read by the shared key-block scan, so a flow list is read as a
-/// block list is; [block]'s text itself when none changes.
+/// Returns the `<doc type>:<name>#<item ID>` label [label] becomes when the
+/// doc it names is renamed, or null.
+String? _overrideEntryLabel(
+  String label,
+  Map<(String, String), String> renamed,
+) {
+  if (readLinkLabel(label) case OverrideLabel(:final address, :final itemId)) {
+    final name = renamedNameOf(address, renamed);
+    return name == null ? null : '${address.typeId}:$name#$itemId';
+  }
+  return null;
+}
+
+/// Returns the `confirmed` or `overrides` key [block] with each entry label
+/// set to [newLabel], read by the shared key-block scan, so a flow list is
+/// read as a block list is; [block]'s text itself when none changes.
 ///
 /// The scan passes a bare entry's label and fingerprint one at a time, and a
 /// quoted entry whole; only its label part is renamed.

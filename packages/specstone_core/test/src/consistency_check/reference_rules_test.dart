@@ -418,6 +418,24 @@ void main() {
     expect(spots(report, FindingKind.concernsTargetUnresolved), isEmpty);
   });
 
+  test('a doc of a type built on architecture gets the Concerns rule', () async {
+    const layer = '.specstone/templates/project_architecture.yaml';
+    const built = 'specs/PROJECT_ARCHITECTURE.md';
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          layer:
+              'id: project_architecture\nextends: architecture\npath: $built\nparent:\n',
+          'docs/$built': '# Project architecture\n\n## Concerns\n\n- Auth: see MISSING.md\n- Errors: N/A — no errors\n',
+        },
+        unstamped: {'docs/$built'},
+      ),
+    );
+    expect(spots(report, FindingKind.concernsTargetUnresolved), [
+      '$built:5: concerns_target_unresolved',
+    ]);
+  });
+
   test('a fenced line in the Concerns section names no target', () async {
     final report = checkOf(
       await writeCheckProject(

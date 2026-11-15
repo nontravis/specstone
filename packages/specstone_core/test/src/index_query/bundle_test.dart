@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -900,6 +901,141 @@ void main() {
           reason: '$name holds no other-target doc',
         );
       }
+    });
+  });
+
+  group('project spec docs at the spec folder root', () {
+    const rootDomain = 'specs/DOMAIN.md';
+    final chainOfStory = {
+      '$f/FEATURE.md',
+      ...specs,
+      '$f/us01_email_login/USER_STORY.md',
+      '$f/us01_email_login/fr01_validate_credentials.md',
+      '$f/us01_email_login/fr02_lock_after_failures.md',
+      '$f/us01_email_login/nf01_login_latency.md',
+    };
+    Future<DocIndex> oneTargetIndex() => indexWith({
+      ...projectDomainTemplate,
+      'docs/$rootDomain': '# Project domain\n',
+    });
+
+    test(
+      "a root spec doc joins a story's implement bundle beside the tech stack",
+      () async {
+        final b = pickBundle(
+          await oneTargetIndex(),
+          'login/email_login',
+          BundleMode.implement,
+          noProject: false,
+        );
+        expect(b.docPaths, chainOfStory);
+        expect(b.joinedPaths, {
+          'prds/GNFR.md',
+          'prds/PROJECT.md',
+          'specs/TECH_STACK.md',
+          rootDomain,
+        });
+      },
+    );
+
+    test(
+      'a root spec doc as target bundles itself plus the joined docs',
+      () async {
+        final b = pickBundle(
+          await oneTargetIndex(),
+          'project_domain',
+          BundleMode.implement,
+          noProject: false,
+        );
+        expect(b.docPaths, {rootDomain});
+        expect(b.joinedPaths, {
+          'prds/GNFR.md',
+          'prds/PROJECT.md',
+          'specs/TECH_STACK.md',
+        });
+      },
+    );
+
+    test('no-project drops the root spec doc', () async {
+      final b = pickBundle(
+        await oneTargetIndex(),
+        'login/email_login',
+        BundleMode.implement,
+        noProject: true,
+      );
+      expect(b.docPaths, chainOfStory);
+      expect(b.joinedPaths, isEmpty);
+      expect(b.droppedPaths, contains(rootDomain));
+    });
+
+    group('with two targets', () {
+      const flutterDomain = 'specs/flutter/DOMAIN.md';
+      const jasprDomain = 'specs/jaspr/DOMAIN.md';
+      Future<DocIndex> twoTargetIndex() async {
+        final session = openSession(
+          await writeTree({
+            ...projectDomainTemplate,
+            '.specstone/templates/tech_stack.yaml':
+                'id: tech_stack\nper_target: true\n',
+            '.specstone/config.yaml':
+                '${shippedPinsConfig()}targets:\n'
+                '  flutter:\n    code_root: flutter_lib\n'
+                '  jaspr:\n    code_root: jaspr_lib\n',
+            'flutter_lib/.keep': '',
+            'jaspr_lib/.keep': '',
+            'docs/prds/features/f02_feedback/FEATURE.md': '# Feedback\n',
+            'docs/prds/features/f02_feedback/us01_show/USER_STORY.md':
+                '# Agent sees a toast\n',
+            'docs/$flutterDomain': '# Flutter domain\n',
+            'docs/$jasprDomain': '# Jaspr domain\n',
+            'docs/specs/flutter/TECH_STACK.md': '# Flutter stack\n',
+            'docs/specs/jaspr/TECH_STACK.md': '# Jaspr stack\n',
+          }),
+        );
+        addTearDown(session.close);
+        return session.index;
+      }
+
+      test("with two targets and a target flag only that target's root spec docs join", () async {
+        final index = await twoTargetIndex();
+        for (final mode in [BundleMode.implement, BundleMode.design]) {
+          final b = pickBundle(
+            index,
+            'feedback/show',
+            mode,
+            noProject: false,
+            codeTarget: 'jaspr',
+          );
+          expect(b.joinedPaths, {
+            'specs/jaspr/TECH_STACK.md',
+            jasprDomain,
+          }, reason: '$mode');
+        }
+        final unflagged = pickBundle(
+          index,
+          'feedback/show',
+          BundleMode.design,
+          noProject: false,
+        );
+        expect(unflagged.joinedPaths, {
+          'specs/flutter/TECH_STACK.md',
+          'specs/jaspr/TECH_STACK.md',
+          flutterDomain,
+          jasprDomain,
+        });
+      });
+    });
+
+    test('a query bundle holds no root spec doc', () async {
+      final b = pickBundle(
+        await oneTargetIndex(),
+        'login',
+        BundleMode.query,
+        noProject: false,
+      );
+      expect(b.docPaths, {'$f/FEATURE.md'});
+      expect(b.joinedPaths, {'prds/PROJECT.md'});
+      expect(b.droppedPaths, isEmpty);
     });
   });
 }

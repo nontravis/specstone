@@ -58,6 +58,14 @@ bool _isSlugChar(int code) =>
 
 bool _isDigit(int code) => code >= 0x30 && code <= 0x39;
 
+// The index of the first digit of [text]; -1 when it holds none.
+int _firstDigitAt(String text) {
+  for (var at = 0; at < text.length; at++) {
+    if (_isDigit(text.codeUnitAt(at))) return at;
+  }
+  return -1;
+}
+
 final _docTypeId = RegExp(r'^[a-z][a-z0-9_]*$');
 
 /// Whether all of [text] is shaped like a doc type id: `[a-z][a-z0-9_]*`.
@@ -643,8 +651,25 @@ final class FrRefLabel extends LinkLabel {
   String get written => name;
 }
 
+/// An override address: `<doc type>:<name>#<item ID>`, as
+/// `project_domain:domain#INV-3`.
+final class OverrideLabel extends LinkLabel {
+  const new(this.address, this.itemId);
+
+  /// The doc the address names, never looked up.
+  final DocAddress address;
+
+  /// The item ID after the `#`, as written.
+  final String itemId;
+
+  @override
+  String get written => '${address.docPart}#$itemId';
+}
+
 /// Reads [text], whole, as a `confirmed` entry's first word.
 LinkLabel? readLinkLabel(String text) {
+  final override = _readOverrideLabel(text);
+  if (override != null) return override;
   final scenario = readScenarioRef(text);
   if (scenario != null) return ScenarioLabel(scenario);
   if (_isNfrId(text)) return NfrLabel(text);
@@ -657,6 +682,26 @@ LinkLabel? readLinkLabel(String text) {
 ///
 /// Every reader that matches a `confirmed` entry to its link compares this.
 String linkIdentityOf(String label) => readLinkLabel(label)?.identity ?? label;
+
+final _leadingLinkTarget = RegExp(r'^\[[^\]]*\]\(([^)\s]*)');
+
+/// Returns the target of the markdown link that opens [text], as written, or
+/// null when [text] opens with no link.
+String? readLeadingLinkTarget(String text) =>
+    _leadingLinkTarget.firstMatch(text)?.group(1);
+
+/// Reads [text], whole, as `<doc type>:<name>#<item ID>`; null for any other
+/// text, a lettered or unreadable ID included.
+OverrideLabel? _readOverrideLabel(String text) {
+  final address = readDocAddress(text);
+  final key = address.sectionKey;
+  if (address.typeId == null || !address.isName || key == null) return null;
+  final prefixEnd = _firstDigitAt(key);
+  if (prefixEnd <= 0) return null;
+  final id = readItemIdAt(key, 0, key.substring(0, prefixEnd));
+  if (id is! ItemId || id.written.length != key.length) return null;
+  return OverrideLabel(address, key);
+}
 
 bool _isNfrId(String text) {
   const open = 'NFR-';
