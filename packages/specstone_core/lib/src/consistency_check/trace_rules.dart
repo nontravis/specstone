@@ -38,7 +38,7 @@ const _architectureType = 'architecture';
 const _goalsSection = 'goals';
 const _visionIdPrefix = 'PV-';
 const _goalIdPrefix = 'PG-';
-final _servesLine = RegExp(r'^\*\*Serves:\*\*(.*)$');
+final _servesLine = RegExp(r'^(?:- )?\*\*Serves:\*\*(.*)$');
 
 /// Where a Serves ID may open: an upper-case-led prefix ending `-` that no
 /// letter or digit precedes; the grammar reads the ID from there.

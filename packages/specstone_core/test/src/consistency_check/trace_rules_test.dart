@@ -452,6 +452,16 @@ void main() {
     },
   );
 
+  test('a bullet Serves line names its vision', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(projectDoc, '**Serves:** PV-01', '- **Serves:** PV-01'),
+      ),
+    );
+    expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+    expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+  });
+
   test('prose around a Serves ID is no ID', () async {
     for (final line in [
       '**Serves:** PV-01 — product angle',
