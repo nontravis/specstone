@@ -2182,7 +2182,7 @@ void main() {
   });
 
   group('agentFixDirectionOf', () {
-    test('$_stale E34: no stamp or one below the running Version picks '
+    test('no stamp or one below the running Version picks '
         'migrate', () {
       expect(agentFixDirectionOf(null), AgentFixDirection.migrate);
       expect(
@@ -2191,11 +2191,11 @@ void main() {
       );
     });
 
-    test('$_stale E35: the running Version picks migrate', () {
+    test('the running Version picks migrate', () {
       expect(agentFixDirectionOf(runningVersion), AgentFixDirection.migrate);
     });
 
-    test('$_stale E36: a stamp above the running Version picks upgrade', () {
+    test('a stamp above the running Version picks upgrade', () {
       expect(
         agentFixDirectionOf(ReleaseVersion.tryParse('99.0.0')),
         AgentFixDirection.upgrade,

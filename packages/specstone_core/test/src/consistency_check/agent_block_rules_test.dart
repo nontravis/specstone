@@ -582,7 +582,7 @@ void main() {
     });
   });
 
-  group('$_stale E27 to E33: the settings file', () {
+  group('the settings file', () {
     const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
 
     Future<List<Finding>> settingsOf(
@@ -610,32 +610,29 @@ void main() {
       final prefix = place == 'the project root' ? '' : 'other/';
 
       group('at $place', () {
-        test('E27: exactly the one group has no finding', () async {
+        test('exactly the one group has no finding', () async {
           expect(await check(settingsFileText), isEmpty);
           expect(await check(_settings()), isEmpty);
         });
 
-        test(
-          'E28: an old matcher or an added timeout is one finding',
-          () async {
-            for (final text in [
-              _settings(matcher: 'Edit'),
-              _settings(timeout: 5),
-              '{}',
-            ]) {
-              final found = await check(text);
+        test('an old matcher or an added timeout is one finding', () async {
+          for (final text in [
+            _settings(matcher: 'Edit'),
+            _settings(timeout: 5),
+            '{}',
+          ]) {
+            final found = await check(text);
 
-              expect(
-                [for (final f in found) '${f.path}:${f.line}'],
-                ['$prefix$settingsFilePath:1'],
-              );
-              expect(found.single.message, _settingsStale);
-              expect(found.single.waitsFor, WaitsFor.owner);
-            }
-          },
-        );
+            expect(
+              [for (final f in found) '${f.path}:${f.line}'],
+              ['$prefix$settingsFilePath:1'],
+            );
+            expect(found.single.message, _settingsStale);
+            expect(found.single.waitsFor, WaitsFor.owner);
+          }
+        });
 
-        test('E29: a missing file is one finding', () async {
+        test('a missing file is one finding', () async {
           final found = await check(null);
 
           expect(
@@ -646,7 +643,7 @@ void main() {
           expect(found.single.waitsFor, WaitsFor.owner);
         });
 
-        test('E30: a file that is not one JSON object is one finding the '
+        test('a file that is not one JSON object is one finding the '
             'Agent repairs', () async {
           for (final text in ['{', '[]', '']) {
             final found = await check(text);
@@ -660,18 +657,13 @@ void main() {
           }
         });
 
-        test(
-          'E31: a handler the binary does not write is one finding',
-          () async {
-            final found = await check(
-              _settings(args: ['hook', 'session-start']),
-            );
+        test('a handler the binary does not write is one finding', () async {
+          final found = await check(_settings(args: ['hook', 'session-start']));
 
-            expect(found.single.message, _settingsStale);
-          },
-        );
+          expect(found.single.message, _settingsStale);
+        });
 
-        test('E33: the Owner keys, groups, and handlers are never '
+        test('the Owner keys, groups, and handlers are never '
             'compared', () async {
           expect(
             await check(
@@ -697,21 +689,18 @@ void main() {
       });
     }
 
-    test(
-      'E32: the Claude Code group opted out is read for no finding',
-      () async {
-        final opted = {
-          for (final path in skillFileTexts().keys)
-            if (path.startsWith('.claude/') && path != settingsFilePath)
-              path: null,
-        };
+    test('the Claude Code group opted out is read for no finding', () async {
+      final opted = {
+        for (final path in skillFileTexts().keys)
+          if (path.startsWith('.claude/') && path != settingsFilePath)
+            path: null,
+      };
 
-        expect(await settingsOf('{', more: opted), isEmpty);
-        expect(await settingsOf(null, more: opted), isEmpty);
-      },
-    );
+      expect(await settingsOf('{', more: opted), isEmpty);
+      expect(await settingsOf(null, more: opted), isEmpty);
+    });
 
-    test('E08: a check with a target reports no settings finding', () async {
+    test('a check with a target reports no settings finding', () async {
       final files = {...skillFileTexts(), settingsFilePath: '{}'};
       final project = await writeCheckProject(extra: files);
 
@@ -721,17 +710,23 @@ void main() {
       ], isEmpty);
     });
 
-    test('a hand edit to one skill file keeps its message', () async {
+    test('a hand edit to one skill file beside a current settings file is the '
+        'only finding, with its own message', () async {
       final found = await settingsOf(
         settingsFileText,
         more: {codexToml: 'hand edit\n'},
       );
 
       expect(found.map((f) => f.path), [codexToml]);
+      expect(
+        found.single.message,
+        'the Specstone skill or agent file differs from what the running CLI '
+        'writes; $_migrate',
+      );
     });
   });
 
-  group('$_stale E34 to E37: the fix follows the stamp', () {
+  group('the fix follows the stamp', () {
     const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
     const skillLead =
         'the Specstone skill or agent file differs from what the running CLI '
@@ -759,9 +754,9 @@ void main() {
     }
 
     for (final (row, version) in <(String, String?)>[
-      ('E34 no stamp', null),
-      ('E34 a stamp below the running Version', '0.0.1'),
-      ('E35 a stamp equal to the running Version', specstoneVersion),
+      ('no stamp', null),
+      ('a stamp below the running Version', '0.0.1'),
+      ('a stamp equal to the running Version', specstoneVersion),
     ]) {
       test('$row: a block, a skill file, and the settings file name '
           'migrate', () async {
@@ -783,7 +778,7 @@ void main() {
       });
     }
 
-    test('E36: a stamp above the running Version names the stamp, the '
+    test('a stamp above the running Version names the stamp, the '
         'running Version, and upgrade', () async {
       final found = await findingsOf({
         'AGENTS.md': staleBlock,
@@ -802,7 +797,7 @@ void main() {
       expect(found.map((f) => f.waitsFor), everyElement(WaitsFor.owner));
     });
 
-    test('E36: a missing file and an unlisted top name upgrade too', () async {
+    test('a missing file and an unlisted top name upgrade too', () async {
       final missing = await findingsOf({
         settingsFilePath: null,
         _agentMd: null,
@@ -824,7 +819,7 @@ void main() {
       );
     });
 
-    test('E36: the hand-fix messages keep their text and wait for the '
+    test('the hand-fix messages keep their text and wait for the '
         'Agent', () async {
       final found = await findingsOf({
         'CLAUDE.md': 'x\n<!-- BEGIN specstone v1.0.0 -->\nno end\n',
@@ -860,7 +855,7 @@ void main() {
       }
     });
 
-    test('E37: a stamp above the running Version over matching files has no '
+    test('a stamp above the running Version over matching files has no '
         'finding', () async {
       expect(await findingsOf({}, version: '99.0.0'), isEmpty);
     });
