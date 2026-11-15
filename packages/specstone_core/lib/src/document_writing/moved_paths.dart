@@ -2,7 +2,7 @@ import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/percent_decode.dart'
     show percentDecoded;
 import 'package:specstone_core/src/doc_model/records_root.dart'
-    show isRecordsDocPath, projectPathOfDocPath;
+    show projectPathOfDocPath;
 
 /// One move of a doc or a folder, as DocPaths.
 ///
@@ -21,11 +21,20 @@ String movedPath(String docPath, List<PathMove> moves) {
   return docPath;
 }
 
+/// Returns [moves] with each path as a path from the project root.
+List<PathMove> projectMovesOf(List<PathMove> moves) => [
+  for (final move in moves)
+    (from: projectPathOfDocPath(move.from), to: projectPathOfDocPath(move.to)),
+];
+
 /// Returns the `/`-separated path from the folder of [fromDocPath] to
 /// [toDocPath], with `..` segments up to the common folder.
+///
+/// An empty [toDocPath] names the root of both, and the path to it ends in
+/// no `/`.
 String relativeHref(String fromDocPath, String toDocPath) {
   final fromFolder = fromDocPath.split('/')..removeLast();
-  final to = toDocPath.split('/');
+  final to = toDocPath.isEmpty ? <String>[] : toDocPath.split('/');
   var common = 0;
   while (common < fromFolder.length &&
       common < to.length - 1 &&
@@ -52,34 +61,18 @@ String relativeHref(String fromDocPath, String toDocPath) {
 String? movedRelativePath(String path, String docPath, List<PathMove> moves) {
   final target = relativeFilePathOf(path, docPath);
   if (target == null) return null;
-  final projectMoves = [
-    for (final move in moves)
-      (
-        from: projectPathOfDocPath(move.from),
-        to: projectPathOfDocPath(move.to),
-      ),
-  ];
+  final projectMoves = projectMovesOf(moves);
   final movedDoc = movedPath(docPath, moves);
   final movedTarget = movedFilePath(
-    _projectFilePathOf(target, docPath),
+    projectFilePathOf(target, docPath),
     projectMoves,
   );
   final kept = relativeFilePathOf(path, movedDoc);
-  if (kept != null && _projectFilePathOf(kept, movedDoc) == movedTarget) {
+  if (kept != null && projectFilePathOf(kept, movedDoc) == movedTarget) {
     return null;
   }
   final after = relativeHref(projectPathOfDocPath(movedDoc), movedTarget);
   return _keptDotSlash(path, after);
-}
-
-/// Returns [filePath], as [relativeFilePathOf] gives it for the doc at
-/// [docPath], as a path from the project root.
-String _projectFilePathOf(String filePath, String docPath) {
-  if (isRecordsDocPath(docPath)) return filePath;
-  if (filePath == '..') return '';
-  return filePath.startsWith('../')
-      ? filePath.substring('../'.length)
-      : '$docsFolderName/$filePath';
 }
 
 /// Returns [path], written in the doc at [fromDocPath], as the path that

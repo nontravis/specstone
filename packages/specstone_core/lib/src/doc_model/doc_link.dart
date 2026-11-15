@@ -87,6 +87,16 @@ String? relativeFilePathOf(String href, String docPath) {
   return null;
 }
 
+/// Returns [filePath], as [relativeFilePathOf] gives it for the doc at
+/// [docPath], as a path from the project root.
+String projectFilePathOf(String filePath, String docPath) {
+  if (isRecordsDocPath(docPath)) return filePath;
+  if (filePath == '..') return '';
+  return filePath.startsWith('../')
+      ? filePath.substring('../'.length)
+      : '$docsFolderName/$filePath';
+}
+
 /// The folder name of the docs root under the project root.
 const docsFolderName = 'docs';
 

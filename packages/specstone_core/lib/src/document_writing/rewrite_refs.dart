@@ -3,11 +3,13 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
-    show DocTarget, resolveDocLink;
+    show DocTarget, projectFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show markdownExtension;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart'
+    show docPathOfProjectPath;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
@@ -449,12 +451,13 @@ RenamedDocs _renamedDocsOf(
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path
 /// that [moves] move.
-bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) =>
-    index
-        .contentOf(doc)
-        .lineFacts
-        .fileLinks
-        .any((link) => movedFilePath(link.target, moves) != link.target);
+bool _linksToMovedFile(DocIndex index, IndexedDoc doc, List<PathMove> moves) {
+  final projectMoves = projectMovesOf(moves);
+  return index.contentOf(doc).lineFacts.fileLinks.any((link) {
+    final target = projectFilePathOf(link.target, doc.docPath);
+    return movedFilePath(target, projectMoves) != target;
+  });
+}
 
 /// Whether [doc] moves and [rewriteDocLinks] changes a link it holds, a link
 /// to itself or to a target that stays included.
@@ -508,13 +511,18 @@ bool _mentionsMovedFile(
     ) !=
     null;
 
-/// Whether [path], from the docs root and possibly leaving it, names an
-/// indexed doc or a file or folder on disk.
+/// Whether [path], from the project root, names an indexed doc or a file or
+/// folder on disk.
 ///
 /// Planning runs before the moves, so this reads the tree as it stands.
 bool _existsBeforeMoves(WriteSession session, String path) =>
-    session.index.at(path) != null ||
-    FileSystemEntity.typeSync(session.fileOf(path).path) !=
+    session.index.at(docPathOfProjectPath(path)) != null ||
+    FileSystemEntity.typeSync(
+          [
+            session.project.projectRoot.path,
+            ...path.split('/'),
+          ].join(Platform.pathSeparator),
+        ) !=
         FileSystemEntityType.notFound;
 
 /// Returns the doc at [docPath], on disk but not in the session's snapshot, as

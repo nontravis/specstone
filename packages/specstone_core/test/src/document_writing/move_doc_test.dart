@@ -3245,6 +3245,70 @@ void main() {
       },
     );
 
+    test('reordering stories rewrites a record file link into a moved story folder', () async {
+      final root = await recordProject();
+      const folder = 'prds/features/f01_login/us02_sign_out';
+      File(
+        '${docFile(root, '$folder/USER_STORY.md').parent.path}${Platform.pathSeparator}diagram.png',
+      ).writeAsBytesSync([1, 2, 3]);
+      appendTo(
+        recordFile(root, loginRecordPath),
+        '\nSee [diagram](../../../docs/$folder/diagram.png).\n',
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      reorder(root, 'user_story:login/reset_password', '1');
+
+      expect(
+        recordFile(root, loginRecordPath).readAsStringSync(),
+        contains(
+          '](../../../docs/prds/features/f01_login/us03_sign_out/diagram.png)',
+        ),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test('reordering features rewrites a docs file link into a moved record folder', () async {
+      final root = await recordProject();
+      File(
+        '${recordFile(root, loginRecordPath).parent.path}'
+        '${Platform.pathSeparator}notes.png',
+      ).writeAsBytesSync([1, 2, 3]);
+      docFile(root, persona).writeAsStringSync(
+        '\nSee [notes](../../../../.specstone/records/f01_login/notes.png).\n',
+        mode: FileMode.append,
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+
+      reorder(root, 'feature:signup', '1');
+
+      expect(
+        readDoc(root, persona),
+        contains('](../../../../.specstone/records/f02_login/notes.png)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test(
+      'renaming a story rewrites a record prose mention of its doc',
+      () async {
+        final root = await recordProject();
+        appendTo(
+          recordFile(root, loginRecordPath),
+          '\nSee ../../../docs/$story2 for the flow.\n',
+        );
+
+        rename(root, 'user_story:login/sign_out', 'log_out');
+
+        expect(
+          recordFile(root, loginRecordPath).readAsStringSync(),
+          contains(
+            'See ../../../docs/prds/features/f01_login/us02_log_out/USER_STORY.md for the flow.',
+          ),
+        );
+      },
+    );
+
     test(
       'renaming a feature rewrites the href of a docs link to its record',
       () async {
