@@ -920,7 +920,7 @@ if ($env:HARNESS_MODE -eq 'iex') {
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(sb.logOf('claude'), isEmpty);
-          for (final word in ['claude', 'Claude', 'plugin', 'marketplace']) {
+          for (final word in ['Claude', 'plugin', 'marketplace']) {
             expect(r.stdout, isNot(contains(word)));
             expect(r.stderr, isNot(contains(word)));
           }

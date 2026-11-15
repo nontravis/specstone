@@ -183,16 +183,14 @@ try {
 
     # Runs the program $File with $Arguments under 'Continue', so a line on its
     # stderr is not an error. Merging stderr into the output stream (2>&1) turns
-    # each stderr line into an ErrorRecord, whose ToString() is the line itself,
-    # without the NativeCommandError decoration that a 2> file would hold.
-    # Decodes the program's output as UTF-8 (the console encoding is the OEM
-    # code page) and restores the console encoding afterwards. Returns Status,
-    # the stdout lines as Output, and the stderr lines as Errors.
+    # each stderr line into an ErrorRecord, which is dropped, so Output holds
+    # the stdout lines only. Decodes the program's output as UTF-8 (the console
+    # encoding is the OEM code page) and restores the console encoding
+    # afterwards. Returns Status and Output.
     function Invoke-Native([string]$File, [string[]]$Arguments) {
         $ErrorActionPreference = 'Continue'
         $global:LASTEXITCODE = 0
         $output = New-Object System.Collections.ArrayList
-        $errors = New-Object System.Collections.ArrayList
         $savedEncoding = $null
         try {
             $savedEncoding = [Console]::OutputEncoding
@@ -202,22 +200,19 @@ try {
         }
         try {
             & $File @Arguments 2>&1 | ForEach-Object {
-                if ($_ -is [System.Management.Automation.ErrorRecord]) {
-                    [void]$errors.Add($_.ToString())
-                } else {
+                if ($_ -isnot [System.Management.Automation.ErrorRecord]) {
                     [void]$output.Add([string]$_)
                 }
             }
             $status = $global:LASTEXITCODE
         } catch {
             $status = 1
-            [void]$errors.Add($_.Exception.GetBaseException().Message)
         } finally {
             if ($null -ne $savedEncoding) {
                 try { [Console]::OutputEncoding = $savedEncoding } catch { }
             }
         }
-        return [pscustomobject]@{ Status = $status; Output = $output.ToArray(); Errors = $errors.ToArray() }
+        return [pscustomobject]@{ Status = $status; Output = $output.ToArray() }
     }
 
     # Returns $true when the strings $First and $Second hold the same characters.

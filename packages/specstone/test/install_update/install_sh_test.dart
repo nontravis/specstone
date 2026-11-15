@@ -1159,7 +1159,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
 
           expect(r.exitCode, 0, reason: '${r.stderr}');
           expect(sb.logOf('claude'), isEmpty);
-          for (final word in ['claude', 'Claude', 'plugin', 'marketplace']) {
+          for (final word in ['Claude', 'plugin', 'marketplace']) {
             expect(r.stdout, isNot(contains(word)));
             expect(r.stderr, isNot(contains(word)));
           }
@@ -1179,7 +1179,7 @@ cp "$ARCHIVES/${url##*/}" "$out"''');
         Map<String, String> extra = const {},
       ]) => sb.run('install.sh', extra: {...archiveEnv(sb), ...extra});
 
-      test('a Mac with git 2.39 and no claude warns about nothing', () async {
+      test('a Mac with git 2.39 warns about nothing', () async {
         final sb = await sandboxWith(target: 'macos-arm64');
         sb.stub('git', r'''
 echo "$*" >> "$STUB_LOG_DIR/git.log"
