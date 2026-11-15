@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
@@ -281,10 +282,13 @@ final class _Walk {
 
   /// Returns the file link target [path] of the doc at [docPath] spelled
   /// from the docs root, as a doc's own targets are; a record's targets are
-  /// project-root paths.
+  /// project-root paths, so one outside `docs/` keeps a leading `../`.
   String _docsRootSpelling(String path, String docPath) {
     if (!isRecordsDocPath(docPath)) return path;
-    return docPathOfProjectPath(path) ?? '../$path';
+    const docsPrefix = '$docsFolderName/';
+    return path.startsWith(docsPrefix)
+        ? path.substring(docsPrefix.length)
+        : '../$path';
   }
 
   /// Whether [path], a path under the root the doc at [docPath] is read from,
