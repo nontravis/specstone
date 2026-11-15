@@ -15,7 +15,6 @@ const _codeRoots = [
   'packages/specstone_core/tool/',
   'packages/specstone/lib/',
   'packages/specstone/bin/',
-  'plugin/',
   'tool/',
   '.github/workflows/',
   'install.sh',

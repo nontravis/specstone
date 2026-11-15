@@ -59,8 +59,8 @@ void main() {
       r.stdout,
       [
         'create release/0.2.0 from develop',
-        'set 0.2.0 in the five version spots',
-        're-read the five spots; run dart pub get --enforce-lockfile',
+        'set 0.2.0 in the four version spots',
+        're-read the four spots; run dart pub get --enforce-lockfile',
         'commit "chore: release 0.2.0"; tag v0.2.0 on it',
         'push tag v0.2.0',
         'wait for the release.yaml run of v0.2.0',
@@ -81,8 +81,8 @@ void main() {
       r.stdout,
       [
         'create release/0.2.0-beta.1 from develop',
-        'set 0.2.0-beta.1 in the five version spots',
-        're-read the five spots; run dart pub get --enforce-lockfile',
+        'set 0.2.0-beta.1 in the four version spots',
+        're-read the four spots; run dart pub get --enforce-lockfile',
         'commit "chore: release 0.2.0-beta.1"; tag v0.2.0-beta.1 on it',
         'push tag v0.2.0-beta.1',
         'wait for the release.yaml run of v0.2.0-beta.1',
@@ -377,7 +377,6 @@ void main() {
         'packages/specstone/pubspec.yaml',
         'packages/specstone_core/lib/src/version.dart',
         'packages/specstone_core/pubspec.yaml',
-        'plugin/.claude-plugin/plugin.json',
       ],
     );
     expect(refs['refs/heads/main'], tagged);
@@ -413,7 +412,6 @@ void main() {
         'packages/specstone/pubspec.yaml',
         'packages/specstone_core/lib/src/version.dart',
         'packages/specstone_core/pubspec.yaml',
-        'plugin/.claude-plugin/plugin.json',
       ],
     );
     expect(
@@ -433,14 +431,22 @@ void main() {
       'commit and undoes the bump', () async {
     repo = await createReleaseRepo(
       files: {
-        'plugin/.claude-plugin/plugin.json': '{\n  "name": "specstone"\n}\n',
+        'packages/specstone/pubspec.yaml': '''
+name: specstone
+version: 0.1.0
+environment:
+  sdk: ^3.13.5
+resolution: workspace
+dependencies:
+  specstone_core: any
+''',
       },
     );
     before = await repo.state();
 
     final r = await repo.release(['0.2.0']);
 
-    await expectRefusal(r, ['plugin/.claude-plugin/plugin.json']);
+    await expectRefusal(r, ['packages/specstone/pubspec.yaml']);
     expect(await repo.git(['branch', '--show-current']), 'develop');
     expect(await repo.git(['branch', '--list', 'release/*']), isEmpty);
     expect(await repo.git(['tag', '--list']), isEmpty);
@@ -790,8 +796,8 @@ dependencies:
       r.stdout,
       [
         'create release/0.2.0 from develop',
-        'set 0.2.0 in the five version spots',
-        're-read the five spots; run dart pub get --enforce-lockfile',
+        'set 0.2.0 in the four version spots',
+        're-read the four spots; run dart pub get --enforce-lockfile',
         'commit "chore: release 0.2.0"; tag v0.2.0 on it',
         'push tag v0.2.0',
         'wait for the release.yaml run of v0.2.0',
@@ -843,13 +849,13 @@ dependencies:
   group('first-run checks', () {
     test('a modified tracked file keeps its porcelain status '
         'column', () async {
-      await File('${repo.work.path}/plugin/.claude-plugin/plugin.json')
-          .writeAsString('{"version": "0.1.0"}\n');
+      await File('${repo.work.path}/.gitignore')
+          .writeAsString('.dart_tool/\nstray/\n');
       before = await repo.state();
 
       final r = await repo.release(['0.2.0']);
 
-      await expectRefusal(r, ['\n M plugin/.claude-plugin/plugin.json']);
+      await expectRefusal(r, ['\n M .gitignore']);
     });
 
     test('an empty ci run list refuses', () async {
@@ -915,14 +921,20 @@ dependencies:
 
   group('hardening', () {
     test('a missing spot file refuses before anything is cut', () async {
-      await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
-      await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
+      await repo.git([
+        'rm',
+        '-q',
+        'packages/specstone_core/lib/src/version.dart',
+      ]);
+      await repo.git(['commit', '-q', '-m', 'drop version.dart']);
       await repo.git(['push', '-q', 'origin', 'develop']);
       before = await repo.state();
 
       final r = await repo.release(['0.2.0']);
 
-      await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
+      await expectRefusal(r, [
+        'release: packages/specstone_core/lib/src/version.dart',
+      ]);
     });
 
     test('a pre-release specstoneVersion literal is the current '
@@ -1053,14 +1065,20 @@ dependencies:
     });
 
     test('--dry-run refuses a missing spot too', () async {
-      await repo.git(['rm', '-q', 'plugin/.claude-plugin/plugin.json']);
-      await repo.git(['commit', '-q', '-m', 'drop plugin.json']);
+      await repo.git([
+        'rm',
+        '-q',
+        'packages/specstone_core/lib/src/version.dart',
+      ]);
+      await repo.git(['commit', '-q', '-m', 'drop version.dart']);
       await repo.git(['push', '-q', 'origin', 'develop']);
       before = await repo.state();
 
       final r = await repo.release(['0.2.0', '--dry-run']);
 
-      await expectRefusal(r, ['release: plugin/.claude-plugin/plugin.json']);
+      await expectRefusal(r, [
+        'release: packages/specstone_core/lib/src/version.dart',
+      ]);
     });
 
     test('a failed branch cleanup after the landing exits 0 '
@@ -1312,8 +1330,8 @@ dependencies:
 
     test('spots holding another version refuse naming it', () async {
       await repo.commitFile(
-        'plugin/.claude-plugin/plugin.json',
-        '{\n  "name": "specstone",\n  "version": "0.2.1"\n}\n',
+        'packages/specstone_core/lib/src/version.dart',
+        "const String specstoneVersion = '0.2.1';\n",
         'chore: wrong version',
       );
       final mid = await repo.state();

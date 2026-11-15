@@ -245,8 +245,6 @@ resolution: workspace
 dependencies:
   specstone_core: ^$v
 ''',
-    'plugin/.claude-plugin/plugin.json':
-        '{\n  "name": "specstone",\n  "version": "$v"\n}\n',
     '.gitignore': '.dart_tool/\n',
   };
 

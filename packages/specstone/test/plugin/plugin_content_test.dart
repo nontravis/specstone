@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
@@ -6,7 +5,6 @@ import 'package:specstone_core/src/setup_migration/agent_assets.dart';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:test/test.dart';
 
-import '../helpers/hook_command.dart';
 import '../helpers/plugin_content.dart';
 import '../helpers/temp_tree.dart';
 
@@ -198,52 +196,9 @@ void main() {
     ]);
   });
 
-  test("no shipped plugin file presumes the Owner's "
+  test("no shipped file presumes the Owner's "
       'language with a letter outside the Latin script', () {
     expect(nonLatinLetterLines(agentAssetsRoot()), isEmpty);
-    expect(nonLatinLetterLines(pluginRoot()), isEmpty);
-  });
-
-  test('f08/us06/fr01, f09/us05/fr01/e05, ms-r12: hooks.json keeps only the '
-      'PostToolUse Write|Edit hook beside the SessionStart entry', () {
-    final decoded = jsonDecode(
-      File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
-          .readAsStringSync(),
-    ) as Map<String, dynamic>;
-    final hooks = decoded['hooks'] as Map<String, dynamic>;
-    expect(hooks.keys, unorderedEquals(['PostToolUse', 'SessionStart']));
-    expect(hooks['PostToolUse'], [
-      {
-        'matcher': 'Write|Edit',
-        'hooks': [
-          {
-            'type': 'command',
-            'command': r'/bin/sh "${CLAUDE_PLUGIN_ROOT}/hooks/post-edit.sh"',
-          },
-        ],
-      },
-    ]);
-    final hook = SpecstoneCommandRunner().commands['hook'];
-    expect(hook?.subcommands.keys, unorderedEquals(['post-edit']));
-  });
-
-  test('g8-r11: every script hooks.json names exists under hooks/', () {
-    final decoded = jsonDecode(
-      File.fromUri(pluginRoot().uri.resolve('hooks/hooks.json'))
-          .readAsStringSync(),
-    ) as Map<String, dynamic>;
-    final scriptNamed = RegExp(r'/hooks/([\w.-]+\.sh)"$');
-
-    for (final event in (decoded['hooks'] as Map<String, dynamic>).keys) {
-      final name = scriptNamed.firstMatch(hookCommandOf(event))?.group(1);
-
-      expect(name, isNotNull, reason: '$event names no script under hooks/');
-      expect(
-        File.fromUri(pluginRoot().uri.resolve('hooks/$name')).existsSync(),
-        isTrue,
-        reason: '$event names hooks/$name',
-      );
-    }
   });
 
   _assetLayoutTests();
@@ -640,7 +595,7 @@ void _assetLayoutTests() {
   });
 
   test('the source walk sees the twelve sources, leaves AGENT.md out, and '
-      'the shipped walk adds the hooks', () async {
+      'the shipped walk matches it', () async {
     final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
     expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
     expect(
@@ -648,7 +603,7 @@ void _assetLayoutTests() {
       unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
     );
     expect(seen, isNot(contains('AGENT.md')));
-    expect(shippedFiles().map(shippedPathOf), contains('hooks/hooks.json'));
+    expect(shippedFiles().map(shippedPathOf), seen);
 
     final root = await writeTree({
       'AGENT.md': 'text',

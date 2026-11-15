@@ -13,7 +13,6 @@ void main() {
   // The folders whose files teach, run, or write for agents: they name
   // `specstone`, never `stn`.
   const scannedFolders = [
-    'plugin/',
     'packages/specstone/lib/',
     'packages/specstone_core/lib/',
     'packages/specstone_core/assets/agent/',

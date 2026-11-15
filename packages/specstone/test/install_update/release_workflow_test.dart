@@ -255,7 +255,7 @@ void main() {
   });
 
   test('the version job checks the tag against '
-      'version.dart and the five spots', () {
+      'version.dart and the four spots', () {
     final version = _job(release, 'version');
     expect(version['runs-on'], 'ubuntu-latest');
     final run = _runText(version);

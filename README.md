@@ -50,11 +50,9 @@ The MCP server still lists no tools.
 - `packages/specstone_core/`: the library: doc model, index and query, templates and packs, document writing,
   consistency check, setup and migration, and rendering.
 - `packages/specstone/`: the `specstone` CLI executable and its MCP server command.
-- `plugin/`: the Claude Code plugin, which holds two hooks in `hooks/hooks.json`. The `PostToolUse` hook runs
-  `specstone hook post-edit`, so `specstone` must be on `PATH`. The `SessionStart` hook warns when the CLI and plugin
-  versions differ. The skills and agents are not in it: `specstone init` and `specstone migrate` write them into the
-  project's `.claude/`, `.agents/`, `.cursor/`, and `.codex/` folders.
-- `.claude-plugin/marketplace.json`: the marketplace entry that points Claude Code at `plugin/`.
+- Skills, agents, and the `PostToolUse` hook that runs `specstone hook post-edit` come from `specstone init` and
+  `specstone migrate`, which write them into the project's `.claude/`, `.agents/`, `.cursor/`, and `.codex/` folders.
+  The hook needs `specstone` on `PATH`.
 
 ## Develop
 
