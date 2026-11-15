@@ -71,6 +71,15 @@ ProcessResult _noGit(
   throw StateError('init must start no git process: git $arguments');
 }
 
+/// A `CLAUDE.md` whose block imports the `.specstone/AGENT.md` it lacks.
+final _importingClaude = '# Owner\n\n$_importBlock';
+
+final String _importBlock = importBlock(
+  cliVersion: specstoneVersion,
+  agentMdPath: '.specstone/AGENT.md',
+  projectDocPath: 'docs/prds/PROJECT.md',
+);
+
 /// The config `init` writes on the shipped pins: the running Version stamped.
 String _stampedConfig() =>
     '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n';
@@ -124,7 +133,7 @@ void main() {
     }
   });
 
-  test('E42: a rerun that finds every agent file as written still stamps the '
+  test('a rerun that finds every agent file as written still stamps the '
       'config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     _run(root);
@@ -138,6 +147,18 @@ void main() {
     ]);
     expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
   });
+
+  test(
+    'an instruction file importing the missing AGENT.md ends stamped',
+    () async {
+      final root = await writeTree({'CLAUDE.md': _importingClaude});
+
+      final (status, _) = _run(root);
+
+      expect(status, 0);
+      expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
+    },
+  );
 
   test('init then check reports no format_drift on the four drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});

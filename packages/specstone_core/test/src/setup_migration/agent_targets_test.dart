@@ -203,6 +203,21 @@ void main() {
       expect(stamp.toString(), specstoneVersion);
     });
 
+    test('a stamp above the running Version is kept', () async {
+      final base = await _base(settled({}));
+      final inputs = _inputs(base);
+      final higher = ReleaseVersion.tryParse('9.0.0');
+
+      expect(
+        agentFilesStampAfter(
+          inputs,
+          planAgentWrites(inputs, full: false),
+          current: higher,
+        ),
+        same(higher),
+      );
+    });
+
     test('a stale block the plan leaves keeps the stamp as it was', () async {
       final base = await _base(settled({'proj/CLAUDE.md': staleBlock}));
       final inputs = _inputs(base);

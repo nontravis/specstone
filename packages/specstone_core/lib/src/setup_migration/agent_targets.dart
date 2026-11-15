@@ -528,13 +528,17 @@ AgentWritePlan planAgentWrites(
 /// [plan] to [inputs] holds: the running Version when the agent files end as
 /// the CLI writes them, else [current], the key as it was.
 ///
+/// The stamp never goes down: a [current] above the running Version stays.
 /// Reads [inputs] before any write: the end state is the drifts before the
 /// run, minus the paths [plan] writes or trashes and the tops it lists.
 ReleaseVersion? agentFilesStampAfter(
   AgentFileInputs inputs,
   AgentWritePlan plan, {
   required ReleaseVersion? current,
-}) => _endsCurrent(inputs, plan) ? runningVersion : current;
+}) {
+  if (current != null && current.compareTo(runningVersion) > 0) return current;
+  return _endsCurrent(inputs, plan) ? runningVersion : current;
+}
 
 /// The running CLI's Version.
 final ReleaseVersion runningVersion =
@@ -546,9 +550,12 @@ bool _endsCurrent(AgentFileInputs inputs, AgentWritePlan plan) {
   final listed = plan.addedRoots.toSet();
   final left = [
     for (final (:path, line: _, :kind) in agentFileDrifts(inputs))
-      if (kind == AgentDriftKind.topUnlisted
-          ? !listed.contains(path)
-          : !fixed.contains(path))
+      if (!switch (kind) {
+        // The importing file stays as it is; writing AGENT.md fixes it.
+        AgentDriftKind.topUnlisted => listed.contains(path),
+        AgentDriftKind.agentMdMissing => fixed.contains(_agentMdPath),
+        _ => fixed.contains(path),
+      })
         path,
     for (final (:path, kind: _) in skillAndAgentFileDrifts(inputs))
       if (!fixed.contains(path)) path,

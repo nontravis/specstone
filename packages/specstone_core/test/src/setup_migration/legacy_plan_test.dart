@@ -1460,6 +1460,17 @@ name: NFR
       expect('agent_files_version'.allMatches(text), hasLength(1));
     });
 
+    test('a stamp above the running Version stays as it is', () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 0.0.1\nagent_files_version: 9.0.0\n',
+      });
+
+      final text = _rewritesOf(plan, '.specstone/config.yaml').single.text;
+      expect(text, endsWith('agent_files_version: 9.0.0\n'));
+    });
+
     test('commit 2 writes the Claude Code settings file with the skill and '
         'agent files', () async {
       final plan = await _plan(acmeLegacy);

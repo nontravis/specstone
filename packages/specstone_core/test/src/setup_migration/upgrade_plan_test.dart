@@ -15,7 +15,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart'
-    show agentMdText;
+    show agentMdText, importBlock;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
     show agentFilesSince;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -1274,6 +1274,15 @@ sections:
 const _fr = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
 
+/// A `CLAUDE.md` whose block imports the `.specstone/AGENT.md` it lacks.
+final _importingClaude = '# Owner\n\n$_importBlock';
+
+final String _importBlock = importBlock(
+  cliVersion: specstoneVersion,
+  agentMdPath: '.specstone/AGENT.md',
+  projectDocPath: 'docs/prds/PROJECT.md',
+);
+
 /// The stamp an upgrade that writes the config leaves: the running Version.
 const _stamp = 'agent_files_version: $specstoneVersion\n';
 
@@ -1838,6 +1847,48 @@ void _agentFilesTests() {
 
       expect(plan.lists.agentFiles, [path]);
       expect(_stampRewrites(plan), isEmpty);
+    });
+
+    test('an agent-only upgrade that writes the missing AGENT.md an import '
+        'block names sets the stamp', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': shippedPinsConfig(),
+        ...skillFileTexts(),
+        'CLAUDE.md': _importingClaude,
+      });
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, ['.specstone/AGENT.md']);
+      expect(_stampRewrites(plan), ['${shippedPinsConfig()}$_stamp']);
+    });
+
+    test('a stamp above the running Version stays as it is', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${_belowSince}agent_files_version: 9.0.0\n',
+      });
+
+      final text = _stampRewrites(_planAt(project)).single;
+
+      expect(text, endsWith('agent_files_version: 9.0.0\n'));
+    });
+
+    test('a refused AGENT.md write leaves the stamp as it was', () async {
+      final project = await writeTree({
+        '.specstone/config.yaml': '${_belowSince}agent_files_version: 1.0.0\n',
+        'CLAUDE.md': _importingClaude,
+      });
+      final outside = await writeTree({'outside/keep': 'x\n'});
+      Link('${project.path}/.specstone/AGENT.md')
+          .createSync('${outside.path}/outside/AGENT.md');
+
+      final plan = _planAt(project);
+
+      expect(plan.lists.agentFiles, isNot(contains('.specstone/AGENT.md')));
+      expect(
+        _stampRewrites(plan).single,
+        endsWith('agent_files_version: 1.0.0\n'),
+      );
     });
 
     test(
