@@ -28,6 +28,7 @@ const agentCursorPath = '.cursor/rules/specstone.mdc';
 const List<String> agentFilePaths = [...agentInstructionNames, agentCursorPath];
 
 const _projectRule = '- Run `specstone get project` before any task.\n';
+const _goalRule = '- Run `specstone get goal` before any task.\n';
 const _endMarker = '<!-- END specstone -->';
 const _byteOrderMark = '\uFEFF';
 const _carriage = '\r';
@@ -38,20 +39,23 @@ String _beginLine(String cliVersion) =>
 
 /// Returns the block of `CLAUDE.md` and `GEMINI.md`: both imports, as LF text.
 ///
-/// [agentMdPath] and [projectDocPath] read from the instruction file's folder.
+/// [agentMdPath], [projectDocPath], and [goalDocPath] read from the
+/// instruction file's folder.
 String importBlock({
   required String cliVersion,
   required String agentMdPath,
   required String projectDocPath,
+  required String goalDocPath,
 }) =>
     '${_beginLine(cliVersion)}'
     '@$agentMdPath\n'
     '@$projectDocPath\n'
+    '@$goalDocPath\n'
     '$_endMarker\n';
 
 /// Returns the block of `AGENTS.md` and Copilot's file: the rules inline.
 String inlineBlock({required String cliVersion}) =>
-    '${_beginLine(cliVersion)}$agentMdText$_projectRule$_endMarker\n';
+    '${_beginLine(cliVersion)}$agentMdText$_projectRule$_goalRule$_endMarker\n';
 
 /// Returns the whole `.cursor/rules/specstone.mdc`, frontmatter included.
 String cursorRulesText({required String cliVersion}) =>

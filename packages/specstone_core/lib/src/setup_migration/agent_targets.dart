@@ -972,6 +972,7 @@ List<_AgentFile> _filesIn(
     cliVersion: cliVersion,
     agentMdPath: '$stem$_agentMdPath',
     projectDocPath: '$stem${_docsFolder}prds/PROJECT.md',
+    goalDocPath: '$stem${_docsFolder}prds/GOAL.md',
   );
   final inlineBlockText = inlineBlock(cliVersion: cliVersion);
   final namesByFile = <String, List<String>>{};

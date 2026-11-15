@@ -78,6 +78,7 @@ final String _importBlock = importBlock(
   cliVersion: specstoneVersion,
   agentMdPath: '.specstone/AGENT.md',
   projectDocPath: 'docs/prds/PROJECT.md',
+  goalDocPath: 'docs/prds/GOAL.md',
 );
 
 /// The config `init` writes on the shipped pins: the running Version stamped.
@@ -247,6 +248,7 @@ void main() {
       cliVersion: specstoneVersion,
       agentMdPath: '.specstone/AGENT.md',
       projectDocPath: 'docs/prds/PROJECT.md',
+      goalDocPath: 'docs/prds/GOAL.md',
     );
     expect(_read(root, 'CLAUDE.md'), "Owner's rules\n\n$imports");
     expect(
