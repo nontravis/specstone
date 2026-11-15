@@ -74,6 +74,7 @@ export 'src/rendering/build_output.dart'
         OutputFormat,
         defaultOutputFile,
         outputName,
+        requireOutputOutsideDocRoots,
         writeBuildOutput;
 export 'src/rendering/docs_project.dart' show DocsProject, Target;
 export 'src/rendering/format_run.dart'

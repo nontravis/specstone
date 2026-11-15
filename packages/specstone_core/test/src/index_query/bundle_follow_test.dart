@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -131,6 +132,15 @@ void main() {
 
   const inv14 = '[INV-14]($_specs/f02_signup/DOMAIN.md#invariants)';
 
+  test('an item a record cites by a link through the project root is appended', () async {
+    final parts = await followedFrom('login/email_login/validate_credentials', {
+      ...recordsRootTemplates,
+      '.specstone/records/f01_login/IMPLEMENTATION.md':
+          "---\nstatuses:\n  - 'email_login:planned'\n---\n\n# Login implementation\n\n"
+          'Locks by [RULE-3](../../../docs/specs/topics/doc_model.md#rules).\n',
+    });
+    expect(parts.map(_id), contains('specs/topics/doc_model.md#rules RULE-3'));
+  });
   test('a bundle whose docs link nowhere outside appends nothing', () async {
     expect(await followed('The system shall check the password.'), isEmpty);
   });

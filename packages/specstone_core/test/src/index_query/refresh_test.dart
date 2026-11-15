@@ -129,6 +129,22 @@ void main() {
       expect(docAt(store, record).docTypeId, 'implementation');
       expect(paths(store).where((p) => p.startsWith('.specstone/')), [record]);
     });
+    test(
+      'a linked records folder is not walked',
+      skip: Platform.isWindows ? 'links need privileges on Windows' : null,
+      () async {
+        const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+        final project = await writeLoginProject(
+          extra: {...recordsRootTemplates, record: '# Login implementation\n'},
+        );
+        final records = Directory('${project.path}/.specstone/records');
+        final outside = Directory('${project.path}.moved');
+        addTearDown(() => outside.delete(recursive: true));
+        records.renameSync(outside.path);
+        Link(records.path).createSync(outside.path);
+        expect(paths(refresh(project).store), isNot(contains(record)));
+      },
+    );
     test('an edit to a record reindexes that record only', () async {
       const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
       final project = await writeLoginProject(

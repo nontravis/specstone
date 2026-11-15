@@ -11,14 +11,19 @@ const recordsRootDocPath = '.specstone/records/';
 const recordsFolderDocPath = '.specstone/records';
 
 /// Returns the records folder of [projectRoot], or null when it is absent or
-/// a symbolic link, which no walk follows.
+/// it, or the `.specstone` folder above it, is a symbolic link, which no walk
+/// follows.
 Directory? recordsRootOf(Directory projectRoot) {
-  final folder = Directory(
-    '${projectRoot.path}${Platform.pathSeparator}'
-    '${recordsFolderDocPath.split('/').join(Platform.pathSeparator)}',
-  );
-  final type = FileSystemEntity.typeSync(folder.path, followLinks: false);
-  return type == FileSystemEntityType.directory ? folder : null;
+  final parts = [projectRoot.path];
+  for (final name in recordsFolderDocPath.split('/')) {
+    parts.add(name);
+    final type = FileSystemEntity.typeSync(
+      parts.join(Platform.pathSeparator),
+      followLinks: false,
+    );
+    if (type != FileSystemEntityType.directory) return null;
+  }
+  return Directory(parts.join(Platform.pathSeparator));
 }
 
 /// Whether [docPath] names a file under the records root.
@@ -69,6 +74,16 @@ String? docPathOfPath(
   if (inProject == null) return null;
   final isRecordsFolder = inProject == recordsFolderDocPath;
   return isRecordsFolder || isRecordsDocPath(inProject) ? inProject : null;
+}
+
+/// Whether canonical [path] is the records folder of [projectRoot] or lies
+/// below it.
+///
+/// The caller resolves links first.
+bool isInsideRecordsRoot(String path, {required Directory projectRoot}) {
+  final inProject = pathInside(projectRoot.path, path);
+  return inProject != null &&
+      (inProject == recordsFolderDocPath || isRecordsDocPath(inProject));
 }
 
 /// Returns [docPath] as a journal step takes it: relative to the project root

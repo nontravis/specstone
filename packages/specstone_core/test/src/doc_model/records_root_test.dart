@@ -84,4 +84,47 @@ void main() {
       isNull,
     );
   });
+
+  group('recordsRootOf', () {
+    final skipLinks = Platform.isWindows
+        ? 'links need privileges on Windows'
+        : null;
+
+    Directory tree() {
+      final root = Directory.systemTemp.createTempSync('specstone_records_');
+      addTearDown(() => root.deleteSync(recursive: true));
+      return root;
+    }
+
+    test('gives the records folder of a project that holds one', () {
+      final root = tree();
+      Directory(_join([root.path, '.specstone', 'records']))
+          .createSync(recursive: true);
+      expect(
+        recordsRootOf(root)?.path,
+        _join([root.path, '.specstone', 'records']),
+      );
+    });
+
+    test('gives null when the project holds none', () {
+      expect(recordsRootOf(tree()), isNull);
+    });
+
+    test('gives null for a linked records folder', skip: skipLinks, () {
+      final root = tree();
+      final outside = Directory(_join([root.path, 'outside']))..createSync();
+      Directory(_join([root.path, '.specstone'])).createSync();
+      Link(_join([root.path, '.specstone', 'records']))
+          .createSync(outside.path);
+      expect(recordsRootOf(root), isNull);
+    });
+
+    test('gives null for a linked .specstone folder', skip: skipLinks, () {
+      final root = tree();
+      final outside = Directory(_join([root.path, 'outside']));
+      Directory(_join([outside.path, 'records'])).createSync(recursive: true);
+      Link(_join([root.path, '.specstone'])).createSync(outside.path);
+      expect(recordsRootOf(root), isNull);
+    });
+  });
 }
