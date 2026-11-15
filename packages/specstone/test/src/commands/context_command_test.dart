@@ -896,7 +896,7 @@ void main() {
 
   group('context --out', () {
     const story = 'login/email_login';
-    const storyFile = 'login-email_login.implement.txt';
+    const storyFile = 'login-email_login.query.txt';
     final header = RegExp(
       r'^==> bundle: (\d+) docs, (\d+) tokens, (\d+) lines · (.+) <==$',
     );
@@ -927,7 +927,7 @@ void main() {
       return run.out.toString();
     }
 
-    test('a bare --out at the root makes .specstone/bundles/, writes the whole bundle, and prints its header and index', () async {
+    test('a bare --out at the root makes .specstone/bundles/, writes the read-first file, and prints its header and index', () async {
       final project = await writeReadProject();
       expect(
         Directory('${project.path}/.specstone/bundles').existsSync(),
@@ -939,9 +939,8 @@ void main() {
         'implement',
         '--out',
       ]);
-      final file = bundleFile(project, storyFile);
-      final bundle = await printed(project, [story, '--for', 'implement']);
-      expect(file.readAsStringSync(), bundle);
+      final file = bundleFile(project, 'login-email_login.implement.txt');
+      final bundle = file.readAsStringSync();
       final lines = const LineSplitter().convert(stdout);
       final head = header.firstMatch(lines.first)!;
       final closing = RegExp(
@@ -953,7 +952,8 @@ void main() {
       final fileLines = file.readAsLinesSync();
       expect(head.group(3), '${fileLines.length}');
       expect(head.group(4), file.resolveSymbolicLinksSync());
-      expect(lines.skip(1), everyElement(startsWith('- ')));
+      final refsHeader = lines.indexWhere((line) => line.contains('.refs.txt'));
+      expect(lines.take(refsHeader).skip(1), everyElement(startsWith('- ')));
       final storyLine = lines.singleWhere(
         (line) => line.startsWith('- $story (user_story) · '),
       );
@@ -971,10 +971,10 @@ void main() {
       );
     });
 
-    test('a bare --out from a subfolder writes under the root and prints the same absolute path, text and --json', () async {
+    test('a bare --for query --out from a subfolder writes under the root and prints the same absolute path, text and --json', () async {
       final project = await writeReadProject(extra: {'app/lib/.keep': ''});
       final nested = Directory('${project.path}/app/lib');
-      final args = [story, '--for', 'implement', '--out'];
+      final args = [story, '--for', 'query', '--out'];
       final paths = <String>[];
       for (final folder in [project, nested]) {
         final text = await saved(folder, args);
@@ -1006,7 +1006,7 @@ void main() {
       expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
       expect(
         file.readAsStringSync(),
-        await printed(project, [story, '--for', 'implement']),
+        await printed(project, [story, '--for', 'query']),
         reason: 'under --json the file still holds the text bundle',
       );
     });
@@ -1020,7 +1020,10 @@ void main() {
         'implement',
       ]);
       expect(before, startsWith('==> bundle: '));
-      expect(bundleFile(project, storyFile).existsSync(), isTrue);
+      expect(
+        bundleFile(project, 'login-email_login.implement.txt').existsSync(),
+        isTrue,
+      );
       final json = await saved(project, [
         story,
         '--for',
@@ -1102,10 +1105,10 @@ void main() {
           ..writeAsStringSync('old bundle\n');
         final other = bundleFile(project, 'login.query.txt')
           ..writeAsStringSync('kept\n');
-        await saved(project, [story, '--for', 'implement', '--out']);
+        await saved(project, [story, '--for', 'query', '--out']);
         expect(
           file.readAsStringSync(),
-          await printed(project, [story, '--for', 'implement']),
+          await printed(project, [story, '--for', 'query']),
         );
         expect(other.readAsStringSync(), 'kept\n');
       },
@@ -1241,6 +1244,13 @@ void main() {
         expect(
           bundleFile(
             project,
+            'code-app-lib-main.dart.$mode.refs.txt',
+          ).existsSync(),
+          mode == 'implement',
+        );
+        expect(
+          bundleFile(
+            project,
             'code-app-lib-main.dart.$mode.txt',
           ).readAsStringSync(),
           plain.out.toString(),
@@ -1269,8 +1279,12 @@ void main() {
           ]);
         }
         expect(
-          [for (final file in bundles.listSync()) file.uri.pathSegments.last],
-          ['code-app-lib-src-login-form.dart.implement.txt'],
+          [for (final file in bundles.listSync()) file.uri.pathSegments.last]
+            ..sort(),
+          [
+            'code-app-lib-src-login-form.dart.implement.refs.txt',
+            'code-app-lib-src-login-form.dart.implement.txt',
+          ],
         );
       },
     );
@@ -1383,6 +1397,231 @@ void main() {
       expect(shown, file.resolveSymbolicLinksSync());
       expect(shown, isNot(contains('linked')));
     }, skip: linksUnavailable);
+  });
+
+  group('context --out writes a read-first and a refs file', () {
+    const story = 'login/email_login';
+    final header = RegExp(
+      r'^==> bundle: (\d+) docs, (\d+) tokens, (\d+) lines · (.+) <==$',
+    );
+
+    File bundleFile(Directory project, String name) =>
+        File('${project.path}/.specstone/bundles/$name');
+
+    Future<String> saved(Directory folder, List<String> args) async {
+      final run = readRunner(folder);
+      expect(
+        await run.runner.run(['context', ...args]),
+        0,
+        reason: run.err.toString(),
+      );
+      expect(run.err.toString(), isEmpty);
+      return run.out.toString();
+    }
+
+    /// Returns the header of each file [stdout] prints, in order.
+    List<RegExpMatch> headersOf(String stdout) => [
+      for (final line in stdout.split('\n')) ?header.firstMatch(line),
+    ];
+
+    /// Returns the `- ` lines of the closing list of the bundle text [text].
+    List<String> closingListOf(String text) {
+      final lines = const LineSplitter().convert(text);
+      final closing = lines.lastIndexWhere(
+        (line) =>
+            line.startsWith('==> bundle: ') && line.endsWith(' tokens <=='),
+      );
+      return [
+        for (final line in lines.skip(closing + 1))
+          if (line.startsWith('- ')) line,
+      ];
+    }
+
+    test('implement and design write both files from the root and from a subfolder, each header naming its own file', () async {
+      final project = await writeReadProject(extra: {'app/lib/.keep': ''});
+      final nested = Directory('${project.path}/app/lib');
+      for (final mode in ['implement', 'design']) {
+        for (final folder in [project, nested]) {
+          final text = await saved(folder, [story, '--for', mode, '--out']);
+          final first = bundleFile(project, 'login-email_login.$mode.txt');
+          final refs = bundleFile(project, 'login-email_login.$mode.refs.txt');
+          final headers = headersOf(text);
+          expect(headers, hasLength(2));
+          for (final (i, file) in [first, refs].indexed) {
+            expect(headers[i].group(4), file.resolveSymbolicLinksSync());
+            expect(headers[i].group(3), '${file.readAsLinesSync().length}');
+          }
+          expect(text.indexOf(headers[1].group(0)!), greaterThan(0));
+        }
+      }
+      expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
+    });
+
+    test(
+      'the two files hold the docs of the one-file bundle between them',
+      () async {
+        final project = await writeReadProject();
+        await saved(project, [story, '--for', 'implement', '--out']);
+        final whole = readRunner(project);
+        await whole.runner.run(['context', story, '--for', 'implement']);
+        final both = [
+          for (final name in ['', '.refs'])
+            ...closingListOf(
+              bundleFile(
+                project,
+                'login-email_login.implement$name.txt',
+              ).readAsStringSync(),
+            ),
+        ];
+        expect(both..sort(), closingListOf(whole.out.toString())..sort());
+      },
+    );
+
+    test('an appended part goes to the refs file, and its index line ranges into that file', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/prds/features/f02_signup/FEATURE.md': '---\nvision:\n  - PV-01\n---\n\n# Signup\n\n## Problem\nNew users sign up.\n',
+          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+              '---\nstatus: implemented\n---\n\n# Validate credentials\n\n## Statement\n'
+              'The system shall check the email, as [signup](../../f02_signup/FEATURE.md) does.\n',
+        },
+      );
+      final text = await saved(project, [story, '--for', 'implement', '--out']);
+      final refs = bundleFile(project, 'login-email_login.implement.refs.txt');
+      final first = bundleFile(project, 'login-email_login.implement.txt');
+      final lines = text.split('\n');
+      final split = lines.indexWhere((line) => line.contains('.refs.txt <=='));
+      final part = RegExp(
+        r'^- signup \(feature\) · (\d+)-(\d+) · summary · cited',
+      );
+      expect(lines.take(split).any(part.hasMatch), isFalse);
+      final range = part.firstMatch(
+        lines.skip(split).firstWhere(part.hasMatch),
+      )!;
+      expect(
+        refs.readAsLinesSync()[int.parse(range.group(1)!) - 1],
+        startsWith('==> signup (feature) · '),
+      );
+      expect(first.readAsStringSync(), isNot(contains('==> signup (feature)')));
+    });
+
+    test('--out <path> from a subfolder writes b.txt and b.refs.txt beside it, and --json describes both', () async {
+      final project = await writeReadProject(extra: {'app/.keep': ''});
+      final nested = Directory('${project.path}/app');
+      final text = await saved(nested, [
+        story,
+        '--for',
+        'implement',
+        '--out',
+        '../out/b.txt',
+      ]);
+      final first = File('${project.path}/out/b.txt');
+      final refs = File('${project.path}/out/b.refs.txt');
+      expect(first.existsSync(), isTrue);
+      expect(refs.existsSync(), isTrue);
+      final headers = headersOf(text);
+      expect(headers[0].group(4), first.resolveSymbolicLinksSync());
+      expect(headers[1].group(4), refs.resolveSymbolicLinksSync());
+      final json = jsonDecode(
+        await saved(nested, [
+          story,
+          '--for',
+          'implement',
+          '--out=../out/b.txt',
+          '--json',
+        ]),
+      ) as Map<String, Object?>;
+      expect(json['out'], first.resolveSymbolicLinksSync());
+      final refsJson = json['refs']! as Map<String, Object?>;
+      expect(refsJson.keys.toList(), ['out', 'tokens', 'lines', 'docs']);
+      expect(refsJson['out'], refs.resolveSymbolicLinksSync());
+    });
+
+    test('--out out/b writes out/b and out/b.refs', () async {
+      final project = await writeReadProject();
+      await saved(project, [story, '--for', 'implement', '--out', 'out/b']);
+      expect(File('${project.path}/out/b').existsSync(), isTrue);
+      expect(File('${project.path}/out/b.refs').existsSync(), isTrue);
+    });
+
+    test('a refs file with no part is still written and replaces an older refs file', () async {
+      final project = await writeReadProject();
+      const name = 'login-email_login.implement-no-project';
+      final refs = bundleFile(project, '$name.refs.txt')
+        ..parent.createSync(recursive: true)
+        ..writeAsStringSync('old refs of an earlier call\n');
+      final text = await saved(project, [
+        story,
+        '--for',
+        'implement',
+        '--no-project',
+        '--out',
+      ]);
+      expect(bundleFile(project, '$name.txt').existsSync(), isTrue);
+      expect(refs.readAsStringSync(), startsWith('==> bundle: 0 docs, '));
+      expect(refs.readAsLinesSync(), hasLength(1));
+      expect(headersOf(text)[1].group(4), refs.resolveSymbolicLinksSync());
+    });
+
+    test(
+      '--for query --out writes one file, and no --out prints one bundle',
+      () async {
+        final project = await writeReadProject();
+        final text = await saved(project, [story, '--for', 'query', '--out']);
+        expect(headersOf(text), hasLength(1));
+        expect(
+          bundleFile(project, 'login-email_login.query.txt').existsSync(),
+          isTrue,
+        );
+        expect(
+          bundleFile(project, 'login-email_login.query.refs.txt').existsSync(),
+          isFalse,
+        );
+        final plain = readRunner(project);
+        expect(
+          await plain.runner.run(['context', story, '--for', 'implement']),
+          0,
+        );
+        expect(headersOf(plain.out.toString()), isEmpty);
+        expect(
+          Directory('${project.path}/.specstone/bundles')
+              .listSync()
+              .map((file) => file.uri.pathSegments.last),
+          ['login-email_login.query.txt'],
+        );
+      },
+    );
+
+    test('a refused path writes neither file', () async {
+      for (final (out, refs) in [
+        ('docs/prds/b.txt', 'docs/prds/b.refs.txt'),
+        ('.git/b.txt', '.git/b.refs.txt'),
+        ('.specstone/config.yaml', '.specstone/config.refs.yaml'),
+      ]) {
+        final project = await writeReadProject(
+          extra: {'.git/config': '[core]\n'},
+        );
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            story,
+            '--for',
+            'implement',
+            '--out',
+            out,
+          ]),
+          73,
+          reason: out,
+        );
+        expect(run.out.toString(), isEmpty);
+        expect(File('${project.path}/$refs').existsSync(), isFalse);
+        expect(
+          Directory('${project.path}/.specstone/bundles').existsSync(),
+          isFalse,
+        );
+      }
+    });
   });
 
   group('the over-budget next step names --out', () {

@@ -52,6 +52,11 @@ typedef BundleEntry = ({
 /// print order, and its est. token size as its closing line gives it.
 typedef BundleText = ({String text, List<BundleEntry> entries, int tokens});
 
+/// Returns the number of docs [entries] hold, as a bundle's closing line and
+/// its `--out` header count them: no part is a doc.
+int docCountOf(List<BundleEntry> entries) =>
+    entries.where((entry) => entry.kind == BundleEntryKind.doc).length;
+
 /// A `context` answer, with where each doc and part sits in its text.
 final class ContextAnswer extends ReadAnswer {
   const new({
@@ -417,9 +422,9 @@ BundleText _textOf(
   final starts = _blockStarts([
     for (final piece in pieces) piece.block,
   ], firstLine: codeTargetLine.isEmpty ? 1 : 2);
-  final docs = pieces.where(
-    (piece) => piece.doc != null && piece.kind == BundleEntryKind.doc,
-  );
+  final entries = [
+    for (final (i, piece) in pieces.indexed) ?piece.entryAt(starts[i]),
+  ];
   final list = [
     for (final piece in pieces)
       if (piece.listName case final name?) '- $name\n',
@@ -427,14 +432,12 @@ BundleText _textOf(
   final listsSummary = pieces.any((piece) => piece.summary);
   final blocks = isRefs && pieces.isEmpty ? '' : '$shown\n';
   final closing =
-      '==> bundle: ${docs.length} docs, $tokens tokens <==\n'
+      '==> bundle: ${docCountOf(entries)} docs, $tokens tokens <==\n'
       '${list.join()}'
       '${listsSummary ? '${_summaryNextStep(mode)}\n' : ''}';
   return (
     text: '$codeTargetLine$blocks$closing',
-    entries: [
-      for (final (i, piece) in pieces.indexed) ?piece.entryAt(starts[i]),
-    ],
+    entries: entries,
     tokens: tokens,
   );
 }

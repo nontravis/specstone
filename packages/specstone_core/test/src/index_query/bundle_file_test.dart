@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
@@ -74,7 +75,74 @@ ContextAnswer _answerOf(
   );
 }
 
+BundleEntry _entryOf(
+  String name,
+  int first,
+  int last, {
+  BundleEntryKind kind = BundleEntryKind.doc,
+  bool summary = false,
+  String? sectionKey,
+  String? itemId,
+  List<({String key, int first})> sections = const [],
+}) => (
+  doc: _doc(name),
+  summary: summary,
+  kind: kind,
+  sectionKey: sectionKey,
+  itemId: itemId,
+  featurePattern: null,
+  first: first,
+  last: last,
+  sections: sections,
+);
+
+/// Returns one file of [count] docs named `<prefix><n>`, each of one section
+/// and one line, as [_answerOf] does.
+BundleText _fileOf(int count, {String prefix = 'd'}) => (
+  text: '${List.filled(2 * count, 'x').join('\n')}\n',
+  tokens: 7,
+  entries: [
+    for (var i = 0; i < count; i++)
+      _entryOf(
+        '$prefix$i',
+        2 * i + 1,
+        2 * i + 1,
+        sections: [(key: 'statement', first: 2 * i + 1)],
+      ),
+  ],
+);
+
+/// Returns a split answer whose read-first file holds [readFirst] docs and
+/// whose refs file holds [refs] docs.
+ContextAnswer _splitOf(int readFirst, int refs) {
+  final first = _fileOf(readFirst);
+  return ContextAnswer(
+    text: first.text,
+    json: const {},
+    entries: first.entries,
+    tokens: first.tokens,
+    refs: _fileOf(refs, prefix: 'r'),
+  );
+}
+
 void main() {
+  group('refsPathOf, the refs file of a path', () {
+    test('a bare name takes .refs before .txt', () {
+      expect(refsPathOf('a.implement.jaspr.txt'), 'a.implement.jaspr.refs.txt');
+    });
+    test('a named path takes .refs before its extension, or at its end when it has none', () {
+      expect(refsPathOf('out/b.txt'), 'out/b.refs.txt');
+      expect(refsPathOf('out/b'), 'out/b.refs');
+    });
+    test(
+      'a dotted folder or a dot file has no extension to put .refs before',
+      () {
+        expect(refsPathOf('out.d/b'), 'out.d/b.refs');
+        expect(refsPathOf('out/.bundle'), 'out/.bundle.refs');
+      },
+    );
+  });
+
   group('bundleFileName, the Name rule', () {
     test('e01: a target and its mode', () {
       expect(
@@ -445,6 +513,120 @@ void main() {
     });
   });
 
+  group('bundleIndex and its --json of a split answer', () {
+    ContextAnswer splitAnswer({String? codeTarget}) => ContextAnswer(
+      text: 'a\nb\n\nc\n',
+      json: const {},
+      tokens: 5,
+      codeTarget: codeTarget,
+      entries: [
+        _entryOf('one', 1, 2, sections: [(key: 'statement', first: 2)]),
+        _entryOf('one', 4, 4, kind: BundleEntryKind.names),
+      ],
+      refs: (
+        text: 'x\n\ny\nz\n',
+        tokens: 3,
+        entries: [
+          _entryOf('two', 1, 1, summary: true),
+          _entryOf(
+            'three',
+            3,
+            3,
+            kind: BundleEntryKind.cited,
+            sectionKey: 'statement',
+            itemId: 'E01',
+            sections: [(key: 'statement', first: 3)],
+          ),
+          _entryOf(
+            'one',
+            4,
+            4,
+            kind: BundleEntryKind.citedBy,
+            sectionKey: 'invariants',
+            itemId: 'INV-14',
+          ),
+        ],
+      ),
+    );
+
+    test('the index prints the read-first header and lines, then the refs header and lines, each counting its own file', () {
+      expect(
+        bundleIndex(splitAnswer(), '/p/b.txt', refsPath: '/p/b.refs.txt'),
+        '==> bundle: 1 docs, 5 tokens, 4 lines · /p/b.txt <==\n'
+        '- one (fr) · 1-2 · statement 2\n'
+        '- one (fr) · 4-4 · names\n'
+        '==> bundle: 1 docs, 3 tokens, 4 lines · /p/b.refs.txt <==\n'
+        '- two (fr) · 1-1 · summary\n'
+        '- three (fr) · 3-3 · cited statement [E01] · statement 3\n'
+        '- one (fr) · 4-4 · cited by [INV-14]\n',
+      );
+    });
+    test('a code target line comes first, before both headers', () {
+      final index = bundleIndex(
+        splitAnswer(codeTarget: 'jaspr'),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(
+        index,
+        startsWith('==> code target: jaspr <==\n==> bundle: 1 docs, 5'),
+      );
+      expect(index.split('==> code target').length, 2);
+    });
+    test('the index bound counts both files together: 200 lines keep every section', () {
+      final index = bundleIndex(
+        _splitOf(99, 99),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(const LineSplitter().convert(index), hasLength(200));
+      expect(index, contains('- d98 (fr) · 197-197 · statement 197\n'));
+      expect(index, contains('- r98 (fr) · 197-197 · statement 197\n'));
+    });
+    test('the index bound counts both files together: 201 lines drop the sections of both and keep every doc', () {
+      final index = bundleIndex(
+        _splitOf(100, 99),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      final lines = const LineSplitter().convert(index);
+      expect(lines, hasLength(201));
+      expect(index, isNot(contains('statement')));
+      expect(lines, contains('- d99 (fr) · 199-199'));
+      expect(lines.last, '- r98 (fr) · 197-197');
+    });
+
+    test('--json adds a refs object of {out, tokens, lines, docs}, and docs hold docs and appended parts only', () {
+      final json = bundleIndexJson(
+        splitAnswer(),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(json.keys.toList(), ['out', 'tokens', 'lines', 'docs', 'refs']);
+      expect(
+        [for (final doc in json['docs']! as List) (doc as Map)['name']],
+        ['one'],
+      );
+      final refs = json['refs']! as Map<String, Object?>;
+      expect(refs.keys.toList(), ['out', 'tokens', 'lines', 'docs']);
+      expect(refs['out'], '/p/b.refs.txt');
+      expect(refs['tokens'], 3);
+      expect(refs['lines'], 4);
+      final docs = (refs['docs']! as List).cast<Map<String, Object?>>();
+      expect([for (final doc in docs) doc['name']], ['two', 'three']);
+      expect([for (final doc in docs) doc['cited']], [false, true]);
+      expect(docs.first['summary'], isTrue);
+    });
+    test('an unsplit answer has no refs object and prints one header', () {
+      final json = bundleIndexJson(_answerOf(1), '/p/b.txt');
+      expect(json, isNot(contains('refs')));
+      expect(
+        '==> bundle: '.allMatches(bundleIndex(_answerOf(1), '/p/b.txt')),
+        hasLength(1),
+      );
+    });
+  });
+
   group('answerContext places each doc and part', () {
     void expectPlaced(ContextAnswer answer) {
       final lines = answer.text.split('\n');
@@ -661,5 +843,77 @@ void main() {
       );
       expect(config.readAsBytesSync(), before);
     });
+  });
+
+  group('answerBundleFile writes the two files of a split answer', () {
+    ContextAnswer splitAnswer(DocIndex index) => answerContext(
+      index,
+      pickBundle(
+        index,
+        'login/email_login',
+        BundleMode.implement,
+        noProject: false,
+      ),
+      label: 'login/email_login',
+      byCode: false,
+      split: true,
+    );
+
+    test(
+      'both files are written, and the reply indexes both by canonical path',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        addTearDown(session.close);
+        final answer = splitAnswer(session.index);
+        final file = File('${project.path}/out/b.txt');
+        final reply = answerBundleFile(
+          answer,
+          file,
+          project: session.project,
+          isBare: false,
+        );
+        final refs = File('${project.path}/out/b.refs.txt');
+        expect(file.readAsStringSync(), answer.text);
+        expect(refs.readAsStringSync(), answer.refs!.text);
+        final shown = file.resolveSymbolicLinksSync();
+        expect(reply.text, contains(' lines · $shown <==\n'));
+        expect(
+          reply.text,
+          contains(' lines · ${refs.resolveSymbolicLinksSync()} <==\n'),
+        );
+        final json = reply.json;
+        expect((json['refs']! as Map)['out'], refs.resolveSymbolicLinksSync());
+      },
+    );
+
+    test('a refs path the writer refuses writes neither file', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      addTearDown(session.close);
+      final bundles = Directory('${project.path}/.specstone/bundles')
+        ..createSync(recursive: true);
+      final config = File('${project.path}/.specstone/config.yaml');
+      final before = config.readAsBytesSync();
+      Link('${bundles.path}/b.refs.txt').createSync(config.path);
+      final file = File('${bundles.path}/b.txt');
+      expect(
+        () => answerBundleFile(
+          splitAnswer(session.index),
+          file,
+          project: session.project,
+          isBare: false,
+        ),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.outputNotWritable,
+          ),
+        ),
+      );
+      expect(file.existsSync(), isFalse);
+      expect(config.readAsBytesSync(), before);
+    }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
   });
 }
