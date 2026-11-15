@@ -5,6 +5,8 @@ import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_files.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
+import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
+    show planSkillAndAgentFiles;
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -1928,6 +1930,50 @@ void main() {
         }
         expect(File(_real(base, settingsFilePath)).readAsStringSync(), text);
       }
+    });
+
+    test(
+      'a settings path that is a folder refuses with its own wording',
+      () async {
+        final base = await _base({'proj/$settingsFilePath/keep': 'x'});
+
+        expect(
+          () => planAgentWrites(_inputs(base), full: true),
+          throwsA(
+            isA<MigrateFault>()
+                .having((f) => f.file, 'file', settingsFilePath)
+                .having((f) => f.message, 'message', contains('is not a file'))
+                .having(
+                  (f) => f.message,
+                  'message',
+                  isNot(contains('one JSON object')),
+                ),
+          ),
+        );
+      },
+    );
+
+    test('a hand-laid-out current settings file plans no write', () async {
+      const current =
+          '{\r\n\t"hooks": {\r\n\t\t"PostToolUse": [\r\n\t\t\t{\r\n'
+          '\t\t\t\t"matcher": "Write|Edit",\r\n\t\t\t\t"hooks": [\r\n'
+          '\t\t\t\t\t{"type": "command", "command": "specstone", '
+          '"args": ["hook", "post-edit"]}\r\n\t\t\t\t]\r\n\t\t\t}\r\n'
+          '\t\t]\r\n\t}\r\n}';
+      final base = await _base({
+        ...filesBut({settingsFilePath}),
+        'proj/AGENTS.md': _inline(),
+        'proj/.specstone/AGENT.md': agentMdText,
+      });
+      File(_real(base, settingsFilePath))
+          .writeAsBytesSync(utf8.encode(current));
+
+      final skills = planSkillAndAgentFiles(_inputs(base), full: true);
+
+      expect(skills.writes, isEmpty);
+      expect(skills.malformedSettings, isEmpty);
+      expect(planAgentWrites(_inputs(base), full: true).paths, isEmpty);
+      expect(planAgentWrites(_inputs(base), full: false).paths, isEmpty);
     });
 
     test('bytes that are not UTF-8 refuse the same', () async {

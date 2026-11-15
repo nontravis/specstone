@@ -61,24 +61,31 @@ Set<String> _writtenPaths(SkillFilePlan plan) => {
   for (final write in plan.writes) write.path,
 };
 
-/// The drift list a plan implies: a write is missing or differs, a trash entry
-/// is unshipped.
+/// The drift list a plan implies for the skill and agent files: a write is
+/// missing or differs, a trash entry is unshipped. The settings file is left
+/// to the caller's explicit kinds, so no mapping here mirrors the code's.
 Map<String, SkillFileDriftKind> _driftsOf(SkillFilePlan plan) => {
   for (final write in plan.writes)
-    write.path: switch ((write.path.endsWith(settingsFilePath), write.isNew)) {
-      (true, true) => SkillFileDriftKind.settingsMissing,
-      (true, false) => SkillFileDriftKind.settingsStale,
-      (false, true) => SkillFileDriftKind.missing,
-      (false, false) => SkillFileDriftKind.differs,
-    },
+    if (!write.path.endsWith(settingsFilePath))
+      write.path: write.isNew
+          ? SkillFileDriftKind.missing
+          : SkillFileDriftKind.differs,
   for (final path in plan.trash) path: SkillFileDriftKind.unshipped,
 };
 
-void _expectDriftsMatchPlan(AgentFileInputs inputs) {
+/// Checks that the drifts are the plan's skill and agent drifts plus exactly
+/// the [settings] kinds named by path, written out by the caller.
+void _expectDriftsMatchPlan(
+  AgentFileInputs inputs, {
+  Map<String, SkillFileDriftKind> settings = const {},
+}) {
   final plan = planSkillAndAgentFiles(inputs, full: false);
   final drifts = skillAndAgentFileDrifts(inputs);
-  expect({for (final drift in drifts) drift.path: drift.kind}, _driftsOf(plan));
-  expect(drifts, hasLength(plan.writes.length + plan.trash.length));
+  expect(
+    {for (final drift in drifts) drift.path: drift.kind},
+    {..._driftsOf(plan), ...settings},
+  );
+  expect(drifts, hasLength(_driftsOf(plan).length + settings.length));
 }
 
 void main() {
@@ -305,7 +312,10 @@ void main() {
         '.agents/skills/specstone-gone',
       ]);
       expect(_writtenPaths(plan).any((path) => path.contains('-old')), isFalse);
-      _expectDriftsMatchPlan(_inputs(base));
+      _expectDriftsMatchPlan(
+        _inputs(base),
+        settings: {settingsFilePath: SkillFileDriftKind.settingsMissing},
+      );
     });
 
     test(
@@ -776,7 +786,12 @@ void main() {
       });
       expect(plan.writes.every((write) => write.isAtTop), isTrue);
       expect(plan.writeSet, _writtenPaths(plan));
-      _expectDriftsMatchPlan(_inputs(base, code: ['proj/vendor/lib/']));
+      _expectDriftsMatchPlan(
+        _inputs(base, code: ['proj/vendor/lib/']),
+        settings: {
+          'vendor/$settingsFilePath': SkillFileDriftKind.settingsMissing,
+        },
+      );
     });
 
     test('follow the group rule at a listed top', () async {
@@ -902,7 +917,10 @@ void main() {
       expect(drifts, [
         (path: settingsFilePath, kind: SkillFileDriftKind.settingsMissing),
       ]);
-      _expectDriftsMatchPlan(_inputs(base));
+      _expectDriftsMatchPlan(
+        _inputs(base),
+        settings: {settingsFilePath: SkillFileDriftKind.settingsMissing},
+      );
     });
 
     test('a file that differs is settingsStale and keeps its place in the '
@@ -919,7 +937,10 @@ void main() {
       ]);
       expect(plan.writes.single.before, isNotNull);
       expect(plan.writeSet, {settingsFilePath});
-      _expectDriftsMatchPlan(_inputs(base));
+      _expectDriftsMatchPlan(
+        _inputs(base),
+        settings: {settingsFilePath: SkillFileDriftKind.settingsStale},
+      );
     });
 
     test('a malformed file is settingsMalformed with its failure, no write, '
