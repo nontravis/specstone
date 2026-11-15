@@ -70,6 +70,23 @@ void main() {
     });
   });
 
+  test('the running Version argument alone decides the direction', () async {
+    final root = await _project(
+      config: 'agent_files_version: 1.5.0\n',
+      files: _staleAgentMd,
+    );
+
+    expect(
+      staleProjectLine(root, runningVersion: '2.0.0'),
+      '$_lead are older than specstone 2.0.0; run specstone migrate',
+    );
+    expect(
+      staleProjectLine(root, runningVersion: '1.0.0'),
+      '$_lead come from specstone 1.5.0, newer than this specstone 1.0.0; '
+      'run specstone upgrade',
+    );
+  });
+
   group('what counts as stale', () {
     test('a project with no agent file gives no line', () async {
       expect(_line(await _project()), isNull);

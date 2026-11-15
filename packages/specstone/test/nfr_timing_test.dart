@@ -170,20 +170,57 @@ void main() {
   });
 
   test('NFR-P01: specstone context for a story, ending with the stale-project '
-      'line, answers within 500 ms in the fastest of five calls', () {
+      'line over every skill, agent, and settings file, answers within 500 ms '
+      'in the fastest of five calls', () {
     const call = ['context', 'feature_1/story_1', '--for', 'implement'];
-    final agentMd = File('${project.path}/.specstone/AGENT.md');
+    final home = {'HOME': testHome().path, 'USERPROFILE': testHome().path};
+    final init = Directory.systemTemp.createTempSync('specstone_skills_');
+    addTearDown(() => init.deleteSync(recursive: true));
+    final made = Process.runSync(
+      exe,
+      ['init'],
+      workingDirectory: init.path,
+      environment: home,
+    );
+    expect(made.exitCode, 0, reason: '${made.stdout}\n${made.stderr}');
+    final copied = <File>[];
+    for (final folder in ['.claude', '.agents', '.codex', '.cursor']) {
+      for (final file in Directory(
+        '${init.path}/$folder',
+      ).listSync(recursive: true).whereType<File>()) {
+        final target = File(
+          '${project.path}${file.path.substring(init.path.length)}',
+        );
+        copied.add(
+          target
+            ..parent.createSync(recursive: true)
+            ..writeAsBytesSync(file.readAsBytesSync()),
+        );
+      }
+    }
     addTearDown(() {
-      if (agentMd.existsSync()) agentMd.deleteSync();
+      for (final file in copied) {
+        if (file.existsSync()) file.deleteSync();
+      }
     });
-    agentMd.writeAsStringSync('hand edit\n');
-    final first = Process.runSync(
+    final current = Process.runSync(
       exe,
       call,
       workingDirectory: project.path,
+      environment: home,
     ); // warm-up: the index is current after it
-    expect(first.exitCode, 0, reason: '${first.stderr}');
-    expect(first.stderr.toString(), contains('run specstone migrate'));
+    expect(current.exitCode, 0, reason: '${current.stderr}');
+    expect(current.stderr.toString(), isNot(contains('specstone migrate')));
+    copied
+        .firstWhere((file) => file.path.endsWith('.toml'))
+        .writeAsStringSync('hand edit\n');
+    final stale = Process.runSync(
+      exe,
+      call,
+      workingDirectory: project.path,
+      environment: home,
+    );
+    expect(stale.stderr.toString(), contains('run specstone migrate'));
     expect(
       bestOf(timingRuns, () => timed(call), label: 'stale-line context calls'),
       lessThanOrEqualTo(const Duration(milliseconds: 500)),

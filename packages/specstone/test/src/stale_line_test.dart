@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone/src/command_runner.dart';
+import 'package:specstone/src/commands/upgrade_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 import 'package:test/test.dart';
 
@@ -25,6 +26,10 @@ const _staleAgentMd = {'.specstone/AGENT.md': 'old\n'};
 final _rootName = RegExp(r'specstone_test_\w+');
 
 String _withoutRoot(Object? text) => '$text'.replaceAll(_rootName, '_');
+
+// `$0` is the CLI binary; stdout goes to the null device, stderr to the pipe.
+const _stderrReaderGone =
+    r'{ sleep 1; "$0" folder 2>&1 >/dev/null; echo "status=$?" >&3; } 3>&2 | true';
 
 void main() {
   late String binary;
@@ -105,12 +110,44 @@ void main() {
       expect(result.stderr, isNot(contains(_lead)));
     });
 
-    test('migrate and init', () async {
-      for (final command in ['migrate', 'init']) {
-        final result = await run(await project(), [command]);
+    test(
+      'migrate and init, each refused and leaving the files stale',
+      () async {
+        final root = await project();
+        final migrate = await run(root, ['migrate']);
+        final init = await run(root, ['init']);
 
-        expect(result.stderr, isNot(contains(_lead)), reason: command);
-      }
+        expect(migrate.exitCode, isNonZero);
+        expect(migrate.stderr, contains('git'));
+        expect(migrate.stderr, isNot(contains(_lead)));
+        expect(init.exitCode, isNonZero);
+        expect(init.stderr, contains('already a Specstone project'));
+        expect(init.stderr, isNot(contains(_lead)));
+      },
+    );
+
+    test('upgrade, refused where this CLI is not the managed one', () async {
+      final root = await project();
+      final err = StringBuffer();
+      final runner = SpecstoneCommandRunner(
+        out: StringBuffer(),
+        err: err,
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: testHome(),
+        environment: const {},
+        upgrade: UpgradeCommand(
+          runningVersion: specstoneVersion,
+          executable: '${root.path}/elsewhere/specstone',
+          environment: const {},
+        ),
+      );
+
+      final status = await runner.run(['upgrade']);
+
+      expect(status, isNonZero);
+      expect(err.toString(), contains('installed in ~/.specstone/bin'));
+      expect(err.toString(), isNot(contains(_lead)));
     });
 
     test('hook post-edit', () async {
@@ -225,6 +262,29 @@ void main() {
       expect((await run(root, ['folder'])).stderr, '$_older\n');
     });
   });
+
+  group(
+    'a stderr reader that leaves before the line is written',
+    () {
+      test("leaves the exit status the command's own", () async {
+        final root = await project();
+
+        // The reader `true` exits at once; the CLI starts a second later,
+        // so the line is its only stderr write and meets a broken pipe.
+        final result = await Process.run('sh', [
+          '-c',
+          _stderrReaderGone,
+          binary,
+        ], workingDirectory: root.path);
+
+        expect(result.stderr, 'status=0\n');
+      });
+    },
+    skip: Platform.isWindows
+        ? 'needs a POSIX shell pipeline to close the reader before the CLI '
+              'writes'
+        : false,
+  );
 
   group('a line that cannot be written', () {
     test('leaves the command output and exit status its own', () async {

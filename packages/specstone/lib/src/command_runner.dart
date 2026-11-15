@@ -63,6 +63,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     Duration busyTimeout = indexBusyTimeout,
     Console? console,
     UpgradeCommand? upgrade,
+    Future<void> Function(String line)? courtesy,
   }) : this._(
          registry: generators ?? journeyGenerators(),
          out: out,
@@ -74,6 +75,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
          busyTimeout: busyTimeout,
          console: console,
          upgrade: upgrade,
+         courtesy: courtesy,
        );
 
   // The registry is resolved once, so the default resolver's kinds come from
@@ -89,6 +91,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     required Duration busyTimeout,
     required Console? console,
     required UpgradeCommand? upgrade,
+    required Future<void> Function(String line)? courtesy,
   }) : _out = out ?? stdout,
        _err = err ?? stderr,
        _generators = registry,
@@ -100,6 +103,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
            homeDirectory ?? homeFrom(environment ?? Platform.environment),
        _busyTimeout = busyTimeout,
        _console = console ?? SystemConsole(),
+       _courtesy = courtesy,
        super(
          'specstone',
          'Keeps PRD and spec documents for spec-driven development.',
@@ -144,6 +148,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   final Map<String, String> _environment;
   final Duration _busyTimeout;
   final Console _console;
+  final Future<void> Function(String line)? _courtesy;
   var _refusedOnPin = false;
 
   /// Sink that receives normal output: version, usage, and command results.
@@ -197,7 +202,7 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
     }
     _refusedOnPin = false;
     final status = await super.runCommand(topLevelResults);
-    _printStaleLine(topLevelResults.command);
+    await _printStaleLine(topLevelResults.command);
     return status;
   }
 
@@ -206,13 +211,19 @@ class SpecstoneCommandRunner extends CommandRunner<int> {
   ///
   /// Never throws: the line is a courtesy, so a failed lookup or write leaves
   /// the command's output and exit status as they are.
-  void _printStaleLine(ArgResults? command) {
+  Future<void> _printStaleLine(ArgResults? command) async {
     try {
       if (_refusedOnPin || !_endsWithStaleLine(command)) return;
       final root = matchProjectRoot(workingDirectory)?.root;
       if (root == null) return;
       final line = staleProjectLine(root, runningVersion: specstoneVersion);
-      if (line != null) _err.writeln(line);
+      if (line == null) return;
+      final courtesy = _courtesy;
+      if (courtesy == null) {
+        _err.writeln(line);
+      } else {
+        await courtesy(line);
+      }
     } on Object {
       // The command's own result stands whatever the line's read or write did.
     }

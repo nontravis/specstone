@@ -18,6 +18,40 @@ const int _posixBrokenPipe = 32;
 /// a pipe whose reader has gone.
 const Set<int> _windowsBrokenPipe = {109, 232};
 
+// MARK: - CourtesyWrites
+
+/// Lines the CLI prints after a command that the command's status never
+/// depends on.
+///
+/// A flush that fails hands its error to the caller and leaves [IOSink.done]
+/// clean, so [writeln] keeps a failure of the command's own writes in
+/// [priorFailure] for [guardOutput], and drops a failure of its own line.
+final class CourtesyWrites {
+  new(this._sink);
+
+  final IOSink _sink;
+
+  /// The error a write made before the first courtesy line failed with, or
+  /// null.
+  Object? priorFailure;
+
+  /// Writes [line] and waits for it to land, and never throws.
+  Future<void> writeln(String line) async {
+    try {
+      await _sink.flush();
+    } on Object catch (error) {
+      priorFailure = error;
+      return;
+    }
+    try {
+      _sink.writeln(line);
+      await _sink.flush();
+    } on Object {
+      // A courtesy line lost leaves the command's status as it is.
+    }
+  }
+}
+
 // MARK: - guardOutput
 
 /// Runs [command], closes [out] and [err], and returns the exit status.
@@ -26,11 +60,12 @@ const Set<int> _windowsBrokenPipe = {109, 232};
 /// unhandled error; a sink that failed drops every later write. A reader that
 /// has gone returns [readerGoneExitCode] with nothing printed. Any other
 /// failure returns [outputFailedExitCode], and a failed [out] names its OS
-/// error on [err].
+/// error on [err]. A failure of a [courtesy] line alone is no failure.
 Future<int> guardOutput(
   Future<int> Function() command, {
   required IOSink out,
   required IOSink err,
+  CourtesyWrites? courtesy,
 }) async {
   final outFailure = _failureOf(out);
   final errFailure = _failureOf(err);
@@ -41,7 +76,7 @@ Future<int> guardOutput(
     err.writeln('could not write to stdout: ${_reasonOf(outError)}');
   }
   err.close().ignore();
-  final errors = [?outError, ?await errFailure];
+  final errors = [?outError, ?await errFailure ?? courtesy?.priorFailure];
   if (errors.isEmpty) return status;
   return errors.every(_isReaderGone)
       ? readerGoneExitCode

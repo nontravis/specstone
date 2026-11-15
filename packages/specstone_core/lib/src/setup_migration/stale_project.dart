@@ -1,7 +1,8 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart'
-    hide runningVersion;
+    show AgentFileInputs, agentFileDrifts;
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart'
     show skillAndAgentFileDrifts;
 import 'package:specstone_core/src/templates/project_config.dart'
@@ -36,16 +37,19 @@ String? staleProjectLine(
     AgentFilesStampVersion(:final version) => version,
     _ => null,
   };
+  final running = ReleaseVersion.tryParse(runningVersion);
+  final order = version == null || running == null
+      ? null
+      : version.compareTo(running);
   const lead = "specstone: this project's agent files";
-  return switch (agentFixDirectionOf(version)) {
-    AgentFixDirection.upgrade =>
+  return switch (order) {
+    final order? when order > 0 =>
       '$lead come from specstone $version, newer than this specstone '
           '$runningVersion; run specstone upgrade',
-    AgentFixDirection.migrate
-        when version != null && '$version' == runningVersion =>
+    0 =>
       '$lead differ from what specstone $runningVersion writes; '
           'run specstone migrate',
-    AgentFixDirection.migrate =>
+    _ =>
       '$lead are older than specstone $runningVersion; run specstone migrate',
   };
 }
