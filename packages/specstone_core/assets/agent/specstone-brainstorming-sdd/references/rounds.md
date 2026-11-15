@@ -12,8 +12,8 @@ rule. Every other decision only words or records one.
   dispatch nothing; the author, or the fix round under way, goes on.
 - **Adds or changes behavior**, or needs more PRD or spec grounding: add it to the brief as the skill's
   step 3 says, a doc newly reached grounded by its own `specstone context <doc> --for design --out`, never `get`, and
-  dispatch `mode: design` again with the brief's path and the document's path, an amend of the same file. Design mode searches
-  the decision's terms (`design.md`) before the author writes it.
+  dispatch `mode: design` again with the brief's path and the document's path, an amend of the same file. Design
+  mode searches the decision's terms (`design.md`) before the author writes it.
 - **Before the author**: after an append or an amend, ask for the approval again. When the design report holds
   open questions, gather the Owner's answers, append each that only words or records one, send the rest to one
   amend, and ask for the approval only after it.
