@@ -36,7 +36,7 @@ word, each cited by doc and section.
 ## Workflow
 
 1. **Saved files**: when the hand-off names them, read them with the host's file read, the read-first file whole and the
-   refs file by line range from the index, and run no `context`; the main session's grounding is then read once. Find a
+   refs file by line range, found with `Grep` by its parts' headers, and run no `context`; the main session's grounding is then read once. Find a
    section by searching the files with `Grep` for its `## ` header. Go on at step 5.
 2. **Pull**: with no saved file, through Bash, make this your first CLI call, on the first target ID:
 
