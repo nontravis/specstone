@@ -242,6 +242,58 @@ void main() {
       }
     });
 
+    group('agent_files_version', () {
+      test('no key reads as no stamp', () async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+        expect(ProjectConfig.read(root).agentFilesVersion, isNull);
+      });
+
+      for (final value in ['', ' ~', ' null']) {
+        test('`agent_files_version:$value` reads as no stamp', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\nagent_files_version:$value\n',
+          );
+
+          expect(ProjectConfig.read(root).agentFilesVersion, isNull);
+        });
+      }
+
+      for (final text in ['1.3.0', '1.3.0-beta.2', '0.0.1']) {
+        test('$text reads as that Version', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\nagent_files_version: $text\n',
+          );
+
+          expect(ProjectConfig.read(root).agentFilesVersion.toString(), text);
+        });
+      }
+
+      for (final (name, line) in [
+        ('a two-field number', 'agent_files_version: 1.3'),
+        ('a whole number', 'agent_files_version: 3'),
+        ('a quoted two-field value', "agent_files_version: '1.3'"),
+        ('a leading-zero field', 'agent_files_version: 01.3.0'),
+        ('a build suffix', 'agent_files_version: 1.3.0+5'),
+        ('a list', 'agent_files_version: [1.3.0]'),
+        ('text', 'agent_files_version: latest'),
+      ]) {
+        test('$name is unknown_value', () async {
+          final root = await _withConfig('packs:\n  prd-core: 1.0.0\n$line\n');
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'agent_files_version',
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        });
+      }
+    });
+
     group('targets', () {
       test('E23: two '
           'targets read in file order, each with its own code root', () async {
@@ -533,6 +585,102 @@ void main() {
       final config = ProjectConfig.read(root);
 
       expect(config.pins.keys, ['prd-core', 'software-tech']);
+    });
+  });
+
+  group('readAgentFilesVersion', () {
+    Future<AgentFilesStamp> stampOf(String text) async =>
+        readAgentFilesVersion(await _withConfig(text));
+
+    test('a Version reads as that Version', () async {
+      final stamp = await stampOf(
+        'packs:\n  prd-core: 1.0.0\nagent_files_version: 1.3.0\n',
+      );
+
+      expect(stamp, isA<AgentFilesStampVersion>());
+      expect((stamp as AgentFilesStampVersion).version.toString(), '1.3.0');
+    });
+
+    test('no key reads as no stamp', () async {
+      final stamp = await stampOf('packs:\n  prd-core: 1.0.0\n');
+
+      expect(stamp, isA<AgentFilesStampAbsent>());
+    });
+
+    test('a null value reads as no stamp', () async {
+      final stamp = await stampOf(
+        'packs:\n  prd-core: 1.0.0\nagent_files_version:\n',
+      );
+
+      expect(stamp, isA<AgentFilesStampAbsent>());
+    });
+
+    test('reads the Version beside a broken agent_file_roots', () async {
+      final stamp = await stampOf(
+        'packs:\n  prd-core: 1.0.0\nagent_file_roots: 3\n'
+        'agent_files_version: 1.3.0\n',
+      );
+
+      expect(stamp, isA<AgentFilesStampVersion>());
+    });
+
+    test(
+      'reads the Version with no packs key and with an unknown key',
+      () async {
+        final stamp = await stampOf('bogus: 1\nagent_files_version: 2.0.0\n');
+
+        expect(stamp, isA<AgentFilesStampVersion>());
+      },
+    );
+
+    for (final (name, text) in [
+      ('a two-field value', 'agent_files_version: 1.3\n'),
+      ('a whole number', 'agent_files_version: 3\n'),
+      ('a list', 'agent_files_version: [1.3.0]\n'),
+      ('a YAML syntax error', 'agent_files_version: [1.3.0\n'),
+      (
+        'a duplicate key',
+        'agent_files_version: 1.3.0\nagent_files_version: 1.4.0\n',
+      ),
+      ('a document that is no map', '- agent_files_version\n'),
+    ]) {
+      test('$name is unreadable and never throws', () async {
+        final stamp = await stampOf(text);
+
+        expect(stamp, isA<AgentFilesStampUnreadable>());
+      });
+    }
+
+    test('a file that is not UTF-8 is unreadable', () async {
+      final root = await writeTree({_configPath: ''});
+      File.fromUri(root.uri.resolve(_configPath))
+          .writeAsBytesSync([0xff, 0xfe, 0x41]);
+
+      expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
+    });
+
+    test('a missing config file is unreadable', () async {
+      final root = await writeTree({'other.txt': 'x'});
+
+      expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
+    });
+
+    test('a .specstone that is a link is unreadable', () async {
+      final other = await writeTree({
+        '.specstone/config.yaml':
+            'packs:\n  prd-core: 1.0.0\nagent_files_version: 1.3.0\n',
+      });
+      final root = await writeTree({'other.txt': 'x'});
+      Link('${root.path}${Platform.pathSeparator}.specstone')
+          .createSync('${other.path}${Platform.pathSeparator}.specstone');
+
+      expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
+    });
+
+    test('a config path that is a folder is unreadable', () async {
+      final root = await writeTree({'$_configPath/inner': 'x'});
+
+      expect(readAgentFilesVersion(root), isA<AgentFilesStampUnreadable>());
     });
   });
 

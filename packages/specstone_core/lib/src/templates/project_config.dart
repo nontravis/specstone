@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/portable_path.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -17,6 +18,7 @@ const _coreName = 'prd-core';
 const _codeRootKey = 'code_root';
 const _targetsKey = 'targets';
 const _agentFileRootsKey = 'agent_file_roots';
+const _agentFilesVersionKey = 'agent_files_version';
 
 /// One slug of lowercase letters, digits, and underscores.
 final _targetNamePattern = RegExp(r'^[a-z][a-z0-9_]*$');
@@ -115,20 +117,22 @@ final class ProjectConfig {
     required this.targets,
     required this.hasCodeRoot,
     required this.agentFileRoots,
+    required this.agentFilesVersion,
   });
 
   /// Reads `.specstone/config.yaml` under the project [root].
   ///
   /// Throws `unknown_value` first when `.specstone` is a link or a file, since
   /// no byte is read through it, then `unknown_key` for a key other than
-  /// `packs`, `code_root`, `targets`, and `agent_file_roots` or a `packs` key
-  /// that is not kebab-case, `missing_key` when `packs` is absent,
-  /// `pack_version_invalid` for a bad pin, `prd_core_missing` when `packs`
-  /// pins no `prd-core`, and `unknown_value` for a `code_root` that is not a
-  /// string, is empty, is absolute, or holds a backslash, for an
-  /// `agent_file_roots` that is not a list of such strings, and for a
-  /// `targets` that is empty, sits beside `code_root:`, or holds two targets
-  /// on one code folder.
+  /// `packs`, `code_root`, `targets`, `agent_file_roots`, and
+  /// `agent_files_version` or a `packs` key that is not kebab-case,
+  /// `missing_key` when `packs` is absent, `pack_version_invalid` for a bad
+  /// pin, `prd_core_missing` when `packs` pins no `prd-core`, and
+  /// `unknown_value` for a `code_root` that is not a string, is empty, is
+  /// absolute, or holds a backslash, for an `agent_file_roots` that is not a
+  /// list of such strings, for an `agent_files_version` that is not a Version,
+  /// and for a `targets` that is empty, sits beside `code_root:`, or holds two
+  /// targets on one code folder.
   ///
   /// A `packs` key is checked before its pin parses, so the first fault in file
   /// order wins, and before any pack file is opened.
@@ -141,7 +145,13 @@ final class ProjectConfig {
     final map = readYamlMap(text, file: projectConfigPath);
     checkKeys(
       map,
-      {'packs', _codeRootKey, _targetsKey, _agentFileRootsKey},
+      {
+        'packs',
+        _codeRootKey,
+        _targetsKey,
+        _agentFileRootsKey,
+        _agentFilesVersionKey,
+      },
       file: projectConfigPath,
       format: 'config',
     );
@@ -177,6 +187,7 @@ final class ProjectConfig {
       targets: List.unmodifiable(targets),
       hasCodeRoot: map.containsKey(_codeRootKey),
       agentFileRoots: _readAgentFileRoots(map),
+      agentFilesVersion: _readAgentFilesVersion(map),
     );
   }
 
@@ -208,8 +219,76 @@ final class ProjectConfig {
   /// (`../stratum_ui`); empty when the config has no `agent_file_roots`.
   final List<String> agentFileRoots;
 
+  /// The last Version whose run left the agent files as it writes them; null
+  /// when the config has no `agent_files_version`.
+  final ReleaseVersion? agentFilesVersion;
+
   /// The config path, relative to the project root.
   String get file => projectConfigPath;
+}
+
+/// What the config's `agent_files_version` holds, as [readAgentFilesVersion]
+/// reads it.
+sealed class AgentFilesStamp;
+
+/// The config is readable and has no `agent_files_version`.
+final class AgentFilesStampAbsent implements AgentFilesStamp {
+  const new();
+}
+
+/// The config is readable and holds [version].
+final class AgentFilesStampVersion implements AgentFilesStamp {
+  const new(this.version);
+
+  final ReleaseVersion version;
+}
+
+/// The config, or its `agent_files_version`, cannot be read.
+final class AgentFilesStampUnreadable implements AgentFilesStamp {
+  const new();
+}
+
+/// Reads `agent_files_version` alone from the config under the project
+/// [root], for commands that load no templates.
+///
+/// Reads no other key, so a broken `agent_file_roots` or `packs` does not hide
+/// the stamp. Never throws: a fault of any kind is
+/// [AgentFilesStampUnreadable], apart from the readable
+/// [AgentFilesStampAbsent].
+AgentFilesStamp readAgentFilesVersion(Directory root) {
+  try {
+    requireSpecstoneFolder(root);
+    final text = decodeYamlBytes(
+      readPlanInput(File.fromUri(root.uri.resolve(projectConfigPath))),
+      file: projectConfigPath,
+    );
+    final version = _readAgentFilesVersion(
+      readYamlMap(text, file: projectConfigPath),
+    );
+    return version == null
+        ? const AgentFilesStampAbsent()
+        : AgentFilesStampVersion(version);
+  } on TemplateFault {
+    return const AgentFilesStampUnreadable();
+  } on FileSystemException {
+    return const AgentFilesStampUnreadable();
+  }
+}
+
+ReleaseVersion? _readAgentFilesVersion(YamlMap map) {
+  final text = optionalValue<String>(
+    map,
+    _agentFilesVersionKey,
+    file: projectConfigPath,
+  );
+  if (text == null) return null;
+  return ReleaseVersion.tryParse(text) ??
+      (throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $_agentFilesVersionKey must be a Version such as 1.3.0',
+        file: projectConfigPath,
+        key: _agentFilesVersionKey,
+      ));
 }
 
 /// Throws `unknown_value` unless `.specstone` under [root] is absent or a real
