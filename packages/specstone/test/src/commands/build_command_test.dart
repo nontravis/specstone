@@ -143,9 +143,12 @@ void main() {
         });
         final runner = await runnerIn(project);
 
-        expect(await runner.run(['build', target]), 64);
+        expect(await runner.run(['build', target, '--json']), 64);
         expect(out.toString(), isEmpty);
-        expect(err.toString(), contains('docs'));
+        final error =
+            (jsonDecode(err.toString()) as Map<String, dynamic>)['error']
+                as Map<String, dynamic>;
+        expect(error['code'], 'target_outside_docs_root');
         expectNothingWritten(project, '.specstone/build/$target.html');
       });
     }

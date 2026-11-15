@@ -240,6 +240,39 @@ void main() {
       expect(target.entity.path, project.docsRoot.path);
     });
 
+    test('a records path is a target only when the call includes the records '
+        'root', () async {
+      const record = '.specstone/records/f05_x/IMPLEMENTATION.md';
+      final root = await fixtureProject({
+        'docs/prds/a.md': '',
+        record: '# Record\n',
+      });
+      final project = _open(root);
+
+      final target = project.resolveTarget(
+        record,
+        workingDirectory: root,
+        defaultsToDocsRoot: false,
+        includeRecordsRoot: true,
+      );
+
+      expect(target.docPath, record);
+      expect(
+        () => project.resolveTarget(
+          record,
+          workingDirectory: root,
+          defaultsToDocsRoot: false,
+        ),
+        throwsA(
+          isA<RenderFault>().having(
+            (fault) => fault.code,
+            'code',
+            RenderFaultCode.targetOutsideDocsRoot,
+          ),
+        ),
+      );
+    });
+
     test('no target and no docs/ is target_not_found '
         'naming docs/', () async {
       final root = await fixtureProject({});
