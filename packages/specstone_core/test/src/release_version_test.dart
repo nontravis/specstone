@@ -54,6 +54,17 @@ void main() {
     });
   }
 
+  test('install_update Version: major and minor are the first two fields', () {
+    final version = ReleaseVersion.tryParse('1.2.0-beta.1')!;
+    expect(version.major, '1');
+    expect(version.minor, '2');
+  });
+
+  test('install_update Version: a minor of 3M digits is returned whole', () {
+    final digits = '9' * 3000000;
+    expect(ReleaseVersion.tryParse('0.$digits.0')!.minor, digits);
+  });
+
   test('install_update Version: the definition imports nothing', () {
     final source = File.fromUri(
       packageRoot().uri.resolve('lib/src/release_version.dart'),
