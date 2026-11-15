@@ -45,11 +45,7 @@ The design document proposes each new or reshaped feature's `patterns:` value, p
 - **A skill qualifies:** run it on the change, grounded in step 1's docs. It keeps the conversation and the approval;
   at its write step, write through step 3. At its own hand-off to a plan or build skill, invoke nothing: once the
   Owner approves the document, go to step 4. Specstone's rules win on a conflict.
-- **None qualifies:** run this flow; it ends at the same document and approval.
-  1. Ask the Owner one question per message until scope, behavior, edge cases, and exclusions are clear.
-  2. Offer two or three approaches with trade-offs; recommend one.
-  3. Write the document through step 3.
-  4. Ask the Owner to approve it; send each change they ask for through step 3, and ask again until they approve.
+- **None qualifies:** run `references/dialogue.md`; it ends at the same document and approval.
 
 Until the Owner approves, write no PRD or spec doc and dispatch no `mode: author`. Ask for approval only once the
 document holds no open question; approval of an approach is not approval of the document.
@@ -61,7 +57,8 @@ After step 1's calls, take `<folder>` the path `specstone folder` prints, run on
 `report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that
 file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 
-Write the Owner's approved answers to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in.
+Write the Owner's approved answers (the decisions, the rulings in the Owner's words, the approach picked, the open
+questions) to `<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md` once every answer is in.
 Write under each claim of the brief the saved bundle file's path and the line range that grounds it; a claim with no
 range is an open question. Before each `mode: design` dispatch, first or amend, rerun each `context` call whose file
 the brief cites and rewrite every range from the new index. Dispatch `mode: design` once, with that brief's path and

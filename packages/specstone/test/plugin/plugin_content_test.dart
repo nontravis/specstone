@@ -5306,7 +5306,7 @@ const _brainstormFiles = [
   'specstone-sdd-engineer.',
 ];
 
-/// The brainstorm skill, its five references, and the engineer, in the source
+/// The brainstorm skill, its six references, and the engineer, in the source
 /// and in each host's render.
 List<ContentFile> _brainstormContent() => [
   for (final file in contentFiles())
@@ -5317,7 +5317,7 @@ void _brainstormTests() {
   group('the brainstorm skill family and the engineer', () {
     test('each of the seven reaches the source and every host render', () {
       final paths = _brainstormContent().map((file) => file.path);
-      expect(paths, hasLength(7 + 6 + 6 + 4));
+      expect(paths, hasLength(8 + 7 + 7 + 4));
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
@@ -5525,9 +5525,44 @@ void _designBriefTests() {
       expect(
         designGround(),
         contains(
-          'So is a missing cited file, or a range whose `==> ` line is not '
+          'So is a missing cited file or a range whose `==> ` line is not '
           "the claim's doc; name the file.",
         ),
+      );
+    });
+
+    test('step 3 lists what the brief holds', () {
+      expect(
+        skillStep3(),
+        contains(
+          "(the decisions, the rulings in the Owner's words, the approach "
+          'picked, the open questions)',
+        ),
+      );
+    });
+
+    test('the Intent section stays in a few lines', () {
+      final design = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/design.md'),
+      );
+
+      expect(design, contains('it advances, in a few lines.'));
+    });
+
+    test('with no brainstorm skill the skill runs the dialogue file', () {
+      final skill = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+      );
+      final dialogue = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/dialogue.md'),
+      );
+
+      expect(skill, contains('run `references/dialogue.md`'));
+      expect(skill, isNot(contains('Offer two or three approaches')));
+      expect(dialogue, contains('Ask the Owner one question per message'));
+      expect(
+        dialogue,
+        contains('Offer two or three approaches with trade-offs'),
       );
     });
 

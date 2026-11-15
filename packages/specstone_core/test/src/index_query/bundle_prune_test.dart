@@ -124,11 +124,16 @@ void main() {
     expect(other.existsSync(), isFalse);
   }, skip: Platform.isWindows ? 'a read-only folder is a POSIX rule' : null);
 
-  test('prune ends without a throw when a subfolder cannot be listed', () {
+  test('prune skips a subfolder it cannot list and goes on', () {
     final hidden = file('sub/a.txt', now.subtract(const Duration(days: 9)));
+    final other = file('b.txt', now.subtract(const Duration(days: 9)));
+    final nested = file('ok/c.txt', now.subtract(const Duration(days: 9)));
     Process.runSync('chmod', ['000', hidden.parent.path]);
 
     expect(prune, returnsNormally);
+
+    expect(other.existsSync(), isFalse);
+    expect(nested.existsSync(), isFalse);
   }, skip: Platform.isWindows ? 'a mode-000 folder is a POSIX rule' : null);
 }
 

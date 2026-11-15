@@ -12,8 +12,8 @@ question in your report.
 ## 2. Ground each claim
 
 Read each claim's grounding from the saved file and line range the brief gives under it. Run no `context` and no
-`get` for a doc: a claim with no range is an open question in your report. So is a missing cited file, or a range
-whose `==> ` line is not the claim's doc; name the file. Cite only what those lines hold.
+`get` for a doc: a claim with no range is an open question in your report. So is a missing cited file or a range
+whose `==> ` line is not the claim's doc; name the file. Cite only those lines.
 
 Before any write, judge the design path by the saved files' `==> ` headers:
 
@@ -33,7 +33,7 @@ mapped in step 3. Open each code path and symbol the brief names; list each not 
 Sections, in this order:
 
 1. **Intent**: the change and its why, goals and non-goals, the actors it serves, and the vision IDs (`PV-…`)
-   it advances.
+   it advances, in a few lines.
 2. **Constraints**: what the docs fix that the change keeps, each cited by name.
 3. **Rulings**: each dated, in the Owner's words with the scope words (`only`, `not`, `never`, `after`)
    verbatim, each naming the text it supersedes.
