@@ -609,6 +609,50 @@ void main() {
     });
   });
 
+  group('a goal Metric link into a measurement', () {
+    const goalLayers = {
+      '.specstone/templates/goal.yaml':
+          'id: goal\n'
+          'description: The goals.\n'
+          'path: prds/GOAL.md\n'
+          'bundle: [implement, design]\n'
+          'sections:\n'
+          '  - id: long_term\n'
+          '    header: Long-term goals\n'
+          '    prefix_id: PG-\n',
+      '.specstone/templates/measurement.yaml': 'summary_for: [project, goal]\n',
+      'docs/prds/GOAL.md':
+          '# Goals\n\n## Long-term goals\n'
+          '- **PG-01** Fewer resets.\n'
+          '  - **Metric:** [resets]($_measurementFromProject)\n',
+      _measurementFile: _measurement,
+    };
+
+    test(
+      'a goal Metric link prints the naming line in a story bundle',
+      () async {
+        final parts = await followedFrom('login/email_login', goalLayers);
+
+        expect(_measurementParts(parts), ['$_measurementDoc name']);
+        expect(parts.singleWhere((p) => p.nameOnly).text, isEmpty);
+      },
+    );
+    test('a goal Metric link prints the naming line in an FR bundle', () async {
+      final parts = await followedFrom(
+        'login/email_login/validate_credentials',
+        goalLayers,
+      );
+
+      expect(_measurementParts(parts), ['$_measurementDoc name']);
+    });
+    test('context goal prints the measurement in summary', () async {
+      final parts = await followedFrom('goal', goalLayers);
+
+      expect(_measurementParts(parts), ['$_measurementDoc summary']);
+      expect(parts.map(_id), contains('specs/topics/ranges.md#purpose'));
+    });
+  });
+
   group('a link into a summary_rows section', () {
     const results = '$_measurementFromProject#results';
     const resultsFromStory = '$_measurementFromStory#results';
