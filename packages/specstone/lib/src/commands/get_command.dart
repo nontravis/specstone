@@ -1,4 +1,3 @@
-import 'package:args/args.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -93,7 +92,16 @@ class GetCommand extends SpecstoneCommand {
         _ => answerGet(session.index, rest, codeTarget: targetOf(args)),
       };
       return writesOut(args)
-          ? _written(args, session, answer, out, asJson: asJson)
+          ? _written(
+              session,
+              answer,
+              out,
+              asJson: asJson,
+              paths: paths,
+              code: code,
+              rest: rest,
+              codeTarget: targetOf(args),
+            )
           : answer;
     }, asJson: asJson);
   }
@@ -101,11 +109,14 @@ class GetCommand extends SpecstoneCommand {
   /// Writes [answer] to the `--out` file, bare when [out] is null, and returns
   /// the reply that names it.
   ReadAnswer _written(
-    ArgResults args,
     ReadSession session,
     ReadAnswer answer,
     String? out, {
     required bool asJson,
+    required bool paths,
+    required bool code,
+    required List<String> rest,
+    required String? codeTarget,
   }) {
     final project = session.project;
     final printed = printedJson(answer, session.warnings);
@@ -119,9 +130,9 @@ class GetCommand extends SpecstoneCommand {
       projectRoot: project.projectRoot,
       docsRoot: project.docsRoot,
       asJson: asJson,
-      flags: [if (args.flag('paths')) 'paths', if (args.flag('code')) 'code'],
-      args: args.rest,
-      codeTarget: targetOf(args),
+      flags: [if (paths) 'paths', if (code) 'code'],
+      args: rest,
+      codeTarget: codeTarget,
       warnings: answer.warnings,
       exitStatus: answer.exitStatus,
     );

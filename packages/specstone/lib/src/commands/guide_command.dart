@@ -34,13 +34,15 @@ class GuideCommand extends SpecstoneCommand {
 
   @override
   Future<int> run() async {
-    final rest = argResults!.rest;
+    final args = argResults!;
+    final rest = args.rest;
     final runner = specstoneRunner;
-    final asJson = argResults!.flag('json');
+    final asJson = args.flag('json');
+    final isPattern = args.flag('pattern');
 
     final String? outPath;
     try {
-      outPath = outPathOf(argResults!);
+      outPath = outPathOf(args);
     } on IndexFault catch (fault) {
       return fail(fault, asJson: asJson);
     }
@@ -55,17 +57,24 @@ class GuideCommand extends SpecstoneCommand {
       return fail(fault, asJson: asJson);
     }
 
-    if (argResults!.flag('pattern')) {
-      return _printPatterns(set, rest, asJson: asJson, outPath: outPath);
+    int emit(String text) => _emit(
+      text,
+      outPath,
+      asJson: asJson,
+      writes: writesOut(args),
+      isPattern: isPattern,
+      rest: rest,
+    );
+
+    if (isPattern) {
+      return _printPatterns(set, rest, asJson: asJson, emit: emit);
     }
 
     if (rest.isEmpty) {
-      return _emit(
+      return emit(
         asJson
             ? '${SpecstoneCommand.pretty.convert(set.listJson())}\n'
             : set.listText(),
-        outPath,
-        asJson: asJson,
       );
     }
 
@@ -89,27 +98,21 @@ class GuideCommand extends SpecstoneCommand {
       );
     }
 
-    return _emit(
-      asJson ? _renderJson(docTypes) : _renderGuides(docTypes),
-      outPath,
-      asJson: asJson,
-    );
+    return emit(asJson ? _renderJson(docTypes) : _renderGuides(docTypes));
   }
 
   int _printPatterns(
     MergedSet set,
     List<String> ids, {
     required bool asJson,
-    required String? outPath,
+    required int Function(String text) emit,
   }) {
     if (ids.isEmpty) {
       final list = set.featurePatternListJson();
-      return _emit(
+      return emit(
         asJson
             ? '${SpecstoneCommand.pretty.convert(list)}\n'
             : set.featurePatternListText(),
-        outPath,
-        asJson: asJson,
       );
     }
 
@@ -133,18 +136,22 @@ class GuideCommand extends SpecstoneCommand {
       );
     }
 
-    return _emit(
+    return emit(
       asJson ? _renderPatternJson(patterns) : _renderPatterns(patterns),
-      outPath,
-      asJson: asJson,
     );
   }
 
   /// Prints [text], or, under `--out`, writes it to [outPath] (bare when null)
   /// and prints the reply that names the file.
-  int _emit(String text, String? outPath, {required bool asJson}) {
-    final args = argResults!;
-    if (!writesOut(args)) {
+  int _emit(
+    String text,
+    String? outPath, {
+    required bool asJson,
+    required bool writes,
+    required bool isPattern,
+    required List<String> rest,
+  }) {
+    if (!writes) {
       specstoneRunner.out.write(text);
       return 0;
     }
@@ -157,8 +164,8 @@ class GuideCommand extends SpecstoneCommand {
         projectRoot: roots?.projectRoot,
         docsRoot: roots?.docsRoot,
         asJson: asJson,
-        flags: [if (args.flag('pattern')) 'pattern'],
-        args: args.rest,
+        flags: [if (isPattern) 'pattern'],
+        args: rest,
       );
       return printAnswer(answer, const [], asJson: asJson);
     } on SpecstoneFault catch (fault) {
