@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
+import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -541,11 +542,22 @@ final class _DocView {
       sectionRange(_indexOf(section)),
   ];
 
-  /// Returns the ranges of the summary sections a summary of the doc prints.
+  /// Returns the ranges of the summary sections a summary of the doc prints,
+  /// a `summary_rows` section's narrowed to its cut.
   List<LineRange> summaryRanges(BundleMode mode) => [
     for (final section in summarySectionsOf(content, type, mode))
-      sectionRange(_indexOf(section)),
+      _printedRange(section),
   ];
+
+  LineRange _printedRange(IndexedSection section) {
+    final at = _indexOf(section);
+    final range = sectionRange(at);
+    final rows = summaryRowCountOf(type, section.key);
+    if (rows == null) return range;
+    final cut = cutToRows(section.body, rows);
+    final last = range.first + cut.lineCount;
+    return (first: range.first, last: last < range.last ? last : range.last);
+  }
 
   /// Returns the ID of the stored item of the section at [at], whose body is
   /// [body], that starts at file line [headingLine], or null when none does.

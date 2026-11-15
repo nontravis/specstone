@@ -1128,4 +1128,57 @@ void main() {
       );
     });
   });
+
+  group('summary rows', () {
+    const storyFile =
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
+    const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+    const table = '| Date | Run | Met |\n|---|---|---|\n';
+    Future<String> printed(String results) async {
+      final i = await indexWith({
+        storyFile:
+            '# Agent signs in with email\n\n## Use Case\nSign in. See [resets](../../../../measurements/fewer_resets/MEASUREMENT.md).\n\n'
+            '## Acceptance Criteria\n- Given a sign-in\n',
+        measurement:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count.\n\n'
+            '## Results\n$results\n\n## Open causes\nN/A\n',
+      });
+      return ctxIn(i, 'login/email_login', BundleMode.design).text;
+    }
+
+    test('a summary doc prints its summary_rows section cut to its first row and no other section', () async {
+      final text = await printed(
+        'Newest first. Met: halved.\n\n$table| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+      );
+
+      expect(
+        text,
+        contains(
+          '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+          'Newest first. Met: halved.\n\n$table| 2026-11-14 | 2 | no |\n',
+        ),
+      );
+      expect(text, isNot(contains('2026-11-01')));
+      expect(text, isNot(contains('## Method')));
+      expect(text, isNot(contains('## Open causes')));
+    });
+    test('a summary_rows section written as prose prints whole', () async {
+      final text = await printed('Run one met the goal.');
+
+      expect(text, contains('## Results\nRun one met the goal.\n'));
+    });
+    test(
+      'a summary_rows table with no body row prints its lead and header rows',
+      () async {
+        final text = await printed('Newest first. Met: halved.\n\n$table');
+
+        expect(
+          text,
+          contains(
+            '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n',
+          ),
+        );
+      },
+    );
+  });
 }

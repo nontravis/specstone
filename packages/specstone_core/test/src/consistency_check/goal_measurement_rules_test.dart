@@ -339,4 +339,23 @@ void main() {
       hasLength(1),
     );
   });
+
+  test(
+    'a Results written as prose gives the measurement doc no finding',
+    () async {
+      const table =
+          '| Date | Version | Run | Resets | Met |\n|---|---|---|---|---|\n\n';
+      final project = await writeCheckProject(
+        extra: edit(measurementDoc, [
+          (table, 'Run one halved the resets.\n\n'),
+        ]),
+      );
+      final baseline = await writeCheckProject();
+      List<String> kinds(Directory dir) => [
+        for (final finding in checkOf(dir, docPath: measurementDoc).findings)
+          finding.kind.name,
+      ];
+      expect(kinds(project), kinds(baseline));
+    },
+  );
 }

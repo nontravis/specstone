@@ -5,6 +5,7 @@ import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
+import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 final _htmlComment = RegExp(r'<!--[\s\S]*?-->');
@@ -40,7 +41,14 @@ summaryPrintOf(
   final sections = <SectionLine>[];
   var line = lineAfterBlocks(blocks);
   for (final section in summarySectionsOf(content, docType, mode)) {
-    final print = sectionPrintOf(doc, content, held, section, citedBy);
+    final print = sectionPrintOf(
+      doc,
+      content,
+      held,
+      section,
+      citedBy,
+      summaryRows: summaryRowCountOf(docType, section.key),
+    );
     sections.add((key: section.key, line: line));
     line += lineAfterBlocks([print.block]);
     blocks.add(print.block);
@@ -51,19 +59,31 @@ summaryPrintOf(
 
 /// Returns [section] of [doc], whose held sections [held] reads, as a bundle
 /// prints it, with the lines [citedBy] holds for its items after them.
+///
+/// With [summaryRows], the section prints cut by [cutToRows], and a cut that
+/// drops lines prints no cited-by line.
 ({String block, List<CitedItem> cited}) sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
   List<CitedSection> held,
   IndexedSection section,
-  CitedByIndex? citedBy,
-) {
+  CitedByIndex? citedBy, {
+  int? summaryRows,
+}) {
   final at = content.sections.indexOf(section);
-  final items = citedBy == null
+  final printed = summaryRows == null
+      ? section
+      : IndexedSection(
+          key: section.key,
+          headerLine: section.headerLine,
+          body: cutToRows(section.body, summaryRows).body,
+        );
+  final isCut = printed.body.trimRight() != section.body.trimRight();
+  final items = citedBy == null || isCut
       ? const <CitedItem>[]
       : citedItemsIn(citedBy, doc, content, held[at], at);
   final block = sectionBlockOf(
-    section,
+    printed,
     bodyLine: content.lineFacts.sectionLines[at] + 1,
     after: citedLinesAfter(items),
   );
@@ -71,7 +91,7 @@ summaryPrintOf(
 }
 
 /// Returns the kept sections of a summary doc whose merged section is a
-/// summary section, in section order.
+/// summary section or sets `summary_rows`, in section order.
 List<IndexedSection> summarySectionsOf(
   DocContent content,
   MergedDocType? docType,
@@ -79,12 +99,22 @@ List<IndexedSection> summarySectionsOf(
 ) {
   final summaryIds = {
     for (final section in docType?.sections ?? const <MergedSection>[])
-      if (section.summary == true) section.id,
+      if (section.summary == true || section.summaryRowCount != null)
+        section.id,
   };
   return [
     for (final section in keptSectionsOf(content, docType, mode))
       if (summaryIds.contains(section.key)) section,
   ];
+}
+
+/// Returns the `summary_rows` count of the merged section [key] of [docType],
+/// or null when it sets none.
+int? summaryRowCountOf(MergedDocType? docType, String key) {
+  for (final section in docType?.sections ?? const <MergedSection>[]) {
+    if (section.id == key) return section.summaryRowCount;
+  }
+  return null;
 }
 
 /// Returns [section] as a bundle prints it: its header line, then its body

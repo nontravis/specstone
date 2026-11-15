@@ -192,6 +192,23 @@ void main() {
     expect(parts.map(_id), ['specs/topics/ranges.md summary']);
     expect(parts.single.text, '# Ranges');
   });
+  test('a link below the cut of a summary_rows section is not followed', () async {
+    final parts = await followed(
+      'See [resets](../../../../measurements/fewer_resets/MEASUREMENT.md).',
+      extra: {
+        'docs/measurements/fewer_resets/MEASUREMENT.md':
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+            'Newest first.\n\n| Date | Note |\n|---|---|\n'
+            '| 2026-11-14 | [ranges](../../specs/topics/ranges.md#purpose) |\n'
+            '| 2026-11-01 | [guide](../../specs/topics/guide.md#purpose) |\n',
+      },
+    );
+    expect(parts.map(_id), [
+      'measurements/fewer_resets/MEASUREMENT.md summary',
+      'specs/topics/ranges.md#purpose',
+      'specs/topics/doc_model.md#purpose',
+    ]);
+  });
   test('a section of a summary doc is appended unless the summary prints it', () async {
     final parts = await followed(
       'See [reset]($_resetStory#use-case) and [reset criteria]($_resetStory#acceptance-criteria).',
