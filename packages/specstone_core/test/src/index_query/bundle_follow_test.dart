@@ -634,7 +634,14 @@ void main() {
         final parts = await followedFrom('login/email_login', goalLayers);
 
         expect(_measurementParts(parts), ['$_measurementDoc name']);
-        expect(parts.singleWhere((p) => p.nameOnly).text, isEmpty);
+        expect(
+          parts
+              .singleWhere(
+                (p) => p.nameOnly && p.doc.docPath == _measurementDoc,
+              )
+              .text,
+          isEmpty,
+        );
       },
     );
     test('a goal Metric link prints the naming line in an FR bundle', () async {
@@ -644,6 +651,12 @@ void main() {
       );
 
       expect(_measurementParts(parts), ['$_measurementDoc name']);
+      expect(
+        parts
+            .singleWhere((p) => p.nameOnly && p.doc.docPath == _measurementDoc)
+            .text,
+        isEmpty,
+      );
     });
     test('context goal prints the measurement in summary', () async {
       final parts = await followedFrom('goal', goalLayers);

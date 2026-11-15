@@ -389,6 +389,15 @@ void main() {
     });
     expect(joined(BundleMode.design), contains('prds/GOAL.md'));
     expect(joined(BundleMode.implement, noProject: true), isEmpty);
+    expect(
+      pickBundle(
+        withGoal,
+        'login/email_login',
+        BundleMode.implement,
+        noProject: true,
+      ).droppedPaths,
+      contains('prds/GOAL.md'),
+    );
     expect(joined(BundleMode.query, target: 'login'), {'prds/PROJECT.md'});
   });
   test('s03/inv13: a set with no bundle keys joins nothing', () async {
