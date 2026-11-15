@@ -614,8 +614,8 @@ lint:
 
     test('a section skeleton that is not a boolean is unknown_value', () {
       expect(
-        () => _parse('sections: [{id: goal, skeleton: header}]\n'),
-        throwsA(_fault(FaultCode.unknownValue, key: 'sections[0].skeleton')),
+        () => _parse('sections: [{id: why}, {id: goal, skeleton: header}]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'sections[1].skeleton')),
       );
     });
 
