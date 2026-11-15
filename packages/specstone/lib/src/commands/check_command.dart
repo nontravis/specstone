@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:args/args.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
@@ -42,29 +40,45 @@ class CheckCommand extends SpecstoneCommand {
       usageException('Expected at most one target, got ${args.rest.length}.');
     }
     final asJson = args.flag('json');
+    final isRepeats = args.flag('repeats');
     final runner = specstoneRunner;
     var sessionWarnings = const <String>[];
-    DocsProject? project;
-    final RepeatReport? repeats;
-    final CheckReport? report;
-    final String? out;
+    final _Output output;
+    final String? outPath;
     try {
-      out = outPathOf(args);
-      (repeats, report) = ReadSession.run(
+      outPath = outPathOf(args);
+      output = ReadSession.run(
         (session) {
           sessionWarnings = session.warnings;
-          project = session.project;
           final target = args.rest.firstOrNull;
           final codeTarget = targetOf(args);
-          return args.flag('repeats')
-              ? (
-                  runRepeats(session, target: target, codeTarget: codeTarget),
-                  null,
-                )
-              : (
-                  null,
-                  runCheck(session, target: target, codeTarget: codeTarget),
-                );
+          final project = session.project;
+          if (isRepeats) {
+            final repeats = runRepeats(
+              session,
+              target: target,
+              codeTarget: codeTarget,
+            );
+            return (
+              project: project,
+              json: repeats.json,
+              text: repeats.text,
+              warnings: repeats.warnings,
+              exitStatus: 0,
+            );
+          }
+          final report = runCheck(
+            session,
+            target: target,
+            codeTarget: codeTarget,
+          );
+          return (
+            project: project,
+            json: report.json,
+            text: report.text,
+            warnings: report.warnings,
+            exitStatus: report.exitStatus,
+          );
         },
         templates: runner.templates,
         workingDirectory: runner.workingDirectory,
@@ -74,78 +88,59 @@ class CheckCommand extends SpecstoneCommand {
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);
     }
+    final shown = asJson
+        ? '${SpecstoneCommand.pretty.convert(output.json)}\n'
+        : output.text;
     if (writesOut(args)) {
-      return _writeReport(
+      return _writeOut(
         args,
-        project!,
-        repeats: repeats,
-        report: report,
-        out: out,
-      );
-    }
-    if (repeats != null) return _printRepeats(repeats, asJson: asJson);
-    if (asJson) {
-      runner.out.write('${SpecstoneCommand.pretty.convert(report!.json)}\n');
-    } else {
-      warn(report!.warnings);
-      runner.out.write(report.text);
-    }
-    return report.exitStatus;
-  }
-
-  /// Writes the report, or the repeats, to the `--out` file and prints its
-  /// header; the check's own exit status and warnings pass through.
-  int _writeReport(
-    ArgResults args,
-    DocsProject project, {
-    required RepeatReport? repeats,
-    required CheckReport? report,
-    required String? out,
-  }) {
-    final asJson = args.flag('json');
-    final json = repeats?.json ?? report!.json;
-    final text = repeats?.text ?? report!.text;
-    final warnings = repeats?.warnings ?? report!.warnings;
-    final workingDirectory = specstoneRunner.workingDirectory;
-    final ReadAnswer answer;
-    try {
-      answer = answerOutFile(
-        command: 'check',
-        text: asJson ? '${SpecstoneCommand.pretty.convert(json)}\n' : text,
-        file: out == null
-            ? bareOutFile(
-                project.projectRoot,
-                outFileName(
-                  command: 'check',
-                  flags: [if (repeats != null) 'repeats'],
-                  args: args.rest,
-                  codeTarget: targetOf(args),
-                  asJson: asJson,
-                ),
-              )
-            : File(absoluteFrom(workingDirectory, out)),
-        projectRoot: project.projectRoot,
-        docsRoot: project.docsRoot,
-        isBare: out == null,
+        output,
+        shown,
+        outPath: outPath,
         asJson: asJson,
-        warnings: warnings,
-        exitStatus: repeats != null ? 0 : report!.exitStatus,
+        isRepeats: isRepeats,
       );
-    } on SpecstoneFault catch (fault) {
-      return fail(fault, asJson: asJson, warnings: warnings);
     }
-    return printAnswer(answer, const [], asJson: asJson);
+    if (!asJson) warn(output.warnings);
+    runner.out.write(shown);
+    return output.exitStatus;
   }
 
-  int _printRepeats(RepeatReport repeats, {required bool asJson}) {
-    if (asJson) {
-      specstoneRunner.out.write(
-        '${SpecstoneCommand.pretty.convert(repeats.json)}\n',
+  /// Writes [shown], the output stdout would hold, to the `--out` file and
+  /// prints its header; the check's own exit status and warnings pass through.
+  int _writeOut(
+    ArgResults args,
+    _Output output,
+    String shown, {
+    required String? outPath,
+    required bool asJson,
+    required bool isRepeats,
+  }) {
+    try {
+      final answer = answerOut(
+        command: 'check',
+        text: shown,
+        outPath: outPath,
+        projectRoot: output.project.projectRoot,
+        docsRoot: output.project.docsRoot,
+        asJson: asJson,
+        flags: [if (isRepeats) 'repeats'],
+        args: args.rest,
+        codeTarget: targetOf(args),
+        warnings: output.warnings,
+        exitStatus: output.exitStatus,
       );
-    } else {
-      warn(repeats.warnings);
-      specstoneRunner.out.write(repeats.text);
+      return printAnswer(answer, const [], asJson: asJson);
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson, warnings: output.warnings);
     }
-    return 0;
   }
 }
+
+typedef _Output = ({
+  DocsProject project,
+  Map<String, Object> json,
+  String text,
+  List<String> warnings,
+  int exitStatus,
+});

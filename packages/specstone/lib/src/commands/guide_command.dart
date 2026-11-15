@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -67,6 +65,7 @@ class GuideCommand extends SpecstoneCommand {
             ? '${SpecstoneCommand.pretty.convert(set.listJson())}\n'
             : set.listText(),
         outPath,
+        asJson: asJson,
       );
     }
 
@@ -93,6 +92,7 @@ class GuideCommand extends SpecstoneCommand {
     return _emit(
       asJson ? _renderJson(docTypes) : _renderGuides(docTypes),
       outPath,
+      asJson: asJson,
     );
   }
 
@@ -109,6 +109,7 @@ class GuideCommand extends SpecstoneCommand {
             ? '${SpecstoneCommand.pretty.convert(list)}\n'
             : set.featurePatternListText(),
         outPath,
+        asJson: asJson,
       );
     }
 
@@ -135,46 +136,29 @@ class GuideCommand extends SpecstoneCommand {
     return _emit(
       asJson ? _renderPatternJson(patterns) : _renderPatterns(patterns),
       outPath,
+      asJson: asJson,
     );
   }
 
   /// Prints [text], or, under `--out`, writes it to [outPath] (bare when null)
   /// and prints the reply that names the file.
-  int _emit(String text, String? outPath) {
+  int _emit(String text, String? outPath, {required bool asJson}) {
     final args = argResults!;
-    final asJson = args.flag('json');
     if (!writesOut(args)) {
       specstoneRunner.out.write(text);
       return 0;
     }
-    final runner = specstoneRunner;
-    final match = matchProjectRoot(runner.workingDirectory);
-    final trust = match == null
-        ? null
-        : RootTrust.at(
-            folder: match.folder,
-            root: match.root,
-            homeDirectory: runner.homeDirectory,
-          );
+    final roots = locateReadRoots(specstoneRunner.workingDirectory);
     try {
-      final answer = answerOutFile(
+      final answer = answerOut(
         command: 'guide',
         text: text,
-        file: outPath == null
-            ? bareOutFile(
-                trust?.projectRoot ?? runner.workingDirectory,
-                outFileName(
-                  command: 'guide',
-                  flags: [if (args.flag('pattern')) 'pattern'],
-                  args: args.rest,
-                  asJson: asJson,
-                ),
-              )
-            : File(absoluteFrom(runner.workingDirectory, outPath)),
-        projectRoot: trust?.projectRoot,
-        docsRoot: trust?.docsRoot,
-        isBare: outPath == null,
+        outPath: outPath,
+        projectRoot: roots?.projectRoot,
+        docsRoot: roots?.docsRoot,
         asJson: asJson,
+        flags: [if (args.flag('pattern')) 'pattern'],
+        args: args.rest,
       );
       return printAnswer(answer, const [], asJson: asJson);
     } on SpecstoneFault catch (fault) {

@@ -1281,6 +1281,27 @@ items:
       );
     });
 
+    test('--out= with no path exits 64 and writes no file', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', 'fr', '--out=']), 64);
+      expect(out.toString(), isEmpty);
+      expect(
+        Directory('${folder.path}/.specstone/reports').existsSync(),
+        isFalse,
+      );
+    });
+
+    test('a bare guide --out inside a project writes guide.all.txt', () async {
+      final folder = await project();
+      final runner = await runnerIn(folder);
+
+      expect(await runner.run(['guide', '--out']), 0, reason: err.toString());
+      expect(reportOf(folder, 'guide.all.txt'), 'feature\nfr\nuser_story\n');
+      expect(out.toString(), startsWith('==> guide: '));
+    });
+
     test('a path inside the docs root exits 73 and writes nothing', () async {
       final folder = await project();
       final runner = await runnerIn(folder);

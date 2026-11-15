@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:args/args.dart';
 import 'package:args/command_runner.dart';
@@ -163,10 +164,17 @@ abstract class SpecstoneCommand extends Command<int> {
     return printAnswer(read, sessionWarnings, asJson: asJson);
   }
 
+  /// Returns the object `--json` prints for [answer]: [ReadAnswer.json] with a
+  /// `warnings` array of [warnings] then the answer's.
+  Map<String, Object?> printedJson(ReadAnswer answer, List<String> warnings) =>
+      {
+        ...answer.json,
+        'warnings': [...warnings, ...answer.warnings],
+      };
+
   /// Prints [answer] and returns its exit status.
   ///
-  /// Under [asJson] it prints one object, [ReadAnswer.json] with a `warnings`
-  /// array of [warnings] then the answer's, on `out`. Else it warns on `err`
+  /// Under [asJson] it prints [printedJson] on `out`. Else it warns on `err`
   /// and writes [ReadAnswer.text] on `out`.
   int printAnswer(
     ReadAnswer answer,
@@ -174,14 +182,59 @@ abstract class SpecstoneCommand extends Command<int> {
     required bool asJson,
   }) {
     final out = specstoneRunner.out;
-    final allWarnings = [...warnings, ...answer.warnings];
     if (asJson) {
-      final printed = {...answer.json, 'warnings': allWarnings};
-      out.write('${pretty.convert(printed)}\n');
+      out.write('${pretty.convert(printedJson(answer, warnings))}\n');
     } else {
-      warn(allWarnings);
+      warn([...warnings, ...answer.warnings]);
       out.write(answer.text);
     }
     return answer.exitStatus;
+  }
+
+  /// Writes [text], the whole `--out` file, to [outPath], or to the file named
+  /// for the command when [outPath] is null, and returns the reply that names
+  /// it.
+  ///
+  /// Outside a project ([projectRoot] null) a bare file goes under the working
+  /// directory, and the write refuses it. [flags], [args], and [codeTarget]
+  /// shape the bare file name.
+  ///
+  /// Throws the fault of `answerOutFile`.
+  ReadAnswer answerOut({
+    required String command,
+    required String text,
+    required String? outPath,
+    required Directory? projectRoot,
+    required Directory? docsRoot,
+    required bool asJson,
+    List<String> flags = const [],
+    List<String> args = const [],
+    String? codeTarget,
+    List<String> warnings = const [],
+    int exitStatus = 0,
+  }) {
+    final workingDirectory = specstoneRunner.workingDirectory;
+    return answerOutFile(
+      command: command,
+      text: text,
+      file: outPath == null
+          ? bareOutFile(
+              projectRoot ?? workingDirectory,
+              outFileName(
+                command: command,
+                flags: flags,
+                args: args,
+                codeTarget: codeTarget,
+                asJson: asJson,
+              ),
+            )
+          : File(absoluteFrom(workingDirectory, outPath)),
+      projectRoot: projectRoot,
+      docsRoot: docsRoot,
+      isBare: outPath == null,
+      asJson: asJson,
+      warnings: warnings,
+      exitStatus: exitStatus,
+    );
   }
 }

@@ -1,5 +1,4 @@
-import 'dart:io';
-
+import 'package:args/args.dart';
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
@@ -93,44 +92,36 @@ class GetCommand extends SpecstoneCommand {
         ),
         _ => answerGet(session.index, rest, codeTarget: targetOf(args)),
       };
-      return writesOut(args) ? _written(session, answer, out) : answer;
+      return writesOut(args)
+          ? _written(args, session, answer, out, asJson: asJson)
+          : answer;
     }, asJson: asJson);
   }
 
   /// Writes [answer] to the `--out` file, bare when [out] is null, and returns
   /// the reply that names it.
-  ReadAnswer _written(ReadSession session, ReadAnswer answer, String? out) {
-    final args = argResults!;
-    final asJson = args.flag('json');
+  ReadAnswer _written(
+    ArgResults args,
+    ReadSession session,
+    ReadAnswer answer,
+    String? out, {
+    required bool asJson,
+  }) {
     final project = session.project;
+    final printed = printedJson(answer, session.warnings);
     final text = asJson
-        ? '${SpecstoneCommand.pretty.convert({
-            ...answer.json,
-            'warnings': [...session.warnings, ...answer.warnings],
-          })}\n'
+        ? '${SpecstoneCommand.pretty.convert(printed)}\n'
         : answer.text;
-    return answerOutFile(
+    return answerOut(
       command: 'get',
       text: text,
-      file: out == null
-          ? bareOutFile(
-              project.projectRoot,
-              outFileName(
-                command: 'get',
-                flags: [
-                  if (args.flag('paths')) 'paths',
-                  if (args.flag('code')) 'code',
-                ],
-                args: args.rest,
-                codeTarget: targetOf(args),
-                asJson: asJson,
-              ),
-            )
-          : File(absoluteFrom(specstoneRunner.workingDirectory, out)),
+      outPath: out,
       projectRoot: project.projectRoot,
       docsRoot: project.docsRoot,
-      isBare: out == null,
       asJson: asJson,
+      flags: [if (args.flag('paths')) 'paths', if (args.flag('code')) 'code'],
+      args: args.rest,
+      codeTarget: targetOf(args),
       warnings: answer.warnings,
       exitStatus: answer.exitStatus,
     );

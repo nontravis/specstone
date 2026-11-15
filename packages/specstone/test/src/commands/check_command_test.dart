@@ -1900,6 +1900,52 @@ void main() {
       );
     });
 
+    test('a relative --out path writes there and exits 1', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      final relative = ['out', 'check.txt'].join(Platform.pathSeparator);
+      expect(
+        await run.runner.run(['check', '--out', relative]),
+        1,
+        reason: run.err.toString(),
+      );
+      final file = File(
+        [project.path, 'out', 'check.txt'].join(Platform.pathSeparator),
+      );
+      expect(file.readAsStringSync(), endsWith('1 finding\n'));
+      expect(run.out.toString(), contains(file.resolveSymbolicLinksSync()));
+    });
+
+    test('--out into the docs root exits 73 and writes nothing', () async {
+      final project = await oneFinding();
+      final run = readRunner(project);
+      final relative = ['docs', 'check.txt'].join(Platform.pathSeparator);
+      expect(await run.runner.run(['check', '--out', relative]), 73);
+      expect(run.out.toString(), isEmpty);
+      expect(
+        File([project.path, 'docs', 'check.txt'].join(Platform.pathSeparator))
+            .existsSync(),
+        isFalse,
+      );
+    });
+
+    test('--repeats --out writes the repeats text', () async {
+      final project = await oneFinding();
+      final stdout = readRunner(project);
+      expect(await stdout.runner.run(['check', '--repeats']), 0);
+      final run = readRunner(project);
+      expect(await run.runner.run(['check', '--repeats', '--out']), 0);
+      final file = File(
+        [
+          project.path,
+          '.specstone',
+          'reports',
+          'check-repeats.all.txt',
+        ].join(Platform.pathSeparator),
+      );
+      expect(file.readAsStringSync(), stdout.out.toString());
+    });
+
     test('a warning still goes to stderr', () async {
       final project = await writeCheckProject();
       File('${project.path}/.specstone/index.sqlite')

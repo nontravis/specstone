@@ -522,6 +522,69 @@ void main() {
       },
     );
 
+    test('a typed name has its colon turned to a dash in the bare file name, '
+        'for --paths and --code', () async {
+      for (final option in ['paths', 'code']) {
+        final project = await writeReadProject(
+          extra: {journeyDoc: journeyText, storyDoc: storyText},
+        );
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'get',
+            'journey:sign_in',
+            '--$option',
+            '--out',
+          ]),
+          0,
+          reason: run.err.toString(),
+        );
+        final file = File(
+          [
+            project.path,
+            '.specstone',
+            'reports',
+            'get-$option.journey-sign_in.txt',
+          ].join(Platform.pathSeparator),
+        );
+        expect(file.existsSync(), isTrue, reason: option);
+        expect(run.out.toString(), startsWith('==> get: '), reason: option);
+      }
+    });
+
+    test(
+      '--json --out carries the session warnings in the file as printed',
+      () async {
+        final project = await writeReadProject();
+        File(
+          [
+            project.path,
+            '.specstone',
+            'index.sqlite',
+          ].join(Platform.pathSeparator),
+        ).writeAsStringSync('not a database');
+        final run = readRunner(project);
+        expect(
+          await run.runner.run(['get', 'feature:login', '--json', '--out']),
+          0,
+          reason: run.err.toString(),
+        );
+        final file = File(
+          [
+            project.path,
+            '.specstone',
+            'reports',
+            'get.feature-login.json',
+          ].join(Platform.pathSeparator),
+        );
+        final written =
+            jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
+        expect(written['warnings'], isNotEmpty);
+        final printed = jsonDecode(run.out.toString()) as Map<String, Object?>;
+        expect(printed['warnings'], written['warnings']);
+      },
+    );
+
     test('a path given names the file, and its folder is made', () async {
       final project = await writeReadProject();
       final run = readRunner(project);
