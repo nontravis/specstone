@@ -50,8 +50,8 @@ void main() {
     ]);
   });
 
-  test('scope prints in summary, results prints one table row, and a '
-      'project bundle prints the doc in summary', () {
+  test('scope is a summary section, results counts one summary row, and '
+      'the doc is summarized for the project target', () {
     expect(sectionOf(measurement, 'scope').summary, isTrue);
     expect(sectionOf(measurement, 'results').summaryRowCount, 1);
     expect(measurement.summaryFor, ['project']);
@@ -71,6 +71,16 @@ void main() {
     );
     expectNoNasaLint(measurement);
     expectSources(measurement, []);
+  });
+
+  test('the guide states the item shape: rule per ID, mechanics, and '
+      'bound', () {
+    expectItemShape(
+      measurement,
+      'Write one rule per ID; in a section with no IDs, one rule per item, '
+      'with mechanics left to the spec docs.\n'
+      'Keep a bound in the item it limits, never in the prose.',
+    );
   });
 
   test('the guide states the log rule and the goal link', () {
