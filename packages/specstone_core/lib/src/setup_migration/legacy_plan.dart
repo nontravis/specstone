@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc, KeyBlock;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show statusesOutsideApproval, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -141,7 +142,7 @@ RunPlan _legacyRunOf(
       for (final section in gnfr.sections) section.id,
   };
 
-  final originals = _originalsOf(docsRoot, docPaths);
+  final originals = _originalsOf(docsRoot, root, docPaths);
   final titled = _titledWorksOf(
     originals,
     legacy: placed,
@@ -197,7 +198,7 @@ RunPlan _legacyRunOf(
     recordSteps: _recordStepsOf(
       templates.availableManifests(carriedPacks, homeDirectory: homeDirectory),
     ),
-    exists: (path) => _existsIn(docsRoot, path),
+    exists: (path) => _existsIn(docsRoot, root, path),
     isTaken: (docPath) => taken('$_docsFolder$docPath'),
     statusesOutside: statusesOutsideApproval(pins),
     testNames: projectSet.recordDocType != null
@@ -452,12 +453,18 @@ final class _Work {
 
 /// Returns the text of every `.md` doc of [docPaths] that is UTF-8, by
 /// legacy DocPath in [docPaths] order; any other file moves untouched.
-Map<String, DocText> _originalsOf(Directory docsRoot, List<String> docPaths) =>
-    {
-      for (final docPath in docPaths)
-        if (docPath.endsWith('.md'))
-          docPath: ?readDocFile(docFileOf(docsRoot, docPath), docPath: docPath),
-    };
+Map<String, DocText> _originalsOf(
+  Directory docsRoot,
+  Directory projectRoot,
+  List<String> docPaths,
+) => {
+  for (final docPath in docPaths)
+    if (docPath.endsWith('.md'))
+      docPath: ?readDocFile(
+        fileOfDocPath(docPath, docsRoot: docsRoot, projectRoot: projectRoot),
+        docPath: docPath,
+      ),
+};
 
 /// Returns the plan line part naming [inferred], empty when the run cited no
 /// code path or inferred none.
@@ -894,8 +901,10 @@ void _rewriteRefs(
 
 /// Whether [path], from [docsRoot] and possibly leaving it, names a file or
 /// folder of the legacy tree.
-bool _existsIn(Directory docsRoot, String path) =>
-    FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
+bool _existsIn(Directory docsRoot, Directory projectRoot, String path) =>
+    FileSystemEntity.typeSync(
+      fileOfDocPath(path, docsRoot: docsRoot, projectRoot: projectRoot).path,
+    ) !=
     FileSystemEntityType.notFound;
 
 /// Returns the config rewrite that sets the carried [pins] and the [codeRoot]

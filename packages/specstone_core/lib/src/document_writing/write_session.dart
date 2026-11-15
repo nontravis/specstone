@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -119,22 +120,23 @@ final class WriteSession {
   /// The store's warnings, the refresh's, then each doc's in tree order.
   List<String> get warnings => _read.warnings;
 
-  /// Returns the file of [docPath], a path relative to the docs root.
-  File fileOf(String docPath) => File(
-    '${project.docsRoot.path}${Platform.pathSeparator}'
-    '${docPath.split('/').join(Platform.pathSeparator)}',
+  /// Returns the file of [docPath], a path relative to the docs root or a
+  /// records DocPath.
+  File fileOf(String docPath) => fileOfDocPath(
+    docPath,
+    docsRoot: project.docsRoot,
+    projectRoot: project.projectRoot,
   );
 
   /// Returns [docPath] as a journal step takes it: relative to the project
   /// root and `/`-separated.
-  String projectPathOf(String docPath) => '$_docsPrefix$docPath';
+  String projectPathOf(String docPath) => projectPathOfDocPath(docPath);
 
   /// Returns the DocPath of [projectPath], the inverse of [projectPathOf].
-  String docPathOf(String projectPath) =>
-      projectPath.substring(_docsPrefix.length);
+  String docPathOf(String projectPath) => docPathOfProjectPath(projectPath);
 
   /// Returns [projectPath] as a write is listed: a doc by its DocPath, any
-  /// other file, a code file, by its project path.
+  /// other file, a code file, by its project path; a record's two are one.
   String listedPathOf(String projectPath) => projectPath.startsWith(_docsPrefix)
       ? docPathOf(projectPath)
       : projectPath;

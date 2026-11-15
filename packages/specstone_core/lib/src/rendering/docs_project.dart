@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart' as approval;
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
@@ -112,6 +113,13 @@ final class DocsProject {
   /// The canonical `<project root>/docs/`, which may not exist.
   Directory get docsRoot => trust.docsRoot;
 
+  /// The `.specstone/records/` folder as a walk target, or null when it is
+  /// absent or a symbolic link.
+  Target? get recordsTarget {
+    final folder = recordsRootOf(projectRoot);
+    return folder == null ? null : Target(folder, recordsFolderDocPath);
+  }
+
   /// The config's code targets, in config order.
   final List<CodeTarget> targets;
 
@@ -178,7 +186,8 @@ final class DocsProject {
   }
 
   /// Returns the DocPath of the file [path] names from [workingDirectory], or
-  /// null when it names no existing file inside the docs root.
+  /// null when it names no existing file inside the docs root or the records
+  /// root.
   ///
   /// Symbolic links and `..` resolve first, as [resolveTarget] resolves them.
   String? docPathAt(String path, {required Directory workingDirectory}) {
@@ -195,7 +204,7 @@ final class DocsProject {
   /// existing ancestor is made canonical first.
   String displayPath(FileSystemEntity entity) {
     final path = canonicalPath(entity.absolute.path);
-    final docPath = _docPathOf(path);
+    final docPath = _docsDocPathOf(path);
     if (docPath != null) {
       return docPath.isEmpty ? docsFolderName : '$docsFolderName/$docPath';
     }
@@ -211,7 +220,7 @@ final class DocsProject {
   /// [entity] may not exist yet. Symbolic links and `..` segments are resolved
   /// first, so no spelling of a path inside the docs root compares as outside.
   bool isInsideDocsRoot(FileSystemEntity entity) =>
-      _docPathOf(canonicalPath(entity.absolute.path)) != null;
+      _docsDocPathOf(canonicalPath(entity.absolute.path)) != null;
 
   Target _targetAt(String path, {required String asGiven}) {
     final type = FileSystemEntity.typeSync(path);
@@ -235,8 +244,13 @@ final class DocsProject {
     return Target(entity, docPath);
   }
 
+  /// Returns [canonical] as a DocPath of the docs root or the records root,
+  /// or null when in neither.
+  String? _docPathOf(String canonical) =>
+      docPathOfPath(canonical, docsRoot: docsRoot, projectRoot: projectRoot);
+
   /// Returns [canonical] relative to the docs root, or null when outside.
-  String? _docPathOf(String canonical) {
+  String? _docsDocPathOf(String canonical) {
     final root = docsRoot.path;
     if (canonical == root) return '';
     final prefix = root.endsWith(_separator) ? root : '$root$_separator';

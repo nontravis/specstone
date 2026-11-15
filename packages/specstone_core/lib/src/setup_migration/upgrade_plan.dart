@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
@@ -162,7 +163,7 @@ RunPlan _upgradeRunOf(
   );
 
   final docsRoot = Directory.fromUri(root.uri.resolve(_docsFolder));
-  final docPaths = docPathsOf(docsRoot)..sort(compareCodePoints);
+  final docPaths = docPathsOf(docsRoot, root)..sort(compareCodePoints);
   // With two or more code targets the per-target docs sit in a target folder,
   // the first target's for a doc the run moves or creates.
   final firstTarget = twinNamesOf(config.targetNames).firstOrNull;
@@ -204,7 +205,10 @@ RunPlan _upgradeRunOf(
   final renameCollisions = <MigrateFault>[];
   for (final path in docPaths) {
     final plannedPath = planned[path]!;
-    final original = readDocFile(docFileOf(docsRoot, path), docPath: path);
+    final original = readDocFile(
+      fileOfDocPath(path, docsRoot: docsRoot, projectRoot: root),
+      docPath: path,
+    );
     if (original == null) continue;
     final match = matcher.match(plannedPath);
     final docType = match is MatchedDocType ? match.docType : null;
@@ -293,7 +297,7 @@ RunPlan _upgradeRunOf(
         links.lf,
         docPath: path,
         moves: moves,
-        exists: (docPath) => _existsIn(docsRoot, docPath),
+        exists: (docPath) => _existsIn(docsRoot, root, docPath),
       );
       lf = mentions.lf;
       final labels = [?links.label, ?mentions.label];
@@ -310,7 +314,7 @@ RunPlan _upgradeRunOf(
     set: finalSet,
     recordType: finalSet.recordDocType,
     firstTarget: firstTarget,
-    isTaken: (docPath) => taken('$_docsFolder$docPath'),
+    isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
     docs: [
       for (final work in works)
         (
@@ -355,9 +359,7 @@ RunPlan _upgradeRunOf(
     for (final create in recordCreatesOf(placement))
       PlannedCreate(
         path: create.path,
-        text:
-            codeRewrites[create.path.substring(_docsFolder.length)] ??
-            create.text,
+        text: codeRewrites[docPathOfProjectPath(create.path)] ?? create.text,
         note: create.note,
       ),
   ];
@@ -413,7 +415,7 @@ RunPlan _upgradeRunOf(
           works: works,
           texts: converted,
           recordCreates: recordCreates,
-          isTaken: (docPath) => taken('$_docsFolder$docPath'),
+          isTaken: (docPath) => taken(projectPathOfDocPath(docPath)),
         )
       : null;
   final recorded = <String>[];
@@ -483,7 +485,7 @@ RunPlan _upgradeRunOf(
     if (lf == work.original.lf) continue;
     docRewrites.add(
       PlannedRewrite(
-        path: '$_docsFolder${work.plannedPath}',
+        path: projectPathOfDocPath(work.plannedPath),
         text: writtenText(work.original, lf),
         before: work.original.hash,
         changes: work.changes,
@@ -642,8 +644,8 @@ CodeStampStep _codeStampOf(
       ),
     for (final create in recordCreates)
       (
-        docPath: create.path.substring(_docsFolder.length),
-        lf: after[create.path.substring(_docsFolder.length)] ?? create.text,
+        docPath: docPathOfProjectPath(create.path),
+        lf: after[docPathOfProjectPath(create.path)] ?? create.text,
         type: set.recordDocType,
         target: firstTarget,
       ),
@@ -1230,8 +1232,11 @@ List<String> _sortedPaths({
   ...[...overrides]..sort(compareCodePoints),
 ];
 
-/// Whether [path], from [docsRoot] and possibly leaving it, names a file or
-/// folder of the tree as it stands before the moves.
-bool _existsIn(Directory docsRoot, String path) =>
-    FileSystemEntity.typeSync(docFileOf(docsRoot, path).path) !=
+/// Whether [path], from [docsRoot] or the records root of [projectRoot] and
+/// possibly leaving it, names a file or folder of the tree as it stands before
+/// the moves.
+bool _existsIn(Directory docsRoot, Directory projectRoot, String path) =>
+    FileSystemEntity.typeSync(
+      fileOfDocPath(path, docsRoot: docsRoot, projectRoot: projectRoot).path,
+    ) !=
     FileSystemEntityType.notFound;

@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/layer_source.dart';
@@ -77,7 +78,8 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// doc type holds a `record_status` field and its merged `per_target` is
 /// `true`, a `targets:` config without the record doc type is refused, and a
 /// doc type that carries the `patterns` field holds an enabled `out_of_scope`
-/// section (`unknown_value`).
+/// section (`unknown_value`), and a `path` under `.specstone/` belongs only to
+/// the record doc type, below `.specstone/records/` (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
@@ -88,6 +90,7 @@ void checkMergedSet(
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
   _checkNesting(sorted, layerLists, loadIndex);
   _checkPaths(sorted, layerLists, loadIndex);
+  _checkRecordPaths(sorted, layerLists);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
   _checkSummaryFor(sorted, byId, layerLists);
@@ -212,6 +215,31 @@ void _checkPaths(
 }
 
 bool _wrotePath(DocTypeLayer layer) => layer.path != null;
+
+/// Throws `unknown_value` for a `path` under `.specstone/` that is not the
+/// record doc type's path below `.specstone/records/`.
+void _checkRecordPaths(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    final path = docType.path;
+    if (path == null || !path.startsWith(_specstoneFolder)) continue;
+    final isRecord = docType.fields.any(
+      (f) => f.type == FieldType.recordStatus,
+    );
+    if (isRecord && isRecordsDocPath(path)) continue;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'the path $path of ${docType.id} lies under $_specstoneFolder; only the '
+      'record doc type may have a path, and only below $recordsRootDocPath',
+      file: _writerOf(docType.id, _wrotePath, layerLists),
+      key: 'path',
+    );
+  }
+}
+
+const _specstoneFolder = '.specstone/';
 
 /// The load position of [file], before every file when null.
 int _loadRank(String? file, LoadIndex loadIndex) =>

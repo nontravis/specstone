@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/feature_pattern_rules.dart'
     show isSkipSpan, skipLinesOf;
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show acceptanceSectionId;
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -348,8 +349,13 @@ Iterable<Finding> _missingFileLinks(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  final root = context.docsRoot.path;
+  final root = rootOfDocPath(
+    doc.docPath,
+    docsRoot: context.docsRoot,
+    projectRoot: context.projectRoot,
+  ).path;
   final separator = Platform.pathSeparator;
+  final base = isRecordsDocPath(doc.docPath) ? '' : docsFolderName;
   for (final place in context.linesOf(doc).fileLinks) {
     final names = place.target.split('/');
     final onDisk = [
@@ -369,17 +375,18 @@ Iterable<Finding> _missingFileLinks(
       line: place.line,
       message:
           'link target ${place.shown} is missing at '
-          '${_projectPathOf(place.target)}',
-      keys: {'target': place.shown, 'path': _projectPathOf(place.target)},
+          '${_projectPathOf(base, place.target)}',
+      keys: {'target': place.shown, 'path': _projectPathOf(base, place.target)},
     );
   }
 }
 
-/// Returns [target], a path under the docs root, as a path from the project
-/// root: `docs/<target>` with each `..` folded lexically, so `docs/../../x`
+/// Returns [target], a path under [base], the folder of the doc's root (`''`
+/// for a record, read from the project root), as a path from the project
+/// root: `<base>/<target>` with each `..` folded lexically, so `docs/../../x`
 /// is `../x`.
-String _projectPathOf(String target) {
-  final parts = <String>[docsFolderName];
+String _projectPathOf(String base, String target) {
+  final parts = <String>[if (base.isNotEmpty) base];
   for (final segment in target.split('/')) {
     if (segment != '..') {
       parts.add(segment);

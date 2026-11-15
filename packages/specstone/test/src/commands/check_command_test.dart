@@ -16,6 +16,8 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
+import '../../../../specstone_core/test/helpers/record_fixture.dart'
+    show recordsRootTemplates;
 import '../../../../specstone_core/test/helpers/shipped_pins.dart'
     show shippedStatusesOutside;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
@@ -1974,5 +1976,175 @@ void main() {
         RegExp(r'^measurements/notes\.md:1: untyped_doc: .*\n1 finding\n$'),
       ),
     );
+  });
+
+  group('a record under .specstone/records/', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    Future<Directory> recordProject() => writeCheckProject(
+      without: {'docs/$loginRecord'},
+      extra: {
+        ...recordsRootTemplates,
+        record: checkProjectFiles()['docs/$loginRecord']!,
+      },
+    );
+
+    test('check reads the record: a clean record is 0 findings, a broken one names its DocPath', () async {
+      final clean = await recordProject();
+      final ok = await Process.run(binary, [
+        'check',
+      ], workingDirectory: clean.path);
+      expect(ok.exitCode, 0, reason: '${ok.stdout}\n${ok.stderr}');
+      expect(ok.stdout, '0 findings\n');
+
+      final broken = await writeCheckProject(
+        without: {'docs/$loginRecord'},
+        extra: {
+          ...recordsRootTemplates,
+          record: checkProjectFiles()['docs/$loginRecord']!.replaceFirst(
+            'email_login/check_password:implemented',
+            'email_login/check_pasword:implemented',
+          ),
+        },
+      );
+      final bad = await Process.run(binary, [
+        'check',
+      ], workingDirectory: broken.path);
+      expect(bad.exitCode, 1, reason: '${bad.stdout}\n${bad.stderr}');
+      expect(bad.stdout, contains('$record:'));
+    });
+
+    test('context and get reach the record by its address', () async {
+      final project = await recordProject();
+      final got = await Process.run(binary, [
+        'get',
+        'implementation:login',
+        '--json',
+      ], workingDirectory: project.path);
+      expect(got.exitCode, 0, reason: '${got.stdout}\n${got.stderr}');
+      final doc = (jsonDecode(got.stdout as String) as Map)['docs']! as List;
+      expect((doc.single as Map)['path'], record);
+
+      final context = await Process.run(binary, [
+        'context',
+        'implementation:login',
+        '--for',
+        'implement',
+      ], workingDirectory: project.path);
+      expect(
+        context.exitCode,
+        0,
+        reason: '${context.stdout}\n${context.stderr}',
+      );
+      expect(context.stdout, contains('Login implementation'));
+    });
+
+    test(
+      'set --field statuses writes the record under .specstone/records/',
+      () async {
+        final project = await recordProject();
+        final bases = getDoc(project, 'implementation:login')['bases']! as Map;
+        final base = (bases['fields']! as Map)['statuses']! as String;
+        final (:runner, :out, :err) = writeRunner(
+          project,
+          console: FakeConsole(input: '["email_login:planned"]\n'),
+        );
+        expect(
+          await runner.run([
+            'set',
+            'implementation:login',
+            '--field',
+            'statuses',
+            '--base',
+            base,
+          ]),
+          0,
+          reason: err.toString(),
+        );
+        final file = File(
+          [
+            project.path,
+            '.specstone',
+            'records',
+            'f01_login',
+            'IMPLEMENTATION.md',
+          ].join(Platform.pathSeparator),
+        );
+        expect(file.readAsStringSync(), contains('email_login:planned'));
+        expect(
+          Directory('${project.path}/docs/.specstone').existsSync(),
+          isFalse,
+        );
+      },
+    );
+
+    test('delete --dry-run lists the record by its DocPath', () async {
+      final project = await recordProject();
+      final run = await Process.run(binary, [
+        'delete',
+        'implementation:login',
+        '--dry-run',
+      ], workingDirectory: project.path);
+      expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+      expect(run.stdout, contains(record));
+      expect(run.stdout, isNot(contains('docs/$record')));
+    });
+
+    test('format reaches the record in a whole-tree run', () async {
+      final project = await writeCheckProject(
+        without: {'docs/$loginRecord'},
+        extra: {
+          ...recordsRootTemplates,
+          record: checkProjectFiles()['docs/$loginRecord']!.replaceFirst(
+            '# Login implementation\n',
+            '# Login implementation\n\n\n\nText.\n',
+          ),
+        },
+      );
+      final run = await Process.run(binary, [
+        'format',
+        '--check',
+      ], workingDirectory: project.path);
+      expect(run.exitCode, isNot(0), reason: '${run.stdout}\n${run.stderr}');
+      expect(run.stdout, contains(record));
+    });
+
+    test('with two targets the record sits in its target folder after .specstone/records/', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      final project = await writeTwinProject(
+        extra: {
+          ...recordsRootTemplates,
+          flutterRecord: '---\nstatuses:\n  - "email_login:planned"\n---\n\n# Login implementation\n',
+        },
+      );
+      final got = await Process.run(binary, [
+        'get',
+        'implementation:login',
+        '--target',
+        'flutter',
+        '--json',
+      ], workingDirectory: project.path);
+      expect(got.exitCode, 0, reason: '${got.stdout}\n${got.stderr}');
+      final docs = (jsonDecode(got.stdout as String) as Map)['docs']! as List;
+      expect((docs.single as Map)['path'], flutterRecord);
+
+      final misplaced = await writeTwinProject(
+        extra: {
+          ...recordsRootTemplates,
+          '.specstone/records/f01_login/IMPLEMENTATION.md':
+              '# Login implementation\n',
+        },
+      );
+      final check = await Process.run(binary, [
+        'check',
+      ], workingDirectory: misplaced.path);
+      expect(
+        check.stdout,
+        contains(
+          '.specstone/records/f01_login/IMPLEMENTATION.md:1: untyped_doc',
+        ),
+      );
+    });
   });
 }

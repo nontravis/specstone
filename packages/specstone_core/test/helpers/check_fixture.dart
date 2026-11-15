@@ -207,7 +207,7 @@ Map<String, String> withCodeFingerprints(
 
   return {
     for (final MapEntry(:key, :value) in files.entries)
-      key: key.startsWith('docs/') && !unfingerprinted.contains(key)
+      key: _isDocKey(key) && !unfingerprinted.contains(key)
           ? stamped(key, value)
           : value,
   };
@@ -234,7 +234,10 @@ String? _codeRootOf(String docKey, Map<Object?, Object?> config) {
   final targets = config['targets'];
   if (targets is! Map) return _normalRoot(config['code_root']);
   for (final MapEntry(:key, :value) in targets.entries) {
-    if (!docKey.startsWith('docs/specs/$key/')) continue;
+    if (!docKey.startsWith('docs/specs/$key/') &&
+        !docKey.startsWith('.specstone/records/$key/')) {
+      continue;
+    }
     return switch (value) {
       null => '',
       final Map<Object?, Object?> target => _normalRoot(target['code_root']),
@@ -261,6 +264,15 @@ Map<String, String> _codeUnder(String root, Map<String, String> codeFiles) {
       if (key.startsWith('$root/')) key.substring(root.length + 1): value,
   };
 }
+
+/// Whether the fixture key [key] holds a doc: a file under `docs/` or under
+/// `.specstone/records/`.
+bool _isDocKey(String key) =>
+    key.startsWith('docs/') || key.startsWith('.specstone/records/');
+
+/// Returns the DocPath of the doc key [key].
+String _docPathOfKey(String key) =>
+    key.startsWith('docs/') ? key.substring('docs/'.length) : key;
 
 final _codeLinkLine = RegExp(r"^(  - )('?)(.+?)\2$");
 
@@ -374,12 +386,12 @@ MergedDocType fixtureDocTypeOf(String docPath) =>
     };
 
 String _stamped(DocTypeMatcher matcher, String path, String text) {
-  if (!path.startsWith('docs/')) return text;
+  if (!_isDocKey(path)) return text;
   final fields = ApprovalFields.of(Doc.parse(toLf(text)));
   if (fields.isDraft || fields.approvedValue != null) return text;
   // The check reports an invalid frontmatter alone; a stamp would mend it.
   if (DocLines.of(text).frontmatterErrorLine != null) return text;
-  return switch (matcher.match(path.substring('docs/'.length))) {
+  return switch (matcher.match(_docPathOfKey(path))) {
     MatchedDocType(:final docType) => _withEndings(
       text,
       // The matcher resolves the shipped packs, so their rule applies.

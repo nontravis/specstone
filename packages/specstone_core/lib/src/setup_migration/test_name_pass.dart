@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
@@ -126,7 +127,7 @@ final class TestNamePass {
     if (testsKey == null) return _empty();
     final tree = _ItemTree(set, recordType, docs, [
       for (final create in pendingCreates)
-        (docPath: create.path.substring(_docsFolder.length), text: create.text),
+        (docPath: docPathOfProjectPath(create.path), text: create.text),
     ], isTaken);
     final names = _scan(
       root: root,
@@ -171,14 +172,12 @@ final class TestNamePass {
     for (final create in held)
       PlannedCreate(
         path: create.path,
-        text:
-            recordEdits[create.path.substring(_docsFolder.length)] ??
-            create.text,
+        text: recordEdits[docPathOfProjectPath(create.path)] ?? create.text,
         note: create.note,
       ),
     for (final record in recordCreates)
       PlannedCreate(
-        path: '$_docsFolder${record.docPath}',
+        path: projectPathOfDocPath(record.docPath),
         text: record.text,
         note: draftNote,
       ),

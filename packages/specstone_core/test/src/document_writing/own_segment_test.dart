@@ -68,11 +68,10 @@ void main() {
   test('dw-s03/inv6: siblings on disk are the matching own segments, sorted by number', () {
     expect(
       [
-        for (final s in siblingsOnDisk(
-          openProject(root).docsRoot,
-          shape('user_story'),
-          ['01', 'login'],
-        ))
+        for (final s in siblingsOnDisk(openProject(root), shape('user_story'), [
+          '01',
+          'login',
+        ]))
           (s.name, s.number, s.slug),
       ],
       [
@@ -82,10 +81,7 @@ void main() {
       ],
     );
     expect(
-      siblingsOnDisk(openProject(root).docsRoot, shape('user_story'), [
-        '09',
-        'nobody',
-      ]),
+      siblingsOnDisk(openProject(root), shape('user_story'), ['09', 'nobody']),
       isEmpty,
     );
   });
@@ -97,11 +93,10 @@ void main() {
       Directory('${copy.path}/docs/prds/features/f01_login/us09_empty')
           .createSync();
       final names = [
-        for (final s in siblingsOnDisk(
-          openProject(copy).docsRoot,
-          shape('user_story'),
-          ['01', 'login'],
-        ))
+        for (final s in siblingsOnDisk(openProject(copy), shape('user_story'), [
+          '01',
+          'login',
+        ]))
           s.name,
       ];
       expect(names, [
@@ -118,11 +113,10 @@ void main() {
     Process.runSync('chmod', ['000', container]);
     addTearDown(() => Process.runSync('chmod', ['755', container]));
     expect(
-      () => siblingsOnDisk(
-        Directory('${copy.path}/docs'),
-        shape('user_story'),
-        ['01', 'login'],
-      ),
+      () => siblingsOnDisk(openProject(copy), shape('user_story'), [
+        '01',
+        'login',
+      ]),
       throwsA(
         isA<RenderFault>()
             .having((f) => f.code, 'code', RenderFaultCode.outputNotWritable)
@@ -137,7 +131,7 @@ void main() {
 
   test('dw-s03/inv6: a file own segment lists files, not folders', () {
     final names = [
-      for (final s in siblingsOnDisk(openProject(root).docsRoot, shape('fr'), [
+      for (final s in siblingsOnDisk(openProject(root), shape('fr'), [
         '01',
         'login',
         '01',

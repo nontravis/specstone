@@ -8,6 +8,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show baseHashOf, withKeyBlock;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
@@ -75,8 +76,16 @@ CodeStampStep _planAt(Directory project, {bool restamp = false}) {
     final config = session.project;
     final docsRoot = Directory('${config.projectRoot.path}/docs');
     final docs = [
-      for (final docPath in docPathsOf(docsRoot)..sort())
-        _docOf(config.matcher, docPath, File('${docsRoot.path}/$docPath')),
+      for (final docPath in docPathsOf(docsRoot, config.projectRoot)..sort())
+        _docOf(
+          config.matcher,
+          docPath,
+          fileOfDocPath(
+            docPath,
+            docsRoot: docsRoot,
+            projectRoot: config.projectRoot,
+          ),
+        ),
     ];
     return CodeStampStep.plan(
       docs,

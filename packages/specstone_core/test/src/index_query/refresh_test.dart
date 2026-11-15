@@ -17,6 +17,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -110,6 +111,34 @@ void main() {
           if (k.startsWith('docs/') && k.endsWith('.md'))
             k.substring('docs/'.length),
       });
+    });
+    test('a record under .specstone/records/ is indexed with that DocPath and nothing else under .specstone/ is', () async {
+      const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      final (:result, :store) = refresh(
+        await writeLoginProject(
+          extra: {
+            ...recordsRootTemplates,
+            record: '---\nstatuses:\n  - "email_login:planned"\n---\n\n# Login implementation\n',
+            '.specstone/notes/NOTE.md': '# A note\n',
+            '.specstone/records/f01_login/.hidden/HIDDEN.md': '# Hidden\n',
+          },
+        ),
+      );
+      expect(result.fullBuild, isTrue);
+      expect(paths(store), contains(record));
+      expect(docAt(store, record).docTypeId, 'implementation');
+      expect(paths(store).where((p) => p.startsWith('.specstone/')), [record]);
+    });
+    test('an edit to a record reindexes that record only', () async {
+      const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+      final project = await writeLoginProject(
+        extra: {...recordsRootTemplates, record: '# Login implementation\n'},
+      );
+      refresh(project);
+      File('${project.path}/$record').writeAsStringSync('# Login v2\n');
+      final again = refresh(project);
+      expect(again.result.reindexed, 1);
+      expect(docAt(again.store, record).title, 'Login v2');
     });
     test('f01/us01/fr02/e03: an unchanged file is never reindexed; one edit reindexes one file', () async {
       final project = await writeLoginProject();

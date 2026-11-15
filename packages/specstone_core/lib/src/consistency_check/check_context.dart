@@ -240,14 +240,15 @@ final class CheckContext {
             type.sections.any((section) => section.id == sectionId),
       );
 
-  /// The first path segment of every doc type `path`.
+  /// The first path segment of every doc type `path`, and the records folder
+  /// for a records path.
   late final Set<String> checkedFolders = checkedFoldersOf(
     _session.project.set,
   );
 
   /// Whether [docPath] lies in a checked folder.
   bool isCheckedPath(String docPath) =>
-      checkedFolders.contains(docPath.split('/').first);
+      isInCheckedFolder(checkedFolders, docPath);
 
   /// Whether [doc] lies in a checked folder.
   bool isChecked(IndexedDoc doc) => isCheckedPath(doc.docPath);

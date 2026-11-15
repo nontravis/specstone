@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/path_pattern.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show PathMove;
 import 'package:specstone_core/src/templates/code_target.dart' show twinNamesOf;
@@ -57,14 +58,23 @@ String? _inTargetFolder(String docPath, List<String> patterns, String target) {
   return null;
 }
 
-/// Returns the DocPath of every Markdown file under [docsRoot].
-List<String> docPathsOf(Directory docsRoot) {
-  if (!docsRoot.existsSync()) return [];
+/// Returns the DocPath of every Markdown file under [docsRoot], then of every
+/// one under the records root of [projectRoot].
+List<String> docPathsOf(Directory docsRoot, Directory projectRoot) => [
+  ..._markdownUnder(docsRoot, ''),
+  if (recordsRootOf(projectRoot) case final records?)
+    ..._markdownUnder(records, recordsRootDocPath),
+];
+
+/// Returns the DocPath, opening with [prefix], of every Markdown file under
+/// [folder]; none when it does not exist.
+List<String> _markdownUnder(Directory folder, String prefix) {
+  if (!folder.existsSync()) return [];
   // A file URI path always uses `/`, so no platform separator is split on.
-  final prefixLength = docsRoot.uri.path.length;
+  final prefixLength = folder.uri.path.length;
   return [
-    for (final entity in docsRoot.listSync(recursive: true, followLinks: false))
+    for (final entity in folder.listSync(recursive: true, followLinks: false))
       if (entity is File && entity.path.endsWith('.md'))
-        Uri.decodeComponent(entity.uri.path.substring(prefixLength)),
+        prefix + Uri.decodeComponent(entity.uri.path.substring(prefixLength)),
   ];
 }

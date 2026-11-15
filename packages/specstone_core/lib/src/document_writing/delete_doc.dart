@@ -5,6 +5,7 @@ import 'package:specstone_core/src/consistency_check/tree_rules.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
@@ -367,7 +368,7 @@ List<String> _mentionWarnings(WriteSession session, Set<String> inUnit) {
 
 /// Whether [doc] is untyped and lies outside every folder in [checkedFolders].
 bool _isHistory(IndexedDoc doc, Set<String> checkedFolders) =>
-    !doc.isTyped && !checkedFolders.contains(doc.docPath.split('/').first);
+    !doc.isTyped && !isInCheckedFolder(checkedFolders, doc.docPath);
 
 /// Throws [WriteFault] `doc_referenced`, naming the docs in [outside].
 Never _refuseReferred(
@@ -418,7 +419,7 @@ Iterable<String> _filesUnder(WriteSession session, String root) sync* {
     session.fileOf(root.substring(0, root.length - 1)).path,
   );
   if (!folder.existsSync()) return;
-  final prefixLength = session.project.docsRoot.path.length + 1;
+  final prefixLength = _rootPathLengthOf(session, root) + 1;
   final List<FileSystemEntity> entities;
   try {
     entities = folder.listSync(recursive: true, followLinks: false);
@@ -434,6 +435,14 @@ Iterable<String> _filesUnder(WriteSession session, String root) sync* {
   }
 }
 
+/// Returns the length of the path of the root the DocPath [root] is relative
+/// to.
+int _rootPathLengthOf(WriteSession session, String root) => rootOfDocPath(
+  root,
+  docsRoot: session.project.docsRoot,
+  projectRoot: session.project.projectRoot,
+).path.length;
+
 /// Returns the project path of every folder under [root], a folder ending
 /// in `/`.
 Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
@@ -441,7 +450,7 @@ Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
     session.fileOf(root.substring(0, root.length - 1)).path,
   );
   if (!folder.existsSync()) return;
-  final prefixLength = session.project.docsRoot.path.length + 1;
+  final prefixLength = _rootPathLengthOf(session, root) + 1;
   for (final entity in folder.listSync(recursive: true, followLinks: false)) {
     if (entity is! Directory) continue;
     yield session.projectPathOf(

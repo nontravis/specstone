@@ -8,7 +8,7 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart'
-    show checkedFoldersOf;
+    show checkedFoldersOf, isInCheckedFolder;
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -18,6 +18,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -394,5 +395,24 @@ void main() {
       checkedFoldersOf(set),
       containsAll(['prds', 'specs', 'measurements']),
     );
+  });
+
+  test('a records path is one two-segment checked folder, and only docs below '
+      'it lie in it', () async {
+    final project = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+      ...recordsRootTemplates,
+    });
+    final set = TemplateResolver(shippedFiles: shippedPackFiles)
+        .resolve(workingDirectory: project, homeDirectory: null);
+    final folders = checkedFoldersOf(set);
+    expect(folders, contains('.specstone/records'));
+    expect(folders, isNot(contains('.specstone')));
+    expect(
+      isInCheckedFolder(folders, '.specstone/records/f01_x/IMPLEMENTATION.md'),
+      isTrue,
+    );
+    expect(isInCheckedFolder(folders, '.specstone/notes/x.md'), isFalse);
+    expect(isInCheckedFolder(folders, 'prds/FEATURES.md'), isTrue);
   });
 }

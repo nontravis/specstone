@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -57,18 +59,21 @@ final class SiblingEntry {
 /// container is absent.
 /// Throws [RenderFault] `output_not_writable` when the container is unreadable.
 List<SiblingEntry> siblingsOnDisk(
-  Directory docsRoot,
+  DocsProject project,
   DocPathShape shape,
   List<String> parentValues,
 ) {
-  final folder = shape
-      .containerOf(parentValues)
+  final containerDocPath = shape.containerOf(parentValues);
+  final folder = containerDocPath
       .split('/')
       .where((segment) => segment.isNotEmpty)
       .join(Platform.pathSeparator);
-  final container = Directory(
-    '${docsRoot.path}${Platform.pathSeparator}$folder',
+  final root = rootOfDocPath(
+    containerDocPath,
+    docsRoot: project.docsRoot,
+    projectRoot: project.projectRoot,
   );
+  final container = Directory('${root.path}${Platform.pathSeparator}$folder');
   if (!container.existsSync()) return const [];
   final entries = <SiblingEntry>[];
   final List<FileSystemEntity> children;

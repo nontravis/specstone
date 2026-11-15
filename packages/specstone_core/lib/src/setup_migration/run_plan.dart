@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
@@ -8,8 +9,6 @@ import 'package:specstone_core/src/document_writing/stale_mentions.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-
-const _docsPrefix = 'docs/';
 
 /// Returns whether a ProjectPath under [root] holds an entry once [moves], as
 /// DocPaths, ran: a move lands on it, or a file, folder, or link is there and
@@ -21,8 +20,8 @@ bool Function(String projectPath) takenAfterMoves(
   Directory root,
   List<PathMove> moves,
 ) {
-  final landed = {for (final move in moves) '$_docsPrefix${move.to}'};
-  final vacated = {for (final move in moves) '$_docsPrefix${move.from}'};
+  final landed = {for (final move in moves) projectPathOfDocPath(move.to)};
+  final vacated = {for (final move in moves) projectPathOfDocPath(move.from)};
   final base = '${root.path}${Platform.pathSeparator}';
   bool holdsEntry(String projectPath) =>
       FileSystemEntity.typeSync(
@@ -368,8 +367,8 @@ final class RunPlan {
     final trashed = _trashedEntries(projectRoot);
     final movedPaths = [
       for (final move in moves) ...[
-        '$_docsPrefix${move.from}',
-        '$_docsPrefix${move.to}',
+        projectPathOfDocPath(move.from),
+        projectPathOfDocPath(move.to),
       ],
     ];
     final commit2Paths = {
@@ -391,7 +390,10 @@ final class RunPlan {
           base: base,
           moves: [
             for (final move in moves)
-              (from: '$_docsPrefix${move.from}', to: '$_docsPrefix${move.to}'),
+              (
+                from: projectPathOfDocPath(move.from),
+                to: projectPathOfDocPath(move.to),
+              ),
           ],
         ),
       for (final rewrite in rewrites)
@@ -500,8 +502,8 @@ final class RunPlan {
     final unparks = <MoveStep>[];
     for (final (index, move) in moves.indexed) {
       unmoved.remove(move.from);
-      final from = '$_docsPrefix${move.from}';
-      final to = '$_docsPrefix${move.to}';
+      final from = projectPathOfDocPath(move.from);
+      final to = projectPathOfDocPath(move.to);
       if (unmoved.contains(move.to)) {
         final slot = '${MoveJournal.stagePath}/$index';
         steps.add(MoveStep(from, slot));
@@ -518,8 +520,5 @@ final class RunPlan {
       '${_shown(rewrite.path)}: ${rewrite.changes.join(', ')}${rewrite.note}',
   ];
 
-  static String _shown(String projectPath) =>
-      projectPath.startsWith(_docsPrefix)
-      ? projectPath.substring(_docsPrefix.length)
-      : projectPath;
+  static String _shown(String projectPath) => docPathOfProjectPath(projectPath);
 }

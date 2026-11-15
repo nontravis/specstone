@@ -93,3 +93,14 @@ bool holdsApproval(
             );
   });
 }
+
+/// The project-layer template that moves the shipped `implementation` doc
+/// type's records under `.specstone/records/`.
+const recordsRootLayer =
+    'id: implementation\n'
+    'path: .specstone/records/f{nn}_{slug}/IMPLEMENTATION.md\n';
+
+/// The fixture files that put `implementation` under `.specstone/records/`.
+const recordsRootTemplates = <String, String>{
+  '.specstone/templates/implementation.yaml': recordsRootLayer,
+};
