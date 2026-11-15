@@ -808,7 +808,7 @@ void main() {
         final (:runner, :out, :err) = writeRunner(await writeNestedProject());
         expect(await runner.run(['delete', 'feature:ay', '--dry-run']), 64);
         expect(out.toString(), isEmpty);
-        expect(err.toString(), contains('ay'));
+        expect(err.toString(), 'no feature doc carries the name ay\n');
       },
     );
   });

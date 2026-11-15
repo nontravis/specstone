@@ -427,7 +427,7 @@ void main() {
       final (:runner, :out, :err) = writeRunner(await writeNestedProject());
       expect(await runner.run(['reorder', 'feature:ay', '--to', '1']), 64);
       expect(out.toString(), isEmpty);
-      expect(err.toString(), contains('ay'));
+      expect(err.toString(), 'no feature doc carries the name ay\n');
     });
   });
 }

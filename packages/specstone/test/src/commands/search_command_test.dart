@@ -161,7 +161,7 @@ void main() {
     test('search --under refuses a suffix of no identity, naming it', () async {
       final (:runner, :out, :err) = readRunner(await writeNestedProject());
       expect(await runner.run(['search', 'shopper', '--under', 'art']), 64);
-      expect(err.toString(), contains('art'));
+      expect(err.toString(), 'no doc carries the name art\n');
     });
   });
 }

@@ -981,7 +981,7 @@ void main() {
         64,
       );
       expect(out.toString(), isEmpty);
-      expect(err.toString(), contains('art'));
+      expect(err.toString(), 'no feature doc carries the name art\n');
     });
   });
 }

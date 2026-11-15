@@ -788,5 +788,29 @@ void main() {
         'specs/f01_login/ERROR.md',
       ]);
     });
+    test('a suffix keeps only the docs of the code target', () async {
+      final root = await writeTree({
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/specs/jaspr/f01_shop/f02_zoom/ARCHITECTURE.md':
+            '# Zoom architecture\n',
+      });
+      final session = openSession(root);
+      addTearDown(session.close);
+      final tree = session.index;
+      expect(paths(tree.resolve('zoom', codeTarget: 'jaspr')), [
+        'specs/jaspr/f01_shop/f02_zoom/ARCHITECTURE.md',
+      ]);
+      expect(
+        () => tree.resolve('zoom', codeTarget: 'flutter'),
+        faultWith(IndexFaultCode.docNotFound),
+      );
+    });
   });
 }
