@@ -133,6 +133,19 @@ final class StampCodeFingerprints extends MigrationStep {
   String get kind => 'stamp_code_fingerprints';
 }
 
+/// A `restamp_code_fingerprints` step: `migrate` rewrites the code
+/// fingerprint of each code link stamped under the rule before comment and
+/// blank lines were dropped; the step takes no keys.
+final class RestampCodeFingerprints extends MigrationStep {
+  const new();
+
+  @override
+  bool touches(String docTypeId) => false;
+
+  @override
+  String get kind => 'restamp_code_fingerprints';
+}
+
 /// A `bullet_lines` step: each line of one section that opens with a listed
 /// prefix becomes a markdown bullet.
 final class BulletLines extends MigrationStep {
@@ -264,6 +277,12 @@ MigrationStep _parseStep(YamlNode node, int i, int j, {required String file}) {
       file: file,
     ),
     'stamp_code_fingerprints' => _parseStampCodeFingerprints(
+      _stepBody(map.nodes[kind]!, kind, i, j, file: file),
+      i,
+      j,
+      file: file,
+    ),
+    'restamp_code_fingerprints' => _parseRestampCodeFingerprints(
       _stepBody(map.nodes[kind]!, kind, i, j, file: file),
       i,
       j,
@@ -424,6 +443,22 @@ StampCodeFingerprints _parseStampCodeFingerprints(
     prefix: 'migrations[$i].steps[$j].stamp_code_fingerprints.',
   );
   return const StampCodeFingerprints();
+}
+
+RestampCodeFingerprints _parseRestampCodeFingerprints(
+  YamlMap map,
+  int i,
+  int j, {
+  required String file,
+}) {
+  checkKeys(
+    map,
+    const <String>{},
+    file: file,
+    format: 'restamp_code_fingerprints step',
+    prefix: 'migrations[$i].steps[$j].restamp_code_fingerprints.',
+  );
+  return const RestampCodeFingerprints();
 }
 
 BulletLines _parseBulletLines(

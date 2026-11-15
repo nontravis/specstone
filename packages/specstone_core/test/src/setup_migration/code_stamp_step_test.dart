@@ -36,6 +36,8 @@ const _linkedDocs = {'docs/$loginRecord', 'docs/$loginArchitecture'};
 String _fingerprintOf(String text, String path) =>
     fileCodeFingerprint(utf8.encode(text), path: path);
 
+String _legacyOf(String text) => legacyFileCodeFingerprint(utf8.encode(text));
+
 final String _loginText = checkProjectFiles()[_login]!;
 final String _loginFingerprint = _fingerprintOf(_loginText, _login);
 final String _appLibFingerprint = folderCodeFingerprint([
@@ -67,7 +69,7 @@ Future<Directory> _project({
 );
 
 /// Plans the step over the docs of [project] with the project's targets.
-CodeStampStep _planAt(Directory project) {
+CodeStampStep _planAt(Directory project, {bool restamp = false}) {
   final session = openSession(project);
   try {
     final config = session.project;
@@ -81,6 +83,7 @@ CodeStampStep _planAt(Directory project) {
       projectRoot: config.projectRoot,
       set: config.set,
       targets: config.targets,
+      restamp: restamp,
     );
   } finally {
     session.close();
@@ -465,6 +468,141 @@ void main() {
         expect(line.paths, [loginArchitecture]);
         expect(line.toJson()['unreadable'], [_login]);
         expect(step.rewrites, isNot(contains(loginRecord)));
+      },
+    );
+  });
+
+  group('restamp mode', () {
+    const restampStep = 'restamp_code_fingerprints';
+    const other = 'app/lib/other.dart';
+    const otherText = '// Other.\nclass Other {}\n\n';
+    final legacyLogin = _legacyOf(_loginText);
+
+    /// Plans the restamp over a project whose record holds [code] entries,
+    /// all implemented, and whose architecture doc holds [covers].
+    Future<Directory> restampProject({
+      List<String> code = const [],
+      List<String> covers = const [],
+      List<String> statuses = const ['email_login:implemented'],
+    }) => _project(
+      extra: {
+        'docs/$loginRecord': _record(statuses: statuses, code: code),
+        'docs/$loginArchitecture':
+            checkProjectFiles()['docs/$loginArchitecture']!.replaceFirst(
+              'covers:\n  - app/lib/\n',
+              'covers:\n${[for (final c in covers) '  - $c\n'].join()}',
+            ),
+        other: otherText,
+      },
+    );
+
+    test('a link stamped under the old rule takes the new fingerprint, so '
+        'the next check finds no suspect link', () async {
+      final project = await restampProject(
+        code: ['email_login:$_login:SignInPage $legacyLogin'],
+      );
+      expect(_codeFindings(_check(project)), isNotEmpty);
+
+      final step = _planAt(project, restamp: true);
+      _write(project, step);
+
+      expect(
+        _read(project, loginRecord),
+        contains("  - 'email_login:$_login:SignInPage $_loginFingerprint'\n"),
+      );
+      expect(
+        _codeFindings(_check(project))
+            .where((finding) => finding.kind == FindingKind.codeSuspect),
+        isEmpty,
+      );
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries',
+      );
+    });
+
+    test('a suspect link and a link with no fingerprint stay as written, '
+        'and are not counted', () async {
+      final project = await restampProject(
+        code: [
+          'email_login:$_login:SignInPage $_stale',
+          'email_login/check_password:$_login:checkPassword',
+        ],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isEmpty);
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 0 docs; 0 entries',
+      );
+    });
+
+    test('a planned entry stays as written', () async {
+      final project = await restampProject(
+        statuses: ['email_login:planned'],
+        code: ['email_login:$_login:SignInPage $legacyLogin'],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isNot(contains(loginRecord)));
+    });
+
+    test('a link whose code has no line the new rule drops is not '
+        'counted', () async {
+      final project = await restampProject(
+        code: ['email_login:$_login:SignInPage $legacyLogin'],
+      );
+      File('${project.path}/$_login')
+          .writeAsStringSync('class SignInPage {}\n');
+      final plain = _legacyOf('class SignInPage {}\n');
+      File('${project.path}/docs/$loginRecord').writeAsStringSync(
+        _record(code: ['email_login:$_login:SignInPage $plain']),
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(step.rewrites, isEmpty);
+    });
+
+    test('restamps a folder link and leaves a suspect sibling', () async {
+      final legacyFolder = folderCodeFingerprint([
+        (path: _login, fingerprint: legacyLogin),
+        (path: other, fingerprint: _legacyOf(otherText)),
+      ]);
+      final newFolder = folderCodeFingerprint([
+        (path: _login, fingerprint: _loginFingerprint),
+        (path: other, fingerprint: _fingerprintOf(otherText, other)),
+      ]);
+      final project = await restampProject(
+        covers: ['app/lib/ $legacyFolder', '$other $_stale'],
+      );
+
+      final step = _planAt(project, restamp: true);
+
+      expect(
+        step.rewrites[loginArchitecture],
+        contains('covers:\n  - app/lib/ $newFolder\n  - $other $_stale\n'),
+      );
+      expect(
+        step.stepLine(from: '1.7.0', step: restampStep).text,
+        'from 1.7.0: restamp_code_fingerprints: 1 docs; 1 entries',
+      );
+    });
+
+    test(
+      'the text equals what the stamp mode writes for the same code',
+      () async {
+        final project = await restampProject(
+          code: ['email_login:$_login:SignInPage $legacyLogin'],
+        );
+
+        final restamped = _planAt(project, restamp: true);
+        final stamped = _planAt(project);
+
+        expect(restamped.rewrites[loginRecord], stamped.rewrites[loginRecord]);
       },
     );
   });

@@ -228,6 +228,7 @@ RunPlan _upgradeRunOf(
           lf: lf,
         ),
         StampCodeFingerprints() => lf,
+        RestampCodeFingerprints() => lf,
         BulletLines() => switch (docType.sections
             .where((section) => section.id == step.section)
             .firstOrNull) {
@@ -252,6 +253,7 @@ RunPlan _upgradeRunOf(
           MoveFile() => false,
           MoveToRecord() => false,
           StampCodeFingerprints() => false,
+          RestampCodeFingerprints() => false,
           BulletLines() => false,
         };
         if (held) {
@@ -267,6 +269,7 @@ RunPlan _upgradeRunOf(
             MoveFile() => '',
             MoveToRecord() => '',
             StampCodeFingerprints() => '',
+            RestampCodeFingerprints() => '',
             BulletLines() => '',
           };
           renameCollisions.add(
@@ -334,18 +337,31 @@ RunPlan _upgradeRunOf(
           firstTarget: firstTarget,
         )
       : null;
+  final codeRestamp = stepKinds.any((step) => step is RestampCodeFingerprints)
+      ? _codeStampOf(
+          root,
+          config,
+          set: finalSet,
+          works: works,
+          recordCreates: recordCreatesOf(placement),
+          firstTarget: firstTarget,
+          restamp: true,
+          after: codeStamp?.rewrites ?? const {},
+        )
+      : null;
+  final codeRewrites = {...?codeStamp?.rewrites, ...?codeRestamp?.rewrites};
   final recordCreates = [
     for (final create in recordCreatesOf(placement))
       PlannedCreate(
         path: create.path,
         text:
-            codeStamp?.rewrites[create.path.substring(_docsFolder.length)] ??
+            codeRewrites[create.path.substring(_docsFolder.length)] ??
             create.text,
         note: create.note,
       ),
   ];
   for (final work in works) {
-    if (codeStamp?.rewrites[work.plannedPath] case final stamped?) {
+    if (codeRewrites[work.plannedPath] case final stamped?) {
       work.lf = stamped;
       work.changes.add(_codeStampChange);
     }
@@ -510,6 +526,8 @@ RunPlan _upgradeRunOf(
     for (final (index, (:from, :step)) in steps.indexed)
       if (step is StampCodeFingerprints && codeStamp != null)
         codeStamp.stepLine(from: '$from', step: _describe(step))
+      else if (step is RestampCodeFingerprints && codeRestamp != null)
+        codeRestamp.stepLine(from: '$from', step: _describe(step))
       else
         UpgradeStepLine(
           from: '$from',
@@ -592,9 +610,12 @@ RunPlan _upgradeRunOf(
   return plan;
 }
 
-/// Plans the `stamp_code_fingerprints` step over the [works] and the
-/// [recordCreates] the steps before it left, each record created in
-/// [firstTarget].
+/// Plans the `stamp_code_fingerprints` step, or with [restamp] the
+/// `restamp_code_fingerprints` step, over the [works] and the [recordCreates]
+/// the steps before it left, each record created in [firstTarget].
+///
+/// A doc in [after], by DocPath, is read as that text, the stamp the restamp
+/// follows having already rewritten it.
 CodeStampStep _codeStampOf(
   Directory root,
   ProjectConfig config, {
@@ -602,19 +623,21 @@ CodeStampStep _codeStampOf(
   required List<_DocWork> works,
   required List<PlannedCreate> recordCreates,
   required String? firstTarget,
+  bool restamp = false,
+  Map<String, String> after = const {},
 }) => CodeStampStep.plan(
   [
     for (final work in works)
       (
         docPath: work.plannedPath,
-        lf: work.lf,
+        lf: after[work.plannedPath] ?? work.lf,
         type: work.docType,
         target: work.target,
       ),
     for (final create in recordCreates)
       (
         docPath: create.path.substring(_docsFolder.length),
-        lf: create.text,
+        lf: after[create.path.substring(_docsFolder.length)] ?? create.text,
         type: set.recordDocType,
         target: firstTarget,
       ),
@@ -622,6 +645,7 @@ CodeStampStep _codeStampOf(
   projectRoot: Directory(root.resolveSymbolicLinksSync()),
   set: set,
   targets: config.targets,
+  restamp: restamp,
 );
 
 /// Plans the test-name pass over the typed [works] as the earlier passes left
@@ -781,6 +805,7 @@ List<_OverrideFile> _renamedOverrides(
         MoveFile() => file.lf,
         MoveToRecord() => file.lf,
         StampCodeFingerprints() => file.lf,
+        RestampCodeFingerprints() => file.lf,
         BulletLines() => file.lf,
       };
       if (renamed == file.lf) continue;
@@ -1185,6 +1210,7 @@ String _describe(MigrationStep step) => switch (step) {
     '${step.kind} ${step.docTypes.join(', ')} ${step.fields.join(', ')} '
         '-> ${step.to}',
   StampCodeFingerprints() => step.kind,
+  RestampCodeFingerprints() => step.kind,
   BulletLines() => '${step.kind} ${step.docType} ${step.section}',
 };
 

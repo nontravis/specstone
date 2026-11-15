@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
-    show fileCodeFingerprint;
+    show fileCodeFingerprint, legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
@@ -4057,6 +4057,109 @@ void _codeStampTests() {
       expect(
         plan.toText(),
         contains('  from 1.6.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
+      );
+    });
+  });
+
+  group('restamp_code_fingerprints step', () {
+    const signIn = 'app/lib/login/sign_in.dart';
+    const signInCode = '// Sign in.\nclass SignIn {}\n\n';
+    final legacy = legacyFileCodeFingerprint(utf8.encode(signInCode));
+    final current = fileCodeFingerprint(utf8.encode(signInCode), path: signIn);
+
+    String packWith(String steps) =>
+        'name: acme\nversion: 1.1.0\nextends: software-tech\n'
+        'migrations:\n  - from: 1.0.0\n    steps:\n$steps';
+
+    /// A project on the shipped pins and acme 1.0.0 whose record names
+    /// [code], run with acme's [steps].
+    Future<RunPlan> planWith(String steps, List<String> code) async {
+      final home = await writeTree({
+        '.specstone/packs/acme/pack.yaml': packWith(steps),
+      });
+      final project = await writeTree({
+        '.specstone/config.yaml': _config('1.0.0'),
+        'docs/$_featurePath': '# Login\n',
+        'docs/$_loginStoryPath': '# Email login\n',
+        'docs/$_recordPath': recordText(
+          statuses: ['email_login:implemented'],
+          code: code,
+        ),
+        signIn: signInCode,
+      });
+      return planUpgradeRun(
+        _canonical(project),
+        templates: TemplateResolver(),
+        homeDirectory: home,
+      );
+    }
+
+    const restamp = '      - restamp_code_fingerprints: {}\n';
+    const stamp = '      - stamp_code_fingerprints: {}\n';
+
+    test('the line counts the docs and the links it restamps', () async {
+      final plan = await planWith(restamp, [
+        'email_login:$signIn:SignIn $legacy',
+      ]);
+
+      expect(
+        _rewriteAt(plan, 'docs/$_recordPath').text,
+        contains("  - 'email_login:$signIn:SignIn $current'\n"),
+      );
+      expect(
+        plan.toText(),
+        contains(
+          'commit 2, rewrites:\n'
+          '  from 1.0.0: restamp_code_fingerprints: 1 docs; 1 entries\n',
+        ),
+      );
+      expect(plan.lists.toJson()['steps'], [
+        {
+          'from': '1.0.0',
+          'step': 'restamp_code_fingerprints',
+          'paths': [_recordPath],
+          'unreadable': <String>[],
+        },
+      ]);
+    });
+
+    test('a suspect link leaves the line at no docs and no entries', () async {
+      final plan = await planWith(restamp, [
+        'email_login:$signIn:SignIn 0123456789ab',
+      ]);
+
+      expect(
+        plan.toText(),
+        contains(
+          '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
+        ),
+      );
+      expect(
+        plan.rewrites.where((rewrite) => rewrite.path.endsWith('.md')),
+        isEmpty,
+      );
+    });
+
+    test('a stamp step before it in the run leaves it nothing to restamp, '
+        'and the stamp keeps its text', () async {
+      final plan = await planWith('$stamp$restamp', [
+        'email_login:$signIn:SignIn $legacy',
+      ]);
+
+      expect(
+        _rewriteAt(plan, 'docs/$_recordPath').text,
+        contains("  - 'email_login:$signIn:SignIn $current'\n"),
+      );
+      final text = plan.toText();
+      expect(
+        text,
+        contains('  from 1.0.0: stamp_code_fingerprints: 1 docs; 1 entries\n'),
+      );
+      expect(
+        text,
+        contains(
+          '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
+        ),
       );
     });
   });

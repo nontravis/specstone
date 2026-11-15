@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/code_fingerprint.dart'
+    show fileCodeFingerprint, legacyFileCodeFingerprint;
 import 'package:specstone_core/src/consistency_check/code_link_rules.dart';
 import 'package:specstone_core/src/consistency_check/code_rules.dart'
     show ImplementedWork;
@@ -48,7 +50,9 @@ typedef _Stamp = ({
 
 /// The `stamp_code_fingerprints` step of a pack upgrade: each code link the
 /// check reads, but a `planned` entry's, takes its code's current
-/// fingerprint, with no compare.
+/// fingerprint, with no compare. In restamp mode, the
+/// `restamp_code_fingerprints` step: a link takes it only when it records the
+/// fingerprint its code had before comment and blank lines were dropped.
 ///
 /// The docs are read as the index reads them, the links picked by the
 /// check's own selection, and the code hashed by its own read, each code
@@ -63,11 +67,15 @@ final class CodeStampStep {
   /// in. A `planned` entry, a waiting target's `covers:` entry, an entry
   /// whose path names nothing, and one whose code cannot be read stay as
   /// written and are not counted; no other entry of a doc changes.
+  ///
+  /// With [restamp], a link that records no fingerprint, or one that differs
+  /// from its code's fingerprint under the earlier rule, stays as written too.
   factory plan(
     List<CodeStampDoc> docs, {
     required Directory projectRoot,
     required MergedSet set,
     required List<CodeTarget> targets,
+    bool restamp = false,
   }) {
     final read = _ReadDocs(docs, set, targets);
     final work = ImplementedWork.of(
@@ -79,7 +87,7 @@ final class CodeStampStep {
     final rewrites = <String, String>{};
     final entries = {for (final target in targets) target: 0};
     for (final doc in docs) {
-      final stamps = _stampsOf(read, work, reader, doc);
+      final stamps = _stampsOf(read, work, reader, doc, restamp: restamp);
       final (:lf, :applied) = _withStamps(doc.lf, stamps);
       if (lf != doc.lf) rewrites[doc.docPath] = lf;
       for (final stamp in applied) {
@@ -135,8 +143,9 @@ List<_Stamp> _stampsOf(
   _ReadDocs read,
   ImplementedWork work,
   _CodeReader reader,
-  CodeStampDoc doc,
-) {
+  CodeStampDoc doc, {
+  required bool restamp,
+}) {
   final indexed = read.tree.at(doc.docPath);
   final type = doc.type;
   final target = indexed == null ? null : work.targetOf(indexed);
@@ -154,7 +163,8 @@ List<_Stamp> _stampsOf(
   return [
     for (final link in links)
       if (link.status != RecordStatus.planned)
-        if (reader.fingerprintOf(target, link.path) case final fp?)
+        if (_fingerprintToTake(reader, target, link, restamp: restamp)
+            case final fp?)
           if (_stampedValue(link, fp) case final stamped
               when stamped != link.value)
             (
@@ -164,6 +174,29 @@ List<_Stamp> _stampsOf(
               target: target,
             ),
   ];
+}
+
+/// Returns the fingerprint [link] takes, null when it keeps its entry.
+///
+/// Stamping takes the current fingerprint of the code. Restamping takes it
+/// only when [link] records the fingerprint of the same code under the rule
+/// before comment and blank lines were dropped.
+String? _fingerprintToTake(
+  _CodeReader reader,
+  CodeTarget target,
+  CodeLink link, {
+  required bool restamp,
+}) {
+  final current = reader.fingerprintOf(target, link.path);
+  if (!restamp || current == null) return current;
+  final recorded = link.recorded;
+  if (recorded == null) return null;
+  final earlier = reader.fingerprintOf(
+    target,
+    link.path,
+    fileHash: (bytes, _) => legacyFileCodeFingerprint(bytes),
+  );
+  return recorded == earlier ? current : null;
 }
 
 /// Returns the value [link] takes with [fingerprint] recorded after it.
@@ -236,9 +269,14 @@ final class _CodeReader {
   Directory codeRootOf(CodeTarget target) =>
       _codeRoots[target] ?? (throw _unknownTarget(target));
 
-  /// Returns the current fingerprint of [path] of [target], as the check
-  /// reads it, null when its code cannot be read.
-  String? fingerprintOf(CodeTarget target, String path) {
+  /// Returns the fingerprint of [path] of [target], as the check reads it
+  /// under [fileHash] (its current rule by default), null when its code
+  /// cannot be read.
+  String? fingerprintOf(
+    CodeTarget target,
+    String path, {
+    String Function(List<int> bytes, String path) fileHash = _currentHash,
+  }) {
     final codeRoot = codeRootOf(target);
     return currentCodeFingerprint(
       path,
@@ -246,6 +284,7 @@ final class _CodeReader {
       nestedRoots: _nestedRoots[target] ?? (throw _unknownTarget(target)),
       bytesOf: (file) => _read(target, codeRoot, file),
       onUnlistable: (_) {},
+      fileHash: fileHash,
     );
   }
 
@@ -263,6 +302,9 @@ final class _CodeReader {
         }
       });
 }
+
+String _currentHash(List<int> bytes, String path) =>
+    fileCodeFingerprint(bytes, path: path);
 
 // MARK: - Writing
 
