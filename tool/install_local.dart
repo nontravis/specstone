@@ -224,7 +224,7 @@ Future<void> _requireShim(String ref, String commit) async {
 Future<String> _devVersionOf(String commit) async {
   final tags = <String, ReleaseVersion>{};
   for (final name in LineSplitter.split(
-    await _git(['tag', '--merged', commit]),
+    await _git(['tag', '--no-column', '--merged', commit]),
   )) {
     final version = name.startsWith('v')
         ? ReleaseVersion.tryParse(name.substring(1))
@@ -260,7 +260,7 @@ Future<String> _devVersionOf(String commit) async {
 /// Sets `specstoneVersion` in the `version.dart` of [worktree] to [version].
 ///
 /// Only the first such line's quoted value changes. A missing file or line
-/// refuses naming the file.
+/// refuses naming the file; an unreadable one refuses with the read error.
 Future<void> _setVersion(String worktree, String version) async {
   final file = File('$worktree/$_versionPath');
   final missing = _Refusal(
@@ -269,8 +269,12 @@ Future<void> _setVersion(String worktree, String version) async {
   final String text;
   try {
     text = await file.readAsString();
-  } on FileSystemException {
+  } on PathNotFoundException {
     throw missing;
+  } on FileSystemException catch (error) {
+    throw _Refusal(
+      'could not read $_versionPath: ${error.message}; $_unchanged',
+    );
   }
   if (!_versionLine.hasMatch(text)) throw missing;
   try {

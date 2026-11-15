@@ -256,6 +256,8 @@ case "$1 $2" in
     echo stub > "$out/bundle/lib/libsqlite3.so"
     version=$(sed -n "s/^const String specstoneVersion = '\(.*\)';\r\{0,1\}$/\1/p" \
       "$root/packages/specstone_core/lib/src/version.dart")
+    cp "$root/packages/specstone_core/lib/src/version.dart" \
+      "$STUB_LOG_DIR/version.dart"
     commit=$('<real git>' -C "$root" rev-parse HEAD)
     marker=$(cat "$root/marker.txt")
     printf '#!/bin/sh\n# %s %s\nif [ "$1" = --version ]; then echo %s; fi\n' \

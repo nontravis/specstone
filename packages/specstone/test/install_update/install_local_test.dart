@@ -69,6 +69,9 @@ fi''');
     return File('${repo.sandbox.logs.path}/bundle_specstone');
   }
 
+  // The dart stub saves the `version.dart` it builds from.
+  File builtVersionFile() => File('${repo.sandbox.logs.path}/version.dart');
+
   Future<void> waitFor(bool Function() isDone) async {
     final deadline = DateTime.now().add(const Duration(seconds: 30));
     while (!isDone()) {
@@ -625,6 +628,8 @@ fi''');
   test('a branch of a tag name does not shift the count, and an annotated '
       'line tag counts the same', () async {
     git(repo.work, ['branch', 'v0.9.0', 'develop']);
+    // `refs/<name>` outranks `refs/tags/<name>` for a bare name.
+    git(repo.work, ['update-ref', 'refs/v0.9.0', 'develop']);
     await expectVersion('0.10.0-dev.1');
 
     git(repo.work, [
@@ -657,8 +662,34 @@ fi''');
 
     expect(result.exitCode, isNot(0));
     expect(result.stderr, contains('v<Version>'));
+    expect(result.stderr, contains(repo.shortSha('develop')));
     expect(result.stderr, contains(_unchangedText));
     expectNothingChanged();
+  });
+
+  test('a git that prints tags in columns still finds them', () async {
+    git(repo.work, ['config', 'column.ui', 'always']);
+    git(repo.work, ['tag', 'v0.9.1', 'develop']);
+
+    await expectVersion('0.10.0-dev.1');
+  });
+
+  test('a version.dart that cannot be read is not called a missing '
+      'line', () async {
+    git(repo.work, ['checkout', '-q', '-b', 'binary']);
+    File('${repo.work.path}/$_versionFile')
+        .writeAsBytesSync([0xff, 0xfe, 0x0a]);
+    commitAll(repo.work, 'not utf-8');
+    git(repo.work, ['checkout', '-q', 'develop']);
+
+    final result = await repo.run(tool, args: ['--branch', 'binary']);
+
+    expect(result.exitCode, isNot(0));
+    expect(result.stderr, contains('could not read $_versionFile'));
+    expect(result.stderr, isNot(contains('no specstoneVersion line')));
+    expect(result.stderr, contains(_unchangedText));
+    expect(repo.sandbox.logOf('dart'), isEmpty);
+    expectBuildLeftNothing();
   });
 
   test('a commit with no specstoneVersion line is refused naming the file '
@@ -688,6 +719,10 @@ fi''');
     git(repo.work, ['checkout', '-q', 'develop']);
 
     await expectVersion('0.10.0-dev.1', ref: 'crlf');
+    expect(
+      builtVersionFile().readAsStringSync(),
+      "const String specstoneVersion = '0.10.0-dev.1';\r\n",
+    );
   });
 
   test('a version.dart with two specstoneVersion lines changes the '
@@ -701,6 +736,11 @@ fi''');
     git(repo.work, ['checkout', '-q', 'develop']);
 
     await expectVersion('0.10.0-dev.1', ref: 'twice');
+    expect(
+      builtVersionFile().readAsStringSync(),
+      "const String specstoneVersion = '0.10.0-dev.1';\n"
+      "const String specstoneVersion = '0.8.0'; // second\n",
+    );
   });
 
   for (final folder in ['lib', 'bin']) {
