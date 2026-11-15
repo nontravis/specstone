@@ -79,6 +79,9 @@ final class DocTypeMerger {
 
   /// Returns [base] with [layer] applied on top, entries in file order.
   ///
+  /// A `disabled: true` entry whose id a lower layer already disabled leaves
+  /// [base] as it is.
+  ///
   /// Throws `override_id_not_found` for an entry that cannot add or override,
   /// `after_id_not_found` for a section whose `after:` names an id the base
   /// built so far lacks, `locked_field_disabled` for a layer that breaks a
@@ -92,6 +95,8 @@ final class DocTypeMerger {
   /// `unknown_value` for a removed generator kind the base lacks.
   MergedDocType apply(MergedDocType base, DocTypeLayer layer) {
     final parent = _mergeParent(base, layer);
+    final disabledFields = {...base.disabledFieldIds};
+    final disabledSections = {...base.disabledSectionIds};
     return base.copyWith(
       description: layer.description,
       parent: parent,
@@ -115,11 +120,17 @@ final class DocTypeMerger {
         nameOf: (kind) => kind,
         notFound: FaultCode.unknownValue,
       ),
-      fields: List.unmodifiable(_mergeFields(base.fields, layer)),
-      sections: List.unmodifiable(_mergeSections(base.sections, layer)),
+      fields: List.unmodifiable(
+        _mergeFields(base.fields, layer, disabledFields),
+      ),
+      sections: List.unmodifiable(
+        _mergeSections(base.sections, layer, disabledSections),
+      ),
       lint: _mergeLint(base.lint, layer),
       reference: _mergeReference(base.reference, layer),
       files: List.unmodifiable([...base.files, layer.file]),
+      disabledFieldIds: Set.unmodifiable(disabledFields),
+      disabledSectionIds: Set.unmodifiable(disabledSections),
     );
   }
 
@@ -234,11 +245,20 @@ final class DocTypeMerger {
     notFound: FaultCode.referenceTitleNotFound,
   );
 
-  List<MergedField> _mergeFields(List<MergedField> base, DocTypeLayer layer) {
+  /// Returns [base] with the field entries of [layer] applied.
+  ///
+  /// [disabledIds] holds the ids a lower layer disabled; it gains each id this
+  /// layer disables and loses each id this layer adds back.
+  List<MergedField> _mergeFields(
+    List<MergedField> base,
+    DocTypeLayer layer,
+    Set<String> disabledIds,
+  ) {
     final fields = [...base];
     for (final entry in layer.fields) {
       final index = fields.indexWhere((f) => f.id == entry.id);
       if (index == -1) {
+        if (entry.disabled && disabledIds.contains(entry.id)) continue;
         final type = entry.type;
         if (entry.disabled || type == null) {
           throw _notFound(
@@ -249,6 +269,7 @@ final class DocTypeMerger {
             missing: 'type',
           );
         }
+        disabledIds.remove(entry.id);
         fields.add(
           MergedField(
             id: entry.id,
@@ -267,6 +288,7 @@ final class DocTypeMerger {
       if (_isBuiltIn(current.id)) _checkLocked(current, entry, layer);
       if (entry.disabled) {
         fields.removeAt(index);
+        disabledIds.add(entry.id);
         continue;
       }
       fields[index] = current.copyWith(
@@ -299,14 +321,20 @@ final class DocTypeMerger {
     );
   }
 
+  /// Returns [base] with the section entries of [layer] applied.
+  ///
+  /// [disabledIds] holds the ids a lower layer disabled; it gains each id this
+  /// layer disables and loses each id this layer adds back.
   List<MergedSection> _mergeSections(
     List<MergedSection> base,
     DocTypeLayer layer,
+    Set<String> disabledIds,
   ) {
     final sections = [...base];
     for (final entry in layer.sections) {
       final index = sections.indexWhere((s) => s.id == entry.id);
       if (index == -1) {
+        if (entry.disabled && disabledIds.contains(entry.id)) continue;
         final header = entry.header;
         if (entry.disabled || header == null) {
           throw _notFound(
@@ -318,6 +346,7 @@ final class DocTypeMerger {
           );
         }
         final position = _positionAfter(sections, entry, layer);
+        disabledIds.remove(entry.id);
         sections.insert(
           position,
           MergedSection(
@@ -379,6 +408,7 @@ final class DocTypeMerger {
       }
       if (entry.disabled) {
         sections.removeAt(index);
+        disabledIds.add(entry.id);
         continue;
       }
       final merged = sections[index].copyWith(

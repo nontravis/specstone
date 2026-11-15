@@ -179,6 +179,7 @@ void main() {
         'reference',
         'covers',
         'overrides',
+        'tasks',
       ]);
       final covers = fields.cast<Map<String, Object?>>().singleWhere(
         (f) => f['id'] == 'covers',
@@ -205,26 +206,24 @@ void main() {
       ]);
     });
 
-    test(
-      'f03/us07/s8, f03/us07/fr01/e12: guide project_domain --json gives '
-      'the root path, no parent, and the implement and design modes',
-      () async {
-        final runner = await runnerFor(_bothPacks);
-        expect(await runner.run(['guide', 'project_domain', '--json']), 0);
-        final json = jsonDecode(out.toString()) as Map<String, Object?>;
-        expect(json['path'], 'specs/DOMAIN.md');
-        expect(json.containsKey('parent'), isFalse);
-        expect(json['bundle'], ['implement', 'design']);
-        expect(_idsOf(json['fields']), [
-          'slug',
-          'status',
-          'draft',
-          'approved',
-          'reference',
-        ]);
-        expect(err.toString(), isEmpty);
-      },
-    );
+    test('guide project_domain --json gives the root path, no parent, and the '
+        'implement and design modes', () async {
+      final runner = await runnerFor(_bothPacks);
+      expect(await runner.run(['guide', 'project_domain', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json['path'], 'specs/DOMAIN.md');
+      expect(json.containsKey('parent'), isFalse);
+      expect(json['bundle'], ['implement', 'design']);
+      expect(_idsOf(json['fields']), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+        'tasks',
+      ]);
+      expect(err.toString(), isEmpty);
+    });
 
     test('f03/us07/s4, f03/us07/fr01/e08: guide fr --json holds the prd-core '
         'fields and no field that points at code', () async {
