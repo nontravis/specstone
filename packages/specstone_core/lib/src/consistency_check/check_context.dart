@@ -16,9 +16,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show generatedLineTest, withGeneratedFenced;
-import 'package:specstone_core/src/index_query/line_facts.dart'
-    show lfLinesOf, linesBeforeBodyOf;
+    show generatedLineTest, leadBodyLinesOf, withGeneratedFenced;
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -196,43 +194,35 @@ final class CheckContext {
 
   /// Returns the items of the held section at [index] of [doc], as the index
   /// reads items: a closed generated block holds none.
-  List<SectionItem> itemsIn(IndexedDoc doc, int index) {
-    final isGenerated = _generatedLines.putIfAbsent(doc.docPath, () {
-      final text = toLf(contentOf(doc).text);
-      return generatedLineTest(
-        Doc.parse(text),
-        text,
-        typeOf(doc)?.listedGenerators.toSet() ?? const {},
-      );
-    });
-    return sectionItemsOf(
-      withGeneratedFenced(bodyLinesOf(doc, index), isGenerated),
-    );
-  }
+  List<SectionItem> itemsIn(IndexedDoc doc, int index) => sectionItemsOf(
+    withGeneratedFenced(bodyLinesOf(doc, index), _generatedLineTestOf(doc)),
+  );
 
   /// Returns the items of the lead of [doc], the head after its title line,
-  /// read from the file text.
+  /// as the index reads items: a closed generated block holds none.
   ///
   /// The index stores no ID for a lead item, since the lead has no section.
   List<SectionItem> leadItemsOf(IndexedDoc doc) {
     final text = toLf(contentOf(doc).text);
-    final parsed = Doc.parse(text);
-    final lines = linesOf(doc);
-    final firstBodyLine = linesBeforeBodyOf(parsed, text) + 1;
-    final head = lfLinesOf(parsed.head);
-    final skip = switch (parsed.titleLineIndex) {
-      final at? => at + 1,
-      null => 0,
-    };
-    return sectionItemsOf([
-      for (var k = skip; k < head.length; k++)
-        (
-          text: head[k],
-          line: firstBodyLine + k,
-          fenced: lines.isFenced(firstBodyLine + k),
-        ),
-    ]);
+    return sectionItemsOf(
+      leadBodyLinesOf(
+        Doc.parse(text),
+        text,
+        contentOf(doc).lineFacts,
+        _generatedLineTestOf(doc),
+      ),
+    );
   }
+
+  bool Function(int line) _generatedLineTestOf(IndexedDoc doc) =>
+      _generatedLines.putIfAbsent(doc.docPath, () {
+        final text = toLf(contentOf(doc).text);
+        return generatedLineTest(
+          Doc.parse(text),
+          text,
+          typeOf(doc)?.listedGenerators.toSet() ?? const {},
+        );
+      });
 
   /// Whether [type] declares the field [fieldId].
   ///

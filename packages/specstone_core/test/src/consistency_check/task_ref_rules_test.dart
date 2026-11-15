@@ -125,6 +125,44 @@ void main() {
 
     expect(found, hasLength(1));
     expect(found.single.toJson(), containsPair('item', 'INV-8'));
+    expect(found.single.line, _lineOf(project, _domain, 'ENG-43'));
+  });
+
+  test('an entry naming a heading of the lead resolves by its text', () async {
+    final project = await _project({
+      _domain: _domainDoc(tasks: ['Notes:ENG-42'], lead: '### Notes\n\n'),
+    });
+
+    expect(_missing(project), isEmpty);
+  });
+
+  group('an item ID inside a closed generated block of the lead', () {
+    final doc = _domainDoc(
+      tasks: ['INV-9:ENG-42'],
+      lead:
+          '<!-- specstone:generated scenario_copy (do not edit) -->\n'
+          '- **INV-9** Copied.\n'
+          '<!-- specstone:generated end -->\n\n',
+    );
+    const layer = '.specstone/templates/domain.yaml';
+
+    test('is no item when the doc type lists the generator', () async {
+      final project = await _project(
+        {_domain: doc},
+        extra: {layer: 'generators: [scenario_copy]\n'},
+      );
+
+      final found = _missing(project);
+
+      expect(found, hasLength(1));
+      expect(found.single.toJson(), containsPair('item', 'INV-9'));
+    });
+
+    test('is an item when the doc type lists no generator', () async {
+      final project = await _project({_domain: doc});
+
+      expect(_missing(project), isEmpty);
+    });
   });
 
   test('an entry naming an error code of a catalog row with no item ID is a finding', () async {
@@ -196,5 +234,20 @@ void main() {
     expect(found, hasLength(1));
     expect(found.single.toJson(), containsPair('task', 'ENG-7'));
     expect(found.single.toJson(), containsPair('item', 'set --batch'));
+  });
+
+  test('a heading enclosed whole by a double-backtick span is named by the text inside it', () async {
+    final api = checkProjectFiles()['docs/$loginApi']!.replaceFirst(
+      '### signIn',
+      '### ``a`b``',
+    );
+    final project = await _project({
+      loginApi: api.replaceFirst(
+        'confirmed:',
+        'tasks:\n  - a`b:ENG-7\nconfirmed:',
+      ),
+    });
+
+    expect(_missing(project), isEmpty);
   });
 }
