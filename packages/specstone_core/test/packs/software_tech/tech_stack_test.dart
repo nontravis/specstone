@@ -40,6 +40,7 @@ void main() {
     expect(techStack.parent, isNull);
     expectOwnFields(techStack, const [
       FieldSpec('code', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(techStack, const [
       SectionSpec('stack', 'Stack', required: true),

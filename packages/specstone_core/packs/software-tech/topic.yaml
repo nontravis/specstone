@@ -29,6 +29,12 @@ fields:
     description: |-
       Records one `<doc type>:<name>#<ID> <fingerprint>` entry per item the doc's `Overrides:` lines link.
       Example: `project_domain:domain#INV-3 3f9a1c0b7e2d`; the entry counts once the Owner approves the doc.
+  - id: tasks
+    type: task_ref
+    list: true
+    description: |-
+      Lists the tasks that track the doc's work, each `<item>:<task>`, or `<task>` alone for the whole doc, such as `INV-4:ENG-42`.
+      `specstone:sync-sdd` removes an entry once a synced commit closes its task with a closing word, such as `Closes ENG-42`; put that word in the commit that finishes the task's work.
 sections:
   - id: purpose
     header: Purpose

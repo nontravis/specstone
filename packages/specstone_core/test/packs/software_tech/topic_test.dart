@@ -33,6 +33,7 @@ void main() {
         pointer: PointerKind.prefix,
       ),
       FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expect(
       fieldOf(topic, 'covers').description,

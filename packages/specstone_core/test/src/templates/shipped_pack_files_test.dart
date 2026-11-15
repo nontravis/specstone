@@ -211,6 +211,7 @@ void main() {
           pointer: PointerKind.prefix,
         ),
         FieldSpec('overrides', FieldType.string, list: true),
+        FieldSpec('tasks', FieldType.taskRef, list: true),
       ]);
       expectOwnFields(prdCoreDocType(both, 'topic'), const [
         FieldSpec(
@@ -221,9 +222,11 @@ void main() {
           pointer: PointerKind.prefix,
         ),
         FieldSpec('overrides', FieldType.string, list: true),
+        FieldSpec('tasks', FieldType.taskRef, list: true),
       ]);
       expectOwnFields(prdCoreDocType(both, 'tech_stack'), const [
         FieldSpec('code', FieldType.string, list: true),
+        FieldSpec('tasks', FieldType.taskRef, list: true),
       ]);
     });
 

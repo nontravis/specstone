@@ -44,12 +44,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: domain sits under '
-      'specs/f{nn}_{slug}/ with parent feature, only the overrides field, and nine '
-      'sections', () {
+      'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
+      'fields, and nine sections', () {
     expect(domain.path, 'specs/f{nn}_{slug}/DOMAIN.md');
     expect(domain.parent, 'feature');
     expectOwnFields(domain, const [
       FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(domain, const [
       SectionSpec('entities', 'Entities', required: true),

@@ -28,12 +28,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: error sits under '
-      'specs/f{nn}_{slug}/ with parent feature, only the overrides field, and four '
-      'sections', () {
+      'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
+      'fields, and four sections', () {
     expect(error.path, 'specs/f{nn}_{slug}/ERROR.md');
     expect(error.parent, 'feature');
     expectOwnFields(error, const [
       FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(error, const [
       SectionSpec('error_envelope', 'Error envelope'),

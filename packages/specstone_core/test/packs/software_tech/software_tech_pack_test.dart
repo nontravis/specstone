@@ -128,6 +128,38 @@ void main() {
       }
     });
 
+    test('template_packs/write_spec_docs_from_software_tech/'
+        'ship_software_tech_pack: eight doc types carry an optional tasks '
+        'list of task refs, and implementation carries none', () {
+      const withTasks = [
+        'api',
+        'architecture',
+        'auth',
+        'domain',
+        'error',
+        'integration',
+        'tech_stack',
+        'topic',
+      ];
+      for (final id in withTasks) {
+        final tasks = prdCoreDocType(
+          set,
+          id,
+        ).fields.singleWhere((f) => f.id == 'tasks');
+        expect(tasks.type, FieldType.taskRef, reason: id);
+        expect(tasks.list, isTrue, reason: id);
+        expect(tasks.required, isFalse, reason: id);
+        expect(tasks.description, isNotEmpty, reason: id);
+      }
+      expect(
+        prdCoreDocType(
+          set,
+          'implementation',
+        ).fields.where((f) => f.type == FieldType.taskRef),
+        isEmpty,
+      );
+    });
+
     test('f03/us07/fr03, f03/us07/fr03/e01: no spec doc type carries a word '
         'list at either level', () {
       for (final id in softwareTechIds) {

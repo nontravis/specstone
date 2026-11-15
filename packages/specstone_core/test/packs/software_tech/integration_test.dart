@@ -42,12 +42,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e05, f03/us07/fr01/e06: integration '
-      'sits under specs/f{nn}_{slug}/ with parent feature, only the overrides field, and '
+      'sits under specs/f{nn}_{slug}/ with parent feature, the overrides and tasks fields, and '
       'four sections, events optional', () {
     expect(integration.path, 'specs/f{nn}_{slug}/INTEGRATION.md');
     expect(integration.parent, 'feature');
     expectOwnFields(integration, const [
       FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(integration, const [
       SectionSpec('external_systems', 'External systems', required: true),

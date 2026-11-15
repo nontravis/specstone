@@ -35,12 +35,13 @@ void main() {
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: auth sits under '
-      'specs/f{nn}_{slug}/ with parent feature, only the overrides field, and eight '
-      'sections', () {
+      'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
+      'fields, and eight sections', () {
     expect(auth.path, 'specs/f{nn}_{slug}/AUTH.md');
     expect(auth.parent, 'feature');
     expectOwnFields(auth, const [
       FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(auth, const [
       SectionSpec('roles', 'Roles', required: true),

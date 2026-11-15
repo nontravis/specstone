@@ -58,6 +58,7 @@ void main() {
     expectOwnFields(api, const [
       FieldSpec('confirmed', FieldType.string, list: true),
       FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expectSections(api, const [
       SectionSpec('source_of_truth', 'Source-of-truth'),
