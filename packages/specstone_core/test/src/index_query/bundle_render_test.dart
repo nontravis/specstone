@@ -78,17 +78,7 @@ void main() {
       '- login (architecture)',
     ]);
   });
-  test("a design bundle's next-step line names --for design", () {
-    final a = ctx('login/email_login', BundleMode.design);
-
-    expect(
-      a.text,
-      endsWith(
-        'Read a summary doc whole with: specstone context <name> --for design\n',
-      ),
-    );
-  });
-  test('f01/us05/s2, f01/us05/fr02, s03/inv25, db-r1: a sibling prints marked, title and summary sections only', () {
+  test("a sibling prints marked, title and summary sections only, and a design bundle's next-step line names --for design", () {
     final a = ctx('login/email_login', BundleMode.design);
     expect(
       a.text,
@@ -1325,19 +1315,6 @@ void main() {
           a.text,
           endsWith(
             '- fewer_resets (measurement) · summary · cited results\n'
-            'Read a summary doc whole with: specstone context <name> --for implement\n',
-          ),
-        );
-      },
-    );
-    test(
-      "an implement bundle's next-step line keeps --for implement",
-      () async {
-        final a = await projectBundle();
-
-        expect(
-          a.text,
-          endsWith(
             'Read a summary doc whole with: specstone context <name> --for implement\n',
           ),
         );
