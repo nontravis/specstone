@@ -127,6 +127,11 @@ void main() {
     expectTemplatesFreeOfListedWords(gnfr);
   });
 
+  test('gnfr sets bundle_refs', () async {
+    final gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');
+    expect(gnfr.bundleRefs, isTrue);
+  });
+
   test('gnfr joins implement and design and marks no query '
       'section', () async {
     final gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');

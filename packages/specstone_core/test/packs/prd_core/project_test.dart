@@ -75,6 +75,11 @@ void main() {
     }
   });
 
+  test('project sets bundle_refs', () async {
+    final project = prdCoreDocType(await resolvePrdCore(), 'project');
+    expect(project.bundleRefs, isTrue);
+  });
+
   test('project joins every bundle mode and marks roles, '
       'out_of_scope, and glossary query', () async {
     final project = prdCoreDocType(await resolvePrdCore(), 'project');
