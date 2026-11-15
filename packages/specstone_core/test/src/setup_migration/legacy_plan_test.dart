@@ -362,6 +362,19 @@ name: Login API
       );
     });
 
+    test("a later target's missing tech stack doc is created", () async {
+      final plan = await _plan({
+        ...acmeLegacy,
+        '.specstone/config.yaml': jasprThenFlutter,
+        'docs/specs/jaspr/TECH_STACK.md': '# Tech stack\n',
+      });
+
+      expect(
+        _createdPaths(plan).where((path) => path.endsWith('TECH_STACK.md')),
+        ['docs/specs/flutter/TECH_STACK.md'],
+      );
+    });
+
     test('one target creates the one-target path', () async {
       final plan = await _plan(acmeLegacy);
 
