@@ -7,7 +7,7 @@ This project keeps its PRD and spec as Specstone docs.
   something no spec states, stop and ask the Owner. Code and tests name no doc, path, or item ID.
 - Read docs with `specstone context <target> --for <mode> --out`; search its saved file before any `specstone get`; never open doc files directly.
 - With 2+ code targets, add `--target <code target>`.
-- Change docs only with `specstone set`, `new`, `move`, or `rename`; agent drafts stay drafts until the Owner runs `specstone approve`.
+- Change docs only with `specstone set`, `new`, `move`, `rename`; drafts await Owner's `specstone approve`, or main session's when clean under `auto`.
 - Before writing a doc, read its type's guide with `specstone guide <type>`; write each item in its shape,
   once, short, complete.
 - Before writing a plan, tickets, or tests for a story, ground them with `specstone context <story> --for implement --out`.

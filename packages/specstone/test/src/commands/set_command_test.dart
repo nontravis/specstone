@@ -558,6 +558,9 @@ final class _RecordingConsole implements Console {
   bool get noColor => false;
 
   @override
+  String? get approveModeVariable => null;
+
+  @override
   Future<String> readAll() async {
     reads++;
     return '';

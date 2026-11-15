@@ -77,8 +77,8 @@ Route each later Owner answer or change per `references/rounds.md`.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
    list as its targets.
 3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.
-4. Before the Owner approves any draft, show each author reply and the last audit's. Each doc stays a draft
-   until then, per the `specstone-expert-sdd` skill.
+4. Show each author reply and the last audit's relay block; approve the drafts through the
+   `specstone-expert-sdd` skill's Owner confirmation, testing both under `auto`.
 
 ## 5. Hand the approved drafts to the plan skill
 

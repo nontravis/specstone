@@ -495,7 +495,84 @@ void main() {
         (s) => approveDryRun(s, names: ['architecture:login']),
       );
       expect(answer.text, 'no draft waits for approval\n');
-      expect(answer.json, {'drafts': <Object>[], 'count': 0});
+      expect(answer.json, {
+        'drafts': <Object>[],
+        'count': 0,
+        'approveMode': 'ask',
+      });
+    });
+
+    group('the approve mode', () {
+      for (final variable in [null, '', 'ask']) {
+        test(
+          'the JSON names the ask mode when the variable is ${variable == null ? 'unset' : "'$variable'"}',
+          () async {
+            final root = await writeWriteProject();
+            final answer = writeIn(
+              root,
+              (s) => approveDryRun(
+                s,
+                names: ['feature:signup'],
+                approveModeVariable: variable,
+              ),
+            );
+            expect(answer.json['approveMode'], 'ask');
+            expect(answer.warnings, isEmpty);
+          },
+        );
+      }
+
+      test('the JSON names the auto mode for auto alone', () async {
+        final root = await writeWriteProject();
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(
+            s,
+            names: ['feature:signup'],
+            approveModeVariable: 'auto',
+          ),
+        );
+        expect(answer.json['approveMode'], 'auto');
+        expect(answer.warnings, isEmpty);
+      });
+
+      for (final value in ['AUTO', ' auto', 'yes']) {
+        test(
+          "any other value falls back to ask with one warning naming it: '$value'",
+          () async {
+            final root = await writeWriteProject();
+            final answer = writeIn(
+              root,
+              (s) => approveDryRun(
+                s,
+                names: ['feature:signup'],
+                approveModeVariable: value,
+              ),
+            );
+            expect(answer.json['approveMode'], 'ask');
+            expect(answer.warnings, [
+              'SPECSTONE_APPROVE_MODE=$value is neither ask nor auto; ask is used',
+            ]);
+          },
+        );
+      }
+
+      test('the empty scope still names the mode', () async {
+        final root = await writeWriteProject();
+        final answer = writeIn(
+          root,
+          (s) => approveDryRun(
+            s,
+            names: ['architecture:login'],
+            approveModeVariable: 'auto',
+          ),
+        );
+        expect(answer.json, {
+          'drafts': <Object>[],
+          'count': 0,
+          'approveMode': 'auto',
+        });
+      });
     });
 
     test('a name no doc carries fails before printing', () async {
@@ -632,7 +709,7 @@ void main() {
       ]);
     });
 
-    test('ms-r10: a draft changed since the Owner saw it is base_mismatch, exit 75, naming each changed draft, and nothing is approved', () async {
+    test('a draft changed since its hash was taken is base_mismatch, exit 75, naming each changed draft, and nothing is approved', () async {
       final root = await writeWriteProject();
       final drafts = [
         seen(root, 'feature:signup'),
@@ -666,9 +743,9 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'changed since the Owner saw them: '
-                    'user_story:login/email_login, feature:signup; show each '
-                    'again and ask for a new ok',
+                'changed since their hash was taken: '
+                    'user_story:login/email_login, feature:signup; read each '
+                    'again and approve it with its new hash',
               ),
         ),
       );
@@ -1695,6 +1772,7 @@ void main() {
           containsPair('name', 'architecture:signup'),
         ],
         'count': 2,
+        'approveMode': 'ask',
       });
       expect(answer.text, contains('| hash    | `$hash` |'));
     }, skip: skipGit);
@@ -1773,7 +1851,11 @@ void main() {
           (s) => approveDryRun(s, names: ['user_story:login/sign_out']),
         );
 
-        expect(answer.json, {'drafts': <Object>[], 'count': 0});
+        expect(answer.json, {
+          'drafts': <Object>[],
+          'count': 0,
+          'approveMode': 'ask',
+        });
       },
     );
   });

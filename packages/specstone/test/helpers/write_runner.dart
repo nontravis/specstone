@@ -18,6 +18,7 @@ final class FakeConsole implements Console {
     this.stdinIsTerminal = false,
     this.stdoutIsTerminal = false,
     this.noColor = false,
+    this.approveModeVariable,
     this.answers = const [],
     this.onReadLine,
   });
@@ -33,6 +34,9 @@ final class FakeConsole implements Console {
 
   @override
   final bool noColor;
+
+  @override
+  final String? approveModeVariable;
 
   /// What [readLine] returns, one entry per call.
   final List<String?> answers;

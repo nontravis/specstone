@@ -77,7 +77,8 @@ void approveDrafts(
 /// The drafts and their `Draft n/m` numbers are those [approveDrafts] walks
 /// for [names] and [codeTarget]. The text is their views joined by a blank
 /// line, else `no draft waits for approval`; the JSON is `drafts` (see
-/// [draftViewJson]) and their `count`, `{"drafts": [], "count": 0}` for none.
+/// [draftViewJson]) and their `count`, empty and 0 for none, and the
+/// `approveMode` that [approveModeVariable] names, `ask` unless it is `auto`.
 /// It takes no lock, and with no draft waiting it reads no doc of the tree.
 /// Throws [IndexFault] `doc_not_found` for a name no doc carries, and
 /// `RenderFault` `output_not_writable` for a draft or a doc of the tree that
@@ -91,12 +92,15 @@ ReadAnswer approveDryRun(
   bool color = false,
   ApprovalHistory? history,
   String? codeTarget,
+  String? approveModeVariable,
 }) {
+  final (:mode, :warnings) = _approveModeOf(approveModeVariable);
   final drafts = _shownDraftsUnder(session, names, codeTarget);
   if (drafts.isEmpty) {
-    return const ReadAnswer(
+    return ReadAnswer(
       text: _nothingWaits,
-      json: {'drafts': <Object>[], 'count': 0},
+      json: {'drafts': <Object>[], 'count': 0, 'approveMode': mode},
+      warnings: warnings,
     );
   }
   _requireTrusted(session, drafts);
@@ -119,19 +123,36 @@ ReadAnswer approveDryRun(
     json: {
       'drafts': [for (final view in views) draftViewJson(view)],
       'count': views.length,
+      'approveMode': mode,
     },
+    warnings: warnings,
   );
 }
 
-/// A draft as the Owner saw it in Claude Code: its `<doc type>:<name>` and the
-/// hash `approve --dry-run` printed in its `hash` row, the `bases.doc` hash
-/// `get --json` gives.
+const _approveModeVariableName = 'SPECSTONE_APPROVE_MODE';
+
+({String mode, List<String> warnings}) _approveModeOf(String? value) {
+  switch (value) {
+    case null || '' || 'ask':
+      return (mode: 'ask', warnings: const []);
+    case 'auto':
+      return (mode: 'auto', warnings: const []);
+    default:
+      final warning =
+          '$_approveModeVariableName=$value is neither ask nor auto; '
+          'ask is used';
+      return (mode: 'ask', warnings: [warning]);
+  }
+}
+
+/// A draft's `<doc type>:<name>` and the `bases.doc` hash the call carries for
+/// it, taken from `approve --dry-run` or `get --json`.
 typedef SeenDraft = ({String name, String hash});
 
 /// Approves each draft in [seen] with no prompt, as `y` does.
 ///
-/// The Owner gave the ok in Claude Code first (`--yes`), each draft shown with
-/// its hash. A name approves only the one draft it names, never those under
+/// Each draft carries the hash its text had when read, under either mode. A
+/// name approves only the one draft it names, never those under
 /// it. Every name resolves to a draft before the lock, and under the lock every
 /// hash is checked before the first write, so a refused name or a changed
 /// draft approves nothing. The answer prints `approved <doc type>:<name>` per
@@ -166,7 +187,7 @@ ReadAnswer approveNamed(
         ))
           doc,
     ];
-    if (changed.isNotEmpty) throw _changedSinceSeen(changed);
+    if (changed.isNotEmpty) throw _changedSinceHashed(changed);
     for (final doc in drafts) {
       _writeApproval(session, doc, current[doc.docPath]!);
     }
@@ -197,10 +218,10 @@ IndexedDoc _draftAt(WriteSession session, String name, String? codeTarget) {
 String? _docHashOf(List<int>? bytes) =>
     bytes == null ? null : baseHashOf(toLf(utf8.decode(bytes)));
 
-WriteFault _changedSinceSeen(List<IndexedDoc> changed) => WriteFault(
+WriteFault _changedSinceHashed(List<IndexedDoc> changed) => WriteFault(
   WriteFaultCode.baseMismatch,
-  'changed since the Owner saw them: ${changed.map(_addressOf).join(', ')}; '
-  'show each again and ask for a new ok',
+  'changed since their hash was taken: ${changed.map(_addressOf).join(', ')}; '
+  'read each again and approve it with its new hash',
   file: changed.first.docPath,
   key: 'doc',
   relatedFiles: [for (final doc in changed.skip(1)) doc.docPath],
