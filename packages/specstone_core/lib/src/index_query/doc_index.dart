@@ -297,11 +297,12 @@ final class DocIndex {
 
   /// Returns the rows of the full-text index that match [matchExpression].
   ///
-  /// First brings the search rows of each lagging doc up to date
-  /// ([IndexStore.fillSearchRows]), so the hits equal those of rows that were
-  /// always current.
+  /// Throws [StateError] when a doc's search rows lag its text: open the
+  /// session with its search rows filled (`fillSearchRows` of `ReadSession`).
   List<SearchRow> search(String matchExpression) {
-    _store.fillSearchRows();
+    if (_store.searchRowsLag) {
+      throw StateError('the session was opened without its search rows');
+    }
     return _store.search(matchExpression);
   }
 

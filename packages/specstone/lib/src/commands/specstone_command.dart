@@ -138,11 +138,13 @@ abstract class SpecstoneCommand extends Command<int> {
   ///
   /// Prints through [printAnswer] with the session's warnings. A
   /// [SpecstoneFault] from opening the session or from [answer] goes to
-  /// [fail] with the warnings collected so far. [ReadSession.run] closes each
+  /// [fail] with the warnings collected so far. [fillSearchRows] opens the
+  /// session with its search rows filled. [ReadSession.run] closes each
   /// session once and rebuilds an index [answer] finds damaged.
   Future<int> runRead(
     ReadAnswer Function(ReadSession session) answer, {
     required bool asJson,
+    bool fillSearchRows = false,
   }) async {
     final runner = specstoneRunner;
     var sessionWarnings = const <String>[];
@@ -157,6 +159,7 @@ abstract class SpecstoneCommand extends Command<int> {
         workingDirectory: runner.workingDirectory,
         homeDirectory: runner.homeDirectory,
         busyTimeout: runner.busyTimeout,
+        fillSearchRows: fillSearchRows,
       );
     } on SpecstoneFault catch (fault) {
       return fail(fault, asJson: asJson, warnings: sessionWarnings);

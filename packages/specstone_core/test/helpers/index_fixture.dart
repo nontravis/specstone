@@ -125,15 +125,17 @@ const featureDoc = 'prds/features/f01_login/FEATURE.md';
 /// Opens a [ReadSession] on [project] with the built-in doc types.
 ///
 /// Registers no teardown, so it also runs inside `Isolate.run`; the caller
-/// closes the session.
+/// closes the session. [fillSearchRows] opens it for a search.
 ReadSession openSession(
   Directory project, {
   Duration busyTimeout = indexBusyTimeout,
+  bool fillSearchRows = false,
 }) => ReadSession.open(
   templates: TemplateResolver(),
   workingDirectory: project,
   homeDirectory: null,
   busyTimeout: busyTimeout,
+  fillSearchRows: fillSearchRows,
 );
 
 /// Opens a session on [loginProject] with [extra] files and returns its index.
@@ -141,6 +143,16 @@ ReadSession openSession(
 /// A key in [extra] replaces or adds a file. `addTearDown` closes the session.
 Future<DocIndex> indexWith([Map<String, String> extra = const {}]) async {
   final session = openSession(await writeLoginProject(extra: extra));
+  addTearDown(session.close);
+  return session.index;
+}
+
+/// Opens a session as [indexWith] does, with its search rows filled.
+Future<DocIndex> searchIndexWith([Map<String, String> extra = const {}]) async {
+  final session = openSession(
+    await writeLoginProject(extra: extra),
+    fillSearchRows: true,
+  );
   addTearDown(session.close);
   return session.index;
 }

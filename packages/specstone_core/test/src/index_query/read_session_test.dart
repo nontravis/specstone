@@ -133,6 +133,77 @@ void main() {
       expect(session.store.readStamp(), IndexStamp.of(project.set));
       expect(session.docs, hasLength(25));
     });
+    test(
+      'a search session whose peer rewrites the stamp between refresh and '
+      'fill is refreshed over, then reads rows filled under one stamp',
+      () async {
+        final root = await writeLoginProject();
+        final project = DocsProject.open(
+          templates: TemplateResolver(),
+          workingDirectory: root,
+          homeDirectory: null,
+        );
+        final peer = IndexStore.open(project.projectRoot);
+        addTearDown(peer.close);
+        var peerWrites = 0;
+        final session = ReadSession.readFrom(
+          project,
+          IndexStore.open(project.projectRoot),
+          workingDirectory: root,
+          fillSearchRows: true,
+          afterRefresh: () {
+            if (peerWrites++ > 0) return;
+            peer.write(
+              () => peer.reset(
+                const IndexStamp(binaryVersion: 'peer', docTypes: 'other'),
+              ),
+            );
+          },
+        );
+        addTearDown(session.close);
+        expect(peerWrites, 2);
+        expect(session.store.readStamp(), IndexStamp.of(project.set));
+        expect(session.docs, hasLength(25));
+        expect(session.store.searchRowsLag, isFalse);
+        expect(session.index.search('"lock"'), isNotEmpty);
+      },
+    );
+    test('a search session whose peer keeps changing the stamp ends as '
+        'index_busy', () async {
+      final root = await writeLoginProject();
+      final project = DocsProject.open(
+        templates: TemplateResolver(),
+        workingDirectory: root,
+        homeDirectory: null,
+      );
+      final peer = IndexStore.open(project.projectRoot);
+      addTearDown(peer.close);
+      var refreshes = 0;
+      expect(
+        () => ReadSession.readFrom(
+          project,
+          IndexStore.open(project.projectRoot),
+          workingDirectory: root,
+          fillSearchRows: true,
+          afterRefresh: () {
+            refreshes++;
+            peer.write(
+              () => peer.reset(
+                IndexStamp(binaryVersion: 'peer', docTypes: '$refreshes'),
+              ),
+            );
+          },
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexBusy,
+          ),
+        ),
+      );
+      expect(refreshes, 3);
+    });
     test('f01/us01/s1: a peer that keeps changing the stamp ends the read as index_busy after 3 refreshes', () async {
       final root = await writeLoginProject();
       final project = DocsProject.open(

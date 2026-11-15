@@ -514,68 +514,64 @@ final class IndexStore {
     }
   }
 
+  /// Whether any doc's search rows lag its indexed text.
+  bool get searchRowsLag => _db
+      .select(
+        'SELECT 1 FROM docs '
+        'WHERE search_hash IS NULL OR search_hash != content_hash LIMIT 1',
+      )
+      .isNotEmpty;
+
   /// Brings the search rows of every doc whose rows lag its indexed text up to
   /// date, in one write transaction.
   ///
   /// A doc lags when `search_hash` is not its `content_hash`. Rebuilds the rows
   /// from the stored title, `slug` values, and sections, and reads no file.
-  /// Ends and restarts an open snapshot around the write.
+  /// Call it outside a snapshot, before the snapshot that reads the rows.
   ///
   /// Throws [IndexFault] when another call holds the write lock or the index
   /// cannot be written.
   void fillSearchRows() {
-    if (_laggingDocPaths().isEmpty) return;
-    final inSnapshot = !_db.autocommit;
-    if (inSnapshot) endSnapshot();
-    try {
-      write(_writeLaggingRows);
-    } finally {
-      if (inSnapshot) beginSnapshot();
-    }
+    if (!searchRowsLag) return;
+    write(_writeLaggingRows);
   }
 
-  List<String> _laggingDocPaths() => [
-    for (final row in _db.select(
-      'SELECT doc_path FROM docs '
-      'WHERE search_hash IS NULL OR search_hash != content_hash',
-    ))
-      row.columnAt(0) as String,
-  ];
-
   void _writeLaggingRows() {
-    final lagging = _laggingDocPaths().toSet();
-    if (lagging.isEmpty) return;
-    for (final doc in loadDocs()) {
-      if (!lagging.contains(doc.docPath)) continue;
-      final id =
-          _db
-                  .select('SELECT id FROM docs WHERE doc_path = ?', [
-                    doc.docPath,
-                  ])
-                  .single
-                  .columnAt(0)!
-              as int;
+    final lagging = _db.select(
+      'SELECT id, doc_path, title, frontmatter FROM docs '
+      'WHERE search_hash IS NULL OR search_hash != content_hash',
+    );
+    for (final row in lagging) {
+      final id = row['id'] as int;
+      final docPath = row['doc_path'] as String;
+      final title = row['title'] as String?;
+      final slugs = IndexedDoc(
+        docPath: docPath,
+        name: docPath,
+        frontmatter:
+            jsonDecode(row['frontmatter'] as String) as Map<String, Object?>,
+        tokens: 0,
+      ).valuesOf('slug');
       final sections = _db.select(
         'SELECT section_key, body FROM sections WHERE doc_path = ? '
         'ORDER BY position',
-        [doc.docPath],
+        [docPath],
       );
       final firstKey = sections.firstOrNull?.columnAt(0) as String?;
       final searchRows = <(String, String?)>[
-        for (final heading in [?doc.title, ...doc.valuesOf('slug')])
-          (heading, firstKey),
-        for (final row in sections)
-          (row.columnAt(1) as String, row.columnAt(0) as String),
+        for (final heading in [?title, ...slugs]) (heading, firstKey),
+        for (final section in sections)
+          (section.columnAt(1) as String, section.columnAt(0) as String),
       ];
       _deleteSearchRows(id);
       for (final (n, (text, sectionKey)) in searchRows.indexed) {
         if (n >= _searchRowsPerDoc) {
-          throw StateError('${doc.docPath} has too many search rows');
+          throw StateError('$docPath has too many search rows');
         }
         _db.execute(
           'INSERT INTO doc_search (rowid, text, path, section_key) '
           'VALUES (?, ?, ?, ?)',
-          [(id << 32) + n, text, doc.docPath, sectionKey],
+          [(id << 32) + n, text, docPath, sectionKey],
         );
       }
       _db.execute('UPDATE docs SET search_hash = content_hash WHERE id = ?', [

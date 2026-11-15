@@ -842,19 +842,38 @@ void main() {
         expect(store.search('"zebra"').single.docPath, 'a.md');
       },
     );
-    test('fillSearchRows inside a snapshot writes the rows and leaves the '
-        'snapshot open', () async {
-      final store = IndexStore.open(await root());
-      addTearDown(store.close);
-      store.write(
-        () => store.putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra\n')),
-      );
-      store
-        ..beginSnapshot()
-        ..fillSearchRows();
-      expect(store.search('"zebra"').single.docPath, 'a.md');
-      store.endSnapshot();
-    });
+    test(
+      'a fill that throws mid-way rolls back every row and search_hash',
+      () async {
+        final r = await root();
+        final store = IndexStore.open(r);
+        addTearDown(store.close);
+        store.write(() {
+          store
+            ..putDoc(parsed('a.md', '# Alpha\n\n## Notes\nzebra\n'))
+            ..putDoc(parsed('b.md', '# Beta\n\n## Notes\nllama\n'));
+        });
+        final raw = sqlite3.open(file(r, indexFilePath).path);
+        addTearDown(raw.close);
+        // The second doc's frontmatter is no JSON, so its rebuild throws after
+        // the first doc's rows are written.
+        raw.execute(
+          "UPDATE docs SET frontmatter = 'x' WHERE doc_path = 'b.md'",
+        );
+        expect(store.fillSearchRows, throwsFormatException);
+        expect(
+          raw.select('SELECT count(*) FROM doc_search').single.columnAt(0),
+          0,
+        );
+        expect(
+          raw
+              .select('SELECT count(*) FROM docs WHERE search_hash IS NOT NULL')
+              .single
+              .columnAt(0),
+          0,
+        );
+      },
+    );
     test('reset leaves the search table empty', () async {
       final r = await root();
       final store = IndexStore.open(r);
