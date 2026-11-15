@@ -14,10 +14,15 @@ import 'package:test/test.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
 
+const _projectFile = 'docs/prds/PROJECT.md';
+const _projectLinking =
+    '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+    'Login demo; see [resets](../measurements/fewer_resets/MEASUREMENT.md).\n';
+
 void main() {
   late DocIndex index;
   setUpAll(() async => index = await indexWith());
-  ReadAnswer ctxIn(
+  ContextAnswer ctxIn(
     DocIndex i,
     String t,
     BundleMode m, {
@@ -1130,20 +1135,16 @@ void main() {
   });
 
   group('summary rows', () {
-    const storyFile =
-        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md';
     const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
     const table = '| Date | Run | Met |\n|---|---|---|\n';
     Future<String> printed(String results) async {
       final i = await indexWith({
-        storyFile:
-            '# Agent signs in with email\n\n## Use Case\nSign in. See [resets](../../../../measurements/fewer_resets/MEASUREMENT.md).\n\n'
-            '## Acceptance Criteria\n- Given a sign-in\n',
+        _projectFile: _projectLinking,
         measurement:
             '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count.\n\n'
             '## Results\n$results\n\n## Open causes\nN/A\n',
       });
-      return ctxIn(i, 'login/email_login', BundleMode.design).text;
+      return ctxIn(i, 'project', BundleMode.implement).text;
     }
 
     test('a summary doc prints its summary_rows section cut to its first row and no other section', () async {
@@ -1177,6 +1178,70 @@ void main() {
           contains(
             '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n',
           ),
+        );
+      },
+    );
+  });
+
+  group('a naming-line part', () {
+    const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+    Future<ContextAnswer> storyBundle(BundleMode mode) async => ctxIn(
+      await indexWith({
+        _projectFile: _projectLinking,
+        measurement: '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\nRun one.\n',
+      }),
+      'login/email_login',
+      mode,
+    );
+
+    test('prints its naming line alone and lists as the doc and its type', () async {
+      final a = await storyBundle(BundleMode.implement);
+      const naming =
+          '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · cited <==';
+
+      expect(a.text, contains('$naming\n\n'));
+      expect(a.text, isNot(contains('Resets per week')));
+      expect(a.text, contains('- fewer_resets (measurement) · cited\n'));
+      expect(a.text, isNot(contains('(measurement) · summary')));
+    });
+    test('is a --json object of name, docType, path, tokens, and cited with no text', () async {
+      final a = await storyBundle(BundleMode.implement);
+      final docs = a.json['docs']! as List;
+      final part =
+          docs.firstWhere((d) => (d as Map)['name'] == 'fewer_resets') as Map;
+
+      expect(part.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'cited',
+      ]);
+      expect(part['docType'], 'measurement');
+      expect(part['path'], 'measurements/fewer_resets/MEASUREMENT.md');
+      expect(part['cited'], isTrue);
+      expect(
+        part['tokens'],
+        tokenSizeOf(
+          '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · cited <==',
+        ),
+      );
+    });
+    test(
+      'has an entry of one line that is cited and names no section or item',
+      () async {
+        final a = await storyBundle(BundleMode.design);
+        final entry = a.entries.firstWhere((e) => e.doc.name == 'fewer_resets');
+
+        expect(entry.cited, isTrue);
+        expect(entry.summary, isFalse);
+        expect(entry.sectionKey, isNull);
+        expect(entry.itemId, isNull);
+        expect(entry.sections, isEmpty);
+        expect(entry.last, entry.first);
+        expect(
+          a.text.split('\n')[entry.first - 1],
+          startsWith('==> fewer_resets'),
         );
       },
     );

@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_follow.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:test/test.dart';
 
@@ -49,8 +50,34 @@ const _cited = <String, String>{
       'and [reset](../../prds/features/f01_login/us02_reset_password/USER_STORY.md).\n',
 };
 
+const _project = 'docs/prds/PROJECT.md';
+const _measurementFile = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+const _measurementDoc = 'measurements/fewer_resets/MEASUREMENT.md';
+const _measurementFromProject = '../measurements/fewer_resets/MEASUREMENT.md';
+const _measurementFromStory =
+    '../../../../measurements/fewer_resets/MEASUREMENT.md';
+
+/// A project doc whose Project name section holds [links].
+String _projectLinking(String links) =>
+    '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+    'Login demo; $links\n';
+
+/// A measurement with a link in its Scope, one in its Method block, and a
+/// Baseline section.
+const _measurement =
+    '# Fewer resets\n\n## Scope\n- Resets per week; see [ranges](../../specs/topics/ranges.md#purpose).\n\n'
+    '## Method\n### Take a run\nCount them.\n\n'
+    '## Baseline\n| Metric | Run | Value | Date | Source |\n|---|---|---|---|---|\n| resets | 1 | 4 | 2026-11-01 | log |\n\n'
+    '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n| 2026-11-14 | 2 | no |\n';
+
 String _frWith(String statement) =>
     '---\nverify_method: test\n---\n\n# Validate credentials\n\n## Statement\n$statement\n';
+
+/// Names the parts of [parts] that cite the measurement.
+List<String> _measurementParts(List<AppendedPart> parts) => [
+  for (final part in parts)
+    if (part.doc.docPath == _measurementDoc) _id(part),
+];
 
 /// Names [part] by its DocPath, `#<section key>`, `###` anchor, item ID, and
 /// summary mark.
@@ -59,7 +86,8 @@ String _id(AppendedPart part) =>
     '${part.sectionKey == null ? '' : '#${part.sectionKey}'}'
     '${part.heading == null ? '' : ' #${part.heading}'}'
     '${part.itemId == null ? '' : ' ${part.itemId}'}'
-    '${part.summary ? ' summary' : ''}';
+    '${part.summary ? ' summary' : ''}'
+    '${part.nameOnly ? ' name' : ''}';
 
 void main() {
   Future<DocIndex> indexFor(
@@ -82,6 +110,22 @@ void main() {
         mode,
         noProject: noProject,
       ),
+    );
+  }
+
+  Future<List<AppendedPart>> followedFrom(
+    String target,
+    Map<String, String> extra, {
+    BundleMode mode = BundleMode.implement,
+  }) async {
+    final index = await indexWith({
+      ..._cited,
+      _fr: _frWith('The system shall check the password.'),
+      ...extra,
+    });
+    return followLinks(
+      index,
+      pickBundle(index, target, mode, noProject: false),
     );
   }
 
@@ -192,23 +236,26 @@ void main() {
     expect(parts.map(_id), ['specs/topics/ranges.md summary']);
     expect(parts.single.text, '# Ranges');
   });
-  test('a link below the cut of a summary_rows section is not followed', () async {
-    final parts = await followed(
-      'See [resets](../../../../measurements/fewer_resets/MEASUREMENT.md).',
-      extra: {
-        'docs/measurements/fewer_resets/MEASUREMENT.md':
+  test(
+    'a link below the cut of a summary_rows section is not followed',
+    () async {
+      final parts = await followedFrom('project', {
+        _project: _projectLinking(
+          '[resets](../measurements/fewer_resets/MEASUREMENT.md)',
+        ),
+        _measurementFile:
             '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
             'Newest first.\n\n| Date | Note |\n|---|---|\n'
             '| 2026-11-14 | [ranges](../../specs/topics/ranges.md#purpose) |\n'
             '| 2026-11-01 | [guide](../../specs/topics/guide.md#purpose) |\n',
-      },
-    );
-    expect(parts.map(_id), [
-      'measurements/fewer_resets/MEASUREMENT.md summary',
-      'specs/topics/ranges.md#purpose',
-      'specs/topics/doc_model.md#purpose',
-    ]);
-  });
+      });
+      expect(parts.map(_id), [
+        '$_measurementDoc summary',
+        'specs/topics/ranges.md#purpose',
+        'specs/topics/doc_model.md#purpose',
+      ]);
+    },
+  );
   test('a section of a summary doc is appended unless the summary prints it', () async {
     final parts = await followed(
       'See [reset]($_resetStory#use-case) and [reset criteria]($_resetStory#acceptance-criteria).',
@@ -422,4 +469,121 @@ void main() {
       ]);
     },
   );
+
+  group('a doc whose type lists summary_for', () {
+    final linkedFromProject = {
+      _project: _projectLinking('[resets]($_measurementFromProject)'),
+      _measurementFile: _measurement,
+    };
+
+    test("a story's bundle gets the naming line alone, and no link inside it is followed", () async {
+      final parts = await followedFrom('login/email_login', linkedFromProject);
+
+      expect(parts.map(_id), ['$_measurementDoc name']);
+      expect(parts.single.text, isEmpty);
+      expect(parts.single.summary, isFalse);
+    });
+    test("the project bundle gets the measurement in summary, and the summary's links are followed", () async {
+      final parts = await followedFrom('project', linkedFromProject);
+
+      expect(parts.map(_id), [
+        '$_measurementDoc summary',
+        'specs/topics/ranges.md#purpose',
+        'specs/topics/doc_model.md#purpose',
+      ]);
+    });
+    test("the measurement's own bundle prints it whole, so a link to it appends nothing", () async {
+      final parts = await followedFrom(
+        'measurement:fewer_resets',
+        linkedFromProject,
+      );
+
+      expect(
+        parts.where((part) => part.doc.docPath == _measurementDoc),
+        isEmpty,
+      );
+    });
+    test("an FR's and a spec doc's bundle get the naming line alone", () async {
+      for (final target in [
+        'login/email_login/validate_credentials',
+        'architecture:signup',
+      ]) {
+        final parts = await followedFrom(target, linkedFromProject);
+
+        expect(_measurementParts(parts), [
+          '$_measurementDoc name',
+        ], reason: target);
+      }
+    });
+    test("a code path's bundle gets the naming line alone", () async {
+      final project = await writeLoginProject(
+        extra: {...loginRecords, ...linkedFromProject},
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      final bundle = pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          'app/lib/src/login/sign_in_page.dart',
+          workingDirectory: project,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+
+      expect(_measurementParts(followLinks(session.index, bundle)), [
+        '$_measurementDoc name',
+      ]);
+    });
+    test(
+      'a bundle lists the doc type ids of the docs its target picks',
+      () async {
+        final index = await indexWith(linkedFromProject);
+        Set<String> typesOf(String target) => pickBundle(
+          index,
+          target,
+          BundleMode.implement,
+          noProject: false,
+        ).targetTypeIds;
+
+        expect(typesOf('login/email_login'), {'user_story'});
+        expect(typesOf('project'), {'project'});
+      },
+    );
+    test('one naming line however many links', () async {
+      final parts = await followedFrom('login/email_login', {
+        ...linkedFromProject,
+        _story:
+            '# Agent signs in with email\n\n## Use Case\nSign in; see '
+            '[resets]($_measurementFromStory), [baseline]($_measurementFromStory#baseline), '
+            '[run]($_measurementFromStory#take-a-run), and [resets again]($_measurementFromStory).\n',
+      });
+
+      expect(parts.map(_id), ['$_measurementDoc name']);
+    });
+    test('a section, an item, a block, and an item range name only the doc, in a story and a feature bundle', () async {
+      const topicOnly = {
+        '.specstone/templates/topic.yaml': 'summary_for: [project]\n',
+      };
+      for (final (target, mode) in [
+        ('login/email_login', BundleMode.implement),
+        ('login', BundleMode.design),
+      ]) {
+        final parts = await followedFrom(target, mode: mode, {
+          ...topicOnly,
+          _story:
+              '# Agent signs in with email\n\n## Use Case\nSee [rules]($_specs/topics/ranges.md#rules), '
+              '[RULE-3]($_specs/topics/doc_model.md#rules), [an example]($_specs/topics/doc_model.md#a-worked-example), '
+              'and [RULE-2]($_specs/topics/ranges.md#rules) to [RULE-4]($_specs/topics/ranges.md#rules).\n',
+        });
+
+        expect(parts.map(_id), [
+          'specs/topics/ranges.md name',
+          'specs/topics/doc_model.md name',
+        ], reason: target);
+      }
+    });
+  });
 }

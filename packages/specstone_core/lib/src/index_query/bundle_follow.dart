@@ -31,6 +31,7 @@ final class AppendedPart {
     this.itemId,
     this.heading,
     this.summary = false,
+    this.nameOnly = false,
     this.cited = const [],
     this.sections = const [],
     required this.text,
@@ -49,10 +50,13 @@ final class AppendedPart {
         text: '',
       );
 
+  /// A part that names [doc] by its naming line alone, with no text.
+  new nameLine(IndexedDoc doc) : this(doc: doc, nameOnly: true, text: '');
+
   final IndexedDoc doc;
 
-  /// The key of the `##` section that holds the part; null for a summary doc
-  /// and a path.
+  /// The key of the `##` section that holds the part; null for a summary doc,
+  /// a naming line, and a path.
   final String? sectionKey;
 
   /// The cited item's ID, each item of a range its own; null for a section,
@@ -65,6 +69,10 @@ final class AppendedPart {
   /// Whether the part is the doc in summary.
   final bool summary;
 
+  /// Whether the part is the doc's naming line alone, since its type's
+  /// `summary_for` leaves out the bundle's target.
+  final bool nameOnly;
+
   /// The items of the part whose cited-by lines [text] holds, in print order;
   /// empty outside a design bundle.
   final List<CitedItem> cited;
@@ -76,7 +84,7 @@ final class AppendedPart {
 
   /// What prints after the part's naming line: an item's own lines, a
   /// section whole, a summary doc's title and summary sections, or nothing
-  /// for a path.
+  /// for a naming line and a path.
   final String text;
 
   /// Whether the part names a file no doc type describes by its path alone,
@@ -141,6 +149,7 @@ final class _Walk {
   final _whole = <String>{};
   final _summarized = <String>{};
   final _paths = <String>{};
+  final _named = <String>{};
   final _printedRanges = <String, List<LineRange>>{};
   final _queue = <_Printed>[];
   final _parts = <AppendedPart>[];
@@ -220,11 +229,26 @@ final class _Walk {
       final range = cited == null ? null : rangeFrom[cited.link];
       if (cited == null) {
         _appendPath(link);
+      } else if (_namesOnly(cited.view)) {
+        _appendNameLine(cited.view);
       } else if (range != null) {
         _appendRange(cited, range);
       } else {
         _append(cited);
       }
+    }
+  }
+
+  /// Whether the bundle prints [view]'s doc by its naming line alone: its type
+  /// leaves out the bundle's target and the bundle does not print it whole.
+  bool _namesOnly(_DocView view) =>
+      !_whole.contains(view.doc.docPath) && !bundle.printsSummaryOf(view.type);
+
+  /// Appends the naming line of [view]'s doc once, whatever link names it;
+  /// the doc's links are not followed.
+  void _appendNameLine(_DocView view) {
+    if (_named.add(view.doc.docPath)) {
+      _parts.add(AppendedPart.nameLine(view.doc));
     }
   }
 

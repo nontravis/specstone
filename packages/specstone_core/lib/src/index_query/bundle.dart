@@ -3,6 +3,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The mode a bundle's docs are picked for; [wire] is the `--for` word.
 enum BundleMode {
@@ -48,6 +49,9 @@ final class Bundle {
   /// every target's.
   final String? codeTarget;
 
+  /// The doc type ids of the docs the target names; empty for a code path.
+  final Set<String> targetTypeIds = {};
+
   /// The docs the chain rule picks, by DocPath.
   final Set<String> docPaths = {};
 
@@ -78,6 +82,14 @@ final class Bundle {
 
   /// The warnings the picking raised.
   final List<String> warnings = [];
+
+  /// Whether a cited doc of [type] prints in summary in this bundle: its type
+  /// lists no `summary_for`, or lists the doc type of a target.
+  bool printsSummaryOf(MergedDocType? type) =>
+      type == null ||
+      (targetTypeIds.isEmpty
+          ? type.printsSummaryFor(null)
+          : targetTypeIds.any(type.printsSummaryFor));
 
   /// Whether [doc] belongs to [codeTarget]: it is shared, or of that target.
   ///
@@ -328,6 +340,7 @@ Bundle pickBundle(
   final bundle = Bundle(mode, summary: summary, codeTarget: codeTarget);
   for (final doc in picked) {
     bundle.addTarget(index, doc);
+    if (doc.docTypeId case final typeId?) bundle.targetTypeIds.add(typeId);
   }
   bundle.join(index, noProject: noProject);
   return bundle;

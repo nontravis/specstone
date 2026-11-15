@@ -1529,4 +1529,80 @@ void main() {
       expect(docNames, isNot(contains('sign_in_checks')));
     });
   });
+
+  group('a measurement a goal Metric links', () {
+    const measurementDoc = 'measurements/fewer_resets/MEASUREMENT.md';
+    const projectDoc =
+        '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+        '- **Human:** Login demo\n\n## Project goals\n\n### PG-01 — Fewer resets\n\n'
+        '**Statement:** Resets fall by half.\n'
+        '**Metric:** resets per week, in [fewer resets](../measurements/fewer_resets/MEASUREMENT.md)\n';
+    String measurement(String results) =>
+        '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count them.\n\n'
+        '## Results\n$results\n\n## Open causes\nN/A\n';
+    const table =
+        'Newest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n';
+
+    Future<String> context(String target, String results) async {
+      final (:runner, :out, :err) = readRunner(
+        await writeReadProject(
+          extra: {
+            'docs/prds/PROJECT.md': projectDoc,
+            'docs/$measurementDoc': measurement(results),
+          },
+        ),
+      );
+      expect(await runner.run(['context', target, '--for', 'implement']), 0);
+      return out.toString();
+    }
+
+    test(
+      "a story's bundle holds the measurement's naming line alone",
+      () async {
+        final text = await context('login/email_login', table);
+
+        expect(
+          text,
+          contains(
+            '==> fewer_resets (measurement) · $measurementDoc · cited <==\n',
+          ),
+        );
+        expect(text, contains('- fewer_resets (measurement) · cited\n'));
+        expect(text, isNot(contains('Resets per week.')));
+        expect(text, isNot(contains('2026-11-14')));
+      },
+    );
+    test("the project bundle holds the measurement in summary: its Scope and Results' newest row", () async {
+      final text = await context('project', table);
+
+      expect(
+        text,
+        contains(
+          '==> fewer_resets (measurement) · $measurementDoc · summary · cited <==\n'
+          '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+          'Newest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+          '| 2026-11-14 | 2 | no |\n',
+        ),
+      );
+      expect(text, isNot(contains('2026-11-01')));
+      expect(text, isNot(contains('Count them.')));
+    });
+    test(
+      'a Results with no table prints whole in the project bundle',
+      () async {
+        final text = await context(
+          'project',
+          'Run one: resets halved.\n\nRun two: no change.',
+        );
+
+        expect(
+          text,
+          contains(
+            '## Results\nRun one: resets halved.\n\nRun two: no change.\n',
+          ),
+        );
+      },
+    );
+  });
 }

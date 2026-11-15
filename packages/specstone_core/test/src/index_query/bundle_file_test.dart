@@ -538,6 +538,36 @@ void main() {
         );
       },
     );
+    test('a naming-line part has one index line with its range and cited, no section', () async {
+      final index = await indexWith({
+        'docs/prds/PROJECT.md':
+            '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+            'Login demo; see [resets](../measurements/fewer_resets/MEASUREMENT.md).\n',
+        'docs/measurements/fewer_resets/MEASUREMENT.md':
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n',
+      });
+      final answer = answerContext(
+        index,
+        pickBundle(
+          index,
+          'login/email_login',
+          BundleMode.implement,
+          noProject: false,
+        ),
+        label: 'login/email_login',
+        byCode: false,
+      );
+      expectPlaced(answer);
+      expectIndexLine(
+        answer,
+        r'- fewer_resets \(measurement\) · (\d+)-\1 · cited',
+      );
+      final entry = bundleIndexJson(answer, '/p')['docs']! as List;
+      expect(
+        entry.firstWhere((d) => (d as Map)['name'] == 'fewer_resets'),
+        containsPair('sections', isEmpty),
+      );
+    });
     test('over budget: no doc text, no entry', () async {
       final index = await indexWith();
       final answer = answerContext(
