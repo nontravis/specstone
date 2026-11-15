@@ -545,6 +545,20 @@ final ReleaseVersion runningVersion =
     ReleaseVersion.tryParse(specstoneVersion) ??
     (throw StateError('specstoneVersion is no Version: $specstoneVersion'));
 
+/// The command that brings stale agent files back to what a binary writes.
+enum AgentFixDirection { migrate, upgrade }
+
+/// Returns [AgentFixDirection.upgrade] when the files come from a newer
+/// Version than the running one, else [AgentFixDirection.migrate].
+///
+/// A [stamp] that is null, below, or equal to the running Version picks
+/// `migrate`: an equal stamp over changed files means a hand edit or a local
+/// build of that number.
+AgentFixDirection agentFixDirectionOf(ReleaseVersion? stamp) =>
+    stamp != null && stamp.compareTo(runningVersion) > 0
+    ? AgentFixDirection.upgrade
+    : AgentFixDirection.migrate;
+
 bool _endsCurrent(AgentFileInputs inputs, AgentWritePlan plan) {
   final fixed = {...plan.paths, ...plan.trash, ...plan.trashFiles};
   final listed = plan.addedRoots.toSet();

@@ -1,61 +1,77 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/skill_agent_files.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/version.dart';
 
-const _migrateHint = 'run `specstone migrate`';
+/// What a drift says: `lead` names the fault and, unless `isHandRepair`, the
+/// fix is appended; a hand repair is the whole message.
+typedef _Text = ({String lead, bool isHandRepair});
 
-String _messageOf(AgentDriftKind kind) => switch (kind) {
-  AgentDriftKind.blockStale =>
-    'the Specstone block differs from what the running CLI writes; '
-        '$_migrateHint',
-  AgentDriftKind.agentMdStale =>
-    '.specstone/AGENT.md differs from what the running CLI writes; '
-        '$_migrateHint',
-  AgentDriftKind.agentMdMissing =>
-    'the block imports .specstone/AGENT.md, which is missing; $_migrateHint',
-  AgentDriftKind.topUnlisted =>
-    'the repository top is not in agent_file_roots yet; $_migrateHint',
-  AgentDriftKind.markersMalformed =>
+_Text _command(String lead) => (lead: lead, isHandRepair: false);
+
+_Text _handRepair(String message) => (lead: message, isHandRepair: true);
+
+_Text _textOf(AgentDriftKind kind) => switch (kind) {
+  AgentDriftKind.blockStale => _command(
+    'the Specstone block differs from what the running CLI writes',
+  ),
+  AgentDriftKind.agentMdStale => _command(
+    '.specstone/AGENT.md differs from what the running CLI writes',
+  ),
+  AgentDriftKind.agentMdMissing => _command(
+    'the block imports .specstone/AGENT.md, which is missing',
+  ),
+  AgentDriftKind.topUnlisted => _command(
+    'the repository top is not in agent_file_roots yet',
+  ),
+  AgentDriftKind.markersMalformed => _handRepair(
     'the Specstone marker lines are malformed and `specstone migrate` '
-        'refuses the file; repair the block by hand',
-  AgentDriftKind.codeFenceOpen =>
-    'the code fence that opens on this line is unclosed and `specstone '
-        'migrate` refuses the file; close the code fence that opens on this '
-        'line',
+    'refuses the file; repair the block by hand',
+  ),
+  AgentDriftKind.codeFenceOpen => _handRepair(
+    'a code fence is still open at the end of the file and `specstone '
+    'migrate` refuses the file; close the code fence that opens on this '
+    'line',
+  ),
 };
 
-String _skillMessageOf(SkillFileDriftKind kind) => switch (kind) {
-  SkillFileDriftKind.differs =>
+_Text _skillTextOf(SkillFileDriftKind kind) => switch (kind) {
+  SkillFileDriftKind.differs => _command(
     'the Specstone skill or agent file differs from what the running CLI '
-        'writes; $_migrateHint',
-  SkillFileDriftKind.missing =>
-    'the Specstone skill or agent file is missing; $_migrateHint',
-  SkillFileDriftKind.unshipped =>
-    'the running CLI does not ship this Specstone file; $_migrateHint',
-  SkillFileDriftKind.settingsStale =>
-    'the Specstone hook in this Claude Code settings file differs from what '
-        'the running CLI writes; $_migrateHint',
-  SkillFileDriftKind.settingsMissing =>
-    'the Claude Code settings file holding the Specstone hook is missing; '
-        '$_migrateHint',
-  SkillFileDriftKind.settingsMalformed =>
-    'this Claude Code settings file is not JSON `specstone migrate` can '
-        'merge into and refuses it; repair the file by hand',
+    'writes',
+  ),
+  SkillFileDriftKind.missing => _command(
+    'the Specstone skill or agent file is missing',
+  ),
+  SkillFileDriftKind.unshipped => _command(
+    'the running CLI does not ship this Specstone file',
+  ),
+  SkillFileDriftKind.settingsStale => _command(
+    '.claude/settings.json lacks the Specstone hook or holds one that '
+    'differs from what the running CLI writes',
+  ),
+  SkillFileDriftKind.settingsMissing => _command(
+    '.claude/settings.json is missing',
+  ),
+  SkillFileDriftKind.settingsMalformed => _handRepair(
+    '.claude/settings.json is not one JSON object and `specstone migrate` '
+    'refuses the file; repair it by hand',
+  ),
 };
 
-// `migrate` runs on the Owner's word; a malformed marker or an open code fence
-// is a hand repair the Agent makes.
-WaitsFor _waitsForOf(AgentDriftKind kind) => switch (kind) {
-  AgentDriftKind.blockStale ||
-  AgentDriftKind.agentMdStale ||
-  AgentDriftKind.agentMdMissing ||
-  AgentDriftKind.topUnlisted => WaitsFor.owner,
-  AgentDriftKind.markersMalformed ||
-  AgentDriftKind.codeFenceOpen => WaitsFor.agent,
-};
+/// Returns the fix a message ends with for [direction].
+///
+/// [stamp] is non-null whenever [direction] is `upgrade`.
+String _fixTextOf(AgentFixDirection direction, ReleaseVersion? stamp) =>
+    switch (direction) {
+      AgentFixDirection.migrate => 'run `specstone migrate`',
+      AgentFixDirection.upgrade =>
+        'the files come from specstone $stamp, newer than this specstone '
+            '$runningVersion; run `specstone upgrade`',
+    };
 
 /// Returns one `agent_block_stale` finding per drift `agentFileDrifts` and
 /// `skillAndAgentFileDrifts` find.
@@ -75,15 +91,20 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
     ),
     agentFileRoots: config.agentFileRoots,
   );
+  final stamp = config.agentFilesVersion;
+  final direction = agentFixDirectionOf(stamp);
+  Finding findingOf(String path, int line, _Text text) => Finding(
+    kind: FindingKind.agentBlockStale,
+    path: path,
+    line: line,
+    message: text.isHandRepair
+        ? text.lead
+        : '${text.lead}; ${_fixTextOf(direction, stamp)}',
+    waitsFor: text.isHandRepair ? WaitsFor.agent : WaitsFor.owner,
+  );
   final drifts = agentFileDrifts(inputs);
   for (final (:path, :line, :kind) in drifts) {
-    yield Finding(
-      kind: FindingKind.agentBlockStale,
-      path: path,
-      line: line,
-      message: _messageOf(kind),
-      waitsFor: _waitsForOf(kind),
-    );
+    yield findingOf(path, line, _textOf(kind));
   }
   // An unlisted top is one finding whatever its files hold.
   final unlistedTops = {
@@ -92,14 +113,6 @@ Iterable<Finding> staleAgentBlocks(CheckContext context) sync* {
   };
   for (final (:path, :kind) in skillAndAgentFileDrifts(inputs)) {
     if (unlistedTops.any(path.startsWith)) continue;
-    yield Finding(
-      kind: FindingKind.agentBlockStale,
-      path: path,
-      line: 1,
-      message: _skillMessageOf(kind),
-      waitsFor: kind == SkillFileDriftKind.settingsMalformed
-          ? WaitsFor.agent
-          : WaitsFor.owner,
-    );
+    yield findingOf(path, 1, _skillTextOf(kind));
   }
 }

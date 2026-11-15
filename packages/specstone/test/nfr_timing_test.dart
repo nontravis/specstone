@@ -364,6 +364,17 @@ void main() {
       reason: 'the timed runs read the skill and agent files',
     );
     file.writeAsStringSync(original);
+    const settings = '.claude/settings.json';
+    final settingsFile = File('${root.path}/$settings');
+    final settingsOriginal = settingsFile.readAsStringSync();
+    settingsFile.writeAsStringSync('{}\n');
+    expect(
+      check().stdout.toString(),
+      contains('$settings:1: agent_block_stale: '),
+      reason: 'the timed runs read the settings file',
+    );
+    settingsFile.writeAsStringSync(settingsOriginal);
+    expect(check().stdout.toString(), isNot(contains('agent_block_stale')));
     expect(
       bestOf(timingRuns, () {
         final watch = Stopwatch()..start();
@@ -371,7 +382,7 @@ void main() {
         watch.stop();
         expect(run.exitCode, anyOf(0, 1), reason: '${run.stderr}');
         return watch.elapsed;
-      }, label: 'check calls over skill and agent files'),
+      }, label: 'check calls over skill, agent, and settings files'),
       lessThanOrEqualTo(const Duration(seconds: 2)),
     );
   });

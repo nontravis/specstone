@@ -1611,6 +1611,77 @@ void main() {
       ]);
     });
 
+    const settings = '.claude/settings.json';
+    const settingsStale =
+        '.claude/settings.json lacks the Specstone hook or holds one that '
+        'differs from what the running CLI writes';
+    const settingsMalformed =
+        '.claude/settings.json is not one JSON object and `specstone migrate` '
+        'refuses the file; repair it by hand';
+
+    test('a stale settings file is named on line 1 for the Owner', () async {
+      final root = await initProject();
+      File('${root.path}/$settings').writeAsStringSync('{}\n');
+
+      expect(await staleLines(root), [
+        '$settings:1: agent_block_stale: $settingsStale; $migrate $owner',
+      ]);
+    });
+
+    test('a missing settings file is named for the Owner', () async {
+      final root = await initProject();
+      File('${root.path}/$settings').deleteSync();
+      const message = '$settings is missing; $migrate $owner';
+
+      expect(await staleLines(root), [
+        '$settings:1: agent_block_stale: $message',
+      ]);
+    });
+
+    test('a malformed settings file is a hand repair with no Owner '
+        'tag', () async {
+      final root = await initProject();
+      File('${root.path}/$settings').writeAsStringSync('{');
+
+      expect(await staleLines(root), [
+        '$settings:1: agent_block_stale: $settingsMalformed',
+      ]);
+      final json = await run(root, ['check', '--json']);
+      final findings =
+          (jsonDecode(json.stdout as String)
+                  as Map<String, Object?>)['findings']!
+              as List<Object?>;
+      expect(
+        [
+          for (final f in findings.cast<Map<String, Object?>>())
+            if (f['kind'] == 'agent_block_stale') f['waitsFor'],
+        ],
+        ['agent'],
+      );
+    });
+
+    test('files a newer CLI wrote name upgrade and the stamp, and matching '
+        'files give none', () async {
+      final root = await initProject();
+      final config = File('${root.path}/.specstone/config.yaml');
+      config.writeAsStringSync(
+        config.readAsStringSync().replaceFirst(
+          RegExp(r'^agent_files_version:.*$', multiLine: true),
+          'agent_files_version: 99.0.0',
+        ),
+      );
+      expect(await staleLines(root), isEmpty);
+
+      File('${root.path}/$settings').writeAsStringSync('{}\n');
+      const newer =
+          'the files come from specstone 99.0.0, newer than this specstone '
+          '$specstoneVersion; run `specstone upgrade`';
+
+      expect(await staleLines(root), [
+        '$settings:1: agent_block_stale: $settingsStale; $newer $owner',
+      ]);
+    });
+
     test('a check with a target names no skill or agent '
         'file', () async {
       final root = await initProject();
