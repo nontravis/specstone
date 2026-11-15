@@ -148,15 +148,13 @@ void _parseInlineWhereGated(
   }
 }
 
-/// Whether [text] holds a start of syntax the inline pass reads into a link or
-/// an anchor: `[` (inline, reference, and footnote links), `<` (autolink and
-/// raw tag), `@` (email autolink), `://` (bare web autolink), or `www.`.
-bool _canStartInline(String text) =>
-    text.contains('[') ||
-    text.contains('<') ||
-    text.contains('@') ||
-    text.contains('://') ||
-    text.contains('www.');
+/// The starts of syntax the inline pass reads into a link or an anchor: `[`
+/// (inline, reference, and footnote links), `<` (autolink and raw tag), `@`
+/// (email autolink), `://` (bare web autolink), and `www.`; the bare web
+/// autolink reads in any case.
+final _inlineStart = RegExp(r'[\[<@]|://|www\.', caseSensitive: false);
+
+bool _canStartInline(String text) => _inlineStart.hasMatch(text);
 
 /// Returns the nodes of [text] in source order, as `markdown` builds them
 /// before it moves its footnote definitions, or [rendered], its parse of

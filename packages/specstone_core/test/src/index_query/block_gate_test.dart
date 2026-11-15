@@ -64,6 +64,8 @@ void main() {
       '<': '<https://example.com> and <a id="x"></a> and <span id="y">z</span>\n',
       '@': 'mail me@example.com or see ${_longProse()}\n',
       '://': '${_longProse()}\n\nsee https://example.com/x and more\n',
+      'WWW.': 'Visit WWW.EXAMPLE.COM today.\n\nSee [a](b.md).\n',
+      'Www.': 'Visit Www.example.com today.\n\nSee [a](b.md).\n',
       'www.': 'visit www.example.com now\n\n${_longProse()}\n',
     };
     for (final MapEntry(:key, :value) in byStartCharacter.entries) {
