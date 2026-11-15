@@ -66,6 +66,20 @@ void main() {
   }
 
   group('install.sh', () {
+    test('git keeps install.sh and uninstall.sh at LF', () async {
+      final r = await Process.run('git', [
+        'check-attr',
+        'eol',
+        '--',
+        'install.sh',
+        'uninstall.sh',
+      ], workingDirectory: repoRoot().path);
+
+      final lines = LineSplitter.split(r.stdout as String).toList();
+      expect(lines, hasLength(2));
+      expect(lines, everyElement(endsWith('eol: lf')));
+    });
+
     test('Linux aarch64 refuses before any '
         'download, exit 1', () async {
       final sb = await createScriptSandbox();

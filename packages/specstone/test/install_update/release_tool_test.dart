@@ -427,8 +427,8 @@ void main() {
     );
   });
 
-  test('a spot left behind refuses before the '
-      'commit and undoes the bump', () async {
+  test('a spot with no version line to set refuses before the branch is '
+      'cut', () async {
     repo = await createReleaseRepo(
       files: {
         'packages/specstone/pubspec.yaml': '''
@@ -921,19 +921,15 @@ dependencies:
 
   group('hardening', () {
     test('a missing spot file refuses before anything is cut', () async {
-      await repo.git([
-        'rm',
-        '-q',
-        'packages/specstone_core/lib/src/version.dart',
-      ]);
-      await repo.git(['commit', '-q', '-m', 'drop version.dart']);
+      await repo.git(['rm', '-q', 'packages/specstone_core/pubspec.yaml']);
+      await repo.git(['commit', '-q', '-m', 'drop the core pubspec']);
       await repo.git(['push', '-q', 'origin', 'develop']);
       before = await repo.state();
 
       final r = await repo.release(['0.2.0']);
 
       await expectRefusal(r, [
-        'release: packages/specstone_core/lib/src/version.dart',
+        'release: packages/specstone_core/pubspec.yaml holds no version line',
       ]);
     });
 

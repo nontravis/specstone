@@ -296,7 +296,7 @@ void _agentFileTests() {
   test('no plugin file names '
       'mktemp or a file outside the repository', () {
     final problems = <String>[];
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       final path = shippedPathOf(file);
       final text = _oneLine(file.readAsStringSync());
       for (final banned in ['mktemp', 'outside the repository']) {
@@ -562,7 +562,7 @@ void _assetLayoutTests() {
       .where((file) => !isSkillSourcePath(shippedPathOf(file)));
 
   test('the plugin folder holds no skills folder and no agents folder', () {
-    final shipped = shippedFiles().map(shippedPathOf);
+    final shipped = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
     for (final folder in const ['skills', 'agents']) {
       expect(
         shipped.where((path) => path.startsWith('$folder/')),
@@ -594,29 +594,30 @@ void _assetLayoutTests() {
     }
   });
 
-  test('the source walk sees the twelve sources, leaves AGENT.md out, and '
-      'the shipped walk matches it', () async {
-    final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
-    expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
-    expect(
-      seen.where((path) => !isSkillSourcePath(path)),
-      unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
-    );
-    expect(seen, isNot(contains('AGENT.md')));
-    expect(shippedFiles().map(shippedPathOf), seen);
+  test(
+    'the source walk sees the twelve sources and leaves AGENT.md out',
+    () async {
+      final seen = agentSourceFiles(agentAssetsRoot()).map(shippedPathOf);
+      expect(seen.where((path) => path.endsWith('/SKILL.md')), hasLength(9));
+      expect(
+        seen.where((path) => !isSkillSourcePath(path)),
+        unorderedEquals([for (final name in _agentNames) 'specstone-$name.md']),
+      );
+      expect(seen, isNot(contains('AGENT.md')));
 
-    final root = await writeTree({
-      'AGENT.md': 'text',
-      'specstone-x/SKILL.md': 'text',
-      'specstone-y.md': 'text',
-      'other/SKILL.md': 'text',
-      'other.md': 'text',
-    });
-    expect(agentSourceFiles(root).map((file) => file.uri.pathSegments.last), [
-      'SKILL.md',
-      'specstone-y.md',
-    ]);
-  });
+      final root = await writeTree({
+        'AGENT.md': 'text',
+        'specstone-x/SKILL.md': 'text',
+        'specstone-y.md': 'text',
+        'other/SKILL.md': 'text',
+        'other.md': 'text',
+      });
+      expect(agentSourceFiles(root).map((file) => file.uri.pathSegments.last), [
+        'SKILL.md',
+        'specstone-y.md',
+      ]);
+    },
+  );
 
   test('the nine skills and three agents are all there', () {
     expect(
@@ -995,7 +996,7 @@ void _handOffTests() {
 
   test('no shipped plugin file holds the relay line or '
       'routed by', () {
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       final text = file.readAsStringSync();
       expect(text, isNot(contains(_relayLine)), reason: file.path);
       expect(text, isNot(contains('routed by')), reason: file.path);
@@ -1056,7 +1057,7 @@ void _handOffTests() {
         '(waits for the Owner), as printed>',
       ),
     );
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       expect(
         _oneLine(file.readAsStringSync().replaceAll('`', '')),
         isNot(contains('unconfirmed link on a draft')),
@@ -1326,7 +1327,7 @@ void _handOffTests() {
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final hits = <String>[];
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       final path = shippedPathOf(file);
       final text = _oneLine(file.readAsStringSync());
       for (final match in _nameCite.allMatches(text)) {
@@ -1453,7 +1454,7 @@ void _handOffTests() {
 
     test('no skill reads the approve mode from a shell', () {
       final holders = [
-        for (final file in shippedFiles())
+        for (final file in agentSourceFiles(agentAssetsRoot()))
           if (file.readAsStringSync().contains('SPECSTONE_APPROVE_MODE'))
             shippedPathOf(file),
       ];
@@ -4062,7 +4063,7 @@ void _sizeFixTests() {
       _pluginText('specstone-sdd-engineer.md'),
       contains('`.agents/skills/$_sizeFix`'),
     );
-    for (final file in shippedFiles()) {
+    for (final file in agentSourceFiles(agentAssetsRoot())) {
       if (file.uri.path.endsWith(_sizeFix)) continue;
       expect(
         _oneLine(file.readAsStringSync()),

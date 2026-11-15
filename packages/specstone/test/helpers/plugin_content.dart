@@ -72,9 +72,6 @@ bool _isAgentSource(String path) {
   return segments.length > 1 || path.endsWith('.md');
 }
 
-/// Returns every shipped file: the skill and agent sources.
-List<File> shippedFiles() => agentSourceFiles(agentAssetsRoot());
-
 /// Returns the path of [file] below [agentAssetsRoot], with `/` separators.
 String shippedPathOf(File file) {
   final root = agentAssetsRoot();

@@ -258,6 +258,15 @@ void main() {
     expect(await runner.run(['hook', 'post-edit', 'x']), 64);
   });
 
+  test('the hook group holds the post-edit command alone', () async {
+    final (:runner, :out, :err) = writeRunner(await writeCheckProject());
+
+    expect(
+      runner.commands['hook']?.subcommands.keys,
+      unorderedEquals(['post-edit']),
+    );
+  });
+
   test('a file path through a symbolic link reads as its DocPath', () async {
     final root = await writeCheckProject(extra: _brokenStory());
     final holder = await Directory.systemTemp.createTemp('specstone_link_');
