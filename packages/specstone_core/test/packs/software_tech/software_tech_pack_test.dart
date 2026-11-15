@@ -60,7 +60,7 @@ void main() {
       set = await resolveSoftwareTech();
     });
 
-    test('the set holds the eleven prd-core and the nine '
+    test('the set holds the twelve prd-core and the fifteen '
         'software-tech doc types', () {
       expect(
         set.docTypes.map((d) => d.id).toList(),
@@ -128,6 +128,45 @@ void main() {
       }
     });
 
+    test('eight doc types carry an optional tasks list of task refs that its '
+        'guide ties to the sync skill, and implementation carries none', () {
+      const withTasks = [
+        'api',
+        'architecture',
+        'auth',
+        'domain',
+        'error',
+        'integration',
+        'tech_stack',
+        'topic',
+      ];
+      for (final id in withTasks) {
+        final tasks = prdCoreDocType(
+          set,
+          id,
+        ).fields.singleWhere((f) => f.id == 'tasks');
+        expect(tasks.type, FieldType.taskRef, reason: id);
+        expect(tasks.list, isTrue, reason: id);
+        expect(tasks.required, isFalse, reason: id);
+        expect(
+          tasks.description,
+          allOf(
+            contains('`<item>:<task>`, or `<task>` alone'),
+            contains('`specstone-sync-sdd` removes an entry'),
+            contains('closing word'),
+          ),
+          reason: id,
+        );
+      }
+      expect(
+        prdCoreDocType(
+          set,
+          'implementation',
+        ).fields.where((f) => f.type == FieldType.taskRef),
+        isEmpty,
+      );
+    });
+
     test('f03/us07/fr03, f03/us07/fr03/e01: no spec doc type carries a word '
         'list at either level', () {
       for (final id in softwareTechIds) {
@@ -169,7 +208,17 @@ void main() {
           for (final t in set.docTypes)
             if (t.bundle != null) t.id,
         ],
-        ['gnfr', 'project', 'tech_stack'],
+        [
+          'gnfr',
+          'project',
+          'project_api',
+          'project_architecture',
+          'project_auth',
+          'project_domain',
+          'project_error',
+          'project_integration',
+          'tech_stack',
+        ],
       );
       expect(
         {

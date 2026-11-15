@@ -483,6 +483,29 @@ void main() {
       ]);
     });
 
+    test('a singular doc type built on a per-feature type gets no '
+        'draft', () {
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+        projectLayers: parseOverrides({
+          '.specstone/templates/extra.yaml':
+              'id: extra\ndescription: Extra.\npath: prds/EXTRA.md\n',
+          '.specstone/templates/edge_domain.yaml':
+              'id: edge_domain\nextends: domain\n'
+              'path: specs/EDGE_DOMAIN.md\nparent:\n',
+        }),
+      );
+
+      expect(singularDocTypes(set).map((type) => type.path), [
+        'prds/PROJECT.md',
+        'prds/FEATURES.md',
+        'prds/GNFR.md',
+        'specs/TECH_STACK.md',
+        'prds/EXTRA.md',
+      ]);
+    });
+
     test('parseOverrides reads only doc-type files, in code '
         'point order', () {
       final layers = parseOverrides({

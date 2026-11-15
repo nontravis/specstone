@@ -754,6 +754,11 @@ const _procedures = <_Procedure>[
     commands: ['context', 'set', 'check'],
   ),
   (
+    file: 'specstone-sync-sdd/references/task-refs.md',
+    tags: 'the sync removes the refs of a closed task',
+    commands: ['set'],
+  ),
+  (
     file: 'specstone-bootstrap-prd/references/procedure.md',
     tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
     commands: ['check', 'guide', 'new', 'set', 'delete'],
@@ -2387,13 +2392,13 @@ void _agentTests() {
       );
     });
 
-    test('update_covering_docs pointers row: the report lists each waiting '
-        'pointer with its doc and its code path', () {
+    test('the report lists each waiting pointer with its code target and its '
+        'doc and code path', () {
       expect(
         procedure(),
         contains(
-          'and each pointer that waits on an approval, with its doc, its code '
-          'target, and its code path.',
+          'and each waiting pointer: its code target, and its doc and code '
+          'path, or its tasks.',
         ),
       );
     });
@@ -2511,8 +2516,8 @@ void _agentTests() {
         text,
         contains(
           "A finding's `path` is relative to its target's code root "
-          '(`code_root:` in `.specstone/config.yaml`, under `targets:` per '
-          'target; default `.`). From the project root, `--code` and each '
+          '(`code_root:` per `targets:` entry in `.specstone/config.yaml`; '
+          'default `.`). From the project root, `--code` and each '
           'git pathspec take `<code root>/<path>`.',
         ),
       );
@@ -2877,7 +2882,8 @@ void _agentTests() {
       expect(
         output,
         contains(
-          'each pointer fixed; each `Mismatches:` point and each `Uncovered:` '
+          'each pointer fixed; each task whose refs the sync removed; each '
+          '`Mismatches:` point and each `Uncovered:` '
           'file; each behavior handed to `specstone-brainstorming-sdd`; each '
           'pointer that waits on an approval; open questions; then '
           '`Findings:`.',
@@ -4149,6 +4155,9 @@ void _batchGuideTests() {
 /// Each bootstrap skill and the docs tree whose repeat groups it takes.
 const _repeatsTrees = {'bootstrap-prd': 'prds', 'bootstrap-spec': 'specs'};
 
+/// The folder text a skill's repeats phrase adds after its tree.
+const _repeatsExtraTrees = {'bootstrap-prd': ' or `measurements/`'};
+
 /// The shared repeats-batch reference both fill skills point to.
 const _repeats = 'specstone-expert-sdd/references/repeats.md';
 
@@ -4177,7 +4186,13 @@ void _repeatsBatchTests() {
       expect(batch, contains(point), reason: point);
     }
     for (final MapEntry(key: skill, value: tree) in _repeatsTrees.entries) {
-      expect(batch, contains('under `$tree/` for `$skill`'), reason: skill);
+      expect(
+        batch,
+        contains(
+          'under `$tree/`${_repeatsExtraTrees[skill] ?? ''} for `$skill`',
+        ),
+        reason: skill,
+      );
     }
     expect(
       _oneLine(_sectionOf(text, 'A `cite_unlinked` finding')),
@@ -4259,6 +4274,40 @@ void _repeatsBatchTests() {
         'merge it first (`specstone-bootstrap-spec` takes one under `specs/`).',
       ),
     );
+  });
+
+  test('the plan-engineer and brainstorm design glosses name prds/, specs/, '
+      'and measurements/ as the checked folders', () {
+    for (final file in [
+      _planAgent,
+      'specstone-brainstorming-sdd/references/design.md',
+    ]) {
+      final text = _oneLine(_pluginText(file));
+      expect(
+        text,
+        contains('`prds/`, `specs/`, and `measurements/` with the shipped'),
+        reason: file,
+      );
+    }
+  });
+
+  test('no routing line sends PRD findings by prds/ alone', () {
+    final aloneAfterUnder = RegExp(
+      'under `prds/`(?! or `measurements/`|, `measurements/`)',
+    );
+    for (final file in [
+      'specstone-bootstrap-prd/SKILL.md',
+      'specstone-bootstrap-prd/references/procedure.md',
+      'specstone-bootstrap-spec/SKILL.md',
+      'specstone-bootstrap-spec/references/procedure.md',
+      'specstone-expert-sdd/references/repeats.md',
+    ]) {
+      expect(
+        aloneAfterUnder.hasMatch(_oneLine(_pluginText(file))),
+        isFalse,
+        reason: file,
+      );
+    }
   });
 
   test("bootstrap-spec's repeats batch runs after "
@@ -4633,6 +4682,75 @@ void _planTests() {
         'CLI error>',
       ),
     );
+  });
+
+  group('the ticket tools of plan-sdd', () {
+    const ticketsFile = 'specstone-plan-sdd/references/tickets.md';
+    String tickets() => _oneLine(_pluginText(ticketsFile));
+
+    test('step 5 points at the tickets file once', () {
+      final skill = _oneLine(_pluginText(_planSkill));
+      final step = skill.substring(skill.indexOf('## 5. Ask how to run'));
+      expect(step, contains('`references/tickets.md`'));
+      expect(
+        '`references/tickets.md`'.allMatches(skill),
+        hasLength(1),
+        reason: 'one pointer, no copy of the rule in the skill file',
+      );
+    });
+
+    test('it finds ticket tools by their descriptions and names them to the '
+        'Owner beside the run question, naming none when none qualifies', () {
+      final text = tickets();
+      expect(text, contains('description says it breaks work into tickets'));
+      expect(text, contains('beside the run question'));
+      expect(text, contains('never by a name'));
+      expect(text, contains('Specstone makes no ticket'));
+    });
+
+    test('it writes a ref through set --field tasks, several refs on one item '
+        'included', () {
+      final text = tickets();
+      expect(text, contains('specstone set <type>:<name> --field tasks'));
+      expect(text, contains('`bases.fields.tasks`'));
+      expect(text, contains('`<item>:<task>`'));
+      expect(text, contains('`<task>` alone for the whole doc'));
+      expect(text, contains('One item takes several refs'));
+      expect(text, contains('Write the whole list as YAML `- <entry>` lines'));
+      expect(text, contains('Quote an entry YAML reads as a comment'));
+      expect(text, contains('`- "#123"`'));
+    });
+
+    test('it has the work commits name the task id and the finishing commit '
+        'close it as Closes <task>', () {
+      final text = tickets();
+      expect(text, contains('Name the task id in the message of each commit'));
+      expect(text, contains('`Closes <task>`'));
+      expect(text, contains('finishes'));
+    });
+
+    test('it names the CLI commands the shipped CLI has, no other plugin, '
+        'and stays within 1,500 est. tokens', () {
+      bool ofThisFile(String problem) => problem.startsWith('$ticketsFile:');
+      expect(oversizedSkillFiles(contentFiles()).where(ofThisFile), isEmpty);
+      expect(
+        unknownCliNames(
+          contentFiles(),
+          SpecstoneCommandRunner(),
+        ).where(ofThisFile),
+        isEmpty,
+      );
+      expect(
+        cliCommands(_pluginText(ticketsFile)),
+        containsAll(['get', 'set']),
+      );
+      expect(
+        _shippedOtherPluginSkills().where(
+          (problem) => problem.startsWith('specstone-plan-sdd/'),
+        ),
+        isEmpty,
+      );
+    });
   });
 
   test('$_runPlanSkill, $_writePlan: neither plan-sdd nor plan-engineer names '
@@ -5305,9 +5423,9 @@ void _syncBootstrapTests() {
   group('the sync and bootstrap skills', () {
     const bootstraps = ['bootstrap-prd', 'bootstrap-spec'];
 
-    test('each of the six reaches the source and every host render', () {
+    test('each of the seven reaches the source and every host render', () {
       final paths = _syncBootstrapContent().map((file) => file.path);
-      expect(paths, hasLength(6 + 6 + 6));
+      expect(paths, hasLength(7 + 7 + 7));
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
@@ -5385,8 +5503,104 @@ void _syncBootstrapTests() {
       );
     });
 
-    test('each of the six skill files stays within 1,500 est. tokens', () {
+    test('each of the seven skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_syncBootstrapContent()), isEmpty);
+    });
+
+    group('the task refs file of the sync skill', () {
+      String refs() =>
+          _oneLine(_pluginText('specstone-sync-sdd/references/task-refs.md'));
+
+      test('step 4.2 of the procedure points at it, and the report lists the '
+          'removed tasks', () {
+        final text = _pluginText('specstone-sync-sdd/references/procedure.md');
+        final procedure = _oneLine(text);
+        final step = procedure.substring(
+          procedure.indexOf('2. Write by outcome'),
+          procedure.indexOf('3. Fix each record'),
+        );
+        expect(step, contains('`task-refs.md`'));
+        expect(
+          _oneLine(_sectionOf(text, 'Report to the Owner')),
+          contains('each task removed'),
+        );
+      });
+
+      test('it takes the candidates from the bundle and the messages from '
+          'git log, with and without a base', () {
+        final text = refs();
+        expect(text, contains('`context --code` bundle'));
+        expect(text, contains('git log --format=%B <base>..HEAD --'));
+        expect(text, contains('With none, read the messages of every commit'));
+      });
+
+      test('a mismatch and a planned entry without its behavior take no '
+          'removal', () {
+        expect(refs(), contains('take no removal: every ref stays'));
+      });
+
+      test('it names every closing word, both forms, and the mention rule', () {
+        final text = refs();
+        for (final word in [
+          'close',
+          'closes',
+          'closed',
+          'fix',
+          'fixes',
+          'fixed',
+          'resolve',
+          'resolves',
+          'resolved',
+        ]) {
+          expect(text, contains('`$word`'), reason: word);
+        }
+        expect(text, contains('Keyword form'));
+        expect(text, contains('Command form'));
+        expect(text, contains('`done`'));
+        expect(text, contains('a mention and closes nothing'));
+        expect(text, contains('`Refs ENG-42`'));
+      });
+
+      test('it runs one set --remove-task, with --target for two or more '
+          'targets, and waits under a pending draft', () {
+        final text = refs();
+        expect(text, contains('specstone set --remove-task <task>'));
+        expect(text, contains('run once'));
+        expect(text, contains('when the project has 2 or more code targets'));
+        expect(text, contains('waiting pointer'));
+        expect(text, contains('pending draft'));
+        expect(text, contains('in your report to the Owner'));
+      });
+
+      test('the skill runs each waiting removal once its draft is approved, '
+          'and the procedure report names its tasks and code target', () {
+        final skill = _oneLine(_pluginText('specstone-sync-sdd/SKILL.md'));
+        expect(
+          skill,
+          contains(
+            'For each waiting removal, once its draft is approved, run '
+            '`specstone set --remove-task <task> ...`',
+          ),
+        );
+        expect(skill, contains('then name the removed tasks to the Owner'));
+        final report = _oneLine(
+          _sectionOf(
+            _pluginText('specstone-sync-sdd/references/procedure.md'),
+            'Report to the Owner',
+          ),
+        );
+        expect(
+          report,
+          contains('its code target, and its doc and code path, or its tasks'),
+        );
+      });
+
+      test('the sdd-engineer sync report names the removed tasks', () {
+        final sync = _oneLine(
+          _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Output Format'),
+        );
+        expect(sync, contains('each task whose refs the sync removed'));
+      });
     });
   });
 }
@@ -5403,7 +5617,13 @@ void _planFilesTests() {
   group('the plan skill and the plan engineer', () {
     test('each of the two reaches the source and every host render', () {
       final paths = _planContent().map((file) => file.path);
-      expect(paths, hasLength(3 + 5));
+      expect(
+        paths,
+        hasLength(3 + 4 + 4),
+        reason:
+            '3 source files: engineer, skill, tickets.md; 4 skill renders, '
+            'the skill and tickets.md in each of 2 hosts; 4 engineer renders',
+      );
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "

@@ -69,7 +69,7 @@ String _listName(IndexedDoc doc, bool summary) =>
 
 /// Returns the closing-list name of [part],
 /// `<name> (<doc type>) · cited <section key> [<ID>]`; a summary doc's is
-/// marked ` · summary` before ` · cited`, and
+/// marked ` · summary` before ` · cited`, a naming line's has no key, and
 /// a path's is `<DocPath> · cited`.
 String _partListName(AppendedPart part) =>
     '${part.pathOnly ? part.doc.docPath : _listName(part.doc, part.summary)}'
@@ -80,10 +80,14 @@ String _partListName(AppendedPart part) =>
 /// Returns the block of [part]: its naming line, `<DocPath>#<section key>`
 /// (`#<anchor>` for a `###` block that starts no item) with ` · item <ID>`
 /// for an item, or `<DocPath> · summary` for a doc, then ` · cited`, then its
-/// text; a path prints as `==> <DocPath> · cited <==` alone.
+/// text; a path prints as `==> <DocPath> · cited <==` alone, and a naming-line
+/// doc as `==> <name> (<doc type>) · <DocPath> · cited <==` alone.
 String _partBlock(AppendedPart part) {
   final doc = part.doc;
   if (part.pathOnly) return '==> ${doc.docPath} · cited <==';
+  if (part.nameOnly) {
+    return '==> ${nameWithType(doc)} · ${doc.docPath} · cited <==';
+  }
   final key = part.heading ?? part.sectionKey;
   final path = key == null ? doc.docPath : '${doc.docPath}#$key';
   final item = part.itemId == null ? '' : ' · item ${part.itemId}';
@@ -260,7 +264,8 @@ ContextAnswer answerContext(
       for (final (i, part) in parts.indexed)
         {
           ..._partDocJson(part, partBlocks[i]),
-          if (!part.pathOnly) 'text': _blockBody(partBlocks[i]),
+          if (!part.pathOnly && !part.nameOnly)
+            'text': _blockBody(partBlocks[i]),
           ..._partKeys(part),
           ..._citedByKey(part.cited, citedBy),
         },

@@ -171,14 +171,15 @@ MapEntry<String, String>? gnfrOverride(
   );
 }
 
-/// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`.
+/// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`,
+/// project spec doc types excluded.
 ///
 /// Ordered project, features, gnfr, tech_stack, then the rest by
 /// DocPath.
 List<MergedDocType> singularDocTypes(MergedSet set) {
   final singular = [
     for (final docType in set.docTypes)
-      if (_isSingular(docType.path)) docType,
+      if (_isSingular(docType.path) && !set.isProjectSpecType(docType)) docType,
   ];
   return singular..sort(_byDraftOrder);
 }

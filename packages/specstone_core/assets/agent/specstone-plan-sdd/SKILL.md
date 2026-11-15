@@ -91,5 +91,7 @@ any file of this plugin holds.
 - **The Owner picks one:** follow it and hand it the plan's path.
 - **None qualifies, or the Owner picks none:** say the plan is ready to run, and name its path.
 
+Beside that question, follow `references/tickets.md`.
+
 Run no task yourself, whatever the Owner answers: each task's implementer grounds itself from the docs it names, by
 its read line, `specstone context <target> --for implement --out`, per the `specstone-read-sdd` skill.

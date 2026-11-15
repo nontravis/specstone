@@ -7,7 +7,10 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/tree_rules.dart'
+    show checkedFoldersOf;
 import 'package:specstone_core/src/index_query/read_session.dart';
+import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -15,6 +18,8 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/temp_tree.dart';
 
 void main() {
   test('f04/us01/s5, f04/us01/fr06/e01, f04/us01/fr06/e02: a file in a checked folder no pattern matches is '
@@ -227,33 +232,27 @@ void main() {
       final report = checkOf(
         await writeCheckProject(
           extra: {
-            '.specstone/templates/project_api.yaml': 'id: project_api\nextends: api\npath: specs/PROJECT_API.md\nparent:\n',
-            'docs/specs/PROJECT_API.md': '# Project API\n',
+            '.specstone/templates/edge_api_root.yaml': 'id: edge_api_root\nextends: api\npath: specs/EDGE_API_ROOT.md\nparent:\n',
+            'docs/specs/EDGE_API_ROOT.md': '# Edge API root\n',
           },
         ),
       );
       expect(spots(report, FindingKind.parentMissing), isEmpty);
       expect(spots(report, FindingKind.requiredSectionMissing), [
-        'specs/PROJECT_API.md:1: required_section_missing',
-        'specs/PROJECT_API.md:1: required_section_missing',
+        'specs/EDGE_API_ROOT.md:1: required_section_missing',
+        'specs/EDGE_API_ROOT.md:1: required_section_missing',
       ]);
     },
   );
 
   group('override lines and the parent gate', () {
-    const overridesField =
-        'fields:\n  - id: overrides\n    type: string\n    list: true\n';
     const malformedLine = '- Overrides: INV-3 — carts expire after 7 days';
     const ghostDomain = 'specs/f09_ghost/DOMAIN.md';
     const topic = 'specs/topics/rules.md';
-    const templates = {
-      '.specstone/templates/domain.yaml': overridesField,
-      '.specstone/templates/topic.yaml': overridesField,
-    };
 
     Future<CheckReport> run(Map<String, String> files) async => checkOf(
       await writeCheckProject(
-        extra: {...templates, ...files},
+        extra: files,
         unstamped: {for (final path in files.keys) path},
       ),
     );
@@ -381,6 +380,19 @@ void main() {
         'prds/features/f02_shop/NOTES.md:1: untyped_doc',
         'prds/features/f02_shop/NOTES.md:3: link_unresolved',
       ]),
+    );
+  });
+
+  test('the checked folders of the shipped set hold prds, specs, and '
+      'measurements', () async {
+    final project = await writeTree({
+      '.specstone/config.yaml': shippedPinsConfig(),
+    });
+    final set = TemplateResolver(shippedFiles: shippedPackFiles)
+        .resolve(workingDirectory: project, homeDirectory: null);
+    expect(
+      checkedFoldersOf(set),
+      containsAll(['prds', 'specs', 'measurements']),
     );
   });
 }

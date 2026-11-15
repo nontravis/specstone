@@ -42,6 +42,7 @@ const _namingTitlePart = 'title';
 const _namingBasePart = 'base ';
 const _namingUnchangedPart = 'unchanged';
 const _namingSummaryPart = 'summary';
+const _namingRemovedPart = 'removed ';
 const _namingFieldSeparator = '$_namingSeparator$_namingFieldPart';
 const _namingTitleSeparator = '$_namingSeparator$_namingTitlePart';
 const _namingBaseSeparator = '$_namingSeparator$_namingBasePart';
@@ -63,7 +64,8 @@ final _lineEndBlanks = RegExp(r'[ \t]+$');
 /// for a section (`_lead` for the lead), else `<DocPath>`; a [fieldId] adds
 /// ` · field <id>` and a [title] adds ` · title`, at most one of the three.
 /// A [base] adds ` · base <base>`, [unchanged] adds ` · unchanged`, and
-/// [summary] adds ` · summary`, in that order before the closing ` <==`.
+/// [summary] adds ` · summary`, and a [removed] list adds ` · removed ` and
+/// its entries joined by `, `, in that order before the closing ` <==`.
 String namingLine(
   IndexedDoc doc, {
   String? sectionKey,
@@ -72,6 +74,7 @@ String namingLine(
   String? base,
   bool unchanged = false,
   bool summary = false,
+  List<String>? removed,
 }) {
   assert(
     [sectionKey != null, fieldId != null, title].where((set) => set).length <=
@@ -84,8 +87,12 @@ String namingLine(
       '${title ? '$_namingSeparator$_namingTitlePart' : ''}'
       '${base == null ? '' : '$_namingSeparator$_namingBasePart$base'}'
       '${unchanged ? '$_namingSeparator$_namingUnchangedPart' : ''}'
-      '${summary ? '$_namingSeparator$_namingSummaryPart' : ''}$_namingClose';
+      '${summary ? '$_namingSeparator$_namingSummaryPart' : ''}'
+      '${removed == null ? '' : _removedPart(removed)}$_namingClose';
 }
+
+String _removedPart(List<String> removed) =>
+    '$_namingSeparator$_namingRemovedPart${removed.join(', ')}';
 
 /// What [readNamingLine] reads from a naming line.
 final class NamingLine {

@@ -129,6 +129,28 @@ void main() {
     });
   });
 
+  test('--json gives goal_measurement_missing for a goal no measurement links, waiting for the agent', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: doc(
+          projectDoc,
+          'Halve the password resets.\n',
+          'Halve the password resets.\n\n### PG-02 — Faster sign-in\n\n**Serves:** PV-01\nSign in under one second.\n',
+        ),
+      ),
+    );
+    expect(await runner.run(['check', '--json']), 1);
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    final findings = [
+      for (final finding in json['findings']! as List)
+        if ((finding as Map)['kind'] == 'goal_measurement_missing') finding,
+    ];
+    expect(findings, hasLength(1));
+    expect(findings.single, containsPair('waitsFor', 'agent'));
+    expect(findings.single, containsPair('docPath', projectDoc));
+    expect(findings.single, containsPair('goal', 'PG-02'));
+  });
+
   group('user_story:consistency_check/find_template_breaks S8', () {
     // Two findings: the story edited since the Owner approved it, and a
     // requirement with a bad field value.
@@ -295,6 +317,27 @@ void main() {
       expect(finding['fingerprint'], fingerprint);
       expect(finding['message'], isNot(contains(fingerprint)));
     });
+  });
+
+  test('a file at a project spec doc path is typed and reports its template breaks', () async {
+    const docPath = 'specs/DOMAIN.md';
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {'docs/$docPath': '# Project domain\n'},
+        unstamped: {'docs/$docPath'},
+      ),
+    );
+    expect(await runner.run(['check', '--json']), 1);
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    final ofDoc = [
+      for (final f in (json['findings']! as List).cast<Map<String, Object?>>())
+        if (f['docPath'] == docPath) f['kind'],
+    ];
+    expect(
+      ofDoc.where((kind) => kind == 'required_section_missing'),
+      hasLength(2),
+    );
+    expect(err.toString(), isEmpty);
   });
 
   test('check prints the override rule text before its current fingerprint', () async {
@@ -1510,6 +1553,104 @@ void main() {
     });
   });
 
+  group('task refs', () {
+    const domain = 'specs/f01_login/DOMAIN.md';
+
+    Future<Directory> domainWith(String invariants) => writeCheckProject(
+      extra: {
+        'docs/$domain':
+            '---\ntasks:\n  - INV-4:ENG-42\n---\n\n# Login domain\n\n'
+            '## Invariants\n\n$invariants\n',
+      },
+      unstamped: {'docs/$domain'},
+    );
+
+    Future<(ProcessResult, ProcessResult)> run(Directory project) async => (
+      await Process.run(binary, [
+        'check',
+        'domain:login',
+      ], workingDirectory: project.path),
+      await Process.run(binary, [
+        'check',
+        'domain:login',
+        '--json',
+      ], workingDirectory: project.path),
+    );
+
+    test('an entry whose item the doc lost is one finding at the entry, in text and --json', () async {
+      final project = await domainWith('- **INV-5** A name is unique.');
+      const message =
+          'task ENG-42 names item INV-4, which the doc does not hold';
+
+      final (text, json) = await run(project);
+
+      expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+      expect(text.stdout, contains('$domain:3: task_item_missing: $message\n'));
+      expect(json.exitCode, 1, reason: '${json.stdout}\n${json.stderr}');
+      expect(
+        [
+          for (final finding
+              in (jsonDecode(json.stdout as String) as Map)['findings'] as List)
+            if ((finding as Map)['kind'] == 'task_item_missing') finding,
+        ],
+        [
+          {
+            'kind': 'task_item_missing',
+            'docPath': domain,
+            'name': 'login',
+            'line': 3,
+            'message': message,
+            'waitsFor': 'agent',
+            'task': 'ENG-42',
+            'item': 'INV-4',
+          },
+        ],
+      );
+    });
+
+    test('an entry whose item the doc holds prints no task finding', () async {
+      final project = await domainWith('- **INV-4** An email is unique.');
+
+      final (text, _) = await run(project);
+
+      expect(text.stdout, isNot(contains('task_item_missing')));
+    });
+
+    test('an entry on a feature whose every story and FR is implemented is one finding naming the fix, in text and --json', () async {
+      final project = await domainWith('- **INV-4** An email is unique.');
+      const message =
+          'task ENG-42 is left on the done feature login; '
+          'drop the entry with specstone set domain:login --field tasks '
+          '--base <bases.fields.tasks of get --json>, '
+          'the list less the entry on stdin';
+
+      final (text, json) = await run(project);
+
+      expect(text.exitCode, 1, reason: '${text.stdout}\n${text.stderr}');
+      expect(text.stdout, contains('$domain:3: task_ref_leftover: $message\n'));
+      expect(
+        [
+          for (final finding
+              in (jsonDecode(json.stdout as String) as Map)['findings'] as List)
+            if ((finding as Map)['kind'] == 'task_ref_leftover') finding,
+        ],
+        [
+          {
+            'kind': 'task_ref_leftover',
+            'docPath': domain,
+            'name': 'login',
+            'line': 3,
+            'message': message,
+            'waitsFor': 'agent',
+            'task': 'ENG-42',
+            'item': 'INV-4',
+            'feature': 'login',
+          },
+        ],
+      );
+    });
+  });
+
   group('skill and agent files', () {
     const codexToml = '.codex/agents/specstone-sdd-engineer.toml';
     const procedure =
@@ -1689,5 +1830,24 @@ void main() {
 
       expect(await staleLines(root, ['project']), isEmpty);
     });
+  });
+
+  test('an untyped .md under measurements/ is untyped_doc, and one outside the '
+      'checked folders gets no check', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {
+          'docs/measurements/notes.md': '# Notes\n',
+          'docs/notes/ideas.md': '# Ideas\n',
+        },
+      ),
+    );
+    expect(await runner.run(['check']), 1);
+    expect(
+      out.toString(),
+      matches(
+        RegExp(r'^measurements/notes\.md:1: untyped_doc: .*\n1 finding\n$'),
+      ),
+    );
   });
 }

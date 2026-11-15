@@ -10,7 +10,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
-import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -914,10 +913,8 @@ void main() {
       '$f/us01_email_login/fr02_lock_after_failures.md',
       '$f/us01_email_login/nf01_login_latency.md',
     };
-    Future<DocIndex> oneTargetIndex() => indexWith({
-      ...projectDomainTemplate,
-      'docs/$rootDomain': '# Project domain\n',
-    });
+    Future<DocIndex> oneTargetIndex() =>
+        indexWith({'docs/$rootDomain': '# Project domain\n'});
 
     test(
       "a root spec doc joins a story's implement bundle beside the tech stack",
@@ -974,7 +971,6 @@ void main() {
       Future<DocIndex> twoTargetIndex() async {
         final session = openSession(
           await writeTree({
-            ...projectDomainTemplate,
             '.specstone/templates/tech_stack.yaml':
                 'id: tech_stack\nper_target: true\n',
             '.specstone/config.yaml':

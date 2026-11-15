@@ -542,6 +542,168 @@ void main() {
       expect(readDoc(root, jasprArchitecture), before);
     });
   });
+
+  group('--remove-task', () {
+    const conflict =
+        '--remove-task takes no doc address, --base, --field, --title, or --batch\n';
+
+    Future<Directory> project() => writeWriteProject(
+      extra: {
+        'docs/$loginArch': withKeyBlock(
+          writeProject['docs/$loginArch']!,
+          'tasks',
+          'tasks:\n  - INV-4:ENG-42\n  - ENG-42\n  - INV-7:ENG-50\n',
+        ),
+      },
+    );
+
+    test('removes the refs of the task, prints one line per doc and one per task with no ref, exit 0, stdin ignored', () async {
+      final root = await project();
+      final console = _RecordingConsole();
+      final (:runner, :out, :err) = writeRunner(root, console: console);
+
+      expect(
+        await runner.run([
+          'set',
+          '--remove-task',
+          'ENG-42',
+          '--remove-task',
+          'ENG-43',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(readDoc(root, loginArch), contains('tasks:\n  - INV-7:ENG-50\n'));
+      expect(readDoc(root, loginArch), isNot(contains('ENG-42')));
+      expect(
+        out.toString(),
+        matches(
+          RegExp(
+            r'^==> login \(architecture\) · specs/f01_login/ARCHITECTURE\.md · base [0-9a-f]{12} · removed INV-4:ENG-42, ENG-42 <==\nENG-43 · no refs\n$',
+          ),
+        ),
+      );
+      expect(err.toString(), isEmpty);
+      expect(console.reads, 0);
+    });
+
+    test('--json prints docs, noRefs, and warnings', () async {
+      final root = await project();
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'set',
+          '--remove-task',
+          'ENG-42',
+          '--remove-task',
+          'ENG-43',
+          '--json',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(json.keys, ['docs', 'noRefs', 'warnings']);
+      expect(json['noRefs'], ['ENG-43']);
+      expect(json['docs'], [
+        containsPair('removed', ['INV-4:ENG-42', 'ENG-42']),
+      ]);
+    });
+
+    test('a doc address, --base, --field, --title, or --batch beside it exits 64 as argument_conflict before its value is read, writes nothing, and reads no stdin', () async {
+      final root = await project();
+      final before = readDoc(root, loginArch);
+      for (final beside in [
+        ['architecture:login'],
+        ['--base', 'e3b0c44298fc'],
+        ['--field', 'tasks'],
+        ['--title'],
+        ['--batch', '${root.path}/batch.md'],
+      ]) {
+        final console = _RecordingConsole();
+        final (:runner, :out, :err) = writeRunner(root, console: console);
+
+        // The value is bad too: the conflict is refused first.
+        expect(
+          await runner.run(['set', '--remove-task', 'a:b', ...beside]),
+          64,
+          reason: '$beside',
+        );
+
+        expect(err.toString(), conflict, reason: '$beside');
+        expect(out.toString(), isEmpty, reason: '$beside');
+        expect(console.reads, 0, reason: '$beside');
+      }
+      expect(readDoc(root, loginArch), before);
+    });
+
+    test('a value that is empty or holds a colon exits 64 as argument_invalid and writes nothing', () async {
+      final root = await project();
+      final before = readDoc(root, loginArch);
+      for (final value in ['', 'INV-4:ENG-42']) {
+        final (:runner, :out, :err) = writeRunner(root);
+
+        expect(
+          await runner.run([
+            'set',
+            '--remove-task',
+            'ENG-42',
+            '--remove-task',
+            value,
+          ]),
+          64,
+          reason: value,
+        );
+
+        expect(
+          err.toString(),
+          '--remove-task takes a task id that is not empty and holds no ":"; got "$value"\n',
+          reason: value,
+        );
+        expect(out.toString(), isEmpty, reason: value);
+      }
+      expect(readDoc(root, loginArch), before);
+    });
+
+    test('--target keeps the removal to one code target', () async {
+      final root = await writeTwinProject();
+      for (final docPath in [flutterArchitecture, jasprArchitecture]) {
+        docFile(root, docPath).writeAsStringSync(
+          withKeyBlock(readDoc(root, docPath), 'tasks', 'tasks:\n  - ENG-42\n'),
+        );
+      }
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(
+        await runner.run([
+          'set',
+          '--remove-task',
+          'ENG-42',
+          '--target',
+          'jaspr',
+        ]),
+        0,
+        reason: err.toString(),
+      );
+
+      expect(readDoc(root, jasprArchitecture), isNot(contains('ENG-42')));
+      expect(readDoc(root, flutterArchitecture), contains('ENG-42'));
+    });
+
+    test('the help and the invocation show the form', () async {
+      final (:runner, :out, :err) = writeRunner(await writeWriteProject());
+
+      expect(await runner.run(['set', '--help']), 0);
+
+      final text = out.toString().replaceAll(RegExp(r'\s+'), ' ');
+      expect(text, contains('specstone set --remove-task <task id>'));
+      expect(text, contains('--remove-task'));
+      expect(text, contains('Removes every entry of the task'));
+    });
+  });
 }
 
 /// A [Console] that counts how often stdin is read.

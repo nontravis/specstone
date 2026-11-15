@@ -166,6 +166,27 @@ void main() {
     expect(context, endsWith('\n1 finding'));
   });
 
+  test(
+    'an untyped .md in measurements/ hands back its untyped_doc finding',
+    () async {
+      final root = await writeCheckProject(
+        extra: {'docs/measurements/notes.md': '# Notes\n'},
+      );
+      final result = await postEdit(root, abs(root, 'measurements/notes.md'));
+      expect(result.status, 0);
+      final decoded = jsonDecode(result.out) as Map<String, Object?>;
+      final context =
+          (decoded['hookSpecificOutput']!
+                  as Map<String, Object?>)['additionalContext']!
+              as String;
+      expect(
+        context,
+        matches(RegExp(r'^measurements/notes\.md:\d+: untyped_doc: ')),
+      );
+      expect(context, endsWith('\n1 finding'));
+    },
+  );
+
   test('E08: an owner '
       "finding's line keeps its tag in the hook context", () async {
     final root = await writeCheckProject(

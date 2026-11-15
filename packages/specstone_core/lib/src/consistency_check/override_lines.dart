@@ -87,7 +87,7 @@ typedef _Read = ({OverrideLine line, Finding? finding});
 Iterable<_Read> _readLines(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null || !carriesOverrides(type)) return;
-  if (_isProjectSpecType(context, type)) return;
+  if (context.set.isProjectSpecType(type)) return;
   final chain = _chainOf(context, doc);
   for (var at = 0; at < context.contentOf(doc).sections.length; at++) {
     for (final item in context.itemsIn(doc, at)) {
@@ -99,11 +99,6 @@ Iterable<_Read> _readLines(CheckContext context, IndexedDoc doc) sync* {
   }
 }
 
-// A project spec doc type has no parent and builds on a type that has one.
-bool _isProjectSpecType(CheckContext context, MergedDocType type) =>
-    type.parent == null &&
-    type.extendsChain.any((id) => context.set.lookup(id)?.parent != null);
-
 // The docs above [doc]: the project spec docs of its code target, and, for a
 // feature's spec doc, that target's spec docs under each ancestor feature of
 // its feature. The ancestor docs count only when their type carries
@@ -114,7 +109,8 @@ Set<String> _chainOf(CheckContext context, IndexedDoc doc) {
   final paths = {
     for (final other in index.docs)
       if (other.isTyped && inTarget(other))
-        if (_isProjectSpecType(context, context.typeOf(other)!)) other.docPath,
+        if (context.set.isProjectSpecType(context.typeOf(other)!))
+          other.docPath,
   };
   final feature = index.parentOf(doc);
   var ancestor = feature == null ? null : index.parentOf(feature);

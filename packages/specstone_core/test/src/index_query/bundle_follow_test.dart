@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_follow.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:test/test.dart';
 
@@ -49,8 +50,34 @@ const _cited = <String, String>{
       'and [reset](../../prds/features/f01_login/us02_reset_password/USER_STORY.md).\n',
 };
 
+const _project = 'docs/prds/PROJECT.md';
+const _measurementFile = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+const _measurementDoc = 'measurements/fewer_resets/MEASUREMENT.md';
+const _measurementFromProject = '../measurements/fewer_resets/MEASUREMENT.md';
+const _measurementFromStory =
+    '../../../../measurements/fewer_resets/MEASUREMENT.md';
+
+/// A project doc whose Project name section holds [links].
+String _projectLinking(String links) =>
+    '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+    'Login demo; $links\n';
+
+/// A measurement with a link in its Scope, one in its Method block, and a
+/// Baseline section.
+const _measurement =
+    '# Fewer resets\n\n## Scope\n- Resets per week; see [ranges](../../specs/topics/ranges.md#purpose).\n\n'
+    '## Method\n### Take a run\nCount them.\n\n'
+    '## Baseline\n| Metric | Run | Value | Date | Source |\n|---|---|---|---|---|\n| resets | 1 | 4 | 2026-11-01 | log |\n\n'
+    '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n| 2026-11-14 | 2 | no |\n';
+
 String _frWith(String statement) =>
     '---\nverify_method: test\n---\n\n# Validate credentials\n\n## Statement\n$statement\n';
+
+/// Names the parts of [parts] that cite the measurement.
+List<String> _measurementParts(List<AppendedPart> parts) => [
+  for (final part in parts)
+    if (part.doc.docPath == _measurementDoc) _id(part),
+];
 
 /// Names [part] by its DocPath, `#<section key>`, `###` anchor, item ID, and
 /// summary mark.
@@ -59,7 +86,8 @@ String _id(AppendedPart part) =>
     '${part.sectionKey == null ? '' : '#${part.sectionKey}'}'
     '${part.heading == null ? '' : ' #${part.heading}'}'
     '${part.itemId == null ? '' : ' ${part.itemId}'}'
-    '${part.summary ? ' summary' : ''}';
+    '${part.summary ? ' summary' : ''}'
+    '${part.nameOnly ? ' name' : ''}';
 
 void main() {
   Future<DocIndex> indexFor(
@@ -82,6 +110,22 @@ void main() {
         mode,
         noProject: noProject,
       ),
+    );
+  }
+
+  Future<List<AppendedPart>> followedFrom(
+    String target,
+    Map<String, String> extra, {
+    BundleMode mode = BundleMode.implement,
+  }) async {
+    final index = await indexWith({
+      ..._cited,
+      _fr: _frWith('The system shall check the password.'),
+      ...extra,
+    });
+    return followLinks(
+      index,
+      pickBundle(index, target, mode, noProject: false),
     );
   }
 
@@ -192,6 +236,26 @@ void main() {
     expect(parts.map(_id), ['specs/topics/ranges.md summary']);
     expect(parts.single.text, '# Ranges');
   });
+  test(
+    'a link below the cut of a summary_rows section is not followed',
+    () async {
+      final parts = await followedFrom('project', {
+        _project: _projectLinking(
+          '[resets](../measurements/fewer_resets/MEASUREMENT.md)',
+        ),
+        _measurementFile:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+            'Newest first.\n\n| Date | Note |\n|---|---|\n'
+            '| 2026-11-14 | [ranges](../../specs/topics/ranges.md#purpose) |\n'
+            '| 2026-11-01 | [guide](../../specs/topics/guide.md#purpose) |\n',
+      });
+      expect(parts.map(_id), [
+        '$_measurementDoc summary',
+        'specs/topics/ranges.md#purpose',
+        'specs/topics/doc_model.md#purpose',
+      ]);
+    },
+  );
   test('a section of a summary doc is appended unless the summary prints it', () async {
     final parts = await followed(
       'See [reset]($_resetStory#use-case) and [reset criteria]($_resetStory#acceptance-criteria).',
@@ -405,4 +469,317 @@ void main() {
       ]);
     },
   );
+
+  group('a doc whose type lists summary_for', () {
+    final linkedFromProject = {
+      _project: _projectLinking('[resets]($_measurementFromProject)'),
+      _measurementFile: _measurement,
+    };
+
+    test("a story's bundle gets the naming line alone, and no link inside it is followed", () async {
+      final parts = await followedFrom('login/email_login', linkedFromProject);
+
+      expect(parts.map(_id), ['$_measurementDoc name']);
+      expect(parts.single.text, isEmpty);
+      expect(parts.single.summary, isFalse);
+    });
+    test("the project bundle gets the measurement in summary, and the summary's links are followed", () async {
+      final parts = await followedFrom('project', linkedFromProject);
+
+      expect(parts.map(_id), [
+        '$_measurementDoc summary',
+        'specs/topics/ranges.md#purpose',
+        'specs/topics/doc_model.md#purpose',
+      ]);
+    });
+    test("the measurement's own bundle prints it whole, so a link to it appends nothing", () async {
+      final parts = await followedFrom(
+        'measurement:fewer_resets',
+        linkedFromProject,
+      );
+
+      expect(
+        parts.where((part) => part.doc.docPath == _measurementDoc),
+        isEmpty,
+      );
+    });
+    test("an FR's and a spec doc's bundle get the naming line alone", () async {
+      for (final target in [
+        'login/email_login/validate_credentials',
+        'architecture:signup',
+      ]) {
+        final parts = await followedFrom(target, linkedFromProject);
+
+        expect(_measurementParts(parts), [
+          '$_measurementDoc name',
+        ], reason: target);
+      }
+    });
+    test("a code path's bundle gets the naming line alone", () async {
+      final project = await writeLoginProject(
+        extra: {...loginRecords, ...linkedFromProject},
+      );
+      final session = openSession(project);
+      addTearDown(session.close);
+      final bundle = pickCodeBundle(
+        session.index,
+        resolveCodePath(
+          'app/lib/src/login/sign_in_page.dart',
+          workingDirectory: project,
+          targets: session.project.targets,
+          codeRootOf: session.project.codeRootOf,
+        ),
+        BundleMode.implement,
+        noProject: false,
+      );
+
+      expect(_measurementParts(followLinks(session.index, bundle)), [
+        '$_measurementDoc name',
+      ]);
+    });
+    test(
+      'a bundle lists the doc type ids of the docs its target picks',
+      () async {
+        final index = await indexWith(linkedFromProject);
+        Set<String> typesOf(String target) => pickBundle(
+          index,
+          target,
+          BundleMode.implement,
+          noProject: false,
+        ).targetTypeIds;
+
+        expect(typesOf('login/email_login'), {'user_story'});
+        expect(typesOf('project'), {'project'});
+      },
+    );
+    test('a broken anchor into the doc prints nothing', () async {
+      final parts = await followedFrom('login/email_login', {
+        _measurementFile: _measurement,
+        _story:
+            '# Agent signs in with email\n\n## Use Case\nSee '
+            '[nope]($_measurementFromStory#nope) and [title]($_measurementFromStory#fewer-resets).\n',
+      });
+
+      expect(_measurementParts(parts), isEmpty);
+    });
+    test(
+      'a type with no summary_for prints the doc in summary in a story bundle',
+      () async {
+        final parts = await followedFrom('login/email_login', {
+          _story:
+              '# Agent signs in with email\n\n## Use Case\nSee '
+              '[ranges]($_specs/topics/ranges.md).\n',
+        });
+
+        expect(parts.map(_id), ['specs/topics/ranges.md summary']);
+      },
+    );
+    test('one naming line however many links', () async {
+      final parts = await followedFrom('login/email_login', {
+        ...linkedFromProject,
+        _story:
+            '# Agent signs in with email\n\n## Use Case\nSign in; see '
+            '[resets]($_measurementFromStory), [baseline]($_measurementFromStory#baseline), '
+            '[run]($_measurementFromStory#take-a-run), and [resets again]($_measurementFromStory).\n',
+      });
+
+      expect(parts.map(_id), ['$_measurementDoc name']);
+    });
+    test('a section, an item, a block, and an item range name only the doc, in a story and a feature bundle', () async {
+      const topicOnly = {
+        '.specstone/templates/topic.yaml': 'summary_for: [project]\n',
+      };
+      for (final (target, mode) in [
+        ('login/email_login', BundleMode.implement),
+        ('login', BundleMode.design),
+      ]) {
+        final parts = await followedFrom(target, mode: mode, {
+          ...topicOnly,
+          _story:
+              '# Agent signs in with email\n\n## Use Case\nSee [rules]($_specs/topics/ranges.md#rules), '
+              '[RULE-3]($_specs/topics/doc_model.md#rules), [an example]($_specs/topics/doc_model.md#a-worked-example), '
+              'and [RULE-2]($_specs/topics/ranges.md#rules) to [RULE-4]($_specs/topics/ranges.md#rules).\n',
+        });
+
+        expect(parts.map(_id), [
+          'specs/topics/ranges.md name',
+          'specs/topics/doc_model.md name',
+        ], reason: target);
+      }
+    });
+  });
+
+  group('a link into a summary_rows section', () {
+    const results = '$_measurementFromProject#results';
+    const resultsFromStory = '$_measurementFromStory#results';
+    const cut =
+        '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |';
+    const plain =
+        '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
+        '## Baseline\n| Metric | Run | Value | Date | Source |\n|---|---|---|---|---|\n| resets | 1 | 4 | 2026-11-01 | log |\n\n'
+        '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n';
+    const itemLayer = {
+      '.specstone/templates/measurement.yaml':
+          'sections:\n  - id: results\n    prefix_id: RUN-\n',
+    };
+
+    Future<List<AppendedPart>> fromProject(
+      String links, {
+      String measurement = plain,
+      Map<String, String> extra = const {},
+    }) => followedFrom('project', {
+      _project: _projectLinking(links),
+      _measurementFile: measurement,
+      ...extra,
+    });
+
+    test(
+      'a section link appends the cut once, under a summary mark, with no item',
+      () async {
+        final parts = await fromProject('[results]($results)');
+
+        expect(parts.map(_id), ['$_measurementDoc#results summary']);
+        expect(parts.single.text, cut);
+        expect(parts.single.itemId, isNull);
+        expect(parts.single.nameOnly, isFalse);
+      },
+    );
+    test('an item link appends the cut and no item part', () async {
+      final parts = await fromProject(
+        '[RUN-1]($results)',
+        measurement: plain.replaceFirst(
+          '## Results\n',
+          '## Results\n- **RUN-1** First run.\n\n',
+        ),
+        extra: itemLayer,
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+      expect(parts.single.itemId, isNull);
+      expect(
+        parts.single.text,
+        startsWith('## Results\n- **RUN-1** First run.'),
+      );
+      expect(parts.single.text, isNot(contains('2026-11-01')));
+    });
+    test('a second link into the section appends nothing again', () async {
+      final parts = await fromProject(
+        '[results]($results), [again]($results), and [RUN-2]($results)',
+        measurement: plain.replaceFirst(
+          '## Results\n',
+          '## Results\n- **RUN-2** Second run.\n\n',
+        ),
+        extra: itemLayer,
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+    });
+    test('an item range link appends the cut once', () async {
+      final parts = await fromProject(
+        '[RUN-1]($results) to [RUN-3]($results)',
+        measurement: plain.replaceFirst(
+          '## Results\n',
+          '## Results\n- **RUN-1** First run.\n- **RUN-2** Second run.\n- **RUN-3** Third run.\n\n',
+        ),
+        extra: itemLayer,
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+      expect(parts.single.itemId, isNull);
+    });
+    test(
+      'a section link after the doc link appends nothing the summary holds',
+      () async {
+        final parts = await fromProject(
+          '[resets]($_measurementFromProject) and [results]($results)',
+        );
+
+        expect(parts.map(_id), ['$_measurementDoc summary']);
+      },
+    );
+    test('a doc link after the cut still appends the summary with Scope and the cut', () async {
+      final parts = await fromProject(
+        '[results]($results) and [resets]($_measurementFromProject)',
+      );
+
+      expect(parts.map(_id), [
+        '$_measurementDoc#results summary',
+        '$_measurementDoc summary',
+      ]);
+      expect(parts.last.text, contains('## Scope\n- Resets per week.'));
+      expect(parts.last.text, contains(cut));
+      expect(parts.last.text, isNot(contains('2026-11-01 | 1')));
+    });
+    test('a link into a section that is no summary_rows section appends it whole', () async {
+      final parts = await fromProject(
+        '[resets]($_measurementFromProject) and [baseline]($_measurementFromProject#baseline)',
+      );
+
+      expect(parts.map(_id), [
+        '$_measurementDoc summary',
+        '$_measurementDoc#baseline',
+      ]);
+      expect(parts.last.summary, isFalse);
+    });
+    test(
+      'a link to a ### heading inside the section appends the cut',
+      () async {
+        final parts = await fromProject(
+          '[runs]($_measurementFromProject#runs)',
+          measurement:
+              '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
+              '## Results\nNewest first. Met: halved.\n\n### Runs\n'
+              '| Date | Run | Met |\n|---|---|---|\n'
+              '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+        );
+
+        expect(parts.map(_id), ['$_measurementDoc#results summary']);
+        expect(parts.single.text, contains('2026-11-14 | 2'));
+        expect(parts.single.text, isNot(contains('2026-11-01 | 1')));
+      },
+    );
+    test('a section written as prose appends its text whole', () async {
+      final parts = await fromProject(
+        '[results]($results)',
+        measurement: '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\nRun one met the goal.\nRun two did not.\n',
+      );
+
+      expect(parts.map(_id), ['$_measurementDoc#results summary']);
+      expect(
+        parts.single.text,
+        '## Results\nRun one met the goal.\nRun two did not.',
+      );
+    });
+    test(
+      'a layer that turns summary_rows off appends the section whole',
+      () async {
+        final parts = await fromProject(
+          '[resets]($_measurementFromProject) and [results]($results)',
+          extra: {
+            '.specstone/templates/measurement.yaml':
+                'sections:\n  - id: results\n    summary_rows: false\n',
+          },
+        );
+
+        expect(parts.map(_id), [
+          '$_measurementDoc summary',
+          '$_measurementDoc#results',
+        ]);
+        expect(parts.last.summary, isFalse);
+        expect(parts.last.text, contains('2026-11-01 | 1'));
+        expect(parts.first.text, isNot(contains('## Results')));
+      },
+    );
+    test('the naming line wins over the cut in a story bundle', () async {
+      final parts = await followedFrom('login/email_login', {
+        _measurementFile: plain,
+        _story:
+            '# Agent signs in with email\n\n## Use Case\nSee [results]($resultsFromStory).\n',
+      });
+
+      expect(parts.map(_id), ['$_measurementDoc name']);
+    });
+  });
 }

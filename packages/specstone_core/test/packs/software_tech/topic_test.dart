@@ -32,6 +32,8 @@ void main() {
         required: true,
         pointer: PointerKind.prefix,
       ),
+      FieldSpec('overrides', FieldType.string, list: true),
+      FieldSpec('tasks', FieldType.taskRef, list: true),
     ]);
     expect(
       fieldOf(topic, 'covers').description,
@@ -76,5 +78,19 @@ void main() {
       topic,
       'Write one rule per ID: one bullet per rule, each rule one sentence.',
     );
+  });
+
+  test('the guide states where its rules belong', () {
+    expectDescriptionSays(topic, const [
+      'code or a rule set that two or more features share and none owns',
+      'never a rule every feature uses',
+    ]);
+  });
+
+  test("the guide takes an Overrides line from a project spec doc's rule "
+      'alone', () {
+    expectDescriptionSays(topic, const [
+      'only from a rule of a project spec doc',
+    ]);
   });
 }

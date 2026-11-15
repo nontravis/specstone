@@ -127,13 +127,14 @@ Iterable<Finding> _titleNumberFinding(
   yield context.finding(
     doc,
     FindingKind.titleNumbered,
-    line: _titleLineOf(context, doc),
+    line: titleLineOf(context, doc),
     message: 'the title holds a digit',
   );
 }
 
-/// Returns the file line of the first `# ` line below the frontmatter.
-int _titleLineOf(CheckContext context, IndexedDoc doc) {
+/// Returns the file line of the first `# ` line below the frontmatter, or 1
+/// when the doc holds none.
+int titleLineOf(CheckContext context, IndexedDoc doc) {
   final lines = context.linesOf(doc);
   final frontmatter = context.contentOf(doc).frontmatterText ?? '';
   final skip = frontmatter.isEmpty

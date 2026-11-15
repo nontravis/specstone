@@ -73,8 +73,10 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// (`unknown_value`), every `lint.required_field_groups` entry names a
 /// field of its doc type (`unknown_value`), every section `required_when`
 /// names a section of its doc type (`unknown_value`), at most one doc type
-/// holds a `record_status` field and its merged `per_target` is `true`, and
-/// a `targets:` config without the record doc type is refused.
+/// holds a `record_status` field and its merged `per_target` is `true`, a
+/// `targets:` config without the record doc type is refused, and a doc type
+/// that carries the `patterns` field holds an enabled `out_of_scope` section
+/// (`unknown_value`).
 void checkMergedSet(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists, {
@@ -87,9 +89,11 @@ void checkMergedSet(
   _checkPaths(sorted, layerLists, loadIndex);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
+  _checkSummaryFor(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
   _checkRecords(sorted, layerLists, loadIndex, targetNames);
+  _checkPatternCarriers(sorted, layerLists);
 }
 
 /// Throws `unknown_value` for an invalid `max_depth`.
@@ -300,6 +304,30 @@ void _checkFieldTargets(
   }
 }
 
+/// Throws `unknown_value` for a `summary_for` entry naming no doc type of the
+/// set.
+void _checkSummaryFor(
+  List<MergedDocType> docTypes,
+  Map<String, MergedDocType> byId,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    for (final id in docType.summaryFor ?? const <String>[]) {
+      if (byId.containsKey(id)) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a summary_for entry names no doc type in the merged set: $id',
+        file: _writerOf(
+          docType.id,
+          (layer) => layer.summaryFor != null,
+          layerLists,
+        ),
+        key: 'summary_for',
+      );
+    }
+  }
+}
+
 /// Throws `unknown_value` for a `lint.required_field_groups` id naming no field
 /// of its merged doc type.
 void _checkFieldGroups(
@@ -415,6 +443,40 @@ Never _throwSecondRecordHolder(
     relatedFiles: related,
   );
 }
+
+/// Throws `unknown_value` for a doc type that carries the `patterns` field and
+/// holds no enabled `out_of_scope` section.
+///
+/// `file` holds the top-most layer that disables the section, else the
+/// top-most layer that writes the field.
+void _checkPatternCarriers(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    if (!docType.fields.any((f) => f.id == _patternsField)) continue;
+    if (docType.sections.any((s) => s.id == _outOfScopeSection)) continue;
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'a doc type with the $_patternsField field needs an enabled '
+      '$_outOfScopeSection section, for the skip lines of a feature pattern',
+      file:
+          _writerOf(docType.id, _disabledOutOfScope, layerLists) ??
+          _writerOf(docType.id, _wrotePatterns, layerLists),
+      key: 'sections.$_outOfScopeSection',
+    );
+  }
+}
+
+const _patternsField = 'patterns';
+const _outOfScopeSection = 'out_of_scope';
+
+bool _disabledOutOfScope(DocTypeLayer layer) => layer.sections.any(
+  (entry) => entry.id == _outOfScopeSection && entry.disabled,
+);
+
+bool _wrotePatterns(DocTypeLayer layer) =>
+    layer.fields.any((entry) => entry.id == _patternsField && !entry.disabled);
 
 bool _wrotePerTarget(DocTypeLayer layer) => layer.perTarget != null;
 

@@ -16,13 +16,35 @@ const softwareTechIds = <String>[
   'error',
   'implementation',
   'integration',
+  'project_api',
+  'project_architecture',
+  'project_auth',
+  'project_domain',
+  'project_error',
+  'project_integration',
   'tech_stack',
   'topic',
 ];
 
+/// The project spec doc type ids, each with the doc type it extends.
+const projectSpecDocBases = <String, String>{
+  'project_api': 'api',
+  'project_architecture': 'architecture',
+  'project_auth': 'auth',
+  'project_domain': 'domain',
+  'project_error': 'error',
+  'project_integration': 'integration',
+};
+
 /// Each doc type's `reference:` entries in order: US-07 FR-03 titles and
-/// research N.4 urls.
-const softwareTechSources = <String, List<({String title, String url})>>{
+/// research N.4 urls; a project spec doc type takes its base type's list.
+final softwareTechSources = <String, List<({String title, String url})>>{
+  ..._ownSources,
+  for (final MapEntry(:key, :value) in projectSpecDocBases.entries)
+    key: _ownSources[value]!,
+};
+
+const _ownSources = <String, List<({String title, String url})>>{
   'tech_stack': [
     (
       title: 'arc42 section 2, Architecture Constraints',
@@ -208,7 +230,7 @@ const softwareTechSources = <String, List<({String title, String url})>>{
 };
 
 /// The line target each doc type's description states (US-07 FR-02 E04).
-String lineTargetOf(String id) => switch (id) {
+String lineTargetOf(String id) => switch (projectSpecDocBases[id] ?? id) {
   'tech_stack' => 'about 80 lines',
   'architecture' => 'under 150 lines',
   'implementation' => 'one line per entry in `statuses`',
@@ -281,6 +303,16 @@ void expectSectionsSay(MergedDocType docType, Map<String, List<String>> says) {
         reason: '${docType.id}.$sectionId: $phrase',
       );
     }
+  }
+}
+
+/// Expects the description of [docType] to say each listed phrase.
+///
+/// Both sides compare lower-cased with each whitespace run as one space.
+void expectDescriptionSays(MergedDocType docType, List<String> phrases) {
+  final text = _squash(docType.description ?? '');
+  for (final phrase in phrases) {
+    expect(text, contains(_squash(phrase)), reason: '${docType.id}: $phrase');
   }
 }
 

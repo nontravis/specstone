@@ -3,6 +3,7 @@ import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
+import 'package:specstone_core/src/templates/summary_rows.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/yaml_reader.dart';
 import 'package:yaml/yaml.dart';
@@ -16,7 +17,8 @@ enum FieldType {
   enumType('enum'),
   docRef('doc_ref'),
   outputRef('output_ref'),
-  recordStatus('record_status');
+  recordStatus('record_status'),
+  taskRef('task_ref');
 
   new(this.wire);
 
@@ -33,7 +35,7 @@ enum FieldType {
     if (type != null) return type;
     throw TemplateFault(
       FaultCode.unknownValue,
-      'the key type must be one of the eight field types',
+      'the key type must be one of the nine field types',
       file: file,
       key: '${prefix}type',
     );
@@ -257,6 +259,7 @@ final class SectionEntry {
     this.after,
     this.query,
     this.summary,
+    this.summaryRows,
     required this.disabled,
   });
 
@@ -290,6 +293,10 @@ final class SectionEntry {
   /// Whether the section prints in a summary doc of a design bundle, when
   /// written.
   final bool? summary;
+
+  /// The rows a summary doc prints of the section's table, or off, when
+  /// written.
+  final SummaryRows? summaryRows;
 
   /// Whether the section is turned off by this layer.
   final bool disabled;
@@ -353,6 +360,7 @@ final class DocTypeLayer {
     required this.lint,
     required this.reference,
     required this.bundle,
+    required this.summaryFor,
     required this.generators,
   });
 
@@ -413,6 +421,7 @@ final class DocTypeLayer {
         templateFolder: '',
       ),
       bundle: _parseBundle(map, file: file),
+      summaryFor: _parseSummaryFor(map, file: file),
       generators: _listWrite(map, 'generators', file: file, prefix: ''),
     );
   }
@@ -465,12 +474,42 @@ final class DocTypeLayer {
   /// The bundle modes this layer writes, plain or as changes, when written.
   final ListWrite<String>? bundle;
 
+  /// The doc type ids whose bundles print this doc type in summary, when
+  /// written.
+  ///
+  /// `TemplateResolver` checks each id against the merged set.
+  final List<String>? summaryFor;
+
   /// The generated-block kinds this layer writes, plain or as changes.
   ///
   /// Each entry is checked as a string only; `TemplateResolver` checks the
   /// kind names against the registered kinds.
   final ListWrite<String>? generators;
 }
+
+/// Reads the `summary_for` key of [map] as a list of strings, or null.
+List<String>? _parseSummaryFor(YamlMap map, {required String file}) {
+  final list = optionalValue<YamlList>(map, 'summary_for', file: file);
+  return list == null ? null : stringsOf(list, 'summary_for', file: file);
+}
+
+/// Reads the `summary_rows` of the section at [index]: a positive integer, or
+/// `false`.
+SummaryRows? _parseSummaryRows(
+  YamlMap entry, {
+  required int index,
+  required String file,
+}) => switch (entry['summary_rows']) {
+  null => null,
+  false => const SummaryRows.off(),
+  final int count when count > 0 => SummaryRows.rows(count),
+  _ => throw TemplateFault(
+    FaultCode.unknownValue,
+    'the key summary_rows must be a positive whole number or false',
+    file: file,
+    key: 'sections[$index].summary_rows',
+  ),
+};
 
 /// The bundle modes a doc type may name on the wire.
 const bundleModeWires = <String>{'query', 'implement', 'design'};
@@ -622,6 +661,7 @@ const _topKeys = {
   'lint',
   'reference',
   'bundle',
+  'summary_for',
   'generators',
 };
 
@@ -649,6 +689,7 @@ const _sectionKeys = {
   'after',
   'query',
   'summary',
+  'summary_rows',
 };
 
 const _docLintKeys = {
@@ -849,6 +890,7 @@ SectionEntry _parseSection(
     after: optionalValue<String>(entry, 'after', file: file, prefix: prefix),
     query: optionalValue<bool>(entry, 'query', file: file, prefix: prefix),
     summary: optionalValue<bool>(entry, 'summary', file: file, prefix: prefix),
+    summaryRows: _parseSummaryRows(entry, index: index, file: file),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,

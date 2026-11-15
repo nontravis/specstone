@@ -41,8 +41,13 @@ final _allowed = <_Allowed>[
     'Matches a `- **<field>:** <text>` label, no reference.',
   ),
   _core(
+    'consistency_check/goal_measurement_rules.dart',
+    r"""RegExp(r'^(?:- )?\*\*Metric:\*\*'""",
+    'Matches the `**Metric:**` label; its links are read apart.',
+  ),
+  _core(
     'consistency_check/trace_rules.dart',
-    r"""RegExp(r'^\*\*Serves:\*\*(.*)$'""",
+    r"""RegExp(r'^(?:- )?\*\*Serves:\*\*(.*)$'""",
     'Matches the `**Serves:**` label; its IDs are read apart.',
   ),
   _core(
@@ -120,6 +125,12 @@ final _allowed = <_Allowed>[
     'index_query/record_entries.dart',
     """.indexOf(':'""",
     'Cuts a record entry line at its `:` marks, no reference.',
+  ),
+  // A task ref entry (`<item>:<task id>`), not a doc reference.
+  _core(
+    'doc_model/task_ref.dart',
+    """.lastIndexOf(':'""",
+    'Cuts a task ref entry at its last `:`, a task id, no doc reference.',
   ),
   _core(
     'index_query/link_blocks.dart',

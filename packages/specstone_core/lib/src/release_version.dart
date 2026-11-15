@@ -36,6 +36,12 @@ final class ReleaseVersion implements Comparable<ReleaseVersion> {
   final List<String> _fields;
   final List<String> _preRelease;
 
+  /// The first numeric field as parsed: no leading zero, any length.
+  String get major => _fields[0];
+
+  /// The second numeric field as parsed: no leading zero, any length.
+  String get minor => _fields[1];
+
   /// Whether a pre-release part follows the three numeric fields.
   bool get isPreRelease => _preRelease.isNotEmpty;
 

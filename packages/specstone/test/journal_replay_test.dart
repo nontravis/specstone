@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/doc_model/doc_splice.dart' show baseHashOf;
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show baseHashOf, withKeyBlock;
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:test/test.dart';
 
@@ -10,11 +11,14 @@ import '../../specstone_core/test/helpers/write_fixture.dart'
     show
         docFile,
         fr31,
+        loginArch,
         readDoc,
+        signupArch,
         story1,
         story3,
         testHome,
         writeJournal,
+        writeProject,
         writeWriteProject;
 import 'helpers/built_cli.dart';
 
@@ -131,6 +135,65 @@ void main() {
     expect(readDoc(root, story1), readDoc(twin, story1));
     expect(readDoc(root, story3), readDoc(twin, story3));
     expect(readDoc(root, fr31), edited);
+    expect(MoveJournal.pending(root), isFalse);
+  });
+
+  test('a --remove-task run stopped after its journal and '
+      'before its last doc is finished by the next write command', () async {
+    const docs = [loginArch, signupArch];
+    final files = {
+      for (final docPath in docs)
+        'docs/$docPath': withKeyBlock(
+          writeProject['docs/$docPath']!,
+          'tasks',
+          'tasks:\n  - ENG-42\n  - ENG-50\n',
+        ),
+    };
+    final twin = await writeWriteProject(extra: files);
+    final root = await writeWriteProject(extra: files);
+    final environment = {
+      'HOME': testHome().path,
+      'USERPROFILE': testHome().path,
+    };
+    final removed = await Process.run(
+      binary,
+      ['set', '--remove-task', 'ENG-42'],
+      workingDirectory: twin.path,
+      environment: environment,
+      stderrEncoding: utf8,
+    );
+    expect(removed.exitCode, 0, reason: '${removed.stderr}');
+    writeJournal(root, [
+      for (final docPath in docs)
+        WriteStep(
+          'docs/$docPath',
+          readDoc(twin, docPath),
+          before: textHashOf(readDoc(root, docPath)),
+        ),
+    ]);
+    docFile(root, loginArch).writeAsStringSync(readDoc(twin, loginArch));
+
+    final next = await Process.start(
+      binary,
+      [
+        'set',
+        'user_story:login/sign_out#use_case',
+        '--base',
+        baseHashOf('\nSign out.\n'),
+      ],
+      workingDirectory: root.path,
+      environment: environment,
+    );
+    next.stdin.write('Sign out everywhere.\n');
+    await next.stdin.close();
+    final stderr = await next.stderr.transform(utf8.decoder).join();
+    await next.stdout.drain<void>();
+
+    expect(await next.exitCode, 0, reason: stderr);
+    for (final docPath in docs) {
+      expect(readDoc(root, docPath), readDoc(twin, docPath), reason: docPath);
+      expect(readDoc(root, docPath), isNot(contains('ENG-42')));
+    }
     expect(MoveJournal.pending(root), isFalse);
   });
 }

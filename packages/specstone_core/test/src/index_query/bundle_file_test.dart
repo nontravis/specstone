@@ -538,6 +538,63 @@ void main() {
         );
       },
     );
+    test('a naming-line part has one index line with its range and cited, no section', () async {
+      final index = await indexWith({
+        'docs/prds/PROJECT.md':
+            '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+            'Login demo; see [resets](../measurements/fewer_resets/MEASUREMENT.md).\n',
+        'docs/measurements/fewer_resets/MEASUREMENT.md':
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n',
+      });
+      final answer = answerContext(
+        index,
+        pickBundle(
+          index,
+          'login/email_login',
+          BundleMode.implement,
+          noProject: false,
+        ),
+        label: 'login/email_login',
+        byCode: false,
+      );
+      expectPlaced(answer);
+      expectIndexLine(
+        answer,
+        r'- fewer_resets \(measurement\) · (\d+)-\1 · cited',
+      );
+      final entry = bundleIndexJson(answer, '/p')['docs']! as List;
+      expect(
+        entry.firstWhere((d) => (d as Map)['name'] == 'fewer_resets'),
+        containsPair('sections', isEmpty),
+      );
+    });
+    test('an appended cut has one index line marked summary then cited, with its section, and a summary --json row', () async {
+      final index = await indexWith({
+        'docs/prds/PROJECT.md':
+            '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+            'Login demo; see [results](../measurements/fewer_resets/MEASUREMENT.md#results).\n',
+        'docs/measurements/fewer_resets/MEASUREMENT.md':
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+            'Newest first.\n\n| Date | Run | Met |\n|---|---|---|\n| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+      });
+      final answer = answerContext(
+        index,
+        pickBundle(index, 'project', BundleMode.implement, noProject: false),
+        label: 'project',
+        byCode: false,
+      );
+      expectPlaced(answer);
+      expectIndexLine(
+        answer,
+        r'- fewer_resets \(measurement\) · \d+-\d+ · summary · cited results · results \d+',
+      );
+      final docs = bundleIndexJson(answer, '/p')['docs']! as List;
+      final row =
+          docs.firstWhere((d) => (d as Map)['name'] == 'fewer_resets') as Map;
+      expect(row['summary'], isTrue);
+      expect(row['cited'], isTrue);
+      expect((row['sections'] as List).single, containsPair('key', 'results'));
+    });
     test('over budget: no doc text, no entry', () async {
       final index = await indexWith();
       final answer = answerContext(

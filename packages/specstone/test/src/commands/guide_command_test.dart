@@ -1087,6 +1087,50 @@ items:
     });
   });
 
+  group('specstone guide in the built CLI with a patterns carrier', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    const disabledFile = '.specstone/templates/feature.yaml';
+
+    Future<ProcessResult> run(List<String> args) async {
+      final project = await writeTree({
+        _configPath: shippedPinsConfig(),
+        disabledFile: 'sections:\n  - id: out_of_scope\n    disabled: true\n',
+      });
+      return Process.run(binary, [
+        'guide',
+        ...args,
+      ], workingDirectory: project.path);
+    }
+
+    test('a layer that disables out_of_scope on feature exits 78 naming the '
+        'file and the key', () async {
+      final result = await run([]);
+
+      expect(result.exitCode, 78, reason: '${result.stdout}');
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, startsWith('$disabledFile: '));
+      expect(result.stderr, contains('sections.out_of_scope'));
+    });
+
+    test('--json prints the unknown_value envelope with the file and the '
+        'key', () async {
+      final result = await run(['--json']);
+
+      expect(result.exitCode, 78, reason: '${result.stdout}');
+      expect(result.stdout, isEmpty);
+      final error =
+          (jsonDecode(result.stderr as String)
+                  as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'unknown_value');
+      expect(error['file'], disabledFile);
+      expect(error['key'], 'sections.out_of_scope');
+    });
+  });
+
   group('specstone guide with the shipped writing guides', () {
     late StringBuffer out;
     late StringBuffer err;

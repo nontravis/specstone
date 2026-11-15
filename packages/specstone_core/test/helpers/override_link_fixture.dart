@@ -1,18 +1,6 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
 
 import 'check_fixture.dart';
-import 'project_domain_fixture.dart';
-
-const _overridesField =
-    'fields:\n  - id: overrides\n    type: string\n    list: true\n';
-
-/// The doc types that carry `overrides`, plus the project-wide domain type.
-const overrideTemplates = <String, String>{
-  '.specstone/templates/api.yaml': _overridesField,
-  '.specstone/templates/domain.yaml': _overridesField,
-  '.specstone/templates/topic.yaml': _overridesField,
-  ...projectDomainTemplate,
-};
 
 /// The DocPath of the project-wide domain doc.
 const rootDomain = 'specs/DOMAIN.md';
@@ -77,7 +65,6 @@ Map<String, String> overrideFiles({
   String root = rootRule,
   Map<String, String> extra = const {},
 }) => {
-  ...overrideTemplates,
   'docs/$rootDomain': domainDoc([root]),
   ...extra,
 };

@@ -84,6 +84,24 @@ void main() {
       expect(layer.fields.single.type, FieldType.recordStatus);
     });
 
+    test('task_ref is an accepted field type', () {
+      final layer = _parse('fields: [{id: tasks, type: task_ref}]');
+      expect(layer.fields.single.type, FieldType.taskRef);
+    });
+
+    test('an unknown field type is unknown_value counting nine types', () {
+      expect(
+        () => _parse('fields: [{id: tasks, type: ticket}]'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'fields.tasks.type').having(
+            (f) => f.message,
+            'message',
+            'the key type must be one of the nine field types',
+          ),
+        ),
+      );
+    });
+
     test('E17, INV-13: '
         'item_exact is an accepted pointer kind', () {
       final layer = _parse(
@@ -589,6 +607,63 @@ lint:
       expect(
         () => _parse('sections: [{id: goal, query: yes please}]\n'),
         throwsA(_fault(FaultCode.unknownValue, key: 'sections.goal.query')),
+      );
+    });
+
+    test('a section summary_rows count is read as that many rows', () {
+      final rows = _parse('sections: [{id: goal, summary_rows: 1}]\n')
+          .sections
+          .single
+          .summaryRows;
+      expect(rows?.count, 1);
+    });
+
+    test('a section summary_rows of false is read as off', () {
+      final rows = _parse('sections: [{id: goal, summary_rows: false}]\n')
+          .sections
+          .single
+          .summaryRows;
+      expect(rows, isNotNull);
+      expect(rows?.count, isNull);
+    });
+
+    test('a layer that writes no summary_rows leaves it null', () {
+      expect(
+        _parse('sections: [{id: goal}]\n').sections.single.summaryRows,
+        isNull,
+      );
+    });
+
+    for (final value in ['0', '-1', 'two', 'true']) {
+      test('a section summary_rows of $value is unknown_value', () {
+        expect(
+          () => _parse('sections: [{id: goal, summary_rows: $value}]\n'),
+          throwsA(
+            _fault(FaultCode.unknownValue, key: 'sections[0].summary_rows'),
+          ),
+        );
+      });
+    }
+
+    test('a summary_for list is read as written', () {
+      expect(_parse('summary_for: [project]\n').summaryFor, ['project']);
+    });
+
+    test('a layer that writes no summary_for leaves it null', () {
+      expect(_parse('path: f.md\n').summaryFor, isNull);
+    });
+
+    test('a summary_for holding a non-string is unknown_value', () {
+      expect(
+        () => _parse('summary_for: [1]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'summary_for')),
+      );
+    });
+
+    test('a summary_for that is no list is unknown_value', () {
+      expect(
+        () => _parse('summary_for: project\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'summary_for')),
       );
     });
 

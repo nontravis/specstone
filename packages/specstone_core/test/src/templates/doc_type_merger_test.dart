@@ -2,6 +2,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/summary_rows.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
@@ -199,6 +200,125 @@ void main() {
         );
       },
     );
+
+    test('a second layer disabling a section a lower layer disabled keeps the '
+        'doc type as it is', () {
+      final once = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+      final twice = project(once, 'sections: [{id: scope, disabled: true}]');
+
+      expect(ids(twice.sections), ['goal']);
+    });
+
+    test('a second layer disabling a field a lower layer disabled keeps the '
+        'doc type as it is', () {
+      final once = project(shipped(), 'fields: [{id: owner, disabled: true}]');
+      final twice = project(once, 'fields: [{id: owner, disabled: true}]');
+
+      expect(ids(twice.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+      ]);
+    });
+
+    test('a section disabled in a doc type it builds on is disabled again '
+        'without a fault', () {
+      final target = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+      final extending = merger.apply(
+        target.copyWith(extendsId: 'feature'),
+        layer(
+          'sections: [{id: scope, disabled: true}]',
+          docTypeId: 'project_feature',
+        ),
+      );
+
+      expect(ids(extending.sections), ['goal']);
+    });
+
+    test('a field disabled in a doc type it builds on is disabled again '
+        'without a fault', () {
+      final target = project(
+        shipped(),
+        'fields: [{id: owner, disabled: true}]',
+      );
+      final extending = merger.apply(
+        target.copyWith(extendsId: 'feature'),
+        layer(
+          'fields: [{id: owner, disabled: true}]',
+          docTypeId: 'project_feature',
+        ),
+      );
+
+      expect(ids(extending.fields), [
+        'slug',
+        'status',
+        'draft',
+        'approved',
+        'reference',
+      ]);
+    });
+
+    test(
+      'a section added back after it was disabled can be disabled again',
+      () {
+        final off = project(
+          shipped(),
+          'sections: [{id: scope, disabled: true}]',
+        );
+        final back = project(off, 'sections: [{id: scope, header: Back}]');
+        final offAgain = project(
+          back,
+          'sections: [{id: scope, disabled: true}]',
+        );
+
+        expect(ids(back.sections), ['goal', 'scope']);
+        expect(ids(offAgain.sections), ['goal']);
+      },
+    );
+
+    test('a section no lower layer defined is still override_id_not_found '
+        'after another section was disabled', () {
+      final once = project(
+        shipped(),
+        'sections: [{id: scope, disabled: true}]',
+      );
+
+      expect(
+        () =>
+            project(once, 'sections: [{id: nope, header: N, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'sections.nope',
+            message: 'no section "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
+
+    test('a field no lower layer defined is still override_id_not_found '
+        'after another field was disabled', () {
+      final once = project(shipped(), 'fields: [{id: owner, disabled: true}]');
+
+      expect(
+        () => project(once, 'fields: [{id: nope, disabled: true}]'),
+        throwsA(
+          fault(
+            FaultCode.overrideIdNotFound,
+            'fields.nope',
+            message: 'no field "nope" in the merged doc type to disable',
+          ),
+        ),
+      );
+    });
 
     test('f03/us02/s1, f03/us02/fr01: disabled: true drops a section', () {
       final merged = project(
@@ -1030,6 +1150,64 @@ sections:
       expect(kept.sections.firstWhere((s) => s.id == 'goal').summary, isTrue);
       final off = project(on, 'sections: [{id: goal, summary: false}]\n');
       expect(off.sections.firstWhere((s) => s.id == 'goal').summary, isFalse);
+    });
+  });
+
+  group('DocTypeMerger.apply summary_rows and summary_for', () {
+    SummaryRows? rowsOf(MergedDocType docType) =>
+        docType.sections.firstWhere((s) => s.id == 'goal').summaryRows;
+
+    test('a later false turns summary_rows off on a summary section', () {
+      final on = project(
+        shipped(),
+        'sections: [{id: goal, summary: true, summary_rows: 1}]\n',
+      );
+      expect(rowsOf(on)?.count, 1);
+      final off = project(on, 'sections: [{id: goal, summary_rows: false}]\n');
+      expect(rowsOf(off), isNotNull);
+      expect(rowsOf(off)?.count, isNull);
+      final section = off.sections.firstWhere((s) => s.id == 'goal');
+      expect(section.summary, isTrue);
+      expect(section.summaryRowCount, isNull);
+    });
+
+    test('a later false turns summary_rows off on a plain section', () {
+      final on = project(
+        shipped(),
+        'sections: [{id: goal, summary_rows: 1}]\n',
+      );
+      final off = project(on, 'sections: [{id: goal, summary_rows: false}]\n');
+      expect(rowsOf(off), isNotNull);
+      expect(rowsOf(off)?.count, isNull);
+      expect(off.sections.firstWhere((s) => s.id == 'goal').summary, isNull);
+    });
+
+    test('summary_rows survives a layer that leaves it out', () {
+      final on = project(
+        shipped(),
+        'sections: [{id: goal, summary_rows: 2}]\n',
+      );
+      final kept = project(
+        on,
+        'sections: [{id: goal, description: Why it exists}]\n',
+      );
+      expect(rowsOf(kept)?.count, 2);
+    });
+
+    test('a section a layer adds carries its summary_rows', () {
+      final added = project(
+        shipped(),
+        'sections: [{id: extra, header: Extra, summary_rows: 3}]\n',
+      );
+      expect(added.sections.last.summaryRows?.count, 3);
+    });
+
+    test('the top-most summary_for list wins', () {
+      final low = project(shipped(), 'summary_for: [project]\n');
+      expect(low.summaryFor, ['project']);
+      final high = project(low, 'summary_for: [feature]\n');
+      expect(high.summaryFor, ['feature']);
+      expect(project(high, 'path: f.md\n').summaryFor, ['feature']);
     });
   });
 

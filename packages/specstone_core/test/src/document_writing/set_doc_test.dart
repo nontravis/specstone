@@ -2819,6 +2819,57 @@ void main() {
       checkFieldIn(root, fr, 'verify_method', 'test');
     });
 
+    test(
+      'a task_ref entry with no task or no item is field_value_invalid',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            '.specstone/templates/feature.yaml':
+                'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+          },
+        );
+        for (final value in ['- ""', '- "login:"', '- ":T-1"', 'T-1']) {
+          expect(
+            () => checkFieldIn(root, 'feature:login', 'tasks', value),
+            throwsWriteFault(WriteFaultCode.fieldValueInvalid),
+            reason: value,
+          );
+        }
+        checkFieldIn(root, 'feature:login', 'tasks', '- T-1\n- "a/b:T-2"');
+      },
+    );
+
+    test(
+      'a task_ref write keeps an approved doc approved and a draft a draft',
+      () async {
+        final root = await writeWriteProject(
+          extra: {
+            '.specstone/templates/feature.yaml':
+                'fields:\n  - id: tasks\n    type: task_ref\n    list: true\n',
+          },
+        );
+        for (final (address, docPath, isDraft) in [
+          ('feature:login', loginFeature, false),
+          ('feature:signup', signupFeature, true),
+        ]) {
+          final before = readDoc(root, docPath);
+          writeIn(
+            root,
+            (s) => answerSet(
+              s,
+              fieldReq(address, 'tasks', fieldBase(root, address, 'tasks')),
+              '- T-1\n',
+            ),
+          );
+          final written = readDoc(root, docPath);
+          expect(written, contains('tasks:'), reason: address);
+          expect(written.contains('draft: true'), isDraft, reason: address);
+          expect(before.contains('draft: true'), isDraft, reason: address);
+        }
+        expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+      },
+    );
+
     test('E08: removing a required field is required_target', () async {
       final root = await writeWriteProject();
       const fr = 'fr:login/reset_password/expire_reset_link';

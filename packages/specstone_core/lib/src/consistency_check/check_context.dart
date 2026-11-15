@@ -16,7 +16,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show generatedLineTest, withGeneratedFenced;
+    show generatedLineTest, leadBodyLinesOf, withGeneratedFenced;
 import 'package:specstone_core/src/index_query/parents.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -194,19 +194,35 @@ final class CheckContext {
 
   /// Returns the items of the held section at [index] of [doc], as the index
   /// reads items: a closed generated block holds none.
-  List<SectionItem> itemsIn(IndexedDoc doc, int index) {
-    final isGenerated = _generatedLines.putIfAbsent(doc.docPath, () {
-      final text = toLf(contentOf(doc).text);
-      return generatedLineTest(
+  List<SectionItem> itemsIn(IndexedDoc doc, int index) => sectionItemsOf(
+    withGeneratedFenced(bodyLinesOf(doc, index), _generatedLineTestOf(doc)),
+  );
+
+  /// Returns the items of the lead of [doc], the head after its title line,
+  /// as the index reads items: a closed generated block holds none.
+  ///
+  /// The index stores no ID for a lead item, since the lead has no section.
+  List<SectionItem> leadItemsOf(IndexedDoc doc) {
+    final text = toLf(contentOf(doc).text);
+    return sectionItemsOf(
+      leadBodyLinesOf(
         Doc.parse(text),
         text,
-        typeOf(doc)?.listedGenerators.toSet() ?? const {},
-      );
-    });
-    return sectionItemsOf(
-      withGeneratedFenced(bodyLinesOf(doc, index), isGenerated),
+        contentOf(doc).lineFacts,
+        _generatedLineTestOf(doc),
+      ),
     );
   }
+
+  bool Function(int line) _generatedLineTestOf(IndexedDoc doc) =>
+      _generatedLines.putIfAbsent(doc.docPath, () {
+        final text = toLf(contentOf(doc).text);
+        return generatedLineTest(
+          Doc.parse(text),
+          text,
+          typeOf(doc)?.listedGenerators.toSet() ?? const {},
+        );
+      });
 
   /// Whether [type] declares the field [fieldId].
   ///
@@ -282,6 +298,10 @@ final class CheckContext {
   /// Whether the merged set holds a project doc type.
   bool get hasProject =>
       _session.project.set.docTypes.any((type) => type.id == _projectType);
+
+  /// Whether the merged set holds a measurement doc type.
+  bool get hasMeasurement =>
+      _session.project.set.docTypes.any((type) => type.id == _measurementType);
 
   late final Set<String> _roleNames = {
     for (final doc in _projectDocs)
@@ -403,6 +423,7 @@ final class CheckContext {
 
 const _gnfrType = 'gnfr';
 const _projectType = 'project';
+const _measurementType = 'measurement';
 const _rolesSection = 'roles';
 final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _architectureType = 'architecture';

@@ -10,17 +10,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
-import '../../helpers/project_domain_fixture.dart';
 import '../../helpers/shipped_pins.dart';
-
-const _overridesField =
-    'fields:\n  - id: overrides\n    type: string\n    list: true\n';
-
-const Map<String, String> _templates = {
-  '.specstone/templates/domain.yaml': _overridesField,
-  '.specstone/templates/topic.yaml': _overridesField,
-  ...projectDomainTemplate,
-};
 
 const _loginDomain = 'specs/f01_login/DOMAIN.md';
 const _rootDomain = 'specs/DOMAIN.md';
@@ -47,7 +37,6 @@ String _topicDoc(List<String> items) =>
 const _firstTopicItemLine = 10;
 
 final _base = <String, String>{
-  ..._templates,
   'docs/$_rootDomain': _domain([_rootRule]),
 };
 
@@ -165,7 +154,6 @@ void main() {
     const flutterDomain = 'specs/flutter/f01_login/DOMAIN.md';
     const jasprRoot = 'specs/jaspr/DOMAIN.md';
     final files = {
-      ..._templates,
       '.specstone/config.yaml':
           '${shippedPinsConfig()}targets:\n'
           '  flutter:\n    code_root: flutter_lib\n'
@@ -352,7 +340,7 @@ void main() {
 
   test('an nf keeps its own overrides field out of override checks', () async {
     final files = {
-      ..._base,
+      ..._withLoginDomain(['- **INV-4** A cart holds 50 items.']),
       ...doc(
         loginNf,
         'Users wait.\n\n## Verification',
@@ -370,8 +358,12 @@ void main() {
       isFalse,
     );
     expect(
-      carriesOverrides(context.typeOf(context.index.at(_rootDomain)!)),
+      carriesOverrides(context.typeOf(context.index.at(_loginDomain)!)),
       isTrue,
+    );
+    expect(
+      carriesOverrides(context.typeOf(context.index.at(_rootDomain)!)),
+      isFalse,
     );
     expect(carriesOverrides(null), isFalse);
   });
@@ -430,11 +422,12 @@ void main() {
 
   test('a doc type without the overrides field is not read', () async {
     final files = {
-      ..._base,
-      '.specstone/templates/domain.yaml': 'id: domain\n',
-      'docs/$_loginDomain': _domain(['- Overrides: INV-3 — $_because']),
+      'docs/$_rootDomain': _domain([
+        _rootRule,
+        '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because',
+      ]),
     };
-    final read = await _read(files, _loginDomain);
+    final read = await _read(files, _rootDomain);
     expect(read.lines, isEmpty);
     expect(read.findings, isEmpty);
   });
