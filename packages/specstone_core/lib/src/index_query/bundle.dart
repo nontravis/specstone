@@ -85,6 +85,8 @@ final class Bundle {
 
   /// Whether a cited doc of [type] prints in summary in this bundle: its type
   /// lists no `summary_for`, or lists the doc type of a target.
+  ///
+  /// A code path has no target type, so it asks `printsSummaryFor(null)`.
   bool printsSummaryOf(MergedDocType? type) =>
       type == null ||
       (targetTypeIds.isEmpty

@@ -552,6 +552,28 @@ void main() {
         expect(typesOf('project'), {'project'});
       },
     );
+    test('a broken anchor into the doc prints nothing', () async {
+      final parts = await followedFrom('login/email_login', {
+        _measurementFile: _measurement,
+        _story:
+            '# Agent signs in with email\n\n## Use Case\nSee '
+            '[nope]($_measurementFromStory#nope) and [title]($_measurementFromStory#fewer-resets).\n',
+      });
+
+      expect(_measurementParts(parts), isEmpty);
+    });
+    test(
+      'a type with no summary_for prints the doc in summary in a story bundle',
+      () async {
+        final parts = await followedFrom('login/email_login', {
+          _story:
+              '# Agent signs in with email\n\n## Use Case\nSee '
+              '[ranges]($_specs/topics/ranges.md).\n',
+        });
+
+        expect(parts.map(_id), ['specs/topics/ranges.md summary']);
+      },
+    );
     test('one naming line however many links', () async {
       final parts = await followedFrom('login/email_login', {
         ...linkedFromProject,

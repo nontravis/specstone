@@ -229,7 +229,7 @@ final class _Walk {
       final range = cited == null ? null : rangeFrom[cited.link];
       if (cited == null) {
         _appendPath(link);
-      } else if (_namesOnly(cited.view)) {
+      } else if (_namesOnly(cited)) {
         _appendNameLine(cited.view);
       } else if (range != null) {
         _appendRange(cited, range);
@@ -239,10 +239,16 @@ final class _Walk {
     }
   }
 
-  /// Whether the bundle prints [view]'s doc by its naming line alone: its type
-  /// leaves out the bundle's target and the bundle does not print it whole.
-  bool _namesOnly(_DocView view) =>
-      !_whole.contains(view.doc.docPath) && !bundle.printsSummaryOf(view.type);
+  /// Whether the bundle prints the doc [cited] lands in by its naming line
+  /// alone: the link cites a doc, section, item, or block, the doc's type
+  /// leaves out the bundle's target, and the bundle does not print it whole.
+  bool _namesOnly(_Cited cited) =>
+      switch (cited.cite) {
+        UnresolvedCite() || OtherAnchorCite() => false,
+        _ => true,
+      } &&
+      !_whole.contains(cited.view.doc.docPath) &&
+      !bundle.printsSummaryOf(cited.view.type);
 
   /// Appends the naming line of [view]'s doc once, whatever link names it;
   /// the doc's links are not followed.
