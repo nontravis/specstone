@@ -15,6 +15,9 @@ answer; `An item over its limit` covers it.
    split, as below. `item_over_limit` skips this step: a split never shrinks one item.
 3. **Text to its home.** After an approved split, the next round fills each new feature draft and moves each spec
    doc's text to its sub-feature's spec doc. Without a split, text moves only as the Owner picks.
+4. **A moved item.** Text that takes a new item ID: in the same pass, run `specstone refs <old item's doc>`, repoint
+   each citer that cites the moved part to the new item's link, and keep each other citer. `check` cannot tell which
+   part a citer means, so the audit checks each repoint.
 
 ## The split proposal
 

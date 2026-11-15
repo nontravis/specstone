@@ -222,6 +222,7 @@ void main() {
   _planFilesTests();
   _shippedTreeTests();
   _outAndReplaceTests();
+  _docLevelPointTests();
 }
 
 /// Each plugin file that names a file for an agent's run, and the
@@ -3625,10 +3626,9 @@ const _auditReadPoints = [
 /// The restatement gap of `audit_drafts_by_reading` E10, as step 2 of
 /// audit.md words it, cut at line width.
 const _restatementGapPoints = [
-  '| Rule restated | a draft stating a rule another doc owns instead of',
-  'citing it (`specstone-expert-sdd` rule 7) |',
-  '**Rule restated:** name the owner doc and the item; its fix is an item',
-  'link in the draft.',
+  '**Rule restated:** a draft stating a rule another doc owns instead of',
+  'citing it (`specstone-expert-sdd` rule 7); name the owner doc and the item;',
+  'its fix is an item link in the draft.',
 ];
 
 /// The `Audited:` lines, E11's lists, and E13's `[behavior]` tag of
@@ -5739,5 +5739,77 @@ void _outAndReplaceTests() {
         'hand edit no doc file.',
       ),
     );
+  });
+}
+
+void _docLevelPointTests() {
+  test('the sdd-engineer stops on a message that names no mode and writes only '
+      'its report', () {
+    final text = _oneLine(_pluginText('specstone-sdd-engineer.md'));
+
+    expect(
+      text,
+      contains('a message that names no `mode`, a later round included'),
+    );
+    expect(text, contains('write only `OPEN QUESTIONS:` naming the missing'));
+    expect(text, contains('asking for a fresh dispatch with it'));
+    expect(text, contains('overwrite no other file'));
+  });
+
+  test('rounds dispatches every re-audit anew in audit mode with its '
+      'targets', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
+    );
+
+    expect(
+      text,
+      contains(
+        "Dispatch a fresh `mode: audit` with the document's path and, as its "
+        'targets',
+      ),
+    );
+    expect(
+      text,
+      contains(
+        'Send every re-audit so, never as a follow-up message to the agent of '
+        'an earlier audit',
+      ),
+    );
+  });
+
+  test('design sends no design with an open doc-level point to the author and '
+      'leaves code-level points to the builder', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/design.md'),
+    );
+
+    expect(text, contains('such as a refusal or a name rule'));
+    expect(text, contains('naming the one owner item its rule takes'));
+    expect(text, contains('a design holding one open goes to no author'));
+    expect(text, contains('such as a class name, to the builder'));
+    expect(text, contains('with no decision and no open question'));
+  });
+
+  test('audit checks each draft against its decision and each repoint', () {
+    final text = _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/audit.md'),
+    );
+
+    expect(text, contains('departs from the decision it carries out'));
+    expect(text, contains('a decision the design gives an owner item'));
+    expect(text, contains('a citer a size-fix move repointed or kept'));
+    expect(text, contains('name the citer and the item it should link'));
+  });
+
+  test('size-fix repoints each citer of a moved item through refs', () {
+    final text = _oneLine(
+      _pluginText('specstone-expert-sdd/references/size-fix.md'),
+    );
+
+    expect(text, contains('a new item ID'));
+    expect(text, contains("`specstone refs <old item's doc>`"));
+    expect(text, contains('repoint each citer that cites the moved part'));
+    expect(text, contains('keep each other citer'));
   });
 }
