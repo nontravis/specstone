@@ -508,6 +508,24 @@ void main() {
       test('is none when every target skips the feature', () async {
         expect(leftoverOn(await twins(skipped, skipped)), isEmpty);
       });
+
+      test('names the target on both the get and the set of the fix', () async {
+        final project = await twins(done, done);
+        final twin = File('${project.path}/docs/$flutterArchitecture');
+        twin.writeAsStringSync(
+          twin.readAsStringSync().replaceFirst(
+            'covers:',
+            'tasks:\n  - ENG-42\ncovers:',
+          ),
+        );
+
+        final fix = _leftover(project)
+            .singleWhere((f) => f.path == flutterArchitecture)
+            .message;
+
+        expect(fix, contains('--field tasks --target flutter --base '));
+        expect(fix, contains('of get --json --target flutter>'));
+      });
     });
 
     test('is read from a record that sits outside specs', () async {

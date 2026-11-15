@@ -80,7 +80,8 @@ Iterable<Finding> checkLeftoverTaskRefs(
       message:
           'task ${ref.task} is left on the done feature ${feature.name}; '
           'drop the entry with specstone set ${doc.docTypeId}:${doc.name} '
-          '--field $field$target --base <bases.fields.$field of get --json>, '
+          '--field $field$target --base <bases.fields.$field of get '
+          '--json$target>, '
           'the list less the entry on stdin',
       keys: {'task': ref.task, 'item': ref.item ?? '', 'feature': feature.name},
     );

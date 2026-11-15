@@ -89,6 +89,7 @@ void checkMergedSet(
   _checkPaths(sorted, layerLists, loadIndex);
   _checkParents(sorted, byId, layerLists, loadIndex);
   _checkFieldTargets(sorted, byId, layerLists);
+  _checkSummaryFor(sorted, byId, layerLists);
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
   _checkRecords(sorted, layerLists, loadIndex, targetNames);
@@ -299,6 +300,30 @@ void _checkFieldTargets(
           key: 'fields.${field.id}.doc_types',
         );
       }
+    }
+  }
+}
+
+/// Throws `unknown_value` for a `summary_for` entry naming no doc type of the
+/// set.
+void _checkSummaryFor(
+  List<MergedDocType> docTypes,
+  Map<String, MergedDocType> byId,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    for (final id in docType.summaryFor ?? const <String>[]) {
+      if (byId.containsKey(id)) continue;
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a summary_for entry names no doc type in the merged set: $id',
+        file: _writerOf(
+          docType.id,
+          (layer) => layer.summaryFor != null,
+          layerLists,
+        ),
+        key: 'summary_for',
+      );
     }
   }
 }

@@ -325,6 +325,39 @@ void main() {
       );
     });
 
+    test('a summary_for entry naming no id is unknown_value', () {
+      final layers = {
+        'runbook': [layerOf('runbook', 'summary_for: [projet]\n')],
+        'project': [layerOf('project', 'path: p.md\n', file: _storyFile)],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(summaryFor: ['projet']),
+          builtIn('project'),
+        ], layers),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having((f) => f.key, 'key', 'summary_for')
+              .having((f) => f.file, 'file', _runbookFile),
+        ),
+      );
+    });
+
+    test('a summary_for entry naming an id passes', () {
+      final layers = {
+        'runbook': [layerOf('runbook', 'summary_for: [project]\n')],
+        'project': [layerOf('project', 'path: p.md\n', file: _storyFile)],
+      };
+      expect(
+        () => check([
+          builtIn('runbook').copyWith(summaryFor: ['project']),
+          builtIn('project'),
+        ], layers),
+        returnsNormally,
+      );
+    });
+
     test('a parent naming an id passes', () {
       final layers = {
         'runbook': [layerOf('runbook', 'parent: feature\n')],

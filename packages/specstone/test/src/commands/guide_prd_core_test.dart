@@ -17,6 +17,7 @@ const _prdCoreIds = <String>[
   'fr',
   'gnfr',
   'journey',
+  'measurement',
   'nf',
   'persona',
   'project',
@@ -85,7 +86,7 @@ void main() {
       _configPath: shippedPinsConfig(['prd-core']),
     });
 
-    test('f03/us06/s1, f03/us06/fr01/e01: guide lists the eleven prd-core doc '
+    test('f03/us06/s1, f03/us06/fr01/e01: guide lists the twelve prd-core doc '
         'types and no other', () async {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide']), 0);
@@ -353,6 +354,29 @@ void main() {
       final runner = await runnerIn(await prdCoreProject());
       expect(await runner.run(['guide', 'journey']), 0);
       expect(out.toString(), isNot(contains('Guide sources:')));
+    });
+
+    test('guide measurement prints the description, then the five sections '
+        'in order', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'measurement']), 0);
+      final guide = out.toString();
+      final description = guide.indexOf('A measurement: the evidence');
+      final logRule = guide.indexOf('never edits an older row');
+      final at = [
+        '## Scope',
+        '## Method',
+        '## Baseline',
+        '## Results',
+        '## Open causes',
+      ].map(guide.indexOf).toList();
+      expect(description, 0);
+      expect(logRule, greaterThan(description));
+      expect(at.first, greaterThan(logRule));
+      expect(at, orderedEquals(List.of(at)..sort()));
+      expect(at, everyElement(isNonNegative));
+      expect(guide, isNot(contains('Guide sources:')));
+      expect(err.toString(), isEmpty);
     });
 
     test('with --json the refusal is doc_type_unknown', () async {

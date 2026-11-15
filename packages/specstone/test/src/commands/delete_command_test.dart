@@ -760,4 +760,27 @@ void main() {
       expect(File('${root.path}/docs/$fr11').existsSync(), isFalse);
     });
   });
+
+  group('an untyped file under measurements/', () {
+    const scratch = 'measurements/scratch.md';
+    const referrer = 'measurements/referrer.md';
+    final inside = <String, String>{
+      'docs/$scratch': '---\ndraft: true\n---\n\n# Scratch\n',
+      'docs/$referrer': '# Referrer\n\nSee [scratch](scratch.md).\n',
+    };
+
+    test(
+      'is no history file: a link into the delete set refuses doc_referenced',
+      () async {
+        final root = await writeWriteProject(extra: inside);
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(await runner.run(['delete', scratch, '--dry-run']), 64);
+        expect(
+          err.toString(),
+          '$scratch: docs outside $scratch link into it; also $referrer\n',
+        );
+        expect(File('${root.path}/docs/$scratch').existsSync(), isTrue);
+      },
+    );
+  });
 }

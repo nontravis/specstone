@@ -129,6 +129,28 @@ void main() {
     });
   });
 
+  test('--json gives goal_measurement_missing for a goal no measurement links, waiting for the agent', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: doc(
+          projectDoc,
+          'Halve the password resets.\n',
+          'Halve the password resets.\n\n### PG-02 — Faster sign-in\n\n**Serves:** PV-01\nSign in under one second.\n',
+        ),
+      ),
+    );
+    expect(await runner.run(['check', '--json']), 1);
+    final json = jsonDecode(out.toString()) as Map<String, Object?>;
+    final findings = [
+      for (final finding in json['findings']! as List)
+        if ((finding as Map)['kind'] == 'goal_measurement_missing') finding,
+    ];
+    expect(findings, hasLength(1));
+    expect(findings.single, containsPair('waitsFor', 'agent'));
+    expect(findings.single, containsPair('docPath', projectDoc));
+    expect(findings.single, containsPair('goal', 'PG-02'));
+  });
+
   group('user_story:consistency_check/find_template_breaks S8', () {
     // Two findings: the story edited since the Owner approved it, and a
     // requirement with a bad field value.
@@ -1737,5 +1759,24 @@ void main() {
 
       expect(await staleLines(root, ['project']), isEmpty);
     });
+  });
+
+  test('an untyped .md under measurements/ is untyped_doc, and one outside the '
+      'checked folders gets no check', () async {
+    final (:runner, :out, :err) = readRunner(
+      await writeCheckProject(
+        extra: {
+          'docs/measurements/notes.md': '# Notes\n',
+          'docs/notes/ideas.md': '# Ideas\n',
+        },
+      ),
+    );
+    expect(await runner.run(['check']), 1);
+    expect(
+      out.toString(),
+      matches(
+        RegExp(r'^measurements/notes\.md:1: untyped_doc: .*\n1 finding\n$'),
+      ),
+    );
   });
 }

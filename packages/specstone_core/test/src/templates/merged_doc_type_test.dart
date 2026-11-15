@@ -7,6 +7,7 @@ import 'package:specstone_core/src/templates/doc_type_merger.dart';
 import 'package:specstone_core/src/templates/layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
+import 'package:specstone_core/src/templates/summary_rows.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -408,6 +409,83 @@ void main() {
         'query': true,
         'summary': true,
       });
+    });
+
+    test('summaryRows prints the count, or false when off', () {
+      const section = MergedSection(
+        id: 'results',
+        header: 'Results',
+        summaryRows: SummaryRows.rows(1),
+      );
+      expect(section.toJson()['summaryRows'], 1);
+      expect(section.summaryRowCount, 1);
+      final off = section.copyWith(summaryRows: const SummaryRows.off());
+      expect(off.toJson()['summaryRows'], false);
+      expect(off.summaryRowCount, isNull);
+      expect(
+        const MergedSection(
+          id: 'r',
+          header: 'R',
+        ).toJson().containsKey('summaryRows'),
+        isFalse,
+      );
+    });
+
+    test('summaryFor prints after bundle and only when set', () {
+      const docType = MergedDocType(
+        id: 'measurement',
+        fields: [],
+        lint: MergedLint(),
+        files: [],
+        sections: [],
+        bundle: ['design'],
+        summaryFor: ['project'],
+      );
+      final json = docType.toJson();
+      expect(json['summaryFor'], ['project']);
+      expect(json.keys.toList(), [
+        'id',
+        'bundle',
+        'summaryFor',
+        'fields',
+        'sections',
+      ]);
+      expect(
+        const MergedDocType(
+          id: 'x',
+          fields: [],
+          lint: MergedLint(),
+          files: [],
+          sections: [],
+        ).toJson().containsKey('summaryFor'),
+        isFalse,
+      );
+    });
+
+    test('printsSummaryFor with no summary_for is true for every target', () {
+      const docType = MergedDocType(
+        id: 'measurement',
+        fields: [],
+        lint: MergedLint(),
+        files: [],
+        sections: [],
+      );
+      expect(docType.printsSummaryFor('story'), isTrue);
+      expect(docType.printsSummaryFor(null), isTrue);
+    });
+
+    test('printsSummaryFor is true for a listed target type only', () {
+      const docType = MergedDocType(
+        id: 'measurement',
+        fields: [],
+        lint: MergedLint(),
+        files: [],
+        sections: [],
+        summaryFor: ['project'],
+      );
+      expect(docType.printsSummaryFor('project'), isTrue);
+      expect(docType.printsSummaryFor('story'), isFalse);
+      expect(docType.printsSummaryFor(null), isFalse);
     });
 
     test('no bundle and no query print no key, as E05 says', () {

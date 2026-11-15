@@ -41,8 +41,13 @@ final _allowed = <_Allowed>[
     'Matches a `- **<field>:** <text>` label, no reference.',
   ),
   _core(
+    'consistency_check/goal_measurement_rules.dart',
+    r"""RegExp(r'^(?:- )?\*\*Metric:\*\*'""",
+    'Matches the `**Metric:**` label; its links are read apart.',
+  ),
+  _core(
     'consistency_check/trace_rules.dart',
-    r"""RegExp(r'^\*\*Serves:\*\*(.*)$'""",
+    r"""RegExp(r'^(?:- )?\*\*Serves:\*\*(.*)$'""",
     'Matches the `**Serves:**` label; its IDs are read apart.',
   ),
   _core(

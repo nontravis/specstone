@@ -15,6 +15,7 @@ import 'package:specstone_core/src/index_query/item_words.dart'
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
+import 'package:specstone_core/src/setup_migration/bullet_lines_step.dart';
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/code_stamp_step.dart';
 import 'package:specstone_core/src/setup_migration/dangling_overrides.dart';
@@ -225,6 +226,16 @@ RunPlan _upgradeRunOf(
           lf: lf,
         ),
         StampCodeFingerprints() => lf,
+        BulletLines() => switch (docType.sections
+            .where((section) => section.id == step.section)
+            .firstOrNull) {
+          final section? => withLinesBulleted(
+            lf,
+            header: section.header,
+            prefixes: step.prefixes,
+          ),
+          null => lf,
+        },
       };
       if (renamed != lf) {
         // Held is read from the text before the rename: `renamed` holds the
@@ -239,6 +250,7 @@ RunPlan _upgradeRunOf(
           MoveFile() => false,
           MoveToRecord() => false,
           StampCodeFingerprints() => false,
+          BulletLines() => false,
         };
         if (held) {
           final message = switch (step) {
@@ -253,6 +265,7 @@ RunPlan _upgradeRunOf(
             MoveFile() => '',
             MoveToRecord() => '',
             StampCodeFingerprints() => '',
+            BulletLines() => '',
           };
           renameCollisions.add(
             MigrateFault(
@@ -755,6 +768,7 @@ List<_OverrideFile> _renamedOverrides(
         MoveFile() => file.lf,
         MoveToRecord() => file.lf,
         StampCodeFingerprints() => file.lf,
+        BulletLines() => file.lf,
       };
       if (renamed == file.lf) continue;
       file.lf = renamed;
@@ -1121,6 +1135,7 @@ String _describe(MigrationStep step) => switch (step) {
     '${step.kind} ${step.docTypes.join(', ')} ${step.fields.join(', ')} '
         '-> ${step.to}',
   StampCodeFingerprints() => step.kind,
+  BulletLines() => '${step.kind} ${step.docType} ${step.section}',
 };
 
 /// Returns the doc paths in code point order, then the override paths in the

@@ -318,6 +318,112 @@ void main() {
     });
   });
 
+  group('renderHostFilesOf frontmatter scalars', () {
+    AgentAsset describedAs(String description) => (
+      path: 'specstone-one.md',
+      text:
+          '---\nname: specstone-one\ndescription: ${jsonEncode(description)}\n'
+          '---\n\nBody.\n',
+    );
+
+    List<RenderedFile> markdownRenders(String description) => [
+      for (final file in renderHostFilesOf([describedAs(description)]))
+        if (file.entry.endsWith('.md')) file,
+    ];
+
+    test('writes a name and a safe description unquoted in every host', () {
+      const description = 'Plans work (v2) for docs, 50% of them';
+      for (final file in markdownRenders(description)) {
+        final lines = file.text.split('\n');
+        expect(lines, contains('name: specstone-one'), reason: file.path);
+        expect(lines, contains('description: $description'));
+      }
+    });
+
+    test('quotes a value that is not a plain YAML string', () {
+      const unsafe = [
+        'Reads: a doc',
+        'Ends with a colon:',
+        'Has a # comment',
+        '@scope first',
+        '*star first',
+        '- dash first',
+        '[a, b]',
+        '{a: b}',
+        '"quoted"',
+        "'single'",
+        '! tagged',
+        '> folded',
+        'true',
+        'null',
+        '123',
+        '1.5',
+        ' leading space',
+        'trailing space ',
+        'two\nlines',
+        'tab\there',
+      ];
+      for (final description in unsafe) {
+        for (final file in markdownRenders(description)) {
+          expect(
+            _frontmatterOf(file.text)['description'],
+            description,
+            reason: '${file.path}: ${jsonEncode(description)}',
+          );
+        }
+      }
+    });
+
+    test('quotes a value with a non-printable or line-break character', () {
+      const characters = {
+        'DEL': '\u007f',
+        'NEL': '\u0085',
+        'LS': ' ',
+        'PS': ' ',
+        'BOM': '﻿',
+      };
+      for (final MapEntry(key: label, value: character) in characters.entries) {
+        final description = 'before${character}after';
+        for (final file in markdownRenders(description)) {
+          final line = file.text
+              .split('\n')
+              .firstWhere((line) => line.startsWith('description:'));
+          expect(line, startsWith('description: "'), reason: label);
+          expect(
+            _frontmatterOf(file.text)['description'],
+            description,
+            reason: '$label in ${file.path}',
+          );
+        }
+      }
+    });
+
+    test('round-trips every shipped agent and skill through YAML', () {
+      final sources = {
+        for (final asset in shippedAgentAssets()) asset.path: asset.text,
+      };
+      final rendered = [
+        for (final file in renderHostFiles())
+          if (file.path.endsWith('.md') && file.text.startsWith('---\n')) file,
+      ];
+      expect(rendered, isNotEmpty);
+      for (final file in rendered) {
+        final sourcePath = file.path.endsWith('/SKILL.md')
+            ? '${file.entry}/SKILL.md'
+            : file.entry;
+        final source = _frontmatterOf(sources[sourcePath]!);
+        final actual = _frontmatterOf(file.text);
+        expect(actual['name'], source['name'], reason: file.path);
+        expect(actual['description'], source['description'], reason: file.path);
+        expect(
+          file.text.split('\n'),
+          contains('name: ${source['name']}'),
+          reason: file.path,
+        );
+      }
+    });
+  });
+
   group('renderHostFilesOf agent names', () {
     AgentAsset agent(String path, String frontmatter) =>
         (path: path, text: '---\n$frontmatter---\n\nBody.\n');
