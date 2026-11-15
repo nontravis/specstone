@@ -40,6 +40,7 @@ void main() {
         'anti_persona',
         'reference',
         'journey',
+        'measurement',
         'topic',
       },
     );

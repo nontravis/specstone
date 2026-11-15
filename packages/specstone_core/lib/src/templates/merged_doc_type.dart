@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/reference_entry.dart';
+import 'package:specstone_core/src/templates/summary_rows.dart';
 
 /// One enabled frontmatter field of a merged doc type.
 final class MergedField {
@@ -227,6 +228,7 @@ final class MergedSection {
     this.linePrefix,
     this.query,
     this.summary,
+    this.summaryRows,
     this.bannedPatterns,
     this.requiredPatterns,
     this.minLines,
@@ -287,6 +289,13 @@ final class MergedSection {
   /// no layer sets it.
   final bool? summary;
 
+  /// The rows a summary doc prints of the section's table, or off; null when
+  /// no layer sets it.
+  final SummaryRows? summaryRows;
+
+  /// The body rows a summary doc prints; null when unset or off.
+  int? get summaryRowCount => summaryRows?.count;
+
   /// The section's own banned patterns, merged by `id`; null when no layer
   /// sets them.
   final List<PatternEntry>? bannedPatterns;
@@ -335,6 +344,7 @@ final class MergedSection {
     String? linePrefix,
     bool? query,
     bool? summary,
+    SummaryRows? summaryRows,
     List<PatternEntry>? bannedPatterns,
     List<PatternEntry>? requiredPatterns,
     int? minLines,
@@ -359,6 +369,7 @@ final class MergedSection {
     linePrefix: linePrefix ?? this.linePrefix,
     query: query ?? this.query,
     summary: summary ?? this.summary,
+    summaryRows: summaryRows ?? this.summaryRows,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
     requiredPatterns: requiredPatterns ?? this.requiredPatterns,
     minLines: minLines ?? this.minLines,
@@ -405,6 +416,7 @@ final class MergedSection {
       if (lint.isNotEmpty) 'lint': lint,
       'query': ?query,
       'summary': ?summary,
+      'summaryRows': ?summaryRows?.toJson(),
     };
   }
 }
@@ -508,6 +520,7 @@ final class MergedDocType {
     this.isPerTarget = false,
     this.nestedPaths,
     this.bundle,
+    this.summaryFor,
     this.generators,
     this.reference,
     this.pack,
@@ -559,6 +572,18 @@ final class MergedDocType {
   /// The bundle modes the doc type takes part in; null when no layer sets it.
   final List<String>? bundle;
 
+  /// The doc type ids of the bundle targets whose bundles print this doc type
+  /// in summary; null when no layer sets it.
+  final List<String>? summaryFor;
+
+  /// Whether a bundle whose target has the doc type [targetTypeId] prints a
+  /// cited doc of this type in summary, not as its naming line alone.
+  ///
+  /// A null [targetTypeId] stands for a target with no doc type.
+  bool printsSummaryFor(String? targetTypeId) =>
+      summaryFor == null ||
+      (targetTypeId != null && summaryFor!.contains(targetTypeId));
+
   /// The generated-block kinds the doc type lists; null when no layer sets it.
   ///
   /// Null differs from empty: a plain list merges only over null.
@@ -596,6 +621,7 @@ final class MergedDocType {
     bool? isPerTarget,
     List<String>? nestedPaths,
     List<String>? bundle,
+    List<String>? summaryFor,
     List<String>? generators,
     List<MergedField>? fields,
     List<MergedSection>? sections,
@@ -614,6 +640,7 @@ final class MergedDocType {
     isPerTarget: isPerTarget ?? this.isPerTarget,
     nestedPaths: nestedPaths,
     bundle: bundle ?? this.bundle,
+    summaryFor: summaryFor ?? this.summaryFor,
     generators: generators ?? this.generators,
     fields: fields ?? this.fields,
     sections: sections ?? this.sections,
@@ -638,6 +665,7 @@ final class MergedDocType {
       'maxDepth': ?maxDepth,
       if (isPerTarget) 'perTarget': true,
       'bundle': ?bundle,
+      'summaryFor': ?summaryFor,
       'fields': [for (final field in fields) field.toJson()],
       'sections': [for (final section in sections) section.toJson()],
       if (lintJson.isNotEmpty) 'lint': lintJson,

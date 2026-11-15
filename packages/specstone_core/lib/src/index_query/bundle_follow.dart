@@ -11,6 +11,7 @@ import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/link_scan.dart'
     show linkSourcesOf;
+import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/portable_path.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -30,6 +31,7 @@ final class AppendedPart {
     this.itemId,
     this.heading,
     this.summary = false,
+    this.nameOnly = false,
     this.cited = const [],
     this.sections = const [],
     required this.text,
@@ -48,10 +50,13 @@ final class AppendedPart {
         text: '',
       );
 
+  /// A part that names [doc] by its naming line alone, with no text.
+  new nameLine(IndexedDoc doc) : this(doc: doc, nameOnly: true, text: '');
+
   final IndexedDoc doc;
 
-  /// The key of the `##` section that holds the part; null for a summary doc
-  /// and a path.
+  /// The key of the `##` section that holds the part; null for a summary doc,
+  /// a naming line, and a path.
   final String? sectionKey;
 
   /// The cited item's ID, each item of a range its own; null for a section,
@@ -64,6 +69,10 @@ final class AppendedPart {
   /// Whether the part is the doc in summary.
   final bool summary;
 
+  /// Whether the part is the doc's naming line alone, since its type's
+  /// `summary_for` leaves out the bundle's target.
+  final bool nameOnly;
+
   /// The items of the part whose cited-by lines [text] holds, in print order;
   /// empty outside a design bundle.
   final List<CitedItem> cited;
@@ -75,7 +84,7 @@ final class AppendedPart {
 
   /// What prints after the part's naming line: an item's own lines, a
   /// section whole, a summary doc's title and summary sections, or nothing
-  /// for a path.
+  /// for a naming line and a path.
   final String text;
 
   /// Whether the part names a file no doc type describes by its path alone,
@@ -140,6 +149,7 @@ final class _Walk {
   final _whole = <String>{};
   final _summarized = <String>{};
   final _paths = <String>{};
+  final _named = <String>{};
   final _printedRanges = <String, List<LineRange>>{};
   final _queue = <_Printed>[];
   final _parts = <AppendedPart>[];
@@ -219,11 +229,32 @@ final class _Walk {
       final range = cited == null ? null : rangeFrom[cited.link];
       if (cited == null) {
         _appendPath(link);
+      } else if (_namesOnly(cited)) {
+        _appendNameLine(cited.view);
       } else if (range != null) {
         _appendRange(cited, range);
       } else {
         _append(cited);
       }
+    }
+  }
+
+  /// Whether the bundle prints the doc [cited] lands in by its naming line
+  /// alone: the link cites a doc, section, item, or block, the doc's type
+  /// leaves out the bundle's target, and the bundle does not print it whole.
+  bool _namesOnly(_Cited cited) =>
+      switch (cited.cite) {
+        UnresolvedCite() || OtherAnchorCite() => false,
+        _ => true,
+      } &&
+      !_whole.contains(cited.view.doc.docPath) &&
+      !bundle.printsSummaryOf(cited.view.type);
+
+  /// Appends the naming line of [view]'s doc once, whatever link names it;
+  /// the doc's links are not followed.
+  void _appendNameLine(_DocView view) {
+    if (_named.add(view.doc.docPath)) {
+      _parts.add(AppendedPart.nameLine(view.doc));
     }
   }
 
@@ -324,6 +355,9 @@ final class _Walk {
   }
 
   void _appendSection(_DocView view, int at, String sectionKey) {
+    if (view.cutRowsAt(at) case final rows?) {
+      return _appendCut(view, at, sectionKey, rows);
+    }
     final range = view.sectionRange(at);
     if (!view.keeps(at, bundle.mode) || _prints(view, range)) return;
     final cited = _citedIn(view, at);
@@ -372,6 +406,9 @@ final class _Walk {
       isAcceptanceCriteria: section.isAcceptanceCriteria,
     );
     if (extent == null) return;
+    if (view.cutRowsAt(at) case final rows?) {
+      return _appendCut(view, at, sectionKey, rows);
+    }
     _appendLines(
       view,
       body,
@@ -379,6 +416,36 @@ final class _Walk {
       at: at,
       sectionKey: sectionKey,
       itemId: itemId,
+    );
+  }
+
+  /// Appends the first [rows] body rows of the `summary_rows` section at [at]
+  /// as a summary part, once, unless the bundle prints the cut already.
+  ///
+  /// A link into the section or one of its items gives the cut, never the
+  /// section whole or the item alone.
+  void _appendCut(_DocView view, int at, String sectionKey, int rows) {
+    final range = view.cutRangeAt(at);
+    if (!view.keeps(at, bundle.mode) || _prints(view, range)) return;
+    final print = sectionPrintOf(
+      view.doc,
+      view.content,
+      view.held,
+      view.content.sections[at],
+      citedBy,
+      summaryRows: rows,
+    );
+    _add(
+      AppendedPart(
+        doc: view.doc,
+        sectionKey: sectionKey,
+        summary: true,
+        cited: print.cited,
+        sections: [(key: sectionKey, line: 0)],
+        text: print.block,
+      ),
+      view,
+      [range],
     );
   }
 
@@ -391,6 +458,9 @@ final class _Walk {
     final body = view.bodyLinesOf(at);
     final extent = headingBlockExtentOf(body, headingLine);
     if (extent == null) return;
+    if (view.cutRowsAt(at) case final rows?) {
+      return _appendCut(view, at, section.key, rows);
+    }
     final itemId = view.headingItemId(at, body, headingLine);
     _appendLines(
       view,
@@ -473,12 +543,14 @@ final class _Walk {
 /// [classifyLink] reads them, and its links in line order.
 final class _DocView {
   new(this.doc, this.content, this.type)
-    : _sections = citedSectionsOf(content, type);
+    : held = citedSectionsOf(content, type);
 
   final IndexedDoc doc;
   final DocContent content;
   final MergedDocType? type;
-  final List<CitedSection> _sections;
+
+  /// The doc's sections as [classifyLink] reads them, in section order.
+  final List<CitedSection> held;
 
   late final List<_Link> links = _linksOf(content.lineFacts);
 
@@ -492,8 +564,7 @@ final class _DocView {
 
   /// Returns the section at [at] as [classifyLink] reads it, or null when the
   /// doc holds no section there.
-  CitedSection? citedSectionAt(int at) =>
-      at < _sections.length ? _sections[at] : null;
+  CitedSection? citedSectionAt(int at) => at < held.length ? held[at] : null;
 
   List<BodyLine> bodyLinesOf(int at) =>
       sectionBodyLines(content.sections, facts, at);
@@ -541,11 +612,27 @@ final class _DocView {
       sectionRange(_indexOf(section)),
   ];
 
-  /// Returns the ranges of the summary sections a summary of the doc prints.
+  /// Returns the ranges of the summary sections a summary of the doc prints,
+  /// a `summary_rows` section's narrowed to its cut.
   List<LineRange> summaryRanges(BundleMode mode) => [
     for (final section in summarySectionsOf(content, type, mode))
-      sectionRange(_indexOf(section)),
+      cutRangeAt(_indexOf(section)),
   ];
+
+  /// Returns the `summary_rows` count of the section at [at], or null when its
+  /// merged section sets none.
+  int? cutRowsAt(int at) => summaryRowCountOf(type, content.sections[at].key);
+
+  /// Returns the file lines a summary prints of the section at [at]: the
+  /// section's own range, narrowed to its cut when it sets `summary_rows`.
+  LineRange cutRangeAt(int at) {
+    final range = sectionRange(at);
+    final rows = cutRowsAt(at);
+    if (rows == null) return range;
+    final cut = cutToRows(content.sections[at].body, rows);
+    final last = range.first + cut.lineCount;
+    return (first: range.first, last: last < range.last ? last : range.last);
+  }
 
   /// Returns the ID of the stored item of the section at [at], whose body is
   /// [body], that starts at file line [headingLine], or null when none does.

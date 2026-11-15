@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/templates/merged_set_checks.dart';
 import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -52,6 +53,41 @@ final class PackManifest {
           'defines',
           file: file,
           key: 'migrations[$i].steps[$j].move_to_record.to',
+        );
+      }
+    }
+  }
+
+  /// Throws `unknown_value` for the first `bullet_lines` step whose `doc_type`
+  /// is outside [layerLists] or whose `section` no layer of that doc type
+  /// defines, a layer that disables the section included.
+  ///
+  /// The key is `migrations[<i>].steps[<j>].bullet_lines.<doc_type|section>`.
+  void checkBulletLineTargets(Map<String, DocTypeLayers> layerLists) {
+    for (final (i, migration) in migrations.indexed) {
+      for (final (j, step) in migration.steps.indexed) {
+        if (step is! BulletLines) continue;
+        final key = 'migrations[$i].steps[$j].bullet_lines';
+        final layers = layerLists[step.docType];
+        if (layers == null) {
+          throw TemplateFault(
+            FaultCode.unknownValue,
+            'the bullet_lines doc type ${step.docType} is not a doc type '
+            'the packs define',
+            file: file,
+            key: '$key.doc_type',
+          );
+        }
+        final defined = layers.any(
+          (entry) => entry.layer.sections.any((s) => s.id == step.section),
+        );
+        if (defined) continue;
+        throw TemplateFault(
+          FaultCode.unknownValue,
+          'the bullet_lines section ${step.section} is not a section of '
+          '${step.docType}',
+          file: file,
+          key: '$key.section',
         );
       }
     }

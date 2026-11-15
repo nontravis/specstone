@@ -1,2 +1,9 @@
 name: prd-core
-version: 1.9.0
+version: 1.10.0
+migrations:
+  - from: 1.9.0
+    steps:
+      - bullet_lines:
+          doc_type: project
+          section: goals
+          prefixes: ["**Serves:**", "**Statement:**", "**Metric:**", "**By:**"]

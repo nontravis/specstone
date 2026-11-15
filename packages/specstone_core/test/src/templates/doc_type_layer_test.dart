@@ -592,6 +592,63 @@ lint:
       );
     });
 
+    test('a section summary_rows count is read as that many rows', () {
+      final rows = _parse('sections: [{id: goal, summary_rows: 1}]\n')
+          .sections
+          .single
+          .summaryRows;
+      expect(rows?.count, 1);
+    });
+
+    test('a section summary_rows of false is read as off', () {
+      final rows = _parse('sections: [{id: goal, summary_rows: false}]\n')
+          .sections
+          .single
+          .summaryRows;
+      expect(rows, isNotNull);
+      expect(rows?.count, isNull);
+    });
+
+    test('a layer that writes no summary_rows leaves it null', () {
+      expect(
+        _parse('sections: [{id: goal}]\n').sections.single.summaryRows,
+        isNull,
+      );
+    });
+
+    for (final value in ['0', '-1', 'two', 'true']) {
+      test('a section summary_rows of $value is unknown_value', () {
+        expect(
+          () => _parse('sections: [{id: goal, summary_rows: $value}]\n'),
+          throwsA(
+            _fault(FaultCode.unknownValue, key: 'sections[0].summary_rows'),
+          ),
+        );
+      });
+    }
+
+    test('a summary_for list is read as written', () {
+      expect(_parse('summary_for: [project]\n').summaryFor, ['project']);
+    });
+
+    test('a layer that writes no summary_for leaves it null', () {
+      expect(_parse('path: f.md\n').summaryFor, isNull);
+    });
+
+    test('a summary_for holding a non-string is unknown_value', () {
+      expect(
+        () => _parse('summary_for: [1]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'summary_for')),
+      );
+    });
+
+    test('a summary_for that is no list is unknown_value', () {
+      expect(
+        () => _parse('summary_for: project\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'summary_for')),
+      );
+    });
+
     test('a layer that writes neither key leaves both null', () {
       final layer = _parse('sections: [{id: goal}]\n');
       expect(layer.bundle, isNull);

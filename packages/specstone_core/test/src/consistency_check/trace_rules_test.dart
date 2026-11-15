@@ -355,12 +355,14 @@ void main() {
         },
       ),
     );
-    expect(spots(report), ['$loginStory:3: vision_goal_widened']);
-    expect(report.findings.single.toJson()['id'], 'PG-03');
-    expect(
-      report.findings.single.message,
-      'PG-03 is not in the goals of the feature',
+    expect(spots(report, FindingKind.visionGoalWidened), [
+      '$loginStory:3: vision_goal_widened',
+    ]);
+    final widened = report.findings.singleWhere(
+      (f) => f.kind == FindingKind.visionGoalWidened,
     );
+    expect(widened.toJson()['id'], 'PG-03');
+    expect(widened.message, 'PG-03 is not in the goals of the feature');
   });
 
   test(
@@ -451,6 +453,16 @@ void main() {
       );
     },
   );
+
+  test('a bullet Serves line names its vision', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: doc(projectDoc, '**Serves:** PV-01', '- **Serves:** PV-01'),
+      ),
+    );
+    expect(spots(report, FindingKind.goalServesMissing), isEmpty);
+    expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
+  });
 
   test('prose around a Serves ID is no ID', () async {
     for (final line in [

@@ -14,10 +14,15 @@ import 'package:test/test.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
 
+const _projectFile = 'docs/prds/PROJECT.md';
+const _projectLinking =
+    '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+    'Login demo; see [resets](../measurements/fewer_resets/MEASUREMENT.md).\n';
+
 void main() {
   late DocIndex index;
   setUpAll(() async => index = await indexWith());
-  ReadAnswer ctxIn(
+  ContextAnswer ctxIn(
     DocIndex i,
     String t,
     BundleMode m, {
@@ -1127,5 +1132,243 @@ void main() {
         a.entries.length - 2,
       );
     });
+  });
+
+  group('summary rows', () {
+    const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+    const table = '| Date | Run | Met |\n|---|---|---|\n';
+    Future<String> printed(String results) async {
+      final i = await indexWith({
+        _projectFile: _projectLinking,
+        measurement:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count.\n\n'
+            '## Results\n$results\n\n## Open causes\nN/A\n',
+      });
+      return ctxIn(i, 'project', BundleMode.implement).text;
+    }
+
+    test('a summary doc prints its summary_rows section cut to its first row and no other section', () async {
+      final text = await printed(
+        'Newest first. Met: halved.\n\n$table| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+      );
+
+      expect(
+        text,
+        contains(
+          '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+          'Newest first. Met: halved.\n\n$table| 2026-11-14 | 2 | no |\n',
+        ),
+      );
+      expect(text, isNot(contains('2026-11-01')));
+      expect(text, isNot(contains('## Method')));
+      expect(text, isNot(contains('## Open causes')));
+    });
+    test('a summary_rows section keeps the cited-by lines of the items its cut prints whole and drops the others', () async {
+      final i = await indexWith({
+        '.specstone/templates/measurement.yaml':
+            'sections:\n  - id: results\n    prefix_id: RUN-\n',
+        _projectFile: _projectLinking,
+        measurement:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n'
+            '## Results\n- **RUN-1** First run.\n\n$table| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n\n- **RUN-2** Second run.\n',
+        'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [RUN-1](../../measurements/fewer_resets/MEASUREMENT.md#results) and [RUN-2](../../measurements/fewer_resets/MEASUREMENT.md#results).\n',
+      });
+      final a = ctxIn(i, 'project', BundleMode.design);
+
+      expect(
+        a.text,
+        contains(
+          '## Results\n- **RUN-1** First run.\n  · cited by guide (topic) —: See [RUN-1]',
+        ),
+      );
+      final summary = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere(
+            (d) => d['name'] == 'fewer_resets' && d['summary'] == true,
+          );
+      expect((summary['citedBy']! as List).map((c) => (c as Map)['item']), [
+        'RUN-1',
+      ]);
+    });
+    test('a summary_rows section written as prose prints whole', () async {
+      final text = await printed('Run one met the goal.');
+
+      expect(text, contains('## Results\nRun one met the goal.\n'));
+    });
+    test(
+      'a summary_rows table with no body row prints its lead and header rows',
+      () async {
+        final text = await printed('Newest first. Met: halved.\n\n$table');
+
+        expect(
+          text,
+          contains(
+            '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n',
+          ),
+        );
+      },
+    );
+  });
+
+  group('a naming-line part', () {
+    const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+    Future<ContextAnswer> storyBundle(BundleMode mode) async => ctxIn(
+      await indexWith({
+        _projectFile: _projectLinking,
+        measurement: '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\nRun one.\n',
+      }),
+      'login/email_login',
+      mode,
+    );
+
+    test('prints its naming line alone and lists as the doc and its type', () async {
+      final a = await storyBundle(BundleMode.implement);
+      const naming =
+          '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · cited <==';
+
+      expect(a.text, contains('$naming\n\n'));
+      expect(a.text, isNot(contains('Resets per week')));
+      expect(a.text, contains('- fewer_resets (measurement) · cited\n'));
+      expect(a.text, isNot(contains('(measurement) · summary')));
+    });
+    test('is a --json object of name, docType, path, tokens, and cited with no text', () async {
+      final a = await storyBundle(BundleMode.implement);
+      final docs = a.json['docs']! as List;
+      final part =
+          docs.firstWhere((d) => (d as Map)['name'] == 'fewer_resets') as Map;
+
+      expect(part.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'cited',
+      ]);
+      expect(part['docType'], 'measurement');
+      expect(part['path'], 'measurements/fewer_resets/MEASUREMENT.md');
+      expect(part['cited'], isTrue);
+      expect(
+        part['tokens'],
+        tokenSizeOf(
+          '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md · cited <==',
+        ),
+      );
+    });
+    test(
+      'has an entry of one line that is cited and names no section or item',
+      () async {
+        final a = await storyBundle(BundleMode.design);
+        final entry = a.entries.firstWhere((e) => e.doc.name == 'fewer_resets');
+
+        expect(entry.cited, isTrue);
+        expect(entry.summary, isFalse);
+        expect(entry.sectionKey, isNull);
+        expect(entry.itemId, isNull);
+        expect(entry.sections, isEmpty);
+        expect(entry.last, entry.first);
+        expect(
+          a.text.split('\n')[entry.first - 1],
+          startsWith('==> fewer_resets'),
+        );
+      },
+    );
+  });
+
+  group('an appended cut', () {
+    const measurement = 'docs/measurements/fewer_resets/MEASUREMENT.md';
+    const project =
+        '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+        'Login demo; see [results](../measurements/fewer_resets/MEASUREMENT.md#results).\n';
+    const cut =
+        '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+        '| 2026-11-14 | 2 | no |';
+    const naming =
+        '==> fewer_resets (measurement) · measurements/fewer_resets/MEASUREMENT.md#results · summary · cited <==';
+    Future<ContextAnswer> projectBundle({int? budget}) async => ctxIn(
+      await indexWith({
+        _projectFile: project,
+        measurement:
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+            'Newest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
+            '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+      }),
+      'project',
+      BundleMode.implement,
+      budget: budget,
+    );
+
+    test(
+      'prints its naming line marked summary and cited, then the cut',
+      () async {
+        final a = await projectBundle();
+
+        expect(a.text, contains('$naming\n$cut\n'));
+        expect(a.text, isNot(contains('2026-11-01')));
+      },
+    );
+    test(
+      'lists as summary before cited, and brings the next-step line',
+      () async {
+        final a = await projectBundle();
+
+        expect(
+          a.text,
+          endsWith(
+            '- fewer_resets (measurement) · summary · cited results\n'
+            'Read a summary doc whole with: specstone context <name> --for implement\n',
+          ),
+        );
+      },
+    );
+    test('is a --json object with summary, cited, and section after text, and no item', () async {
+      final a = await projectBundle();
+      final part = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['name'] == 'fewer_resets');
+
+      expect(part.keys.toList(), [
+        'name',
+        'docType',
+        'path',
+        'tokens',
+        'text',
+        'summary',
+        'cited',
+        'section',
+      ]);
+      expect(part['summary'], isTrue);
+      expect(part['section'], 'results');
+      expect(part['text'], cut);
+    });
+    test('lists marked in the over-budget reply, with its size and its keys', () async {
+      final a = await projectBundle(budget: 1);
+
+      expect(a.exitStatus, 1);
+      expect(
+        a.text,
+        contains(
+          '- fewer_resets (measurement) · summary · cited results · ${tokenSizeOf('$naming\n$cut')} tokens\n',
+        ),
+      );
+      final part = (a.json['docs']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((d) => d['name'] == 'fewer_resets');
+      expect(part['summary'], isTrue);
+      expect(part['cited'], isTrue);
+      expect(part['section'], 'results');
+      expect(part.containsKey('item'), isFalse);
+    });
+    test(
+      'has an entry marked summary and cited that names its section',
+      () async {
+        final a = await projectBundle();
+        final entry = a.entries.firstWhere((e) => e.doc.name == 'fewer_resets');
+
+        expect(entry.summary, isTrue);
+        expect(entry.cited, isTrue);
+        expect(entry.sectionKey, 'results');
+        expect(entry.itemId, isNull);
+      },
+    );
   });
 }

@@ -13,9 +13,10 @@ const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 final String _bothPacks = shippedPinsConfig();
 final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
 final String _softwareTechOnly = shippedPinsConfig(['software-tech']);
-const _twentyIds =
+const _twentyOneIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
-    'fr\ngnfr\nimplementation\nintegration\njourney\nnf\npersona\nproject\n'
+    'fr\ngnfr\nimplementation\nintegration\njourney\nmeasurement\nnf\npersona\n'
+    'project\n'
     'reference\ntech_stack\ntopic\nuser_story\n';
 const _citeRule =
     'Cite a rule another doc owns by a link to the item that holds it, '
@@ -79,11 +80,11 @@ void main() {
     Future<SpecstoneCommandRunner> runnerFor(String packs) async =>
         runnerIn(await writeTree({_configPath: packs}));
 
-    test('f03/us07/s1, f03/us07/fr01/e01: guide lists the eleven prd-core and '
+    test('f03/us07/s1, f03/us07/fr01/e01: guide lists the twelve prd-core and '
         'the nine software-tech doc types and no other', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide']), 0);
-      expect(out.toString(), _twentyIds);
+      expect(out.toString(), _twentyOneIds);
       expect(err.toString(), isEmpty);
     });
 

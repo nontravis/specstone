@@ -115,6 +115,7 @@ final class DocTypeMerger {
         nameOf: (kind) => kind,
         notFound: FaultCode.unknownValue,
       ),
+      summaryFor: layer.summaryFor,
       fields: List.unmodifiable(_mergeFields(base.fields, layer)),
       sections: List.unmodifiable(_mergeSections(base.sections, layer)),
       lint: _mergeLint(base.lint, layer),
@@ -346,6 +347,7 @@ final class DocTypeMerger {
             linePrefix: entry.lint?.linePrefix,
             query: entry.query,
             summary: entry.summary,
+            summaryRows: entry.summaryRows,
             bannedPatterns: _mergeSectionPatterns(
               null,
               entry.lint?.bannedPatterns,
@@ -406,6 +408,7 @@ final class DocTypeMerger {
         linePrefix: entry.lint?.linePrefix,
         query: entry.query,
         summary: entry.summary,
+        summaryRows: entry.summaryRows,
         bannedPatterns: _mergeSectionPatterns(
           sections[index].bannedPatterns,
           entry.lint?.bannedPatterns,

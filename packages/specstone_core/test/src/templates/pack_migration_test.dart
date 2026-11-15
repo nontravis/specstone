@@ -314,6 +314,85 @@ void main() {
     );
   });
 
+  test('a bullet_lines step parses to BulletLines and touches its '
+      'doc type', () {
+    final step = parseMigrationsOf('''
+- from: 1.9.0
+  steps:
+    - bullet_lines: {doc_type: project, section: goals, prefixes: ['**Serves:**']}
+''').single.steps.single;
+
+    expect(step, isA<BulletLines>());
+    step as BulletLines;
+    expect(step.kind, 'bullet_lines');
+    expect(step.docType, 'project');
+    expect(step.section, 'goals');
+    expect(step.prefixes, ['**Serves:**']);
+    expect(step.touches('project'), isTrue);
+    expect(step.touches('feature'), isFalse);
+  });
+
+  test('a bullet_lines step missing a key is missing_key', () {
+    for (final key in ['doc_type', 'section', 'prefixes']) {
+      final keys = {
+        'doc_type': 'project',
+        'section': 'goals',
+        'prefixes': "['**Serves:**']",
+      }..remove(key);
+      final body = keys.entries.map((e) => '${e.key}: ${e.value}').join(', ');
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.9.0\n  steps:\n    - bullet_lines: {$body}\n',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.missingKey,
+            key: 'migrations[0].steps[0].bullet_lines.$key',
+          ),
+        ),
+        reason: key,
+      );
+    }
+  });
+
+  test('a bullet_lines step with an extra key is unknown_key', () {
+    expect(
+      () => parseMigrationsOf(
+        '- from: 1.9.0\n'
+        '  steps:\n'
+        '    - bullet_lines: {doc_type: project, section: goals,'
+        " prefixes: ['**Serves:**'], note: x}\n",
+      ),
+      throwsA(
+        _fault(
+          FaultCode.unknownKey,
+          key: 'migrations[0].steps[0].bullet_lines.note',
+        ),
+      ),
+    );
+  });
+
+  test('a bullet_lines step with an empty prefixes list or an empty '
+      'prefix is unknown_value', () {
+    for (final prefixes in ['[]', "['']"]) {
+      expect(
+        () => parseMigrationsOf(
+          '- from: 1.9.0\n'
+          '  steps:\n'
+          '    - bullet_lines: {doc_type: project, section: goals,'
+          ' prefixes: $prefixes}\n',
+        ),
+        throwsA(
+          _fault(
+            FaultCode.unknownValue,
+            key: 'migrations[0].steps[0].bullet_lines.prefixes',
+          ),
+        ),
+        reason: prefixes,
+      );
+    }
+  });
+
   test('a move_to_record list that holds a non-string is '
       'unknown_value', () {
     expect(
