@@ -3160,6 +3160,177 @@ void main() {
       expect(caught(true), apply);
     });
   });
+
+  group('records under .specstone/records/', () {
+    const loginRecordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const signupRecordPath = '.specstone/records/f02_signup/IMPLEMENTATION.md';
+    final loginRecordText = recordText(statuses: ['email_login:implemented']);
+    final signupRecordText = recordText(statuses: ['ghost:planned']);
+
+    File recordFile(Directory root, String path) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${path.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> recordProject({Set<String> without = const {}}) =>
+        writeWriteProject(
+          extra: {
+            ...recordsRootTemplates,
+            if (!without.contains(loginRecordPath))
+              loginRecordPath: loginRecordText,
+            if (!without.contains(signupRecordPath))
+              signupRecordPath: signupRecordText,
+          },
+        );
+
+    test('a feature rename moves its record folder beside its spec folder, bytes kept', () async {
+      final root = await recordProject();
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(
+        answer.text,
+        contains(
+          'moved .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signin/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test(
+      'a feature reorder renumbers its record folder with the spec folder',
+      () async {
+        final root = await recordProject();
+        final answer = reorder(root, 'feature:signup', '1');
+        expect(
+          [
+            for (final move in answer.json['moved']! as List)
+              '${(move as Map)['from']} ${move['to']}',
+          ],
+          containsAll([
+            '.specstone/records/f02_signup/ .specstone/records/f01_signup/',
+            '.specstone/records/f01_login/ .specstone/records/f02_login/',
+          ]),
+        );
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f01_signup/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          signupRecordText,
+        );
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/f02_login/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          loginRecordText,
+        );
+        expect(recordFile(root, signupRecordPath).existsSync(), isFalse);
+      },
+    );
+
+    test('renames a feature that has no record yet', () async {
+      final root = await recordProject(without: {loginRecordPath});
+      final answer = rename(root, 'feature:login', 'signin');
+      expect([
+        for (final move in answer.json['moved']! as List)
+          '${(move as Map)['from']}',
+      ], isNot(contains(startsWith('.specstone/records/'))));
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('a dry run lists the record folder move', () async {
+      final root = await recordProject();
+      final answer = writeIn(
+        root,
+        (s) => answerRename(s, 'feature:login', slug: 'signin', dryRun: true),
+      );
+      expect(
+        answer.text,
+        contains(
+          'moves .specstone/records/f01_login/ to '
+          '.specstone/records/f01_signin/\n',
+        ),
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isTrue);
+    });
+
+    test('a rename that stops on the record folder leaves a journal the next write replays', () async {
+      final root = await recordProject();
+      expect(
+        () => IOOverrides.runWithIOOverrides(
+          () => rename(root, 'feature:login', 'signin'),
+          FailingRenameHook('.specstone/records/f01_login'),
+        ),
+        throwsA(isA<RenderFault>()),
+      );
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isTrue,
+      );
+
+      writeIn(root, (_) {});
+
+      expect(
+        recordFile(
+          root,
+          '.specstone/records/f01_signin/IMPLEMENTATION.md',
+        ).readAsStringSync(),
+        loginRecordText,
+      );
+      expect(recordFile(root, loginRecordPath).existsSync(), isFalse);
+      expect(hasDoc(root, 'specs/f01_signin/ARCHITECTURE.md'), isTrue);
+    });
+
+    test('with two targets each target record folder moves', () async {
+      const flutterRecord =
+          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
+      const jasprRecord =
+          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
+      final root = await writeWriteProject(
+        extra: {
+          ...recordsRootTemplates,
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/architecture.yaml':
+              'id: architecture\nper_target: false\n',
+          flutterRecord: loginRecordText,
+          jasprRecord: loginRecordText,
+        },
+      );
+      final answer = rename(root, 'feature:login', 'signin');
+      expect(
+        [
+          for (final move in answer.json['moved']! as List)
+            '${(move as Map)['from']} ${move['to']}',
+        ],
+        containsAll([
+          '.specstone/records/flutter/f01_login/ .specstone/records/flutter/f01_signin/',
+          '.specstone/records/jaspr/f01_login/ .specstone/records/jaspr/f01_signin/',
+        ]),
+      );
+      for (final target in ['flutter', 'jaspr']) {
+        expect(
+          recordFile(
+            root,
+            '.specstone/records/$target/f01_signin/IMPLEMENTATION.md',
+          ).readAsStringSync(),
+          loginRecordText,
+        );
+        expect(
+          recordFile(root, '.specstone/records/$target/f01_login').existsSync(),
+          isFalse,
+        );
+      }
+    });
+  });
 }
 
 /// A stderr that keeps the lines written to it.

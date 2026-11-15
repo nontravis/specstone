@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
@@ -780,6 +781,59 @@ void main() {
           '$scratch: docs outside $scratch link into it; also $referrer\n',
         );
         expect(File('${root.path}/docs/$scratch').existsSync(), isTrue);
+      },
+    );
+  });
+
+  group('a feature record under .specstone/records/', () {
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+
+    Future<Directory> recordProject() => writeWriteProject(
+      extra: {
+        ...recordsRootTemplates,
+        'docs/prds/FEATURES.md':
+            '# Feature index\n\n## Systems\n'
+            '- [Signup](features/f02_signup/FEATURE.md)\n',
+        'docs/$persona':
+            '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+        record: recordText(
+          front: 'approved: true\n',
+          statuses: ['email_login:implemented'],
+        ),
+      },
+    );
+
+    test(
+      'the plan names the record by its path and the delete removes it',
+      () async {
+        final root = await recordProject();
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run(['delete', 'feature:login', '--dry-run', '--json']),
+          0,
+          reason: err.toString(),
+        );
+        final plan = jsonDecode(out.toString()) as Map;
+        expect(plan['files'], contains(record));
+        expect(plan['guarded'], contains(record));
+        expect(File('${root.path}/$record').existsSync(), isTrue);
+
+        final (runner: second, out: secondOut, err: secondErr) = writeRunner(
+          root,
+        );
+        expect(
+          await second.run([
+            'delete',
+            'feature:login',
+            '--yes',
+            '--plan',
+            plan['plan']! as String,
+          ]),
+          0,
+          reason: secondErr.toString(),
+        );
+        expect(secondOut.toString(), contains(record));
+        expect(File('${root.path}/$record').existsSync(), isFalse);
       },
     );
   });

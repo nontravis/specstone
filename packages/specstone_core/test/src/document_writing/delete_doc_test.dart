@@ -2253,4 +2253,98 @@ void main() {
       );
     });
   });
+
+  group('records under .specstone/records/', () {
+    // The files that leave no doc outside the login feature pointing into it.
+    final freeOfLoginReferrers = {
+      'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
+      'docs/$persona':
+          '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
+    };
+
+    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    final recordBody = recordText(statuses: ['email_login:implemented']);
+
+    File recordFile(Directory root) => File(
+      '${root.path}${Platform.pathSeparator}'
+      '${record.replaceAll('/', Platform.pathSeparator)}',
+    );
+
+    Future<Directory> recordProject() => writeWriteProject(
+      extra: {
+        ...freeOfLoginReferrers,
+        ...recordsRootTemplates,
+        record: recordBody,
+      },
+    );
+
+    test('a feature delete removes its record folder and names the record by its project path', () async {
+      final root = await recordProject();
+      final prompts = StringBuffer();
+      final answer = del(
+        root,
+        ['feature:login'],
+        confirmation: OwnerConfirmation.prompt,
+        answers: ['y'],
+        prompts: prompts,
+      );
+      expect(answer.json['removed'], contains(record));
+      expect(prompts.toString(), contains('$record\n'));
+      expect(recordFile(root).existsSync(), isFalse);
+      expect(recordFile(root).parent.existsSync(), isFalse);
+    });
+
+    test('the delete plan lists the record by its project path', () async {
+      final root = await recordProject();
+      final answer = writeIn(
+        root,
+        (s) => answerDeleteDryRun(s, ['feature:login']),
+      );
+      expect(answer.json['files'], contains(record));
+      expect(answer.text, contains('$record (guarded)\n'));
+      expect(recordFile(root).existsSync(), isTrue);
+    });
+
+    test(
+      'an approved record gates the feature delete under its project path',
+      () async {
+        final root = await recordProject();
+        recordFile(root).writeAsStringSync(
+          recordText(
+            front: 'approved: true\n',
+            statuses: ['email_login:implemented'],
+          ),
+        );
+        final answer = writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, ['feature:login']),
+        );
+        expect(answer.json['guarded'], contains(record));
+        expect(
+          () => del(root, ['feature:login']),
+          refusesWith(WriteFaultCode.ownerTerminalRequired),
+        );
+        expect(recordFile(root).existsSync(), isTrue);
+      },
+    );
+
+    test(
+      'a feature delete with no record folder removes the feature alone',
+      () async {
+        final root = await writeWriteProject(
+          extra: {...freeOfLoginReferrers, ...recordsRootTemplates},
+        );
+        final answer = del(
+          root,
+          ['feature:login'],
+          confirmation: OwnerConfirmation.prompt,
+          answers: ['y'],
+        );
+        expect(
+          (answer.json['removed']! as List).cast<String>(),
+          isNot(contains(startsWith('.specstone/records/'))),
+        );
+      },
+    );
+  });
 }
