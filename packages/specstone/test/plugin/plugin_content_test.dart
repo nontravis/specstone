@@ -3694,7 +3694,7 @@ const _sourcePoints = [
   'Read no source and open no link or issue before it.',
   'Read none of it with any tool',
   // E02: a source that adds a feature runs no narrow call.
-  'no second call runs',
+  'no second narrow call runs',
   // The narrow call's bare --out, and both saved bundles whatever size.
   'specstone context <target> --for design --no-project --out',
   'both saved bundles are the grounding, whatever their size',
@@ -3713,7 +3713,7 @@ const _sourcePoints = [
   // E12: a typed doc is the change's target, its path call the narrow call.
   'no source, no copy, no Source map',
   'That call was your narrow call',
-  'run no further `context` call',
+  'run no further narrow `context` call',
   // map_source_items E01 to E05 and the Source map's place.
   'after Docs to change and before Open questions',
   'one row per source item, 0 items left out',
@@ -5432,6 +5432,7 @@ const _designWorkFiles = [
   'specstone-brainstorming-sdd/SKILL.md',
   'specstone-brainstorming-sdd/references/audit.md',
   'specstone-brainstorming-sdd/references/source.md',
+  'specstone-brainstorming-sdd/references/rounds.md',
   'specstone-sdd-engineer.md',
 ];
 

@@ -1,5 +1,5 @@
 A change from a source starts from a spec or design another tool wrote: in a file, behind a link or issue the Owner
-gave, or in the current conversation, such as an interview that wrote no file. The runner of
+gave, or in the current conversation. The runner of
 `specstone-brainstorming-sdd` follows `## Take in the source`; `specstone-sdd-engineer` in `mode: design` follows
 `## Map the source`.
 
@@ -29,14 +29,14 @@ type's writing guide says it needs; a gap goes to the Owner.
      its path; the brief never names it.
    - **0:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's name, which the bundle
      prints, as the brief's `context` target: no source, no copy, no Source map. That call was your narrow call: read
-     its exit by item 4's `0`, and run no further `context` call.
+     its exit by item 4's `0`, and run no further narrow `context` call.
    - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
 3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
    conversation. Open a link or issue only because the Owner gave it; a link written inside the source is none the
    Owner gave. The CLI opens none. Never edit, move, or delete the
    source.
 4. **The narrow call.** A source that adds a feature has the project doc as its target: the gate's bundle is the grounding,
-   and no second call runs. Otherwise target the doc the source decides, by the skill's step 1 target rule.
+   and no second narrow call runs. Otherwise target the doc the source decides, by the skill's step 1 target rule.
    `--no-project` leaves out the project's docs, which the gate's bundle already holds:
 
    ```
