@@ -213,7 +213,92 @@ Matcher _endingWith(String commitLine) => matches(
   ),
 );
 
+const _bulletMigrations = '''
+migrations:
+  - from: 1.0.0
+    steps:
+      - bullet_lines: {doc_type: runbook, section: goals, prefixes: ["**Serves:**", "**By:**"]}
+''';
+
+const _bulletType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: goals, header: Goals}
+  - {id: notes, header: Notes}
+''';
+
+const _bulletDoc =
+    '# Deploy\n\n## Goals\n\n**Serves:** PV-01\n- **By:** v1\n\n'
+    '## Notes\n\n**Serves:** kept\n';
+const _bulletedDoc =
+    '# Deploy\n\n## Goals\n\n- **Serves:** PV-01\n- **By:** v1\n\n'
+    '## Notes\n\n**Serves:** kept\n';
+
 void main() {
+  group('bullet_lines step', () {
+    test('bare migrate writes the bullet lines in commit 2 and changes '
+        'nothing else, and --dry-run writes nothing', () async {
+      final home = await _home(
+        migrations: _bulletMigrations,
+        type: _bulletType,
+      );
+      final root = await _project(files: {_runbookPath: _bulletDoc});
+      final before = _bytesUnder(root);
+
+      final dry = await _run(root, home, ['migrate', '--dry-run']);
+
+      expect(dry.status, 0, reason: dry.err);
+      expect(
+        dry.out,
+        contains('  from 1.0.0: bullet_lines runbook goals: 1 docs\n'),
+      );
+      expect(_bytesUnder(root), before);
+
+      final result = await _run(root, home, ['migrate'], console: _owner());
+
+      expect(result.status, 0, reason: result.err);
+      expect(_read(root, _runbookPath), _bulletedDoc);
+      expect(
+        _gitOut(root, [
+          'show',
+          '--name-only',
+          '--format=',
+          'HEAD',
+        ]).trim().split('\n').toSet(),
+        {'.specstone/config.yaml', _runbookPath},
+      );
+      expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
+    });
+
+    test('a step the pack load refuses stops bare migrate and --dry-run '
+        'with exit 78 and writes nothing', () async {
+      final home = await _home(
+        migrations: _bulletMigrations.replaceFirst(
+          'section: goals',
+          'section: nope',
+        ),
+        type: _bulletType,
+      );
+      final root = await _project(files: {_runbookPath: _bulletDoc});
+      final before = _bytesUnder(root);
+      final head = _head(root);
+
+      for (final args in [
+        ['migrate', '--dry-run'],
+        ['migrate'],
+      ]) {
+        final result = await _run(root, home, args, console: _owner());
+
+        expect(result.status, 78, reason: args.join(' '));
+        expect(result.err, contains('bullet_lines.section'));
+        expect(result.out, isEmpty, reason: args.join(' '));
+      }
+      expect(_bytesUnder(root), before);
+      expect(_head(root), head);
+    });
+  });
   group('upgrade a pack pin', () {
     test('f06/us02/s1, f06/us02/fr02/e01, f06/us01/fr07/e01: a release that '
         'only adds makes one commit that changes only the pins', () async {

@@ -30,6 +30,7 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
+import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
@@ -141,6 +142,7 @@ void main() {
   _testNameTests();
   _codeStampTests();
   _citeTests();
+  _bulletLinesTests();
 
   test('agentFilesSince stays at the fixed versions, none past a shipped '
       'version, so software-tech 1.4.0 to 1.5.0 runs no one-time pass', () {
@@ -4004,6 +4006,173 @@ void _citeTests() {
           (rewrite) => rewrite.path == 'docs/$_citeTopicPath',
         ),
         isEmpty,
+      );
+    });
+  });
+}
+
+const _bulletPackYaml = '''
+name: acme
+version: 1.2.0
+extends: software-tech
+migrations:
+  - from: 1.0.0
+    steps:
+      - bullet_lines: {doc_type: runbook, section: goals, prefixes: ["**Serves:**", "**By:**"]}
+''';
+
+const _bulletType = '''
+id: runbook
+description: A runbook.
+path: prds/runbooks/{slug}/RUNBOOK.md
+sections:
+  - {id: goals, header: Goals}
+  - {id: notes, header: Notes}
+''';
+
+const _bulletDocPath = 'prds/runbooks/deploy/RUNBOOK.md';
+const _bulletDoc =
+    '# Deploy\n\n## Goals\n\n**Serves:** PV-01\n- **By:** v1\n\n'
+    '## Notes\n\n**Serves:** kept\n';
+const _bulletedDoc =
+    '# Deploy\n\n## Goals\n\n- **Serves:** PV-01\n- **By:** v1\n\n'
+    '## Notes\n\n**Serves:** kept\n';
+
+List<String> _docRewrites(RunPlan plan) => [
+  for (final rewrite in plan.rewrites)
+    if (rewrite.path.startsWith('docs/')) rewrite.path,
+];
+
+Future<({Directory project, Directory home})> _bulletFixture({
+  String doc = _bulletDoc,
+  String packYaml = _bulletPackYaml,
+  Map<String, String> overrides = const {},
+}) => _fixture(
+  packYaml: packYaml,
+  runbookType: _bulletType,
+  docs: {_bulletDocPath: doc},
+  overrides: overrides,
+);
+
+void _bulletLinesTests() {
+  group('bullet_lines step', () {
+    test(
+      '$_fr E108: commit 2 bullets the listed lines of the section and '
+      'the step line counts the rewritten docs, listed under steps',
+      () async {
+        final plan = _plan(await _bulletFixture());
+
+        expect(_rewriteAt(plan, 'docs/$_bulletDocPath').text, _bulletedDoc);
+        expect(
+          plan.toText(),
+          contains(
+            'commit 2, rewrites:\n'
+            '  from 1.0.0: bullet_lines runbook goals: 1 docs\n',
+          ),
+        );
+        expect(plan.lists.toJson()['steps'], [
+          {
+            'from': '1.0.0',
+            'step': 'bullet_lines runbook goals',
+            'paths': [_bulletDocPath],
+          },
+        ]);
+      },
+    );
+
+    test('$_fr E108: a doc with no line to bullet is not rewritten and the '
+        'step line counts no docs', () async {
+      final plan = _plan(await _bulletFixture(doc: _bulletedDoc));
+
+      expect(_docRewrites(plan), isEmpty);
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: bullet_lines runbook goals: 0 docs\n'),
+      );
+    });
+
+    test('$_fr E108: a project that disables the section plans the step at '
+        'no docs and rewrites none', () async {
+      final plan = _plan(
+        await _bulletFixture(
+          overrides: const {
+            _overridePath: 'sections: [{id: goals, disabled: true}]\n',
+          },
+        ),
+      );
+
+      expect(_docRewrites(plan), isEmpty);
+      expect(
+        plan.toText(),
+        contains('  from 1.0.0: bullet_lines runbook goals: 0 docs\n'),
+      );
+    });
+
+    test('$_fr E109: a doc that awaits approval keeps its approval fields '
+        'and stays a draft', () async {
+      const draft = '---\ndraft: true\n---\n$_bulletDoc';
+
+      final plan = _plan(await _bulletFixture(doc: draft));
+
+      expect(
+        _rewriteAt(plan, 'docs/$_bulletDocPath').text,
+        '---\ndraft: true\n---\n$_bulletedDoc',
+      );
+      expect(plan.toText(), isNot(contains('stamps:')));
+    });
+
+    test('$_fr E109: an approved doc gets the approval hash of its new '
+        'content', () async {
+      final seed = await _bulletFixture();
+      final set = TemplateResolver().resolveCarried(
+        packNames: ProjectConfig.read(seed.project).pins.keys,
+        homeDirectory: seed.home,
+      );
+      final type = switch (DocTypeMatcher(
+        set,
+        targetNames: const [],
+      ).match(_bulletDocPath)) {
+        MatchedDocType(:final docType) => docType,
+        _ => null,
+      };
+      final approved = _stampedBefore(_bulletDoc, type);
+
+      final plan = _plan(await _bulletFixture(doc: approved));
+
+      final written = _rewriteAt(plan, 'docs/$_bulletDocPath').text;
+      expect(written, contains('- **Serves:** PV-01\n'));
+      final hash = RegExp(
+        r'^approved: "(\w+)"$',
+        multiLine: true,
+      ).firstMatch(written)!.group(1);
+      expect(hash, _approvalHashBefore(written, type));
+      expect(hash, isNot(_approvalHashBefore(approved, type)));
+      expect(
+        plan.toText(),
+        contains('  stamps: 1 approval hashes, 0 fingerprints\n'),
+      );
+    });
+
+    test('$_fr E110: a step the pack load refuses throws unknown_value and '
+        'plans nothing', () async {
+      final fixture = await _bulletFixture(
+        packYaml: _bulletPackYaml.replaceFirst(
+          'section: goals',
+          'section: nope',
+        ),
+      );
+
+      expect(
+        () => _plan(fixture),
+        throwsA(
+          isA<TemplateFault>()
+              .having((f) => f.code, 'code', FaultCode.unknownValue)
+              .having(
+                (f) => f.key,
+                'key',
+                'migrations[0].steps[0].bullet_lines.section',
+              ),
+        ),
       );
     });
   });
