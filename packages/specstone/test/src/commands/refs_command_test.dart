@@ -271,21 +271,23 @@ void main() {
     );
   });
 
-  test('an untyped .md under measurements/ lists its mention under untyped '
-      'mentions, never under mentions', () async {
-    final project = await writeReadProject(
-      extra: {
-        'docs/measurements/notes.md':
-            '# Notes\n\nPlain login. Also `login/email_login`.\n',
-      },
-    );
-    final (:runner, :out, :err) = readRunner(project);
-    expect(await runner.run(['refs', 'login/email_login', '--json']), 0);
-    final doc =
-        ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
-    expect(doc['mentions'], isEmpty);
-    expect(doc['untypedMentions'], [
-      {'path': 'measurements/notes.md', 'line': 3},
-    ]);
-  });
+  for (final folder in ['measurements', 'plans']) {
+    test('a mention in an untyped .md under $folder/ lists under untyped '
+        'mentions, never under mentions', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/$folder/notes.md':
+              '# Notes\n\nPlain login. Also `login/email_login`.\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(project);
+      expect(await runner.run(['refs', 'login/email_login', '--json']), 0);
+      final doc =
+          ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
+      expect(doc['mentions'], isEmpty);
+      expect(doc['untypedMentions'], [
+        {'path': '$folder/notes.md', 'line': 3},
+      ]);
+    });
+  }
 }
