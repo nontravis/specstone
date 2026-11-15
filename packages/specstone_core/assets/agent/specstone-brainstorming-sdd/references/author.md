@@ -1,5 +1,6 @@
 `specstone-sdd-engineer` runs this in `mode: author`, its gate already made; so does the runner of
-`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner nothing: list each gap in your report.
+`specstone-brainstorming-sdd` when it runs the mode itself. As the agent, ask the Owner nothing: list each gap in
+your report.
 
 ## 1. Read
 

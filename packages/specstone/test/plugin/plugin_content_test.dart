@@ -5732,6 +5732,12 @@ void _outAndReplaceTests() {
     expect(text, contains('long `check`, `guide`, or `get` output'));
     expect(text, contains('bare `--out`'));
     expect(text, contains('Change one passage with `set --replace`'));
-    expect(text, contains('`sed -i`, `perl -pi`, `tee`'));
+    expect(
+      text,
+      contains(
+        'Write no file by shell redirect, `sed -i`, `perl -pi`, or `tee`; '
+        'hand edit no doc file.',
+      ),
+    );
   });
 }
