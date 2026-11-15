@@ -42,6 +42,40 @@ String pathAtDepth(String path, NestingSegment segment, int depth) {
   ].join('/');
 }
 
+/// Returns [path] at every depth from 0 to [maxDepth], shallowest first.
+List<String> pathsAtEveryDepth(
+  String path,
+  NestingSegment segment,
+  int maxDepth,
+) => [
+  for (var depth = 0; depth <= maxDepth; depth++)
+    pathAtDepth(path, segment, depth),
+];
+
+/// Returns the pattern pair [from] to [to] once per depth of [nesting], the
+/// shallowest first.
+///
+/// The pair comes back alone when [nesting] writes no `max_depth` or when
+/// either pattern holds no repeating segment: a move that leaves the nesting
+/// folders has no depth to repeat.
+List<({String from, String to})> movePatternsAtEveryDepth(
+  String from,
+  String to,
+  MergedDocType nesting,
+) {
+  final fromSegment = nestingSegmentOf(from, nesting);
+  final toSegment = nestingSegmentOf(to, nesting);
+  final maxDepth = nesting.maxDepth;
+  if (maxDepth == null || fromSegment == null || toSegment == null) {
+    return [(from: from, to: to)];
+  }
+  final froms = pathsAtEveryDepth(from, fromSegment, maxDepth);
+  final tos = pathsAtEveryDepth(to, toSegment, maxDepth);
+  return [
+    for (final (index, path) in froms.indexed) (from: path, to: tos[index]),
+  ];
+}
+
 /// Returns the nesting type of [docTypes]: the first that writes `max_depth`,
 /// 0 included, or null.
 MergedDocType? nestingTypeOf(List<MergedDocType> docTypes) {
@@ -73,10 +107,7 @@ MergedDocType _nestedCopy(
   final segment = nestingSegmentOf(path, nesting);
   if (segment == null) return docType;
   return docType.copyWith(
-    nestedPaths: [
-      for (var depth = 0; depth <= nesting.maxDepth!; depth++)
-        pathAtDepth(path, segment, depth),
-    ],
+    nestedPaths: pathsAtEveryDepth(path, segment, nesting.maxDepth!),
   );
 }
 

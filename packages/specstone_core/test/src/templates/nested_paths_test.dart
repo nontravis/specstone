@@ -178,4 +178,34 @@ void main() {
       expect(set.lookup('b')!.paths, hasLength(1));
     });
   });
+
+  group('movePatternsAtEveryDepth', () {
+    const from = 'specs/f{nn}_{slug}/IMPLEMENTATION.md';
+    const to = '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md';
+
+    test('repeats both patterns once per depth, the shallowest first', () {
+      final pairs = movePatternsAtEveryDepth(from, to, feature(maxDepth: 1));
+
+      expect(pairs, [
+        (from: from, to: to),
+        (
+          from: 'specs/f{nn}_{slug}/f{nn}_{slug}/IMPLEMENTATION.md',
+          to: '.specstone/records/f{nn}_{slug}/f{nn}_{slug}/IMPLEMENTATION.md',
+        ),
+      ]);
+    });
+
+    test('keeps the pair alone when the nesting type writes no depth', () {
+      expect(movePatternsAtEveryDepth(from, to, feature()), [
+        (from: from, to: to),
+      ]);
+    });
+
+    test('keeps the pair alone when a pattern holds no repeating segment', () {
+      expect(
+        movePatternsAtEveryDepth(from, 'specs/{slug}.md', feature(maxDepth: 2)),
+        [(from: from, to: 'specs/{slug}.md')],
+      );
+    });
+  });
 }
