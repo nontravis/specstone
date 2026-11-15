@@ -28,6 +28,14 @@ class SetCommand extends WriteCommand {
             'block, or none. Takes no doc address, --base, --field, --title, '
             'or --target; reads no stdin.',
       )
+      ..addMultiOption(
+        'remove-task',
+        splitCommas: false,
+        help:
+            'Removes every entry of the task from every doc, in one write; '
+            'repeat it for more tasks. Takes no doc address, --base, '
+            '--field, --title, or --batch; reads no stdin.',
+      )
       ..addFlag('json', negatable: false, help: 'Print JSON instead of text.');
     addTargetOption();
   }
@@ -37,21 +45,28 @@ class SetCommand extends WriteCommand {
 
   @override
   String get description =>
-      'Replace a section, a field, or the title of a doc with stdin, or write '
-      'a file of `get` blocks with --batch.';
+      'Replace a section, a field, or the title of a doc with stdin, write '
+      'a file of `get` blocks with --batch, or remove a task from every doc '
+      'with --remove-task.';
 
   @override
   String get invocation =>
       'specstone set <doc address>(#<section key> | '
       '--field <field id> | --title) --base <hash> [--target <name>] '
       '[--json]\n'
-      '       specstone set --batch <file> [--json]';
+      '       specstone set --batch <file> [--json]\n'
+      '       specstone set --remove-task <task id> [--remove-task <task id>] '
+      '[--target <name>] [--json]';
 
   @override
   Future<int> run() async {
     final args = argResults!;
     final asJson = args.flag('json');
     final rest = args.rest;
+    final removeTasks = args.multiOption('remove-task');
+    if (removeTasks.isNotEmpty) {
+      return _runRemoveTasks(removeTasks, asJson: asJson);
+    }
     final batch = args.option('batch');
     if (batch != null) return _runBatch(batch, asJson: asJson);
     if (rest.length > 1) {
@@ -100,6 +115,45 @@ class SetCommand extends WriteCommand {
     return runWrite(
       (session) => answerSetBatch(session, parsed),
       asJson: asJson,
+    );
+  }
+
+  /// Removes the entries of [tasks] from every doc in one write session.
+  ///
+  /// The conflict is checked before the values, and both before a session
+  /// opens, so no project is needed to refuse. Stdin is never read.
+  Future<int> _runRemoveTasks(
+    List<String> tasks, {
+    required bool asJson,
+  }) async {
+    try {
+      _requireRemoveTaskAlone();
+      requireTaskIds(tasks);
+    } on SpecstoneFault catch (fault) {
+      return fail(fault, asJson: asJson);
+    }
+    return runWrite(
+      (session) =>
+          answerRemoveTasks(session, tasks, codeTarget: targetOf(argResults!)),
+      asJson: asJson,
+    );
+  }
+
+  /// Throws [IndexFault] `argument_conflict` when a doc address, `--base`,
+  /// `--field`, `--title`, or `--batch` goes beside `--remove-task`.
+  void _requireRemoveTaskAlone() {
+    final args = argResults!;
+    if (args.rest.isEmpty &&
+        args.option('base') == null &&
+        args.option('field') == null &&
+        args.option('batch') == null &&
+        !args.flag('title')) {
+      return;
+    }
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      '--remove-task takes no doc address, --base, --field, --title, or '
+      '--batch',
     );
   }
 
