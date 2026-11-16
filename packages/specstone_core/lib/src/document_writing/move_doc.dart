@@ -188,25 +188,18 @@ ReadAnswer answerRename(
   });
 }
 
-/// Moves the stories or the FRs [addresses] name to be the last stories of
-/// [under], or the last FRs of the story it names, in the order given, slugs
-/// kept, and rewrites every reference to them in one pass through one journal.
+/// Moves the stories or FRs [addresses] name to be the last children of
+/// [under], in the order given, slugs kept, rewriting every reference in one
+/// pass through one journal.
 ///
-/// A target named twice moves once; one already in [under] stays. Every
-/// target is checked before the lock, so one refused target moves none. In
-/// each code target, the entries of a moved story and its FRs go from the
-/// record of the feature they leave to the record of [under], which the move
-/// creates, as a draft, when the target has none. A code file or an agent file
-/// is never written; each Name or path mention in one that the move stops
-/// resolving is listed in the answer.
+/// A target named twice moves once; one already in [under] stays. One refused
+/// target moves none. A code file or an agent file is never written; each
+/// mention in one that the move stops resolving is listed in the answer.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// no FR, and `doc_exists` for a clash, among the targets too; an `IndexFault`
-/// for no target, a missing or unknown [under], a call naming both stories and
-/// FRs, or a feature that holds sub-features; a `TemplateFault`
-/// `doc_type_unknown` when [under] names a doc type id the set lacks;
-/// `RenderFault` `output_not_writable` for roots the Owner has not recorded,
-/// naming the journal, before any rewrite is planned.
+/// no FR, `doc_exists` for a clash; an `IndexFault` for no target, a bad
+/// [under], or a call naming both stories and FRs; `RenderFault`
+/// `output_not_writable` for roots the Owner has not recorded.
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {

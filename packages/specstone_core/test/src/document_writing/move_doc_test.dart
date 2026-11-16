@@ -1467,6 +1467,23 @@ void main() {
         );
         expect(hasDoc(root, checkStockFile), isTrue);
         expect(hasDoc(root, '$refundFolder/fr02_check_stock.md'), isFalse);
+
+        const heldFile = '$dropFolder/fr03_check_stock.md';
+        final held = await frProject({'docs/$heldFile': '# Check stock\n'});
+        expect(
+          () => moveAll(held, [
+            'fr:shop/cart/add_item/reserve_stock',
+            checkStock,
+          ], 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+        expect(hasDoc(held, reserveFile), isTrue);
+        expect(hasDoc(held, checkStockFile), isTrue);
+        expect(hasDoc(held, '$dropFolder/fr02_reserve_stock.md'), isFalse);
       });
 
       test(
@@ -1503,7 +1520,10 @@ void main() {
       );
 
       test('a target no doc carries, an untyped path, or a name of two docs refuses before the type tests', () async {
-        final root = await frProject({'docs/prds/d02_notes.md': '# Notes\n'});
+        final root = await frProject({
+          'docs/prds/d02_notes.md': '# Notes\n',
+          'docs/$addNf': '# Load\n',
+        });
         const nf = 'nf:shop/cart/add_item/load_fast';
         final refusals = {
           'fr:shop/cart/add_item/nothing_here': IndexFaultCode.docNotFound,
@@ -1512,7 +1532,7 @@ void main() {
         };
         for (final MapEntry(key: target, value: code) in refusals.entries) {
           expect(
-            () => moveAll(root, [target, nf], 'shop/pay/refund'),
+            () => moveAll(root, [nf, target], 'shop/pay/refund'),
             throwsA(isA<IndexFault>().having((f) => f.code, 'code', code)),
             reason: target,
           );
