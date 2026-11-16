@@ -29,14 +29,18 @@ const _overridesKey = 'overrides';
 /// Returns, by DocPath, the draft-marking edit of each doc the non-empty
 /// [landings] change.
 ///
-/// An edit refuses a doc that changed since the plan. Throws [RenderFault]
-/// `output_not_writable` for `overrides` entries that are not valid YAML.
+/// An edit refuses a doc that changed since the plan. [bodies] gives, by
+/// DocPath, the text a doc holds in place of its indexed text, with every line
+/// where the index has it, so a landing carries the reference rewrites of its
+/// lines. Throws [RenderFault] `output_not_writable` for `overrides` entries
+/// that are not valid YAML.
 Map<String, TextEdit> itemLandingEdits(
   WriteSession session,
-  List<ItemLanding> landings,
-) {
+  List<ItemLanding> landings, {
+  Map<String, String> bodies = const {},
+}) {
   final index = session.index;
-  final cuts = [for (final landing in landings) _cutOf(index, landing)];
+  final cuts = [for (final landing in landings) _cutOf(index, landing, bodies)];
   final destination = landings.first.to;
   final entries = _entryMovesOf(index, destination, cuts);
   final bySource = <String, List<_Cut>>{};
@@ -45,14 +49,49 @@ Map<String, TextEdit> itemLandingEdits(
   }
   return {
     for (final MapEntry(:key, :value) in bySource.entries)
-      key: _sourceEdit(index, value, entries.dropsOf(key)),
+      key: _sourceEdit(index, value, entries.dropsOf(key), bodies[key]),
     destination.docPath: _destinationEdit(
       index,
       destination,
       cuts,
       entries.adds,
+      bodies[destination.docPath],
     ),
   };
+}
+
+/// The file lines an item spans in its source doc.
+final class ItemSpan {
+  const new({
+    required this.located,
+    required this.head,
+    required this.first,
+    required this.last,
+  });
+
+  final LocatedItem located;
+
+  /// The item's first list item or heading.
+  final SectionItem head;
+
+  /// The first and last file line the item spans, nested items and its own
+  /// `Overrides:` line included.
+  final int first;
+  final int last;
+}
+
+/// Returns the lines the item [landing] moves spans in its source doc.
+ItemSpan itemSpanOf(DocIndex index, ItemLanding landing) {
+  final located = locateItem(index, landing.from);
+  final content = index.contentOf(landing.from.doc);
+  final items = sectionItemsAt(content, located.sectionAt);
+  final at = itemIndexOf(items, located);
+  return ItemSpan(
+    located: located,
+    head: items[at],
+    first: items[at].line,
+    last: _spanEnd(content, located.sectionAt, items, at),
+  );
 }
 
 /// One item cut out of its source doc, as it lands.
@@ -83,18 +122,25 @@ final class _Cut {
   final OverrideCite? own;
 }
 
-_Cut _cutOf(DocIndex index, ItemLanding landing) {
-  final located = locateItem(index, landing.from);
+_Cut _cutOf(DocIndex index, ItemLanding landing, Map<String, String> bodies) {
+  final span = itemSpanOf(index, landing);
+  final located = span.located;
+  final head = span.head;
+  final last = span.last;
   final doc = landing.from.doc;
-  final content = index.contentOf(doc);
-  final items = sectionItemsAt(content, located.sectionAt);
-  final at = itemIndexOf(items, located);
-  final head = items[at];
-  final last = _spanEnd(content, located.sectionAt, items, at);
   final own = ownOverrideOf(index, located)?.cite;
-  final lines = toLf(content.text).split('\n').sublist(head.line - 1, last);
+  final indexed = toLf(index.contentOf(doc).text).split('\n');
+  final lines = (bodies[doc.docPath]?.split('\n') ?? indexed).sublist(
+    head.line - 1,
+    last,
+  );
   if (landing.newId != landing.from.id) {
-    lines[0] = _withId(lines[0], head.head, landing.from.id, landing.newId);
+    lines[0] = _withId(
+      lines[0],
+      at: _idAt(indexed[head.line - 1], head.head),
+      id: landing.from.id,
+      newId: landing.newId,
+    );
   }
   if (own != null) {
     final ownAt = own.line - head.line;
@@ -166,9 +212,17 @@ int _blockEnd(
 
 bool _isBlank(String line) => line.trim().isEmpty;
 
-/// Returns [raw] with [id], where its [head] opens it, set to [newId].
-String _withId(String raw, String head, String id, String newId) {
-  final at = raw.length - head.length + (head.startsWith('**') ? 2 : 0);
+/// Returns the offset of the ID in [raw], the file line whose tail is [head].
+int _idAt(String raw, String head) =>
+    raw.length - head.length + (head.startsWith('**') ? 2 : 0);
+
+/// Returns [raw] with [id], which starts at [at], set to [newId].
+String _withId(
+  String raw, {
+  required int at,
+  required String id,
+  required String newId,
+}) {
   if (!raw.startsWith(id, at)) {
     throw StateError('$raw does not open with $id');
   }
@@ -316,14 +370,19 @@ String _withEntries(
 
 // MARK: - Source and destination edits
 
-TextEdit _sourceEdit(DocIndex index, List<_Cut> cuts, Set<String> drops) {
+TextEdit _sourceEdit(
+  DocIndex index,
+  List<_Cut> cuts,
+  Set<String> drops,
+  String? body,
+) {
   final doc = cuts.first.landing.from.doc;
   final type = _typeOf(index, doc);
   final expected = toLf(index.contentOf(doc).text);
   final backwards = [...cuts]..sort((a, b) => b.first.compareTo(a.first));
   return (lfText) {
-    _requireUnchanged(doc, expected, lfText);
-    final lines = lfText.split('\n');
+    requireUnchanged(doc, expected, lfText);
+    final lines = (body ?? lfText).split('\n');
     for (final cut in backwards) {
       _removeLines(lines, cut.first, cut.last);
     }
@@ -348,6 +407,7 @@ TextEdit _destinationEdit(
   IndexedDoc destination,
   List<_Cut> cuts,
   List<Object?> added,
+  String? body,
 ) {
   final type = _typeOf(index, destination);
   final expected = toLf(index.contentOf(destination).text);
@@ -357,8 +417,8 @@ TextEdit _destinationEdit(
       if (insertion.anchor != null) insertion,
   ]..sort((a, b) => b.anchor!.compareTo(a.anchor!));
   return (lfText) {
-    _requireUnchanged(destination, expected, lfText);
-    final lines = lfText.split('\n');
+    requireUnchanged(destination, expected, lfText);
+    final lines = (body ?? lfText).split('\n');
     for (final insertion in present) {
       lines.insertAll(insertion.anchor!, insertion.lines);
     }
@@ -375,7 +435,9 @@ TextEdit _destinationEdit(
 MergedDocType _typeOf(DocIndex index, IndexedDoc doc) =>
     index.typeOf(doc) ?? (throw StateError('${doc.docPath} has no doc type'));
 
-void _requireUnchanged(IndexedDoc doc, String expected, String lfText) {
+/// Throws [RenderFault] `output_not_writable` when [lfText] is not the
+/// [expected] text [doc] held when the move was planned.
+void requireUnchanged(IndexedDoc doc, String expected, String lfText) {
   if (lfText == expected) return;
   throw RenderFault(
     RenderFaultCode.outputNotWritable,

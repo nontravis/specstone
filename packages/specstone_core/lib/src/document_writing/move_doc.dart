@@ -2,10 +2,10 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
-import 'package:specstone_core/src/document_writing/item_landing.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
     show rewriteMovedFrTraces;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart';
@@ -327,7 +327,9 @@ ReadAnswer _answerItemMove(
 /// [under] names, marking each source doc and that doc draft.
 ///
 /// An item lands with its nested items and `Overrides:` line; its ID changes
-/// only to the next free number. [dryRun] writes nothing, not even a journal.
+/// only to the next free number, and every reference to it follows. A bare ID
+/// the move leaves unresolved prints as a `mentions` line. [dryRun] writes
+/// nothing, not even a journal.
 ///
 /// Throws the faults of [planItemMove] and `RenderFault` `output_not_writable`.
 ReadAnswer answerItemMove(
@@ -357,13 +359,15 @@ ReadAnswer answerItemMove(
     final rewrites = planRewrites(
       session,
       const [],
-      docEdits: itemLandingEdits(session, landings),
+      docEdits: itemRefEdits(session, landings),
     );
+    final mentions = itemMentions(session, landings);
     if (!dryRun) MoveJournal(rewrites).run(session.journalTarget);
     return _answerFor(
       session,
       const [],
       rewrites,
+      mentions: mentions,
       landings: landings,
       dryRun: dryRun,
     );
