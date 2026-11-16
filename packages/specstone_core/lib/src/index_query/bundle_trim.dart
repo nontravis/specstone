@@ -5,6 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
 import 'package:specstone_core/src/index_query/line_facts.dart' show LineRange;
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 

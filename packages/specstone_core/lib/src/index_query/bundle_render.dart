@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 String _summaryNextStep(BundleMode mode) =>

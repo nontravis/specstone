@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:test/test.dart';
 
@@ -243,14 +244,14 @@ void main() {
   });
 
   test('nested items that end on one line keep every line, inner first', () {
-    const outer = (
+    const outer = CitedItem(
       kind: CitedKind.item,
       item: 'INV-14',
       sectionKey: 'invariants',
       after: 7,
       by: [CitedBy(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
     );
-    const inner = (
+    const inner = CitedItem(
       kind: CitedKind.item,
       item: 'INV-15',
       sectionKey: 'invariants',
@@ -467,15 +468,21 @@ void main() {
 
       expect(
         citedByJson([
-          (
+          const CitedItem(
             kind: CitedKind.section,
             item: null,
             sectionKey: 'invariants',
             after: 5,
             by: by,
           ),
-          (kind: CitedKind.doc, item: null, sectionKey: null, after: 0, by: by),
-          (
+          const CitedItem(
+            kind: CitedKind.doc,
+            item: null,
+            sectionKey: null,
+            after: 0,
+            by: by,
+          ),
+          const CitedItem(
             kind: CitedKind.item,
             item: 'INV-14',
             sectionKey: 'invariants',
@@ -585,7 +592,7 @@ void main() {
   });
 
   test('an index that prints its lines as parts gives no line to print after an item', () {
-    const item = (
+    const item = CitedItem(
       kind: CitedKind.item,
       item: 'E01',
       sectionKey: 'edge_cases',

@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/index_query/models/cited_by.dart';
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show nameWithType;
@@ -23,22 +24,6 @@ final class CitedByIndex extends MapView<CitedPlace, List<CitedBy>> {
   /// Whether the lines print right after their place.
   final bool inline;
 }
-
-/// A place a bundle prints whose `by` lines print right after file line
-/// `after` of its doc, or as a part of their own ([CitedByIndex.inline]).
-///
-/// An item has its `item` ID, and a `###` block its heading's anchor as a
-/// link names it, even when the block starts an item; each has the `##`
-/// section `sectionKey` that holds it; a
-/// section has its `sectionKey` alone, `after` its header's file line; a doc
-/// has neither, `after` 0, the line of its naming line.
-typedef CitedItem = ({
-  CitedKind kind,
-  String? item,
-  String? sectionKey,
-  int after,
-  List<CitedBy> by,
-});
 
 /// Returns who cites each place, from the links the index stores.
 ///
@@ -153,7 +138,7 @@ List<CitedItem> citedItemsIn(
   });
   return [
     for (final (:id, :extent, :by) in found)
-      (
+      CitedItem(
         kind: CitedKind.item,
         item: id,
         sectionKey: section.key,
@@ -180,7 +165,7 @@ CitedItem? citedSectionIn(
         key: section.key,
       )];
   if (by == null) return null;
-  return (
+  return CitedItem(
     kind: CitedKind.section,
     item: null,
     sectionKey: section.key,
@@ -195,7 +180,13 @@ CitedItem? citedDocIn(CitedByIndex cited, IndexedDoc doc) {
   final by =
       cited[CitedPlace(docPath: doc.docPath, kind: CitedKind.doc, key: null)];
   if (by == null) return null;
-  return (kind: CitedKind.doc, item: null, sectionKey: null, after: 0, by: by);
+  return CitedItem(
+    kind: CitedKind.doc,
+    item: null,
+    sectionKey: null,
+    after: 0,
+    by: by,
+  );
 }
 
 /// Returns the `###` headings inside the section [at] of [facts], each by the
