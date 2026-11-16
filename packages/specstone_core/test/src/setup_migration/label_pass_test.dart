@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
 import 'package:specstone_core/src/setup_migration/models/label_tree.dart';
@@ -74,6 +76,9 @@ LabelPass _passOf(
 String _convert(String citing, String text) =>
     _passOf(citing, text).apply(citing, text);
 
+/// The item ID prefixes the labels of these cases read their item IDs by.
+final Set<String> _prefixes = itemIdPrefixesOf(_set.docTypes);
+
 LabelTree _tree() => LabelTree.of(
   [
     for (final MapEntry(:key, :value) in _baseDocs().entries)
@@ -117,7 +122,8 @@ void main() {
   group('$_fr E26 LabelTree.resolve', () {
     test('a full label names the feature, story, or FR doc under it', () {
       final tree = _tree();
-      NumberLabel one(String text) => numberLabelsIn(text).single;
+      NumberLabel one(String text) =>
+          numberLabelsIn(text, itemPrefixes: _prefixes).single;
 
       expect(tree.resolve(one('F-01'), citingDocPath: _topic), _feature);
       expect(tree.resolve(one('F-01 US-02'), citingDocPath: _topic), _story2);
@@ -135,7 +141,8 @@ void main() {
       'a partial label reads against the citing doc story, else feature',
       () {
         final tree = _tree();
-        NumberLabel one(String text) => numberLabelsIn(text).single;
+        NumberLabel one(String text) =>
+            numberLabelsIn(text, itemPrefixes: _prefixes).single;
 
         expect(tree.resolve(one('FR-01'), citingDocPath: _delta), _gamma);
         expect(tree.resolve(one('FR-01'), citingDocPath: _zeta), _zeta);
@@ -147,7 +154,8 @@ void main() {
 
     test('a label that names no doc or two docs resolves to null', () {
       final tree = _tree();
-      NumberLabel one(String text) => numberLabelsIn(text).single;
+      NumberLabel one(String text) =>
+          numberLabelsIn(text, itemPrefixes: _prefixes).single;
 
       expect(tree.resolve(one('FR-01'), citingDocPath: _api), isNull);
       expect(tree.resolve(one('FR-01'), citingDocPath: _topic), isNull);
@@ -160,7 +168,8 @@ void main() {
       'an item ID after the label picks the one doc under it that holds it',
       () {
         final tree = _tree();
-        NumberLabel one(String text) => numberLabelsIn(text).single;
+        NumberLabel one(String text) =>
+            numberLabelsIn(text, itemPrefixes: _prefixes).single;
 
         expect(tree.resolve(one('F-01 INV-5'), citingDocPath: _topic), _domain);
         expect(
@@ -219,6 +228,14 @@ void main() {
       expect(
         _convert(_topic, 'Holds F-01 and INV-5 here.\nAnd F-01 INV-5.\n'),
         'Holds `feature:alpha` and INV-5 here.\nAnd `domain:alpha` INV-5.\n',
+      );
+    });
+
+    test('several spaces before the item ID still settle which doc it names, a '
+        'token of no prefix settles nothing', () {
+      expect(
+        _convert(_topic, 'Holds F-01  INV-5 here, and F-01 UTF-8 there.\n'),
+        'Holds `domain:alpha`  INV-5 here, and `feature:alpha` UTF-8 there.\n',
       );
     });
 
@@ -300,7 +317,10 @@ void main() {
         set: _set,
         docTypes: _typesOf(docs.keys),
       );
-      final label = numberLabelsIn('F-01 INV-5').single;
+      final label = numberLabelsIn(
+        'F-01 INV-5',
+        itemPrefixes: _prefixes,
+      ).single;
 
       expect(tree.nameOf(_api), 'api:alpha');
       expect(tree.resolve(label, citingDocPath: _topic), _api);

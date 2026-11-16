@@ -182,35 +182,60 @@ void main() {
   });
 
   group('numberLabelsIn, the item ID after a label', () {
+    const prefixes = {'INV-', 'S', 'E', 'NFR-P'};
+
+    List<NumberLabel> read(String line) =>
+        numberLabelsIn(line, itemPrefixes: prefixes);
+
     test('a plain item ID follows', () {
-      final label = numberLabelsIn('${f(2)} INV-6 holds').single;
+      final label = read('${f(2)} INV-6 holds').single;
       expect(label.written, f(2));
       expect(label.itemId, 'INV-6');
       expect(label.end, f(2).length);
     });
 
     test('a scenario and an edge case ID follow', () {
-      expect(numberLabelsIn('${f(1)} S3').single.itemId, 'S3');
-      expect(numberLabelsIn('${us(1)} ${fr(2)} E09').single.itemId, 'E09');
+      expect(read('${f(1)} S3').single.itemId, 'S3');
+      expect(read('${us(1)} ${fr(2)} E09').single.itemId, 'E09');
     });
 
     test('a letter-led NFR ID follows', () {
-      expect(numberLabelsIn('${f(1)} NFR-P03').single.itemId, 'NFR-P03');
+      expect(read('${f(1)} NFR-P03').single.itemId, 'NFR-P03');
     });
 
     test('a label that is not ascending is a label, not an item ID', () {
-      final labels = numberLabelsIn('${fr(1)} ${fr(2)}');
+      final labels = read('${fr(1)} ${fr(2)}');
       expect(labels.map((l) => l.written), [fr(1), fr(2)]);
       expect(labels.first.itemId, isNull);
     });
 
     test('a lower-case word is no item ID', () {
-      expect(numberLabelsIn('${f(1)} and').single.itemId, isNull);
+      expect(read('${f(1)} and').single.itemId, isNull);
     });
 
     test('an item ID after a folder path', () {
-      final label = numberLabelsIn('${usPath(1)}/${frPath(2)} E04').single;
+      final label = read('${usPath(1)}/${frPath(2)} E04').single;
       expect(label.itemId, 'E04');
+    });
+
+    test('a token of no item ID prefix is no item ID', () {
+      expect(read('${f(1)} UTF-8').single.itemId, isNull);
+    });
+
+    test('several spaces before the item ID still read it', () {
+      expect(read('${f(1)}  INV-5').single.itemId, 'INV-5');
+    });
+
+    test('a code span between the label and the ID ends the run', () {
+      final label = numberLabelsInMarkdown(
+        '${f(1)} `x` INV-5\n',
+        itemPrefixes: prefixes,
+      ).single;
+      expect(label.itemId, isNull);
+    });
+
+    test('with no prefixes given, no label holds an item ID', () {
+      expect(numberLabelsIn('${f(2)} INV-6').single.itemId, isNull);
     });
   });
 

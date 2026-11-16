@@ -13,6 +13,8 @@ import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/git_process.dart' show RunGit, runRealGit;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart'
@@ -556,7 +558,7 @@ _Opening? _readOpening(
   _ItemTree tree,
   String? Function(NumberLabel label) resolveLabel,
 ) {
-  final labels = numberLabelsIn(text);
+  final labels = numberLabelsIn(text, itemPrefixes: tree.itemPrefixes);
   if (labels.isNotEmpty && labels.first.start == 0) {
     return _labelOpening(text, labels.first, tree, resolveLabel);
   }
@@ -722,6 +724,10 @@ final class _ItemTree {
   }
 
   final MergedSet _set;
+
+  /// The item ID prefixes of the run's doc types, which a label reads its item
+  /// ID by.
+  late final Set<String> itemPrefixes = itemIdPrefixesOf(_set.docTypes);
   final MergedDocType _recordType;
 
   /// Whether a DocPath holds an entry once the run's moves ran.

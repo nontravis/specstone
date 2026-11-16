@@ -135,7 +135,7 @@ bool _fills(CodeSpan holder, int column, int end) =>
 
 CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
   final (:mention, :line, :spans, extent: (:key, :end), offset: _) = kept;
-  final run = itemIdRunAt(line, end, prefixes: idPrefixes).items;
+  final run = itemIdRunAt(line, end, prefixes: idPrefixes);
   final items = [
     for (final item in run)
       if (item.id is ItemId) (column: item.at, itemId: item.id.written),

@@ -312,7 +312,16 @@ LabelConversion convertLegacyLabels(
   LabelTree tree, {
   required String legacyPath,
   required String lf,
-}) => convertLabelsIn(lf, (label, before) {
-  final target = tree.resolve(label, citingDocPath: legacyPath, before: before);
-  return target == null ? null : tree.nameOf(target);
-}, legacyIds: true);
+}) => convertLabelsIn(
+  lf,
+  (label, before) {
+    final target = tree.resolve(
+      label,
+      citingDocPath: legacyPath,
+      before: before,
+    );
+    return target == null ? null : tree.nameOf(target);
+  },
+  legacyIds: true,
+  itemPrefixes: tree.itemPrefixes,
+);

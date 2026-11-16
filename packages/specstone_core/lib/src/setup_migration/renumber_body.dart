@@ -42,13 +42,13 @@ final class _LineCitations {
       ];
 
   final List<_Citation> _citations;
-  final List<ItemIdRun> _runs;
+  final List<List<RunItem>> _runs;
 
   /// The DocPaths of the citation whose run holds the token at column [at],
   /// else of the link whose text holds it, else null.
   List<String>? ownerOf(int at) {
     for (final (index, run) in _runs.indexed) {
-      if (run.items.any((item) => item.at == at)) {
+      if (run.any((item) => item.at == at)) {
         return _citations[index].docPaths;
       }
     }

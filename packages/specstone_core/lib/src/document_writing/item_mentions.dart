@@ -357,7 +357,7 @@ String? _citedBy(
     line,
     end,
     prefixes: prefixes,
-  ).items.any((item) => item.at == column);
+  ).any((item) => item.at == column);
   for (final (:start, :end, :ticks) in codeSpansOf(line)) {
     if (end > column || !runHolds(end)) continue;
     final address = readDocAddress(line.substring(start + ticks, end - ticks));

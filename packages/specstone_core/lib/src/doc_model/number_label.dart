@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
     show blockScan, fenceScan;
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show ItemId, itemIdRunAt;
 
 /// How a number label names its doc.
 enum LabelShape {
@@ -53,6 +55,20 @@ final class NumberLabel {
   /// read and reported, but names no doc by its folders.
   final bool isPartOfPath;
 
+  NumberLabel _withItemId(String? id) => NumberLabel(
+    start: start,
+    end: end,
+    written: written,
+    shape: shape,
+    feature: feature,
+    story: story,
+    fr: fr,
+    slug: slug,
+    itemId: id,
+    prefix: prefix,
+    isPartOfPath: isPartOfPath,
+  );
+
   NumberLabel _shiftedBy(int offset) => NumberLabel(
     start: start + offset,
     end: end + offset,
@@ -75,8 +91,23 @@ final class NumberLabel {
 /// label goes through it, [numberLabelsInMarkdown] for a whole text.
 ///
 /// With [legacyIds] a folder path may open with any lowercase prefix before
-/// its digits, as a legacy feature folder does.
-List<NumberLabel> numberLabelsIn(String line, {bool legacyIds = false}) {
+/// its digits, as a legacy feature folder does. A label's item ID is the first
+/// item ID of the run right after it (`itemIdRunAt`), a token of one of
+/// [itemPrefixes]; with none given no label holds an item ID.
+List<NumberLabel> numberLabelsIn(
+  String line, {
+  bool legacyIds = false,
+  Set<String> itemPrefixes = const {},
+}) => _labelsIn(line, line, legacyIds, itemPrefixes);
+
+/// The labels of [line], each with the item ID read on [rawLine], the line as
+/// written, so a code span that [line] blanks still ends a run.
+List<NumberLabel> _labelsIn(
+  String line,
+  String rawLine,
+  bool legacyIds,
+  Set<String> itemPrefixes,
+) {
   final labels = <NumberLabel>[];
   var at = 0;
   while (at < line.length) {
@@ -84,7 +115,9 @@ List<NumberLabel> numberLabelsIn(String line, {bool legacyIds = false}) {
     if (label == null) {
       at++;
     } else {
-      labels.add(label);
+      labels.add(
+        label._withItemId(_itemIdAfter(rawLine, label.end, itemPrefixes)),
+      );
       at = label.end;
     }
   }
@@ -119,6 +152,7 @@ const _spaceUnit = 0x20;
 List<NumberLabel> numberLabelsInMarkdown(
   String lfText, {
   bool legacyIds = false,
+  Set<String> itemPrefixes = const {},
 }) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
@@ -135,8 +169,10 @@ List<NumberLabel> numberLabelsInMarkdown(
           blocks.fenced[i]
               ? lines[i]
               : _outsideCodeSpans(lines, continues, spansOfGroup, i),
+          lines[i],
           lineStart,
           legacyIds,
+          itemPrefixes,
         ),
       );
     }
@@ -367,23 +403,18 @@ NumberLabel _labelOf(
   story: numbers[_storyRank],
   fr: numbers[_frRank],
   slug: slug,
-  itemId: _itemIdAfter(line, end),
   prefix: prefix,
   isPartOfPath: isPartOfPath,
 );
 
-/// Returns the item ID that follows a label ending at [end] after one space:
-/// upper-case letters, an optional `-` and letters, then digits, such as
-/// `INV-6`, `E05`, or `NFR-P03`. A label is no item ID.
-String? _itemIdAfter(String line, int end) {
-  if (!line.startsWith(' ', end)) return null;
-  final start = end + 1;
-  if (_dashPartAt(line, start) != null) return null;
-  var cursor = _upperEnd(line, start);
-  if (cursor == start) return null;
-  if (line.startsWith('-', cursor)) cursor = _upperEnd(line, cursor + 1);
-  final digitsEnd = _digitsEnd(line, cursor);
-  return digitsEnd == cursor ? null : line.substring(start, digitsEnd);
+/// Returns the first item ID of the run right after a label ending at [end],
+/// such as `INV-6`, `E05`, or `NFR-P03`; a label is no item ID.
+String? _itemIdAfter(String line, int end, Set<String> prefixes) {
+  if (prefixes.isEmpty) return null;
+  final run = itemIdRunAt(line, end, prefixes: prefixes);
+  if (run.isEmpty) return null;
+  final id = run.first.id;
+  return id is ItemId ? id.written : null;
 }
 
 int _numberOf(String digits) => int.tryParse(digits) ?? _beyondAnyDoc;
@@ -391,14 +422,6 @@ int _numberOf(String digits) => int.tryParse(digits) ?? _beyondAnyDoc;
 int _digitsEnd(String text, int from) {
   var end = from;
   while (end < text.length && _isDigit(text.codeUnitAt(end))) {
-    end++;
-  }
-  return end;
-}
-
-int _upperEnd(String text, int from) {
-  var end = from;
-  while (end < text.length && _isUpper(text.codeUnitAt(end))) {
     end++;
   }
   return end;
@@ -436,10 +459,12 @@ List<bool> _readableLines(List<String> lines) {
 /// offsets shifted by [lineStart].
 List<NumberLabel> _labelsOutsideLinks(
   String line,
+  String rawLine,
   int lineStart,
   bool legacyIds,
+  Set<String> itemPrefixes,
 ) {
-  final labels = numberLabelsIn(line, legacyIds: legacyIds);
+  final labels = _labelsIn(line, rawLine, legacyIds, itemPrefixes);
   if (labels.isEmpty) return labels;
   final destinations = _destinationsIn(line);
   return [

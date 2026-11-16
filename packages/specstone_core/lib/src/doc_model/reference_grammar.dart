@@ -212,7 +212,7 @@ List<({int at, ItemId id})> itemIdsInProse(
   return found..sort((a, b) => a.at - b.at);
 }
 
-/// An ID of an [ItemIdRun] and its 0-based column on the line.
+/// An ID of an item-ID run and its 0-based column on the line.
 final class RunItem {
   const new({required this.at, required this.id});
 
@@ -220,16 +220,6 @@ final class RunItem {
 
   /// An [ItemId] or a [LetteredId]; an [UnreadableId] ends a run.
   final IdRead id;
-}
-
-/// The item IDs right after a citation on one line.
-final class ItemIdRun {
-  const new({required this.items, required this.end});
-
-  final List<RunItem> items;
-
-  /// The column after the last item, or the run's start when it is empty.
-  final int end;
 }
 
 /// The text that may stand between two IDs of a run, longest first so `, and `
@@ -242,10 +232,13 @@ const _runJoiners = [', and ', ' and ', ' or ', ', ', ' to '];
 /// The first ID follows zero or more spaces and each next one a joiner; the
 /// first other text ends the run. [line] is read as written, so a code span
 /// ends the run. A lettered ID joins the run; an unreadable one ends it.
-ItemIdRun itemIdRunAt(String line, int from, {required Set<String> prefixes}) {
+List<RunItem> itemIdRunAt(
+  String line,
+  int from, {
+  required Set<String> prefixes,
+}) {
   final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
   final items = <RunItem>[];
-  var end = from;
   var at = from;
   while (at < line.length && line.codeUnitAt(at) == _spaceUnit) {
     at++;
@@ -254,12 +247,12 @@ ItemIdRun itemIdRunAt(String line, int from, {required Set<String> prefixes}) {
     final id = _runIdAt(line, at, longestFirst);
     if (id == null) break;
     items.add(RunItem(at: at, id: id));
-    end = at + id.written.length;
+    final end = at + id.written.length;
     final joiner = _runJoiners.where((it) => line.startsWith(it, end));
     if (joiner.isEmpty) break;
     at = end + joiner.first.length;
   }
-  return ItemIdRun(items: items, end: end);
+  return items;
 }
 
 /// Reads the item or lettered ID of one of [longestFirst] at [at]; null when
