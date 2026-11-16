@@ -32,6 +32,14 @@ const Map<String, String> _baseDocs = {
   _topic: '# Doc model\n\n## Rules\n\n- **RULE-14** One.\n- **RULE-19** Two.\n',
 };
 
+/// A sub-feature `login/sso` whose feature doc and domain doc share its Name;
+/// the domain holds INV-6.
+const Map<String, String> _subFeatureDocs = {
+  'prds/features/f01_login/f01_sso/FEATURE.md': '# Single sign-on\n',
+  'specs/f01_login/f01_sso/DOMAIN.md':
+      '# SSO domain\n\n## Invariants\n\n- **INV-6** One email.\n',
+};
+
 final MergedSet _set = TemplateResolver().resolveCarried(
   packNames: const ['prd-core', 'software-tech'],
   homeDirectory: null,
@@ -125,34 +133,34 @@ void main() {
     test('a shared name with no ID, and an ID its one doc lacks, stay and '
         'count as left', () {
       const body =
-          'See `login` here.\n'
+          'See `login/sso` here.\n'
           'And `domain:login` INV-99.\n'
           'And `domain:login` INV-6.\n';
       const text = '# Sign-up architecture\n\n## Components\n\n$body';
-      final pass = _passOf({..._baseDocs, _citing: text});
+      final pass = _passOf({..._baseDocs, ..._subFeatureDocs, _citing: text});
 
       expect(
         pass.apply(_citing, text),
         endsWith(
-          'See `login` here.\nAnd `domain:login` INV-99.\n'
+          'See `login/sso` here.\nAnd `domain:login` INV-99.\n'
           'And [INV-6](../f01_login/DOMAIN.md#invariants).\n',
         ),
       );
       expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 2');
       expect(pass.paths, [_citing]);
       expect(pass.leftOn(const {}), [
-        '$_citing:5 login',
+        '$_citing:5 login/sso',
         '$_citing:6 domain:login',
       ]);
     });
 
     test('a left cite is cited at its line in the text the run writes', () {
-      const body = 'See `login` here.\n';
+      const body = 'See `login/sso` here.\n';
       const text = '# Sign-up architecture\n\n## Components\n\n$body';
-      final pass = _passOf({..._baseDocs, _citing: text});
+      final pass = _passOf({..._baseDocs, ..._subFeatureDocs, _citing: text});
       const written = '---\napproved: "0123456789ab"\n---\n\n$text';
 
-      expect(pass.leftOn({_citing: written}), ['$_citing:9 login']);
+      expect(pass.leftOn({_citing: written}), ['$_citing:9 login/sso']);
     });
 
     test('a cite form written inside a longer code span is no cite, neither '
@@ -299,13 +307,14 @@ void main() {
           for (final MapEntry(:key, :value) in loginProject.entries)
             if (key.startsWith('docs/') && key.endsWith('.md'))
               key.substring('docs/'.length): value,
-          _domain:
-              '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n',
+          ..._subFeatureDocs,
         };
         const citing = 'specs/f02_signup/ARCHITECTURE.md';
-        final text = '${docs[citing]}\nSee `login` INV-6 and `login`.\n';
+        final text =
+            '${docs[citing]}\nSee `login/sso` INV-6 and `login/sso`.\n';
         final index = await indexWith({
-          'docs/$_domain': docs[_domain]!,
+          for (final MapEntry(:key, :value) in _subFeatureDocs.entries)
+            'docs/$key': value,
           'docs/$citing': text,
         });
         final candidates = citeCandidatesOf(text, idPrefixes: _idPrefixes);
@@ -319,10 +328,10 @@ void main() {
         expect(checked.first, isA<CiteLink>());
         expect(checked.last, isA<CiteAmbiguous>());
         final link = citeLinkMarkdown(citing, checked.first as CiteLink).single;
-        expect(link, '[INV-6](../f01_login/DOMAIN.md#invariants)');
+        expect(link, '[INV-6](../f01_login/f01_sso/DOMAIN.md#invariants)');
         expect(
           pass.apply(citing, text),
-          endsWith('\nSee $link and `login`.\n'),
+          endsWith('\nSee $link and `login/sso`.\n'),
         );
         expect(pass.leftOn(const {}), hasLength(1));
       },

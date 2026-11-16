@@ -22,6 +22,19 @@ const _lineNumber = 13;
 /// The path from the login feature to the login domain.
 const _fromFeature = '../../../specs/f01_login/DOMAIN.md';
 
+/// The path from the login feature to the sub-feature domain below.
+const _subDomainFromFeature = '../../../specs/f01_login/f01_sso/DOMAIN.md';
+
+/// A sub-feature `login/sso` with a feature doc, a domain doc holding INV-6,
+/// and an architecture doc: three docs share its Name.
+const _subFeature = {
+  'docs/prds/features/f01_login/f01_sso/FEATURE.md': '# Single sign-on\n',
+  'docs/specs/f01_login/f01_sso/DOMAIN.md':
+      '# SSO domain\n\n## Entities\n\n- Account\n\n'
+      '## Invariants\n\n- **INV-6** An account holds one email.\n',
+  'docs/specs/f01_login/f01_sso/ARCHITECTURE.md': '# SSO architecture\n',
+};
+
 Future<List<Finding>> _citeFindings(Map<String, String> extra) async {
   final report = checkOf(
     await writeCheckProject(extra: {..._domainFile, ...extra}),
@@ -62,21 +75,18 @@ void main() {
     );
   });
 
-  test('a one-slug span that resolves counts, a field name that resolves to '
-      'no doc does not', () async {
+  test('a lone-word span raises nothing, named doc or not', () async {
     final findings = await _citesInFeature(
       'Users forget; see `gnfr` and the `user_id` field.',
     );
-    expect([for (final f in findings) f.keys['cite']], ['gnfr']);
+    expect(findings, isEmpty);
   });
 
-  test('a one-slug name with a #key counts; a cite of the doc itself links '
-      'by its anchor', () async {
+  test('a lone-word span with a #key or an item ID raises nothing', () async {
     final findings = await _citesInFeature(
-      'Users forget; see `login#problem`.',
+      'Users forget; see `login#problem` and `login` INV-6.',
     );
-    expect([for (final f in findings) f.keys['cite']], ['login']);
-    expect(findings.single.message, contains('[login](#problem)'));
+    expect(findings, isEmpty);
   });
 
   test(
@@ -109,22 +119,28 @@ void main() {
   test(
     'a shared name settled by an item ID gives one finding linking that item',
     () async {
-      final findings = await _citesInFeature('Users forget; `login` INV-6.');
+      final findings = await _citeFindings({
+        ..._subFeature,
+        ...doc(loginFeature, _line, 'Users forget; `login/sso` INV-6.'),
+      });
       expect(findings, hasLength(1));
-      expect(findings.single.keys, {'cite': 'login'});
+      expect(findings.single.keys, {'cite': 'login/sso'});
       expect(
         findings.single.message,
-        contains('[INV-6]($_fromFeature#invariants)'),
+        contains('[INV-6]($_subDomainFromFeature#invariants)'),
       );
     },
   );
 
   test('a shared name with no #key or item ID still gives cite_unlinked, '
       'naming the docs it may mean', () async {
-    final findings = await _citesInFeature('Users forget; see `login`.');
+    final findings = await _citeFindings({
+      ..._subFeature,
+      ...doc(loginFeature, _line, 'Users forget; see `login/sso`.'),
+    });
     expect(findings, hasLength(1));
-    expect(findings.single.keys, {'cite': 'login'});
-    expect(findings.single.message, contains('5 docs'));
+    expect(findings.single.keys, {'cite': 'login/sso'});
+    expect(findings.single.message, contains('3 docs'));
     expect(findings.single.message, contains('[text](<path>)'));
   });
 
@@ -137,26 +153,25 @@ void main() {
     expect(findings.single.message, contains('INV-99'));
   });
 
-  test(
-    'a one-slug Name equal to a doc type id links that type one doc',
-    () async {
-      final findings = await _citesInFeature(
-        'Users forget; see `project`, `gnfr`, and `tech_stack`.',
-      );
-      // Findings on one line sort by message, so the cites read unordered.
-      expect([
-        for (final f in findings) f.keys['cite'],
-      ], unorderedEquals(['project', 'gnfr', 'tech_stack']));
-      expect(
-        [for (final f in findings) f.message],
-        containsAll([
-          contains('[project](../../PROJECT.md)'),
-          contains('[gnfr](../../GNFR.md)'),
-          contains('[tech_stack](../../../specs/TECH_STACK.md)'),
-        ]),
-      );
-    },
-  );
+  test("a prefixed one-word Name links that type's one doc", () async {
+    final findings = await _citesInFeature('Users forget; see `gnfr:gnfr`.');
+    expect(findings, hasLength(1));
+    expect(findings.single.keys, {'cite': 'gnfr:gnfr'});
+    expect(findings.single.message, contains('[gnfr:gnfr](../../GNFR.md)'));
+  });
+
+  test("a singular type's layout path raises nothing; the same doc by a "
+      'folder-relative path does', () async {
+    expect(
+      await _citesInFeature('Users forget; see `$goalDoc` and docs/$goalDoc.'),
+      isEmpty,
+    );
+    final findings = await _citesInFeature(
+      'Users forget; see `../../GOAL.md`.',
+    );
+    expect(findings, hasLength(1));
+    expect(findings.single.keys, {'cite': '../../GOAL.md'});
+  });
 
   test('a header span right after a path names its section', () async {
     final findings = await _citesInFeature(
@@ -256,7 +271,7 @@ void main() {
       ...doc(
         loginFeature,
         _line,
-        'Users forget; `gnfr` NFR-P01 and NFR-Sec01.',
+        'Users forget; `gnfr:gnfr` NFR-P01 and NFR-Sec01.',
       ),
       ...doc(
         gnfrDoc,

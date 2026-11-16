@@ -11,6 +11,8 @@ import 'package:specstone_core/src/index_query/cite_resolution.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart'
     show sectionBodyLines;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show isSingularLayoutPath, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The link form a message names when the cite picks no one link.
@@ -19,12 +21,16 @@ const _linkForm = '[text](<path>)';
 /// The tree each check run resolves cites against, built once per run.
 final _trees = Expando<IndexCiteTree>();
 
+/// The layout paths of the singular doc types each check run skips, built once
+/// per run.
+final _layoutPaths = Expando<Set<String>>();
+
 /// Returns a `cite_unlinked` finding for each old cite form in the body of
 /// the typed [doc] (consistency_check `report_old_cite_forms`).
 ///
 /// Each stored cite candidate resolves against the index as the check runs,
 /// so no doc text is read. One that names no doc is plain text, and a
-/// Concerns `see` target is no cite.
+/// Concerns `see` target or a singular type's layout path is no cite.
 Iterable<Finding> checkOldCites(CheckContext context, IndexedDoc doc) sync* {
   final candidates = context.contentOf(doc).lineFacts.citeCandidates;
   if (candidates.isEmpty) return;
@@ -32,11 +38,16 @@ Iterable<Finding> checkOldCites(CheckContext context, IndexedDoc doc) sync* {
     context.index,
     contentOf: context.contentOf,
   );
+  final layoutPaths = _layoutPaths[context] ??= singularLayoutPathsOf(
+    context.index.set,
+    twinNames: context.index.twinNames,
+  );
   final seeTargets = seeTargetsIn(context.contentOf(doc), context.typeOf(doc));
   final skips = skipLinesOf(context, doc);
   for (final candidate in candidates) {
     if (isSeeTargetCite(seeTargets[candidate.line], candidate)) continue;
     if (isSkipSpan(skips, candidate.line, candidate.written)) continue;
+    if (isSingularLayoutPath(candidate.written, layoutPaths)) continue;
     final message = _messageOf(
       resolveCite(tree, doc.docPath, candidate),
       doc,
