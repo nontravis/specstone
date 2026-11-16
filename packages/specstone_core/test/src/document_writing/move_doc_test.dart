@@ -1674,7 +1674,10 @@ void main() {
               'confirmed:\n  - S1 00c22a7251ca\n---\n\n# Drop a line\n';
           final root = await frProject({'docs/$dropFr': held});
           final before = readDoc(root, dropFr);
-          move(root, checkStock, 'shop/cart/drop_item');
+          moveAll(root, [
+            checkStock,
+            'fr:shop/cart/drop_item/drop_line',
+          ], 'shop/cart/drop_item');
           expect(readDoc(root, '$dropFolder/fr01_drop_line.md'), before);
           expect(
             readDoc(root, movedWithin),
@@ -1682,6 +1685,28 @@ void main() {
           );
         },
       );
+
+      test('an entry naming the landing story becomes bare, and an ambiguous short name is kept', () async {
+        final root = await frProject({
+          'docs/$payDir/us03_drop_item/USER_STORY.md': '# Drop item\n',
+        });
+        final original = readDoc(root, checkStockFile);
+        docFile(root, checkStockFile).writeAsStringSync(
+          original.replaceFirst(
+            'traced_from:\n  - S1\n',
+            'traced_from:\n  - S1\n  - shop/cart/drop_item#S1\n'
+                '  - drop_item#S1\n',
+          ),
+        );
+        move(root, checkStock, 'shop/cart/drop_item');
+        expect(
+          readDoc(root, movedWithin),
+          contains(
+            'traced_from:\n  - shop/cart/add_item#S1\n  - S1\n'
+            '  - drop_item#S1\n',
+          ),
+        );
+      });
     });
 
     group('several stories in one call', () {
