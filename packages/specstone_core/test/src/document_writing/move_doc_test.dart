@@ -1256,6 +1256,32 @@ void main() {
       );
     });
 
+    test('item targets with no --under take the item message, a story keeps its own', () async {
+      final root = await writeNestedProject();
+      expect(
+        () => move(root, 'domain:shop#INV-1', null),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+              .having(
+                (f) => f.message,
+                'message',
+                'move needs --under <doc address> for item targets',
+              ),
+        ),
+      );
+      expect(
+        () => move(root, 'user_story:shop/cart/add_item', null),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            startsWith('move needs a feature or a story'),
+          ),
+        ),
+      );
+    });
+
     group('fr targets', () {
       const addFolder = '$cartDir/us01_add_item';
       const dropFolder = '$cartDir/us02_drop_item';

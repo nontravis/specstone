@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
@@ -198,14 +199,22 @@ ReadAnswer answerRename(
 /// target moves none. A code file or an agent file is never written; each
 /// mention in one that the move stops resolving is listed in the answer.
 ///
+/// An address that holds a `#` and names no doc whole is an item target, and
+/// the call plans item moves with [planItemMove], reading each address and
+/// [under] as any target among [codeTarget]'s docs and the shared docs. A
+/// story or FR move takes no [codeTarget].
+///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// no FR, `doc_exists` for a clash; an `IndexFault` for no target, a bad
-/// [under], or a call naming both stories and FRs; `RenderFault`
-/// `output_not_writable` for roots the Owner has not recorded.
+/// no FR, `doc_exists` for a clash, and the faults of [planItemMove]; an
+/// `IndexFault` for no target, a bad [under], a call naming both stories and
+/// FRs, a call naming items beside docs, or a [codeTarget] given to a doc
+/// target; `RenderFault` `output_not_writable` for roots the Owner has not
+/// recorded.
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
   required String? under,
+  String? codeTarget,
   bool dryRun = false,
 }) {
   if (addresses.isEmpty) {
@@ -213,6 +222,23 @@ ReadAnswer answerMove(
       'move',
       'a target',
       'specstone move user_story:login/reset_password --under account',
+    );
+  }
+  final items = [for (final a in addresses) isItemAddress(session.index, a)];
+  if (items.any((isItem) => isItem)) {
+    return _answerItemMove(
+      session,
+      addresses,
+      isMixed: !items.every((isItem) => isItem),
+      under: under,
+      codeTarget: codeTarget,
+      dryRun: dryRun,
+    );
+  }
+  if (codeTarget != null) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes --target only with item targets',
     );
   }
   if (under == null) {
@@ -272,6 +298,42 @@ ReadAnswer answerMove(
       dryRun: dryRun,
     );
   });
+}
+
+/// Plans the item move [addresses] name.
+///
+/// Throws [IndexFault] `argument_invalid` for a call that also names a doc,
+/// `argument_missing` for no [under], and the faults of [planItemMove].
+ReadAnswer _answerItemMove(
+  WriteSession session,
+  List<String> addresses, {
+  required bool isMixed,
+  required String? under,
+  required String? codeTarget,
+  required bool dryRun,
+}) {
+  if (isMixed) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes one kind of target per call',
+    );
+  }
+  if (under == null) {
+    throw IndexFault(
+      IndexFaultCode.argumentMissing,
+      'move needs --under <doc address> for item targets',
+    );
+  }
+  final landings = planItemMove(
+    session,
+    addresses,
+    under: under,
+    codeTarget: codeTarget,
+  );
+  if (landings.isEmpty) {
+    return _answerFor(session, const [], const [], dryRun: dryRun);
+  }
+  throw UnimplementedError('an item move lands its items in the next task');
 }
 
 /// Returns, by DocPath before the move, the edit that sets each of [moving]

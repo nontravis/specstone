@@ -5,6 +5,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
+import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
     show docFile, readDoc, testHome;
 import '../../helpers/built_cli.dart';
@@ -153,6 +154,20 @@ void main() {
     );
   });
 
+  test('move --help names story, FR, and item targets and --target', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(await runner.run(['move', '--help']), 0);
+    expect(
+      out.toString(),
+      allOf(
+        contains('<doc address>#<item ID>'),
+        contains('[--target <name>]'),
+        contains('the doc that takes item targets'),
+        contains("Keep names to one code target's docs and the shared docs."),
+      ),
+    );
+  });
+
   test(
     'move --help names both target types and the parent each takes',
     () async {
@@ -162,12 +177,13 @@ void main() {
         out.toString(),
         allOf(
           contains(
-            'Move stories into a feature, or FRs into a story, '
-            'and rewrite every reference to them.',
+            'Move stories into a feature, FRs into a story, or items '
+            '(<doc address>#<item ID>) into another doc, and rewrite every '
+            'reference to them.',
           ),
           contains(
-            'The feature that takes user_story targets, or the story that '
-            'takes fr targets: ',
+            'The feature that takes user_story targets, the story that '
+            'takes fr targets, or the doc that takes item targets: ',
           ),
         ),
       );
@@ -278,7 +294,7 @@ void main() {
       out.toString(),
       contains(
         'specstone move <doc address> … --under <doc address> '
-        '[--dry-run] [--json]',
+        '[--dry-run] [--target <name>] [--json]',
       ),
     );
   });
@@ -412,25 +428,25 @@ void main() {
       expect(readDoc(root, payFlutter), contains('draft: true'));
     });
 
-    test('move takes no --target, since a story is shared', () async {
-      final (:runner, :out, :err) = writeRunner(await shopTwins());
-      expect(
-        await runner.run([
-          'move',
-          addItem,
-          '--under',
-          'shop/pay',
-          '--target',
-          'flutter',
-        ]),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        contains('Could not find an option named "--target"'),
-      );
-    });
+    test(
+      'a story move given --target is refused, since a story is shared',
+      () async {
+        final (:runner, :out, :err) = writeRunner(await shopTwins());
+        expect(
+          await runner.run([
+            'move',
+            addItem,
+            '--under',
+            'shop/pay',
+            '--target',
+            'flutter',
+          ]),
+          64,
+        );
+        expect(out.toString(), isEmpty);
+        expect(err.toString(), 'move takes --target only with item targets\n');
+      },
+    );
   });
 
   group('--dry-run', () {
@@ -660,5 +676,94 @@ void main() {
       startsWith('moved $addItemFolder/ to $movedFolder/\n'),
     );
     expect(docFile(root, '$movedFolder/USER_STORY.md').existsSync(), isTrue);
+  });
+
+  group('item targets through the built binary', () {
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    Future<ProcessResult> move(Directory root, List<String> args) =>
+        Process.run(
+          binary,
+          ['move', ...args],
+          workingDirectory: root.path,
+          environment: {
+            'HOME': testHome().path,
+            'USERPROFILE': testHome().path,
+          },
+        );
+
+    String domain(int count) {
+      final rules = [
+        for (var n = 1; n <= count; n++) '- **INV-$n** Rule $n holds.',
+      ];
+      return '# Domain\n\n## Invariants\n\n${rules.join('\n')}\n';
+    }
+
+    test('a story move given --target is argument_invalid, exit 64', () async {
+      final root = await writeNestedProject();
+      final result = await move(root, [
+        addItem,
+        '--under',
+        'shop/pay',
+        '--target',
+        'server',
+      ]);
+      expect(result.exitCode, 64);
+      expect(result.stdout, isEmpty);
+      expect(result.stderr, 'move takes --target only with item targets\n');
+      expect(
+        docFile(root, '$addItemFolder/USER_STORY.md').existsSync(),
+        isTrue,
+      );
+    });
+
+    test('an item move with --target resolves inside that target', () async {
+      final root = await writeNestedProject(
+        without: {
+          'docs/$shopDomain',
+          'docs/$cartDomain',
+          'docs/$shopArchitecture',
+          'docs/$shopApi',
+        },
+        extra: {
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}targets:\n'
+              '  app:\n    code_root: app_lib\n'
+              '  server:\n    code_root: server_lib\n',
+          'app_lib/.keep': '',
+          'server_lib/.keep': '',
+          for (final target in ['app', 'server']) ...{
+            'docs/specs/$target/f02_shop/DOMAIN.md': domain(3),
+            'docs/specs/$target/f02_shop/f01_cart/DOMAIN.md': domain(1),
+          },
+        },
+      );
+      final named = await move(root, [
+        'domain:shop#INV-99',
+        '--under',
+        'domain:shop/cart',
+        '--target',
+        'server',
+      ]);
+      expect(named.exitCode, 64);
+      expect(named.stderr, 'specs/server/f02_shop/DOMAIN.md holds no INV-99\n');
+      final bare = await move(root, [
+        'domain:shop#INV-3',
+        '--under',
+        'domain:shop/cart',
+      ]);
+      expect(bare.exitCode, 64);
+      expect(
+        bare.stderr,
+        allOf(
+          contains('specs/app/f02_shop/DOMAIN.md'),
+          contains('specs/server/f02_shop/DOMAIN.md'),
+        ),
+      );
+    });
   });
 }

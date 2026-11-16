@@ -15,12 +15,11 @@ import 'package:specstone_core/src/index_query/item_links.dart'
         citedSectionsOf,
         classifyLink;
 import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/index_query/override_chain.dart';
 
-/// Id of the doc type whose `overrides` field is one NFR id, no override line.
-const nfTypeId = 'nf';
+export 'package:specstone_core/src/index_query/override_chain.dart'
+    show carriesOverrides, nfTypeId;
 
-const _overridesField = 'overrides';
 const _marker = 'Overrides:';
 const _howSeparator = ' — ';
 
@@ -54,14 +53,6 @@ final class OverrideLine {
   final String? itemText;
 }
 
-/// Whether a doc of [type] can hold override lines: it declares the
-/// `overrides` field and is not an `nf` or a type built on it, whose field is
-/// one NFR id.
-bool carriesOverrides(MergedDocType? type) =>
-    type != null &&
-    !type.buildsOn(nfTypeId) &&
-    type.fields.any((field) => field.id == _overridesField);
-
 /// Returns the override lines of [doc], in file order.
 ///
 /// A list item that opens with `Overrides:`, outside fenced code, is a line.
@@ -88,7 +79,7 @@ Iterable<_Read> _readLines(CheckContext context, IndexedDoc doc) sync* {
   final type = context.typeOf(doc);
   if (type == null || !carriesOverrides(type)) return;
   if (context.set.isProjectSpecType(type)) return;
-  final chain = _chainOf(context, doc);
+  final chain = overrideChainOf(context.index, doc);
   for (var at = 0; at < context.contentOf(doc).sections.length; at++) {
     for (final item in context.itemsIn(doc, at)) {
       if (item.kind == SectionItemKind.listItem &&
@@ -97,31 +88,6 @@ Iterable<_Read> _readLines(CheckContext context, IndexedDoc doc) sync* {
       }
     }
   }
-}
-
-// The docs above [doc]: the project spec docs of its code target, and, for a
-// feature's spec doc, that target's spec docs under each ancestor feature of
-// its feature. The ancestor docs count only when their type carries
-// `overrides`.
-Set<String> _chainOf(CheckContext context, IndexedDoc doc) {
-  final index = context.index;
-  bool inTarget(IndexedDoc other) => other.target == doc.target;
-  final paths = {
-    for (final other in index.docs)
-      if (other.isTyped && inTarget(other))
-        if (context.set.isProjectSpecType(context.typeOf(other)!))
-          other.docPath,
-  };
-  final feature = index.parentOf(doc);
-  var ancestor = feature == null ? null : index.parentOf(feature);
-  for (; ancestor != null; ancestor = index.parentOf(ancestor)) {
-    for (final spec in index.childrenOf(ancestor)) {
-      if (inTarget(spec) && carriesOverrides(context.typeOf(spec))) {
-        paths.add(spec.docPath);
-      }
-    }
-  }
-  return paths;
 }
 
 _Read _readLine(
