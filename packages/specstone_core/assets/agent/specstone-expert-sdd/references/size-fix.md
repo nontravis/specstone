@@ -1,7 +1,7 @@
 # Fix a doc over its size limit
 
-This covers the three size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`, and
-`item_over_limit`, under `specstone-expert-sdd`'s rule 5.
+This covers the four size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`,
+`item_over_limit`, and `bundle_over_limit`, under `specstone-expert-sdd`'s rule 5.
 
 ## The order
 
@@ -40,6 +40,12 @@ Say why in your report and leave the finding as it is: it waits for the Owner.
 - A feature of fewer than 4 stories, since a split needs at least 2 sub-features of at least 2 stories each, and a
   feature holds stories or sub-features, never both; or a top doc, such as the gnfr doc: the Owner picks text moved to its
   home or the doc type's limit raised in the project's templates.
+
+## A bundle over its limit
+
+`bundle_over_limit` on a feature: propose the sub-feature split, as above, with no layout step and no text moved: the
+size is the feature's design read-first file, never one doc's text, so no layout or move shrinks it. Run the split only
+after the Owner's ok. The finding waits for the Owner; answer it once in your report, as the other split findings.
 
 ## An item over its limit
 

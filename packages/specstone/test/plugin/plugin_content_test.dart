@@ -4072,6 +4072,18 @@ void _sizeFixTests() {
     expect(text, isNot(contains('Never cut meaning')));
   });
 
+  test('size-fix.md answers bundle_over_limit with the split alone, no '
+      'layout step and no text moved, and the finding waits for the Owner', () {
+    final sizeFix = _pluginText(_sizeFix);
+    expect(_oneLine(sizeFix), contains('`bundle_over_limit`'));
+    final bundle = _oneLine(_sectionOf(sizeFix, 'A bundle over its limit'));
+    expect(bundle, contains('`bundle_over_limit`'));
+    expect(bundle, contains('sub-feature split'));
+    expect(bundle, contains('no layout step'));
+    expect(bundle, contains('no text moved'));
+    expect(bundle, contains('waits for the Owner'));
+  });
+
   test('E12, E13: '
       'size-fix.md asks a split answer of the two other size findings only '
       'and holds the item rewrite, each bootstrap skill batches an '
