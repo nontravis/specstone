@@ -4,7 +4,7 @@ answers in hand. Each gap is an open question in the design document.
 ## 1. Check the inputs
 
 - **Answers**: the Owner's approved answers in the conversation (decisions in the Owner's words, rulings, the approach
-  picked, open questions). When they name a file to re-read, also follow `## Map the source` in `source.md`.
+  picked, open questions). For a change from a source, also follow `## Map the source` in `source.md`.
 - **Grounding**: the saved bundle files of your `context --for design --out` calls, read per the
   `specstone-read-sdd` skill.
 - **Design path**: the document to write or amend.

@@ -26,8 +26,8 @@ batch's findings into drafts.
 - **`mode`** (required, no default): `author`, `sync`, `bootstrap`, or `audit`.
 - **Design document** (author: required; audit: optional): the Owner-approved document's path.
 - **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
-  pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix round or
-  pass added; in a fix round, the audit's `Findings:` lines too.
+  pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
+  round or pass added; in a fix round, the audit's `Findings:` lines too.
 - **Targets** (audit, required): the docs to read.
 - **`feature`** (sync, optional): the feature name the Owner gave; absent, your gate `check` gives the work list.
 - **`picks`** (sync, bootstrap, optional): each Owner pick whose fix lands in a spec doc. Sync: a fix-the-spec pick
@@ -82,8 +82,9 @@ exists; name a batch file by the same rule (Scope Boundaries).
 
 Read the `report` file once, when it exists, before your first write to it.
 
-Write your whole report to the `report` file: author and audit, the Report of the mode's reference; sync and bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the
-Owner acts on, copied from the file, always including the `Findings:` line. Every stop, an early one included (missing
+Write your whole report to the `report` file: author and audit, the Report of the mode's reference; sync and
+bootstrap, the list below. Then reply `Report: <path>` and, under it, the relay block: the lines the Owner acts on,
+copied from the file, always including the `Findings:` line. Every stop, an early one included (missing
 input, a gate stop, a failed load), writes the file and replies `Report: <path>` first, the questions or the error in
 its relay block. A later round to the same agent (the Owner's answers) appends its report to the same
 file under `## Round <n>` and replies with that round's relay block.

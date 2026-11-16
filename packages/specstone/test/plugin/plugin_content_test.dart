@@ -3521,6 +3521,30 @@ void _agentTests() {
     expect(nonLatinLetterLines(agentAssetsRoot()).where(ofSource), isEmpty);
   });
 
+  test('source.md names the runner as its one reader and holds no brief and '
+      'no design mode, the Source map being the runner own step', () {
+    final text = _oneLine(_pluginText(_source));
+    expect(
+      text,
+      contains(
+        'The runner of `specstone-brainstorming-sdd` follows '
+        '`## Take in the source` and `## Map the source`.',
+      ),
+    );
+    for (final stale in [
+      'brief',
+      'mode: design',
+      'design mode',
+      'specstone-sdd-engineer',
+      '`report:`',
+      'As the agent',
+    ]) {
+      expect(text, isNot(contains(stale)), reason: stale);
+    }
+    final map = _oneLine(_sectionOf(_pluginText(_source), 'Map the source'));
+    expect(map, contains('at each write and amend of the design document'));
+  });
+
   test('E04, '
       'verification; agent_plugin/write_prd_and_spec/run_brainstorm_to_design '
       'E26: step 1 makes the gate call, with no budget, opens no link or '
@@ -3722,7 +3746,7 @@ const _rounds = 'specstone-brainstorming-sdd/references/rounds.md';
 const _roundsPath = 'references/rounds.md';
 
 /// The take-in and Source map reference file of `brainstorming-sdd`, which
-/// its runner and design mode both read, under the plugin folder.
+/// its runner alone reads, under the plugin folder.
 const _source = 'specstone-brainstorming-sdd/references/source.md';
 
 /// Each rule of `take_in_a_source` and `map_source_items` as source.md words
@@ -3747,7 +3771,7 @@ const _sourcePoints = [
   // E10: the copy is no source.
   'the copy is no source',
   // E11: an untyped file is refused and never named.
-  'Run no other command on its path; the brief never names it',
+  'Run no other command on its path.',
   // E12: a typed doc is the change's target, its path call the narrow call.
   'no source, no copy, no Source map',
   'That call was your narrow call',
@@ -3756,11 +3780,11 @@ const _sourcePoints = [
   'after Docs to change and before Open questions',
   'one row per source item, 0 items left out',
   'its reason that task management is out of scope',
-  'an open question in your report, as for any gap',
+  'an open question in the design document, as for any gap',
   'never recorded as the source',
-  'A brief with no source gets no Source map',
-  'Never edit, move, or delete the source; write only your `report:` file',
-  'and the one design document',
+  'A change with no source gets no Source map',
+  'Never edit, move, or delete the source; write only the copy and the one',
+  'design document',
 ];
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and

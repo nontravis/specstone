@@ -1,9 +1,8 @@
 A change from a source starts from a spec or design another tool wrote: in a file, behind a link or issue the Owner
 gave, or in the current conversation. The runner of
-`specstone-brainstorming-sdd` follows `## Take in the source`; `specstone-sdd-engineer` in `mode: design` follows
-`## Map the source`.
+`specstone-brainstorming-sdd` follows `## Take in the source` and `## Map the source`.
 
-Both match a source item by its content shape alone, never by the tool that wrote it. Each section takes what its
+It matches a source item by its content shape alone, never by the tool that wrote it. Each section takes what its
 type's writing guide says it needs; a gap goes to the Owner.
 
 | Content shape in the source | Lands in |
@@ -26,9 +25,9 @@ type's writing guide says it needs; a gap goes to the Owner.
    call with its path as the target and no `--summary`. Its exit decides:
    - **64, `untyped_target`:** tell the Owner in one line it is the project's own old doc, and name
      `specstone-bootstrap-prd` or `specstone-bootstrap-spec`, which merge it into typed docs. Run no other command on
-     its path; the brief never names it.
+     its path.
    - **0:** tell the Owner in one line it is already a Specstone doc. Go on with that doc's name, which the bundle
-     prints, as the brief's `context` target: no source, no copy, no Source map. That call was your narrow call: read
+     prints, as the change's `context` target: no source, no copy, no Source map. That call was your narrow call: read
      its exit by item 4's `0`, and run no further narrow `context` call.
    - **Any other exit:** report the CLI's error and stop, as for the skill's first call.
 3. **Read the source** with whatever tool opens it: the file, the link or issue, a tracker's own CLI included, or the
@@ -51,25 +50,24 @@ type's writing guide says it needs; a gap goes to the Owner.
 5. **Match and ask.** Match each item by the shapes above. Ask the Owner only what the source leaves open, one
    question at a time, such as missing acceptance criteria, a registered Role for an "As a user" line, or a value's
    unit; invent nothing.
-6. **The copy and the brief.** Write both after every `context` call. For a link, an issue, or the conversation,
-   write its text, or the conversation's source items, word for word to
-   `<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`, `<folder>` the path `specstone folder` prints, named as
-   the skill's step 3 names the brief; the copy is no source. Add two lines to the brief:
+6. **The copy.** Write it after every `context` call, for a link, an issue, or the conversation: its text, or the
+   conversation's source items, word for word, to `<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md`, `<folder>`
+   the path `specstone folder` prints, `XXXXXX` six `a-z0-9` characters, picked again while that file exists; the copy
+   is no source. Keep two lines for the design write:
    - **Source:** the file's path, the link, or "the current conversation" and its date; never the copy's path.
    - **Re-read:** the source itself for a file path, else the copy.
 
 ## Map the source
 
-Follow this when your brief names a file to re-read. As the agent, ask the Owner nothing.
+Follow this at each write and amend of the design document for a change from a source.
 
-- **Re-read** that file whole: the source itself, or the runner's copy of a link, an issue, or the conversation,
-  read as the source's text and never recorded as the source.
+- **Re-read** the Re-read file whole: the source itself, or your copy of a link, an issue, or the conversation, read as
+  the source's text and never recorded as the source.
 - **Source map**: a section of the design document, after Docs to change and before Open questions. Write one row
   per source item, 0 items left out: the item, and the doc and section it lands in by the shapes above, or "not
   taken" and the reason.
 - **A ticket list, a task list, or a plan**: one row, "not taken", its reason that task management is out of scope.
-- **An item no shape matches** and no answer in the brief places: an open question in your report, as for any
-  gap.
-- **The source** the document records is the brief's Source line, as written.
-- Never edit, move, or delete the source; write only your `report:` file and the one design document.
-- A brief with no source gets no Source map.
+- **An item no shape matches** and no Owner answer places: an open question in the design document, as for any gap.
+- **The source** the document records is the Source line, as kept.
+- Never edit, move, or delete the source; write only the copy and the one design document.
+- A change with no source gets no Source map.
