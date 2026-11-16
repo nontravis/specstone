@@ -298,6 +298,7 @@ void main() {
       final object = jsonDecode(json.toString()) as Map<String, Object?>;
       expect(object.keys, [
         'plan',
+        'dirty',
         'formatLayout',
         'numberLabels',
         'cites',
@@ -375,6 +376,59 @@ void main() {
       ]);
       expect(notes.last, matches(r'^check: \d+ findings left; '));
       expect(MoveJournal.pending(fixture.project), isFalse);
+    }, skip: skipGit);
+
+    test('--dry-run --json on a dirty tree holds dirty true', () async {
+      final root = await gitFixture(acmeLegacy);
+      File('${root.path}/notes.txt').writeAsStringSync('scratch\n');
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true, asJson: true), 0);
+
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object['dirty'], isTrue);
+    }, skip: skipGit);
+
+    test('--dry-run --json on a clean tree holds dirty false', () async {
+      final root = await gitFixture(acmeLegacy);
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true, asJson: true), 0);
+
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object['dirty'], isFalse);
+    }, skip: skipGit);
+
+    test('--yes --plan --json holds no dirty key', () async {
+      final fixture = await _upgradeFixture();
+      final dry = StringBuffer();
+      expect(
+        _run(
+          fixture.project,
+          dry,
+          home: fixture.home,
+          dryRun: true,
+          asJson: true,
+        ),
+        0,
+      );
+      final hash = _planHashIn(
+        (jsonDecode(dry.toString()) as Map<String, Object?>)['plan']! as String,
+      );
+      final out = StringBuffer();
+
+      final status = _run(
+        fixture.project,
+        out,
+        home: fixture.home,
+        confirmation: OwnerConfirmation.given,
+        planHash: hash,
+        asJson: true,
+      );
+
+      expect(status, 0);
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object.keys, isNot(contains('dirty')));
     }, skip: skipGit);
 
     test('--json changes no byte of the plan the hash covers', () async {

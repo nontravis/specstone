@@ -390,16 +390,22 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
   return 0;
 }
 
-/// Prints the plan: [planText], or under `--json` one object holding it and
-/// the path [lists] the count lines leave out.
-void _printPlan(MigrateRequest request, String planText, PlanLists lists) {
+/// Prints the plan: [planText], or under `--json` one object holding it, the
+/// path [lists] the count lines leave out, and `dirty` when [isTreeDirty] is
+/// not null.
+void _printPlan(
+  MigrateRequest request,
+  String planText,
+  PlanLists lists, {
+  bool? isTreeDirty,
+}) {
   if (!request.asJson) {
     request.out.write(planText);
     return;
   }
   request.out.writeln(
     const JsonEncoder.withIndent('  ')
-        .convert({'plan': planText, ...lists.toJson()}),
+        .convert({'plan': planText, 'dirty': ?isTreeDirty, ...lists.toJson()}),
   );
 }
 
@@ -411,13 +417,13 @@ void _printDryRun(
   String planText,
   PlanInputs inputs,
   PlanLists lists, {
-  bool isTreeDirty = false,
+  bool? isTreeDirty,
 }) {
   final hashLine = 'plan ${planHashOf(planText, inputs)}\n';
-  _printPlan(request, '$planText$hashLine', lists);
+  _printPlan(request, '$planText$hashLine', lists, isTreeDirty: isTreeDirty);
   if (request.asJson) return;
   request.out.writeln(
-    isTreeDirty
+    isTreeDirty ?? false
         ? '$_dryRunLine; the run needs a clean working tree'
         : _dryRunLine,
   );
