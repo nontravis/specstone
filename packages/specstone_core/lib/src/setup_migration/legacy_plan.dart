@@ -35,6 +35,8 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
+import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
+    show KeptLabel;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
@@ -871,7 +873,7 @@ LabelTree _convertLabels(
 /// Read from the text the run writes, so each line is the line of the file.
 List<String> _keptLabelsOf(LabelTree tree, List<_Work> works) => [
   for (final work in works)
-    for (final (:line, :label) in convertLegacyLabels(
+    for (final KeptLabel(:line, :label) in convertLegacyLabels(
       tree,
       legacyPath: work.legacyPath,
       lf: work.lf,

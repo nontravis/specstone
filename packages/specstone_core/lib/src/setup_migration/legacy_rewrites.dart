@@ -18,6 +18,8 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
+import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
+    show LabelConversion;
 
 final _numberedTitle = RegExp(r'^[A-Z][A-Z0-9]*-\d+ — ');
 final _humanLine = RegExp(r'^- \*\*Human:\*\* (.+)$', multiLine: true);

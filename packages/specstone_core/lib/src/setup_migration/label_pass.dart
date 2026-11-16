@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/parents.dart'
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
     show legacyFolderIdOf;
+import 'package:specstone_core/src/setup_migration/models/label_conversion.dart';
 import 'package:specstone_core/src/setup_migration/models/story_fr.dart';
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
@@ -46,30 +47,19 @@ typedef _Parts = ({int? feature, int? story, int? fr});
 /// A reader of a label: the name of the one doc it names, else null.
 typedef _Resolve = String? Function(NumberLabel label, NumberLabel? before);
 
-/// A label a file keeps: its 1-based line and the label as written.
-typedef _Kept = ({int line, String label});
-
 /// A label's replacement: the 0-based line, the column of its first character,
 /// and its length in that line.
 typedef _LineEdit = ({int line, int column, int length, String text});
 
-typedef _Converted = ({List<_LineEdit> edits, List<_Kept> kept});
+typedef _Converted = ({List<_LineEdit> edits, List<KeptLabel> kept});
 
 /// A doc after the heading step and the label conversion, the operation
 /// headings it converted, the labels it replaced, and the labels it keeps.
 typedef _DocResult = ({
   String lf,
-  List<_Kept> headings,
+  List<KeptLabel> headings,
   int labels,
-  List<_Kept> kept,
-});
-
-/// A doc text with its labels converted, how many it replaced, and the
-/// labels it keeps.
-typedef LabelConversion = ({
-  String lf,
-  int rewrites,
-  List<({int line, String label})> kept,
+  List<KeptLabel> kept,
 });
 
 enum _DocKind { feature, story, fr, spec }
@@ -652,7 +642,8 @@ final class LabelPass {
   List<String> pathsOn(Map<String, String> written) => [
     for (final file in _files.map((file) => _onWritten(file, written))) ...[
       if (file.converted) file.path,
-      for (final (:line, :label) in file.headings) '${file.path}:$line $label',
+      for (final KeptLabel(:line, :label) in file.headings)
+        '${file.path}:$line $label',
     ],
   ];
 
@@ -663,7 +654,8 @@ final class LabelPass {
   /// them.
   List<String> leftOn(Map<String, String> written) => [
     for (final file in _files.map((file) => _onWritten(file, written)))
-      for (final (:line, :label) in file.kept) '${file.path}:$line $label',
+      for (final KeptLabel(:line, :label) in file.kept)
+        '${file.path}:$line $label',
   ];
 
   /// Returns [file] with its lines counted on its [written] text.
@@ -681,7 +673,7 @@ final class LabelPass {
       converted: file.converted,
       headings: [
         for (final heading in file.headings)
-          (
+          KeptLabel(
             line: _sameLineIn(passLines, writtenLines, heading.line),
             label: heading.label,
           ),
@@ -724,9 +716,9 @@ String? numberLabelsPlanLine({
 typedef _FileResult = ({
   String path,
   bool converted,
-  List<_Kept> headings,
+  List<KeptLabel> headings,
   int labels,
-  List<_Kept> kept,
+  List<KeptLabel> kept,
 });
 
 List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
@@ -759,7 +751,7 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
     lf: converted.lf,
     headings: [
       for (final (:line, :operation) in step.converted)
-        (line: line, label: operation),
+        KeptLabel(line: line, label: operation),
     ],
     labels: converted.rewrites,
     kept: converted.kept,
@@ -839,7 +831,11 @@ LabelConversion _convertMarkdown(
   bool legacyIds = false,
 }) {
   final (:edits, :kept) = _markdownEdits(lf, resolve, legacyIds: legacyIds);
-  return (lf: _applyLineEdits(lf, edits), rewrites: edits.length, kept: kept);
+  return LabelConversion(
+    lf: _applyLineEdits(lf, edits),
+    rewrites: edits.length,
+    kept: kept,
+  );
 }
 
 /// Returns the edits that convert the labels [resolve] names in [lf], a doc or
@@ -862,7 +858,7 @@ _Converted _markdownEdits(
   final starts = _lineStarts(lines);
   final paragraphSpans = <int, List<CodeSpan>>{};
   final edits = <_LineEdit>[];
-  final kept = <_Kept>[];
+  final kept = <KeptLabel>[];
   var line = 0;
   NumberLabel? previous;
   NumberLabel? carried;
@@ -878,7 +874,7 @@ _Converted _markdownEdits(
     previous = label;
     carried = _carry(label, before);
     if (name == null) {
-      kept.add((line: firstLine + line + 1, label: label.written));
+      kept.add(KeptLabel(line: firstLine + line + 1, label: label.written));
       continue;
     }
     var first = line;
