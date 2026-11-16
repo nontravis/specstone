@@ -40,7 +40,7 @@ fields:
     type: string
     list: true
     description: |-
-      Lists the goal IDs (`PG-*`) of PROJECT that the feature serves.
+      Lists the goal IDs (`PG-*`) of the goal doc that the feature serves.
       Write at least one ID across `vision` and `goals`.
   - id: persona
     type: doc_ref

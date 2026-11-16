@@ -30,12 +30,15 @@ import 'temp_tree.dart';
 /// The DocPath of the project doc.
 const projectDoc = 'prds/PROJECT.md';
 
+/// The DocPath of the goal doc.
+const goalDoc = 'prds/GOAL.md';
+
 /// The DocPath of the measurement of the project doc's goal.
 const measurementDoc = 'measurements/fewer_resets/MEASUREMENT.md';
 
-/// The head link of [measurementDoc]: the goal it measures.
+/// The head link of [measurementDoc]: the goal of the goal doc it measures.
 const measurementHeadLink =
-    '[Fewer resets](../../prds/PROJECT.md#pg-01--fewer-resets)';
+    '[Fewer resets](../../prds/GOAL.md#pg-01--fewer-resets)';
 
 /// The DocPath of the project-wide requirements doc.
 const gnfrDoc = 'prds/GNFR.md';
@@ -101,7 +104,6 @@ Map<String, String> checkProjectFiles() => {
   'docs/$projectDoc':
       '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\n\nLogin demo\n\n'
       '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n\n'
-      '## Project goals\n\n### PG-01 — Fewer resets\n\n**Serves:** PV-01\nHalve the password resets.\n\n'
       '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n'
       '## Out-of-scope\n\n- Billing — not planned\n',
   'docs/$measurementDoc':
@@ -110,6 +112,7 @@ Map<String, String> checkProjectFiles() => {
       '## Results\n\nNewest first. Met: resets halved.\n\n'
       '| Date | Version | Run | Resets | Met |\n|---|---|---|---|---|\n\n'
       '## Open causes\n\nN/A\n',
+  'docs/$goalDoc': '# Project goals\n\n## Long-term goals\n\n### PG-01 — Fewer resets\n\n**Serves:** PV-01\nHalve the password resets.\n',
   'docs/prds/FEATURES.md': '# Features\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
   'docs/$gnfrDoc':
       '# Project-wide requirements\n\n## Performance\n\n### NFR-P01 — Sign-in time\n\n'

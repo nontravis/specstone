@@ -15,7 +15,7 @@ void main() {
   final shipped = shippedPackVersions()['prd-core']!;
 
   group('prd-core manifest', () {
-    test('prd-core ships at 1.12.0 with no extends', () {
+    test('prd-core ships at 1.13.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -23,43 +23,31 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.12.0');
+      expect(manifest.version.toString(), '1.13.0');
       expect(manifest.extendsPack, isNull);
     });
 
-    test('prd-core carries 1.12.0 with a no-step entry from 1.11.0', () {
+    test('prd-core carries 1.13.0 with one no-step entry from 1.11.0', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
       );
-      expect(manifest.migrations.map((e) => e.from.toString()), [
-        '1.9.0',
-        '1.11.0',
-      ]);
-      expect(manifest.migrations.last.steps, isEmpty);
+      expect(manifest.migrations.map((e) => e.from.toString()), ['1.11.0']);
+      expect(manifest.migrations.single.steps, isEmpty);
     });
 
-    test('prd-core writes an entry from 1.9.0 that bullets the '
-        'four goal field prefixes of the project doc type', () {
+    test('prd-core carries no bullet_lines step', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
       );
-      final entry = manifest.migrations.first;
-      expect(entry.from.toString(), '1.9.0');
-      final step = entry.steps.single as BulletLines;
-      expect(step.docType, 'project');
-      expect(step.section, 'goals');
-      expect(step.prefixes, [
-        '**Serves:**',
-        '**Statement:**',
-        '**Metric:**',
-        '**By:**',
-      ]);
+      for (final entry in manifest.migrations) {
+        expect(entry.steps.whereType<BulletLines>(), isEmpty);
+      }
     });
 
-    test('a 1.7.0 or 1.9.0 pin upgrades to the shipped version with the '
-        'bullet step', () {
+    test('a 1.7.0 or 1.9.0 pin upgrades to the shipped version with no '
+        'step', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
@@ -76,15 +64,11 @@ void main() {
           {'prd-core': manifest},
         );
         expect(upgrades.single.target.toString(), shipped, reason: pin);
-        expect(
-          upgrades.single.steps.single.step,
-          isA<BulletLines>(),
-          reason: pin,
-        );
+        expect(upgrades.single.steps, isEmpty, reason: pin);
       }
     });
 
-    for (final pin in ['1.10.0', '1.11.0']) {
+    for (final pin in ['1.10.0', '1.11.0', '1.12.0']) {
       test('a $pin pin takes the shipped pin alone, with no step', () {
         final manifest = PackManifest.parse(
           utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
@@ -136,19 +120,24 @@ void main() {
   });
 
   group('prd-core doc types', () {
-    test('only project and gnfr set bundle_refs', () async {
+    test('only project, gnfr, and goal set bundle_refs', () async {
       final set = await resolvePrdCore();
       expect(
         {
           for (final d in set.docTypes)
             if (d.bundleRefs != null) d.id: d.bundleRefs,
         },
-        {'project': true, 'gnfr': true},
+        {'project': true, 'gnfr': true, 'goal': true},
       );
     });
 
+    test('prd-core carries thirteen doc types', () async {
+      final set = await resolvePrdCore();
+      expect(set.docTypes, hasLength(13));
+    });
+
     test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
-        'holds exactly the twelve doc types', () async {
+        'holds exactly the thirteen doc types', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));

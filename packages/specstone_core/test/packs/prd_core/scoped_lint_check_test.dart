@@ -100,7 +100,7 @@ void main() {
       'banned pattern', () async {
     final found = await _found(
       doc(
-        projectDoc,
+        goalDoc,
         'Halve the password resets.',
         '- **Metric:** at most 3 resets, see [run][m1]\n\n'
             '[m1]: ../measurements/fewer_resets/MEASUREMENT.md',

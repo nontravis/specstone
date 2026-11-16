@@ -210,6 +210,7 @@ void main() {
   _sizeFixTests();
   _batchGuideTests();
   _repeatsBatchTests();
+  _goalMoveTests();
   _otherPluginSkillTests();
   _planTests();
   _codeParseTests();
@@ -228,13 +229,14 @@ void main() {
 
 /// Each plugin file that names a file for an agent's run, and the
 /// AgentFileName forms it names under `<folder>/reports/`.
-const _agentFileNames = {
+const _agentFileNames = <String, List<String>>{
   'specstone-plan-engineer.md': ['plan-engineer.plan.<XXXXXX>.md'],
   'specstone-sdd-engineer.md': [
     'sdd-engineer.<mode>.<XXXXXX>.md',
     'sdd-engineer.<mode>.batch.<XXXXXX>.txt',
   ],
   'specstone-bootstrap-prd/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
+  _goalMove: ['sdd-engineer.bootstrap.batch.<XXXXXX>.txt'],
   'specstone-bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
   'specstone-brainstorming-sdd/SKILL.md': [
     'sdd-engineer.<mode>.<XXXXXX>.md',
@@ -770,6 +772,11 @@ const _procedures = <_Procedure>[
     file: 'specstone-bootstrap-spec/references/procedure.md',
     tags: 'f08/us05/fr01, f08/us05/fr02, f08/us05/fr03',
     commands: ['check', 'guide', 'new', 'set', 'delete'],
+  ),
+  (
+    file: _goalMove,
+    tags: 'f08/us05/fr01',
+    commands: ['new', 'get', 'set', 'refs'],
   ),
   (
     file: 'specstone-brainstorming-sdd/references/author.md',
@@ -2940,6 +2947,22 @@ void _agentTests() {
   group('Agent sets up a new project with no code', () {
     String init() => _oneLine(_pluginText('specstone-init/SKILL.md'));
 
+    test('set_up_and_fill_drafts S1: init skill fills the five drafts', () {
+      expect(
+        init(),
+        contains(
+          'Take the drafts one at a time, in this order: the project, goal, '
+          'features, gnfr, and tech stack docs.',
+        ),
+      );
+      expect(
+        init(),
+        contains('The goal doc holds the goals the Owner names, or none.'),
+      );
+      expect(init(), contains('five drafts'));
+      expect(init(), isNot(contains('four drafts')));
+    });
+
     test('set_up_and_fill_drafts E04: a code root with no folder draws no '
         'finding until a record entry is implemented', () {
       expect(
@@ -4369,6 +4392,113 @@ void _repeatsBatchTests() {
   });
 }
 
+/// The goal-move reference of bootstrap-prd, under the plugin folder.
+const _goalMove = 'specstone-bootstrap-prd/references/goal-move.md';
+
+/// The commands of the goal move, in the order its steps run them.
+const _goalMoveCommands = [
+  'specstone new goal',
+  'specstone new <type>',
+  'specstone get',
+  '--base',
+  'set --batch',
+  'specstone refs project',
+];
+
+/// The bootstrap-spec procedure's **Code target** paragraph, on one line.
+const _specCodeTarget =
+    '**Code target** (two or more `targets:`): each `new`, `get`, and `set` of '
+    "a per-target doc carries `--target <name>`, the finding DocPath's code "
+    'target, else the first listed one.';
+
+/// The lines of the `## 2. One finding at a time` section of [file].
+List<String> _findingRows(String file) =>
+    _sectionOf(_pluginText(file), '2. One finding at a time').split('\n');
+
+void _goalMoveTests() {
+  test('bootstrap-prd procedure points singular_doc_missing and the project '
+      'goals section to goal-move.md in one row and copies no step', () {
+    const file = 'specstone-bootstrap-prd/references/procedure.md';
+    final rows = _findingRows(file);
+    final pointers = rows
+        .where((line) => line.contains('`singular_doc_missing`'))
+        .toList();
+    expect(pointers, hasLength(1));
+    final pointer = pointers.single;
+    expect(pointer, contains('`goal-move.md`'));
+    expect(pointer, contains('`section_undeclared`'));
+    final general = rows.indexWhere(
+      (line) => line.startsWith('| `section_undeclared` |'),
+    );
+    expect(general, isNonNegative);
+    expect(rows.indexOf(pointer), lessThan(general));
+    final text = _pluginText(file);
+    for (final step in ['new goal', 'set --batch', 'refs project']) {
+      expect(text, isNot(contains(step)), reason: step);
+    }
+  });
+
+  test('goal-move.md states the goal move', () {
+    final text = _oneLine(_pluginText(_goalMove));
+    var previous = -1;
+    for (final command in _goalMoveCommands) {
+      final at = text.indexOf(command);
+      expect(at, greaterThan(previous), reason: command);
+      previous = at;
+    }
+    expect(RegExp(r'\bE\d\d\b').hasMatch(text), isFalse);
+    expect(RegExp(r'\]\([^)]*\b(?:prds|specs)/').hasMatch(text), isFalse);
+  });
+
+  test("bootstrap-prd SKILL.md asks each goal's horizon before the rest "
+      "batch's dispatch and keeps a kept goal out of the run's later "
+      'questions and rounds', () {
+    final text = _pluginText('specstone-bootstrap-prd/SKILL.md');
+    final handOff = _oneLine(_sectionOf(text, '2. Hand off in batches'));
+    final dispatch = handOff.indexOf('Dispatch one');
+    final by = handOff.indexOf('`**By:**`');
+    expect(by, isNonNegative);
+    expect(handOff.lastIndexOf('horizon', by), isNonNegative);
+    expect(by, lessThan(dispatch));
+    final after = _sectionOf(text, '3. After the reports');
+    final item = _oneLine(
+      after.substring(after.indexOf('\n5. '), after.indexOf('\n6. ')),
+    );
+    final goals = item.indexOf(
+      "the `section_undeclared` on PROJECT's goals section",
+    );
+    expect(goals, greaterThan(item.indexOf('unless it is tagged')));
+    expect(goals, lessThan(item.indexOf('With none left, go to item 6.')));
+    expect(item.indexOf('horizon', goals), isNonNegative);
+  });
+
+  test("bootstrap-prd SKILL.md item 3 shows a kept goal's question without "
+      'asking it and counts it settled for item 4', () {
+    final after = _sectionOf(
+      _pluginText('specstone-bootstrap-prd/SKILL.md'),
+      '3. After the reports',
+    );
+    final item = _oneLine(
+      after.substring(after.indexOf('\n3. '), after.indexOf('\n4. ')),
+    );
+    final kept = item.indexOf('a goal move kept in PROJECT');
+    expect(kept, isNonNegative);
+    final unasked = item.indexOf('without asking it', kept);
+    expect(unasked, isNonNegative);
+    expect(item.indexOf('settled for item 4', unasked), isNonNegative);
+  });
+
+  test('bootstrap-spec procedure creates a missing singular doc with new', () {
+    const file = 'specstone-bootstrap-spec/references/procedure.md';
+    expect(
+      _findingRows(file)
+          .where((line) => line.contains('`singular_doc_missing`')),
+      [contains('`specstone new <type>`')],
+    );
+    expect(_oneLine(_pluginText(file)), contains(_specCodeTarget));
+  });
+}
+
 const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
 const _writePlan = 'agent_plugin/plan_approved_stories/write_grounded_plan';
 
@@ -5589,7 +5719,7 @@ const _syncBootstrapFiles = [
 ];
 
 /// The sync and the two bootstrap skills, each a skill file and its
-/// procedure, in the source and in each host's render.
+/// references, in the source and in each host's render.
 List<ContentFile> _syncBootstrapContent() => [
   for (final file in contentFiles())
     if (_syncBootstrapFiles.any(file.path.contains)) file,
@@ -5599,9 +5729,9 @@ void _syncBootstrapTests() {
   group('the sync and bootstrap skills', () {
     const bootstraps = ['bootstrap-prd', 'bootstrap-spec'];
 
-    test('each of the seven reaches the source and every host render', () {
+    test('each of the eight reaches the source and every host render', () {
       final paths = _syncBootstrapContent().map((file) => file.path);
-      expect(paths, hasLength(7 + 7 + 7));
+      expect(paths, hasLength(8 + 8 + 8));
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
@@ -5679,7 +5809,7 @@ void _syncBootstrapTests() {
       );
     });
 
-    test('each of the seven skill files stays within 1,500 est. tokens', () {
+    test('each of the eight skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_syncBootstrapContent()), isEmpty);
     });
 

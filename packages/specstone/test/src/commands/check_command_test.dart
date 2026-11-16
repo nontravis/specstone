@@ -135,7 +135,7 @@ void main() {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: doc(
-          projectDoc,
+          goalDoc,
           'Halve the password resets.\n',
           'Halve the password resets.\n\n### PG-02 — Faster sign-in\n\n**Serves:** PV-01\nSign in under one second.\n',
         ),
@@ -149,7 +149,7 @@ void main() {
     ];
     expect(findings, hasLength(1));
     expect(findings.single, containsPair('waitsFor', 'agent'));
-    expect(findings.single, containsPair('docPath', projectDoc));
+    expect(findings.single, containsPair('docPath', goalDoc));
     expect(findings.single, containsPair('goal', 'PG-02'));
   });
 
@@ -916,6 +916,26 @@ void main() {
           {loginFeature, jasprArch},
         );
         expect(err.toString(), isEmpty);
+      },
+    );
+
+    test(
+      'E17: check --target jaspr keeps the missing jaspr tech stack, '
+      'its message ending --target jaspr; --target flutter drops it',
+      () async {
+        final project = await writeTwinProject(
+          without: {'docs/$loginApi', 'docs/specs/jaspr/TECH_STACK.md'},
+        );
+        const missingLine =
+            'specs/jaspr/TECH_STACK.md:1: singular_doc_missing: '
+            'the project holds no tech_stack doc; run '
+            '`specstone new tech_stack` --target jaspr\n';
+        final jaspr = readRunner(project);
+        expect(await jaspr.runner.run(['check', '--target', 'jaspr']), 1);
+        expect(jaspr.out.toString(), contains(missingLine));
+        final flutter = readRunner(project);
+        expect(await flutter.runner.run(['check', '--target', 'flutter']), 1);
+        expect(flutter.out.toString(), isNot(contains('singular_doc_missing')));
       },
     );
 

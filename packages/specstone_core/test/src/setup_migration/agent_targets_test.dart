@@ -55,6 +55,7 @@ String _imports(String prefix) => importBlock(
   cliVersion: specstoneVersion,
   agentMdPath: '$prefix.specstone/AGENT.md',
   projectDocPath: '${prefix}docs/prds/PROJECT.md',
+  goalDocPath: '${prefix}docs/prds/GOAL.md',
 );
 
 String _inline() => inlineBlock(cliVersion: specstoneVersion);
@@ -1175,7 +1176,7 @@ void main() {
         throwsA(
           isA<MigrateFault>()
               .having((f) => f.file, 'file', 'CLAUDE.md')
-              .having((f) => f.line, 'line', 6)
+              .having((f) => f.line, 'line', 7)
               .having(
                 (f) => f.message,
                 'message',
@@ -1231,6 +1232,31 @@ void main() {
       expect(write.isAtTop, isTrue);
       expect(plan.agentFileRoots, ['other']);
     });
+
+    test(
+      '$_write E15: the goal import path runs from the file folder',
+      () async {
+        final base = await _base({
+          'proj/other/.git/HEAD': 'ref\n',
+          'proj/other/CLAUDE.md': 'Owner\n',
+          'proj/CLAUDE.md': 'Owner\n',
+        });
+
+        final plan = planAgentWrites(
+          _inputs(base, code: ['proj/other/']),
+          full: true,
+        );
+
+        expect(
+          _writeAt(plan, 'CLAUDE.md').text,
+          contains('@docs/prds/PROJECT.md\n@docs/prds/GOAL.md\n'),
+        );
+        expect(
+          _writeAt(plan, 'other/CLAUDE.md').text,
+          contains('@../docs/prds/PROJECT.md\n@../docs/prds/GOAL.md\n'),
+        );
+      },
+    );
 
     test('$_write E16: a top reached by two code roots and by a link is '
         'written once', () async {

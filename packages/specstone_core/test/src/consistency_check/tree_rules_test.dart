@@ -4,11 +4,12 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart'
-    show checkedFoldersOf, isInCheckedFolder;
+    show checkedFoldersOf, isInCheckedFolder, missingSingularDocs;
 import 'package:specstone_core/src/index_query/read_session.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -16,11 +17,29 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/fixture_doc_types.dart';
+import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart' show recordsRootTemplates;
 import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
+
+const _goalDoc = 'prds/GOAL.md';
+const _glossaryLayer =
+    'id: glossary\n'
+    'description: Terms.\n'
+    'path: prds/GLOSSARY.md\n';
+const _missingMessage = 'the project holds no ';
+const _jasprFirstConfig =
+    'targets:\n'
+    '  jaspr:\n    code_root: jaspr_ws\n'
+    '  flutter:\n    code_root: flutter_ws\n';
+
+List<Finding> _missingOf(CheckReport report) => [
+  for (final f in report.findings)
+    if (f.kind == FindingKind.singularDocMissing) f,
+];
 
 void main() {
   test('f04/us01/s5, f04/us01/fr06/e01, f04/us01/fr06/e02: a file in a checked folder no pattern matches is '
@@ -414,5 +433,179 @@ void main() {
     );
     expect(isInCheckedFolder(folders, '.specstone/notes/x.md'), isFalse);
     expect(isInCheckedFolder(folders, 'prds/FEATURES.md'), isTrue);
+  });
+
+  group('f04/us01/fr07 singular_doc_missing', () {
+    test('f04/us01/fr07/e13: a goal doc type and no prds/GOAL.md is one '
+        'finding at line 1 with the type key and no name', () async {
+      final report = checkOf(
+        await writeCheckProject(without: {'docs/$_goalDoc'}),
+      );
+      final missing = _missingOf(report);
+      expect(spots(report, FindingKind.singularDocMissing), [
+        '$_goalDoc:1: singular_doc_missing',
+      ]);
+      expect(missing.single.name, isNull);
+      expect(missing.single.keys, {'type': 'goal'});
+      expect(
+        missing.single.message,
+        'the project holds no goal doc; run `specstone new goal`',
+      );
+    });
+
+    test('f04/us01/fr07/e14: no project doc is one finding at its path, '
+        'type project', () async {
+      final report = checkOf(
+        await writeCheckProject(without: {'docs/$projectDoc'}),
+      );
+      expect(spots(report, FindingKind.singularDocMissing), [
+        '$projectDoc:1: singular_doc_missing',
+      ]);
+      expect(_missingOf(report).single.keys, {'type': 'project'});
+      expect(_missingOf(report).single.name, isNull);
+    });
+
+    test('f04/us01/fr07/e15: a project-layer type at prds/GLOSSARY.md with no '
+        'file is one finding', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {'.specstone/templates/glossary.yaml': _glossaryLayer},
+        ),
+      );
+      expect(spots(report, FindingKind.singularDocMissing), [
+        'prds/GLOSSARY.md:1: singular_doc_missing',
+      ]);
+      expect(_missingOf(report).single.keys, {'type': 'glossary'});
+      expect(_missingOf(report).single.name, isNull);
+    });
+
+    test('f04/us01/fr07/e15: a per_target type is one finding per target that '
+        'lacks it, each with its target key', () async {
+      final report = checkOf(
+        await writeTwinProject(
+          extra: {
+            '.specstone/templates/glossary.yaml':
+                '${_glossaryLayer}per_target: true\n',
+            'docs/prds/flutter/GLOSSARY.md': '# Terms\n',
+          },
+        ),
+      );
+      final missing = [
+        for (final f in _missingOf(report))
+          if (f.keys['type'] == 'glossary') f,
+      ];
+      expect([for (final f in missing) f.path], ['prds/jaspr/GLOSSARY.md']);
+      expect(missing.single.line, 1);
+      expect(missing.single.name, isNull);
+      expect(missing.single.keys, {'type': 'glossary', 'target': 'jaspr'});
+    });
+
+    test('f04/us01/fr07/e16: one code target and no tech stack doc is one '
+        'finding with no target key', () async {
+      final report = checkOf(
+        await writeCheckProject(without: {'docs/$techStack'}),
+      );
+      expect(spots(report, FindingKind.singularDocMissing), [
+        '$techStack:1: singular_doc_missing',
+      ]);
+      expect(_missingOf(report).single.keys, {'type': 'tech_stack'});
+      expect(_missingOf(report).single.name, isNull);
+      expect(_missingOf(report).single.message, isNot(contains('--target')));
+    });
+
+    test('f04/us01/fr07/e17: flutter and jaspr with no jaspr tech stack is '
+        'one finding for jaspr, its message ending --target jaspr', () async {
+      final report = checkOf(
+        await writeTwinProject(without: {'docs/specs/jaspr/TECH_STACK.md'}),
+      );
+      final missing = _missingOf(report);
+      expect(spots(report, FindingKind.singularDocMissing), [
+        'specs/jaspr/TECH_STACK.md:1: singular_doc_missing',
+      ]);
+      expect(missing.single.name, isNull);
+      expect(missing.single.keys, {'type': 'tech_stack', 'target': 'jaspr'});
+      expect(missing.single.message, startsWith(_missingMessage));
+      expect(missing.single.message, endsWith(' --target jaspr'));
+    });
+
+    test('f04/us01/fr07/e18: a project spec doc type with no doc is no '
+        'finding', () async {
+      final report = checkOf(
+        await writeCheckProject(without: {'docs/$loginArchitecture'}),
+      );
+      expect([
+        for (final f in _missingOf(report)) f.keys['type'],
+      ], isNot(contains('architecture')));
+      expect(spots(report, FindingKind.singularDocMissing), isEmpty);
+    });
+
+    test('f04/us01/fr07/e19: a merged set with no goal doc type is no goal '
+        'finding', () async {
+      final project = await fixtureProject({});
+      final session = ReadSession.open(
+        templates: TemplateResolver(
+          shippedFiles: fixturePackFiles(
+            extra: {
+              'project.yaml': 'id: project\ndescription: The project.\npath: prds/PROJECT.md\n',
+            },
+          ),
+        ),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      addTearDown(session.close);
+      expect([
+        for (final type in session.index.set.docTypes) type.id,
+      ], isNot(contains('goal')));
+      final report = runCheck(session);
+      expect(_missingOf(report).map((f) => f.keys['type']), ['project']);
+    });
+
+    test(
+      'one finding per target lacking TECH_STACK, in targets order',
+      () async {
+        final project = await writeTwinProject(
+          without: {
+            'docs/specs/flutter/TECH_STACK.md',
+            'docs/specs/jaspr/TECH_STACK.md',
+          },
+          extra: {
+            '.specstone/config.yaml': shippedPinsConfig() + _jasprFirstConfig,
+          },
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+        final missing = [
+          for (final f in missingSingularDocs(CheckContext(session)))
+            if (f.keys['type'] == 'tech_stack') f,
+        ];
+        expect(
+          [for (final f in missing) f.path],
+          ['specs/jaspr/TECH_STACK.md', 'specs/flutter/TECH_STACK.md'],
+        );
+        expect([for (final f in missing) f.line], [1, 1]);
+        expect(
+          [for (final f in missing) f.keys],
+          [
+            {'type': 'tech_stack', 'target': 'jaspr'},
+            {'type': 'tech_stack', 'target': 'flutter'},
+          ],
+        );
+        expect(
+          [for (final f in missing) f.message.split(' ').last],
+          ['jaspr', 'flutter'],
+        );
+      },
+    );
+
+    test('an empty goal file is present', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {'docs/$_goalDoc': ''},
+          unstamped: {'docs/$_goalDoc'},
+        ),
+      );
+      expect(spots(report, FindingKind.singularDocMissing), isEmpty);
+    });
   });
 }

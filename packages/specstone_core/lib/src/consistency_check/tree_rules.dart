@@ -5,6 +5,8 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/parents.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show singularDocTypes;
 import 'package:specstone_core/src/templates/merged_set.dart';
 
 const _pathSeparator = '/';
@@ -95,6 +97,39 @@ Iterable<Finding> checkTree(CheckContext context, IndexedDoc doc) sync* {
   yield* _orderNumberDuplicate(context, doc);
   if (context.hasNoParent(doc)) yield _parentProblem(context, doc);
 }
+
+/// Returns a `singular_doc_missing` finding per singular doc the project
+/// lacks.
+///
+/// A per-target type, in a project of two or more code targets, is reported
+/// per target in config order, at that target's path.
+Iterable<Finding> missingSingularDocs(CheckContext context) sync* {
+  final present = {for (final doc in context.index.docs) doc.docPath};
+  final targetNames = context.index.twinNames;
+  for (final type in singularDocTypes(context.index.set)) {
+    final path = type.path;
+    if (path == null) continue;
+    if (type.isPerTarget && targetNames.isNotEmpty) {
+      for (final name in targetNames) {
+        final targetPath = PathPattern(path).forTarget(name).source;
+        if (present.contains(targetPath)) continue;
+        yield _singularMissing(type.id, targetPath, target: name);
+      }
+    } else if (!present.contains(path)) {
+      yield _singularMissing(type.id, path);
+    }
+  }
+}
+
+Finding _singularMissing(String type, String path, {String? target}) => Finding(
+  kind: FindingKind.singularDocMissing,
+  path: path,
+  line: 1,
+  message:
+      'the project holds no $type doc; run `specstone new $type`'
+      '${target == null ? '' : ' --target $target'}',
+  keys: {'type': type, 'target': ?target},
+);
 
 /// Returns a `file_unreadable` finding for each file the index could not
 /// read.

@@ -407,7 +407,8 @@ void _remove(File? file, List<Directory> created) {
 }
 
 /// Returns the laid-out template skeleton of [docType]: a draft frontmatter
-/// with each required field empty, the [title], and each required section.
+/// with each required field empty, the [title], each required section with its
+/// template, and each optional section that sets `skeleton` as a bare header.
 String skeletonOf(MergedDocType docType, String title) =>
     layOutDoc(_rawSkeletonOf(docType, title), docType);
 
@@ -418,8 +419,9 @@ String _rawSkeletonOf(MergedDocType docType, String title) {
   }
   buffer.write('---\n\n# $title\n');
   for (final section in docType.sections) {
-    if (!section.required) continue;
+    if (!section.required && section.skeleton != true) continue;
     buffer.write('\n## ${section.header}\n');
+    if (!section.required) continue;
     final template = section.template;
     if (template != null && template.isNotEmpty) buffer.write('$template\n');
   }

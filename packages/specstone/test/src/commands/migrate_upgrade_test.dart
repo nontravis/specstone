@@ -311,9 +311,6 @@ void main() {
     const bareGoals =
         '### PG-01 — Fast\n\n**Serves:** PV-01\n**Statement:** Be fast.\n'
         '**Metric:** 3 calls\n**By:** v1\n';
-    const bulletGoals =
-        '### PG-01 — Fast\n\n- **Serves:** PV-01\n- **Statement:** Be fast.\n'
-        '- **Metric:** 3 calls\n- **By:** v1\n';
     String project(String goals) =>
         '---\nowner: sre\n---\n# Project context\n\n'
         '## Project name\n\n- **Human:** Acme\n\n'
@@ -322,7 +319,7 @@ void main() {
 
     test(
       'a project pinned at the 1.9.0 prd-core pack migrates to the shipped pin '
-      'with its bare goal lines bulleted and no other line changed',
+      'with its bare goal lines and every other line unchanged',
       () async {
         final home = await writeTree({});
         final root = await gitFixture({
@@ -336,7 +333,7 @@ void main() {
         final result = await _run(root, home, ['migrate'], console: _owner());
 
         expect(result.status, 0, reason: result.err);
-        expect(_read(root, projectPath), project(bulletGoals));
+        expect(_read(root, projectPath), project(bareGoals));
         expect(
           _read(root, '.specstone/config.yaml'),
           contains('prd-core: ${shippedPackVersions()['prd-core']}\n'),

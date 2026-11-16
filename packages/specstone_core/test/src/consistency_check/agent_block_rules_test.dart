@@ -76,6 +76,7 @@ String _imports() => importBlock(
   cliVersion: specstoneVersion,
   agentMdPath: _agentMd,
   projectDocPath: 'docs/prds/PROJECT.md',
+  goalDocPath: 'docs/prds/GOAL.md',
 );
 
 String _inline() => inlineBlock(cliVersion: specstoneVersion);
@@ -185,13 +186,25 @@ void main() {
     expect(
       await _staleOf({
         'CLAUDE.md':
-            'Owner\n${importBlock(cliVersion: preRelease, agentMdPath: _agentMd, projectDocPath: 'docs/prds/PROJECT.md')}',
+            'Owner\n${importBlock(cliVersion: preRelease, agentMdPath: _agentMd, projectDocPath: 'docs/prds/PROJECT.md', goalDocPath: 'docs/prds/GOAL.md')}',
         'AGENTS.md': inlineBlock(cliVersion: preRelease),
         _agentMd: agentMdText,
         '.cursor/rules/specstone.mdc': cursorRulesText(cliVersion: preRelease),
       }),
       isEmpty,
     );
+  });
+
+  test('$_stale Output: a block with no goal line is stale', () async {
+    final found = await _staleOf({
+      'CLAUDE.md':
+          'top\n${_imports().replaceFirst('@docs/prds/GOAL.md\n', '')}',
+      _agentMd: agentMdText,
+    });
+
+    expect(found, hasLength(1));
+    expect(found.single.path, 'CLAUDE.md');
+    expect(found.single.line, 2);
   });
 
   test(
@@ -286,7 +299,7 @@ void main() {
         _agentMd: agentMdText,
       });
 
-      expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:6']);
+      expect([for (final f in found) '${f.path}:${f.line}'], ['CLAUDE.md:7']);
       expect(found.single.message, _fenceOpen);
     },
   );
