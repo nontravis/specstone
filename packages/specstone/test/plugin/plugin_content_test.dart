@@ -4472,6 +4472,22 @@ void _goalMoveTests() {
     expect(item.indexOf('horizon', goals), isNonNegative);
   });
 
+  test("bootstrap-prd SKILL.md item 3 shows a kept goal's question without "
+      'asking it and counts it settled for item 4', () {
+    final after = _sectionOf(
+      _pluginText('specstone-bootstrap-prd/SKILL.md'),
+      '3. After the reports',
+    );
+    final item = _oneLine(
+      after.substring(after.indexOf('\n3. '), after.indexOf('\n4. ')),
+    );
+    final kept = item.indexOf('a goal move kept in PROJECT');
+    expect(kept, isNonNegative);
+    final unasked = item.indexOf('without asking it', kept);
+    expect(unasked, isNonNegative);
+    expect(item.indexOf('settled for item 4', unasked), isNonNegative);
+  });
+
   test('bootstrap-spec procedure creates a missing singular doc with new', () {
     const file = 'specstone-bootstrap-spec/references/procedure.md';
     expect(
