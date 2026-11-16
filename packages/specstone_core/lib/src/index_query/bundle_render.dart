@@ -337,6 +337,47 @@ ContextAnswer answerContext(
   );
 }
 
+/// The read-first block of each doc by index, built on first use: an index is
+/// one read snapshot, so a feature or spec doc that many bundles of one run
+/// print renders once.
+final _readFirstBlocksOf = Expando<Map<(String, BundleMode, bool), String>>();
+
+/// Returns the est. tokens of the read-first file `answerContext` gives
+/// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
+///
+/// It builds the read-first blocks alone, with no appended part, cited-by
+/// part, or refs text, since the size counts none of them.
+int readFirstTokensOf(DocIndex index, Bundle bundle) {
+  assert(bundle.mode != BundleMode.query, 'a query bundle never splits');
+  final ordered = bundle.printOrder(index);
+  final summaryOnly = bundle.summaryOnly;
+  bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
+  final blocks = _readFirstBlocksOf[index] ??= {};
+  String blockOf(IndexedDoc doc) =>
+      blocks[(doc.docPath, bundle.mode, inSummary(doc))] ??= _docBlock(
+        index,
+        doc,
+        bundle.mode,
+        summary: inSummary(doc),
+        citedBy: null,
+      ).block;
+  final patternParts = featurePatternParts(index, bundle, ordered);
+  return tokenSizeOf(
+    [
+      for (final (:doc, :part) in _slotsOf(ordered, patternParts))
+        if (doc == null)
+          featurePatternBlock(patternParts[part!])
+        else if (!inSummary(ordered[doc]) &&
+            !bundle.joinsRefs(index, ordered[doc]))
+          blockOf(ordered[doc]),
+      for (final top in _byTreeOrder(index, bundle.mapTops))
+        _mapBlock(index, index.at(top)!, bundle.codeTarget),
+      for (final top in _byTreeOrder(index, bundle.nameListTops))
+        _namesBlock(index, index.at(top)!, bundle.codeTarget),
+    ].join('\n\n'),
+  );
+}
+
 /// One block of a bundle text, in the whole bundle's print order, with what
 /// its closing list and its entry need.
 final class _Piece {

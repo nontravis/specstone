@@ -1865,6 +1865,74 @@ void main() {
         ),
       );
     });
+    test('one index serves a split answer after an unsplit one, and the reverse, each with its own cited-by place', () async {
+      final session = openSession(await writeTree(_shopFiles()));
+      addTearDown(session.close);
+      final i = session.index;
+      ContextAnswer answer({required bool split}) => answerContext(
+        i,
+        pickBundle(
+          i,
+          'shop/cart/add_item',
+          BundleMode.design,
+          noProject: false,
+        ),
+        label: 'shop/cart/add_item',
+        byCode: false,
+        split: split,
+      );
+      const citedLine =
+          '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).';
+
+      final unsplitFirst = answer(split: false);
+      final splitAfter = answer(split: true);
+      final unsplitAfter = answer(split: false);
+
+      expect(unsplitFirst.text, contains(citedLine));
+      expect(splitAfter.text, isNot(contains('· cited by')));
+      expect(
+        splitAfter.refs!.text,
+        contains('· item E01 · cited by <==\n$citedLine'),
+      );
+      expect(unsplitAfter.text, unsplitFirst.text);
+    });
+    test('the read-first size alone equals the split answer size, for each doc and mode', () async {
+      final shop = openSession(await writeTree(_shopFiles()));
+      addTearDown(shop.close);
+      for (final index in [await indexWith(), shop.index]) {
+        for (final doc in index.docs.where(index.isChainDoc)) {
+          for (final mode in [BundleMode.design, BundleMode.implement]) {
+            for (final summary in [
+              false,
+              if (mode == BundleMode.design &&
+                  doc.docTypeId == index.set.nestingType?.id &&
+                  index.childrenOf(doc).isNotEmpty)
+                true,
+            ]) {
+              final bundle = pickBundle(
+                index,
+                doc.name,
+                mode,
+                noProject: false,
+                summary: summary,
+              );
+              final answer = answerContext(
+                index,
+                bundle,
+                label: doc.name,
+                byCode: false,
+                split: true,
+              );
+              expect(
+                readFirstTokensOf(index, bundle),
+                answer.readFirst.tokens,
+                reason: '${doc.name} ${mode.wire} summary $summary',
+              );
+            }
+          }
+        }
+      }
+    });
     test('an unsplit answer is unchanged', () async {
       final session = openSession(await writeTree(_shopFiles()));
       addTearDown(session.close);

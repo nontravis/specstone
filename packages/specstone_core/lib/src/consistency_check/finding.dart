@@ -61,6 +61,7 @@ enum FindingKind {
   featureMixedChildren('feature_mixed_children'),
   subFeatureTooSmall('sub_feature_too_small'),
   nestingOverLimit('nesting_over_limit'),
+  bundleOverLimit('bundle_over_limit'),
   pathOverLimit('path_over_limit'),
   fileNotUtf8('file_not_utf8'),
   fileUnreadable('file_unreadable'),
@@ -152,6 +153,7 @@ enum FindingKind {
   /// Who clears a finding of this kind, unless its rule says otherwise.
   WaitsFor get waitsFor => switch (this) {
     approvalStale ||
+    bundleOverLimit ||
     charsOverLimit ||
     itemOverLimit ||
     linesOverLimit ||

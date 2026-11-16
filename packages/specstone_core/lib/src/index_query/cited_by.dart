@@ -65,7 +65,18 @@ typedef CitedItem = ({
 /// the whole doc, which an anchor no section or block places also names. A
 /// link whose anchor matches nothing cites none. See [CitedByIndex.inline]
 /// for [inline].
-CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) {
+CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) =>
+    CitedByIndex(_citedLinksOf[index] ??= _citedLinksIn(index), inline: inline);
+
+/// The cited-by lines of each index, built on first use: an index is one read
+/// snapshot, so `check`'s many bundles of one run share one scan of its links.
+final _citedLinksOf =
+    Expando<
+      Map<({String docPath, CitedKind kind, String? key}), List<CitedBy>>
+    >();
+
+Map<({String docPath, CitedKind kind, String? key}), List<CitedBy>>
+_citedLinksIn(DocIndex index) {
   final docs = <String, _Doc>{};
   _Doc? read(IndexedDoc doc) {
     final typeId = doc.docTypeId;
@@ -94,7 +105,7 @@ CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) {
       }
     }
   }
-  return CitedByIndex(cited, inline: inline);
+  return cited;
 }
 
 /// Returns `  · cited by <name> (<doc type>) <item ID>: <line>` for [by], the

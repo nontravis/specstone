@@ -366,6 +366,75 @@ void main() {
     );
   });
 
+  group('a feature whose design read-first file is over the bound', () {
+    const signupFeature = 'prds/features/f02_signup/FEATURE.md';
+    Map<String, String> oversize() => {
+      ...edit(loginFeature, [
+        ('## Problem\n\n', '## Problem\n\n${'a' * 90000}\n\n'),
+      ]),
+      'docs/$signupFeature': '# Sign up\n\n## Problem\n\n${'a' * 90000}\n',
+    };
+
+    test(
+      "check <target> reports each feature in the target's unit, once",
+      () async {
+        final project = await writeCheckProject(extra: oversize());
+
+        expect(spots(checkOf(project), FindingKind.bundleOverLimit), [
+          '$loginFeature:1: bundle_over_limit',
+          '$signupFeature:1: bundle_over_limit',
+        ]);
+        expect(
+          spots(
+            checkOf(project, target: 'feature:login'),
+            FindingKind.bundleOverLimit,
+          ),
+          ['$loginFeature:1: bundle_over_limit'],
+        );
+      },
+    );
+
+    test(
+      'a docPath scope on the feature or on a story reports that feature alone',
+      () async {
+        final project = await writeCheckProject(extra: oversize());
+
+        for (final docPath in [loginFeature, loginStory]) {
+          expect(
+            spots(
+              checkOf(project, docPath: docPath),
+              FindingKind.bundleOverLimit,
+            ),
+            ['$loginFeature:1: bundle_over_limit'],
+            reason: docPath,
+          );
+        }
+      },
+    );
+
+    test('a docPath scope on an FR, and a story target, report none', () async {
+      final project = await writeCheckProject(extra: oversize());
+
+      expect(
+        spots(checkOf(project, docPath: loginFr), FindingKind.bundleOverLimit),
+        isEmpty,
+      );
+      expect(
+        spots(
+          checkOf(project, target: 'login/email_login'),
+          FindingKind.bundleOverLimit,
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a feature within the bound gets none', () async {
+      final project = await writeCheckProject();
+
+      expect(spots(checkOf(project), FindingKind.bundleOverLimit), isEmpty);
+    });
+  });
+
   test('an untyped .md file in prds/ gets its untyped_doc finding', () async {
     final project = await writeCheckProject(
       extra: {'docs/prds/notes.md': '# Notes\n'},
