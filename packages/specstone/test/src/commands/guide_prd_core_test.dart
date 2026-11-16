@@ -31,6 +31,34 @@ const _citeRule =
     'Cite a rule another doc owns by a link to the item that holds it, '
     'never restate it.';
 
+const _capLine =
+    'Each sentence holds 25 words or fewer (Korean 17), or 100 characters in '
+    'a script with no spaces (Japanese 60, Chinese 45).';
+
+const _nestLine =
+    'Keep one rule in each item, and put several conditions in a nested '
+    'list. A one-sentence paragraph with no ID moves its detail to the '
+    'section of the same doc that owns it, never into a sub-list.';
+
+const _endLine = "Put a cite or an ownership note at the item's end.";
+
+const _exampleLine =
+    'Give a non-obvious rule one example inside its item, as a `such as` '
+    'clause or one "For example," sentence, within the sentence\'s cap.';
+
+const _orderLine =
+    'State the condition first, then the rule, one clause chain per '
+    'sentence; split a sentence whose clauses nest.';
+
+/// The five readability lines every prd-core description carries.
+const _readabilityLines = <String>[
+  _capLine,
+  _nestLine,
+  _endLine,
+  _exampleLine,
+  _orderLine,
+];
+
 /// The `software-tech` doc type ids (US-07 FR-01).
 const _softwareTechIds = <String>[
   'tech_stack',
@@ -381,6 +409,80 @@ void main() {
         expect(await runner.run(['guide', id]), 0, reason: id);
         expect(out.toString(), contains(_citeRule), reason: id);
       }
+    });
+
+    test(
+      'every prd-core description carries the five readability lines',
+      () async {
+        final runner = await runnerIn(await prdCoreProject());
+        for (final id in _prdCoreIds) {
+          out.clear();
+          expect(await runner.run(['guide', id, '--json']), 0, reason: id);
+          final json = jsonDecode(out.toString()) as Map<String, Object?>;
+          final description = json['description']! as String;
+          expect(description.split('\n'), containsAll(_readabilityLines));
+          for (final section
+              in (json['sections']! as List).cast<Map<String, Object?>>()) {
+            final text = section['description'] as String? ?? '';
+            expect(text, isNot(contains(_readabilityLines.first)), reason: id);
+          }
+        }
+      },
+    );
+
+    test('fr edge cases template shows the calibration shape', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'fr', '--json']), 0);
+      final json = jsonDecode(out.toString()) as Map<String, Object?>;
+      final edgeCases = (json['sections']! as List)
+          .cast<Map<String, Object?>>()
+          .firstWhere((s) => s['id'] == 'edge_cases');
+      expect(
+        edgeCases['template'],
+        '1. E01 — <trigger> → <response>\n'
+        '2. E02 — <lead> → <response>\n'
+        '   <more response, one sentence per line, with no blank line>\n'
+        '   - <trigger>\n'
+        '   - <trigger>',
+      );
+      final description = edgeCases['description']! as String;
+      expect(description.split('\n').length, lessThanOrEqualTo(5));
+      expect(
+        description,
+        contains(
+          'For several triggers, keep the `→` in the lead and join the '
+          'response as indented lines, with no blank line.\n'
+          'List the triggers as nested items.',
+        ),
+      );
+    });
+
+    test('fr statement and project vision carry item_count', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      Future<Map<String, Object?>> itemCount(String type, String id) async {
+        out.clear();
+        expect(await runner.run(['guide', type, '--json']), 0);
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        final section = (json['sections']! as List)
+            .cast<Map<String, Object?>>()
+            .firstWhere((s) => s['id'] == id);
+        return (section['lint']! as Map)['itemCount']! as Map<String, Object?>;
+      }
+
+      expect(await itemCount('fr', 'statement'), {
+        'max': 1,
+        'perSubsection': false,
+        'prefixes': <Object?>[],
+      });
+      expect(await itemCount('project', 'vision'), {
+        'max': 3,
+        'perSubsection': true,
+        'prefixes': [
+          {'linePrefix': '- **Why:**', 'count': 1},
+          {'linePrefix': '- **Problem:**', 'count': 1},
+          {'linePrefix': '- **Audience:**', 'count': 1},
+        ],
+      });
     });
 
     test('guide journey prints no sources', () async {

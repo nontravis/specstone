@@ -180,9 +180,12 @@ void main() {
       _sectionLint('statement', _oneSentence),
       edits: fr(checkPasswordStatement, '- A list item.\n\nRefuse it. Log it.'),
     );
-    expect(found, hasLength(1));
-    expect(found.single.kind, FindingKind.sentencesOverLimit);
-    expect(found.single.line, _lineOf(loginFr, 'Refuse it. Log it.'));
+    final over = [
+      for (final f in found)
+        if (f.kind == FindingKind.sentencesOverLimit) f,
+    ];
+    expect(over, hasLength(1));
+    expect(over.single.line, _lineOf(loginFr, 'Refuse it. Log it.'));
   });
 
   test('two statement paragraphs give item_count_out_of_range', () async {
@@ -211,7 +214,10 @@ void main() {
 '''),
       edits: doc(
         projectDoc,
-        '> en: One sign-in for every app.\n',
+        '> en: One sign-in for every app.\n'
+            '- **Why:** One sign-in saves every user a password.\n'
+            '- **Problem:** Each app asks for its own password.\n'
+            '- **Audience:** The people who use the apps.\n',
         '> en: One sign-in for every app.\n\n- **Why:** a.\n- b.\n'
             '- **Problem:** c.\n- **Audience:** d.\n',
       ),
