@@ -688,12 +688,6 @@ void main() {
     );
   });
 
-  /// Every file under [root] outside `.specstone`, by path, with its bytes.
-  Map<String, List<int>> filesUnder(Directory root) => {
-    for (final file in root.listSync(recursive: true).whereType<File>())
-      if (!file.path.contains('.specstone')) file.path: file.readAsBytesSync(),
-  };
-
   for (final (:address, :docPath, :text) in [
     (
       address: 'goal:goal',
@@ -710,7 +704,8 @@ void main() {
       'f02/us06/fr01/e06: $address holds no slug, so it is doc_type_not_movable, and nothing changes',
       () async {
         final root = await writeWriteProject(extra: {'docs/$docPath': text});
-        final before = filesUnder(root);
+        getDoc(root, address);
+        final before = treeBytes(root);
         expect(
           () => rename(root, address, 'renamed'),
           throwsA(
@@ -721,11 +716,7 @@ void main() {
             ),
           ),
         );
-        final after = filesUnder(root);
-        expect(after.keys, before.keys);
-        for (final MapEntry(:key, :value) in before.entries) {
-          expect(after[key], value, reason: key);
-        }
+        expect(treeBytes(root), before);
       },
     );
   }
