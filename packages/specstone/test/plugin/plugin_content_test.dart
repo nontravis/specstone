@@ -4450,6 +4450,37 @@ void _goalMoveTests() {
     expect(RegExp(r'\]\([^)]*\b(?:prds|specs)/').hasMatch(text), isFalse);
   });
 
+  test('goal-move.md titles the goal doc per its guide', () {
+    final move = _oneLine(
+      _sectionOf(_pluginText(_goalMove), '2. Move each answered goal'),
+    );
+    final read = move.indexOf('`specstone get goal:goal --json`');
+    expect(read, isNonNegative);
+    final skip = move.indexOf(
+      'Unless its title already reads `Project goals`',
+      read,
+    );
+    expect(skip, isNonNegative);
+    final guide = move.indexOf('`specstone guide goal`', skip);
+    expect(guide, isNonNegative);
+    final title = move.indexOf(
+      '`specstone set goal:goal --title --base <hash>`',
+      guide,
+    );
+    expect(title, isNonNegative);
+    expect(move.indexOf('`bases.title`', title), isNonNegative);
+    expect(move, contains('pipe `Project goals`, with no `#`,'));
+    expect(title, lessThan(move.indexOf('specstone set goal:goal#<key>')));
+    final missing = _oneLine(
+      _sectionOf(_pluginText(_goalMove), '1. A missing singular doc'),
+    );
+    final created = missing.indexOf('run `specstone new goal`');
+    expect(created, isNonNegative);
+    final titled = missing.indexOf("title it as section 2's first step says");
+    expect(titled, greaterThan(created));
+    expect(titled, lessThan(missing.indexOf('stop there')));
+  });
+
   test("bootstrap-prd SKILL.md asks each goal's horizon before the rest "
       "batch's dispatch and keeps a kept goal out of the run's later "
       'questions and rounds', () {
