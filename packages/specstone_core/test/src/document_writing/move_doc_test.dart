@@ -48,6 +48,20 @@ void main() {
 
   const f = 'prds/features/f01_login';
 
+  const cartDir = 'prds/features/f02_shop/f01_cart';
+  const payDir = 'prds/features/f02_shop/f02_pay';
+  const dropFr = '$cartDir/us02_drop_item/fr01_drop_line.md';
+  const reserveFr = '$cartDir/us01_add_item/fr02_reserve_stock.md';
+  const refundFr = '$payDir/us02_refund/fr01_issue_refund.md';
+
+  /// The FRs the FR move tests add to the nested project: one under
+  /// `drop_item`, a second under `add_item`, and one under `refund`.
+  const frExtras = {
+    'docs/$dropFr': '# Drop a line\n',
+    'docs/$reserveFr': '# Reserve stock\n',
+    'docs/$refundFr': '# Issue a refund\n',
+  };
+
   test('f02/us05/s1, f02/us05/fr01, f02/us05/fr01/e01, f02/us05/fr02, f02/us05/fr02/e01, dw-s03/inv8, dw-s03/inv10: the third story moves to the top and every link follows', () async {
     final root = await writeWriteProject();
     final answer = reorder(root, 'user_story:login/reset_password', '1');
@@ -897,6 +911,7 @@ void main() {
     const notesPath = 'notes/ideas.md';
     const addItemFolder = 'prds/features/f02_shop/f01_cart/us01_add_item';
     const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
+    const addNf = '$addItemFolder/nf01_load_fast.md';
 
     ReadAnswer moveAll(Directory root, List<String> addresses, String? under) =>
         writeIn(root, (s) => answerMove(s, addresses, under: under));
@@ -1169,20 +1184,22 @@ void main() {
     test(
       'a doc of another type is doc_type_not_movable, and nothing moves',
       () async {
-        final root = await writeNestedProject();
+        final root = await writeNestedProject(
+          extra: {'docs/$addNf': '# Load\n'},
+        );
         expect(
-          () => move(root, 'fr:shop/cart/add_item/check_stock', 'shop/pay'),
+          () => move(root, 'nf:shop/cart/add_item/load_fast', 'shop/pay'),
           throwsA(
             isA<WriteFault>()
                 .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
                 .having(
                   (f) => f.message,
                   'message',
-                  'fr docs cannot move; move takes a user_story',
+                  'nf docs cannot move; move takes a user_story or an fr',
                 ),
           ),
         );
-        expect(hasDoc(root, cartAddFr), isTrue);
+        expect(hasDoc(root, addNf), isTrue);
       },
     );
 
@@ -1196,11 +1213,329 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                'move needs a feature, such as specstone move '
+                'move needs a feature or a story, such as specstone move '
                     'user_story:login/reset_password --under account',
               ),
         ),
       );
+    });
+
+    group('fr targets', () {
+      const addFolder = '$cartDir/us01_add_item';
+      const dropFolder = '$cartDir/us02_drop_item';
+      const refundFolder = '$payDir/us02_refund';
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      const dropLine = 'fr:shop/cart/drop_item/drop_line';
+      const checkStockFile = '$addFolder/fr01_check_stock.md';
+      const reserveFile = '$addFolder/fr02_reserve_stock.md';
+
+      Future<Directory> frProject([Map<String, String> more = const {}]) =>
+          writeNestedProject(extra: {...frExtras, ...more});
+
+      test('an fr moves to the end of a sibling story, and its old siblings stay numbered as before', () async {
+        final root = await frProject();
+        final answer = move(root, checkStock, 'shop/cart/drop_item');
+        expect(
+          answer.text,
+          startsWith(
+            'moved $checkStockFile to $dropFolder/fr02_check_stock.md\n',
+          ),
+        );
+        expect(hasDoc(root, '$dropFolder/fr02_check_stock.md'), isTrue);
+        expect(hasDoc(root, '$dropFolder/fr01_drop_line.md'), isTrue);
+        expect(hasDoc(root, checkStockFile), isFalse);
+        expect(hasDoc(root, reserveFile), isTrue);
+        expect(
+          readDoc(root, '$dropFolder/fr02_check_stock.md'),
+          isNot(contains('draft')),
+        );
+      });
+
+      test('several frs from two stories move as listed, in one run', () async {
+        final root = await frProject();
+        final answer = moveAll(root, [checkStock, dropLine], 'shop/pay/refund');
+        expect(answer.json['moved'], [
+          {'from': checkStockFile, 'to': '$refundFolder/fr02_check_stock.md'},
+          {'from': dropFr, 'to': '$refundFolder/fr03_drop_line.md'},
+        ]);
+        expect(
+          answer.text.split('\n').where((l) => l.startsWith('moved ')),
+          hasLength(2),
+        );
+        expect(hasDoc(root, '$refundFolder/fr02_check_stock.md'), isTrue);
+        expect(hasDoc(root, '$refundFolder/fr03_drop_line.md'), isTrue);
+      });
+
+      test(
+        'a call naming a story and an fr is argument_invalid and moves nothing',
+        () async {
+          final root = await frProject();
+          expect(
+            () => moveAll(root, [
+              'user_story:shop/cart/add_item',
+              dropLine,
+            ], 'shop/pay'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes user_story targets or fr targets, not both',
+                  ),
+            ),
+          );
+          expect(hasDoc(root, cartAdd), isTrue);
+          expect(hasDoc(root, dropFr), isTrue);
+        },
+      );
+
+      test(
+        'an --under naming no story, or a feature, is doc_not_found',
+        () async {
+          final root = await frProject();
+          for (final under in ['nothing', 'shop/pay']) {
+            expect(
+              () => move(root, checkStock, under),
+              throwsA(
+                isA<IndexFault>()
+                    .having((f) => f.code, 'code', IndexFaultCode.docNotFound)
+                    .having(
+                      (f) => f.message,
+                      'message',
+                      'no user_story doc carries the name $under',
+                    ),
+              ),
+              reason: under,
+            );
+          }
+          expect(hasDoc(root, checkStockFile), isTrue);
+        },
+      );
+
+      test(
+        'an --under naming two stories is argument_invalid listing both',
+        () async {
+          final root = await frProject({
+            'docs/$payDir/us05_refund/USER_STORY.md': '# Refund again\n',
+          });
+          expect(
+            () => move(root, checkStock, 'pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    allOf(
+                      startsWith('pay/refund names 2 user_story docs: '),
+                      contains(payRefund),
+                      contains('$payDir/us05_refund/USER_STORY.md'),
+                    ),
+                  ),
+            ),
+          );
+          expect(hasDoc(root, checkStockFile), isTrue);
+        },
+      );
+
+      test(
+        'a typed or path --under names the story a bare name does',
+        () async {
+          for (final under in [
+            'shop/pay/refund',
+            'user_story:shop/pay/refund',
+            payRefund,
+          ]) {
+            final root = await frProject();
+            final answer = move(root, checkStock, under);
+            expect(answer.json['moved'], [
+              {
+                'from': checkStockFile,
+                'to': '$refundFolder/fr02_check_stock.md',
+              },
+            ], reason: under);
+          }
+        },
+      );
+
+      test(
+        'an fr beside an nf is doc_type_not_movable before the mixed-type test',
+        () async {
+          final root = await frProject({'docs/$addNf': '# Load\n'});
+          expect(
+            () => moveAll(root, [
+              checkStock,
+              'nf:shop/cart/add_item/load_fast',
+            ], 'shop/pay/refund'),
+            throwsA(
+              isA<WriteFault>()
+                  .having(
+                    (f) => f.code,
+                    'code',
+                    WriteFaultCode.docTypeNotMovable,
+                  )
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'nf docs cannot move; move takes a user_story or an fr',
+                  ),
+            ),
+          );
+          expect(hasDoc(root, checkStockFile), isTrue);
+          expect(hasDoc(root, addNf), isTrue);
+        },
+      );
+
+      test('a slug the story holds, a slug two targets share, or a taken landing path is doc_exists', () async {
+        const heldFile = '$dropFolder/fr03_check_stock.md';
+        final held = await frProject({'docs/$heldFile': '# Check stock\n'});
+        expect(
+          () => move(held, checkStock, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'a fr named shop/cart/drop_item/check_stock exists',
+                )
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+        expect(hasDoc(held, checkStockFile), isTrue);
+
+        const twinFile = '$payDir/us01_card/fr01_check_stock.md';
+        final twins = await frProject({'docs/$twinFile': '# Check stock\n'});
+        expect(
+          () => moveAll(twins, [
+            checkStock,
+            'fr:shop/pay/card/check_stock',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', checkStockFile),
+          ),
+        );
+        expect(hasDoc(twins, twinFile), isTrue);
+
+        const landing = '$dropFolder/fr02_check_stock.md';
+        final taken = await frProject({'docs/$landing/keep.md': '# Keep\n'});
+        expect(
+          () => move(taken, checkStock, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', landing),
+          ),
+        );
+        expect(hasDoc(taken, checkStockFile), isTrue);
+      });
+
+      test('an fr already in place is skipped while the rest move, and a repeated fr moves once', () async {
+        final root = await frProject();
+        final answer = moveAll(root, [
+          dropLine,
+          checkStock,
+          checkStock,
+        ], 'shop/cart/drop_item');
+        expect(answer.json['moved'], [
+          {'from': checkStockFile, 'to': '$dropFolder/fr02_check_stock.md'},
+        ]);
+        expect(hasDoc(root, dropFr), isTrue);
+
+        final settled = moveAll(root, [dropLine], 'shop/cart/drop_item');
+        expect(settled.text, isEmpty);
+        expect(settled.json['moved'], isEmpty);
+      });
+
+      test('one refused target among several stops the whole call', () async {
+        final root = await frProject();
+        expect(
+          () => moveAll(root, [
+            checkStock,
+            'fr:shop/cart/add_item/nothing_here',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(hasDoc(root, '$refundFolder/fr02_check_stock.md'), isFalse);
+      });
+
+      test(
+        'no --under, or no target, is argument_missing before targets are read',
+        () async {
+          final root = await frProject();
+          expect(
+            () => move(root, 'fr:shop/cart/add_item/nothing_here', null),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move needs a feature or a story, such as specstone move '
+                        'user_story:login/reset_password --under account',
+                  ),
+            ),
+          );
+          expect(
+            () => moveAll(root, const [], 'shop/pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move needs a target, such as specstone move '
+                        'user_story:login/reset_password --under account',
+                  ),
+            ),
+          );
+        },
+      );
+
+      test('a target no doc carries, an untyped path, or a name of two docs refuses before the type tests', () async {
+        final root = await frProject({'docs/prds/d02_notes.md': '# Notes\n'});
+        const nf = 'nf:shop/cart/add_item/load_fast';
+        final refusals = {
+          'fr:shop/cart/add_item/nothing_here': IndexFaultCode.docNotFound,
+          'prds/d02_notes.md': IndexFaultCode.untypedTarget,
+          'shop': IndexFaultCode.argumentInvalid,
+        };
+        for (final MapEntry(key: target, value: code) in refusals.entries) {
+          expect(
+            () => moveAll(root, [target, nf], 'shop/pay/refund'),
+            throwsA(isA<IndexFault>().having((f) => f.code, 'code', code)),
+            reason: target,
+          );
+        }
+        expect(hasDoc(root, checkStockFile), isTrue);
+      });
+
+      test('a spec doc target is doc_type_not_movable', () async {
+        final root = await frProject();
+        expect(
+          () => move(root, 'architecture:shop', 'shop/pay'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'architecture docs cannot move; move takes a user_story or an fr',
+                ),
+          ),
+        );
+        expect(hasDoc(root, shopArchitecture), isTrue);
+      });
     });
 
     group('several stories in one call', () {
@@ -1261,11 +1596,13 @@ void main() {
       });
 
       test('E16: a target of another type refuses the whole call, and nothing moves', () async {
-        final root = await writeNestedProject();
+        final root = await writeNestedProject(
+          extra: {'docs/$addNf': '# Load\n'},
+        );
         expect(
           () => moveAll(root, [
             addItem,
-            'fr:shop/cart/add_item/check_stock',
+            'nf:shop/cart/add_item/load_fast',
           ], 'shop/pay'),
           throwsA(
             isA<WriteFault>().having(
@@ -3146,6 +3483,61 @@ void main() {
         ),
       );
       expect(answer.text, 'dry run: nothing moved\n');
+    });
+
+    test('a dry run of an fr move prints the moves and the closing line and leaves the disk untouched, journal included', () async {
+      final root = await writeNestedProject(extra: frExtras);
+      final answer = untouched(
+        root,
+        (s) => answerMove(
+          s,
+          ['fr:shop/cart/add_item/check_stock'],
+          under: 'shop/pay/refund',
+          dryRun: true,
+        ),
+      );
+      expect(
+        answer.text,
+        startsWith(
+          'moves $shopStory/fr01_check_stock.md to '
+          '$payDir/us02_refund/fr02_check_stock.md\n',
+        ),
+      );
+      expect(answer.text, endsWith('dry run: nothing moved\n'));
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['moved'], [
+        {
+          'from': '$shopStory/fr01_check_stock.md',
+          'to': '$payDir/us02_refund/fr02_check_stock.md',
+        },
+      ]);
+    });
+
+    test("a dry run of a refused fr move gives the apply's refusal", () async {
+      const held = '$cartDir/us02_drop_item/fr03_check_stock.md';
+      final root = await writeNestedProject(
+        extra: {...frExtras, 'docs/$held': '# Check stock\n'},
+      );
+      Object? caught(bool dryRun) {
+        try {
+          writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              ['fr:shop/cart/add_item/check_stock'],
+              under: 'shop/cart/drop_item',
+              dryRun: dryRun,
+            ),
+          );
+        } on WriteFault catch (fault) {
+          return (fault.code, fault.message, fault.file);
+        }
+        return null;
+      }
+
+      final apply = caught(false);
+      expect(apply, isNotNull);
+      expect(caught(true), apply);
     });
 
     test('a move dry run refuses a feature that holds sub-features as the apply does', () async {

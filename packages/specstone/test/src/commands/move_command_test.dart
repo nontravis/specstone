@@ -82,18 +82,25 @@ void main() {
   });
 
   test('another doc type is doc_type_not_movable, exit 64', () async {
-    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    final (:runner, :out, :err) = writeRunner(
+      await writeNestedProject(
+        extra: {'docs/$addItemFolder/nf01_load_fast.md': '# Load\n'},
+      ),
+    );
     expect(
       await runner.run([
         'move',
-        'fr:shop/cart/add_item/check_stock',
+        'nf:shop/cart/add_item/load_fast',
         '--under',
         'shop/pay',
       ]),
       64,
     );
     expect(out.toString(), isEmpty);
-    expect(err.toString(), 'fr docs cannot move; move takes a user_story\n');
+    expect(
+      err.toString(),
+      'nf docs cannot move; move takes a user_story or an fr\n',
+    );
   });
 
   test('no --under is argument_missing, exit 64', () async {
@@ -102,7 +109,7 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(
       err.toString(),
-      'move needs a feature, such as specstone move '
+      'move needs a feature or a story, such as specstone move '
       'user_story:login/reset_password --under account\n',
     );
   });

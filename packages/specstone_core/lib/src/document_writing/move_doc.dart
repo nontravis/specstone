@@ -188,14 +188,11 @@ ReadAnswer answerRename(
   });
 }
 
-/// The doc type `move` takes, as `rewrite_labels.dart` names it.
-const _storyType = 'user_story';
-
-/// Moves the stories [addresses] name to be the last stories of [under], in
-/// the order given, slugs kept, and rewrites every reference to them in one
-/// pass through one journal.
+/// Moves the stories or the FRs [addresses] name to be the last stories of
+/// [under], or the last FRs of the story it names, in the order given, slugs
+/// kept, and rewrites every reference to them in one pass through one journal.
 ///
-/// A story named twice moves once; a story already in [under] stays. Every
+/// A target named twice moves once; one already in [under] stays. Every
 /// target is checked before the lock, so one refused target moves none. In
 /// each code target, the entries of a moved story and its FRs go from the
 /// record of the feature they leave to the record of [under], which the move
@@ -204,11 +201,12 @@ const _storyType = 'user_story';
 /// resolving is listed in the answer.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// `doc_exists` for a clash, among the targets too; an `IndexFault` for no
-/// target, a missing or unknown [under] or a feature that holds sub-features;
-/// a `TemplateFault` `doc_type_unknown` when [under] names a doc type id the
-/// set lacks; `RenderFault` `output_not_writable` for roots the Owner has not
-/// recorded, naming the journal, before any rewrite is planned.
+/// no FR, and `doc_exists` for a clash, among the targets too; an `IndexFault`
+/// for no target, a missing or unknown [under], a call naming both stories and
+/// FRs, or a feature that holds sub-features; a `TemplateFault`
+/// `doc_type_unknown` when [under] names a doc type id the set lacks;
+/// `RenderFault` `output_not_writable` for roots the Owner has not recorded,
+/// naming the journal, before any rewrite is planned.
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
@@ -225,38 +223,30 @@ ReadAnswer answerMove(
   if (under == null) {
     throw missingArgument(
       'move',
-      'a feature',
+      'a feature or a story',
       'specstone move user_story:login/reset_password --under account',
     );
   }
   final targets = _distinct([for (final a in addresses) session.target(a)]);
-  final docType =
-      session.index.typeOf(targets.first) ??
-      (throw StateError('${targets.first.docPath} has no doc type'));
-  for (final target in targets) {
-    final targetType = session.index.typeOf(target);
-    if (targetType?.id == _storyType) continue;
-    throw WriteFault(
-      WriteFaultCode.docTypeNotMovable,
-      '${targetType?.id} docs cannot move; move takes a $_storyType',
-    );
-  }
+  final docType = _movableTypeOf(session, targets);
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
   final newParent = session.parentTarget(under, parentTypeId);
-  final stories = [
+  final moving = [
     for (final target in targets)
       if (session.index.parentOf(target)?.docPath != newParent.docPath) target,
   ];
-  if (stories.isEmpty) {
+  if (moving.isEmpty) {
     return _answerFor(session, const [], const [], dryRun: dryRun);
   }
-  _checkTakesStory(session, newParent, parentTypeId);
+  if (docType.id == storyType) {
+    _checkTakesStory(session, newParent, parentTypeId);
+  }
   // Refuse before the lock; the numbers are taken again inside it, since a
   // concurrent `new` can claim one in between.
-  _storyMoves(session, stories, docType, newParent);
+  _landingMoves(session, moving, docType, newParent);
   return session.locked(() {
-    final moves = _storyMoves(session, stories, docType, newParent);
+    final moves = _landingMoves(session, moving, docType, newParent);
     session.journalTarget.requireTrusted();
     final renamed = renamedNamesOf(session, moves);
     final records = planRecordRewrites(session, renamed);
@@ -286,6 +276,32 @@ ReadAnswer answerMove(
   });
 }
 
+/// Returns the one doc type [targets] carry, a story or an FR.
+///
+/// Throws [WriteFault] `doc_type_not_movable` for the first target of any
+/// other type, then [IndexFault] `argument_invalid` for a call naming both.
+MergedDocType _movableTypeOf(WriteSession session, List<IndexedDoc> targets) {
+  final types = [
+    for (final target in targets)
+      session.index.typeOf(target) ??
+          (throw StateError('${target.docPath} has no doc type')),
+  ];
+  for (final type in types) {
+    if (type.id == storyType || type.id == frType) continue;
+    throw WriteFault(
+      WriteFaultCode.docTypeNotMovable,
+      '${type.id} docs cannot move; move takes a $storyType or an $frType',
+    );
+  }
+  if (types.any((type) => type.id != types.first.id)) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes $storyType targets or $frType targets, not both',
+    );
+  }
+  return types.first;
+}
+
 /// Returns [targets] without a doc named twice, first mention first.
 List<IndexedDoc> _distinct(List<IndexedDoc> targets) {
   final seen = <String>{};
@@ -313,14 +329,14 @@ void _checkTakesStory(
   );
 }
 
-/// Returns the moves that put [stories] last among the stories of
+/// Returns the moves that put [targets] last among the children of
 /// [newParent], in order, each slug kept.
 ///
-/// Throws [WriteFault] `doc_exists` when two stories carry one slug, naming
+/// Throws [WriteFault] `doc_exists` when two targets carry one slug, naming
 /// the first of them, or as [_checkNoClash] does.
-List<PathMove> _storyMoves(
+List<PathMove> _landingMoves(
   WriteSession session,
-  List<IndexedDoc> stories,
+  List<IndexedDoc> targets,
   MergedDocType docType,
   IndexedDoc newParent,
 ) {
@@ -348,18 +364,23 @@ List<PathMove> _storyMoves(
   final highest = siblings.fold(0, (top, s) => max(top, s.number ?? 0));
   final firstOfSlug = <String, IndexedDoc>{};
   final moves = <PathMove>[];
-  for (final story in stories) {
+  for (final target in targets) {
     final shape =
-        DocPathShape.ofDoc(docType, set, story.docPath, target: story.target) ??
-        (throw StateError('${story.docPath} does not match its doc type'));
+        DocPathShape.ofDoc(
+          docType,
+          set,
+          target.docPath,
+          target: target.target,
+        ) ??
+        (throw StateError('${target.docPath} does not match its doc type'));
     final slug =
-        shape.matchOwn(story.docPath.split('/')[shape.ownIndex])?.slug ??
-        (throw StateError('${story.docPath} carries no slug'));
+        shape.matchOwn(target.docPath.split('/')[shape.ownIndex])?.slug ??
+        (throw StateError('${target.docPath} carries no slug'));
     final first = firstOfSlug[slug];
     if (first != null) {
       throw _existsFault(docType, first.docPath, first.docPath);
     }
-    firstOfSlug[slug] = story;
+    firstOfSlug[slug] = target;
     final newDocPath = landedShape.build([
       ...parentValues,
       ...landedShape.ownValues(
@@ -368,7 +389,7 @@ List<PathMove> _storyMoves(
       ),
     ]);
     final move = (
-      from: shape.ownPathOf(story.docPath),
+      from: shape.ownPathOf(target.docPath),
       to: landedShape.ownPathOf(newDocPath),
     );
     _checkNoClash(
