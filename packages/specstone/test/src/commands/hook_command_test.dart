@@ -319,6 +319,40 @@ void main() {
     },
   );
 
+  test('a hand edit of a record doc hands back its findings', () async {
+    final root = await writeCheckProject(
+      extra: {
+        loginRecord:
+            "---\nstatuses:\n  - 'email_login:implemented'\n"
+            "  - 'email_login/check_password:implemented'\nimplements:\n"
+            "  - 'email_login:app/lib/gone.dart:SignInPage'\n"
+            '---\n\n# Login implementation\n',
+      },
+    );
+    final result = await postEdit(
+      root,
+      [root.path, ...loginRecord.split('/')].join(Platform.pathSeparator),
+    );
+    expect(result.status, 0);
+    final decoded = jsonDecode(result.out) as Map<String, Object?>;
+    final specific = decoded['hookSpecificOutput']! as Map<String, Object?>;
+    final lines = (specific['additionalContext']! as String).split('\n');
+    expect(lines.first, startsWith('$loginRecord:'));
+    expect(lines.last, matches(RegExp(r'^\d+ findings?$')));
+  });
+
+  test('a .md file under .specstone outside records prints nothing', () async {
+    final root = await writeCheckProject(
+      extra: {'.specstone/reports/x.md': '# Report\n\nSee [gone](gone.md).\n'},
+    );
+    final result = await postEdit(
+      root,
+      [root.path, '.specstone', 'reports', 'x.md'].join(Platform.pathSeparator),
+    );
+    expect(result.status, 0);
+    expect(result.out, isEmpty);
+  });
+
   test('a file_path that no longer exists prints nothing, exit 0', () async {
     final root = await writeCheckProject();
     final result = await postEdit(
