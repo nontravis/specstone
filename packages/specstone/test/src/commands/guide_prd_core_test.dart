@@ -420,7 +420,11 @@ void main() {
           expect(await runner.run(['guide', id, '--json']), 0, reason: id);
           final json = jsonDecode(out.toString()) as Map<String, Object?>;
           final description = json['description']! as String;
-          expect(description.split('\n'), containsAll(_readabilityLines));
+          expect(
+            description.split('\n'),
+            containsAll(_readabilityLines),
+            reason: id,
+          );
           for (final section
               in (json['sections']! as List).cast<Map<String, Object?>>()) {
             final text = section['description'] as String? ?? '';

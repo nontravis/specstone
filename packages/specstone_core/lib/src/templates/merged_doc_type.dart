@@ -589,7 +589,7 @@ final class MergedLint {
 
   /// Returns the JSON object of this lint with only the keys set.
   ///
-  /// The object is empty when no layer defines a limit or a word list.
+  /// The object is empty when no layer writes a lint key.
   Map<String, Object> toJson() => {
     'maxChars': ?maxChars,
     'maxLines': ?maxLines,

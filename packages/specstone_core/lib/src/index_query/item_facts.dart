@@ -323,8 +323,7 @@ ReadabilityFacts _readabilityOf(
   final isRow = item.kind == SectionItemKind.tableRow;
   final own = isRow ? item.firstLine : item.text;
   final (:notes, :counted) = traceNotesOf(own, idPrefixes, isTableRow: isRow);
-  // RULE-12 names a scenario number apart from an item ID; only an item ID is
-  // stripped.
+  // A scenario number is not an item ID; only an item ID is stripped.
   final id = read != null && !read.isScenario ? read.id.written : null;
   return (
     cells: isRow
