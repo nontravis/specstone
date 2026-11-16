@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/parents.dart'
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
     show legacyFolderIdOf;
+import 'package:specstone_core/src/setup_migration/models/story_fr.dart';
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
@@ -193,13 +194,13 @@ final class LabelTree {
   /// The story and FR numbers of the FR doc that [cell], a `## FR trace` FR
   /// cell of the `api` doc at [apiDocPath], names; null for a cell that
   /// names none.
-  ({int story, int fr})? frNamedBy(String apiDocPath, String cell) {
+  StoryFr? frNamedBy(String apiDocPath, String cell) {
     final place = _placeOf(apiDocPath);
     if (place == null) return null;
     final name = '${place.featureName}/$cell';
     for (final doc in _byFeature[place.feature] ?? const <_TreeDoc>[]) {
       if (doc.kind == _DocKind.fr && doc.name == name) {
-        return (story: doc.story!, fr: doc.fr!);
+        return StoryFr(story: doc.story!, fr: doc.fr!);
       }
     }
     return null;
