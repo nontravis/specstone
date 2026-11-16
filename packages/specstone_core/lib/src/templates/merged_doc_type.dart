@@ -469,6 +469,9 @@ final class SentenceCaps {
   SentenceCaps mergedWith(Map<String, int>? upper) =>
       upper == null ? this : SentenceCaps({...entries, ...upper});
 
+  /// Returns the JSON object of every language key and its cap.
+  Map<String, Object> toJson() => {...entries};
+
   static const _defaultLanguage = 'default';
 }
 
@@ -595,6 +598,9 @@ final class MergedLint {
     'allowedWords': ?allowedWords,
     'bannedPatterns': ?bannedPatterns?.map((p) => p.toJson()).toList(),
     'requiredFieldGroups': ?requiredFieldGroups,
+    'maxSentenceWords': ?maxSentenceWords?.toJson(),
+    'maxSentenceChars': ?maxSentenceChars?.toJson(),
+    'traceNoteLast': ?traceNoteLast,
     'titleNoNumber': ?titleNoNumber,
   };
 }

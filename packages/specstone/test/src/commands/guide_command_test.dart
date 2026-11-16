@@ -1022,6 +1022,33 @@ items:
     );
   });
 
+  group('specstone guide --json in the built CLI with a readability layer', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('--json prints the merged maxSentenceWords map from a project layer, '
+        'and no maxSentenceChars', () async {
+      final project = await writeTree({
+        _configPath: shippedPinsConfig(),
+        '.specstone/templates/domain.yaml':
+            'lint: {max_sentence_words: {default: 30}}\n',
+      });
+
+      final result = await Process.run(binary, [
+        'guide',
+        'domain',
+        '--json',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      final lint = json['lint']! as Map<String, Object?>;
+      expect(lint['maxSentenceWords'], {'default': 30, 'ko': 17});
+      expect(lint.containsKey('maxSentenceChars'), isFalse);
+    });
+  });
+
   group('specstone guide --pattern in the built CLI', () {
     late String binary;
 
