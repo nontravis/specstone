@@ -4,8 +4,10 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show docNameOf;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -145,3 +147,51 @@ List<PathMove> specFolderMovesOf(
   }
   return [for (final key in moves.keys.toList()..sort()) moves[key]!];
 }
+
+/// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
+/// [slug], naming that doc, or a path on disk is where one of [moves] lands,
+/// naming [newDocPath] with that path as its `file`.
+void checkNoClash(
+  WriteSession session,
+  MergedDocType docType,
+  DocPathShape shape,
+  List<String> parentValues,
+  List<SiblingEntry> siblings, {
+  required String slug,
+  required String newDocPath,
+  required List<PathMove> moves,
+}) {
+  for (final sibling in siblings) {
+    if (sibling.slug != slug) continue;
+    final docPath = [
+      '${shape.containerOf(parentValues)}${sibling.name}',
+      ...shape.segments.skip(shape.ownIndex + 1),
+    ].join('/');
+    if (session.fileOf(docPath).existsSync()) {
+      throw existsFault(docType, docPath, docPath);
+    }
+  }
+  for (final move in moves) {
+    if (isOnDisk(session, move.to)) {
+      throw existsFault(docType, newDocPath, move.to);
+    }
+  }
+}
+
+/// Whether a file or folder sits at [docPath], a folder's ending in `/`.
+bool isOnDisk(WriteSession session, String docPath) {
+  final path = docPath.endsWith('/')
+      ? docPath.substring(0, docPath.length - 1)
+      : docPath;
+  final onDisk = session.fileOf(path).path;
+  return FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound;
+}
+
+/// Returns the `doc_exists` fault naming the [docType] doc at [named], its
+/// envelope `file` [file].
+WriteFault existsFault(MergedDocType docType, String named, String file) =>
+    WriteFault(
+      WriteFaultCode.docExists,
+      'a ${docType.id} named ${docNameOf(named, docType)} exists',
+      file: file,
+    );

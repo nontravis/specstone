@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
-import 'package:specstone_core/src/document_writing/move_doc.dart'
-    show existsFault;
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
@@ -16,21 +13,25 @@ import 'package:specstone_core/src/index_query/read_answer.dart'
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns the moves that put each of [features] last under [newParent], or
-/// among the top features when it is null, in the order given: its folder,
-/// then each of its spec and record folders that exists, its slug kept.
+/// among the top features when null, in order: its folder, then each of its
+/// spec and record folders that exists, its slug kept.
 ///
-/// A feature already there stays, so the moves are empty when all do.
-/// Throws [IndexFault] `argument_invalid` for a parent that is a moved
-/// feature or its descendant or holds stories, or a landing past
-/// `max_depth`; then `WriteFault` `doc_exists` for a slug or path taken.
+/// A feature already there, or under a moving ancestor, stays out.
+/// Throws as [_checkParent] and [checkNoClash] do.
 List<PathMove> planFeatureMoves(
   WriteSession session,
   List<IndexedDoc> features, {
   required IndexedDoc? newParent,
 }) {
-  final moving = [
+  final index = session.index;
+  final leaving = [
     for (final feature in features)
-      if (!_sitsUnder(session.index, feature, newParent)) feature,
+      if (!_sitsUnder(index, feature, newParent)) feature,
+  ];
+  final leavingPaths = {for (final feature in leaving) feature.docPath};
+  final moving = [
+    for (final feature in leaving)
+      if (!_hasAncestorIn(index, feature, leavingPaths)) feature,
   ];
   if (moving.isEmpty) return const [];
   final place = _Place.of(session, newParent);
@@ -45,6 +46,14 @@ bool _sitsUnder(DocIndex index, IndexedDoc feature, IndexedDoc? newParent) {
   if (newParent == null) return parent?.docTypeId != featureType;
   return parent?.docPath == newParent.docPath;
 }
+
+/// Whether a doc above [feature] sits at one of [docPaths], so its move
+/// carries [feature].
+bool _hasAncestorIn(DocIndex index, IndexedDoc feature, Set<String> docPaths) =>
+    index
+        .chainOf(feature)
+        .skip(1)
+        .any((ancestor) => docPaths.contains(ancestor.docPath));
 
 /// Where the moved features land: the values of the parent's placeholders
 /// and the nesting depth each moved feature takes.
@@ -123,7 +132,7 @@ int _levelsBelow(DocIndex index, IndexedDoc feature) {
 /// sibling there, each feature's folder before its spec and record folders.
 ///
 /// Throws `WriteFault` `doc_exists` when two features carry one slug, naming
-/// the first of them, or as [_checkNoClash] does.
+/// the first of them, or as [checkNoClash] does.
 List<PathMove> _landingMoves(
   WriteSession session,
   List<IndexedDoc> moving,
@@ -174,9 +183,9 @@ List<PathMove> _landingMoves(
         newDepth: landedShape.depth,
         targetNames: session.index.twinNames,
       ))
-        if (_isOnDisk(session, move.from)) move,
+        if (isOnDisk(session, move.from)) move,
     ];
-    _checkNoClash(
+    checkNoClash(
       session,
       docType,
       landedShape,
@@ -189,39 +198,6 @@ List<PathMove> _landingMoves(
     moves.addAll(featureMoves);
   }
   return moves;
-}
-
-/// Throws `WriteFault` `doc_exists` when a feature of [siblings] carries
-/// [slug], naming its doc, or a path on disk is where one of [moves] lands,
-/// naming that path.
-void _checkNoClash(
-  WriteSession session,
-  MergedDocType docType,
-  DocPathShape shape,
-  List<String> parentValues,
-  List<SiblingEntry> siblings, {
-  required String slug,
-  required String newDocPath,
-  required List<PathMove> moves,
-}) {
-  for (final sibling in siblings) {
-    if (sibling.slug != slug) continue;
-    final docPath = [
-      '${shape.containerOf(parentValues)}${sibling.name}',
-      ...shape.segments.skip(shape.ownIndex + 1),
-    ].join('/');
-    throw existsFault(docType, docPath, docPath);
-  }
-  for (final move in moves) {
-    if (!_isOnDisk(session, move.to)) continue;
-    throw existsFault(docType, newDocPath, move.to);
-  }
-}
-
-/// Whether a file or folder sits at [folder], a DocPath ending in `/`.
-bool _isOnDisk(WriteSession session, String folder) {
-  final path = session.fileOf(folder.substring(0, folder.length - 1)).path;
-  return FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
 }
 
 DocPathShape _shapeOf(

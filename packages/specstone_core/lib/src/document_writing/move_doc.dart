@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
@@ -577,7 +576,7 @@ void _checkTakesStory(
 /// [newParent], in order, each slug kept.
 ///
 /// Throws [WriteFault] `doc_exists` when two targets carry one slug, naming
-/// the first of them, or as [_checkNoClash] does.
+/// the first of them, or as [checkNoClash] does.
 List<PathMove> _landingMoves(
   WriteSession session,
   List<IndexedDoc> targets,
@@ -636,7 +635,7 @@ List<PathMove> _landingMoves(
       from: shape.ownPathOf(target.docPath),
       to: landedShape.ownPathOf(newDocPath),
     );
-    _checkNoClash(
+    checkNoClash(
       session,
       docType,
       landedShape,
@@ -729,9 +728,9 @@ List<PathMove> _renameMoves(
     depth: shape.depth,
     targetNames: session.index.twinNames,
   )) {
-    if (_folderExists(session, move.from)) moves.add(move);
+    if (isOnDisk(session, move.from)) moves.add(move);
   }
-  _checkNoClash(
+  checkNoClash(
     session,
     docType,
     shape,
@@ -743,50 +742,6 @@ List<PathMove> _renameMoves(
   );
   return moves;
 }
-
-/// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
-/// [slug], or a path on disk is where one of [moves] lands; the fault
-/// names [newDocPath].
-void _checkNoClash(
-  WriteSession session,
-  MergedDocType docType,
-  DocPathShape shape,
-  List<String> parentValues,
-  List<SiblingEntry> siblings, {
-  required String slug,
-  required String newDocPath,
-  required List<PathMove> moves,
-}) {
-  for (final sibling in siblings) {
-    if (sibling.slug != slug) continue;
-    final docPath = [
-      '${shape.containerOf(parentValues)}${sibling.name}',
-      ...shape.segments.skip(shape.ownIndex + 1),
-    ].join('/');
-    if (session.fileOf(docPath).existsSync()) {
-      throw existsFault(docType, docPath, docPath);
-    }
-  }
-  for (final move in moves) {
-    final landing = session.fileOf(_withoutClosingSlash(move.to)).path;
-    if (FileSystemEntity.typeSync(landing) == FileSystemEntityType.notFound) {
-      continue;
-    }
-    throw existsFault(docType, newDocPath, move.to);
-  }
-}
-
-String _withoutClosingSlash(String path) =>
-    path.endsWith('/') ? path.substring(0, path.length - 1) : path;
-
-/// Returns the `doc_exists` fault naming the [docType] doc at [named], its
-/// envelope `file` [file].
-WriteFault existsFault(MergedDocType docType, String named, String file) =>
-    WriteFault(
-      WriteFaultCode.docExists,
-      'a ${docType.id} named ${docNameOf(named, docType)} exists',
-      file: file,
-    );
 
 /// Returns the entry of [siblings] named [ownName].
 ///
@@ -858,15 +813,11 @@ List<PathMove> _movesFor(
       depth: shape.depth,
       targetNames: session.index.twinNames,
     )) {
-      if (_folderExists(session, move.from)) moves.add(move);
+      if (isOnDisk(session, move.from)) moves.add(move);
     }
   }
   return moves;
 }
-
-bool _folderExists(WriteSession session, String folder) =>
-    Directory(session.fileOf(folder.substring(0, folder.length - 1)).path)
-        .existsSync();
 
 /// Returns every move twice, as a [MoveStep]: each path to its stage slot,
 /// then each stage slot to its target, so no move lands on a path another

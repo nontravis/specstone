@@ -3,12 +3,15 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, spots;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/write_fixture.dart';
@@ -191,7 +194,52 @@ void main() {
         }
       },
     );
+
+    test('a subtree two features deep is refused past max_depth and moves whole when it fits', () async {
+      final root = await project(deep);
+      expectRefused(
+        root,
+        () => moveAll(root, ['feature:other/a'], under: 'other/ship'),
+        invalid(
+          "other/a would land at depth 4, past the feature template's "
+          'max_depth 3',
+        ),
+      );
+      final answer = moveAll(root, ['feature:other/a'], top: true);
+      expect(movedPairs(answer), ['$other/f03_a/ prds/features/f04_a/']);
+      expect(
+        hasDoc(root, 'prds/features/f04_a/f01_b/f01_c/FEATURE.md'),
+        isTrue,
+      );
+    });
   });
+
+  for (final (place, order) in [
+    ('first', ['feature:shop', 'feature:shop/cart']),
+    ('last', ['feature:shop/cart', 'feature:shop']),
+  ]) {
+    test(
+      'a feature named beside its own ancestor moves inside it, the ancestor named $place',
+      () async {
+        final root = await project();
+        final answer = moveAll(root, order, under: 'other');
+        expect(movedPairs(answer), [
+          '$shop/ $other/f03_shop/',
+          'specs/f02_shop/ specs/f03_other/f03_shop/',
+        ]);
+        expect(answer.text, isNot(contains('cart/ to')));
+        expect(
+          hasDoc(root, '$other/f03_shop/f01_cart/us01_add_item/USER_STORY.md'),
+          isTrue,
+        );
+        expect(
+          hasDoc(root, 'specs/f03_other/f03_shop/f01_cart/DOMAIN.md'),
+          isTrue,
+        );
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      },
+    );
+  }
 
   test('a feature already under its parent, or a top feature given top, stays, and one named twice moves once', () async {
     final root = await project();
