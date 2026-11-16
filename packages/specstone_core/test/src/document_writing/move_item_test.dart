@@ -776,7 +776,7 @@ void main() {
         ],
       );
       final json = move(root, ['domain:shop#INV-3']).json;
-      final mentions = json['mentions'] as List<Object?>;
+      final mentions = json['mentions']! as List<Object?>;
       expect([for (final m in mentions) (m! as Map)['line']], [11]);
     });
 
