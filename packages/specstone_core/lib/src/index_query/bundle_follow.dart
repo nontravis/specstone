@@ -128,19 +128,37 @@ List<AppendedPart> followLinks(
 /// so any other link takes an empty text, which reads as none;
 /// `shaped` tells the two apart. `file` marks a link to a file that is no
 /// `.md` doc.
-typedef _Link = ({LinkText text, bool shaped, bool file});
+final class _Link {
+  const new({required this.text, required this.shaped, required this.file});
+
+  final LinkText text;
+  final bool shaped;
+  final bool file;
+}
 
 /// What a link cites, with the doc it lands in, the `##` section its anchor
 /// names, and the link itself.
-typedef _Cited = ({
-  _DocView view,
-  LinkCite cite,
-  int? sectionIndex,
-  LinkText link,
-});
+final class _Cited {
+  const new({
+    required this.view,
+    required this.cite,
+    required this.sectionIndex,
+    required this.link,
+  });
+
+  final _DocView view;
+  final LinkCite cite;
+  final int? sectionIndex;
+  final LinkText link;
+}
 
 /// The printed text of one doc or part whose links the walk follows.
-typedef _Printed = ({_DocView view, List<LineRange> ranges});
+final class _Printed {
+  const new({required this.view, required this.ranges});
+
+  final _DocView view;
+  final List<LineRange> ranges;
+}
 
 /// One breadth-first walk over the links of a bundle and its parts.
 final class _Walk {
@@ -167,7 +185,7 @@ final class _Walk {
       _queuePrinted(view, view.summaryRanges(bundle.mode));
     } else {
       _whole.add(doc.docPath);
-      _queue.add((view: view, ranges: view.wholeRanges(bundle.mode)));
+      _queue.add(_Printed(view: view, ranges: view.wholeRanges(bundle.mode)));
     }
   }
 
@@ -175,7 +193,7 @@ final class _Walk {
   /// the queue's end, and returns the parts.
   List<AppendedPart> run() {
     for (var i = 0; i < _queue.length; i++) {
-      final (:view, :ranges) = _queue[i];
+      final _Printed(:view, :ranges) = _queue[i];
       for (final range in ranges) {
         _followRange(view, range);
       }
@@ -191,7 +209,7 @@ final class _Walk {
 
   void _queuePrinted(_DocView view, List<LineRange> ranges) {
     (_printedRanges[view.doc.docPath] ??= []).addAll(ranges);
-    _queue.add((view: view, ranges: ranges));
+    _queue.add(_Printed(view: view, ranges: ranges));
   }
 
   void _followRange(_DocView view, LineRange range) {
@@ -327,7 +345,7 @@ final class _Walk {
     final target = anchor == null || anchor.isEmpty
         ? null
         : anchorTargetOf(view.facts, anchor);
-    return (
+    return _Cited(
       view: view,
       cite: classifyLink(link, target: target, sectionAt: view.citedSectionAt),
       sectionIndex: target is SectionTarget ? target.sectionIndex : null,
@@ -581,7 +599,7 @@ final class _DocView {
 
   late final List<String> _lines = content.text.split('\n');
 
-  late final Map<(int, String), List<int>> _sourceColumns = _sourceColumnsOf(
+  late final Map<_SourceKey, List<int>> _sourceColumns = _sourceColumnsOf(
     content,
   );
 
@@ -686,9 +704,9 @@ final class _DocView {
   List<_Link> inSourceOrder(List<_Link> links) {
     if (links.length < 2) return links;
     final lineEnd = lineText(links.first.text.line).length;
-    final taken = <(int, String), int>{};
+    final taken = <_SourceKey, int>{};
     int columnOf(_Link link) {
-      final key = (link.text.line, link.text.shown);
+      final key = _SourceKey(line: link.text.line, shown: link.text.shown);
       final nth = taken[key] ?? 0;
       taken[key] = nth + 1;
       final columns = _sourceColumns[key];
@@ -714,20 +732,40 @@ final class _DocView {
       content.sections.indexWhere((held) => identical(held, section));
 }
 
+/// A link source's file line and its destination as written: where a scan
+/// column and a stored link meet.
+final class _SourceKey {
+  const new({required this.line, required this.shown});
+
+  final int line;
+  final String shown;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _SourceKey && other.line == line && other.shown == shown;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(line, shown);
+}
+
 /// Returns the 0-based column of each link source of [content]'s stored text,
 /// by its file line and destination as written, in source order: the scan
 /// the index placed each link by.
-Map<(int, String), List<int>> _sourceColumnsOf(DocContent content) {
+Map<_SourceKey, List<int>> _sourceColumnsOf(DocContent content) {
   final lf = toLf(content.text);
   final frontmatter = content.frontmatterText ?? '';
   final body = lf.substring(frontmatter.length);
   final firstLine = '\n'.allMatches(frontmatter).length + 1;
-  final columns = <(int, String), List<int>>{};
+  final columns = <_SourceKey, List<int>>{};
   for (final source in linkSourcesOf(body, firstLine: firstLine)) {
     final shown = source.shown;
     if (shown == null) continue;
     final lineStart = body.lastIndexOf('\n', source.offset) + 1;
-    (columns[(source.line, shown)] ??= []).add(source.offset - lineStart);
+    (columns[_SourceKey(line: source.line, shown: shown)] ??= []).add(
+      source.offset - lineStart,
+    );
   }
   return columns;
 }
@@ -747,9 +785,9 @@ List<_Link> _linksOf(LineFacts facts) {
     taken[key] = nth + 1;
     final stored = texts[key];
     if (!file && stored != null && nth < stored.length) {
-      return (text: stored[nth], shaped: true, file: false);
+      return _Link(text: stored[nth], shaped: true, file: false);
     }
-    return (
+    return _Link(
       text: (
         line: place.line,
         column: 0,
