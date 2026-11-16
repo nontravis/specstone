@@ -31,6 +31,7 @@ import '../../helpers/write_fixture.dart' show testHome;
 const _draftPaths = [
   'docs/prds/PROJECT.md',
   'docs/prds/GOAL.md',
+  'docs/prds/GLOSSARY.md',
   'docs/prds/FEATURES.md',
   'docs/prds/GNFR.md',
   'docs/specs/TECH_STACK.md',
@@ -112,7 +113,7 @@ Map<String, String> _bytesUnder(Directory root) {
 }
 
 void main() {
-  test('f06/us03/fr02, f06/us03/s1: an empty folder gets five empty drafts, '
+  test('f06/us03/fr02, f06/us03/s1: an empty folder gets six empty drafts, '
       'then the config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -122,6 +123,7 @@ void main() {
     expect(lines, [
       'created docs/prds/PROJECT.md (draft)',
       'created docs/prds/GOAL.md (draft)',
+      'created docs/prds/GLOSSARY.md (draft)',
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
@@ -183,6 +185,7 @@ void main() {
       expect(lines, [
         'kept docs/prds/PROJECT.md: exists',
         'created docs/prds/GOAL.md (draft)',
+        'created docs/prds/GLOSSARY.md (draft)',
         'created docs/prds/FEATURES.md (draft)',
         'created docs/prds/GNFR.md (draft)',
         'created docs/specs/TECH_STACK.md (draft)',
@@ -201,10 +204,10 @@ void main() {
     final whole = await writeTree({'keep.txt': 'x\n'});
     _run(whole);
     final project = _read(whole, _draftPaths[0]);
-    final features = _read(whole, _draftPaths[2]);
+    final features = _read(whole, _draftPaths[3]);
     final root = await writeTree({
       _draftPaths[0]: project,
-      _draftPaths[2]: features,
+      _draftPaths[3]: features,
     });
 
     final (status, lines) = _run(root);
@@ -213,6 +216,7 @@ void main() {
     expect(lines, [
       'kept docs/prds/PROJECT.md: exists',
       'created docs/prds/GOAL.md (draft)',
+      'created docs/prds/GLOSSARY.md (draft)',
       'kept docs/prds/FEATURES.md: exists',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
@@ -222,10 +226,11 @@ void main() {
       _configLine(),
     ]);
     expect(_read(root, _draftPaths[0]), project);
-    expect(_read(root, _draftPaths[2]), features);
+    expect(_read(root, _draftPaths[3]), features);
   });
 
-  test('rerun keeps project and goal and creates the rest in order', () async {
+  test('rerun keeps project and goal and creates glossary and the rest in '
+      'order', () async {
     final whole = await writeTree({'keep.txt': 'x\n'});
     _run(whole);
     final project = _read(whole, _draftPaths[0]);
@@ -238,9 +243,10 @@ void main() {
     final (status, lines) = _run(root);
 
     expect(status, 0);
-    expect(lines.take(5), [
+    expect(lines.take(6), [
       'kept docs/prds/PROJECT.md: exists',
       'kept docs/prds/GOAL.md: exists',
+      'created docs/prds/GLOSSARY.md (draft)',
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
@@ -248,6 +254,25 @@ void main() {
     expect(_read(root, _draftPaths[0]), project);
     expect(_read(root, _draftPaths[1]), goal);
   });
+
+  test(
+    'init writes GLOSSARY with its title and the bare Terms header',
+    () async {
+      final root = await writeTree({'keep.txt': 'x\n'});
+
+      _run(root);
+
+      expect(
+        _read(root, 'docs/prds/GLOSSARY.md'),
+        allOf(
+          startsWith('---\ndraft: true\n'),
+          contains('\n# glossary\n'),
+          contains('\n## Terms\n'),
+          isNot(contains('\n### ')),
+        ),
+      );
+    },
+  );
 
   test('init writes GOAL with its three headers', () async {
     final root = await writeTree({'keep.txt': 'x\n'});

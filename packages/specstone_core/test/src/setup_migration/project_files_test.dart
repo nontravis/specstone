@@ -370,6 +370,7 @@ void main() {
       expect(singularDocTypes(set).map((type) => type.path), [
         'prds/PROJECT.md',
         'prds/GOAL.md',
+        'prds/GLOSSARY.md',
         'prds/FEATURES.md',
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
@@ -478,6 +479,7 @@ void main() {
       expect(singularDocTypes(set).map((type) => type.path), [
         'prds/PROJECT.md',
         'prds/GOAL.md',
+        'prds/GLOSSARY.md',
         'prds/FEATURES.md',
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
@@ -502,6 +504,7 @@ void main() {
       expect(singularDocTypes(set).map((type) => type.path), [
         'prds/PROJECT.md',
         'prds/GOAL.md',
+        'prds/GLOSSARY.md',
         'prds/FEATURES.md',
         'prds/GNFR.md',
         'specs/TECH_STACK.md',

@@ -32,7 +32,14 @@ const _groupedPaths = {
 };
 
 /// Singular doc types print and write first in this order.
-const _draftOrder = ['project', 'goal', 'features', 'gnfr', 'tech_stack'];
+const _draftOrder = [
+  'project',
+  'goal',
+  'glossary',
+  'features',
+  'gnfr',
+  'tech_stack',
+];
 
 final _idRun = RegExp('[a-z0-9]+');
 final _plainId = RegExp(r'^[a-z][a-z0-9_]*$');

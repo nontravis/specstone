@@ -160,6 +160,7 @@ void main() {
           r'  \.specstone/\.gitignore\n'
           r'  \.specstone/templates/gnfr\.yaml\n'
           r'  prds/GOAL\.md \(draft\)\n'
+          r'  prds/GLOSSARY\.md \(draft\)\n'
           r'  specs/TECH_STACK\.md \(draft\)\n'
           '  agent files: ${2 + skillFileCount} files\\n'
           r'left in place for specstone check:\n'

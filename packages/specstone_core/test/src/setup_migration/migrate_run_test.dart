@@ -210,6 +210,7 @@ void main() {
         '.specstone/templates/gnfr.yaml',
         'docs/specs/TECH_STACK.md',
         'docs/prds/GOAL.md',
+        'docs/prds/GLOSSARY.md',
         'docs/prds/PROJECT.md',
         'docs/prds/FEATURES.md',
         'docs/prds/GNFR.md',
@@ -502,7 +503,7 @@ void main() {
 
   test(
     'f06/us01/fr02/e07, f06/us01/fr06/e06: no moved or rewritten doc holds a '
-    'draft key; TECH_STACK.md and GOAL.md are drafts',
+    'draft key; TECH_STACK.md, GOAL.md, and GLOSSARY.md are drafts',
     () async {
       final root = await gitFixture(acmeLegacy);
       final out = StringBuffer();
@@ -513,6 +514,7 @@ void main() {
         if (file.key == '.specstone/.gitignore') continue;
         if (file.key == 'docs/specs/TECH_STACK.md') continue;
         if (file.key == 'docs/prds/GOAL.md') continue;
+        if (file.key == 'docs/prds/GLOSSARY.md') continue;
         if (skillPaths().contains(file.key)) continue;
         expect(file.value, isNot(contains('draft:')), reason: file.key);
       }
@@ -523,6 +525,11 @@ void main() {
       );
       expect(
         File.fromUri(root.uri.resolve('docs/prds/GOAL.md')).readAsStringSync(),
+        startsWith('---\ndraft: true\n'),
+      );
+      expect(
+        File.fromUri(root.uri.resolve('docs/prds/GLOSSARY.md'))
+            .readAsStringSync(),
         startsWith('---\ndraft: true\n'),
       );
     },
