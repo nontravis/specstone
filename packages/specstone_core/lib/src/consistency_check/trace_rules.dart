@@ -35,9 +35,9 @@ const _whoSeparator = ' who ';
 const _storyVisionKeys = ['vision', 'goals'];
 const _apiType = 'api';
 const _architectureType = 'architecture';
-const _goalsSection = 'goals';
-const _visionIdPrefix = 'PV-';
-const _goalIdPrefix = 'PG-';
+const _goalType = 'goal';
+const _goalKey = 'goal';
+const _goalsKey = 'goals';
 final _servesLine = RegExp(r'^(?:- )?\*\*Serves:\*\*(.*)$');
 
 /// Where a Serves ID may open: an upper-case-led prefix ending `-` that no
@@ -133,9 +133,11 @@ Iterable<Finding> _overrideProblems(
 
 /// Returns the role and vision and goal findings of a typed [doc].
 ///
-/// A role names a project Role entry; vision and goal IDs sit in
-/// the parent feature, if any, and a project heading; a project goal names
-/// its `PV-` headings in `**Serves:**`. Runs only with project in the set.
+/// A role names a project Role entry; a `vision:` ID sits in the parent
+/// feature, if any, and a project heading, and a `goals:` ID in the parent
+/// feature, if any, and a goal block of the goal doc; a goal names visions
+/// and goals of a higher horizon in `**Serves:**`. Runs only with project in
+/// the set.
 Iterable<Finding> checkRolesAndGoals(
   CheckContext context,
   IndexedDoc doc,
@@ -150,7 +152,7 @@ Iterable<Finding> checkRolesAndGoals(
       yield* _storyGoalSets(context, doc);
     case featureType:
       yield* _featureGoalSets(context, doc);
-    case _projectType:
+    case _goalType:
       yield* _goalServes(context, doc);
   }
 }
@@ -220,7 +222,7 @@ Iterable<Finding> _goalSets(
     if (line == null) continue;
     final held = holder?.doc.valuesOf(key).toSet();
     for (final id in doc.valuesOf(key)) {
-      yield* _unresolvedId(context, doc, id, line);
+      yield* _unresolvedId(context, doc, key, id, line);
       if (held != null && !held.contains(id)) {
         yield context.finding(
           doc,
@@ -237,28 +239,23 @@ Iterable<Finding> _goalSets(
 Iterable<Finding> _unresolvedId(
   CheckContext context,
   IndexedDoc doc,
+  String key,
   String id,
   int line,
 ) sync* {
-  if (context.projectHeadingIds().contains(id)) return;
+  final held = key == _goalsKey
+      ? context.goalIds()
+      : context.projectHeadingIds();
+  if (held.contains(id)) return;
   yield context.finding(
     doc,
     FindingKind.visionGoalUnresolved,
     line: line,
-    message: '$id is no heading of the project',
+    message: key == _goalsKey
+        ? '$id is no goal of the goal doc'
+        : '$id is no heading of the project',
     keys: {_idKey: id},
   );
-}
-
-/// Returns the ID a `### PG-` [heading] opens with, as written; null for any
-/// other heading, a lettered ID, and an unreadable ID.
-String? goalKeyOf(String heading) {
-  final text = itemHeadingTextOf(heading);
-  if (text == null) return null;
-  return switch (readItemId(text, _goalIdPrefix)) {
-    ItemId(:final written) => written,
-    _ => null,
-  };
 }
 
 /// The IDs of a Serves line's [text] as the grammar reads each: plain,
@@ -277,39 +274,62 @@ List<String> _servedIdsOf(String text) {
 }
 
 Iterable<Finding> _goalServes(CheckContext context, IndexedDoc doc) sync* {
-  final section = context.heldIndexOf(doc, _goalsSection);
-  if (section == null) return;
-  final blocks = headingBlocksOf(context.bodyLinesOf(doc, section), goalKeyOf);
-  for (final (:key, :lines) in blocks) {
-    final serves = lines
-        .where((line) => !line.fenced)
-        .map(
-          (line) => (line: line.line, match: _servesLine.firstMatch(line.text)),
-        )
-        .where((entry) => entry.match != null)
-        .firstOrNull;
-    final ids = _servedIdsOf(serves?.match!.group(1) ?? '');
-    if (ids.isEmpty) {
-      yield context.finding(
-        doc,
-        FindingKind.goalServesMissing,
-        line: lines.first.line,
-        message: '$key names no vision in a **Serves:** line',
-        keys: {'goal': key},
-      );
-      continue;
-    }
-    for (final id in ids) {
-      if (id.startsWith(_visionIdPrefix) &&
-          context.projectHeadingIds().contains(id)) {
-        continue;
-      }
+  final horizons = <String, int>{};
+  for (final block in context.goalBlocks()) {
+    horizons.putIfAbsent(block.key, () => block.horizon);
+  }
+  for (final block in context.goalBlocks()) {
+    if (block.docPath != doc.docPath) continue;
+    yield* _blockServes(context, doc, block, horizons);
+  }
+}
+
+Iterable<Finding> _blockServes(
+  CheckContext context,
+  IndexedDoc doc,
+  GoalBlock block,
+  Map<String, int> horizons,
+) sync* {
+  final serves = block.lines
+      .where((line) => !line.fenced)
+      .map(
+        (line) => (line: line.line, match: _servesLine.firstMatch(line.text)),
+      )
+      .where((entry) => entry.match != null)
+      .firstOrNull;
+  final ids = _servedIdsOf(serves?.match!.group(1) ?? '');
+  if (ids.isEmpty) {
+    yield context.finding(
+      doc,
+      FindingKind.goalServesMissing,
+      line: block.lines.first.line,
+      message: '${block.key} names no vision in a **Serves:** line',
+      keys: {_goalKey: block.key},
+    );
+    return;
+  }
+  for (final id in ids) {
+    final served = horizons[id];
+    if (served == null && context.projectHeadingIds().contains(id)) continue;
+    if (served == null) {
       yield context.finding(
         doc,
         FindingKind.visionGoalUnresolved,
         line: serves!.line,
-        message: '$id is no vision heading of the project',
+        message:
+            '$id is no vision heading of the project and no goal of the '
+            'goal doc',
         keys: {_idKey: id},
+      );
+    } else if (served <= block.horizon) {
+      yield context.finding(
+        doc,
+        FindingKind.goalServesHorizon,
+        line: serves!.line,
+        message:
+            '$id is a goal of the same or a lower horizon than '
+            '${block.key}',
+        keys: {_goalKey: block.key, _idKey: id},
       );
     }
   }

@@ -86,6 +86,7 @@ void main() {
       'vision_goal_widened',
       'vision_goal_unresolved',
       'goal_serves_missing',
+      'goal_serves_horizon',
       'goal_measurement_missing',
       'measurement_goal_unresolved',
       'goal_measurement_duplicate',
@@ -184,6 +185,7 @@ void main() {
     }
     expect(WaitsFor.values.map((w) => w.wire), ['owner', 'agent']);
     for (final kind in [
+      FindingKind.goalServesHorizon,
       FindingKind.goalMeasurementMissing,
       FindingKind.measurementGoalUnresolved,
       FindingKind.goalMeasurementDuplicate,

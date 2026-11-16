@@ -3,8 +3,6 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart'
     show titleLineOf;
-import 'package:specstone_core/src/consistency_check/trace_rules.dart'
-    show goalKeyOf;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show HeadingBlockTarget, anchorTargetOf;
