@@ -4699,6 +4699,10 @@ void _glossaryMoveTests() {
       expect(text, contains(rule), reason: rule);
     }
     expect(text, contains('When the batch also runs the goal move, finish'));
+    expect(
+      text.indexOf('also point each `#domain-glossary` link PROJECT keeps'),
+      lessThan(text.indexOf('run `specstone set --batch')),
+    );
   });
 
   test("f08/us05/fr01/e39: goal-move.md's other-DocPath step leaves "

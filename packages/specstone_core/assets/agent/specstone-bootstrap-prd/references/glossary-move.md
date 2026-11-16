@@ -33,12 +33,12 @@ ignored. An item with no leading bold span has no term and always moves.
 1. Run `specstone get project --out "<file>"`, `<file>` a new
    `<folder>/reports/sdd-engineer.bootstrap.batch.<XXXXXX>.txt`, `<folder>` the path `specstone folder` prints. When the
    batch also runs the goal move, finish its drop first: this `get` then holds PROJECT's current base. Delete each moved
-   entry, and the glossary section once no entry stays in it, then run `specstone set --batch "<file>"`.
-   When the section drops, also point each `#domain-glossary` link PROJECT keeps at `GLOSSARY.md`: `refs` lists no link
-   of PROJECT to itself.
+   entry, and the glossary section once no entry stays in it. When the section drops, also point each
+   `#domain-glossary` link PROJECT keeps at `GLOSSARY.md`, in the same file: `refs` lists no link of PROJECT to itself.
+   Then run `specstone set --batch "<file>"`: no other write to PROJECT follows it.
 2. Run `specstone refs project`. In each PRD or spec doc it lists, repoint each link to the glossary section to
-   `GLOSSARY.md` with no anchor, its path relative to the citing doc,
-   once the section is dropped, in this run or a later one. While an entry stays in the section, each link to it stays;
+   `GLOSSARY.md` with no anchor, its path relative to the citing doc, once the section is dropped, in this run or a
+   later one. While an entry stays in the section, each link to it stays;
    a link to another heading of PROJECT, or to PROJECT with no anchor, stays.
 3. Write a spec doc's link in the code target its DocPath names. Leave the link of an untyped file, such as a design or
    a plan: it is no PRD or spec link.
