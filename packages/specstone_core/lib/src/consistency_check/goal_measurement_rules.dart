@@ -100,14 +100,14 @@ _Goal? _goalNamedBy(
   String? anchor,
   Iterable<_Goal> known,
 ) {
-  final goalDoc = context.index.at(target);
-  if (goalDoc == null || anchor == null || anchor.isEmpty) return null;
-  final named = anchorTargetOf(context.contentOf(goalDoc).lineFacts, anchor);
+  final linked = context.index.at(target);
+  if (linked == null || anchor == null || anchor.isEmpty) return null;
+  final named = anchorTargetOf(context.contentOf(linked).lineFacts, anchor);
   if (named is! HeadingBlockTarget) return null;
   return known
       .where(
         (goal) =>
-            goal.docPath == goalDoc.docPath && goal.line == named.headingLine,
+            goal.docPath == linked.docPath && goal.line == named.headingLine,
       )
       .firstOrNull;
 }

@@ -13,8 +13,9 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 
-const String _goal1Link = measurementHeadLink;
 const _goal2Link = '[Faster sign-in](../../prds/GOAL.md#pg-02--faster-sign-in)';
+const _projectGoalLink =
+    '[Faster sign-in](../../prds/PROJECT.md#pg-02--faster-sign-in)';
 const _secondMeasurement = 'measurements/faster_sign_in/MEASUREMENT.md';
 const _thirdMeasurement = 'measurements/third_run/MEASUREMENT.md';
 const _thirdMetricLink = '[third](../measurements/third_run/MEASUREMENT.md)';
@@ -29,6 +30,16 @@ const Set<FindingKind> _goalKinds = {
   FindingKind.goalMetricMismatch,
   FindingKind.goalMetricUnlinked,
 };
+
+/// The project doc edit that holds a goal the goal doc lacks. The project type
+/// declares no goals section, so the check also gives `section_undeclared`.
+final Map<String, String> _projectGoal = edit(projectDoc, [
+  (
+    '## Role',
+    '## Project goals\n\n### PG-02 — Faster sign-in\n\n**Serves:** PV-01\n'
+        'Sign in under one second.\n\n## Role',
+  ),
+]);
 
 /// A measurement doc whose head holds [head] and whose body holds [scope].
 String _measurement(String head, {String scope = 'Password resets.'}) =>
@@ -90,7 +101,7 @@ void main() {
 
   test('two measurements that link one goal give one duplicate at the goal heading and no missing', () async {
     final project = await writeCheckProject(
-      extra: {'docs/$_secondMeasurement': _measurement(_goal1Link)},
+      extra: {'docs/$_secondMeasurement': _measurement(measurementHeadLink)},
     );
     final finding = _goalFindings(checkOf(project)).single;
     expect(finding.kind, FindingKind.goalMeasurementDuplicate);
@@ -107,7 +118,9 @@ void main() {
     final project = await writeCheckProject(
       extra: {
         ..._goals(secondGoal: true),
-        'docs/$measurementDoc': _measurement('$_goal1Link $_goal2Link'),
+        'docs/$measurementDoc': _measurement(
+          '$measurementHeadLink $_goal2Link',
+        ),
       },
     );
     final finding = _goalFindings(checkOf(project)).single;
@@ -158,7 +171,7 @@ void main() {
       extra: {
         'docs/$measurementDoc': _measurement(
           'No link here.',
-          scope: _goal1Link,
+          scope: measurementHeadLink,
         ),
       },
     );
@@ -168,7 +181,7 @@ void main() {
     ]);
   });
 
-  test('a merged set with no measurement doc type runs no rule (the project type cannot be absent while measurement is held)', () async {
+  test('a merged set with no measurement doc type runs no rule', () async {
     final project = await writeCheckProject(extra: _goals(secondGoal: true));
     final session = ReadSession.open(
       templates: TemplateResolver(
@@ -186,7 +199,12 @@ void main() {
 
   test('a lettered goal heading holds no goal, and a head link to it is no goal link', () async {
     final project = await writeCheckProject(
-      extra: doc(goalDoc, '### PG-01 — ', '### PG-01a — '),
+      extra: {
+        ...doc(goalDoc, '### PG-01 — ', '### PG-01a — '),
+        'docs/$measurementDoc': _measurement(
+          '[Fewer resets](../../prds/GOAL.md#pg-01a--fewer-resets)',
+        ),
+      },
     );
     final report = checkOf(project);
     expect(spots(report, FindingKind.goalMeasurementMissing), isEmpty);
@@ -209,9 +227,8 @@ void main() {
   test('a head whose only link names a goal heading the project doc still holds is measurement_goal_unresolved', () async {
     final project = await writeCheckProject(
       extra: {
-        'docs/$measurementDoc': _measurement(
-          '[Goal](../../prds/PROJECT.md#pg-01--fewer-resets)',
-        ),
+        ..._projectGoal,
+        'docs/$measurementDoc': _measurement(_projectGoalLink),
       },
     );
     final report = checkOf(project);
@@ -221,13 +238,17 @@ void main() {
     expect(spots(report, FindingKind.goalMeasurementMissing), hasLength(1));
   });
 
-  test(
-    'a goal held in PROJECT and in GOAL links one measurement once',
-    () async {
-      final report = checkOf(await writeCheckProject());
-      expect(_goalFindings(report), isEmpty);
-    },
-  );
+  test('a goal held in PROJECT and GOAL links one measurement once', () async {
+    final project = await writeCheckProject(
+      extra: {
+        ..._projectGoal,
+        'docs/$measurementDoc': _measurement(
+          '$measurementHeadLink $_projectGoalLink',
+        ),
+      },
+    );
+    expect(_goalFindings(checkOf(project)), isEmpty);
+  });
 
   test('a merged set with no goal doc type runs no rule', () async {
     final project = await writeCheckProject(
@@ -307,7 +328,9 @@ void main() {
           secondGoal: true,
           metric: '- **Metric:** 50%, see $_metricLink',
         ),
-        'docs/$measurementDoc': _measurement('$_goal1Link $_goal2Link'),
+        'docs/$measurementDoc': _measurement(
+          '$measurementHeadLink $_goal2Link',
+        ),
       },
     );
     final report = checkOf(project);

@@ -8,7 +8,6 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
-const String _goalLink = measurementHeadLink;
 
 String _measurement({
   String title = '# Grounding cost',
@@ -19,7 +18,7 @@ String _measurement({
   String method = '1. Run the task.\n2. Count the calls.\n',
   String openCauses = 'N/A\n',
 }) =>
-    '$title\n\n$_goalLink\n\n'
+    '$title\n\n$measurementHeadLink\n\n'
     '## Scope\n\n- One run per feature.\n\n'
     '## Method\n\n$method\n'
     '${baseline == null ? '' : '## Baseline\n\n$baseline\n'}'
