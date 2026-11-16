@@ -424,7 +424,9 @@ void main() {
           for (final section
               in (json['sections']! as List).cast<Map<String, Object?>>()) {
             final text = section['description'] as String? ?? '';
-            expect(text, isNot(contains(_readabilityLines.first)), reason: id);
+            for (final line in _readabilityLines) {
+              expect(text, isNot(contains(line)), reason: id);
+            }
           }
         }
       },

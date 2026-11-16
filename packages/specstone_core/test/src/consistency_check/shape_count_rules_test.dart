@@ -180,12 +180,17 @@ void main() {
       _sectionLint('statement', _oneSentence),
       edits: fr(checkPasswordStatement, '- A list item.\n\nRefuse it. Log it.'),
     );
-    final over = [
-      for (final f in found)
-        if (f.kind == FindingKind.sentencesOverLimit) f,
-    ];
-    expect(over, hasLength(1));
-    expect(over.single.line, _lineOf(loginFr, 'Refuse it. Log it.'));
+    expect(
+      found.map((f) => f.kind),
+      unorderedEquals([
+        FindingKind.sentencesOverLimit,
+        FindingKind.itemCountOutOfRange,
+      ]),
+    );
+    final over = found.singleWhere(
+      (f) => f.kind == FindingKind.sentencesOverLimit,
+    );
+    expect(over.line, _lineOf(loginFr, 'Refuse it. Log it.'));
   });
 
   test('two statement paragraphs give item_count_out_of_range', () async {
