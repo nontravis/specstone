@@ -18,6 +18,12 @@ void main() {
     );
   });
 
+  test('number sign with no decimal digit counts no word', () {
+    expect(measureSentence('①').words, 0);
+    expect(measureSentence('one ① two').words, 2);
+    expect(measureSentence('2026').words, 1);
+  });
+
   test('dash arrow pipe count no word', () {
     expect(measureSentence('— → |').words, 0);
     expect(measureSentence('one — two → three | four').words, 4);

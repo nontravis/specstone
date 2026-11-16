@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
+import 'package:specstone_core/src/doc_model/inline_holders.dart';
 
 /// What the check counts in one sentence.
 ///
@@ -25,59 +26,61 @@ const _firstVotedCodePoint = 0x0370;
 /// The runs of other scripts and code spans each count the cap over this.
 const _runWeightDivisor = 25;
 
-const _openBracket = 0x5B;
-const _closeBracket = 0x5D;
-const _openParen = 0x28;
-const _closeParen = 0x29;
-const _backslash = 0x5C;
-
 /// The Thai and Lao AM vowels, which add no character.
 final _amVowels = String.fromCharCodes(const [0x0E33, 0x0EB3]);
 
+const _thai = 'th';
+const _lao = 'lo';
+const _khmer = 'km';
+const _myanmar = 'my';
+const _chinese = 'zh';
+const _japanese = 'ja';
+const _korean = 'ko';
+const _arabic = 'ar';
+const _hebrew = 'he';
+const _hindi = 'hi';
+const _greek = 'el';
+
+const _kanaScripts = ['Hiragana', 'Katakana'];
+
+/// The Unicode scripts of each language with no spaces between its words;
+/// Han and kana share one entry, which reads `ja` when kana is present.
+const Map<String, List<String>> _noSpaceScriptNames = {
+  _thai: ['Thai'],
+  _lao: ['Lao'],
+  _khmer: ['Khmer'],
+  _myanmar: ['Myanmar'],
+  _chinese: ['Han', ..._kanaScripts],
+};
+
+/// The Unicode script of each language that spaces its words and has an entry
+/// of its own.
+const Map<String, List<String>> _spacedScriptNames = {
+  _korean: ['Hangul'],
+  _arabic: ['Arabic'],
+  _hebrew: ['Hebrew'],
+  _hindi: ['Devanagari'],
+  _greek: ['Greek'],
+};
+
 typedef _Script = ({String language, RegExp letters});
 
-RegExp _lettersOf(String scripts) =>
-    RegExp('(?=\\p{L})[$scripts]', unicode: true);
-
-String _scriptOf(String name) => '\\p{Script=$name}';
-
-/// The scripts with no spaces between words, `ja` and `zh` as one script.
-final _noSpaceScripts = <_Script>[
-  (language: 'th', letters: _lettersOf(_scriptOf('Thai'))),
-  (language: 'lo', letters: _lettersOf(_scriptOf('Lao'))),
-  (language: 'km', letters: _lettersOf(_scriptOf('Khmer'))),
-  (language: 'my', letters: _lettersOf(_scriptOf('Myanmar'))),
-  (
-    language: 'zh',
-    letters: _lettersOf(
-      [_scriptOf('Han'), _scriptOf('Hiragana'), _scriptOf('Katakana')].join(),
-    ),
-  ),
-];
-
-final RegExp _kanaLetters = _lettersOf(
-  [_scriptOf('Hiragana'), _scriptOf('Katakana')].join(),
+RegExp _lettersOf(List<String> scripts) => RegExp(
+  '(?=\\p{L})[${scripts.map((name) => '\\p{Script=$name}').join()}]',
+  unicode: true,
 );
 
-/// The scripts that space their words and have a language of their own.
-final _spacedScripts = <_Script>[
-  (language: 'ko', letters: _lettersOf(_scriptOf('Hangul'))),
-  (language: 'ar', letters: _lettersOf(_scriptOf('Arabic'))),
-  (language: 'he', letters: _lettersOf(_scriptOf('Hebrew'))),
-  (language: 'hi', letters: _lettersOf(_scriptOf('Devanagari'))),
-  (language: 'el', letters: _lettersOf(_scriptOf('Greek'))),
+List<_Script> _votesOf(Map<String, List<String>> names) => [
+  for (final MapEntry(:key, :value) in names.entries)
+    (language: key, letters: _lettersOf(value)),
 ];
 
+final List<_Script> _noSpaceScripts = _votesOf(_noSpaceScriptNames);
+final List<_Script> _spacedScripts = _votesOf(_spacedScriptNames);
+final RegExp _kanaLetters = _lettersOf(_kanaScripts);
+
 final String _noSpaceClass = [
-  for (final name in [
-    'Thai',
-    'Lao',
-    'Khmer',
-    'Myanmar',
-    'Han',
-    'Hiragana',
-    'Katakana',
-  ])
+  for (final name in _noSpaceScriptNames.values.expand((names) => names))
     '\\p{Script_Extensions=$name}',
 ].join();
 
@@ -89,14 +92,14 @@ final _runs = RegExp(
 );
 
 final _whitespaceRuns = RegExp(r'\s+');
-final _wordPart = RegExp('[\\p{L}\\p{N}$_spanMark]', unicode: true);
-final _letterOrDigit = RegExp(r'[\p{L}\p{N}]', unicode: true);
+final _wordPart = RegExp('[\\p{L}\\p{Nd}$_spanMark]', unicode: true);
+final _letterOrDigit = RegExp(r'[\p{L}\p{Nd}]', unicode: true);
 final _uncounted = RegExp('[\\p{M}\\p{Cf}$_amVowels]', unicode: true);
 
 /// Emphasis marks: every `*`, and each `_` that does not join two word
 /// characters.
 final _emphasisMarks = RegExp(
-  r'\*+|(?<![\p{L}\p{N}])_+|_+(?![\p{L}\p{N}])',
+  r'\*+|(?<![\p{L}\p{Nd}])_+|_+(?![\p{L}\p{Nd}])',
   unicode: true,
 );
 
@@ -109,8 +112,8 @@ SentenceMeasure measureSentence(String markdownSentence) {
   final text = _plainText(markdownSentence);
   final noSpace = _isVotable(text) ? _voteOf(text, _noSpaceScripts) : null;
   if (noSpace != null) {
-    final language = noSpace == 'zh' && _kanaLetters.hasMatch(text)
-        ? 'ja'
+    final language = noSpace == _chinese && _kanaLetters.hasMatch(text)
+        ? _japanese
         : noSpace;
     final (:chars, :runs) = _charsAndRuns(text);
     return (
@@ -165,7 +168,7 @@ String _linkTexts(String text) {
   var from = 0;
   var i = text.indexOf('[');
   while (i >= 0) {
-    final link = _isEscaped(text, i) ? null : _linkAt(text, i);
+    final link = isEscaped(text, i) ? null : linkAt(text, i);
     if (link == null) {
       i = text.indexOf('[', i + 1);
       continue;
@@ -177,43 +180,6 @@ String _linkTexts(String text) {
     i = text.indexOf('[', from);
   }
   return (buffer..write(text.substring(from))).toString();
-}
-
-/// Returns where the link `[text](destination)` opening at [open] ends, or
-/// null when none does.
-({int textEnd, int end})? _linkAt(String text, int open) {
-  final textEnd = _closerOf(text, open, _openBracket, _closeBracket);
-  if (textEnd < 0 ||
-      textEnd + 1 >= text.length ||
-      text.codeUnitAt(textEnd + 1) != _openParen) {
-    return null;
-  }
-  final destEnd = _closerOf(text, textEnd + 1, _openParen, _closeParen);
-  return destEnd < 0 ? null : (textEnd: textEnd, end: destEnd + 1);
-}
-
-/// Returns the offset of the [closer] that matches the [opener] at [open],
-/// skipping escapes and nested pairs; -1 when none matches.
-int _closerOf(String text, int open, int opener, int closer) {
-  var depth = 0;
-  for (var i = open; i < text.length; i++) {
-    if (_isEscaped(text, i)) continue;
-    final unit = text.codeUnitAt(i);
-    if (unit == opener) {
-      depth++;
-    } else if (unit == closer && --depth == 0) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-bool _isEscaped(String text, int at) {
-  var start = at;
-  while (start > 0 && text.codeUnitAt(start - 1) == _backslash) {
-    start--;
-  }
-  return (at - start).isOdd;
 }
 
 /// Whether [text] holds a code point of a script the vote reads.

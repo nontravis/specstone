@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
+import 'package:specstone_core/src/doc_model/inline_holders.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart';
 
 /// A sentence of the check's cut, and whether a `###` heading ends it.
@@ -6,10 +7,8 @@ typedef CheckSentence = ({String text, bool isHeading});
 
 const _space = 0x20;
 const _openBracket = 0x5B;
-const _closeBracket = 0x5D;
 const _openParen = 0x28;
 const _closeParen = 0x29;
-const _backslash = 0x5C;
 
 /// Stops of other scripts, `。`, `！`, `？`, `।`, `؟`, `။`, `។`, that end a
 /// sentence with or without a space after them.
@@ -81,18 +80,18 @@ List<bool> _heldMask(String text) {
   for (final span in spans) {
     hold(span.start, span.end);
   }
-  final spanAt = {for (final span in spans) span.start: span};
+  final spanEnds = {for (final span in spans) span.start: span.end};
   var i = 0;
   while (i < text.length) {
-    final span = spanAt[i];
-    if (span != null) {
-      i = span.end;
+    final spanEnd = spanEnds[i];
+    if (spanEnd != null) {
+      i = spanEnd;
       continue;
     }
-    final end = text.codeUnitAt(i) == _openBracket && !_isEscaped(text, i)
-        ? _linkEnd(text, i, spanAt)
-        : -1;
-    if (end < 0) {
+    final end = text.codeUnitAt(i) == _openBracket && !isEscaped(text, i)
+        ? linkAt(text, i, skips: spanEnds)?.end
+        : null;
+    if (end == null) {
       i++;
       continue;
     }
@@ -100,55 +99,4 @@ List<bool> _heldMask(String text) {
     i = end;
   }
   return held;
-}
-
-/// Returns the offset after the link `[text](destination)` opening at
-/// [open], or -1 when none does.
-int _linkEnd(String text, int open, Map<int, CodeSpan> spanAt) {
-  final textEnd = _closerOf(text, open, _openBracket, _closeBracket, spanAt);
-  if (textEnd < 0 ||
-      textEnd + 1 >= text.length ||
-      text.codeUnitAt(textEnd + 1) != _openParen) {
-    return -1;
-  }
-  final destEnd = _closerOf(text, textEnd + 1, _openParen, _closeParen, spanAt);
-  return destEnd < 0 ? -1 : destEnd + 1;
-}
-
-/// Returns the offset of the [closer] matching the [opener] at [open],
-/// skipping code spans, escapes, and nested pairs; -1 when none matches.
-int _closerOf(
-  String text,
-  int open,
-  int opener,
-  int closer,
-  Map<int, CodeSpan> spanAt,
-) {
-  var depth = 0;
-  var i = open;
-  while (i < text.length) {
-    final span = spanAt[i];
-    if (span != null) {
-      i = span.end;
-      continue;
-    }
-    final unit = text.codeUnitAt(i);
-    if (!_isEscaped(text, i)) {
-      if (unit == opener) {
-        depth++;
-      } else if (unit == closer && --depth == 0) {
-        return i;
-      }
-    }
-    i++;
-  }
-  return -1;
-}
-
-bool _isEscaped(String text, int at) {
-  var start = at;
-  while (start > 0 && text.codeUnitAt(start - 1) == _backslash) {
-    start--;
-  }
-  return (at - start).isOdd;
 }
