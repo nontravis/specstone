@@ -266,6 +266,72 @@ void main() {
       );
     });
 
+    test('a ./ link inside a moved item that resolves the same from the target doc keeps its spelling, item link and plain link alike', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(4)],
+        pay: [
+          _inv(
+            5,
+            'with [INV-4](./../DOMAIN.md#invariants), '
+            '[shop](./../DOMAIN.md) and [rules](./../DOMAIN.md#invariants).',
+          ),
+        ],
+      );
+      writeIn(
+        root,
+        (session) => answerMove(session, [
+          'domain:shop/pay#INV-5',
+        ], under: 'domain:shop/cart'),
+      );
+      expect(
+        _body(root, cartDomain),
+        contains(
+          'with [INV-4](./../DOMAIN.md#invariants), '
+          '[shop](./../DOMAIN.md) and [rules](./../DOMAIN.md#invariants).',
+        ),
+      );
+    });
+
+    test('a definition the move leaves unused is removed, one another link still uses stays', () async {
+      final text = _inv(3, 'holds, see [pay][p].');
+      final root = await _project(
+        shop: [text, '', '[p]: f02_pay/DOMAIN.md#invariants'],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      expect(_body(root, shopDomain), isNot(contains('[p]:')));
+      final shared = await _project(
+        shop: [
+          text,
+          _inv(4, 'holds, see [pay][p].'),
+          '',
+          '[p]: f02_pay/DOMAIN.md#invariants',
+        ],
+      );
+      _move(shared, ['domain:shop#INV-3']);
+      expect(
+        _body(shared, shopDomain),
+        contains('[p]: f02_pay/DOMAIN.md#invariants'),
+      );
+    });
+
+    test('a reference listed from inside a moved item is placed in the target doc, on its own line', () async {
+      const text = 'holds, see [pay][p].';
+      final root = await _project(
+        shop: [
+          _inv(3, text),
+          _inv(4, text),
+          '',
+          '[p]: f02_pay/DOMAIN.md#invariants "Pay"',
+        ],
+      );
+      final answer = _move(root, ['domain:shop#INV-4']);
+      final cart = readDoc(root, cartDomain);
+      expect(
+        answer.text.split('\n').where((line) => line.startsWith('mentions ')),
+        ['mentions $cartDomain:${_lineOf(cart, '[pay][p]')} [pay][p]'],
+      );
+    });
+
     test('a range of reference-style item links stays and is listed', () async {
       final root = await _project(
         shop: [_inv(2), _inv(3), _inv(4), _inv(5)],

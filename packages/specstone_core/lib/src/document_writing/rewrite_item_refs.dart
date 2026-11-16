@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
-    show DocTarget, resolveDocLink;
+    show DocTarget, projectFilePathOf, relativeFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
@@ -79,7 +79,16 @@ final class ItemRefs {
 
   /// The text of each reference left as written, such as a definition that
   /// serves items that part ways, by the DocPath of the doc that holds it.
-  final Map<String, List<String>> listed;
+  final Map<String, List<ListedRef>> listed;
+}
+
+/// A reference an item move leaves as written: its text and the file line the
+/// doc that held it before the move had it on.
+final class ListedRef {
+  const new(this.line, this.text);
+
+  final int line;
+  final String text;
 }
 
 /// Plans [itemRefEdits] and the references it leaves, in one read of the docs.
@@ -141,18 +150,38 @@ TextEdit _composed(
   } else {
     text = lfText;
   }
-  final result = entries?.call(text) ?? text;
+  final kept = body == null ? text : _withoutLines(text, body.removals);
+  final result = entries?.call(kept) ?? kept;
   return result == lfText ? null : result;
 };
+
+/// Returns [lfText] without the first line equal to each of [removals]; a
+/// blank line that would then stand twice stands once.
+String _withoutLines(String lfText, List<String> removals) {
+  if (removals.isEmpty) return lfText;
+  final lines = lfText.split('\n');
+  for (final text in removals) {
+    final at = lines.indexOf(text);
+    if (at < 0) continue;
+    lines.removeAt(at);
+    final isBlankBefore = at > 0 && lines[at - 1].trim().isEmpty;
+    final isBlankAfter = at < lines.length && lines[at].trim().isEmpty;
+    if (isBlankBefore && isBlankAfter) lines.removeAt(at - 1);
+  }
+  return lines.join('\n');
+}
 
 /// A doc text as the index holds it, and with its links set to their new
 /// place.
 final class _Rewritten {
-  const new(this.before, this.after, this.listed);
+  const new(this.before, this.after, this.listed, this.removals);
 
   final String before;
   final String after;
-  final List<String> listed;
+  final List<ListedRef> listed;
+
+  /// The reference definition lines the move left unused, as written.
+  final List<String> removals;
 }
 
 // MARK: - Moved items
@@ -288,14 +317,15 @@ _Rewritten? _linkBodyOf(DocIndex index, IndexedDoc doc, _Moves moves) {
   for (final MapEntry(key: number, value: edits) in plan.edits.entries) {
     lines[number - 1] = _withEdits(lines[number - 1], edits);
   }
-  return _Rewritten(lf, lines.join('\n'), plan.listed);
+  return _Rewritten(lf, lines.join('\n'), plan.listed, plan.removals);
 }
 
 /// What the link rewrite finds in one doc: the edits by file line, and the
 /// references it leaves as written, each as the text a line holds.
 final class _LinkPlan {
   final edits = <int, List<_Edit>>{};
-  final listed = <String>[];
+  final listed = <ListedRef>[];
+  final removals = <String>[];
 
   /// Adds [edit] to file [line] unless an edit starts at the same column.
   void add(int line, _Edit edit) {
@@ -537,7 +567,9 @@ void _planReferences(
         served.every((user) => user.line.place == place);
     if (!isOneWay) {
       if (afters.any((after) => after != null)) {
-        plan.listed.add(lines[definition.line - 1].trim());
+        plan.listed.add(
+          ListedRef(definition.line, lines[definition.line - 1].trim()),
+        );
       }
       continue;
     }
@@ -602,6 +634,7 @@ void _planRebased(
     }
     final text = body.body.substring(destination.start, destination.end);
     if (readLinkTarget(text) case RelativeLink(:final pathEnd)) {
+      if (_reachesSame(text, doc.docPath, span.landing.to.docPath)) continue;
       final rebased = rebasedHref(
         text.substring(0, pathEnd),
         doc.docPath,
@@ -635,7 +668,9 @@ void _planRebasedReferences(
   Set<(int, int)> itemLinks,
 ) {
   final definitions = _definitionsOf(body, lines);
-  for (final link in _refLinksOf(body, lines)) {
+  final links = _refLinksOf(body, lines);
+  final converted = <String, int>{};
+  for (final link in links) {
     final span = moves.spanAt(doc.docPath, link.line);
     if (span == null || moves.isOwnLine(doc.docPath, link.line)) continue;
     if (itemLinks.contains((link.line, link.column))) continue;
@@ -649,7 +684,15 @@ void _planRebasedReferences(
           .replaceFirst(RegExp('^>'), '')
           .trim();
       if (rest.isNotEmpty) {
-        plan.listed.add(lines[link.line - 1].substring(link.column, link.end));
+        plan.listed.add(
+          ListedRef(
+            link.line,
+            lines[link.line - 1].substring(link.column, link.end),
+          ),
+        );
+        continue;
+      }
+      if (_reachesSame(destination, doc.docPath, span.landing.to.docPath)) {
         continue;
       }
       final rebased = rebasedHref(
@@ -661,13 +704,27 @@ void _planRebasedReferences(
       final written = rebased + destination.substring(pathEnd);
       final shown = written.contains(RegExp(r'\s')) ? '<$written>' : written;
       plan.add(link.line, _Edit(link.textEnd + 1, link.end, '($shown)'));
+      converted[link.label] = (converted[link.label] ?? 0) + 1;
+    }
+  }
+  final totals = <String, int>{};
+  for (final link in links) {
+    totals[link.label] = (totals[link.label] ?? 0) + 1;
+  }
+  for (final MapEntry(key: label, value: count) in converted.entries) {
+    if (totals[label] == count) {
+      plan.removals.add(lines[definitions[label]!.line - 1]);
     }
   }
 }
 
 /// Returns the edits of the links of one [line]: one per range and one per
 /// link outside a range, in no order.
-List<_Edit> _editsOn(_Line line, List<_ReadLink> links, List<String> listed) {
+List<_Edit> _editsOn(
+  _Line line,
+  List<_ReadLink> links,
+  List<ListedRef> listed,
+) {
   links.sort((a, b) => a.link.column.compareTo(b.link.column));
   final byLink = {for (final read in links) read.link: read};
   final ranges = itemRangesOn(line.text, [
@@ -730,6 +787,15 @@ _Edit? _linkEdit(_Line line, _ReadLink read) {
       : _Edit(link.column, link.column + old.length, text);
 }
 
+/// Whether [href] reaches the same file from the doc at [from] and from the
+/// doc at [to], so a link moved from one to the other keeps every byte.
+bool _reachesSame(String href, String from, String to) {
+  final before = relativeFilePathOf(href, from);
+  final after = relativeFilePathOf(href, to);
+  if (before == null || after == null) return false;
+  return projectFilePathOf(before, from) == projectFilePathOf(after, to);
+}
+
 /// Whether [destination], written in the doc at [place], reaches the doc at
 /// [docPath] as it is, so a link keeps every byte.
 bool _reaches(String destination, String place, String docPath) =>
@@ -790,7 +856,7 @@ _Edit? _rangeEdit(
   ItemRange range,
   _ReadLink first,
   List<String> ids,
-  List<String> listed,
+  List<ListedRef> listed,
 ) {
   final firstLink = range.first.link;
   final lastLink = range.last.link;
@@ -801,7 +867,12 @@ _Edit? _rangeEdit(
   if (!_isOneLine(line.text, firstLink) || !_isOneLine(line.text, lastLink)) {
     if (firstLink.endLine == firstLink.line &&
         lastLink.endLine == lastLink.line) {
-      listed.add(line.text.substring(firstLink.column, lastLink.endColumn));
+      listed.add(
+        ListedRef(
+          line.number,
+          line.text.substring(firstLink.column, lastLink.endColumn),
+        ),
+      );
     }
     return null;
   }
@@ -1123,24 +1194,33 @@ List<StaleMention> itemMentions(
   final planned = refs ?? planItemRefs(session, landings);
   final edits = planned.edits;
   final found = <StaleMention>[];
+  final afters = <String, String>{};
   for (final doc in index.docs) {
     final before = toLf(index.contentOf(doc).text);
     final edit = edits[doc.docPath];
-    final after = edit == null
+    afters[doc.docPath] = edit == null
         ? before
         : layOutDoc(edit(before) ?? before, session.docTypeAt(doc.docPath));
+  }
+  final landed = {
+    for (final doc in index.docs)
+      doc.docPath: _landedSpans(index, moves, doc, afters[doc.docPath]!),
+  };
+  for (final doc in index.docs) {
+    final after = afters[doc.docPath]!;
     found
       ..addAll(_addressMentions(index, moves, doc.docPath, after, '.md'))
+      ..addAll(_bareMentions(index, moves, doc, after, landed[doc.docPath]!))
       ..addAll(
-        _bareMentions(
+        _listedMentions(
           index,
           moves,
           doc,
-          after,
-          _landedSpans(index, moves, doc, after),
+          planned.listed[doc.docPath],
+          afters,
+          landed,
         ),
-      )
-      ..addAll(_listedMentions(doc, planned.listed[doc.docPath], after));
+      );
   }
   final scope = MentionScope.of(session);
   final files = _mentionFiles(scope);
@@ -1201,21 +1281,73 @@ List<_Span> _landedSpans(
   return spans;
 }
 
-/// The references [doc] keeps as written, at the line [after] holds them.
+/// The references [doc] keeps as written, each at the line its text sits on
+/// after the write: in the doc it stayed in, or in the target doc when it sat
+/// inside a moved item.
+///
+/// A line is found by the place of its text among the lines that hold it in
+/// its region, so a repeated text lands on its own line.
 List<StaleMention> _listedMentions(
+  DocIndex index,
+  _Moves moves,
   IndexedDoc doc,
-  List<String>? listed,
-  String after,
+  List<ListedRef>? listed,
+  Map<String, String> afters,
+  Map<String, List<_Span>> landed,
 ) {
   if (listed == null) return const [];
-  final lines = after.split('\n');
-  return [
-    for (final text in listed)
-      if (lines.indexWhere((line) => line.contains(text)) case final at
-          when at >= 0)
-        (path: doc.docPath, line: at + 1, mention: text),
-  ];
+  final before = toLf(index.contentOf(doc).text).split('\n');
+  final mentions = <StaleMention>[];
+  for (final ref in listed) {
+    final span = moves.spanAt(doc.docPath, ref.line);
+    final path = span?.landing.to.docPath ?? doc.docPath;
+    final after = afters[path]!.split('\n');
+    final region = span == null
+        ? null
+        : landed[path]!.where((s) => s.landing == span.landing).firstOrNull;
+    bool outside(Set<int> skipped, int line) => !skipped.contains(line);
+    final skippedBefore = {
+      for (final other in moves.spans[doc.docPath] ?? const <_Span>[])
+        for (var at = other.first; at <= other.last; at++) at,
+    };
+    final skippedAfter = {
+      for (final other in landed[path]!)
+        for (var at = other.first; at <= other.last; at++) at,
+    };
+    final nth = _linesHolding(
+      before,
+      ref.text,
+      span?.first ?? 1,
+      span?.last ?? before.length,
+      (line) => span != null || outside(skippedBefore, line),
+    ).where((line) => line < ref.line).length;
+    final lines = _linesHolding(
+      after,
+      ref.text,
+      region?.first ?? 1,
+      region?.last ?? after.length,
+      (line) => span != null || outside(skippedAfter, line),
+    );
+    final line = nth < lines.length
+        ? lines[nth]
+        : lines.lastOrNull ?? region?.first ?? ref.line;
+    mentions.add((path: path, line: line, mention: ref.text));
+  }
+  return mentions;
 }
+
+/// Returns the file lines from [first] to [last] of [lines] that hold [text]
+/// and that [isKept] keeps.
+List<int> _linesHolding(
+  List<String> lines,
+  String text,
+  int first,
+  int last,
+  bool Function(int line) isKept,
+) => [
+  for (var at = first; at <= last && at <= lines.length; at++)
+    if (lines[at - 1].contains(text) && isKept(at)) at,
+];
 
 /// The mentions of [lf] that read `<doc address>#<ID>` and name a moved item.
 List<StaleMention> _addressMentions(
