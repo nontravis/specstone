@@ -684,8 +684,10 @@ DocPrint _docBlock(
     if (frontmatter != null) parts.add(frontmatter.trimRight());
   }
   if (mode != BundleMode.query || isTarget) {
-    final head = removeHtmlComments(content.head).trim();
-    if (head.isNotEmpty) parts.add(head);
+    final head = removeHtmlComments(content.head);
+    if (head.trim().isNotEmpty) {
+      parts.add(mode == BundleMode.query ? head.trim() : head.trimRight());
+    }
   }
   final docEntry = citedBy == null ? null : citedDocIn(citedBy, doc);
   final docLines = citedLinesAfter(citedBy, [?docEntry])[0] ?? const [];

@@ -430,6 +430,18 @@ void main() {
       contains('# Buyer anti-persona\n\n## Snapshot\nAbuses refunds.'),
     );
   });
+  test('an implement or design bundle keeps the blank line a leading comment leaves above the title', () async {
+    final i = await indexWith({
+      featureKey: '<!-- c -->\n# Login\n\n## Problem\nUsers sign in.\n',
+    });
+    for (final mode in [BundleMode.implement, BundleMode.design]) {
+      expect(
+        ctxIn(i, 'login/email_login', mode).text,
+        contains('prds/features/f01_login/FEATURE.md <==\n\n# Login\n'),
+        reason: mode.name,
+      );
+    }
+  });
   test('a query on a record prints its head with no frontmatter', () async {
     final i = await indexWith(loginRecords);
     final a = ctxIn(i, 'implementation:login', BundleMode.query);
