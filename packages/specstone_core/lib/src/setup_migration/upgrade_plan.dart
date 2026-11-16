@@ -434,15 +434,22 @@ RunPlan _upgradeRunOf(
     recorded.add(text);
   }
   final cites = runsCitePass(upgrades)
-      ? CitePass.plan([
-          for (final (index, work) in works.indexed)
-            (
-              docPath: work.plannedPath,
-              lf: recorded[index],
-              type: work.docType,
-              target: work.target,
-            ),
-        ], idPrefixes: itemIdPrefixesOf(finalSet.docTypes))
+      ? CitePass.plan(
+          [
+            for (final (index, work) in works.indexed)
+              (
+                docPath: work.plannedPath,
+                lf: recorded[index],
+                type: work.docType,
+                target: work.target,
+              ),
+          ],
+          idPrefixes: itemIdPrefixesOf(finalSet.docTypes),
+          layoutPaths: singularLayoutPathsOf(
+            finalSet,
+            twinNames: twinNamesOf(config.targetNames),
+          ),
+        )
       : null;
   final citedFrom = <String, String>{};
   final laidOutPaths = <String>[];

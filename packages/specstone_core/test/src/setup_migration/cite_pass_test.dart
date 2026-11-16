@@ -7,7 +7,7 @@ import 'package:specstone_core/src/index_query/item_words.dart'
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
-    show parseOverrides;
+    show parseOverrides, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -46,21 +46,31 @@ final MergedSet _set = TemplateResolver().resolveCarried(
 );
 
 /// The cite pass over [docs], each typed by its shipped doc type.
-CitePass _passOf(Map<String, String> docs) => CitePass.plan([
-  for (final MapEntry(key: docPath, value: lf) in docs.entries)
-    (
-      docPath: docPath,
-      lf: lf,
-      type: switch (DocTypeMatcher(
-        _set,
-        targetNames: const [],
-      ).match(docPath)) {
-        MatchedDocType(:final docType) => docType,
-        _ => null,
-      },
-      target: null,
-    ),
-], idPrefixes: _idPrefixes);
+CitePass _passOf(Map<String, String> docs) => CitePass.plan(
+  [
+    for (final MapEntry(key: docPath, value: lf) in docs.entries)
+      (
+        docPath: docPath,
+        lf: lf,
+        type: switch (DocTypeMatcher(
+          _set,
+          targetNames: const [],
+        ).match(docPath)) {
+          MatchedDocType(:final docType) => docType,
+          _ => null,
+        },
+        target: null,
+      ),
+  ],
+  idPrefixes: _idPrefixes,
+  layoutPaths: _layoutPaths,
+);
+
+/// The layout paths of the singular doc types of [_set].
+final Set<String> _layoutPaths = singularLayoutPathsOf(
+  _set,
+  twinNames: const [],
+);
 
 /// The item ID prefixes of [_set].
 final Set<String> _idPrefixes = itemIdPrefixesOf(_set.docTypes);
@@ -154,6 +164,28 @@ void main() {
       ]);
     });
 
+    test("a singular type's layout path stays as written; the same doc by a "
+        'folder-relative path becomes its link', () {
+      const text =
+          '# Sign-up architecture\n\n## Components\n\n'
+          'See `prds/GOAL.md`, docs/prds/GOAL.md, and `../../GOAL.md`.\n';
+      final pass = _passOf({
+        ..._baseDocs,
+        'prds/GOAL.md': '# Project goals\n',
+        'prds/features/f01_login/us01_x/fr01_y.md': text,
+      });
+      const citing = 'prds/features/f01_login/us01_x/fr01_y.md';
+
+      expect(
+        pass.apply(citing, text),
+        endsWith(
+          'See `prds/GOAL.md`, docs/prds/GOAL.md, and '
+          '[goal:goal](../../../GOAL.md).\n',
+        ),
+      );
+      expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 0');
+    });
+
     test('a left cite is cited at its line in the text the run writes', () {
       const body = 'See `login/sso` here.\n';
       const text = '# Sign-up architecture\n\n## Components\n\n$body';
@@ -202,24 +234,28 @@ void main() {
           '.specstone/templates/architecture.yaml': override,
         }),
       );
-      final pass = CitePass.plan([
-        for (final MapEntry(key: docPath, value: lf) in {
-          ..._baseDocs,
-          architecture: text,
-        }.entries)
-          (
-            docPath: docPath,
-            lf: lf,
-            type: switch (DocTypeMatcher(
-              set,
-              targetNames: const [],
-            ).match(docPath)) {
-              MatchedDocType(:final docType) => docType,
-              _ => null,
-            },
-            target: null,
-          ),
-      ], idPrefixes: itemIdPrefixesOf(set.docTypes));
+      final pass = CitePass.plan(
+        [
+          for (final MapEntry(key: docPath, value: lf) in {
+            ..._baseDocs,
+            architecture: text,
+          }.entries)
+            (
+              docPath: docPath,
+              lf: lf,
+              type: switch (DocTypeMatcher(
+                set,
+                targetNames: const [],
+              ).match(docPath)) {
+                MatchedDocType(:final docType) => docType,
+                _ => null,
+              },
+              target: null,
+            ),
+        ],
+        idPrefixes: itemIdPrefixesOf(set.docTypes),
+        layoutPaths: singularLayoutPathsOf(set, twinNames: const []),
+      );
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -254,24 +290,28 @@ void main() {
               'path: $built\nparent:\n',
         }),
       );
-      final pass = CitePass.plan([
-        for (final MapEntry(key: docPath, value: lf) in {
-          ..._baseDocs,
-          built: text,
-        }.entries)
-          (
-            docPath: docPath,
-            lf: lf,
-            type: switch (DocTypeMatcher(
-              set,
-              targetNames: const [],
-            ).match(docPath)) {
-              MatchedDocType(:final docType) => docType,
-              _ => null,
-            },
-            target: null,
-          ),
-      ], idPrefixes: itemIdPrefixesOf(set.docTypes));
+      final pass = CitePass.plan(
+        [
+          for (final MapEntry(key: docPath, value: lf) in {
+            ..._baseDocs,
+            built: text,
+          }.entries)
+            (
+              docPath: docPath,
+              lf: lf,
+              type: switch (DocTypeMatcher(
+                set,
+                targetNames: const [],
+              ).match(docPath)) {
+                MatchedDocType(:final docType) => docType,
+                _ => null,
+              },
+              target: null,
+            ),
+        ],
+        idPrefixes: itemIdPrefixesOf(set.docTypes),
+        layoutPaths: singularLayoutPathsOf(set, twinNames: const []),
+      );
 
       expect(pass.planLine, isNull);
       expect(pass.apply(built, text), text);

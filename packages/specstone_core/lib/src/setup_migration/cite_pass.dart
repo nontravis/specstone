@@ -7,6 +7,8 @@ import 'package:specstone_core/src/index_query/doc_mentions.dart'
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docNameOf, docStructureOf;
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show isSingularLayoutPath;
 import 'package:specstone_core/src/templates/code_point_order.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -75,36 +77,54 @@ typedef _Edit = ({int line, int start, int end, String text});
 ///
 /// It reads each typed doc's body as `check` reads its cite candidates and
 /// resolves each through `resolveCite` over the planned tree, so it rewrites
-/// what `cite_unlinked` reports as one link and keeps every other form.
+/// what `cite_unlinked` reports as one link and keeps every other form. A
+/// singular doc type's layout path is never rewritten.
 final class CitePass {
-  new _(this._tree, this._docTexts, this._reads, this._idPrefixes);
+  new _(
+    this._tree,
+    this._docTexts,
+    this._reads,
+    this._idPrefixes,
+    this._layoutPaths,
+  );
 
   /// Plans the pass over every doc of the run, its text after the earlier
   /// passes; untyped docs are cite targets but are never rewritten.
   ///
   /// - [idPrefixes]: the item ID prefixes of the run's merged set, as
   ///   `itemIdPrefixesOf` gives them.
+  /// - [layoutPaths]: the layout paths of the singular doc types, as
+  ///   `singularLayoutPathsOf` gives them.
   static CitePass plan(
     List<CitePassDoc> docs, {
     required Set<String> idPrefixes,
+    required Set<String> layoutPaths,
   }) {
     final tree = _PlannedCiteTree(docs);
     final reads = <_Read>[];
     final docTexts = <String, String>{};
     for (final (:docPath, :lf, :type, target: _) in docs) {
       if (type == null) continue;
-      final result = _convertDoc(tree, docPath, lf, type, idPrefixes);
+      final result = _convertDoc(
+        tree,
+        docPath,
+        lf,
+        type,
+        idPrefixes,
+        layoutPaths,
+      );
       reads.add((docPath: docPath, type: type, result: result));
       if (result.lf != lf) docTexts[docPath] = result.lf;
     }
     reads.sort((a, b) => compareCodePoints(a.docPath, b.docPath));
-    return CitePass._(tree, docTexts, reads, idPrefixes);
+    return CitePass._(tree, docTexts, reads, idPrefixes, layoutPaths);
   }
 
   final _PlannedCiteTree _tree;
   final Map<String, String> _docTexts;
   final List<_Read> _reads;
   final Set<String> _idPrefixes;
+  final Set<String> _layoutPaths;
 
   /// Returns the text of the doc at [docPath] with its cites converted, [lf]
   /// when it has none to convert.
@@ -142,6 +162,7 @@ final class CitePass {
           text,
           type,
           _idPrefixes,
+          _layoutPaths,
         ).kept,
         null => result.kept,
       })
@@ -159,6 +180,7 @@ _DocResult _convertDoc(
   String lf,
   MergedDocType type,
   Set<String> idPrefixes,
+  Set<String> layoutPaths,
 ) {
   final forms = citeFormsOf(lf, idPrefixes: idPrefixes);
   if (forms.isEmpty) return (lf: lf, rewrites: 0, kept: const []);
@@ -170,6 +192,7 @@ _DocResult _convertDoc(
   for (final form in forms) {
     final candidate = form.candidate;
     if (isSeeTargetCite(seeTargets[candidate.line], candidate)) continue;
+    if (isSingularLayoutPath(candidate.written, layoutPaths)) continue;
     final resolved = resolveCite(tree, docPath, candidate);
     if (resolved is CiteNoDoc) continue;
     if (resolved is CiteLink) {
