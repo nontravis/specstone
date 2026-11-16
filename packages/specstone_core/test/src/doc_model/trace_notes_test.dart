@@ -54,7 +54,7 @@ void main() {
     final read = traceNotesOf('A rule (RULE-1). INV-4 cites it.', _prefixes);
     expect(read.notes, [
       (text: '(RULE-1)', closes: false),
-      (text: 'INV-4 cites it.', closes: true),
+      (text: 'INV-4 cites it', closes: true),
     ]);
     expect(read.counted, 'A rule (RULE-1).');
   });
@@ -98,5 +98,72 @@ void main() {
     final read = traceNotesOf('(RULE-1, RULE-2)', _prefixes);
     expect(read.notes.single.closes, isTrue);
     expect(read.counted, '');
+  });
+
+  test('ownership clause closes its table cell', () {
+    final read = traceNotesOf(
+      '| A | INV-4 owns the recipe. | next |',
+      _prefixes,
+    );
+    expect(read.notes, [(text: 'INV-4 owns the recipe', closes: true)]);
+    expect(read.counted, '| A | | next |');
+  });
+
+  test('ownership clause before more cell text is misplaced', () {
+    final read = traceNotesOf(
+      '| INV-4 owns it. More words | next |',
+      _prefixes,
+    );
+    expect(read.notes, [(text: 'INV-4 owns it', closes: false)]);
+    expect(read.counted, '| INV-4 owns it. More words | next |');
+  });
+
+  test('row with a trailing line feed is still a row', () {
+    final read = traceNotesOf('| A (RULE-1) | B |\n', _prefixes);
+    expect(read.notes, [(text: '(RULE-1)', closes: true)]);
+    expect(read.counted, '| A | B |\n');
+  });
+
+  test('lettered scenario link is no note part', () {
+    expect(traceNotesOf('Rule ([S1a](x.md#a)).', _prefixes).notes, isEmpty);
+    final read = traceNotesOf(
+      'Rule ([S1](x.md#a), [s/y#S2](x.md#a)).',
+      _prefixes,
+    );
+    expect(read.notes.single.closes, isTrue);
+  });
+
+  test('to and comma separators join one group', () {
+    expect(
+      traceNotesOf('Rule (RULE-1 to RULE-3).', _prefixes).notes.single.closes,
+      isTrue,
+    );
+    expect(
+      traceNotesOf('Rule (RULE-1, RULE-3).', _prefixes).notes.single.closes,
+      isTrue,
+    );
+  });
+
+  test('paren held by a code span or escaped is no group', () {
+    expect(traceNotesOf('Use `(RULE-1)` here.', _prefixes).notes, isEmpty);
+    expect(traceNotesOf(r'Use \(RULE-1) here.', _prefixes).notes, isEmpty);
+  });
+
+  test('doc link inside a group is no note', () {
+    expect(
+      traceNotesOf('Rule ([the doc](DOMAIN.md)).', _prefixes).notes,
+      isEmpty,
+    );
+  });
+
+  test('blank line before nested items keeps the note closing', () {
+    final read = traceNotesOf('- A rule (RULE-5).\n\n  - nested', _prefixes);
+    expect(read.notes.single.closes, isTrue);
+    expect(read.counted, '- A rule\n\n  - nested');
+  });
+
+  test('wrapped clause drops quote marks and the stop', () {
+    final read = traceNotesOf('> A rule.\n> INV-4 owns\n> it.', _prefixes);
+    expect(read.notes, [(text: 'INV-4 owns it', closes: true)]);
   });
 }

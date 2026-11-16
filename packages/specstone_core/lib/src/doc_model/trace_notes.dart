@@ -13,57 +13,106 @@ const _openParen = 0x28;
 const _closeParen = 0x29;
 const _pipe = 0x7C;
 const _period = 0x2E;
+const _space = 0x20;
+const _tab = 0x09;
+const _lineFeed = 0x0A;
 
 final _partSeparator = RegExp(r'(?:[,;]\s+|\s+(?:and|to)\s+)');
 final _ownershipWord = RegExp(
   r'\s+(?:owns|cites)(?![\p{L}\p{N}])',
   unicode: true,
 );
+final _wrapMarks = RegExp(r'(?<=\n)[ \t]*(?:>[ \t]?)+');
 final _nestedLine = RegExp(r'^[ \t]+(?:[-+*]|\d{1,9}[.)])[ \t]');
 
+typedef _Span = ({int start, int end});
+
 /// Returns every trace note of [lfItemText] in file order, and the text with
-/// its one closing note removed.
+/// its closing notes removed.
 ///
 /// A note is a group of item references or a clause whose first word is an
 /// item reference and whose second is `owns` or `cites`. A reference is an
-/// item or scenario link, or a bare ID of one of [idPrefixes].
+/// item or scenario link, or a bare ID of one of [idPrefixes]. An item closes
+/// with its last note; a table row closes each cell with that cell's last.
 ({List<TraceNote> notes, String counted}) traceNotesOf(
   String lfItemText,
   Set<String> idPrefixes,
 ) {
   final prefixes = idPrefixes.toList()..sort((a, b) => b.length - a.length);
-  final ownEnd = _ownTextEnd(lfItemText);
-  final own = lfItemText.substring(0, ownEnd);
-  final spans = [..._groupSpans(own, prefixes), ..._clauseSpans(own, prefixes)]
-    ..sort((a, b) => a.start - b.start);
-  final notes = <({int start, int end})>[];
-  for (final span in spans) {
-    if (notes.isEmpty || span.start >= notes.last.end) notes.add(span);
-  }
-  final isRow = _isTableRow(own);
-  // A row's cells each end an item part, so each cell closes its own note.
-  final candidates = isRow ? notes : [if (notes.isNotEmpty) notes.last];
-  final closeEnds = <({int start, int end})>[];
-  for (final note in candidates) {
-    final end = _closeEnd(own, note.end, isRow);
-    if (end != null) closeEnds.add((start: note.start, end: end));
-  }
-  var counted = lfItemText;
-  for (final removal in closeEnds.reversed) {
-    counted =
-        counted.substring(0, removal.start).trimRight() +
-        counted.substring(removal.end);
+  final own = lfItemText.substring(0, _ownTextEnd(lfItemText)).trimRight();
+  final notes = <_Span>[];
+  final closings = <_Span>[];
+  for (final scope in _scopesOf(own)) {
+    final found = _notesIn(own, scope, prefixes);
+    notes.addAll(found);
+    if (found.isEmpty) continue;
+    final end = _closeEnd(own, found.last.end, scope.end);
+    if (end != null) closings.add((start: found.last.start, end: end));
   }
   return (
     notes: [
       for (final note in notes)
         (
-          text: collapseWhitespace(own.substring(note.start, note.end)),
-          closes: closeEnds.any((removal) => removal.start == note.start),
+          text: _noteText(own.substring(note.start, note.end)),
+          closes: closings.any((closing) => closing.start == note.start),
         ),
     ],
-    counted: counted,
+    counted: _withoutSpans(lfItemText, closings),
   );
+}
+
+/// Returns the item's own text range: a table row's cells, else the whole.
+List<_Span> _scopesOf(String own) {
+  if (own.contains('\n') || !own.trimLeft().startsWith('|')) {
+    return [(start: 0, end: own.length)];
+  }
+  final scopes = <_Span>[];
+  var start = own.indexOf('|') + 1;
+  for (var i = start; i < own.length; i++) {
+    if (own.codeUnitAt(i) != _pipe || isEscaped(own, i)) continue;
+    scopes.add((start: start, end: i));
+    start = i + 1;
+  }
+  if (own.substring(start).trim().isNotEmpty) {
+    scopes.add((start: start, end: own.length));
+  }
+  return scopes;
+}
+
+/// Returns the notes of [scope] of [own], as offsets into [own]; a note that
+/// overlaps an earlier one is dropped.
+List<_Span> _notesIn(String own, _Span scope, List<String> prefixes) {
+  final text = own.substring(scope.start, scope.end);
+  final spans = [
+    ..._groupSpans(text, prefixes),
+    ..._clauseSpans(text, prefixes),
+  ]..sort((a, b) => a.start - b.start);
+  final merged = <_Span>[];
+  for (final span in spans) {
+    if (merged.isEmpty || span.start >= merged.last.end) merged.add(span);
+  }
+  return [
+    for (final span in merged)
+      (start: span.start + scope.start, end: span.end + scope.start),
+  ];
+}
+
+/// Returns [text] without each of [spans], the blanks before each dropped.
+String _withoutSpans(String text, List<_Span> spans) {
+  var result = text;
+  for (final span in spans.reversed) {
+    result =
+        result.substring(0, span.start).trimRight() +
+        result.substring(span.end);
+  }
+  return result;
+}
+
+/// Returns a note's text as written: wrapped lines joined, quote marks and
+/// the closing `.` dropped.
+String _noteText(String raw) {
+  final joined = collapseWhitespace(raw.replaceAll(_wrapMarks, ' '));
+  return joined.endsWith('.') ? joined.substring(0, joined.length - 1) : joined;
 }
 
 /// Returns the offset where the item's nested list lines begin, else its end.
@@ -79,17 +128,12 @@ int _ownTextEnd(String text) {
   return text.length;
 }
 
-bool _isTableRow(String own) =>
-    !own.contains('\n') && own.trimLeft().startsWith('|');
-
-/// Returns where the text removed with a note ends when the note closes, else
-/// null: only blanks and one `.` follow it, up to the cell's end in a row.
-int? _closeEnd(String own, int noteEnd, bool isRow) {
+/// Returns where the text removed with a note ends when the note closes its
+/// scope ending at [limit], else null: only blanks and one `.` follow it.
+int? _closeEnd(String own, int noteEnd, int limit) {
   var end = noteEnd;
-  final limit = isRow ? _nextPipe(own, noteEnd) : own.length;
-  var i = noteEnd;
   var sawStop = own.codeUnitAt(noteEnd - 1) == _period;
-  while (i < limit) {
+  for (var i = noteEnd; i < limit; i++) {
     final unit = own.codeUnitAt(i);
     if (unit == _period && !sawStop) {
       sawStop = true;
@@ -97,21 +141,13 @@ int? _closeEnd(String own, int noteEnd, bool isRow) {
     } else if (!_isBlank(unit)) {
       return null;
     }
-    i++;
   }
-  return isRow ? end : limit;
+  return end;
 }
 
-int _nextPipe(String text, int from) {
-  for (var i = from; i < text.length; i++) {
-    if (text.codeUnitAt(i) == _pipe && !isEscaped(text, i)) return i;
-  }
-  return text.length;
-}
+bool _isBlank(int unit) => unit == _space || unit == _tab || unit == _lineFeed;
 
-bool _isBlank(int unit) => unit == 0x20 || unit == 0x09 || unit == 0x0A;
-
-List<({int start, int end})> _groupSpans(String text, List<String> prefixes) {
+List<_Span> _groupSpans(String text, List<String> prefixes) {
   final spans = _heldRuns(text);
   final found = <({int start, int end})>[];
   var i = 0;
@@ -171,7 +207,7 @@ int? _referenceEnd(
     if (link == null) return null;
     final label = text.substring(at + 1, link.textEnd);
     final isReference =
-        _isItemId(label, prefixes) || readScenarioRef(label) != null;
+        _isItemId(label, prefixes) || readScenarioRef(label)?.number is ItemId;
     return isReference ? link.end : null;
   }
   for (final prefix in prefixes) {
@@ -190,7 +226,7 @@ bool _isItemId(String label, List<String> prefixes) {
   return false;
 }
 
-List<({int start, int end})> _clauseSpans(String text, List<String> prefixes) {
+List<_Span> _clauseSpans(String text, List<String> prefixes) {
   final found = <({int start, int end})>[];
   final skips = _heldRuns(text);
   var cursor = 0;
@@ -206,7 +242,7 @@ List<({int start, int end})> _clauseSpans(String text, List<String> prefixes) {
 }
 
 /// Finds [sentence], cut from whitespace-collapsed text, in [text] from [from].
-({int start, int end})? _locate(String text, String sentence, int from) {
+_Span? _locate(String text, String sentence, int from) {
   final pattern = RegExp(
     sentence.split(' ').map(RegExp.escape).join(r'(?:\s|>)+'),
   );
