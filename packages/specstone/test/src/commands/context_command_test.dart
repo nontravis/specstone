@@ -1323,6 +1323,37 @@ void main() {
       },
     );
 
+    test('a bare --out of a 250-byte ASCII name writes both files', () async {
+      final code = 'app/lib/${'a' * 218}.dart';
+      final project = await writeReadProject(extra: {code: ''});
+      final run = readRunner(project);
+
+      expect(
+        await run.runner.run([
+          'context',
+          '--code',
+          code,
+          '--for',
+          'implement',
+          '--out',
+        ]),
+        0,
+        reason: run.err.toString(),
+      );
+
+      final names = [
+        for (final file in Directory(
+          '${project.path}/.specstone/bundles',
+        ).listSync())
+          file.uri.pathSegments.last,
+      ];
+      expect(names, hasLength(2));
+      expect(names.map((name) => utf8.encode(name).length).toList()..sort(), [
+        250,
+        255,
+      ]);
+    });
+
     test(
       'a --code path names one file from the root and from a subfolder',
       () async {

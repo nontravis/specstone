@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -19,6 +20,25 @@ bool isReadOnly(File file) {
       stat.mode & _ownerWriteBit == 0;
 }
 
+/// The most UTF-8 bytes a file name may hold.
+const _fileNameByteCap = 255;
+
+/// Returns `.<name>.<pid>.<hex>.specstone.tmp`, with [name] cut on a code
+/// point boundary so the whole stays within 255 bytes; the pid and random
+/// parts stay whole.
+String _tempNameOf(String name) {
+  final tail = '.$pid.${_randomHex()}.specstone.tmp';
+  final room = _fileNameByteCap - 1 - utf8.encode(tail).length;
+  final kept = StringBuffer();
+  var used = 0;
+  for (final rune in name.runes) {
+    used += utf8.encode(String.fromCharCode(rune)).length;
+    if (used > room) break;
+    kept.writeCharCode(rune);
+  }
+  return '.$kept$tail';
+}
+
 /// Returns 64 random bits as 16 hex digits.
 String _randomHex() => [
   for (var i = 0; i < 2; i++)
@@ -28,7 +48,8 @@ String _randomHex() => [
 /// Writes and flushes [bytes] to a temp sibling of [target] and returns it.
 ///
 /// The temp is `.<target name>.<pid>.<random hex>.specstone.tmp` in [target]'s
-/// folder, so the later rename stays on one volume. The random part keeps two
+/// folder, so the later rename stays on one volume; a long target name is cut
+/// so the temp name stays within 255 bytes. The random part keeps two
 /// isolates of one process, which share a pid, off one temp, and the exclusive
 /// create fails rather than reuse a temp that exists. The empty temp takes the
 /// permission bits of a [target] that exists before any byte lands, so no
@@ -41,10 +62,9 @@ File writeTempSibling(File target, List<int> bytes) {
   final segments = target.uri.pathSegments.where((s) => s.isNotEmpty);
   // Created outside the try: a temp that already exists is another writer's,
   // so the cleanup below must not delete it.
-  final temp = File(
-    '${target.parent.path}${Platform.pathSeparator}'
-    '.${segments.last}.$pid.${_randomHex()}.specstone.tmp',
-  )..createSync(exclusive: true);
+  final tempName = _tempNameOf(segments.last);
+  final temp = File('${target.parent.path}${Platform.pathSeparator}$tempName')
+    ..createSync(exclusive: true);
   try {
     // Opened before the mode narrows, so a read-only mode still takes bytes.
     final sink = temp.openSync(mode: FileMode.writeOnly);
