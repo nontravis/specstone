@@ -79,6 +79,19 @@ void main() {
       );
     });
 
+    test('bundle_refs reads a boolean', () {
+      expect(_parse('bundle_refs: true\n').bundleRefs, isTrue);
+      expect(_parse('bundle_refs: false\n').bundleRefs, isFalse);
+      expect(_parse('path: a/{slug}.md\n').bundleRefs, isNull);
+    });
+
+    test('a bundle_refs that is not a boolean is unknown_value', () {
+      expect(
+        () => _parse('bundle_refs: refs\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'bundle_refs')),
+      );
+    });
+
     test('template_packs/add_doc_type/read_doc_type_file, INV-13: '
         'record_status is an accepted field type', () {
       final layer = _parse('fields: [{id: status_of, type: record_status}]');

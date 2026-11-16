@@ -9,6 +9,7 @@ description: |-
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
 path: prds/PROJECT.md
 bundle: [query, implement, design]
+bundle_refs: true
 fields:
   - id: owner
     type: string

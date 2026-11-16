@@ -1599,6 +1599,14 @@ lint: {banned_words: [simply]}
       expect(shipped().isPerTarget, isFalse);
     });
 
+    test('a later layer sets bundle_refs false', () {
+      final base = project(shipped(), 'bundle_refs: true');
+      expect(base.bundleRefs, isTrue);
+      expect(project(base, 'bundle_refs: false').bundleRefs, isFalse);
+      expect(project(base, 'description: Another').bundleRefs, isTrue);
+      expect(shipped().bundleRefs, isNull);
+    });
+
     test('template_packs/add_doc_type/read_doc_type_file, INV-13: an '
         'item_exact pointer survives the merge, and a record_status field '
         'merges', () {

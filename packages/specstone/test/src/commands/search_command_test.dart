@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
@@ -137,5 +138,30 @@ void main() {
       unknown.err.toString(),
       '--target web: the code targets are flutter, jaspr\n',
     );
+  });
+  group('search --under named by the end of its name', () {
+    test(
+      'search --under takes a unique suffix as it takes the full name',
+      () async {
+        final root = await writeNestedProject();
+        final full = readRunner(root);
+        expect(
+          await full.runner.run(['search', 'shopper', '--under', 'shop/cart']),
+          0,
+        );
+        final short = readRunner(root);
+        expect(
+          await short.runner.run(['search', 'shopper', '--under', 'cart']),
+          0,
+        );
+        expect(short.out.toString(), full.out.toString());
+        expect(short.out.toString(), contains('shop/cart/add_item'));
+      },
+    );
+    test('search --under refuses a suffix of no identity, naming it', () async {
+      final (:runner, :out, :err) = readRunner(await writeNestedProject());
+      expect(await runner.run(['search', 'shopper', '--under', 'art']), 64);
+      expect(err.toString(), 'no doc carries the name art\n');
+    });
   });
 }

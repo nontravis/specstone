@@ -690,4 +690,169 @@ void main() {
       expect(empty.statusOf(none, codeTarget: 'jaspr'), 'planned');
     });
   });
+  group('a name resolved by the end of its identity', () {
+    String featureText(String title) =>
+        '---\nvision:\n  - PV-01\n---\n\n# $title\n\n## Problem\nA problem.\n';
+    Map<String, String> suffixFiles({bool story = true}) => {
+      '.specstone/templates/feature.yaml': 'max_depth: 3\n',
+      'docs/prds/features/f10_foundation/FEATURE.md': featureText('Foundation'),
+      'docs/prds/features/f10_foundation/f01_layout_primitives/FEATURE.md':
+          featureText('Layout primitives'),
+      'docs/prds/features/f10_foundation/f01_layout_primitives/f01_scrolling/FEATURE.md':
+          featureText('Scrolling'),
+      'docs/prds/features/f10_foundation/f02_scroll_area/FEATURE.md':
+          featureText('Scroll area'),
+      if (story)
+        'docs/prds/features/f10_foundation/f02_scroll_area/us01_scrolling/USER_STORY.md':
+            '# Agent scrolls\n\n## Use Case\nScroll.\n',
+      'docs/prds/features/f11_feedback/FEATURE.md': featureText('Feedback'),
+      'docs/prds/features/f11_feedback/f01_toast/FEATURE.md': featureText(
+        'Toast',
+      ),
+      'docs/prds/features/f12_snackbar/FEATURE.md': featureText('Snackbar'),
+      'docs/prds/features/f12_snackbar/f01_toast/FEATURE.md': featureText(
+        'Toast',
+      ),
+      'docs/prds/features/f13_shop/FEATURE.md': featureText('Shop'),
+      'docs/prds/features/f13_shop/f01_login/FEATURE.md': featureText(
+        'Shop login',
+      ),
+      'docs/prds/notes/old.md': '# Old\n',
+    };
+    const scrollingFeature =
+        'prds/features/f10_foundation/f01_layout_primitives/f01_scrolling/FEATURE.md';
+    Matcher faultWith(IndexFaultCode code) =>
+        throwsA(isA<IndexFault>().having((f) => f.code, 'code', code));
+
+    test("a unique suffix resolves to the identity's docs", () async {
+      final tree = await indexWith(suffixFiles(story: false));
+      final full = paths(
+        tree.resolve('foundation/layout_primitives/scrolling'),
+      );
+      expect(full, [scrollingFeature]);
+      expect(paths(tree.resolve('scrolling')), full);
+      expect(paths(tree.resolve('layout_primitives/scrolling')), full);
+    });
+    test('a suffix must start at a segment', () async {
+      final tree = await indexWith(suffixFiles(story: false));
+      expect(
+        () => tree.resolve('ayout_primitives/scrolling'),
+        faultWith(IndexFaultCode.docNotFound),
+      );
+    });
+    test('two identities with one suffix are refused', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(
+        () => tree.resolve('toast'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                'toast ends 2 names: '
+                    'feature:feedback/toast, feature:snackbar/toast',
+              ),
+        ),
+      );
+    });
+    test(
+      'a name carried by several doc types is listed once per doc',
+      () async {
+        final tree = await indexWith({
+          ...suffixFiles(),
+          'docs/specs/f11_feedback/f01_toast/ARCHITECTURE.md': '# Toast\n',
+          'docs/specs/f11_feedback/f01_toast/DOMAIN.md': '# Toast\n',
+        });
+        expect(
+          () => tree.resolve('toast'),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.message,
+              'message',
+              'toast ends 2 names: feature:feedback/toast, '
+                  'feature:snackbar/toast, architecture:feedback/toast, '
+                  'domain:feedback/toast',
+            ),
+          ),
+        );
+      },
+    );
+    test('a typed suffix lists each identity in the same form', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(
+        () => tree.resolve('feature:toast'),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.message,
+            'message',
+            'feature:toast ends 2 names: '
+                'feature:feedback/toast, feature:snackbar/toast',
+          ),
+        ),
+      );
+    });
+    test('a typed suffix matches its type alone', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(paths(tree.resolve('feature:scrolling')), [scrollingFeature]);
+      expect(
+        () => tree.resolve('scrolling'),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+              .having(
+                (f) => f.message,
+                'message',
+                contains('feature:foundation/layout_primitives/scrolling'),
+              )
+              .having(
+                (f) => f.message,
+                'message',
+                contains('user_story:foundation/scroll_area/scrolling'),
+              ),
+        ),
+      );
+    });
+    test('untyped paths never match a suffix', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(
+        () => tree.resolve('notes/old.md'),
+        faultWith(IndexFaultCode.docNotFound),
+      );
+    });
+    test('a carried name beats a suffix', () async {
+      final tree = await indexWith(suffixFiles());
+      expect(paths(tree.resolve('login')), [
+        'prds/features/f01_login/FEATURE.md',
+        'specs/f01_login/API.md',
+        'specs/f01_login/ARCHITECTURE.md',
+        'specs/f01_login/DOMAIN.md',
+        'specs/f01_login/ERROR.md',
+      ]);
+    });
+    test('a suffix keeps only the docs of the code target', () async {
+      final root = await writeTree({
+        '.specstone/templates/architecture.yaml':
+            'id: architecture\nper_target: true\n',
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  flutter:\n    code_root: flutter_lib\n'
+            '  jaspr:\n    code_root: jaspr_lib\n',
+        'flutter_lib/.keep': '',
+        'jaspr_lib/.keep': '',
+        'docs/specs/jaspr/f01_shop/f02_zoom/ARCHITECTURE.md':
+            '# Zoom architecture\n',
+      });
+      final session = openSession(root);
+      addTearDown(session.close);
+      final tree = session.index;
+      expect(paths(tree.resolve('zoom', codeTarget: 'jaspr')), [
+        'specs/jaspr/f01_shop/f02_zoom/ARCHITECTURE.md',
+      ]);
+      expect(
+        () => tree.resolve('zoom', codeTarget: 'flutter'),
+        faultWith(IndexFaultCode.docNotFound),
+      );
+    });
+  });
 }

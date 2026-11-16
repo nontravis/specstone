@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -5,6 +7,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart'
+    show nameWithType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One item link to an item, from the citing doc's `name` and `docType`: the
@@ -13,11 +17,26 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 typedef CitedBy = ({String name, String docType, String? byItem, String line});
 
 /// The lines that cite each item, by the cited item's DocPath and ID.
-typedef CitedByIndex = Map<({String docPath, String itemId}), List<CitedBy>>;
+///
+/// [inline] says where a bundle prints them: right after their item when
+/// true, or as parts of their own ([citedByPartBlock]) when false.
+final class CitedByIndex
+    extends MapView<({String docPath, String itemId}), List<CitedBy>> {
+  new(super.map, {required this.inline});
 
-/// An item a bundle prints whole, whose `by` lines print right after file
-/// line `after` of its doc.
-typedef CitedItem = ({String item, int after, List<CitedBy> by});
+  /// Whether the lines print right after their item.
+  final bool inline;
+}
+
+/// An item a bundle prints whole, in the `##` section `sectionKey` of its
+/// doc, whose `by` lines print right after file line `after` of its doc, or
+/// as a part of their own ([CitedByIndex.inline]).
+typedef CitedItem = ({
+  String item,
+  String sectionKey,
+  int after,
+  List<CitedBy> by,
+});
 
 /// Returns who cites each item, from the links the index stores.
 ///
@@ -26,8 +45,9 @@ typedef CitedItem = ({String item, int after, List<CitedBy> by});
 /// and then line order. An item of a doc whose type's `bundle:` list holds
 /// `design` has none, since that doc prints in every design bundle.
 /// [classifyLink] reads each link, so it is an item link here exactly when
-/// `check` and the follow read it as one.
-CitedByIndex citedByIndex(DocIndex index) {
+/// `check` and the follow read it as one. See [CitedByIndex.inline] for
+/// [inline].
+CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) {
   final docs = <String, _Doc>{};
   _Doc? read(IndexedDoc doc) {
     final typeId = doc.docTypeId;
@@ -55,7 +75,7 @@ CitedByIndex citedByIndex(DocIndex index) {
       }
     }
   }
-  return cited;
+  return CitedByIndex(cited, inline: inline);
 }
 
 /// Returns `  · cited by <name> (<doc type>) <item ID>: <line>` for [by], the
@@ -101,14 +121,20 @@ List<CitedItem> citedItemsIn(
   });
   return [
     for (final (:item, :extent, :by) in found)
-      (item: item, after: extent.last, by: by),
+      (item: item, sectionKey: section.key, after: extent.last, by: by),
   ];
 }
 
 /// Returns the lines of [items] by the file line each prints after; items
 /// that end on one line, nested, keep every line in [items] order.
-Map<int, List<String>> citedLinesAfter(List<CitedItem> items) {
+///
+/// None when [cited] prints its lines as parts ([CitedByIndex.inline]).
+Map<int, List<String>> citedLinesAfter(
+  CitedByIndex? cited,
+  List<CitedItem> items,
+) {
   final after = <int, List<String>>{};
+  if (cited?.inline == false) return after;
   for (final item in items) {
     (after[item.after] ??= []).addAll([
       for (final by in item.by) citedByLineOf(by),
@@ -116,6 +142,21 @@ Map<int, List<String>> citedLinesAfter(List<CitedItem> items) {
   }
   return after;
 }
+
+/// Returns the part that holds the cited-by lines of [item] of [doc]: its
+/// naming line, then one line per citing link.
+///
+/// The naming line names the item's doc, its `#<section key>`, and its
+/// `item <ID>`, then ends ` · cited by <==`.
+String citedByPartBlock(IndexedDoc doc, CitedItem item) =>
+    '==> ${nameWithType(doc)} · ${doc.docPath}#${item.sectionKey}'
+    ' · item ${item.item} · cited by <==\n'
+    '${[for (final by in item.by) citedByLineOf(by)].join('\n')}';
+
+/// Returns the closing-list name of the part [citedByPartBlock] gives for
+/// [item] of [doc], `<name> (<doc type>) · cited by [<ID>]`.
+String citedByListName(IndexedDoc doc, CitedItem item) =>
+    '${nameWithType(doc)} · cited by [${item.item}]';
 
 /// Returns [items] as the `citedBy` objects of `--json`, one per line.
 List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [

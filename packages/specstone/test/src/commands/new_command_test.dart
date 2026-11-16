@@ -557,4 +557,58 @@ sections:
       );
     });
   });
+  group('a parent named by the end of its name', () {
+    const restock =
+        'prds/features/f02_shop/f01_cart/us03_restock/USER_STORY.md';
+    test('new --parent takes a suffix among parent-type docs', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/prds/features/f02_shop/f02_pay/us03_cart/USER_STORY.md':
+              '# Cart\n',
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(
+        root,
+        console: FakeConsole(stdinIsTerminal: true),
+      );
+      expect(
+        await runner.run([
+          'new',
+          'user_story',
+          '--parent',
+          'cart',
+          '--slug',
+          'restock',
+        ]),
+        0,
+      );
+      expect(err.toString(), isEmpty);
+      expect(File('${root.path}/docs/$restock').existsSync(), isTrue);
+    });
+    test(
+      'new --parent takes a parent-type suffix over a carried name',
+      () async {
+        final root = await writeNestedProject(
+          extra: {'docs/prds/personas/cart/PERSONA.md': '# Cart\n'},
+        );
+        final (:runner, :out, :err) = writeRunner(
+          root,
+          console: FakeConsole(stdinIsTerminal: true),
+        );
+        expect(
+          await runner.run([
+            'new',
+            'user_story',
+            '--parent',
+            'cart',
+            '--slug',
+            'restock',
+          ]),
+          0,
+        );
+        expect(err.toString(), isEmpty);
+        expect(File('${root.path}/docs/$restock').existsSync(), isTrue);
+      },
+    );
+  });
 }

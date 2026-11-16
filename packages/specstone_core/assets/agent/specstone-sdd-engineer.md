@@ -28,7 +28,8 @@ and changed code or a batch's findings into drafts.
 - **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
   pass after a design-mode amend): the drafts list, the first author report's drafts plus each doc a fix round or
   pass added; in a fix round, the audit's `Findings:` lines too.
-- **Brief, design path** (design, required): the Owner's approved answers; the document to write or amend.
+- **Brief, design path** (design, required): the Owner's approved answers, each claim with its saved file and line
+  range; the document to write or amend.
 - **Targets** (audit, required): the docs to read.
 - **`feature`** (sync, optional): the feature name the Owner gave; absent, your gate `check` gives the work list.
 - **`picks`** (sync, bootstrap, optional): each Owner pick whose fix lands in a spec doc. Sync: a fix-the-spec pick
@@ -116,14 +117,16 @@ finding.
 **DO:**
 
 - Write docs with `specstone new` and `specstone set` alone: each write leaves a draft; never clear its flag.
-- Read the file each `context --out` call saves per the `specstone-read-sdd` skill, searching it with `Grep` before
-  any `get`.
+- Read the files each `context --out` call saves per the `specstone-read-sdd` skill.
+- In design mode, run no `context` and no `get` for a doc: read each claim's saved file by the brief's line range; a
+  claim with no range is an open question. In audit mode, ground a doc the files lack with its own
+  `context <doc> --for design --out`, never `get`.
 - **Code target** (two or more `targets:`): author passes `--target <name>`, the code
   target its design document's row names, or the doc's DocPath, on each per-target `new`, `get`, and `set`; sync
   takes the `--code` path's code target, or the finding DocPath's, on each per-target `get`, `set`, and `new`, and writes
   code paths to that target's record entry, never to an FR; bootstrap takes the finding DocPath's code target on each
   per-target `new`, `get`, and `set`, else the first listed one for a code pointer on a shared doc or an old file whose
-  path names none; design writes a code target on each per-target spec doc row; design and audit pass no `--target` on
+  path names none; design writes a code target on each per-target spec doc row; audit passes no `--target` on
   `context --for design`.
 - Beyond the `report:` file, write or edit only the one file a design dispatch names, at the host brainstorm
   skill's own path for a design document, else `docs/designs/<YYYY-MM-DD>-<topic>-design.md`, outside the

@@ -13,11 +13,126 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/target_fixture.dart';
+import '../../helpers/temp_tree.dart';
 
 const _projectFile = 'docs/prds/PROJECT.md';
 const _projectLinking =
     '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
     'Login demo; see [resets](../measurements/fewer_resets/MEASUREMENT.md).\n';
+
+/// The shop project the split tests read: a nested feature `shop/cart`, a
+/// sibling story shown in summary, an invariant outside the bundle that the
+/// FR cites, and a topic that cites one edge case of the FR.
+Map<String, String> _shopFiles() => {
+  '.specstone/config.yaml': shippedPinsConfig(),
+  '.specstone/templates/feature.yaml': 'max_depth: 3\n',
+  'docs/prds/PROJECT.md': '# Project context\n\n## Project name\nShop demo\n',
+  'docs/prds/GNFR.md': '# Global non-functional requirements\n\n## Security\n- Keep secrets out.\n',
+  'docs/specs/TECH_STACK.md': '# Tech stack\n\n## Stack\nDart\n',
+  'docs/prds/features/f01_shop/FEATURE.md':
+      '# Shop\n\n## Problem\nShoppers buy things.\n',
+  'docs/prds/features/f01_shop/f01_cart/FEATURE.md':
+      '# Cart\n\n## Problem\nCarts hold items.\n',
+  'docs/prds/features/f01_shop/f01_cart/us01_add_item/USER_STORY.md':
+      '# Agent adds an item\n\n## Use Case\nAdd it.\n',
+  'docs/prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md':
+      '# Check the stock\n\n## Statement\nThe system shall refuse a sold-out item.\n\n'
+      '## Edge cases\n1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n',
+  'docs/prds/features/f01_shop/f01_cart/us02_drop_item/USER_STORY.md':
+      '# Agent drops an item\n\n## Use Case\nDrop it.\n',
+  'docs/specs/f01_shop/DOMAIN.md':
+      '# Shop domain\n\n## Invariants\n- **INV-1** An order holds a line.\n'
+      '- **INV-2** An order has an owner.\n',
+  'docs/prds/features/f02_pay/FEATURE.md':
+      '# Pay\n\n## Problem\nShoppers pay.\n',
+  'docs/specs/f02_pay/DOMAIN.md':
+      '# Pay domain\n\n## Invariants\n- **INV-7** A payment has a payer.\n',
+  'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).\n',
+};
+
+/// The unsplit text of `design shop/cart/add_item` on [_shopFiles], captured
+/// before the split existed.
+const _shopDesignUnsplit =
+    '==> gnfr (gnfr) · prds/GNFR.md <==\n'
+    '# Global non-functional requirements\n'
+    '\n'
+    '## Security\n'
+    '- Keep secrets out.\n'
+    '\n'
+    '==> project (project) · prds/PROJECT.md <==\n'
+    '# Project context\n'
+    '\n'
+    '## Project name\n'
+    'Shop demo\n'
+    '\n'
+    '==> tech_stack (tech_stack) · specs/TECH_STACK.md <==\n'
+    '# Tech stack\n'
+    '\n'
+    '## Stack\n'
+    'Dart\n'
+    '\n'
+    '==> shop (feature) · prds/features/f01_shop/FEATURE.md <==\n'
+    '# Shop\n'
+    '\n'
+    '## Problem\n'
+    'Shoppers buy things.\n'
+    '\n'
+    '==> shop/cart (feature) · prds/features/f01_shop/f01_cart/FEATURE.md <==\n'
+    '# Cart\n'
+    '\n'
+    '## Problem\n'
+    'Carts hold items.\n'
+    '\n'
+    '==> shop/cart/add_item (user_story) · prds/features/f01_shop/f01_cart/us01_add_item/USER_STORY.md <==\n'
+    '# Agent adds an item\n'
+    '\n'
+    '## Use Case\n'
+    'Add it.\n'
+    '\n'
+    '==> shop/cart/add_item/check_stock (fr) · prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md <==\n'
+    '# Check the stock\n'
+    '\n'
+    '## Statement\n'
+    'The system shall refuse a sold-out item.\n'
+    '\n'
+    '## Edge cases\n'
+    '1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
+    '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).\n'
+    '\n'
+    '==> shop/cart/drop_item (user_story) · prds/features/f01_shop/f01_cart/us02_drop_item/USER_STORY.md · summary <==\n'
+    '# Agent drops an item\n'
+    '\n'
+    '## Use Case\n'
+    'Drop it.\n'
+    '\n'
+    '==> shop (domain) · specs/f01_shop/DOMAIN.md <==\n'
+    '# Shop domain\n'
+    '\n'
+    '## Invariants\n'
+    '- **INV-1** An order holds a line.\n'
+    '  · cited by shop/cart/add_item/check_stock (fr) E01: 1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
+    '- **INV-2** An order has an owner.\n'
+    '\n'
+    '==> names: shop (feature) <==\n'
+    '- shop/cart (feature) · 9 tokens\n'
+    '\n'
+    '==> pay (domain) · specs/f02_pay/DOMAIN.md#invariants · item INV-7 · cited <==\n'
+    '- **INV-7** A payment has a payer.\n'
+    '  · cited by shop/cart/add_item/check_stock (fr) E01: 1. E01 — A sold-out item → refused, by [INV-1](../../../../../specs/f01_shop/DOMAIN.md#invariants) and [INV-7](../../../../../specs/f02_pay/DOMAIN.md#invariants).\n'
+    '==> bundle: 9 docs, 510 tokens <==\n'
+    '- gnfr (gnfr)\n'
+    '- project (project)\n'
+    '- tech_stack (tech_stack)\n'
+    '- shop (feature)\n'
+    '- shop/cart (feature)\n'
+    '- shop/cart/add_item (user_story)\n'
+    '- shop/cart/add_item/check_stock (fr)\n'
+    '- shop/cart/drop_item (user_story) · summary\n'
+    '- shop (domain)\n'
+    '- pay (domain) · cited invariants [INV-7]\n'
+    'Read a summary doc whole with: specstone context <name> --for design\n';
 
 void main() {
   late DocIndex index;
@@ -78,7 +193,7 @@ void main() {
       '- login (architecture)',
     ]);
   });
-  test('f01/us05/s2, f01/us05/fr02, s03/inv25, db-r1: a sibling prints marked, title and summary sections only', () {
+  test("a sibling prints marked, title and summary sections only, and a design bundle's next-step line names --for design", () {
     final a = ctx('login/email_login', BundleMode.design);
     expect(
       a.text,
@@ -104,7 +219,7 @@ void main() {
         '- login/reset_password (user_story) · summary\n'
         '- login/reset_password/send_reset_link (fr) · summary\n- login (api)\n- login (architecture)\n'
         '- login (domain)\n- login (error)\n- password_rules (reference) · summary · cited\n'
-        'Read a summary doc whole with: specstone context <name> --for implement\n',
+        'Read a summary doc whole with: specstone context <name> --for design\n',
       ),
     );
     final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
@@ -1120,7 +1235,7 @@ void main() {
       );
       final lines = a.text.split('\n');
       expect(part.doc.name, 'login');
-      expect(part.cited, isFalse);
+      expect(part.kind, BundleEntryKind.pattern);
       expect(part.summary, isFalse);
       expect(lines[part.first - 1], partHead.trimRight());
       expect(
@@ -1131,6 +1246,24 @@ void main() {
         a.entries.where((e) => e.featurePattern == null).length,
         a.entries.length - 2,
       );
+    });
+    test('a split design bundle keeps each feature pattern part in the read-first text', () async {
+      final i = await patterned();
+      final a = answerContext(
+        i,
+        pickBundle(i, 'login/email_login', BundleMode.design, noProject: false),
+        label: 'login/email_login',
+        byCode: false,
+        split: true,
+      );
+
+      expect(a.text, contains(partText));
+      expect(a.text, contains('- sign_in_checks (feature pattern)\n'));
+      expect(a.refs!.text, isNot(contains('sign_in_checks')));
+      expect(a.refs!.text, isNot(contains('link_notes')));
+      expect([
+        for (final e in a.entries) e.featurePattern,
+      ], contains('sign_in_checks'));
     });
   });
 
@@ -1260,7 +1393,7 @@ void main() {
         final a = await storyBundle(BundleMode.design);
         final entry = a.entries.firstWhere((e) => e.doc.name == 'fewer_resets');
 
-        expect(entry.cited, isTrue);
+        expect(entry.kind, BundleEntryKind.cited);
         expect(entry.summary, isFalse);
         expect(entry.sectionKey, isNull);
         expect(entry.itemId, isNull);
@@ -1365,10 +1498,358 @@ void main() {
         final entry = a.entries.firstWhere((e) => e.doc.name == 'fewer_resets');
 
         expect(entry.summary, isTrue);
-        expect(entry.cited, isTrue);
+        expect(entry.kind, BundleEntryKind.cited);
         expect(entry.sectionKey, 'results');
         expect(entry.itemId, isNull);
       },
     );
+  });
+  group('a split bundle', () {
+    const specs = '../../../../specs';
+    const frDoc =
+        'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const inv14 = '[INV-14]($specs/f02_signup/DOMAIN.md#invariants)';
+    const frName = 'login/email_login/validate_credentials';
+    const resetStory =
+        '==> login/reset_password (user_story) · prds/features/f01_login/us02_reset_password/USER_STORY.md · summary <==';
+
+    Future<DocIndex> citingIndex([String statement = 'Lock, by $inv14.']) =>
+        indexWith({
+          'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+              '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+          frDoc: '# Validate credentials\n\n## Statement\n$statement\n',
+          'docs/specs/f02_signup/DOMAIN.md':
+              '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+              '- **INV-14** Locks after five failures.\n',
+          'docs/specs/DOMAIN.md':
+              '# Project domain\n\n## Entities\n- Account\n',
+        });
+    ContextAnswer splitIn(
+      DocIndex i,
+      String target,
+      BundleMode mode, {
+      bool noProject = false,
+      bool summary = false,
+    }) => answerContext(
+      i,
+      pickBundle(i, target, mode, noProject: noProject, summary: summary),
+      label: target,
+      byCode: false,
+      split: true,
+    );
+    String beforeClosing(String text) =>
+        text.substring(0, text.indexOf('\n==> bundle: '));
+    List<String> listOf(String text) => [
+      for (final line in text.split('\n==> bundle: ').last.split('\n').skip(1))
+        if (line.startsWith('- ')) line,
+    ];
+    Future<ContextAnswer> splitShop() async {
+      final session = openSession(await writeTree(_shopFiles()));
+      addTearDown(session.close);
+      return splitIn(session.index, 'shop/cart/add_item', BundleMode.design);
+    }
+
+    test(
+      'a split implement bundle puts the chain in the read-first text',
+      () async {
+        final a = splitIn(await citingIndex(), frName, BundleMode.implement);
+
+        for (final head in [
+          '==> login (feature) · ',
+          '==> login/email_login (user_story) · ',
+          '==> $frName (fr) · ',
+          '==> login (api) · ',
+          '==> login (architecture) · ',
+          '==> tech_stack (tech_stack) · ',
+          '==> project_domain (project_domain) · ',
+        ]) {
+          expect(a.text, contains(head), reason: head);
+        }
+        expect(a.text, isNot(contains('==> project (project) · ')));
+        expect(a.text, isNot(contains('==> gnfr (gnfr) · ')));
+      },
+    );
+    test(
+      'the refs text holds project, gnfr, and the appended rule, each once',
+      () async {
+        final a = splitIn(await citingIndex(), frName, BundleMode.implement);
+
+        for (final head in [
+          '==> project (project) · prds/PROJECT.md <==',
+          '==> gnfr (gnfr) · prds/GNFR.md <==',
+          '==> signup (domain) · specs/f02_signup/DOMAIN.md#invariants · item INV-14 · cited <==',
+        ]) {
+          expect(head.allMatches(a.refs!.text), hasLength(1), reason: head);
+          expect(a.text, isNot(contains(head)), reason: head);
+        }
+        expect(a.refs!.text, isNot(contains('==> login (feature)')));
+      },
+    );
+    test('each text ends with its own list', () async {
+      final a = splitIn(await citingIndex(), frName, BundleMode.implement);
+
+      final refs = listOf(a.refs!.text);
+      expect(refs, [
+        '- gnfr (gnfr)',
+        '- project (project)',
+        '- signup (domain) · cited invariants [INV-14]',
+      ]);
+      expect(listOf(a.text).toSet().intersection(refs.toSet()), isEmpty);
+      expect(listOf(a.text), contains('- tech_stack (tech_stack)'));
+      expect(a.text, endsWith('${listOf(a.text).join('\n')}\n'));
+      expect(a.refs!.text, endsWith('${refs.join('\n')}\n'));
+    });
+    test('a split design bundle puts summary docs in the refs text, and the next-step line closes the refs list only', () async {
+      final a = splitIn(
+        await indexWith(),
+        'login/email_login',
+        BundleMode.design,
+      );
+
+      expect(a.refs!.text, contains(resetStory));
+      expect(a.text, isNot(contains(' · summary')));
+      expect(a.text, isNot(contains('Read a summary doc whole with:')));
+      expect(
+        a.refs!.text,
+        endsWith(
+          '- login/reset_password (user_story) · summary\n'
+          '- login/reset_password/send_reset_link (fr) · summary\n'
+          '- password_rules (reference) · summary · cited\n'
+          'Read a summary doc whole with: specstone context <name> --for design\n',
+        ),
+      );
+    });
+    test('a split design --summary bundle lists each summary doc in the refs text, which the next-step line closes', () async {
+      final a = splitIn(
+        await indexWith(),
+        'login',
+        BundleMode.design,
+        summary: true,
+      );
+
+      expect(listOf(a.refs!.text), [
+        '- gnfr (gnfr)',
+        '- project (project)',
+        '- login/email_login (user_story) · summary',
+        '- login/email_login/validate_credentials (fr) · summary',
+        '- login/email_login/lock_after_failures (fr) · summary',
+        '- login/email_login/login_latency (nf) · summary',
+        '- login/reset_password (user_story) · summary',
+        '- login/reset_password/send_reset_link (fr) · summary',
+        '- password_rules (reference) · summary · cited',
+      ]);
+      expect(
+        a.refs!.text,
+        endsWith(
+          'Read a summary doc whole with: specstone context <name> --for design\n',
+        ),
+      );
+      expect(a.text, isNot(contains(' · summary')));
+      expect(a.text, isNot(contains('Read a summary doc whole with:')));
+      expect(
+        a.refs!.text,
+        contains(
+          '==> bundle: 8 docs, ${tokenSizeOf(beforeClosing(a.refs!.text))} tokens <==',
+        ),
+      );
+    });
+    test('an implement bundle with an appended cut ends its refs list with the next-step line for implement', () async {
+      final i = await indexWith({
+        _projectFile:
+            '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
+            'Login demo; see [results](../measurements/fewer_resets/MEASUREMENT.md#results).\n',
+        'docs/measurements/fewer_resets/MEASUREMENT.md':
+            '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
+            'Newest first.\n\n| Date | Run | Met |\n|---|---|---|\n'
+            '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n',
+      });
+      final a = splitIn(i, 'project', BundleMode.implement);
+
+      expect(
+        a.refs!.text,
+        endsWith(
+          '- fewer_resets (measurement) · summary · cited results\n'
+          'Read a summary doc whole with: specstone context <name> --for implement\n',
+        ),
+      );
+      expect(a.text, isNot(contains('Read a summary doc whole with:')));
+    });
+    test('entries count lines from each text own first line', () async {
+      final a = splitIn(
+        await indexWith(),
+        'login/email_login',
+        BundleMode.design,
+      );
+
+      expect(a.entries.first.first, 1);
+      expect(a.refs!.entries.first.first, 1);
+      for (final text in [a.readFirst, a.refs!]) {
+        final lines = text.text.split('\n');
+        for (final entry in text.entries) {
+          expect(lines[entry.first - 1], startsWith('==> '));
+          expect(entry.last, lessThan(lines.length));
+        }
+      }
+    });
+    test(
+      'the code target line stays first in the read-first text alone',
+      () async {
+        final session = openSession(await writeTwinProject());
+        addTearDown(session.close);
+        final a = answerContext(
+          session.index,
+          pickBundle(
+            session.index,
+            'login/email_login',
+            BundleMode.implement,
+            noProject: false,
+            codeTarget: 'jaspr',
+          ),
+          label: 'jaspr_ws/login.dart',
+          byCode: true,
+          split: true,
+        );
+
+        expect(a.text, startsWith('==> code target: jaspr <==\n==> '));
+        expect(a.refs!.text, startsWith('==> '));
+        expect(a.refs!.text, isNot(contains('code target:')));
+        expect(a.entries.first.first, 2);
+        expect(a.refs!.entries.first.first, 1);
+        expect(a.codeTarget, 'jaspr');
+      },
+    );
+    test('a project target stays read-first', () async {
+      final a = splitIn(await indexWith(), 'project', BundleMode.implement);
+
+      expect(a.text, contains('==> project (project) · prds/PROJECT.md <=='));
+      expect(a.refs!.text, isNot(contains('==> project (project)')));
+      expect(a.refs!.text, contains('==> gnfr (gnfr) · prds/GNFR.md <=='));
+    });
+    test(
+      'the closing line of each text counts its own docs and tokens',
+      () async {
+        final a = splitIn(await citingIndex(), frName, BundleMode.implement);
+
+        final first = beforeClosing(a.text);
+        final refs = beforeClosing(a.refs!.text);
+        expect(
+          a.text,
+          contains('==> bundle: 10 docs, ${tokenSizeOf(first)} tokens <=='),
+        );
+        expect(
+          a.refs!.text,
+          contains('==> bundle: 2 docs, ${tokenSizeOf(refs)} tokens <=='),
+        );
+        expect(a.tokens, tokenSizeOf(first));
+        expect(a.refs!.tokens, tokenSizeOf(refs));
+        expect(a.readFirst.tokens, a.tokens);
+      },
+    );
+    test('the refs text of a bundle with nothing for it holds only its closing list', () async {
+      final a = splitIn(
+        await citingIndex('Lock it.'),
+        frName,
+        BundleMode.implement,
+        noProject: true,
+      );
+
+      expect(a.refs!.text, '==> bundle: 0 docs, 0 tokens <==\n');
+      expect(a.refs!.entries, isEmpty);
+      expect(a.refs!.tokens, 0);
+    });
+    test('an entry carries the kind of its doc or part', () async {
+      final a = await splitShop();
+
+      expect(
+        [for (final e in a.entries) e.kind],
+        [
+          BundleEntryKind.doc,
+          BundleEntryKind.doc,
+          BundleEntryKind.doc,
+          BundleEntryKind.doc,
+          BundleEntryKind.doc,
+          BundleEntryKind.doc,
+          BundleEntryKind.names,
+        ],
+      );
+      expect(
+        [for (final e in a.refs!.entries) e.kind],
+        [
+          BundleEntryKind.doc,
+          BundleEntryKind.doc,
+          BundleEntryKind.citedBy,
+          BundleEntryKind.doc,
+          BundleEntryKind.citedBy,
+          BundleEntryKind.cited,
+          BundleEntryKind.citedBy,
+        ],
+      );
+    });
+    test('names blocks stay read-first with an index line', () async {
+      final a = await splitShop();
+
+      final names = a.entries.singleWhere(
+        (e) => e.kind == BundleEntryKind.names,
+      );
+      final lines = a.text.split('\n');
+      expect(names.doc.name, 'shop');
+      expect(lines[names.first - 1], '==> names: shop (feature) <==');
+      expect(
+        lines.sublist(names.first - 1, names.last).join('\n'),
+        '==> names: shop (feature) <==\n- shop/cart (feature) · 9 tokens',
+      );
+      expect(a.refs!.text, isNot(contains('names:')));
+    });
+    test('a cited-by part sits in the refs text where its item sits in the whole bundle', () async {
+      final a = await splitShop();
+
+      expect(listOf(a.text), [
+        '- tech_stack (tech_stack)',
+        '- shop (feature)',
+        '- shop/cart (feature)',
+        '- shop/cart/add_item (user_story)',
+        '- shop/cart/add_item/check_stock (fr)',
+        '- shop (domain)',
+      ]);
+      expect(listOf(a.refs!.text), [
+        '- gnfr (gnfr)',
+        '- project (project)',
+        '- shop/cart/add_item/check_stock (fr) · cited by [E01]',
+        '- shop/cart/drop_item (user_story) · summary',
+        '- shop (domain) · cited by [INV-1]',
+        '- pay (domain) · cited invariants [INV-7]',
+        '- pay (domain) · cited by [INV-7]',
+      ]);
+      expect(a.text, isNot(contains('· cited by')));
+      expect(
+        a.refs!.text,
+        contains(
+          '==> shop/cart/add_item/check_stock (fr) · prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge_cases · item E01 · cited by <==\n'
+          '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).\n',
+        ),
+      );
+    });
+    test('an unsplit answer is unchanged', () async {
+      final session = openSession(await writeTree(_shopFiles()));
+      addTearDown(session.close);
+      final i = session.index;
+      final a = answerContext(
+        i,
+        pickBundle(
+          i,
+          'shop/cart/add_item',
+          BundleMode.design,
+          noProject: false,
+        ),
+        label: 'shop/cart/add_item',
+        byCode: false,
+      );
+
+      expect(a.text, _shopDesignUnsplit);
+      expect(a.refs, isNull);
+      expect(a.readFirst.text, a.text);
+      expect(a.readFirst.entries, a.entries);
+      expect(a.readFirst.tokens, a.tokens);
+    });
   });
 }

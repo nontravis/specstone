@@ -581,6 +581,13 @@ void main() {
     );
   });
 
+  test(
+    'the shipped prd-core pack is 1.12.0, so the guide-rule keys ride it',
+    () {
+      expect(shippedPackVersions()['prd-core'], '1.12.0');
+    },
+  );
+
   group('the prd-core guide-rule lint', () {
     late MergedSet set;
     setUpAll(() async {

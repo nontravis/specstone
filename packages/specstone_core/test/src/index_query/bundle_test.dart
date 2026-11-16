@@ -175,7 +175,7 @@ void main() {
               .having(
                 (f) => f.message,
                 'message',
-                '--summary takes a doc with children and no parent, such as a feature; $named is not one',
+                '--summary takes a doc with children, such as a feature; $named is not one',
               ),
         ),
       );
@@ -423,6 +423,43 @@ void main() {
       isEmpty,
     );
   });
+  group('joinsRefs', () {
+    Bundle implementBundle(DocIndex i, String target) =>
+        pickBundle(i, target, BundleMode.implement, noProject: false);
+
+    test('joinsRefs reads bundleRefs, never a type id', () async {
+      final i = await indexWith({
+        '.specstone/templates/gnfr.yaml': 'bundle_refs: false\n',
+      });
+      final b = implementBundle(i, 'login/email_login');
+
+      bool joinsRefs(String docPath) => b.joinsRefs(i, i.at(docPath)!);
+      expect(joinsRefs('prds/PROJECT.md'), isTrue);
+      expect(joinsRefs('prds/GNFR.md'), isFalse);
+      expect(joinsRefs('specs/TECH_STACK.md'), isFalse);
+    });
+    test(
+      'a doc the chain picks never joins refs, whatever its doc type sets',
+      () async {
+        final i = await indexWith();
+        final b = implementBundle(i, 'project');
+
+        expect(b.joinsRefs(i, i.at('prds/PROJECT.md')!), isFalse);
+        expect(b.joinsRefs(i, i.at('prds/GNFR.md')!), isTrue);
+      },
+    );
+    test('a doc the bundle does not hold joins no refs', () async {
+      final i = await indexWith();
+      final b = pickBundle(
+        i,
+        'login/email_login',
+        BundleMode.implement,
+        noProject: true,
+      );
+
+      expect(b.joinsRefs(i, i.at('prds/PROJECT.md')!), isFalse);
+    });
+  });
   const shopSpecs = {shopDomain, shopArchitecture, shopApi};
   test("f01/us05/fr01/e19, s03/inv12: implement on shop/cart/add_item gives the chain, shop's spec docs, cartDomain, and the FR", () async {
     final b = pickBundle(
@@ -500,6 +537,88 @@ void main() {
     });
     expect(b.summaryPaths, isEmpty);
     expect(b.nameListTops, {shopFeature});
+  });
+  test('summary takes a nested feature with children', () async {
+    final b = pickBundle(
+      await nestedIndexWith(),
+      'shop/cart',
+      BundleMode.design,
+      noProject: false,
+      summary: true,
+    );
+    expect(b.docPaths, {cartFeature, cartDomain, shopFeature, ...shopSpecs});
+    expect(b.summaryPaths, {cartAdd, cartAddFr, cartDrop});
+    expect(b.nameListTops, {shopFeature});
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payFeature)));
+    expect(b.docPaths.union(b.summaryPaths), isNot(contains(payCard)));
+  });
+  test(
+    'summary on a nested feature holds a deeper feature story in summary',
+    () async {
+      const promo = 'prds/features/f02_shop/f01_cart/f01_promo/FEATURE.md';
+      const coupon =
+          'prds/features/f02_shop/f01_cart/f01_promo/us01_coupon/USER_STORY.md';
+      final b = pickBundle(
+        await nestedIndexWith({
+          'docs/$promo': '# Promo\n',
+          'docs/$coupon': '# Agent uses a coupon\n',
+        }),
+        'shop/cart',
+        BundleMode.design,
+        noProject: false,
+        summary: true,
+      );
+      expect(b.summaryPaths, contains(coupon));
+      expect(b.docPaths, isNot(contains(coupon)));
+      expect(b.summaryPaths, isNot(contains(payCard)));
+    },
+  );
+  test('summary still refuses a story', () async {
+    final nested = await nestedIndexWith();
+    expect(
+      () => pickBundle(
+        nested,
+        'shop/cart/add_item',
+        BundleMode.design,
+        noProject: false,
+        summary: true,
+      ),
+      throwsA(
+        isA<IndexFault>()
+            .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+            .having(
+              (f) => f.message,
+              'message',
+              '--summary takes a doc with children, such as a feature; shop/cart/add_item (user_story) is not one',
+            ),
+      ),
+    );
+  });
+  test('summary still refuses a doc with no children', () async {
+    final nested = await nestedIndexWith();
+    for (final (target, named) in [
+      ('architecture:shop', 'shop (architecture)'),
+      ('project', 'project (project)'),
+    ]) {
+      expect(
+        () => pickBundle(
+          nested,
+          target,
+          BundleMode.design,
+          noProject: false,
+          summary: true,
+        ),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.argumentConflict)
+              .having(
+                (f) => f.message,
+                'message',
+                '--summary takes a doc with children, such as a feature; $named is not one',
+              ),
+        ),
+      );
+    }
   });
   test('sf-c7: design on shop keeps its whole subtree', () async {
     final b = pickBundle(

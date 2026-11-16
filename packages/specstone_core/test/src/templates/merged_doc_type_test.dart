@@ -588,6 +588,32 @@ sections:
       );
     });
 
+    test('the merged schema prints bundleRefs', () {
+      const docType = MergedDocType(
+        id: 'goal',
+        fields: [],
+        lint: MergedLint(),
+        files: [],
+        sections: [],
+        bundle: ['design'],
+        bundleRefs: true,
+      );
+      final json = docType.toJson();
+      expect(json['bundleRefs'], isTrue);
+      final keys = json.keys.toList();
+      expect(keys.indexOf('bundleRefs'), keys.indexOf('bundle') + 1);
+      expect(
+        const MergedDocType(
+          id: 'x',
+          fields: [],
+          lint: MergedLint(),
+          files: [],
+          sections: [],
+        ).toJson().containsKey('bundleRefs'),
+        isFalse,
+      );
+    });
+
     test('printsSummaryFor with no summary_for is true for every target', () {
       const docType = MergedDocType(
         id: 'measurement',

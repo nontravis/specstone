@@ -69,6 +69,10 @@ final class DocIndex {
   final Map<String, List<IndexedDoc>> _byName;
   final Set<String> _chainTypes;
 
+  /// Each `/`-boundary end of a typed doc's Name, to the typed docs whose
+  /// Name ends with it; an untyped doc and a Name's whole text stay out.
+  late final Map<String, List<IndexedDoc>> _bySuffix = _suffixMap(docs);
+
   /// The store-free statuses and tree of [docs], which the check and the
   /// migrate stamp read too.
   final StatusTree statusTree;
@@ -111,15 +115,20 @@ final class DocIndex {
   /// doc is refused, so a whole-doc command never acts on a doc the caller
   /// meant to narrow.
   ///
+  /// A name no doc carries reads as the one identity that ends with it at a
+  /// `/` boundary, among one doc type's docs for `<doc type>:<suffix>`; an
+  /// untyped doc takes no part.
+  ///
   /// [codeTarget], when given, must be one of [targetNames] and keeps a name
   /// to that target's docs and the shared docs; a path names its doc
   /// whatever target.
   ///
   /// Throws an [IndexFault] for a code target [targetNames] holds none of
   /// (`argument_invalid`) or an empty one (`argument_missing`), and
-  /// `argument_invalid` for such a suffix; a [TemplateFault] for a doc type id
-  /// the set lacks and an [IndexFault] `doc_not_found` when no doc carries
-  /// the name.
+  /// `argument_invalid` for such a suffix and for a name that 2 or more
+  /// identities end with; a [TemplateFault] for a doc type id the set lacks
+  /// and an [IndexFault] `doc_not_found` when no doc carries or ends with the
+  /// name.
   List<IndexedDoc> resolve(String address, {String? codeTarget}) {
     checkCodeTarget(codeTarget);
     if (_atPath(address) case final doc?) return [doc];
@@ -188,6 +197,7 @@ final class DocIndex {
     final typeId = read.typeId;
     if (typeId == null) {
       return _namedOf(_byName[read.body], codeTarget) ??
+          _bySuffixEnd(read.body, null, codeTarget) ??
           _notFound('no doc carries the name ${read.body}');
     }
     if (set.lookup(typeId) == null) {
@@ -198,7 +208,36 @@ final class DocIndex {
     }
     final typed = statusTree.ofTypeNamed(typeId, read.body);
     return _namedOf(typed.isEmpty ? null : typed, codeTarget) ??
+        _bySuffixEnd(read.body, typeId, codeTarget) ??
         _notFound('no $typeId doc carries the name ${read.body}');
+  }
+
+  /// Returns the docs that carry the one identity [suffix] ends at a `/`
+  /// boundary, of [typeId] when given; null when none or [codeTarget] keeps
+  /// none of them.
+  List<IndexedDoc>? _bySuffixEnd(
+    String suffix,
+    String? typeId,
+    String? codeTarget,
+  ) {
+    final ending = [
+      for (final doc in _bySuffix[suffix] ?? const <IndexedDoc>[])
+        if (typeId == null || doc.docTypeId == typeId) doc,
+    ];
+    final names = {for (final doc in ending) doc.name}.toList();
+    if (names.length > 1) {
+      final listed = [for (final doc in ending) addressOf(doc)];
+      throw IndexFault(
+        IndexFaultCode.argumentInvalid,
+        '${typeId == null ? '' : '$typeId:'}$suffix ends ${names.length} '
+        'names: ${listed.join(', ')}',
+      );
+    }
+    if (names.isEmpty) return null;
+    final carrying = typeId == null
+        ? _byName[names.single]
+        : statusTree.ofTypeNamed(typeId, names.single);
+    return _namedOf(carrying, codeTarget);
   }
 
   /// Returns [docs] with a null [codeTarget]; null or empty [docs] under a
@@ -354,6 +393,20 @@ Map<String, List<IndexedDoc>> _groupBy(
     (groups[key(doc)] ??= []).add(doc);
   }
   return _unmodifiable(groups);
+}
+
+/// Returns the typed docs of [docs] by each `/`-boundary end of their Names.
+Map<String, List<IndexedDoc>> _suffixMap(List<IndexedDoc> docs) {
+  final groups = <String, List<IndexedDoc>>{};
+  for (final doc in docs) {
+    if (doc.docTypeId == null) continue;
+    var slash = doc.name.indexOf('/');
+    while (slash >= 0) {
+      (groups[doc.name.substring(slash + 1)] ??= []).add(doc);
+      slash = doc.name.indexOf('/', slash + 1);
+    }
+  }
+  return groups;
 }
 
 /// Returns [groups] with each list unmodifiable, so no caller can sort the

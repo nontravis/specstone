@@ -5,6 +5,7 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
+import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -928,6 +929,30 @@ void main() {
           contains('- **Then** the Agent sees it on flutter'),
         ),
       );
+    });
+  });
+  group('a sub-feature named by the end of its name', () {
+    test('get takes a sub-feature by its last segment', () async {
+      final root = await writeNestedProject();
+      final full = readRunner(root);
+      expect(await full.runner.run(['get', 'shop/cart']), 0);
+      final short = readRunner(root);
+      expect(await short.runner.run(['get', 'cart']), 0);
+      expect(short.out.toString(), full.out.toString());
+      expect(short.out.toString(), contains('==> shop/cart (feature)'));
+    });
+    test('get refuses a suffix two names share', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/prds/features/f02_shop/f02_pay/us03_add_item/USER_STORY.md':
+              '# Add item\n',
+        },
+      );
+      final (:runner, :out, :err) = readRunner(root);
+      expect(await runner.run(['get', 'add_item']), 64);
+      expect(out.toString(), isEmpty);
+      expect(err.toString(), contains('shop/cart/add_item'));
+      expect(err.toString(), contains('shop/pay/add_item'));
     });
   });
 }
