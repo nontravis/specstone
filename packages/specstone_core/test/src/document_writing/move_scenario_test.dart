@@ -722,6 +722,32 @@ void main() {
       );
     });
 
+    test('a definition a staying link and a moved link share reaches the landed heading from both', () async {
+      final root = await _project(
+        add: [
+          _scenario(1),
+          _scenario(
+            2,
+          ).replaceFirst('sees case 2', 'sees case 2, as [here][self] gives'),
+          _scenario(3),
+        ],
+        addClosing: 'See [there][self].\n\n[self]: #scenario-2--edge-case-2',
+      );
+      _move(root, ['$_addItem#S2']);
+      expect(
+        readDoc(root, cartDrop),
+        contains('as [here](#scenario-3--edge-case-2) gives'),
+      );
+      final add = readDoc(root, cartAdd);
+      expect(add, contains('See [there][self].\n'));
+      expect(
+        add,
+        contains(
+          '[self]: ../us02_drop_item/USER_STORY.md#scenario-3--edge-case-2\n',
+        ),
+      );
+    });
+
     test("another reference form follows as an item's does", () async {
       final root = await _citedProject();
       _move(root, ['$_addItem#S2']);

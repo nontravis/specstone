@@ -37,14 +37,11 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 const _separator = ', ';
 
 /// Returns, by DocPath, the edit of every doc an item move writes: the
-/// landing of [landings] and each reference that names a moved item.
+/// landing of [landings] and each reference that names a moved item, a
+/// scenario's traces and heading links included; each edit refuses a doc
+/// that changed since the plan.
 ///
-/// - Item links, ranges, override entries, task refs, and a scenario's traces,
-///   steps, and heading links follow it; one inside it reads from the target.
-/// - Every doc edit refuses a doc that changed since the plan.
-///
-/// Throws [RenderFault] `output_not_writable` for entries that are not valid
-/// YAML.
+/// Throws [RenderFault] `output_not_writable` for entries not valid YAML.
 Map<String, TextEdit> itemRefEdits(
   WriteSession session,
   List<ItemLanding> landings,
