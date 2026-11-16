@@ -19,4 +19,22 @@ void main() {
       );
     });
   });
+
+  group('DocPrint.afterLine', () {
+    test('puts the line first and shifts every section by 1', () {
+      const print = DocPrint(
+        text: '# Title\n\n## Goals\nbody',
+        cited: [],
+        sections: [SectionLine(key: 'goals', line: 2)],
+      );
+      final named = print.afterLine('- doc (summary)');
+      expect(named.text, '- doc (summary)\n# Title\n\n## Goals\nbody');
+      expect(named.sections, [const SectionLine(key: 'goals', line: 3)]);
+      expect(named.cited, isEmpty);
+    });
+    test('keeps an empty section list empty', () {
+      const print = DocPrint(text: '# Title', cited: [], sections: []);
+      expect(print.afterLine('- doc').sections, isEmpty);
+    });
+  });
 }

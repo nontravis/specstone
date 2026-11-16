@@ -32,6 +32,33 @@ final class SectionLine {
   int get hashCode => Object.hash(key, line);
 }
 
+/// One `##` section as a bundle prints it, with the places of it that carry
+/// cited-by lines.
+final class SectionPrint {
+  const new({required this.block, required this.cited});
+
+  final String block;
+  final List<CitedItem> cited;
+}
+
+/// One doc as a bundle prints it, with the places of it that carry cited-by
+/// lines and the `##` sections it prints whole.
+final class DocPrint {
+  const new({required this.text, required this.cited, required this.sections});
+
+  final String text;
+  final List<CitedItem> cited;
+  final List<SectionLine> sections;
+
+  /// Returns this print with [line] before its text, each section one line
+  /// lower.
+  DocPrint afterLine(String line) => DocPrint(
+    text: '$line\n$text',
+    cited: cited,
+    sections: [for (final section in sections) section.shiftedBy(1)],
+  );
+}
+
 /// Returns the number of lines [text] spans.
 int lineCountOf(String text) => '\n'.allMatches(text).length + 1;
 
@@ -44,8 +71,7 @@ int lineAfterBlocks(Iterable<String> blocks) =>
 /// lines [citedBy] holds for the whole doc, its `# ` title line, then its
 /// summary sections, one blank line apart, with the places [citedBy] holds
 /// lines for printed there, and the line each section starts on.
-({String text, List<CitedItem> cited, List<SectionLine> sections})
-summaryPrintOf(
+DocPrint summaryPrintOf(
   IndexedDoc doc,
   DocContent content,
   MergedDocType? docType,
@@ -74,7 +100,7 @@ summaryPrintOf(
     blocks.add(print.block);
     cited.addAll(print.cited);
   }
-  return (
+  return DocPrint(
     text: [...docLines, blocks.join('\n\n')].join('\n'),
     cited: cited,
     sections: sections,
@@ -87,7 +113,7 @@ summaryPrintOf(
 ///
 /// With [summaryRows], the section prints cut by [cutToRows], and only the
 /// items and blocks whole inside the printed lines get a cited-by line.
-({String block, List<CitedItem> cited}) sectionPrintOf(
+SectionPrint sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
   List<CitedSection> held,
@@ -123,7 +149,7 @@ summaryPrintOf(
     bodyLine: content.lineFacts.sectionLines[at] + 1,
     after: citedLinesAfter(citedBy, items),
   );
-  return (block: block, cited: items);
+  return SectionPrint(block: block, cited: items);
 }
 
 /// Returns the kept sections of a summary doc whose merged section is a
