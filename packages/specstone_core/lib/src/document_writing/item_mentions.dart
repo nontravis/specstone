@@ -31,6 +31,8 @@ import 'package:specstone_core/src/index_query/held_sections.dart'
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/index_query/link_scan.dart' show LinkSource;
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/doc_reader.dart'
@@ -275,6 +277,7 @@ List<StaleMention> _bareMentions(
   final lines = body.body.split('\n');
   final skippedHeads = <MovedSpan>{};
   final mentions = <StaleMention>[];
+  final runPrefixes = itemIdPrefixesOf(index.set.docTypes);
   for (final (:at, :id) in itemIdsInProse(prose, prefixes: moves.prefixes)) {
     final number = body.fileLineOf(at);
     final span = spans
@@ -287,13 +290,14 @@ List<StaleMention> _bareMentions(
       continue;
     }
     final lineIndex = number - body.firstLine;
-    final cited = _citedBefore(
+    final cited = _citedBy(
       index,
       doc,
       body.scan.sources,
       lines[lineIndex],
       body.columnOf(at),
       body.starts[lineIndex],
+      runPrefixes,
     );
     if (_namesMoved(index, moves, doc, cited, id.written, span)) {
       mentions.add((path: doc.docPath, line: number, mention: id.written));
@@ -337,43 +341,49 @@ String _outsideLinks(String prose, List<LinkSource> sources) {
   return String.fromCharCodes(units);
 }
 
-/// Returns the DocPath the nearest doc address or doc link before [column] of
-/// [line] names, the empty string for one that names no doc, or null when none
-/// precedes it.
-String? _citedBefore(
+/// Returns the DocPath of the doc address or doc link whose item-ID run holds
+/// the ID at [column] of [line], the empty string for one that names no doc,
+/// or null when no run holds it.
+String? _citedBy(
   DocIndex index,
   IndexedDoc doc,
   List<LinkSource> sources,
   String line,
   int column,
   int lineStart,
+  Set<String> prefixes,
 ) {
-  String? cited;
-  var nearest = -1;
+  bool runHolds(int end) => itemIdRunAt(
+    line,
+    end,
+    prefixes: prefixes,
+  ).items.any((item) => item.at == column);
   for (final (:start, :end, :ticks) in codeSpansOf(line)) {
-    if (start >= column || start < nearest) continue;
+    if (end > column || !runHolds(end)) continue;
     final address = readDocAddress(line.substring(start + ticks, end - ticks));
     if (address.sectionKey != null || !address.isReferenceWithoutLookup) {
       continue;
     }
     final docs = _resolved(index, address.docPart);
-    cited = docs.length == 1 ? docs.single.docPath : '';
-    nearest = start;
+    return docs.length == 1 ? docs.single.docPath : '';
   }
   for (final source in sources) {
     final shown = source.shown;
     final start = source.offset - lineStart;
-    if (shown == null || start < 0 || start >= column || start < nearest) {
+    if (shown == null ||
+        start < 0 ||
+        source.offset >= lineStart + line.length) {
       continue;
     }
-    if (source.offset >= lineStart + line.length) continue;
-    cited = switch (resolveDocLink(shown, doc.docPath)) {
+    if (source.end - lineStart > column || !runHolds(source.end - lineStart)) {
+      continue;
+    }
+    return switch (resolveDocLink(shown, doc.docPath)) {
       DocTarget(:final docPath) => docPath,
       _ => '',
     };
-    nearest = start;
   }
-  return cited;
+  return null;
 }
 
 /// Returns the code files and agent files whose mentions are read, by their
