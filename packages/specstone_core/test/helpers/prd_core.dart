@@ -83,6 +83,7 @@ const prdCoreIds = <String>[
   'feature',
   'features',
   'fr',
+  'glossary',
   'gnfr',
   'goal',
   'journey',

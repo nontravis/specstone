@@ -1348,7 +1348,7 @@ items:
     });
 
     test(
-      'prd-core and software-tech list thirteen and fifteen doc types',
+      'prd-core and software-tech list fourteen and fifteen doc types',
       () async {
         final project = await writeTree({_configPath: shippedPinsConfig()});
         final runner = SpecstoneCommandRunner(
@@ -1364,7 +1364,7 @@ items:
           for (final row in jsonDecode(out.toString()) as List<Object?>)
             (row! as Map<String, Object?>)['pack'],
         ];
-        expect(packs.where((pack) => pack == 'prd-core'), hasLength(13));
+        expect(packs.where((pack) => pack == 'prd-core'), hasLength(14));
         expect(packs.where((pack) => pack == 'software-tech'), hasLength(15));
       },
     );

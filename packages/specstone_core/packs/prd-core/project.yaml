@@ -1,6 +1,6 @@
 id: project
 description: |-
-  The project-wide context doc: name, vision, roles, scope limits, and glossary.
+  The project-wide context doc: name, vision, roles, and scope limits.
   Title it `# Project context`, with no number. A project has exactly one PROJECT.
   Write one rule per `PV-*` ID, and leave mechanics to the spec docs.
   PROJECT holds no measured number; a vision's evidence goes to the Baseline of the measurement of a goal that serves it.
@@ -79,13 +79,6 @@ sections:
       List what the project will NOT do, one bullet each.
     template: |-
       - <thing the project will NOT do>
-    query: true
-  - id: glossary
-    header: Domain glossary
-    description: |-
-      Define each domain term in one line that ties it to a concrete entity.
-    template: |-
-      - **<Term>** — <one-line definition tying to a concrete entity>
     query: true
 lint:
   banned_patterns:

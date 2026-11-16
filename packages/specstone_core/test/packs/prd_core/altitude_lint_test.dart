@@ -178,6 +178,6 @@ void main() {
       expect(byId['doc_citation'], citation, reason: type.id);
       expect(byId['history'], history, reason: type.id);
     }
-    expect(set.docTypes.where((t) => t.id != 'reference'), hasLength(12));
+    expect(set.docTypes.where((t) => t.id != 'reference'), hasLength(13));
   });
 }

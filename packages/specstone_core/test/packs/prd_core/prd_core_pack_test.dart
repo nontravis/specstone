@@ -14,7 +14,7 @@ void main() {
   final shipped = shippedPackVersions()['prd-core']!;
 
   group('prd-core manifest', () {
-    test('prd-core ships at 1.13.0 with no extends', () {
+    test('prd-core ships at 1.15.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -22,7 +22,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.13.0');
+      expect(manifest.version.toString(), '1.15.0');
       expect(manifest.extendsPack, isNull);
     });
 
@@ -108,39 +108,41 @@ void main() {
   });
 
   group('prd-core doc types', () {
-    test('only project, gnfr, and goal set bundle_refs', () async {
+    test('only project, glossary, gnfr, and goal set bundle_refs', () async {
       final set = await resolvePrdCore();
       expect(
         {
           for (final d in set.docTypes)
             if (d.bundleRefs != null) d.id: d.bundleRefs,
         },
-        {'project': true, 'gnfr': true, 'goal': true},
+        {'project': true, 'glossary': true, 'gnfr': true, 'goal': true},
       );
     });
 
-    test('prd-core carries thirteen doc types', () async {
+    test('prd-core carries fourteen doc types', () async {
       final set = await resolvePrdCore();
-      expect(set.docTypes, hasLength(13));
+      expect(set.docTypes, hasLength(14));
     });
 
     test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
-        'holds exactly the thirteen doc types', () async {
+        'holds exactly the fourteen doc types', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
     });
 
-    test(
-      'Set the shared lint and sources: '
-      'no prd-core doc type sets max_item_chars, so each takes the default',
-      () async {
-        final set = await resolvePrdCore();
-        for (final docType in set.docTypes) {
-          expect(docType.lint.maxItemChars, isNull, reason: docType.id);
-        }
-      },
-    );
+    test('Set the shared lint and sources: '
+        'only glossary sets max_item_chars, so every other prd-core doc type '
+        'takes the default', () async {
+      final set = await resolvePrdCore();
+      for (final docType in set.docTypes) {
+        expect(
+          docType.lint.maxItemChars,
+          docType.id == 'glossary' ? 300 : isNull,
+          reason: docType.id,
+        );
+      }
+    });
 
     test('a project that groups features overrides the '
         'four paths in its layer', () async {

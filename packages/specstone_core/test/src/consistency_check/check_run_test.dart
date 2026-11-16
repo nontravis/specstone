@@ -533,6 +533,46 @@ void main() {
     );
   });
 
+  test(
+    'f03/us06/fr01/e06: a project doc still holding Domain glossary '
+    'and no glossary doc is section_undeclared and singular_doc_missing',
+    () async {
+      final project = await writeCheckProject(
+        extra: edit(projectDoc, [
+          (
+            '- Billing — not planned\n',
+            '- Billing — not planned\n\n## Domain glossary\n\n'
+                '- **Agent** — the coding agent that writes the docs.\n',
+          ),
+        ]),
+        without: {'docs/prds/GLOSSARY.md'},
+      );
+      final report = checkOf(project);
+
+      expect(
+        [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.sectionUndeclared ||
+                f.kind == FindingKind.singularDocMissing)
+              '${f.path}: ${f.kind.wire}',
+        ],
+        [
+          'prds/GLOSSARY.md: singular_doc_missing',
+          '$projectDoc: section_undeclared',
+        ],
+      );
+      expect(report.findings, hasLength(2));
+      final undeclared = report.findings.firstWhere(
+        (f) => f.kind == FindingKind.sectionUndeclared,
+      );
+      final headerLine = File('${project.path}/docs/$projectDoc')
+          .readAsLinesSync()
+          .indexOf('## Domain glossary');
+      expect(undeclared.line, headerLine + 1);
+      expect(undeclared.toJson()['header'], 'Domain glossary');
+    },
+  );
+
   test('E08: a check with a target holds no agent_block_stale', () async {
     final project = await writeCheckProject(
       extra: {'.specstone/AGENT.md': 'hand edit\n'},

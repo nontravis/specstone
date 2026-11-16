@@ -15,6 +15,7 @@ const _prdCoreIds = <String>[
   'feature',
   'features',
   'fr',
+  'glossary',
   'gnfr',
   'goal',
   'journey',
@@ -88,7 +89,7 @@ void main() {
     });
 
     test(
-      'f03/us06/s1, f03/us06/fr01/e01: guide lists the thirteen prd-core doc '
+      'f03/us06/s1, f03/us06/fr01/e01: guide lists the fourteen prd-core doc '
       'types and no other',
       () async {
         final runner = await runnerIn(await prdCoreProject());
@@ -427,6 +428,29 @@ void main() {
       expect(at.first, greaterThan(rule));
       expect(at, orderedEquals(List.of(at)..sort()));
       expect(at, everyElement(isNonNegative));
+      expect(guide, isNot(contains('Guide sources:')));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide glossary prints the glossary rules, then the terms section '
+        'with its template', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'glossary']), 0);
+      final guide = out.toString();
+      final title = guide.indexOf('# Domain glossary');
+      final rule = guide.indexOf('A project has exactly one glossary doc.');
+      final cap = guide.indexOf('Keep each entry to 300 characters or fewer;');
+      final terms = guide.indexOf('## Terms');
+      final template = guide.indexOf(
+        '- **<Term>** — <one-line definition tying to a concrete entity>',
+      );
+      expect(guide, isNot(startsWith('#')));
+      expect(title, isNonNegative);
+      expect(rule, greaterThan(title));
+      expect(cap, greaterThan(rule));
+      expect(terms, greaterThan(cap));
+      expect(template, greaterThan(terms));
+      expect(guide, contains('Cite a rule another doc owns by a link'));
       expect(guide, isNot(contains('Guide sources:')));
       expect(err.toString(), isEmpty);
     });

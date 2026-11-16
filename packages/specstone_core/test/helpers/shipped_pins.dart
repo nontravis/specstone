@@ -53,8 +53,15 @@ const statusesBelowVersion = '1.6.0';
 
 /// Returns a resolver whose shipped packs carry [versions] in place of their
 /// own, so a project may pin them below the shipped versions.
-TemplateResolver resolverCarrying(Map<String, String> versions) {
+///
+/// Each key of [without] names a shipped file, such as
+/// `prd-core/glossary.yaml`, that the carried pack leaves out.
+TemplateResolver resolverCarrying(
+  Map<String, String> versions, {
+  Set<String> without = const {},
+}) {
   final files = {...shippedPackFiles};
+  without.forEach(files.remove);
   for (final MapEntry(:key, :value) in versions.entries) {
     final manifest = utf8.decode(files['$key/pack.yaml']!);
     files['$key/pack.yaml'] = Uint8List.fromList(

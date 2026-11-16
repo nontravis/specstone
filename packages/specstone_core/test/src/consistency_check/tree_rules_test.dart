@@ -26,10 +26,11 @@ import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 const _goalDoc = 'prds/GOAL.md';
-const _glossaryLayer =
-    'id: glossary\n'
-    'description: Terms.\n'
-    'path: prds/GLOSSARY.md\n';
+const _glossaryDoc = 'prds/GLOSSARY.md';
+const _styleLayer =
+    'id: style\n'
+    'description: House style.\n'
+    'path: prds/STYLE.md\n';
 const _missingMessage = 'the project holds no ';
 const _jasprFirstConfig =
     'targets:\n'
@@ -465,17 +466,17 @@ void main() {
       expect(_missingOf(report).single.name, isNull);
     });
 
-    test('f04/us01/fr07/e15: a project-layer type at prds/GLOSSARY.md with no '
+    test('f04/us01/fr07/e15: a project-layer type at prds/STYLE.md with no '
         'file is one finding', () async {
       final report = checkOf(
         await writeCheckProject(
-          extra: {'.specstone/templates/glossary.yaml': _glossaryLayer},
+          extra: {'.specstone/templates/style.yaml': _styleLayer},
         ),
       );
       expect(spots(report, FindingKind.singularDocMissing), [
-        'prds/GLOSSARY.md:1: singular_doc_missing',
+        'prds/STYLE.md:1: singular_doc_missing',
       ]);
-      expect(_missingOf(report).single.keys, {'type': 'glossary'});
+      expect(_missingOf(report).single.keys, {'type': 'style'});
       expect(_missingOf(report).single.name, isNull);
     });
 
@@ -484,20 +485,65 @@ void main() {
       final report = checkOf(
         await writeTwinProject(
           extra: {
-            '.specstone/templates/glossary.yaml':
-                '${_glossaryLayer}per_target: true\n',
-            'docs/prds/flutter/GLOSSARY.md': '# Terms\n',
+            '.specstone/templates/style.yaml':
+                '${_styleLayer}per_target: true\n',
+            'docs/prds/flutter/STYLE.md': '# House style\n',
           },
         ),
       );
       final missing = [
         for (final f in _missingOf(report))
-          if (f.keys['type'] == 'glossary') f,
+          if (f.keys['type'] == 'style') f,
       ];
-      expect([for (final f in missing) f.path], ['prds/jaspr/GLOSSARY.md']);
+      expect([for (final f in missing) f.path], ['prds/jaspr/STYLE.md']);
       expect(missing.single.line, 1);
       expect(missing.single.name, isNull);
-      expect(missing.single.keys, {'type': 'glossary', 'target': 'jaspr'});
+      expect(missing.single.keys, {'type': 'style', 'target': 'jaspr'});
+    });
+
+    test('f04/us01/fr07/e21: a project on the shipped pins with no glossary '
+        'doc is one finding at its path, type glossary', () async {
+      final report = checkOf(
+        await writeCheckProject(without: {'docs/$_glossaryDoc'}),
+      );
+      expect(spots(report, FindingKind.singularDocMissing), [
+        '$_glossaryDoc:1: singular_doc_missing',
+      ]);
+      expect(_missingOf(report).single.keys, {'type': 'glossary'});
+      expect(_missingOf(report).single.name, isNull);
+      expect(
+        _missingOf(report).single.message,
+        'the project holds no glossary doc; run `specstone new glossary`',
+      );
+    });
+
+    test('f03/us06/fr06/e07: a project pinned below the pack that '
+        'ships the glossary type holds no glossary finding', () async {
+      const pinned = '1.14.0';
+      final shipped = shippedPackVersions()['prd-core'];
+      final project = await writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': shippedPinsConfig().replaceFirst(
+            'prd-core: $shipped',
+            'prd-core: $pinned',
+          ),
+        },
+        without: {'docs/$_glossaryDoc'},
+      );
+      final session = ReadSession.open(
+        templates: resolverCarrying(
+          {'prd-core': pinned},
+          without: {'prd-core/glossary.yaml'},
+        ),
+        workingDirectory: project,
+        homeDirectory: null,
+      );
+      addTearDown(session.close);
+
+      expect(
+        _missingOf(runCheck(session)).map((f) => f.keys['type']),
+        isNot(contains('glossary')),
+      );
     });
 
     test('f04/us01/fr07/e16: one code target and no tech stack doc is one '
@@ -606,6 +652,18 @@ void main() {
         ),
       );
       expect(spots(report, FindingKind.singularDocMissing), isEmpty);
+    });
+
+    test('an empty glossary file is present', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {'docs/$_glossaryDoc': ''},
+          unstamped: {'docs/$_glossaryDoc'},
+        ),
+      );
+      expect(spots(report, FindingKind.singularDocMissing), isEmpty);
+      expect(spots(report, FindingKind.fileNotUtf8), isEmpty);
+      expect(spots(report, FindingKind.fileUnreadable), isEmpty);
     });
   });
 }
