@@ -11,42 +11,59 @@ import 'package:specstone_core/src/index_query/read_answer.dart'
     show nameWithType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// One item link to an item, from the citing doc's `name` and `docType`: the
-/// ID of its item whose lines hold the link, null when none does, and the
-/// trimmed `line` that holds the link.
+/// One link to an item, section, or doc, from the citing doc's `name` and
+/// `docType`: the ID of its item whose lines hold the link, null when none
+/// does, and the trimmed `line` that holds the link.
 typedef CitedBy = ({String name, String docType, String? byItem, String line});
 
-/// The lines that cite each item, by the cited item's DocPath and ID.
+/// What a cited-by line names: an item or a `###` block, a `##` section, or
+/// a whole doc.
+enum CitedKind { item, section, doc }
+
+/// The lines that cite each place, by the cited doc's DocPath, the [CitedKind]
+/// of the place, and its key: the item ID or the block's anchor, the
+/// section's key, or null for a doc.
 ///
-/// [inline] says where a bundle prints them: right after their item when
+/// [inline] says where a bundle prints them: right after their place when
 /// true, or as parts of their own ([citedByPartBlock]) when false.
 final class CitedByIndex
-    extends MapView<({String docPath, String itemId}), List<CitedBy>> {
+    extends
+        MapView<
+          ({String docPath, CitedKind kind, String? key}),
+          List<CitedBy>
+        > {
   new(super.map, {required this.inline});
 
-  /// Whether the lines print right after their item.
+  /// Whether the lines print right after their place.
   final bool inline;
 }
 
-/// An item a bundle prints whole, in the `##` section `sectionKey` of its
-/// doc, whose `by` lines print right after file line `after` of its doc, or
-/// as a part of their own ([CitedByIndex.inline]).
+/// A place a bundle prints whose `by` lines print right after file line
+/// `after` of its doc, or as a part of their own ([CitedByIndex.inline]).
+///
+/// An item or `###` block has its `item` (the ID, or the anchor of a block
+/// that starts no item) and the `##` section `sectionKey` that holds it; a
+/// section has its `sectionKey` alone, `after` its header's file line; a doc
+/// has neither, `after` 0, the line of its naming line.
 typedef CitedItem = ({
-  String item,
-  String sectionKey,
+  CitedKind kind,
+  String? item,
+  String? sectionKey,
   int after,
   List<CitedBy> by,
 });
 
-/// Returns who cites each item, from the links the index stores.
+/// Returns who cites each place, from the links the index stores.
 ///
-/// One line per item link from a typed doc other than the item's own, an item
+/// One line per link from a typed doc other than the cited doc's own, an item
 /// range giving one to each item it spans, in tree order of the citing docs
-/// and then line order. An item of a doc whose type's `bundle:` list holds
+/// and then line order. A place of a doc whose type's `bundle:` list holds
 /// `design` has none, since that doc prints in every design bundle.
-/// [classifyLink] reads each link, so it is an item link here exactly when
-/// `check` and the follow read it as one. See [CitedByIndex.inline] for
-/// [inline].
+/// [classifyLink] reads each link, so it cites a place here exactly when
+/// `check` and the follow read it so: an item, a `###` block, a section, or
+/// the whole doc, which an anchor no section or block places also names. A
+/// link whose anchor matches nothing cites none. See [CitedByIndex.inline]
+/// for [inline].
 CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) {
   final docs = <String, _Doc>{};
   _Doc? read(IndexedDoc doc) {
@@ -60,13 +77,14 @@ CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) {
     );
   }
 
-  final cited = <({String docPath, String itemId}), List<CitedBy>>{};
+  final cited =
+      <({String docPath, CitedKind kind, String? key}), List<CitedBy>>{};
   for (final source in index.docs) {
     final reader = read(source);
     if (reader == null) continue;
     for (final line in reader.linkLines) {
-      for (final (:doc, :itemId) in _itemLinksOn(index, reader, line, read)) {
-        (cited[(docPath: doc, itemId: itemId)] ??= []).add((
+      for (final (:doc, :kind, :key) in _citesOn(index, reader, line, read)) {
+        (cited[(docPath: doc, kind: kind, key: key)] ??= []).add((
           name: source.name,
           docType: reader.docTypeId,
           byItem: reader.itemHolding(line),
@@ -83,9 +101,9 @@ CitedByIndex citedByIndex(DocIndex index, {bool inline = true}) {
 String citedByLineOf(CitedBy by) =>
     '  · cited by ${by.name} (${by.docType}) ${by.byItem ?? '—'}: ${by.line}';
 
-/// Returns the items of the section [at] of [doc], whose held sections
-/// [section] reads, that [cited] holds lines for and whose lines lie in
-/// [within] (the whole section when null), in the order their lines print.
+/// Returns the items and `###` blocks of the section [at] of [doc], whose held
+/// sections [section] reads, that [cited] holds lines for and whose lines lie
+/// in [within] (the whole section when null), in the order their lines print.
 List<CitedItem> citedItemsIn(
   CitedByIndex cited,
   IndexedDoc doc,
@@ -95,11 +113,13 @@ List<CitedItem> citedItemsIn(
   LineRange? within,
 }) {
   final body = sectionBodyLines(content.sections, content.lineFacts, at);
-  final found = <({String item, LineRange extent, List<CitedBy> by})>[];
+  final found = <({String id, LineRange extent, List<CitedBy> by})>[];
   final ids = <String>{};
   for (final fact in content.itemFacts.sectionItems[at]) {
     final id = fact.id;
-    final by = id == null ? null : cited[(docPath: doc.docPath, itemId: id)];
+    final by = id == null
+        ? null
+        : cited[(docPath: doc.docPath, kind: CitedKind.item, key: id)];
     if (id == null || by == null || !ids.add(id)) continue;
     final extent = itemExtentOf(
       body,
@@ -112,7 +132,15 @@ List<CitedItem> citedItemsIn(
         (extent.first < within.first || within.last < extent.last)) {
       continue;
     }
-    found.add((item: id, extent: extent, by: by));
+    found.add((id: id, extent: extent, by: by));
+  }
+  for (final (:anchor, :line) in _blocksIn(content.lineFacts, at)) {
+    final by = cited[(docPath: doc.docPath, kind: CitedKind.item, key: anchor)];
+    if (by == null) continue;
+    if (within != null && (line < within.first || within.last < line)) {
+      continue;
+    }
+    found.add((id: anchor, extent: (first: line, last: line), by: by));
   }
   // An item nested in another ends no later than it, so it prints first.
   found.sort((a, b) {
@@ -120,13 +148,72 @@ List<CitedItem> citedItemsIn(
     return byEnd != 0 ? byEnd : b.extent.first.compareTo(a.extent.first);
   });
   return [
-    for (final (:item, :extent, :by) in found)
-      (item: item, sectionKey: section.key, after: extent.last, by: by),
+    for (final (:id, :extent, :by) in found)
+      (
+        kind: CitedKind.item,
+        item: id,
+        sectionKey: section.key,
+        after: extent.last,
+        by: by,
+      ),
   ];
 }
 
+/// Returns the entry of the section [at] of [doc], whose held sections
+/// [section] reads, that [cited] holds lines for, its lines after the
+/// section's header line; null when none.
+CitedItem? citedSectionIn(
+  CitedByIndex cited,
+  IndexedDoc doc,
+  DocContent content,
+  CitedSection section,
+  int at,
+) {
+  final by =
+      cited[(docPath: doc.docPath, kind: CitedKind.section, key: section.key)];
+  if (by == null) return null;
+  return (
+    kind: CitedKind.section,
+    item: null,
+    sectionKey: section.key,
+    after: content.lineFacts.sectionLines[at],
+    by: by,
+  );
+}
+
+/// Returns the entry of the whole [doc] that [cited] holds lines for, its
+/// lines after the doc's naming line; null when none.
+CitedItem? citedDocIn(CitedByIndex cited, IndexedDoc doc) {
+  final by = cited[(docPath: doc.docPath, kind: CitedKind.doc, key: null)];
+  if (by == null) return null;
+  return (kind: CitedKind.doc, item: null, sectionKey: null, after: 0, by: by);
+}
+
+/// Returns the `###` headings inside the section [at] of [facts], each by the
+/// anchor a link names it by, first of a repeated anchor only, as
+/// [anchorTargetOf] reads it.
+List<({String anchor, int line})> _blocksIn(LineFacts facts, int at) {
+  final anchors = facts.anchors;
+  final lines = facts.headingLines;
+  if (anchors == null || lines == null) return const [];
+  final starts = facts.sectionLines;
+  final end = at + 1 < starts.length ? starts[at + 1] : null;
+  final blocks = <({String anchor, int line})>[];
+  for (final (i, anchor) in anchors.headingSlugs.indexed) {
+    if (i >= lines.length) break;
+    final line = lines[i];
+    if (line <= starts[at] || (end != null && line >= end)) continue;
+    final target = anchorTargetOf(facts, anchor);
+    if (target is HeadingBlockTarget && target.headingLine == line) {
+      blocks.add((anchor: anchor, line: line));
+    }
+  }
+  return blocks;
+}
+
 /// Returns the lines of [items] by the file line each prints after; items
-/// that end on one line, nested, keep every line in [items] order.
+/// that end on one line, nested, keep every line in [items] order. A doc's
+/// lines come under line 0, and a section's under its header's line.
 ///
 /// None when [cited] prints its lines as parts ([CitedByIndex.inline]).
 Map<int, List<String>> citedLinesAfter(
@@ -158,12 +245,16 @@ String citedByPartBlock(IndexedDoc doc, CitedItem item) =>
 String citedByListName(IndexedDoc doc, CitedItem item) =>
     '${nameWithType(doc)} · cited by [${item.item}]';
 
-/// Returns [items] as the `citedBy` objects of `--json`, one per line.
+/// Returns [items] as the `citedBy` objects of `--json`, one per line: the
+/// place's `kind`, its `item`, and its `section` (the key of a section entry,
+/// else null) ahead of the line's own keys.
 List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
   for (final item in items)
     for (final by in item.by)
       {
+        'kind': item.kind.name,
         'item': item.item,
+        'section': item.kind == CitedKind.section ? item.sectionKey : null,
         'name': by.name,
         'docType': by.docType,
         'byItem': by.byItem,
@@ -171,15 +262,16 @@ List<Map<String, Object?>> citedByJson(List<CitedItem> items) => [
       },
 ];
 
-/// An item a link of one line names: the item `itemId` of the doc `doc`.
-typedef _ItemLink = ({String doc, String itemId});
+/// A place a link of one line names: the doc `doc`, its [CitedKind], and the
+/// key of the place in it (see [CitedByIndex]).
+typedef _Cite = ({String doc, CitedKind kind, String? key});
 
-/// Returns each item the item links of file [line] of [reader] name, a range
+/// Returns each place the links of file [line] of [reader] name, a range
 /// naming each item it spans once, in source order.
 ///
 /// A range's last link adds nothing of its own, since the range names its
-/// item; every other link adds its own, even when two name one item.
-List<_ItemLink> _itemLinksOn(
+/// item; every other link adds its own, even when two name one place.
+List<_Cite> _citesOn(
   DocIndex index,
   _Doc reader,
   int line,
@@ -207,20 +299,30 @@ List<_ItemLink> _itemLinksOn(
   ]);
   final rangeFrom = {for (final range in ranges) range.first.link: range};
   final rangeEnds = {for (final range in ranges) range.last.link};
-  final spanned = <_ItemLink>{};
-  final found = <_ItemLink>[];
+  final spanned = <_Cite>{};
+  final found = <_Cite>[];
   for (final (:link, :cite, :target, :at) in classified) {
-    if (cite is! ItemCite ||
-        target.doc.docPath == reader.doc.docPath ||
-        _joinsDesign(target.type)) {
-      continue;
-    }
-    final range = rangeFrom[link];
-    if (range == null && rangeEnds.contains(link)) continue;
-    if (range != null && !rangeEnds.contains(link)) spanned.clear();
-    for (final id in _idsOf(range, cite, target, at)) {
-      final item = (doc: target.doc.docPath, itemId: id);
-      if (range == null || spanned.add(item)) found.add(item);
+    final docPath = target.doc.docPath;
+    if (docPath == reader.doc.docPath || _joinsDesign(target.type)) continue;
+    _Cite place(CitedKind kind, String? key) =>
+        (doc: docPath, kind: kind, key: key);
+    switch (cite) {
+      case ItemCite():
+        final range = rangeFrom[link];
+        if (range == null && rangeEnds.contains(link)) continue;
+        if (range != null && !rangeEnds.contains(link)) spanned.clear();
+        for (final id in _idsOf(range, cite, target, at)) {
+          final item = place(CitedKind.item, id);
+          if (range == null || spanned.add(item)) found.add(item);
+        }
+      case SectionCite(:final sectionKey):
+        found.add(place(CitedKind.section, sectionKey));
+      case HeadingBlockCite():
+        found.add(place(CitedKind.item, link.anchor));
+      case DocCite() || OtherAnchorCite():
+        found.add(place(CitedKind.doc, null));
+      case UnresolvedCite():
+        break;
     }
   }
   return found;
@@ -260,16 +362,13 @@ final class _Doc {
   CitedSection? sectionAt(int at) =>
       at < _sections.length ? _sections[at] : null;
 
-  /// The file lines that start a link whose text reads as an item ID, in
-  /// order, each once.
-  Iterable<int> get linkLines => {
-    for (final link in facts.linkTexts) link.line,
-  };
+  late final Map<int, List<LinkText>> _linksByLine = _linksByLineOf(facts);
 
-  /// Returns the links of file line [line] whose text reads as an item ID,
-  /// in source order.
-  Iterable<LinkText> linksOn(int line) =>
-      facts.linkTexts.where((link) => link.line == line);
+  /// The file lines that start a link to another doc, in order, each once.
+  Iterable<int> get linkLines => _linksByLine.keys;
+
+  /// Returns the links to other docs of file line [line], in source order.
+  List<LinkText> linksOn(int line) => _linksByLine[line] ?? const [];
 
   /// Returns file line [line] of the stored text, without its line ending.
   String lineText(int line) {
@@ -315,4 +414,43 @@ final class _Doc {
             (id: id, extent: extent),
     ];
   }
+}
+
+/// Returns the links to other docs of [facts] by file line, each in source
+/// order with the [LinkText] the index stored for it, or a text-free one that
+/// reads as no item ID.
+///
+/// A stored text joins the nth link of its line, destination as written, and
+/// anchor, so each link is read once; a link with no text, whose own text
+/// reads as no item ID, is a section, block, or doc link.
+Map<int, List<LinkText>> _linksByLineOf(LineFacts facts) {
+  final stored = <(int, String, String?, String), List<LinkText>>{};
+  for (final text in facts.linkTexts) {
+    (stored[(text.line, text.target, text.anchor, text.shown)] ??= []).add(
+      text,
+    );
+  }
+  final taken = <(int, String, String?, String), int>{};
+  final byLine = <int, List<LinkText>>{};
+  for (final place in facts.links) {
+    final key = (place.line, place.target, place.anchor, place.shown);
+    final nth = taken[key] ?? 0;
+    taken[key] = nth + 1;
+    final texts = stored[key];
+    (byLine[place.line] ??= []).add(
+      texts != null && nth < texts.length
+          ? texts[nth]
+          : (
+              line: place.line,
+              column: 0,
+              endLine: place.line,
+              endColumn: 0,
+              text: '',
+              target: place.target,
+              anchor: place.anchor,
+              shown: place.shown,
+            ),
+    );
+  }
+  return byLine;
 }

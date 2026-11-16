@@ -46,7 +46,13 @@ Future<DocIndex> _index(
 CitedByIndex _citedBy(DocIndex index) => citedByIndex(index);
 
 List<CitedBy> _of(CitedByIndex cited, String docPath, String itemId) =>
-    cited[(docPath: docPath, itemId: itemId)] ?? const [];
+    cited[(docPath: docPath, kind: CitedKind.item, key: itemId)] ?? const [];
+
+List<CitedBy> _ofSection(CitedByIndex cited, String docPath, String key) =>
+    cited[(docPath: docPath, kind: CitedKind.section, key: key)] ?? const [];
+
+List<CitedBy> _ofDoc(CitedByIndex cited, String docPath) =>
+    cited[(docPath: docPath, kind: CitedKind.doc, key: null)] ?? const [];
 
 void main() {
   test(
@@ -179,12 +185,14 @@ void main() {
 
   test('nested items that end on one line keep every line, inner first', () {
     const outer = (
+      kind: CitedKind.item,
       item: 'INV-14',
       sectionKey: 'invariants',
       after: 7,
       by: [(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
     );
     const inner = (
+      kind: CitedKind.item,
       item: 'INV-15',
       sectionKey: 'invariants',
       after: 7,
@@ -195,13 +203,15 @@ void main() {
     });
   });
 
-  test('a doc link or a section link names no item and gives no line', () async {
+  test('a doc link or a section link names no item', () async {
     final cited = _citedBy(
       await _index(
         'See [the domain]($_specs/f02_signup/DOMAIN.md) and [invariants]($_specs/f02_signup/DOMAIN.md#invariants).',
       ),
     );
-    expect(cited.keys.where((k) => k.docPath == _domain), isEmpty);
+    expect(cited.keys.where((k) => k.kind == CitedKind.item), isEmpty);
+    expect(_ofDoc(cited, _domain), hasLength(1));
+    expect(_ofSection(cited, _domain, 'invariants'), hasLength(1));
   });
 
   test(
@@ -218,6 +228,230 @@ void main() {
       expect(cited.single.line, 'Lock, by $_inv14.');
     },
   );
+
+  group('section, block, and whole-doc links', () {
+    const toDomain = '$_specs/f02_signup/DOMAIN.md';
+    const toFr =
+        '../../prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+
+    ContextAnswer design(DocIndex index) => answerContext(
+      index,
+      pickBundle(index, _frName, BundleMode.design, noProject: false),
+      label: _frName,
+      byCode: false,
+    );
+
+    List<Map<String, Object?>> docsOf(ContextAnswer answer) =>
+        (answer.json['docs']! as List).cast<Map<String, Object?>>();
+
+    test(
+      'a section link prints one line right after the section header',
+      () async {
+        const line = 'Lock, as [the invariants]($toDomain#invariants) say.';
+        final text = design(await _index(line)).text;
+
+        expect(
+          text,
+          contains(
+            '## Invariants\n  · cited by $_frName (fr) —: $line\n- **INV-13**',
+          ),
+        );
+        expect('cited by $_frName'.allMatches(text), hasLength(1));
+      },
+    );
+
+    test('a section link to a picked doc prints right after its header, none under its items', () async {
+      const line = 'See [the edge cases]($toFr#edge-cases).';
+      final text = design(
+        await _index(
+          'Check it.',
+          extra: {
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
+          },
+        ),
+      ).text;
+
+      expect(
+        text,
+        contains('## Edge cases\n  · cited by guide (topic) —: $line\n'),
+      );
+      expect('cited by guide'.allMatches(text), hasLength(1));
+    });
+
+    test(
+      'a whole-doc link prints one line right after the naming line',
+      () async {
+        const line = 'Lock, see [the domain]($toDomain).';
+        final text = design(await _index(line)).text;
+
+        expect(
+          text,
+          contains(
+            '==> signup (domain) · specs/f02_signup/DOMAIN.md · summary · cited <==\n'
+            '  · cited by $_frName (fr) —: $line\n'
+            '# Sign-up domain',
+          ),
+        );
+        expect('cited by $_frName'.allMatches(text), hasLength(1));
+      },
+    );
+
+    test('a whole-doc link to a picked doc prints right after its naming line', () async {
+      const line = 'See [the rule]($toFr).';
+      final text = design(
+        await _index(
+          'Check it.',
+          extra: {
+            'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n',
+          },
+        ),
+      ).text;
+
+      expect(
+        text,
+        contains(
+          '==> $_frName (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
+          '  · cited by guide (topic) —: $line\n'
+          '---\nverify_method: test',
+        ),
+      );
+    });
+
+    test(
+      'a block link prints right after its heading line, kind item',
+      () async {
+        const line = 'See [a note]($_specs/topics/blocks.md#a-note).';
+        final answer = design(
+          await _index(
+            line,
+            extra: {
+              'docs/specs/topics/blocks.md':
+                  '# Blocks\n\n## Examples\n### A note\nShort.\n',
+            },
+          ),
+        );
+
+        expect(
+          answer.text,
+          contains('### A note\n  · cited by $_frName (fr) —: $line\nShort.'),
+        );
+        final part = docsOf(answer)
+            .firstWhere((d) => d['path'] == 'specs/topics/blocks.md');
+        expect(part['citedBy'], [
+          {
+            'kind': 'item',
+            'item': 'a-note',
+            'section': null,
+            'name': _frName,
+            'docType': 'fr',
+            'byItem': null,
+            'line': line,
+          },
+        ]);
+      },
+    );
+
+    test('an unplaced anchor joins the doc-level entry', () async {
+      const line = 'See [the title]($toFr#validate-credentials).';
+      final index = await _index(
+        'Check it.',
+        extra: {'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\n$line\n'},
+      );
+      final cited = _citedBy(index);
+      final fr = index.at(_fr.substring('docs/'.length))!.docPath;
+
+      expect(_ofDoc(cited, fr).map((c) => c.line), [line]);
+      expect(_ofSection(cited, fr, 'statement'), isEmpty);
+      final picked = docsOf(design(index))
+          .firstWhere((d) => d['name'] == _frName);
+      expect((picked['citedBy']! as List).single, containsPair('kind', 'doc'));
+    });
+
+    test('an anchor matching nothing gets no line', () async {
+      final cited = _citedBy(await _index('See [it]($toDomain#nothing-here).'));
+
+      expect(cited.keys.where((k) => k.docPath == _domain), isEmpty);
+    });
+
+    test('one line holding an item link and a section link gives two entries, the item one once', () async {
+      const line = 'See $_inv14 and [the invariants]($toDomain#invariants).';
+      final cited = _citedBy(await _index(line));
+
+      expect(_of(cited, _domain, 'INV-14').map((c) => c.line), [line]);
+      expect(_ofSection(cited, _domain, 'invariants').map((c) => c.line), [
+        line,
+      ]);
+    });
+
+    test(
+      'a link text with a digit that is no item ID cites its section or doc',
+      () async {
+        const line = 'See [v2]($toDomain#invariants) and [v3]($toDomain).';
+        final cited = _citedBy(await _index(line));
+
+        expect(_ofSection(cited, _domain, 'invariants'), hasLength(1));
+        expect(_ofDoc(cited, _domain), hasLength(1));
+        expect(cited.keys.where((k) => k.kind == CitedKind.item), isEmpty);
+      },
+    );
+
+    test('json entries carry kind and section', () {
+      const by = <CitedBy>[
+        (name: 'guide', docType: 'topic', byItem: null, line: 'x'),
+      ];
+      const own = {
+        'name': 'guide',
+        'docType': 'topic',
+        'byItem': null,
+        'line': 'x',
+      };
+
+      expect(
+        citedByJson([
+          (
+            kind: CitedKind.section,
+            item: null,
+            sectionKey: 'invariants',
+            after: 5,
+            by: by,
+          ),
+          (kind: CitedKind.doc, item: null, sectionKey: null, after: 0, by: by),
+          (
+            kind: CitedKind.item,
+            item: 'INV-14',
+            sectionKey: 'invariants',
+            after: 7,
+            by: by,
+          ),
+        ]),
+        [
+          {'kind': 'section', 'item': null, 'section': 'invariants', ...own},
+          {'kind': 'doc', 'item': null, 'section': null, ...own},
+          {'kind': 'item', 'item': 'INV-14', 'section': null, ...own},
+        ],
+      );
+    });
+
+    test('a bundle: doc, a self link, and an untyped citer get none', () async {
+      final index = await _index(
+        'Cites [the vision](../../../PROJECT.md#project-vision) and [the project](../../../PROJECT.md).',
+        extra: {
+          'docs/prds/PROJECT.md': '---\nowner: Owner\n---\n\n# Project context\n\n## Project vision\n### PV-01 — One system\nText.\n',
+          'docs/specs/f02_signup/DOMAIN.md': '# Sign-up domain\n\n## Invariants\n- **INV-13** One.\n\nSee [itself](DOMAIN.md#invariants) and [again](DOMAIN.md).\n',
+          'docs/README.md': '# Readme\n\nSee [the invariants](specs/f02_signup/DOMAIN.md#invariants) and [the domain](specs/f02_signup/DOMAIN.md).\n',
+        },
+      );
+      expect(index.at('README.md')!.isTyped, isFalse);
+      final cited = _citedBy(index);
+
+      expect(
+        cited.keys.where(
+          (k) => k.docPath == 'prds/PROJECT.md' || k.docPath == _domain,
+        ),
+        isEmpty,
+      );
+    });
+  });
 
   group('a split design bundle', () {
     const edge = '1. E01 — A wrong password → refused, by $_inv14.';
@@ -291,6 +525,7 @@ void main() {
 
   test('an index that prints its lines as parts gives no line to print after an item', () {
     const item = (
+      kind: CitedKind.item,
       item: 'E01',
       sectionKey: 'edge_cases',
       after: 3,

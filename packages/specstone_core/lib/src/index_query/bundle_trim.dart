@@ -23,10 +23,10 @@ int lineCountOf(String text) => '\n'.allMatches(text).length + 1;
 int lineAfterBlocks(Iterable<String> blocks) =>
     blocks.fold(0, (line, block) => line + lineCountOf(block) + 1);
 
-/// Returns the text a summary of [doc] prints after its naming line: its
-/// `# ` title line, then its summary sections, one blank line apart,
-/// with the items [citedBy] holds lines for, each printed whole there, and
-/// the line each section starts on.
+/// Returns the text a summary of [doc] prints after its naming line: the
+/// lines [citedBy] holds for the whole doc, its `# ` title line, then its
+/// summary sections, one blank line apart, with the places [citedBy] holds
+/// lines for printed there, and the line each section starts on.
 ({String text, List<CitedItem> cited, List<SectionLine> sections})
 summaryPrintOf(
   IndexedDoc doc,
@@ -38,9 +38,11 @@ summaryPrintOf(
   final title = doc.title;
   final held = citedSectionsOf(content, docType);
   final blocks = [if (title != null) '# $title'];
-  final cited = <CitedItem>[];
+  final docEntry = citedBy == null ? null : citedDocIn(citedBy, doc);
+  final docLines = citedLinesAfter(citedBy, [?docEntry])[0] ?? const [];
+  final cited = <CitedItem>[?docEntry];
   final sections = <SectionLine>[];
-  var line = lineAfterBlocks(blocks);
+  var line = docLines.length + lineAfterBlocks(blocks);
   for (final section in summarySectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(
       doc,
@@ -55,14 +57,19 @@ summaryPrintOf(
     blocks.add(print.block);
     cited.addAll(print.cited);
   }
-  return (text: blocks.join('\n\n'), cited: cited, sections: sections);
+  return (
+    text: [...docLines, blocks.join('\n\n')].join('\n'),
+    cited: cited,
+    sections: sections,
+  );
 }
 
 /// Returns [section] of [doc], whose held sections [held] reads, as a bundle
-/// prints it, with the lines [citedBy] holds for its items after them.
+/// prints it, with the lines [citedBy] holds for the section after its header
+/// line and for its items and `###` blocks after them.
 ///
 /// With [summaryRows], the section prints cut by [cutToRows], and only the
-/// items whole inside the printed lines get a cited-by line.
+/// items and blocks whole inside the printed lines get a cited-by line.
 ({String block, List<CitedItem> cited}) sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
@@ -81,16 +88,19 @@ summaryPrintOf(
         );
   final items = citedBy == null
       ? const <CitedItem>[]
-      : citedItemsIn(
-          citedBy,
-          doc,
-          content,
-          held[at],
-          at,
-          within: summaryRows == null
-              ? null
-              : _bodyRangeOf(content, at, printed.body),
-        );
+      : [
+          ?citedSectionIn(citedBy, doc, content, held[at], at),
+          ...citedItemsIn(
+            citedBy,
+            doc,
+            content,
+            held[at],
+            at,
+            within: summaryRows == null
+                ? null
+                : _bodyRangeOf(content, at, printed.body),
+          ),
+        ];
   final block = sectionBlockOf(
     printed,
     bodyLine: content.lineFacts.sectionLines[at] + 1,
@@ -133,8 +143,9 @@ int? summaryRowCountOf(MergedDocType? docType, String key) {
   return null;
 }
 
-/// Returns [section] as a bundle prints it: its header line, then its body
-/// with HTML comments removed, trimmed at its end.
+/// Returns [section] as a bundle prints it: its header line, the lines [after]
+/// gives for the header's file line, then its body with HTML comments
+/// removed, trimmed at its end.
 ///
 /// [bodyLine] is the file line of the body's first line, and [after] gives
 /// the lines to print after a file line (see [printedBodyOf]).
@@ -142,9 +153,18 @@ String sectionBlockOf(
   IndexedSection section, {
   int bodyLine = 1,
   Map<int, List<String>> after = const {},
-}) =>
-    '${section.headerLine}\n'
-    '${printedBodyOf(section.body, firstLine: bodyLine, after: after)}';
+}) {
+  final headerLine = bodyLine - 1;
+  final body = printedBodyOf(
+    section.body,
+    firstLine: bodyLine,
+    after: {
+      for (final MapEntry(:key, :value) in after.entries)
+        if (key != headerLine) key: value,
+    },
+  );
+  return [section.headerLine, ...?after[headerLine], body].join('\n');
+}
 
 /// Returns the sections [content] keeps for [mode], in its doc type's section
 /// order, a section the type does not define after them in file order.

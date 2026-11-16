@@ -847,7 +847,9 @@ void main() {
       ]);
       expect(picked['citedBy'], [
         {
+          'kind': 'item',
           'item': 'E02',
+          'section': null,
           'name': 'guide',
           'docType': 'topic',
           'byItem': null,
@@ -858,7 +860,9 @@ void main() {
       expect(part.keys.last, 'citedBy');
       expect(part['citedBy'], [
         {
+          'kind': 'item',
           'item': 'INV-14',
+          'section': null,
           'name': frName,
           'docType': 'fr',
           'byItem': 'E01',
@@ -940,7 +944,9 @@ void main() {
       expect(
         a.text,
         contains(
-          '· summary · cited <==\n# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
+          '· summary · cited <==\n'
+          '  · cited by $frName (fr) —: See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).\n'
+          '# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
           '  · cited by guide (topic) —: See [BR-1]',
         ),
       );
@@ -1319,9 +1325,12 @@ void main() {
           .firstWhere(
             (d) => d['name'] == 'fewer_resets' && d['summary'] == true,
           );
-      expect((summary['citedBy']! as List).map((c) => (c as Map)['item']), [
+      final entries = (summary['citedBy']! as List)
+          .cast<Map<String, Object?>>();
+      expect(entries.where((c) => c['kind'] == 'item').map((c) => c['item']), [
         'RUN-1',
       ]);
+      expect(entries.where((c) => c['kind'] == 'doc'), hasLength(1));
     });
     test('a summary_rows section written as prose prints whole', () async {
       final text = await printed('Run one met the goal.');

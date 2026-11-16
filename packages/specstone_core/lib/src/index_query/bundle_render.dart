@@ -389,18 +389,20 @@ final class _Piece {
   }
 }
 
-/// Returns the cited-by part of each of [items] of [doc], in the refs text.
+/// Returns the cited-by part of each item or block of [items] of [doc], in the
+/// refs text.
 List<_Piece> _citedByPieces(IndexedDoc doc, List<CitedItem> items) => [
   for (final item in items)
-    _Piece(
-      citedByPartBlock(doc, item),
-      doc: doc,
-      kind: BundleEntryKind.citedBy,
-      listName: citedByListName(doc, item),
-      inRefs: true,
-      sectionKey: item.sectionKey,
-      itemId: item.item,
-    ),
+    if (item.kind == CitedKind.item)
+      _Piece(
+        citedByPartBlock(doc, item),
+        doc: doc,
+        kind: BundleEntryKind.citedBy,
+        listName: citedByListName(doc, item),
+        inRefs: true,
+        sectionKey: item.sectionKey,
+        itemId: item.item,
+      ),
 ];
 
 String _shownOf(List<_Piece> pieces) =>
@@ -575,9 +577,9 @@ ContextAnswer _overBudget(
 
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
-/// joined by one blank line, with the lines
-/// [citedBy] holds for its items printed after them, and the line each kept
-/// section starts on in the block.
+/// joined by one blank line, with the lines [citedBy] holds for the whole doc
+/// printed after the naming line and for its places printed after them, and
+/// the line each kept section starts on in the block.
 ({String block, List<CitedItem> cited, List<SectionLine> sections}) _docBlock(
   DocIndex index,
   IndexedDoc doc,
@@ -603,11 +605,13 @@ ContextAnswer _overBudget(
     final head = removeHtmlComments(content.head);
     if (head.trim().isNotEmpty) parts.add(head.trimRight());
   }
-  final cited = <CitedItem>[];
+  final docEntry = citedBy == null ? null : citedDocIn(citedBy, doc);
+  final docLines = citedLinesAfter(citedBy, [?docEntry])[0] ?? const [];
+  final cited = <CitedItem>[?docEntry];
   final sections = <SectionLine>[];
   final held = citedSectionsOf(content, docType);
   // The naming line is the block's line 0.
-  var line = 1 + lineAfterBlocks(parts);
+  var line = 1 + docLines.length + lineAfterBlocks(parts);
   for (final section in keptSectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
     cited.addAll(print.cited);
@@ -615,7 +619,7 @@ ContextAnswer _overBudget(
     line += lineAfterBlocks([print.block]);
     parts.add(print.block);
   }
-  final block = '${namingLine(doc)}\n${parts.join('\n\n')}';
+  final block = [namingLine(doc), ...docLines, parts.join('\n\n')].join('\n');
   return (block: block, cited: cited, sections: sections);
 }
 
