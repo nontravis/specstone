@@ -50,10 +50,10 @@ void main() {
   });
 
   test('scope is a summary section, results counts one summary row, and '
-      'the doc is summarized for the project target', () {
+      'the doc is summarized for the project and goal targets', () {
     expect(sectionOf(measurement, 'scope').summary, isTrue);
     expect(sectionOf(measurement, 'results').summaryRowCount, 1);
-    expect(measurement.summaryFor, ['project']);
+    expect(measurement.summaryFor, ['project', 'goal']);
     for (final id in ['method', 'baseline', 'open_causes']) {
       expect(sectionOf(measurement, id).summaryRowCount, isNull, reason: id);
     }
@@ -91,7 +91,8 @@ void main() {
         'older row',
       ),
     );
-    expect(guide, contains("goal's `### PG-` heading"));
+    expect(guide, contains("goal's `### PG-` heading in the goal doc"));
+    expect(guide, isNot(contains('in the project doc')));
     expect(guide, contains('`**Metric:**` line links back'));
     expect(guide, contains('never restate it.'));
   });

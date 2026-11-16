@@ -1,6 +1,7 @@
 // The fixture texts are written as the docs hold them.
 // ignore_for_file: lines_longer_than_80_chars
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -258,7 +259,14 @@ void main() {
       templates: TemplateResolver(
         shippedFiles: {
           for (final MapEntry(:key, :value) in shippedPackFiles.entries)
-            if (key != 'prd-core/goal.yaml') key: value,
+            if (key != 'prd-core/goal.yaml')
+              key: key == 'prd-core/measurement.yaml'
+                  ? utf8.encode(
+                      utf8
+                          .decode(value)
+                          .replaceFirst('[project, goal]', '[project]'),
+                    )
+                  : value,
         },
       ),
       workingDirectory: project,
