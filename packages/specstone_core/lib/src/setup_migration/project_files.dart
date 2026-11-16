@@ -183,19 +183,20 @@ MapEntry<String, String>? gnfrOverride(
 /// by DocPath.
 List<MergedDocType> singularDocTypes(MergedSet set) {
   final singular = [
-    for (final docType in set.docTypes)
-      if (_isSingular(docType.path) && !set.isProjectSpecType(docType)) docType,
+    for (final docType in _onePathTypes(set))
+      if (!set.isProjectSpecType(docType)) docType,
   ];
   return singular..sort(_byDraftOrder);
 }
 
-/// Returns the DocPath of each singular doc type of [set], one per name in
-/// [twinNames] in place of the shared path for a per-target type.
+/// Returns the DocPath of each doc type of [set] with one doc per project,
+/// project spec types included, one per name in [twinNames] in place of the
+/// shared path for a per-target type.
 Set<String> singularLayoutPathsOf(
   MergedSet set, {
   required List<String> twinNames,
 }) => {
-  for (final type in singularDocTypes(set))
+  for (final type in _onePathTypes(set))
     if (type.path case final path?)
       if (type.isPerTarget && twinNames.isNotEmpty)
         for (final name in twinNames) PathPattern(path).forTarget(name).source
@@ -264,6 +265,10 @@ String _stringScalar(String text) {
   }
   return _quoted(text);
 }
+
+/// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`.
+Iterable<MergedDocType> _onePathTypes(MergedSet set) =>
+    set.docTypes.where((docType) => _isSingular(docType.path));
 
 bool _isSingular(String? path) =>
     path != null && !path.contains('{nn}') && !path.contains('{slug}');

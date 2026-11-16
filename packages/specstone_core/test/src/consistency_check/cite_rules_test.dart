@@ -173,6 +173,14 @@ void main() {
     expect(findings.single.keys, {'cite': '../../GOAL.md'});
   });
 
+  test("a project spec type's layout path raises nothing", () async {
+    final findings = await _citeFindings({
+      'docs/specs/DOMAIN.md': '# Project domain\n',
+      ...doc(loginFeature, _line, 'Users forget; see `specs/DOMAIN.md`.'),
+    });
+    expect(findings, isEmpty);
+  });
+
   test('a header span right after a path names its section', () async {
     final findings = await _citesInFeature(
       'Users forget; see `../../../specs/f01_login/ARCHITECTURE.md` `## Components`.',

@@ -199,6 +199,21 @@ void main() {
       expect(_cited(report), ['app/lib/auth.dart:2 $_featureDoc']);
     });
 
+    test(
+      "a project spec type's layout path in a skill file raises nothing",
+      () async {
+        final report = checkOf(
+          await writeCheckProject(
+            extra: {
+              'docs/specs/DOMAIN.md': '# Project domain\n',
+              'app/lib/SKILL.md': 'Read `specs/DOMAIN.md`.\n',
+            },
+          ),
+        );
+        expect(_cited(report), isEmpty);
+      },
+    );
+
     test('an agent file under a code root is never read', () async {
       final report = checkOf(
         await writeCheckProject(

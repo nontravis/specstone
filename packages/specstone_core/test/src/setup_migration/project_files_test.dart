@@ -379,6 +379,23 @@ void main() {
       expect(twins, contains('prds/GOAL.md'));
     });
 
+    test("a project spec type's one path is a layout path too, though it "
+        'gets no draft', () {
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+      );
+
+      expect(
+        singularLayoutPathsOf(set, twinNames: const []),
+        containsAll(['specs/DOMAIN.md', 'specs/API.md']),
+      );
+      expect(
+        singularDocTypes(set).map((type) => type.path),
+        isNot(contains('specs/DOMAIN.md')),
+      );
+    });
+
     test('a path is a singular layout path when it, or it under the docs '
         'folder, is in the set', () {
       const paths = {'prds/GOAL.md'};
