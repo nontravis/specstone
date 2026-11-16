@@ -385,6 +385,24 @@ void main() {
         });
       }
 
+      for (final name in ['refs', 'REFS', 'Refs']) {
+        test('$name is refused at the targets key', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\ntargets:\n  $name:\n    code_root: a\n',
+          );
+
+          expect(
+            () => ProjectConfig.read(root),
+            throwsA(
+              _fault(
+                FaultCode.unknownValue,
+                key: 'targets',
+              ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+            ),
+          );
+        });
+      }
+
       test(
         'Review Focus 1: a name differing from another only in letter case is '
         'refused by the slug rule, so no two spec trees share a folder',
