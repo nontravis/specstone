@@ -17,7 +17,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 
 const _planLabel = 'cites: ';
 const _leftLabel = '; left: ';
-const _space = 0x20;
 
 /// The pack versions that first ship the cite rule.
 ///
@@ -197,12 +196,7 @@ _DocResult _convertDoc(
     if (resolved is CiteNoDoc) continue;
     if (resolved is CiteLink) {
       edits.addAll(
-        _editsOf(
-          form,
-          resolved,
-          citeLinkMarkdown(docPath, resolved),
-          lines[candidate.line - 1],
-        ),
+        _editsOf(form, resolved, citeLinkMarkdown(docPath, resolved)),
       );
       rewrites++;
     } else {
@@ -212,18 +206,13 @@ _DocResult _convertDoc(
   return (lf: _withEdits(lines, edits), rewrites: rewrites, kept: kept);
 }
 
-/// Returns the edits that write [form], on [line], as the [markdown] links of
-/// [link].
+/// Returns the edits that write [form] as the [markdown] links of [link].
 ///
 /// A doc or section cite becomes its one link. An item cite drops its doc
-/// part and the spaces after it, and each item ID becomes its own link, the
-/// words between them kept.
-List<_Edit> _editsOf(
-  CiteForm form,
-  CiteLink link,
-  List<String> markdown,
-  String line,
-) {
+/// part and the gap up to its run, and each item ID of the run becomes its own
+/// link, the words between them kept; with no item to link it writes nothing,
+/// so the name is never dropped without a link in its place.
+List<_Edit> _editsOf(CiteForm form, CiteLink link, List<String> markdown) {
   final number = form.candidate.line;
   if (link.items.isEmpty) {
     return [
@@ -234,15 +223,15 @@ List<_Edit> _editsOf(
     for (final (index, item) in link.items.indexed)
       item.itemId: markdown[index],
   };
-  var dropEnd = form.end;
-  while (dropEnd < line.length && line.codeUnitAt(dropEnd) == _space) {
-    dropEnd++;
-  }
-  return [
-    (line: number, start: form.start, end: dropEnd, text: ''),
+  final links = [
     for (final (:column, :itemId) in form.items)
       if (linkOf[itemId] case final text?)
         (line: number, start: column, end: column + itemId.length, text: text),
+  ];
+  if (links.isEmpty) return const [];
+  return [
+    (line: number, start: form.start, end: links.first.start, text: ''),
+    ...links,
   ];
 }
 
