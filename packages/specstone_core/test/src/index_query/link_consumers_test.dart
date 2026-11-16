@@ -147,13 +147,13 @@ const _readForms = <_Form>[
     name: 'a footnote defined before its reference',
     links:
         '[^1]: Also [c](pic.png).\n\n'
-        '[a]($_topicLink) note[^1] RULE-7a\n[b]($_storyLink#$_oldSlug)\n',
+        '[a]($_topicLink) RULE-7a note[^1]\n[b]($_storyLink#$_oldSlug)\n',
     topicAnchor: null,
   ),
   (
     name: 'footnotes referenced out of order',
     links:
-        '[a]($_topicLink) x[^2] y[^1] RULE-7a\n[b]($_storyLink#$_oldSlug)\n\n'
+        '[a]($_topicLink) RULE-7a x[^2] y[^1]\n[b]($_storyLink#$_oldSlug)\n\n'
         '[^1]: [p](p.png)\n[^2]: [q](q.png)\n',
     topicAnchor: null,
   ),
@@ -247,7 +247,7 @@ void main() {
 
         final renumbered = pass.apply(_domainPath, domain);
 
-        expect(renumbered, contains(' RULE-31\n'));
+        expect(renumbered, contains(' RULE-31'));
         expect(renumbered, isNot(contains('RULE-7a')));
         expect(_indexed(renumbered), [
           (_topicPath, topicAnchor),
