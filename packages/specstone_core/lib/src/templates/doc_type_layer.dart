@@ -1223,7 +1223,7 @@ ItemFieldLint _parseItemField(
   final keyPrefix = '$key.';
   checkKeys(
     entry,
-    const {'field', 'values'},
+    const {'field', 'values', 'when'},
     file: file,
     format: 'doc-type',
     prefix: keyPrefix,
@@ -1241,7 +1241,33 @@ ItemFieldLint _parseItemField(
         : List.unmodifiable(
             stringsOf(values, 'values', file: file, prefix: keyPrefix),
           ),
+    when: _parseItemFieldWhen(entry, file: file, prefix: keyPrefix),
   );
+}
+
+ItemFieldWhen? _parseItemFieldWhen(
+  YamlMap entry, {
+  required String file,
+  required String prefix,
+}) {
+  final when = optionalValue<YamlMap>(
+    entry,
+    'when',
+    file: file,
+    prefix: prefix,
+  );
+  if (when == null) return null;
+  final keyPrefix = '${prefix}when.';
+  checkKeys(
+    when,
+    const {'field', 'value'},
+    file: file,
+    format: 'doc-type',
+    prefix: keyPrefix,
+  );
+  String read(String name) =>
+      requireValue<String>(when, name, file: file, prefix: keyPrefix);
+  return ItemFieldWhen(field: read('field'), value: read('value'));
 }
 
 RequiredWhenLint? _parseRequiredWhen(
