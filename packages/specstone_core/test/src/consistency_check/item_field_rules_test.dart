@@ -60,6 +60,16 @@ int _lineOf(String needle) =>
     1;
 
 void main() {
+  test(
+    'a quote line under a heading opens no field entry of its own',
+    () async {
+      final found = await _found(
+        _withRationale('### Group\n\n> en: One line.\n$_held'),
+      );
+      expect(found, isEmpty);
+    },
+  );
+
   test('an item holding every listed field with an allowed value has no '
       'finding', () async {
     final found = await _found(_withRationale(_held));

@@ -240,6 +240,38 @@ void main() {
     expect(found.single.toJson(), containsPair('actual', 4));
   });
 
+  test('table row with no column sums its cells', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', '''
+      max_sentences:
+        - count: 2
+'''),
+      edits: fr(
+        'A wrong password must not sign in.',
+        '| Part | Responsibility |\n|---|---|\n'
+            '| Form | Takes input. Sends it. |',
+      ),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
+    expect(found.single.line, _lineOf(loginFr, '| Form |'));
+    expect(found.single.toJson(), containsPair('actual', 3));
+  });
+
+  test('heading item over the limit cites the heading line', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', _oneSentence),
+      edits: fr(
+        'A wrong password must not sign in.',
+        '### Group\n\nRefuse it. Log it.',
+      ),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
+    expect(found.single.line, _lineOf(loginFr, '### Group'));
+    expect(found.single.toJson(), containsPair('actual', 2));
+  });
+
   test('heading sentence adds none', () async {
     final found = await _found(
       _frLayer,

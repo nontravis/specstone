@@ -52,10 +52,12 @@ typedef SectionItem = ({
 /// An item is a list item without its nested items, a nested item alone, a
 /// table row below the delimiter row, a paragraph, or a `###` heading with
 /// the paragraph right under it and never its bullets, inside a blockquote
-/// as anywhere else. A fenced code block, a thematic break, and a table's
-/// header and delimiter rows are no item; a fenced line belongs to no item. A
-/// list item ends at a blank line or a fence, and the text after it is its own
-/// item. A line scan, no markdown parse.
+/// as anywhere else. A quoted paragraph right under a heading, at the
+/// heading's quote depth or deeper, is that paragraph. A fenced code block, a
+/// thematic break, and a table's header and delimiter rows are no item; a
+/// fenced line belongs to no item. A list item ends at a blank line or a
+/// fence, and the text after it is its own item. A line scan, no markdown
+/// parse.
 List<SectionItem> sectionItemsOf(List<BodyLine> body) {
   final lines = _linesOf(body);
   final headers = <int, List<String>>{};

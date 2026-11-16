@@ -117,6 +117,21 @@ void main() {
       ]);
     });
 
+    test('E09: a ### heading inside a blockquote '
+        'counts with a deeper quoted paragraph right under it', () {
+      final items = _items(
+        '> ### Quoted\n'
+        '>\n'
+        '> > deeper\n'
+        '- bullet',
+      );
+
+      expect(items, [
+        (line: 20, chars: 25, text: 'Quoted', heading: true),
+        (line: 23, chars: 8, text: 'bullet', heading: false),
+      ]);
+    });
+
     test('E09: a ### heading '
         'counts with the quoted paragraph right under it', () {
       final items = _items(

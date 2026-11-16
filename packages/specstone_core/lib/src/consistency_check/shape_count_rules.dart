@@ -83,14 +83,21 @@ Iterable<Finding> _subsectionLimitFindings(
 /// readability facts the index stores for it.
 ///
 /// The items and the stored facts read the same section by one item rule, so
-/// they pair by position; none pair when the two lists differ in length.
+/// they pair by position; a section whose two counts differ is a fault in the
+/// index.
 List<_Held> _heldItemsIn(CheckContext context, IndexedDoc doc, int index) {
   final items = context.itemsIn(doc, index);
-  final facts = context.contentOf(doc).itemFacts.sectionItems[index];
-  final isPaired = items.length == facts.length;
+  final content = context.contentOf(doc);
+  final facts = content.itemFacts.sectionItems[index];
+  if (items.length != facts.length) {
+    throw StateError(
+      '${doc.docPath} section ${content.sections[index].key} holds '
+      '${items.length} items but the index stores ${facts.length}',
+    );
+  }
   return [
     for (var k = 0; k < items.length; k++)
-      (item: items[k], facts: isPaired ? facts[k].readability : null),
+      (item: items[k], facts: facts[k].readability),
   ];
 }
 
@@ -123,14 +130,13 @@ Iterable<({int line, int actual})> _countsToLimit(
   if (limit.column case final column?) {
     for (final (:item, :facts) in section.rows) {
       final at = item.header!.indexOf(column);
-      if (facts == null || at < 0 || at >= facts.cells.length) continue;
+      if (at < 0 || at >= facts.cells.length) continue;
       yield (line: item.line, actual: _sentenceCountOf(facts.cells[at]));
     }
     return;
   }
   final prefix = limit.linePrefix;
   for (final (:item, :facts) in section.readable) {
-    if (facts == null) continue;
     if (prefix == null || item.firstLine.startsWith(prefix)) {
       yield (
         line: item.line,
@@ -204,9 +210,8 @@ Iterable<Finding> _countIn(
   }
 }
 
-/// An item and the readability facts stored for it; null when the index holds
-/// none that pair with it.
-typedef _Held = ({SectionItem item, ReadabilityFacts? facts});
+/// An item and the readability facts stored for it.
+typedef _Held = ({SectionItem item, ReadabilityFacts facts});
 
 /// A section's top-level items, grouped for the rules.
 final class _Block {

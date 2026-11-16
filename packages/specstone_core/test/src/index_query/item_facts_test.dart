@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -439,6 +441,34 @@ void main() {
 
       expect(item.readability.notes, [(text: '(RULE-10)', closes: false)]);
       expect(item.readability.cells.single.single.words, 8);
+    });
+
+    test('item and fact counts agree on an unformatted doc', () {
+      const bodies = [
+        'Para one\n1. ordered under para\n2. second\n\n\n\n### H\nright\n- b\n',
+        '> quote\n> - qi\n>\n> para\n\n| a | b |\n|---|---|\n| 1 | 2 |\n',
+        'a | b\n--|--\n1 | 2\n',
+        '* star\n+ plus\n\n   indented para\n\n```\ncode\n```\n- after\n',
+        '- after\n   - nested\n',
+        '### H\n> en: x\n> > deeper\n\n> ### QH\n> > deeper\n',
+        '- a\nlazy\n- b\n\n  cont\n\n10. ten\n11) eleven\n',
+      ];
+      for (final body in bodies) {
+        final content = parse(
+          _frPath,
+          '# V\n\n## Statement\n\n$body\n## Edge cases\n\n1. E01 — a\n',
+        ).content;
+        for (var i = 0; i < content.sections.length; i++) {
+          final items = sectionItemsOf(
+            sectionBodyLines(content.sections, content.lineFacts, i),
+          );
+          expect(
+            content.itemFacts.sectionItems[i],
+            hasLength(items.length),
+            reason: body,
+          );
+        }
+      }
     });
 
     test('closing note counts no sentence', () {
