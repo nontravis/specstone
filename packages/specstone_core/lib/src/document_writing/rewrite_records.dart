@@ -163,9 +163,18 @@ final class _Planner {
     return null;
   }
 
+  /// Plans the arrival of [lines] after the edit already planned for the record
+  /// at [docPath], so a record that renames and gains entries does both.
   void _addTo(String docPath, RecordLines lines) {
-    _edits[docPath] = (text) =>
-        readRecord(docPath, () => addRecordLines(text, recordType, lines));
+    final prior = _edits[docPath];
+    _edits[docPath] = (text) {
+      final renamed = prior?.call(text);
+      final added = readRecord(
+        docPath,
+        () => addRecordLines(renamed ?? text, recordType, lines),
+      );
+      return added ?? renamed;
+    };
   }
 
   /// Throws [RenderFault] `output_not_writable` unless the matcher reads the

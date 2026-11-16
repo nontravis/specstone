@@ -1593,6 +1593,17 @@ void main() {
         }
       });
 
+      test('an approved fr keeps a matching approval hash after its traces are rewritten', () async {
+        final root = await frProject();
+        stampApproved(root, checkStockFile);
+        expect(holdsApproval(root, checkStockFile), isTrue);
+        move(root, checkStock, 'shop/cart/drop_item');
+        final moved = readDoc(root, movedWithin);
+        expect(moved, contains('approved:'));
+        expect(moved, contains('  - shop/cart/add_item#S1 '));
+        expect(holdsApproval(root, movedWithin), isTrue);
+      });
+
       test(
         "a moved fr's traces are reported after a move to another feature",
         () async {
@@ -3532,6 +3543,38 @@ void main() {
         moveStock(noRecord, 'shop/pay/card');
         expect(hasDoc(noRecord, cartJaspr), isFalse);
         expect(hasDoc(noRecord, payJaspr), isFalse);
+      });
+
+      test('frs of the landing feature and of another feature move in one call, and the landing record renames its own entries and gains the arrivals', () async {
+        const cardFr = '$payDir/us01_card/fr01_x.md';
+        final root = await shopTwins(
+          extra: {
+            'docs/$cardFr': '# X\n',
+            payJaspr: recordText(
+              statuses: ['card:implemented', 'card/x:implemented'],
+            ),
+            cartJaspr: recordText(
+              statuses: ['add_item/check_stock:implemented'],
+            ),
+          },
+        );
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'fr:shop/pay/card/x',
+            checkStock,
+          ], under: 'shop/pay/refund'),
+        );
+
+        final pay = readDoc(root, payJaspr);
+        expect(pay, contains("'card:implemented'"));
+        expect(pay, contains("'refund/x:implemented'"));
+        expect(pay, contains("'refund/check_stock:implemented'"));
+        expect(pay, isNot(contains('card/x')));
+        expect(
+          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
       });
 
       test('an fr moved across features lands in the record on disk the snapshot lacks', () async {
