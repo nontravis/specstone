@@ -24,11 +24,11 @@ specstone check
 ## 2. Hand off in batches
 
 With a subagent, split the gate's findings this skill takes by doc path: one batch per feature folder, and one for
-the rest. In the first round the rest batch always runs, even with no finding, and names the project, features, and
-gnfr docs, the skeletons the procedure's step 6 fills; no feature batch fills them. In a later round it runs only when
-findings it owns remain. When it holds the `section_undeclared` on PROJECT's goals section, first ask the Owner each
-goal's horizon, long-, mid-, or short-term, one question per goal showing its `**By:**`, and send the answers with the
-batch. Dispatch one `specstone-sdd-engineer` per batch as
+the rest. In the first round the rest batch always runs, even with no finding, and names the project, goal, glossary,
+features, and gnfr docs, the skeletons the procedure's step 6 fills; no feature batch fills them. In a later round it
+runs only when findings it owns remain. When it holds the `section_undeclared` on PROJECT's goals section, first ask the
+Owner each goal's horizon, long-, mid-, or short-term, one question per goal showing its `**By:**`, and send the
+answers with the batch; its glossary section asks the Owner nothing. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-prd`, `batch:`
 the batch's paths, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches
 may run at once. Send no doc text, and work no step of the procedure yourself while a dispatch can run. Take
@@ -55,8 +55,8 @@ in for item 4.
    proposal; on ok, run its commands yourself, in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
-   for the batch with them. Show the Owner the question on a goal that a goal move kept in PROJECT without asking it,
-   and count it settled for item 4.
+   for the batch with them. Show the Owner the question on a goal that a goal move kept in PROJECT, or an entry that a
+   glossary move kept there, without asking it, and count it settled for item 4.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
    one command naming each path once, each still quoted. Leave out each path under `specs/` and each path an untyped
    referrer under `specs/` names: they wait for `specstone-bootstrap-spec`'s delete. Then get the Owner's word on the
@@ -64,8 +64,9 @@ in for item 4.
    those referrers.
 5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
    `(waits for the Owner)`, the last reports name it as one that clears with no write, it is the `section_undeclared`
-   on PROJECT's goals section after a goal move kept a goal there, or it waits on `specstone-bootstrap-spec`, such as
-   a finding on a path item 4 left out for it. For the rest of the run, no batch holds that goals finding, and no
+   on PROJECT's goals section after a goal move kept a goal there, the one on its glossary section after a glossary
+   move kept an entry there, or it waits on `specstone-bootstrap-spec`, such as a finding on a path item 4 left out for
+   it. For the rest of the run, no batch holds that goals finding, no batch holds that glossary finding, and no
    question, item 3's included, asks a kept goal's horizon again. With none left, go to item 6.
 6. Once per run, after the last round, run `specstone check --repeats`, then dispatch the repeats batch
    (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each

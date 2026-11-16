@@ -211,6 +211,7 @@ void main() {
   _batchGuideTests();
   _repeatsBatchTests();
   _goalMoveTests();
+  _glossaryMoveTests();
   _otherPluginSkillTests();
   _planTests();
   _codeParseTests();
@@ -237,6 +238,7 @@ const _agentFileNames = <String, List<String>>{
   ],
   'specstone-bootstrap-prd/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
   _goalMove: ['sdd-engineer.bootstrap.batch.<XXXXXX>.txt'],
+  _glossaryMove: ['sdd-engineer.bootstrap.batch.<XXXXXX>.txt'],
   'specstone-bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
   'specstone-brainstorming-sdd/SKILL.md': ['sdd-engineer.<mode>.<XXXXXX>.md'],
   'specstone-brainstorming-sdd/references/author.md': [
@@ -4608,6 +4610,161 @@ void _goalMoveTests() {
   });
 }
 
+/// The glossary-move reference of bootstrap-prd, under the plugin folder.
+const _glossaryMove = 'specstone-bootstrap-prd/references/glossary-move.md';
+
+/// The commands of the glossary move, in the order its steps run them.
+const _glossaryMoveCommands = [
+  'specstone new glossary',
+  'specstone get glossary:glossary --json',
+  'specstone set glossary:glossary --title --base <hash>',
+  'specstone set glossary:glossary#terms --base <hash>',
+  'set --batch',
+  'specstone refs project',
+];
+
+void _glossaryMoveTests() {
+  test('f08/us05/fr01/e51, e57: bootstrap-prd procedure routes the glossary '
+      'move in the one singular_doc_missing row and copies no step', () {
+    const file = 'specstone-bootstrap-prd/references/procedure.md';
+    final pointers = _findingRows(file)
+        .where((line) => line.contains('`singular_doc_missing`'))
+        .toList();
+    expect(pointers, hasLength(1));
+    expect(
+      pointers.single,
+      allOf(
+        contains('`goal-move.md`'),
+        contains('`glossary-move.md`'),
+        contains('`prds/GLOSSARY.md`'),
+        contains('glossary section'),
+      ),
+    );
+    final text = _pluginText(file);
+    for (final step in ['new glossary', 'glossary:glossary']) {
+      expect(text, isNot(contains(step)), reason: step);
+    }
+  });
+
+  test('f08/us05/fr01/e52, e54, e56: glossary-move.md states the commands in '
+      'step order and names no item ID or doc link', () {
+    final text = _oneLine(_pluginText(_glossaryMove));
+    var previous = -1;
+    for (final command in _glossaryMoveCommands) {
+      final at = text.indexOf(command);
+      expect(at, greaterThan(previous), reason: command);
+      previous = at;
+    }
+    expect(RegExp(r'\bE\d\d\b').hasMatch(text), isFalse);
+    expect(RegExp(r'\]\([^)]*\b(?:prds|specs)/').hasMatch(text), isFalse);
+  });
+
+  test('f08/us05/fr01/e51, e52, e53, e55, e56: glossary-move.md asks the '
+      'Owner nothing, writes held entries first, keeps a held term, and '
+      'states each link rule', () {
+    final text = _oneLine(_pluginText(_glossaryMove));
+    for (final rule in [
+      'Ask the Owner nothing.',
+      'its leading `**…**` span, trimmed, compared with case ignored',
+      'An item with no leading bold span has no term and always moves.',
+      'whose term the glossary doc already holds',
+      'stays in PROJECT, never renamed',
+      'List it once under open questions.',
+      'first the entries it already held, verbatim and in place,',
+      "then the moved ones in PROJECT's order",
+      'never shortened',
+      '`item_over_limit`',
+      'gains `PROJECT.md` as its path, its anchor unchanged',
+      'links to `GLOSSARY.md` with no anchor',
+      'A link with a path keeps it.',
+      'an in-file `#domain-glossary` link in PROJECT included',
+      'While an entry stays in the section, each link to it stays',
+      'a link to another heading of PROJECT,',
+      'or to PROJECT with no anchor, stays',
+      "Write a spec doc's link in the code target its DocPath names.",
+      'Leave the link of an untyped file',
+    ]) {
+      expect(text, contains(rule), reason: rule);
+    }
+    expect(text, contains('When the batch also runs the goal move, finish'));
+  });
+
+  test("f08/us05/fr01/e39: goal-move.md's other-DocPath step leaves "
+      'prds/GLOSSARY.md to glossary-move.md', () {
+    final step = _oneLine(
+      _sectionOf(_pluginText(_goalMove), '1. A missing singular doc'),
+    );
+    expect(
+      step,
+      contains(
+        '**Any other DocPath** but `prds/GLOSSARY.md`, which '
+        '`glossary-move.md` takes,',
+      ),
+    );
+  });
+
+  test('f08/us05/fr01/e19, e58, e59: bootstrap-prd SKILL.md names the goal '
+      'and glossary docs among the skeletons and stops a round on a glossary '
+      'section a move kept an entry in', () {
+    final text = _pluginText('specstone-bootstrap-prd/SKILL.md');
+    final handOff = _oneLine(_sectionOf(text, '2. Hand off in batches'));
+    expect(
+      handOff,
+      contains('names the project, goal, glossary, features, and gnfr docs'),
+    );
+    expect(handOff, contains('its glossary section asks the Owner nothing.'));
+    final after = _sectionOf(text, '3. After the reports');
+    final item = _oneLine(
+      after.substring(after.indexOf('\n5. '), after.indexOf('\n6. ')),
+    );
+    final goals = item.indexOf(
+      "the `section_undeclared` on PROJECT's goals section after a goal move "
+      'kept a goal there,',
+    );
+    expect(goals, isNonNegative);
+    final glossary = item.indexOf(
+      'the one on its glossary section after a glossary move kept an entry '
+      'there,',
+    );
+    expect(glossary, greaterThan(goals));
+    expect(glossary, lessThan(item.indexOf('or it waits on')));
+    expect(
+      item,
+      contains(
+        'no batch holds that goals finding, no batch holds that glossary '
+        'finding, and no question',
+      ),
+    );
+    final answers = _oneLine(
+      after.substring(after.indexOf('\n3. '), after.indexOf('\n4. ')),
+    );
+    expect(
+      answers,
+      contains(
+        'a goal that a goal move kept in PROJECT, or an entry that a glossary '
+        'move kept there, without asking it',
+      ),
+    );
+  });
+
+  test('f08/us05/fr01/e41, e59: bootstrap-prd procedure step 6 titles the '
+      'goal and glossary docs per their guides whenever the title differs', () {
+    final step = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-bootstrap-prd/references/procedure.md'),
+        '6. Fill the skeletons, then ask for approval',
+      ),
+    );
+    expect(
+      step,
+      contains(
+        "Set a goal or glossary doc's title to its guide's with `--title` "
+        'when it differs.',
+      ),
+    );
+  });
+}
+
 const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
 const _writePlan = 'agent_plugin/plan_approved_stories/write_grounded_plan';
 
@@ -5980,9 +6137,9 @@ void _syncBootstrapTests() {
   group('the sync and bootstrap skills', () {
     const bootstraps = ['bootstrap-prd', 'bootstrap-spec'];
 
-    test('each of the eight reaches the source and every host render', () {
+    test('each of the nine reaches the source and every host render', () {
       final paths = _syncBootstrapContent().map((file) => file.path);
-      expect(paths, hasLength(8 + 8 + 8));
+      expect(paths, hasLength(9 + 9 + 9));
     });
 
     test("they name no host tool, no CLAUDE_ variable, no other host's skills "
@@ -6060,7 +6217,7 @@ void _syncBootstrapTests() {
       );
     });
 
-    test('each of the eight skill files stays within 1,500 est. tokens', () {
+    test('each of the nine skill files stays within 1,500 est. tokens', () {
       expect(oversizedSkillFiles(_syncBootstrapContent()), isEmpty);
     });
 
