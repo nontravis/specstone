@@ -3783,8 +3783,8 @@ const _sourcePoints = [
   'an open question in the design document, as for any gap',
   'never recorded as the source',
   'A change with no source gets no Source map',
-  'Never edit, move, or delete the source; write only the copy and the one',
-  'design document',
+  'Never edit, move, or delete the source;',
+  'write only the copy and the one design document.',
 ];
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
