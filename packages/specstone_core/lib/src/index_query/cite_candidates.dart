@@ -6,12 +6,7 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show
-        DestinationKind,
-        RelativeLink,
-        itemIdsInProse,
-        proseTrimmedPath,
-        readLinkTarget;
+    show DestinationKind, ItemId, itemIdRunAt, proseTrimmedPath;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
@@ -19,7 +14,7 @@ import 'package:specstone_core/src/index_query/link_scan.dart';
 /// A cite candidate of a typed doc's body: the doc name or
 /// path as written, less its `#<section key>`, at its 1-based file `line`,
 /// with the section key it names, null when it names none, and the item IDs
-/// after it on its line.
+/// of the run right after it.
 ///
 /// A candidate holds no resolution: `check` and the cite pass judge it when
 /// they run.
@@ -55,11 +50,10 @@ typedef CiteForm = ({
 /// fill, such as a path in quoted CLI output. The section key is the `#key`
 /// after the mention, or, after a path, the header of a code span that follows
 /// it, such as
-/// `` `## Error envelope` ``. The item IDs are the IDs the reference grammar
-/// reads in the line's prose after the candidate, up to the next citation, a
-/// link or another candidate, so the nearest citation before an ID owns it;
-/// an item ID is a token of one
-/// of [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
+/// `` `## Error envelope` ``. The item IDs are the run the reference grammar
+/// reads right after the candidate on its line (`itemIdRunAt`): an ID outside
+/// the run is no item of the candidate. An item ID is a token of one of
+/// [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
 List<CiteCandidate> citeCandidatesOf(
   String lfText, {
   required Set<String> idPrefixes,
@@ -93,16 +87,7 @@ List<CiteForm> citeFormsOf(String lfText, {required Set<String> idPrefixes}) {
       extent: extent,
     ));
   }
-  final boundaries = [...ranges.starts, for (final it in kept) it.offset]
-    ..sort();
-  return [
-    for (final it in kept)
-      _formOf(
-        it,
-        nextBoundary: _firstAfter(boundaries, it.offset),
-        idPrefixes: idPrefixes,
-      ),
-  ];
+  return [for (final it in kept) _formOf(it, idPrefixes: idPrefixes)];
 }
 
 /// A mention that is a candidate, with the line and code spans it sits on, and
@@ -146,21 +131,11 @@ bool _isInSpan(List<CodeSpan> spans, NameMention mention, int end) {
 bool _fills(CodeSpan holder, int column, int end) =>
     holder.start + holder.ticks == column && holder.end <= end;
 
-CiteForm _formOf(
-  _Kept kept, {
-  required int? nextBoundary,
-  required Set<String> idPrefixes,
-}) {
-  final (:mention, :offset, :line, :spans, extent: (:key, :end)) = kept;
-  final stop = nextBoundary == null
-      ? line.length
-      : (nextBoundary - (offset - mention.column)).clamp(end, line.length);
+CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
+  final (:mention, :line, :spans, extent: (:key, :end), offset: _) = kept;
   final items = [
-    for (final (:at, :id) in itemIdsInProse(
-      _proseOf(line, spans, from: end).substring(end, stop),
-      prefixes: idPrefixes,
-    ))
-      (column: end + at, itemId: id.written),
+    for (final item in itemIdRunAt(line, end, prefixes: idPrefixes).items)
+      if (item.id is ItemId) (column: item.at, itemId: item.id.written),
   ];
   final holder = _spanHolding(spans, mention.column);
   return (
@@ -230,48 +205,16 @@ int? _closedBy(List<CodeSpan> spans, int column, int end) {
   return null;
 }
 
-/// Returns [line] with each code span that starts at [from] or later blanked,
-/// so an ID in a code span is no item ID.
-String _proseOf(String line, List<CodeSpan> spans, {required int from}) {
-  var prose = line;
-  for (final (:start, :end, ticks: _) in spans) {
-    if (start < from) continue;
-    prose = prose.replaceRange(start, end, ' ' * (end - start));
-  }
-  return prose;
-}
-
-/// The offset of the first element of the sorted [offsets] after [offset].
-int? _firstAfter(List<int> offsets, int offset) {
-  var low = 0;
-  var high = offsets.length;
-  while (low < high) {
-    final mid = (low + high) >> 1;
-    if (offsets[mid] > offset) {
-      high = mid;
-    } else {
-      low = mid + 1;
-    }
-  }
-  return low < offsets.length ? offsets[low] : null;
-}
-
 /// The body ranges a link or a link reference's destination takes.
 final class _LinkRanges {
-  new(List<BodyRange> ranges, {required List<int> citationStarts})
-    : starts = [...citationStarts]..sort(),
-      _sorted = [...ranges]..sort((a, b) => a.start - b.start) {
+  new(List<BodyRange> ranges)
+    : _sorted = [...ranges]..sort((a, b) => a.start - b.start) {
     var furthest = 0;
     for (final range in _sorted) {
       if (range.end > furthest) furthest = range.end;
       _furthestEnd.add(furthest);
     }
   }
-
-  /// The start of each link to a doc, sorted: the links that end the item IDs
-  /// of the citation before them. A file link, an image, and a web address
-  /// are no citation.
-  final List<int> starts;
 
   final List<BodyRange> _sorted;
   final _furthestEnd = <int>[];
@@ -293,37 +236,13 @@ final class _LinkRanges {
 }
 
 _LinkRanges _linkRangesOf(String body, int firstLine) {
-  if (!holdsLinkSyntax(body)) {
-    return _LinkRanges(const [], citationStarts: const []);
-  }
+  if (!holdsLinkSyntax(body)) return _LinkRanges(const []);
   final scan = linkScanOf(body, firstLine: firstLine);
-  return _LinkRanges(
-    [
-      for (final source in scan.sources)
-        (start: source.offset, end: source.end),
-      for (final (:start, :end, link: _, :kind) in scan.destinations)
-        if (kind == DestinationKind.definition) (start: start, end: end),
-    ],
-    citationStarts: [
-      for (final source in scan.sources)
-        if (_isDocLink(
-          source.shown,
-          isImage: body.startsWith('!', source.offset),
-        ))
-          source.offset,
-    ],
-  );
-}
-
-/// Whether a link written with the destination [shown] cites a doc: a
-/// relative path to a `.md` file, or a bare `#anchor` into the doc itself.
-bool _isDocLink(String? shown, {required bool isImage}) {
-  if (shown == null || isImage) return false;
-  return switch (readLinkTarget(shown)) {
-    RelativeLink(:final segments) =>
-      segments.isEmpty || segments.last.endsWith(markdownExtension),
-    _ => false,
-  };
+  return _LinkRanges([
+    for (final source in scan.sources) (start: source.offset, end: source.end),
+    for (final (:start, :end, link: _, :kind) in scan.destinations)
+      if (kind == DestinationKind.definition) (start: start, end: end),
+  ]);
 }
 
 /// The lines of a body, by index, and where each starts.

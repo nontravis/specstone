@@ -173,6 +173,61 @@ void main() {
     });
   });
 
+  group('itemIdRunAt', () {
+    const prefixes = {'INV-', 'RULE-', 'E', 'NFR-P'};
+
+    /// The run's IDs as `at:written`, then `end`, for [line] from [from].
+    String runOf(String line, int from) {
+      final run = itemIdRunAt(line, from, prefixes: prefixes);
+      final items = [for (final it in run.items) '${it.at}:${it.id.written}'];
+      return '${items.join(' ')} end ${run.end}';
+    }
+
+    test('reads a run of IDs, one per joiner', () {
+      expect(
+        runOf('X INV-1, INV-2 and INV-3 or INV-4, and INV-5', 1),
+        '2:INV-1 9:INV-2 19:INV-3 28:INV-4 39:INV-5 end 44',
+      );
+    });
+
+    test('reads a range by its range mark', () {
+      expect(runOf('X INV-1 to INV-4 end', 1), '2:INV-1 11:INV-4 end 16');
+    });
+
+    test('allows zero spaces and several spaces before the first ID', () {
+      expect(runOf('X`INV-1', 2), '2:INV-1 end 7');
+      expect(runOf('X   INV-1', 1), '4:INV-1 end 9');
+    });
+
+    test('stops at the first other word, so a later ID is not read', () {
+      expect(runOf('X INV-1 then INV-2', 1), '2:INV-1 end 7');
+      expect(runOf('X later INV-2', 1), ' end 1');
+    });
+
+    test('ends the run at a joiner with no ID after it', () {
+      expect(runOf('X INV-1, then INV-2', 1), '2:INV-1 end 7');
+    });
+
+    test('ends the run at a code span between the start and an ID', () {
+      expect(runOf('X `a` INV-1', 1), ' end 1');
+      expect(runOf('X INV-1 and `a` INV-2', 1), '2:INV-1 end 7');
+    });
+
+    test('joins a lettered ID and ends at an unreadable one', () {
+      expect(runOf('X RULE-7a and INV-2', 1), '2:RULE-7a 14:INV-2 end 19');
+      expect(runOf('X INV-1 and RULE-7a1 and INV-3', 1), '2:INV-1 end 7');
+    });
+
+    test('ends the run at a token of no prefix', () {
+      expect(runOf('X UTF-8, INV-1', 1), ' end 1');
+      expect(runOf('X INV-1, SHA256 and INV-2', 1), '2:INV-1 end 7');
+    });
+
+    test('takes the longest prefix first', () {
+      expect(runOf('X NFR-P01 and E10', 1), '2:NFR-P01 14:E10 end 17');
+    });
+  });
+
   group('readItemIdOfWrittenPrefix', () {
     test('takes the letters and hyphens before the first digit as the '
         'prefix, past one optional **', () {
