@@ -23,30 +23,60 @@ const _apiTypeId = 'api';
 // MARK: - Types
 
 /// The feature and story a label reads against; null for a place with none.
-typedef _Base = ({int? feature, int? story});
+final class _Base {
+  const new({required this.feature, required this.story});
+
+  final int? feature;
+  final int? story;
+}
 
 /// A label with every part it lacks taken from its [_Base].
-typedef _Parts = ({int? feature, int? story, int? fr});
+final class _Parts {
+  const new({required this.feature, required this.story, required this.fr});
+
+  final int? feature;
+  final int? story;
+  final int? fr;
+}
 
 enum _DocKind { feature, story, fr, spec }
 
 /// The feature a doc sits under, by number and name, and its story's number
 /// when it sits under one.
-typedef _Place = ({int feature, String featureName, int? story});
+final class _Place {
+  const new({
+    required this.feature,
+    required this.featureName,
+    required this.story,
+  });
+
+  final int feature;
+  final String featureName;
+  final int? story;
+}
 
 /// The place a legacy doc path gives: its feature and story, and what is left
 /// of the path.
-typedef _Located = ({
-  int feature,
-  String featureSlug,
-  int? story,
-  String? storySlug,
-  List<String> rest,
-  bool isSpec,
-});
+final class _Located {
+  const new({
+    required this.feature,
+    required this.featureSlug,
+    required this.story,
+    required this.storySlug,
+    required this.rest,
+    required this.isSpec,
+  });
+
+  final int feature;
+  final String featureSlug;
+  final int? story;
+  final String? storySlug;
+  final List<String> rest;
+  final bool isSpec;
+}
 
 /// No feature and no story: a doc outside any feature.
-const _Base _noPlace = (feature: null, story: null);
+const _noPlace = _Base(feature: null, story: null);
 
 // MARK: - LabelTree
 
@@ -166,7 +196,7 @@ final class LabelTree {
     final readings = <_Base>[base];
     if (before != null && label.feature == null) {
       final prior = _partsOf(before, base);
-      readings.add((feature: prior.feature, story: prior.story));
+      readings.add(_Base(feature: prior.feature, story: prior.story));
     }
     final named = {
       for (final reading in readings) ..._candidates(label, reading),
@@ -249,18 +279,18 @@ String _atFeaturePath(String docPath, Map<String, String> featurePaths) {
 /// [label] with each part it lacks taken from [base].
 _Parts _partsOf(NumberLabel label, _Base base) {
   if (label.feature != null) {
-    return (feature: label.feature, story: label.story, fr: label.fr);
+    return _Parts(feature: label.feature, story: label.story, fr: label.fr);
   }
   if (label.story != null) {
-    return (feature: base.feature, story: label.story, fr: label.fr);
+    return _Parts(feature: base.feature, story: label.story, fr: label.fr);
   }
-  return (feature: base.feature, story: base.story, fr: label.fr);
+  return _Parts(feature: base.feature, story: base.story, fr: label.fr);
 }
 
 _Base _baseOf(_Place? place) {
   return place == null
       ? _noPlace
-      : (feature: place.feature, story: place.story);
+      : _Base(feature: place.feature, story: place.story);
 }
 
 /// The place of a legacy doc path, read by the legacy tree's fixed layout.
@@ -268,7 +298,7 @@ _Place? _legacyPlaceOf(String docPath) {
   final located = _locateLegacy(docPath);
   return located == null
       ? null
-      : (
+      : _Place(
           feature: located.feature,
           featureName: located.featureSlug,
           story: located.story,
@@ -296,7 +326,7 @@ _Located? _locateLegacy(String docPath) {
       ? null
       : int.tryParse(storyFolder.group(1)!);
   if (story != null) rest = rest.sublist(1);
-  return (
+  return _Located(
     feature: feature,
     featureSlug: folder.group(2)!,
     story: story,
@@ -309,14 +339,22 @@ _Located? _locateLegacy(String docPath) {
 // MARK: - Index
 
 /// The numbered docs of a run and the place of each typed doc.
-typedef _Index = ({
-  List<_TreeDoc> docs,
-  _Place? Function(String docPath) placeOf,
-});
+final class _Index {
+  const new({required this.docs, required this.placeOf});
+
+  final List<_TreeDoc> docs;
+  final _Place? Function(String docPath) placeOf;
+}
 
 /// The `{nn}` and `{slug}` of a doc's own path segment, and whether the doc is
 /// a spec doc: a file with no placeholder of its own.
-typedef _Own = ({int? number, String? slug, bool isSpec});
+final class _Own {
+  const new({required this.number, required this.slug, required this.isSpec});
+
+  final int? number;
+  final String? slug;
+  final bool isSpec;
+}
 
 /// Reads each typed doc of [docs] as the index does: its place from its type
 /// and parent chain in [set], never from the shape of its path.
@@ -343,7 +381,7 @@ _Index _readIndex(
     for (final doc in indexed.values)
       doc.docPath: _placeIn(doc, indexed, parents, owns),
   };
-  return (
+  return _Index(
     docs: [
       for (final (:docPath, :lf, :type) in typed)
         ?_indexedDoc(
@@ -383,7 +421,7 @@ _Place? _placeIn(
     if (at.docTypeId == featureType) {
       return number == null
           ? null
-          : (feature: number, featureName: at.name, story: story);
+          : _Place(feature: number, featureName: at.name, story: story);
     }
   }
   return null;
@@ -397,7 +435,7 @@ _Own? _ownOf(MergedSet set, MergedDocType type, String docPath) {
   final own = shape.matchOwn(docPath.split('/')[shape.ownIndex]);
   return own == null
       ? null
-      : (number: own.number, slug: own.slug, isSpec: isSpecDocShape(shape));
+      : _Own(number: own.number, slug: own.slug, isSpec: isSpecDocShape(shape));
 }
 
 /// The numbered doc at [docPath], or null for a doc the pass does not number:
