@@ -1,30 +1,31 @@
-`specstone-sdd-engineer` runs this in `mode: design`, its gate already made; so does the runner of
-`specstone-brainstorming-sdd` when it runs the mode itself. Each gap is an open question in your report.
+The runner of `specstone-brainstorming-sdd` follows this at its write step, its gate already made and the Owner's
+answers in hand. Each gap is an open question in the design document.
 
 ## 1. Check the inputs
 
-- **Brief**: the Owner's approved answers (decisions, rulings, the approach picked, open questions), each claim
-  with its saved file and line range. Read it whole. When it names a file to re-read, also follow
-  `## Map the source` in `source.md`.
+- **Answers**: the Owner's approved answers in the conversation (decisions in the Owner's words, rulings, the approach
+  picked, open questions). When they name a file to re-read, also follow `## Map the source` in `source.md`.
+- **Grounding**: the saved bundle files of your `context --for design --out` calls, read per the
+  `specstone-read-sdd` skill.
 - **Design path**: the document to write or amend.
 
 ## 2. Ground each claim
 
-Read each claim's grounding from the saved file and line range the brief gives under it. Run no `context` and no
-`get` for a doc: a claim with no range is an open question in your report. So is a missing cited file or a range
-whose `==> ` line is not the claim's doc; name the file. Cite only those lines.
+Ground each claim in the saved bundle files of your `context` calls or in an Owner's answer, and cite only that text.
+A claim neither grounds is an open question. Run no `get`, no `search`, and no `refs` for a doc.
 
 Before any write, judge the design path by the saved files' `==> ` headers:
 
 - **A design path inside the CheckedFolders** (the first folder of a doc path a saved bundle's `==> ` header holds,
   right under the docs folder: `prds/`, `specs/`, and `measurements/` with the shipped packs; a deeper folder of
-  that name is outside), or a PRD or spec doc named as the file: write nothing but the agent's `report:` file; report
-  the path as an open question.
+  that name is outside), or a PRD or spec doc named as the file:
+  write nothing; the path is an open question, and you write at the Owner's new path in its place.
 - **Any other design path**: the file to write, at the host brainstorm skill's design document path, else
   `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. When it exists, read it whole.
 
 Cite each story, FR, and section by its Specstone name, `<type>:<name>#<section>`, never by file path or line. A
-claim in the brief that the docs contradict is an open question. Open each code path and symbol the brief names.
+claim the docs contradict is an open question. Open each code path and symbol the Owner's answers or the saved files
+name.
 
 ## 3. Write the document
 
@@ -46,22 +47,23 @@ Sections, in this order:
    an `architecture` doc gets a row for its `design_references` section, a link to this document, kept or dropped as
    the `Design references` section of `specstone guide architecture` says. With two or more `targets:`, a
    per-target spec doc's row also names its code target, a row with none an open question.
-7. **Open questions**: each gap that neither the brief nor any doc bears on.
+7. **Open questions**: each gap that neither the Owner's answers nor the saved files bear on.
 
-Before the Docs to change table closes, search each decision's dependents:
+Before the Docs to change table closes, find each decision's dependents in your saved files, with no `search` and no
+`refs` call:
 
-- Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7). Run `specstone refs <owner>` for the
-  docs that cite it, and `specstone search` on the decision's terms and on the wording it supersedes. A per-target owner
-  goes to `refs` by its DocPath.
+- Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7). The owner item's cited-by lines in the
+  saved files give the docs that link it.
+- Run `specstone check <feature> --repeats` for the repeat groups that hold the owner item, and search the saved files'
+  text for the decision's terms and for the wording it supersedes.
 - Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change links the
   owner's item that holds the rule, or rewrites the doc when that doc owns a rule that reads the decision's rule.
-- When `refs` lists no typed citer, as in a tree that still cites by number labels, the search carries the decision,
-  as it does for the limit of `refs` that rule 7 names. Record the searched terms either way, so the audit sees what
-  was searched.
-- An amend for an Owner decision that adds or changes behavior runs the same search on that decision's
+- When the owner item has no cited-by line, as in a tree that still cites by number labels, the repeat groups and the
+  text search carry the decision. Record the searched terms either way, so the audit sees what was searched.
+- An amend for an Owner decision that adds or changes behavior runs the same steps on that decision's
   terms and adds its rows and searched terms before the author writes it.
 
-Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the brief leaves open, naming the
+Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the Owner's answers leave open, naming the
 one owner item its rule takes, or list it as an open question; a design holding such a point open goes to no author.
 Leave a code-level point, such as a class name, to the builder, with no decision and no open question.
 
@@ -71,19 +73,14 @@ field list): name the decision.
 On an amend, sweep each ruling: search the document for the text it supersedes and edit every place that still states
 it.
 
-Write the file, or amend it when it exists. Write no other file but the agent's `report:` file, and no PRD or spec doc.
+Write the file, or amend it when it exists, with your host's file write. Write no other file, and no PRD or spec doc.
 
-## 4. Check before you report
+## 4. Check before you ask
 
 No placeholder, no empty section but Open questions, no contradiction between sections or with a ruling,
 and each decision specific enough that two builders would build the same thing.
 
-## 5. Report
+## 5. Tell the Owner
 
-```
-Design document: <path>, written | amended
-Sections touched: <each section an amend or a ruling sweep changed, or none>
-Open questions:
-- <a gap>
-Findings: <each claim its lines could not ground, each code path or symbol not found, or none>
-```
+Give the path, written or amended. List each open question, each claim its saved files could not ground, and each code
+path or symbol not found.
