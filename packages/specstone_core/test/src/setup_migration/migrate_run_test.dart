@@ -2535,6 +2535,18 @@ sections:
       expect(out.toString(), contains('\nplan '));
     }, skip: skipGit);
 
+    test('a resume dry run --json holds dirty false', () async {
+      final root = await gitFixture(acmeLegacy);
+      _stopAfterCommit1(root);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final out = StringBuffer();
+
+      expect(_run(root, out, dryRun: true, asJson: true), 0);
+
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object['dirty'], isFalse);
+    }, skip: skipGit);
+
     test('a dry run over a pending F-02 journal refuses '
         'untrusted roots first and replays nothing', () async {
       final tree = await writeTree(linkedAcme({}));

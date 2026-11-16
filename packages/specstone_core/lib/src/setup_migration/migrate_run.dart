@@ -375,7 +375,13 @@ int _resume(MigrateRequest request, Directory root, RootTrust trust) {
     return listing.toString();
   });
   if (request.dryRun) {
-    _printDryRun(request, planText, inputs, const PlanLists());
+    _printDryRun(
+      request,
+      planText,
+      inputs,
+      const PlanLists(),
+      isTreeDirty: false,
+    );
     return 0;
   }
   _printPlan(request, planText, const PlanLists());
@@ -417,13 +423,13 @@ void _printDryRun(
   String planText,
   PlanInputs inputs,
   PlanLists lists, {
-  bool? isTreeDirty,
+  required bool isTreeDirty,
 }) {
   final hashLine = 'plan ${planHashOf(planText, inputs)}\n';
   _printPlan(request, '$planText$hashLine', lists, isTreeDirty: isTreeDirty);
   if (request.asJson) return;
   request.out.writeln(
-    isTreeDirty ?? false
+    isTreeDirty
         ? '$_dryRunLine; the run needs a clean working tree'
         : _dryRunLine,
   );
