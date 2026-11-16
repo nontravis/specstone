@@ -117,13 +117,11 @@ String? rewriteMovedFrTraces(
   return result == lfText ? null : result;
 }
 
-/// Returns the FR [lfText] with each `traced_from` and `confirmed` entry
-/// that names the moved Scenario [fromNumber] set to Scenario [toNumber] of
-/// [targetStory]; null when nothing changes.
+/// Returns the FR [lfText] with each trace entry naming the moved Scenario
+/// [fromNumber] set to Scenario [toNumber] of [targetStory]; null when none.
 ///
-/// A bare `S<N>` names the scenario when [isInSourceStory], a `<story>#S<N>`
-/// when [isSourceStory] accepts its story part; numbers compare by value. The
-/// entry turns bare when [isInTargetStory]. Each fingerprint is kept.
+/// A bare `S<N>` matches when [isInSourceStory], `<story>#S<N>` when
+/// [isSourceStory] does, by value; it turns bare when [isInTargetStory].
 String? rewriteScenarioTraces(
   String lfText, {
   required int fromNumber,

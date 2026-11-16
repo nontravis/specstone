@@ -39,12 +39,9 @@ const _separator = ', ';
 /// Returns, by DocPath, the edit of every doc an item move writes: the
 /// landing of [landings] and each reference that names a moved item.
 ///
-/// A reference follows its item to the target doc and the new ID: an item
-/// link, a range that holds the item, an `Overrides:` line and its `overrides`
-/// entry, and a task ref; for a scenario, also each FR trace entry, journey
-/// step, and heading link. A link or range inside a moved item is read as it
-/// sits in the target doc, so one that names an item of the source doc still
-/// reaches it. Every doc edit refuses a doc that changed since the plan.
+/// - Item links, ranges, override entries, task refs, and a scenario's traces,
+///   steps, and heading links follow it; one inside it reads from the target.
+/// - Every doc edit refuses a doc that changed since the plan.
 ///
 /// Throws [RenderFault] `output_not_writable` for entries that are not valid
 /// YAML.
@@ -717,7 +714,13 @@ void _planRebasedReferences(
     plan.add(
       link.line,
       item == null
-          ? _referenceInline(link, definition, refs.doc.docPath, place)
+          ? _referenceInline(
+              refs.moves,
+              link,
+              definition,
+              refs.doc.docPath,
+              place,
+            )
           : _itemLinkInline(refs, item, link, definition),
     );
     converted[link.label] = (converted[link.label] ?? 0) + 1;
@@ -733,14 +736,24 @@ void _planRebasedReferences(
 }
 
 /// Returns the edit that writes the reference-style [link] as an inline link
-/// to what [definition], written in the doc at [from], names from [place].
+/// to what [definition], written in the doc at [from], names from [place]:
+/// a moved scenario's heading at its landed heading.
 _Edit _referenceInline(
+  ItemMoves moves,
   _RefLink link,
   _Definition definition,
   String from,
   String place,
 ) {
-  final written = _destinationFrom(definition.destination, from, place);
+  final written =
+      _headingDestination(
+        moves,
+        definition.destination,
+        from,
+        place,
+        DestinationKind.definition,
+      ) ??
+      _destinationFrom(definition.destination, from, place);
   return _Edit(link.textEnd + 1, link.end, '(${_shownOf(written)})');
 }
 
@@ -806,12 +819,12 @@ String _destinationFrom(String destination, String from, String to) {
 
 // MARK: - Heading links
 
-/// Plans each inline link of [doc] to the heading of a moved scenario: its
-/// path set to the target story and its anchor to the landed heading's, its
-/// text kept.
+/// Plans each inline link and reference definition of [doc] that reaches the
+/// heading of a moved scenario: its path set to the target story and its
+/// anchor to the landed heading's, its text and query kept.
 ///
-/// Returns the file line and column of each such link. [scanOf] reads the
-/// body only when a link of [doc] reaches such a heading.
+/// Returns the file line and column of each such inline link. [scanOf] reads
+/// the body only when a link of [doc] reaches such a heading.
 Set<(int, int)> _planHeadingLinks(
   _LinkPlan plan,
   IndexedDoc doc,
@@ -833,11 +846,28 @@ Set<(int, int)> _planHeadingLinks(
     plan.add(source.line, edit);
     covered.add((source.line, body.columnOf(source.offset)));
   }
+  for (final definition in _definitionsOf(body).values) {
+    if (definition == null) continue;
+    final written = _headingDestination(
+      moves,
+      definition.destination,
+      doc.docPath,
+      moves.placeOf(doc.docPath, definition.line),
+      DestinationKind.definition,
+    );
+    if (written == null) continue;
+    final start = definition.destStart;
+    plan.add(
+      definition.line,
+      _Edit(start, start + definition.destination.length, written),
+    );
+  }
   return covered;
 }
 
-/// Returns the edit that sets the destination of the inline link [source]
-/// when it reaches the heading of a moved scenario; null for any other link.
+/// Returns the edit that sets the destination of the inline link [source],
+/// in angle brackets or not, when it reaches the heading of a moved scenario;
+/// null for any other link.
 _Edit? _headingEdit(
   ItemMoves moves,
   IndexedDoc doc,
@@ -853,21 +883,46 @@ _Edit? _headingEdit(
     return null;
   }
   final close = body.columnOf(textEnd);
-  if (!lines[source.line - 1].startsWith(']($shown', close)) return null;
-  if (resolveDocLink(shown, doc.docPath) case DocTarget(
+  final line = lines[source.line - 1];
+  final start = line.startsWith('](<$shown>', close)
+      ? close + 3
+      : line.startsWith(']($shown', close)
+      ? close + 2
+      : null;
+  if (start == null) return null;
+  final written = _headingDestination(
+    moves,
+    shown,
+    doc.docPath,
+    moves.placeOf(doc.docPath, source.line),
+    DestinationKind.inline,
+  );
+  return written == null ? null : _Edit(start, start + shown.length, written);
+}
+
+/// Returns the [kind] [destination], written in the doc at [from] and read
+/// from the doc at [place] after the moves, set to the landed heading of the
+/// moved scenario it reaches, its query kept; null when it reaches none.
+String? _headingDestination(
+  ItemMoves moves,
+  String destination,
+  String from,
+  String place,
+  DestinationKind kind,
+) {
+  if (resolveDocLink(destination, from) case DocTarget(
     :final docPath,
     :final anchor,
   )) {
     final span = _movedHeadingAt(moves, docPath, anchor);
     final slug = span == null ? null : _landedSlugOf(moves, span);
     if (span == null || slug == null) return null;
+    final parts = destinationPartsOf(destination, kind);
+    final anchorStart = parts.anchorStart;
+    if (anchorStart == null) return null;
     final landing = span.landing;
-    final path = _pathBetween(
-      moves.placeOf(doc.docPath, source.line),
-      _Named(landing.to.docPath, landing.newId),
-    );
-    final start = close + 2;
-    return _Edit(start, start + shown.length, '$path#$slug');
+    final path = _pathBetween(place, _Named(landing.to.docPath, landing.newId));
+    return '$path${destination.substring(parts.pathEnd, anchorStart)}$slug';
   }
   return null;
 }

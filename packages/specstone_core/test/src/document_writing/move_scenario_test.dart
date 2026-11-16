@@ -189,7 +189,11 @@ Future<Directory> _citedProject() => _project(
         '- **INV-2** As [Scenario 2]($_toAddItem/USER_STORY.md#scenario-2--edge-case-2) gives.\n'
         '- **INV-3** As [S2]($_toAddItem/USER_STORY.md#acceptance-criteria) gives.\n'
         '- **INV-4** As [S1]($_toAddItem/USER_STORY.md#acceptance-criteria) to [S3]($_toAddItem/USER_STORY.md#acceptance-criteria) give.\n'
-        '- **INV-5** As `shop/cart/add_item#S2` gives.\n',
+        '- **INV-5** As `shop/cart/add_item#S2` gives.\n'
+        '- **INV-6** As [Scenario 2][s2] gives.\n'
+        '- **INV-7** As [Scenario 2](<$_toAddItem/USER_STORY.md#scenario-2--edge-case-2>) gives.\n'
+        '- **INV-8** As [Scenario 2]($_toAddItem/USER_STORY.md?v=1#scenario-2--edge-case-2) gives.\n\n'
+        '[s2]: $_toAddItem/USER_STORY.md#scenario-2--edge-case-2\n',
   },
 );
 
@@ -686,6 +690,38 @@ void main() {
       );
     });
 
+    test('a heading-anchor link in reference style, in angle brackets, or with a query reaches the new heading', () async {
+      final root = await _citedProject();
+      _move(root, ['$_addItem#S2']);
+      final text = readDoc(root, cartDomain);
+      for (final line in [
+        '- **INV-6** As [Scenario 2][s2] gives.\n',
+        '- **INV-7** As [Scenario 2](<$_toDropItem/USER_STORY.md#scenario-3--edge-case-2>) gives.\n',
+        '- **INV-8** As [Scenario 2]($_toDropItem/USER_STORY.md?v=1#scenario-3--edge-case-2) gives.\n',
+        '[s2]: $_toDropItem/USER_STORY.md#scenario-3--edge-case-2\n',
+      ]) {
+        expect(text, contains(line));
+      }
+    });
+
+    test('a reference-style heading link carried with its scenario reaches the landed heading', () async {
+      final root = await _project(
+        add: [
+          _scenario(1),
+          _scenario(
+            2,
+          ).replaceFirst('sees case 2', 'sees case 2, as [here][self] gives'),
+          _scenario(3),
+        ],
+        addClosing: '[self]: #scenario-2--edge-case-2',
+      );
+      _move(root, ['$_addItem#S2']);
+      expect(
+        readDoc(root, cartDrop),
+        contains('as [here](#scenario-3--edge-case-2) gives'),
+      );
+    });
+
     test("another reference form follows as an item's does", () async {
       final root = await _citedProject();
       _move(root, ['$_addItem#S2']);
@@ -756,25 +792,35 @@ void main() {
       'only the two stories gain a draft mark among the rewritten docs',
       () async {
         final root = await _citedProject();
+        final others = [cartAddFr, _dropFr, _payFr, _journey, cartDomain];
+        String? approvedOf(String docPath) => RegExp(
+          r'^approved: "([^"]+)"$',
+          multiLine: true,
+        ).firstMatch(readDoc(root, docPath))?.group(1);
+        final before = {
+          for (final docPath in others) docPath: approvedOf(docPath),
+        };
         final answer = _move(root, ['$_addItem#S2']);
         final rewritten = [...answer.json['rewritten']! as List<Object?>];
-        expect(
-          rewritten,
-          containsAll([
-            cartAdd,
-            cartDrop,
-            cartAddFr,
-            _dropFr,
-            _payFr,
-            _journey,
-            cartDomain,
-          ]),
-        );
+        expect(rewritten, containsAll([cartAdd, cartDrop, ...others]));
         for (final docPath in rewritten.cast<String>()) {
           final isStory = docPath == cartAdd || docPath == cartDrop;
           expect(
             readDoc(root, docPath).contains('draft: true\n'),
             isStory,
+            reason: docPath,
+          );
+        }
+        for (final docPath in others) {
+          final approved = approvedOf(docPath);
+          expect(before[docPath], isNotNull, reason: docPath);
+          expect(approved, isNot(before[docPath]), reason: docPath);
+          expect(
+            [
+              for (final finding in checkOf(root, docPath: docPath).findings)
+                finding.kind,
+            ],
+            isNot(contains(FindingKind.approvalStale)),
             reason: docPath,
           );
         }
