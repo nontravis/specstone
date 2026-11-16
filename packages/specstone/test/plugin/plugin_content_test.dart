@@ -2554,11 +2554,86 @@ void _agentTests() {
       expect(
         skill(),
         contains(
-          'dispatch `specstone-sdd-engineer` as '
-          '`../specstone-expert-sdd/references/dispatch.md` gives, with '
-          '`mode: sync`, `report:` '
-          '`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature '
-          'name when the Owner gave one. Send no list of paths or doc text',
+          'dispatch `specstone-sdd-engineer` for each group in turn, one at a '
+          'time, as `../specstone-expert-sdd/references/dispatch.md` gives, '
+          'with `mode: sync`, `report:` '
+          "`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's "
+          'input',
+        ),
+      );
+      expect(skill(), contains('Send no list of paths or doc text'));
+    });
+
+    test('the sync skill sorts the work list into groups by scope', () {
+      final text = skill();
+      expect(text, contains('With a feature named, it is one group.'));
+      expect(
+        text,
+        contains(
+          'goes to the group of the top-level feature whose doc holds its '
+          "code link, a sub-feature's finding to its top-level feature",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'a finding on a doc under no feature, such as a topic, goes to '
+          "that doc's own group",
+        ),
+      );
+      expect(
+        text,
+        contains('a `code_uncovered` finding goes to one `uncovered` group'),
+      );
+      expect(
+        text,
+        contains(
+          'A finding with no code link, such as a `tests_unresolved` line, '
+          'goes by the doc that holds the finding',
+        ),
+      );
+    });
+
+    test('the sync skill dispatches one engineer per group in turn, with '
+        'scope: and never feature:', () {
+      final text = skill();
+      expect(
+        text,
+        contains(
+          '`scope: feature:<name>`, `scope: <type>:<name>`, or '
+          '`scope: uncovered`',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'pass `feature: <name>` only for a feature the Owner named, as its '
+          'one group, with no `scope:`',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          "Show each report's `Report:` line and relay block before the next "
+          'dispatch.',
+        ),
+      );
+    });
+
+    test("the sync skill splits the runner's own procedure run by case", () {
+      final text = skill();
+      expect(
+        text,
+        contains(
+          'With no subagent on the host, follow the procedure yourself once '
+          "per group, in the same order, taking only that group's findings.",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'After a dispatch that fails, follow it for that group alone, then '
+          'dispatch the next group again.',
         ),
       );
     });

@@ -32,11 +32,23 @@ or not. Take nothing from the task: code changed outside a task is in the list t
 With an empty list, tell the Owner no code changed since its docs were compared, and stop with no dispatch and no
 further call.
 
-Else dispatch `specstone-sdd-engineer` as `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: sync`,
-`report:` `<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature name when the Owner gave one. Send no list
-of paths or doc text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` the path
-`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again while that file
-exists. The procedure for the main session is `references/procedure.md` beside this file.
+Else sort the list into groups. With a feature named, it is one group. With none, each finding goes to the group of the
+top-level feature whose doc holds its code link, a sub-feature's finding to its top-level feature; a finding on a doc
+under no feature, such as a topic, goes to that doc's own group; a `code_uncovered` finding goes to one `uncovered`
+group. A finding with no code link, such as a `tests_unresolved` line, goes by the doc that holds the finding.
+
+Then dispatch `specstone-sdd-engineer` for each group in turn, one at a time, as
+`../specstone-expert-sdd/references/dispatch.md` gives, with `mode: sync`, `report:`
+`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's input: `scope: feature:<name>`,
+`scope: <type>:<name>`, or `scope: uncovered`; pass `feature: <name>` only for a feature the Owner named, as its one
+group, with no `scope:`. Show each report's `Report:` line and relay block before the next dispatch. Send no list of
+paths or doc text, and work no step of the procedure yourself while a dispatch can run. Take `<folder>` the path
+`specstone folder` prints, run once after the gate; `XXXXXX` is six `a-z0-9` characters, picked again for each report
+while that file exists.
+
+The procedure for the main session is `references/procedure.md` beside this file. With no subagent on the host, follow
+the procedure yourself once per group, in the same order, taking only that group's findings. After a dispatch that
+fails, follow it for that group alone, then dispatch the next group again.
 
 ## 3. After the report
 
