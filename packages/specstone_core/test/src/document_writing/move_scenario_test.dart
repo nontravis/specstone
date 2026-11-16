@@ -1,0 +1,466 @@
+// Each test name states one behavior on one line.
+// ignore_for_file: lines_longer_than_80_chars
+
+import 'dart:io';
+
+import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show MoveJournal;
+import 'package:specstone_core/src/document_writing/write_fault.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:test/test.dart';
+
+import '../../helpers/nested_fixture.dart';
+import '../../helpers/shipped_pins.dart';
+import '../../helpers/write_fixture.dart';
+
+const _addItem = 'user_story:shop/cart/add_item';
+const _dropItem = 'user_story:shop/cart/drop_item';
+const _payCardAddress = 'user_story:shop/pay/card';
+
+String _scenario(int number, {String title = '', String tag = 'edge'}) =>
+    '### Scenario $number — [$tag] Case $number$title\n\n'
+    '- **Given** a cart in case $number\n'
+    '- **When** the shopper acts\n'
+    '- **Then** the shopper sees case $number';
+
+/// The scenarios 1 to [count], each its own case.
+List<String> _scenarios(int count) => [
+  for (var n = 1; n <= count; n++) _scenario(n),
+];
+
+String _rule(int number) => '- **BR-0$number** — Rule $number holds.';
+
+/// A story body: its scenarios, its rules, and a paragraph closing its
+/// Acceptance Criteria.
+String _storyBody(
+  String title,
+  List<String> scenarios, {
+  List<String> rules = const [],
+  String? closing,
+}) {
+  final rulesSection = rules.isEmpty
+      ? ''
+      : '## Rules\n\n${rules.join('\n')}\n\n';
+  final closingText = closing == null ? '' : '\n\n$closing';
+  return '# $title\n\n## Use Case\n\n'
+      '- **As a** Agent who shops\n- **I want to** act\n'
+      '- **so that** I finish an order\n\n'
+      '$rulesSection## Acceptance Criteria\n\n'
+      '${scenarios.join('\n\n')}$closingText\n';
+}
+
+String _story(
+  String title,
+  List<String> scenarios, {
+  List<String> rules = const [],
+  String? closing,
+}) =>
+    '---\ngoals:\n  - PG-01\n---\n\n'
+    '${_storyBody(title, scenarios, rules: rules, closing: closing)}';
+
+Future<Directory> _project({
+  List<String>? add,
+  List<String>? drop,
+  List<String> addRules = const [],
+  List<String> dropRules = const [],
+  String? addClosing,
+  String? dropClosing,
+  Map<String, String> extra = const {},
+  Set<String> without = const {},
+}) => writeNestedProject(
+  without: without,
+  extra: {
+    'docs/$cartAdd': _story(
+      'Agent adds an item',
+      add ?? _scenarios(3),
+      rules: addRules,
+      closing: addClosing,
+    ),
+    'docs/$cartDrop': _story(
+      'Agent drops an item',
+      drop ?? _scenarios(2),
+      rules: dropRules,
+      closing: dropClosing,
+    ),
+    ...extra,
+  },
+);
+
+ReadAnswer _move(
+  Directory root,
+  List<String> addresses, {
+  String? under = _dropItem,
+  bool top = false,
+  String? codeTarget,
+  bool dryRun = false,
+}) => writeIn(
+  root,
+  (session) => answerMove(
+    session,
+    addresses,
+    under: under,
+    top: top,
+    codeTarget: codeTarget,
+    dryRun: dryRun,
+  ),
+);
+
+/// Every doc of [root] as bytes, so a test shows a refusal wrote none.
+Map<String, List<int>> _docs(Directory root) => {
+  for (final entry in treeBytes(root).entries)
+    if (entry.key.startsWith('docs/')) entry.key: entry.value,
+};
+
+/// Runs the move and returns the fault it raised, asserting no doc changed.
+Object _refusal(
+  Directory root,
+  List<String> addresses, {
+  String? under = _dropItem,
+  bool top = false,
+  bool dryRun = false,
+}) {
+  final before = _docs(root);
+  try {
+    _move(root, addresses, under: under, top: top, dryRun: dryRun);
+  } on Object catch (fault) {
+    expect(_docs(root), before, reason: 'a refused move writes no doc');
+    return fault;
+  }
+  return fail('no fault raised');
+}
+
+/// The doc text after its frontmatter, which carries the move's marks.
+String _bodyOf(Directory root, String docPath) => readDoc(
+  root,
+  docPath,
+).replaceFirst(RegExp(r'^---\n.*?\n---\n\n', dotAll: true), '');
+
+void main() {
+  test("a moved scenario ends the target story's acceptance criteria with its block whole, and its old number stays unused in the source", () async {
+    final root = await _project();
+    final answer = _move(root, ['$_addItem#S2']);
+    expect(
+      _bodyOf(root, cartDrop),
+      _storyBody('Agent drops an item', [
+        _scenario(1),
+        _scenario(2),
+        _scenario(2).replaceFirst('### Scenario 2', '### Scenario 3'),
+      ]),
+    );
+    expect(
+      _bodyOf(root, cartAdd),
+      _storyBody('Agent adds an item', [_scenario(1), _scenario(3)]),
+    );
+    expect(
+      answer.text,
+      'moved $cartAdd#S2 to $cartDrop#S3\n'
+      'renumbered $cartDrop S2 to S3\n'
+      'rewrote $cartAdd\n'
+      'rewrote $cartDrop\n',
+    );
+  });
+
+  test(
+    'a number the target lacks is kept and prints no renumbered line',
+    () async {
+      final root = await _project(add: _scenarios(4));
+      final answer = _move(root, ['$_addItem#S4']);
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [..._scenarios(2), _scenario(4)]),
+      );
+      expect(
+        answer.text,
+        'moved $cartAdd#S4 to $cartDrop#S4\n'
+        'rewrote $cartAdd\n'
+        'rewrote $cartDrop\n',
+      );
+    },
+  );
+
+  test('an under that is no user_story is argument_invalid', () async {
+    final root = await _project();
+    for (final (under, docPath) in [
+      ('feature:shop/cart', cartFeature),
+      ('domain:shop/cart', cartDomain),
+      ('fr:shop/cart/add_item/check_stock', cartAddFr),
+    ]) {
+      final fault = _refusal(root, ['$_addItem#S2'], under: under);
+      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
+      expect(fault.exitStatus, 64);
+      expect(
+        fault.message,
+        '$docPath has no acceptance_criteria section for S items',
+      );
+    }
+  });
+
+  test('a number the story lacks is item_not_found', () async {
+    final root = await _project();
+    for (final addresses in [
+      ['$_addItem#S9'],
+      ['$_addItem#S2', '$_addItem#S9'],
+    ]) {
+      final fault = _refusal(root, addresses);
+      expect((fault as WriteFault).code, WriteFaultCode.itemNotFound);
+      expect(fault.exitStatus, 64);
+      expect(fault.message, '$cartAdd holds no S9');
+    }
+  });
+
+  test("a scenario parted from its title's rule is refused, dry run alike", () async {
+    final root = await _project(
+      add: [
+        _scenario(1),
+        _scenario(2),
+        _scenario(3, title: ' (BR-02)'),
+      ],
+      addRules: [_rule(1), _rule(2)],
+    );
+    for (final dryRun in [false, true]) {
+      final fault = _refusal(root, ['$_addItem#S3'], dryRun: dryRun);
+      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
+      expect(fault.exitStatus, 64);
+      expect(
+        fault.message,
+        'shop/cart/add_item#S3 names BR-02, which stays; move both in one call',
+      );
+    }
+  });
+
+  test("a scenario and its rule moved together land, and the title names the rule's new ID", () async {
+    for (final addresses in [
+      ['$_addItem#S3', '$_addItem#BR-02'],
+      ['$_addItem#BR-02', '$_addItem#S3'],
+    ]) {
+      final root = await _project(
+        add: [
+          _scenario(1),
+          _scenario(2),
+          _scenario(3, title: ' (BR-02)'),
+        ],
+        addRules: [_rule(1), _rule(2)],
+        dropRules: [_rule(1), _rule(2), _rule(3)],
+      );
+      _move(root, addresses);
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody(
+          'Agent drops an item',
+          [..._scenarios(2), _scenario(3, title: ' (BR-04)')],
+          rules: [_rule(1), _rule(2), _rule(3), '- **BR-04** — Rule 2 holds.'],
+        ),
+        reason: addresses.join(' '),
+      );
+      expect(
+        _bodyOf(root, cartAdd),
+        _storyBody('Agent adds an item', _scenarios(2), rules: [_rule(1)]),
+        reason: addresses.join(' '),
+      );
+    }
+  });
+
+  test('a rule that keeps its ID leaves the moved title as written', () async {
+    final root = await _project(
+      add: [
+        _scenario(1),
+        _scenario(2),
+        _scenario(3, title: ' (BR-02)'),
+      ],
+      addRules: [_rule(1), _rule(2)],
+      dropRules: [_rule(1)],
+    );
+    _move(root, ['$_addItem#S3', '$_addItem#BR-02']);
+    expect(
+      _bodyOf(root, cartDrop),
+      contains('${_scenario(3, title: ' (BR-02)')}\n'),
+    );
+  });
+
+  test('a target past its scenario count still takes the move', () async {
+    final root = await _project(drop: _scenarios(6));
+    final answer = _move(root, ['$_addItem#S2']);
+    expect(
+      _bodyOf(root, cartDrop),
+      _storyBody('Agent drops an item', [
+        ..._scenarios(6),
+        _scenario(2).replaceFirst('### Scenario 2', '### Scenario 7'),
+      ]),
+    );
+    expect(answer.text, startsWith('moved $cartAdd#S2 to $cartDrop#S7\n'));
+  });
+
+  test('the source and target stories are marked draft and other rewritten docs keep their approval', () async {
+    final root = await _project();
+    String approvedOf(String docPath) => RegExp(
+      r'^approved: "([^"]+)"$',
+      multiLine: true,
+    ).firstMatch(readDoc(root, docPath))!.group(1)!;
+    final addApproved = approvedOf(cartAdd);
+    final dropApproved = approvedOf(cartDrop);
+    final untouched = {
+      for (final docPath in [cartAddFr, payCard, shopApi])
+        docPath: readDoc(root, docPath),
+    };
+    _move(root, ['$_addItem#S2']);
+    for (final (docPath, approved) in [
+      (cartAdd, addApproved),
+      (cartDrop, dropApproved),
+    ]) {
+      final text = readDoc(root, docPath);
+      expect(text, contains('draft: true\n'), reason: docPath);
+      expect(text, contains('approved: "$approved"\n'), reason: docPath);
+    }
+    for (final MapEntry(key: docPath, value: text) in untouched.entries) {
+      expect(readDoc(root, docPath), text, reason: docPath);
+    }
+  });
+
+  test('a scenario beside a doc target, already in place, named twice, or with top is refused or skipped as the item move does', () async {
+    final root = await _project(extra: {'docs/prds/notes.md': '# Notes\n'});
+    final beside = _refusal(root, ['$_addItem#S2', _payCardAddress]);
+    expect((beside as IndexFault).code, IndexFaultCode.argumentInvalid);
+    expect(beside.message, 'move takes item targets or doc targets, not both');
+
+    final top = _refusal(root, ['$_addItem#S2'], under: null, top: true);
+    expect((top as IndexFault).code, IndexFaultCode.argumentInvalid);
+    expect(top.message, 'move takes --top only with feature targets');
+
+    final noUnder = _refusal(root, ['$_addItem#S2'], under: null);
+    expect((noUnder as IndexFault).code, IndexFaultCode.argumentMissing);
+    expect(
+      noUnder.message,
+      'move needs --under <doc address> for item targets',
+    );
+
+    final untyped = _refusal(root, ['prds/notes.md#S1']);
+    expect((untyped as IndexFault).code, IndexFaultCode.untypedTarget);
+
+    final before = _docs(root);
+    final inPlace = _move(root, ['$_dropItem#S1']);
+    expect(inPlace.text, isEmpty);
+    expect(inPlace.json['moved'], isEmpty);
+    expect(_docs(root), before);
+
+    final answer = _move(root, [
+      '$_dropItem#S1',
+      '$_addItem#S2',
+      'shop/cart/add_item#S2',
+    ]);
+    expect(
+      answer.text,
+      'moved $cartAdd#S2 to $cartDrop#S3\n'
+      'renumbered $cartDrop S2 to S3\n'
+      'rewrote $cartAdd\n'
+      'rewrote $cartDrop\n',
+    );
+  });
+
+  test(
+    'two clashing scenarios take the next two free numbers in order',
+    () async {
+      final root = await _project(drop: _scenarios(4));
+      final answer = _move(root, ['$_addItem#S3', '$_addItem#S2']);
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [
+          ..._scenarios(4),
+          _scenario(3).replaceFirst('### Scenario 3', '### Scenario 5'),
+          _scenario(2).replaceFirst('### Scenario 2', '### Scenario 6'),
+        ]),
+      );
+      expect(
+        answer.text,
+        startsWith(
+          'moved $cartAdd#S3 to $cartDrop#S5\n'
+          'moved $cartAdd#S2 to $cartDrop#S6\n'
+          'renumbered $cartDrop S3 to S5\n'
+          'renumbered $cartDrop S2 to S6\n',
+        ),
+      );
+    },
+  );
+
+  test('a dry run prints moves and renumbers and writes nothing', () async {
+    final root = await _project();
+    final before = _docs(root);
+    final answer = _move(root, ['$_addItem#S2'], dryRun: true);
+    expect(
+      answer.text,
+      'moves $cartAdd#S2 to $cartDrop#S3\n'
+      'renumbers $cartDrop S2 to S3\n'
+      'rewrites $cartAdd\n'
+      'rewrites $cartDrop\n'
+      'dry run: nothing moved\n',
+    );
+    expect(answer.json['dryRun'], isTrue);
+    expect(_docs(root), before);
+    expect(
+      File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+      isFalse,
+      reason: 'a dry run writes no journal',
+    );
+  });
+
+  test('a code target leaves the move as without one', () async {
+    final root = await _project(
+      without: {
+        'docs/$shopDomain',
+        'docs/$cartDomain',
+        'docs/$shopArchitecture',
+        'docs/$shopApi',
+      },
+      extra: {
+        '.specstone/config.yaml':
+            '${shippedPinsConfig()}targets:\n'
+            '  app:\n    code_root: app_lib\n'
+            '  server:\n    code_root: server_lib\n',
+        'app_lib/.keep': '',
+        'server_lib/.keep': '',
+      },
+    );
+    final answer = _move(root, ['$_addItem#S2'], codeTarget: 'server');
+    expect(
+      answer.text,
+      'moved $cartAdd#S2 to $cartDrop#S3\n'
+      'renumbered $cartDrop S2 to S3\n'
+      'rewrote $cartAdd\n'
+      'rewrote $cartDrop\n',
+    );
+  });
+
+  test(
+    'a scenario lands after the last scenario and before a closing paragraph',
+    () async {
+      const closing = 'Error cases: N/A — dropping an item always succeeds.';
+      final root = await _project(dropClosing: closing);
+      _move(root, ['$_addItem#S3']);
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [
+          ..._scenarios(2),
+          _scenario(3),
+        ], closing: closing),
+      );
+    },
+  );
+
+  test(
+    'a moved last scenario leaves the closing paragraph of its source',
+    () async {
+      const closing = 'Error cases: N/A — adding an item always succeeds.';
+      final root = await _project(addClosing: closing);
+      _move(root, ['$_addItem#S3']);
+      expect(
+        _bodyOf(root, cartAdd),
+        _storyBody('Agent adds an item', _scenarios(2), closing: closing),
+      );
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [..._scenarios(2), _scenario(3)]),
+      );
+    },
+  );
+}

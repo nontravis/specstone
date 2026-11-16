@@ -8,6 +8,8 @@ import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show TextEdit;
+import 'package:specstone_core/src/document_writing/scenario_items.dart'
+    show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/set_doc.dart'
     show markDraft;
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -45,9 +47,16 @@ Map<String, TextEdit> itemLandingEdits(
   Map<String, Set<int>> droppedLines = const {},
 }) {
   final index = session.index;
+  final renamed = _renamedOf(landings);
   final cuts = [
     for (final landing in landings)
-      _cutOf(index, landing, bodies, droppedLines),
+      _cutOf(
+        index,
+        landing,
+        bodies,
+        droppedLines,
+        renamed[landing.from.doc.docPath] ?? const {},
+      ),
   ];
   final destination = landings.first.to;
   final entries = _entryMovesOf(index, destination, cuts);
@@ -72,6 +81,17 @@ Map<String, TextEdit> itemLandingEdits(
       bodies[destination.docPath],
     ),
   };
+}
+
+/// Returns, by a source doc's DocPath, the new ID of each item of it that
+/// [landings] renumber, by its old ID; scenarios left out.
+Map<String, Map<String, String>> _renamedOf(List<ItemLanding> landings) {
+  final renamed = <String, Map<String, String>>{};
+  for (final landing in landings) {
+    if (landing.isScenario || landing.newId == landing.from.id) continue;
+    (renamed[landing.from.doc.docPath] ??= {})[landing.from.id] = landing.newId;
+  }
+  return renamed;
 }
 
 /// The file lines an item spans in its source doc.
@@ -108,7 +128,13 @@ ItemSpan itemSpanOf(DocIndex index, ItemLanding landing) {
     located: located,
     head: items[at],
     first: items[at].line,
-    last: _spanEnd(content, located.sectionAt, items, at),
+    last: _spanEnd(
+      content,
+      located.sectionAt,
+      items,
+      at,
+      isScenario: located.isScenario,
+    ),
   );
 }
 
@@ -140,11 +166,14 @@ final class _Cut {
   final OverrideCite? own;
 }
 
+/// Cuts the item [landing] moves, its heading renumbered and, for a
+/// scenario, each item ID of [renamed] in its title set to the new one.
 _Cut _cutOf(
   DocIndex index,
   ItemLanding landing,
   Map<String, String> bodies,
   Map<String, Set<int>> droppedLines,
+  Map<String, String> renamed,
 ) {
   final span = itemSpanOf(index, landing);
   final located = span.located;
@@ -157,7 +186,9 @@ _Cut _cutOf(
     head.line - 1,
     last,
   );
-  if (landing.newId != landing.from.id) {
+  if (located.isScenario) {
+    lines[0] = landedScenarioHeading(lines[0], landing, renamed);
+  } else if (landing.newId != landing.from.id) {
     lines[0] = _withId(
       lines[0],
       at: _idAt(indexed[head.line - 1], head.head),
@@ -218,15 +249,20 @@ void _dropLine(List<String> lines, int at) {
 /// Returns the last file line of the item at [at] of [items], the nested items
 /// it spans and the `Overrides:` line right after it included; a heading item
 /// spans its block, up to the next heading item.
+///
+/// A scenario block that closes its section ends at its last step, so a
+/// paragraph that closes the section stays with the section.
 int _spanEnd(
   DocContent content,
   int sectionAt,
   List<SectionItem> items,
-  int at,
-) {
+  int at, {
+  required bool isScenario,
+}) {
   final head = items[at];
   if (head.kind == SectionItemKind.heading) {
-    return _blockEnd(content, sectionAt, items, at);
+    final end = _blockEnd(content, sectionAt, items, at);
+    return isScenario ? _scenarioEnd(items, at, end) : end;
   }
   var last = at;
   var hasOwn = false;
@@ -243,6 +279,21 @@ int _spanEnd(
 }
 
 int _endOf(SectionItem item) => item.line + item.text.split('\n').length - 1;
+
+/// Returns the last file line of the scenario at [at] of [items], whose block
+/// ends at file line [end]: that of its last step when no heading follows it.
+int _scenarioEnd(List<SectionItem> items, int at, int end) {
+  final after = items.skip(at + 1);
+  if (after.any((item) => item.kind == SectionItemKind.heading)) return end;
+  final lastStep = after
+      .where(
+        (item) =>
+            item.kind == SectionItemKind.listItem ||
+            item.kind == SectionItemKind.tableRow,
+      )
+      .lastOrNull;
+  return lastStep == null ? end : _endOf(lastStep);
+}
 
 /// Returns the last non-blank file line before the next heading item after the
 /// heading item at [at], or the section's last.
@@ -550,11 +601,16 @@ _Insertion _insertionIn(
   String key,
   List<_Cut> cuts,
 ) {
-  final prefix = cuts.first.located.prefix;
+  final located = cuts.first.located;
   final at = held.indexWhere(
-    (section) => section.key == key && section.prefixId == prefix,
+    (section) => located.isTakenBy(section.key, section.prefixId),
   );
   if (at < 0) return _Insertion(key: key, lines: _stacked(cuts, null));
+  if (located.isScenario) {
+    if (_afterLastScenario(content, type, at, key, cuts) case final landed?) {
+      return landed;
+    }
+  }
   final filled = sectionBodyLines(
     content.sections,
     content.lineFacts,
@@ -574,6 +630,31 @@ _Insertion _insertionIn(
     key: key,
     lines: _stacked(cuts, previous),
     anchor: filled.last.line,
+  );
+}
+
+/// Returns the insertion of the scenario [cuts] right after the last scenario
+/// of the held section [at], before any paragraph that closes it; null when
+/// the section holds no scenario.
+_Insertion? _afterLastScenario(
+  DocContent content,
+  MergedDocType? type,
+  int at,
+  String key,
+  List<_Cut> cuts,
+) {
+  final items = sectionItemsAt(content, at, type);
+  final last = items.lastIndexWhere(
+    (item) =>
+        item.kind == SectionItemKind.heading &&
+        readItemId(item.head, scenarioIdPrefix) != null,
+  );
+  if (last < 0) return null;
+  final end = _scenarioEnd(items, last, _blockEnd(content, at, items, last));
+  return _Insertion(
+    key: key,
+    lines: _stacked(cuts, SectionItemKind.heading),
+    anchor: end,
   );
 }
 

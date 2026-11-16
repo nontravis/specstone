@@ -173,8 +173,9 @@ void main() {
         contains('(--under <doc address> | --top)'),
         contains(
           'Move stories and features under a feature, FRs and nfs under a '
-          'story, features among the top features, or items '
-          '(<doc address>#<item ID>) into another doc, and rewrite every '
+          'story, features among the top features, items '
+          '(<doc address>#<item ID>) into another doc, or scenarios '
+          '(<story address>#S<N>) into another story, and rewrite every '
           'reference to them.',
         ),
         contains('--top'),
@@ -215,14 +216,15 @@ void main() {
         allOf(
           contains(
             'Move stories and features under a feature, FRs and nfs under a '
-            'story, features among the top features, or items '
-            '(<doc address>#<item ID>) into another doc, and rewrite every '
+            'story, features among the top features, items '
+            '(<doc address>#<item ID>) into another doc, or scenarios '
+            '(<story address>#S<N>) into another story, and rewrite every '
             'reference to them.',
           ),
           contains(
             'The feature that takes user_story or feature targets, the story '
-            'that takes fr or nf targets, or the doc that takes item '
-            'targets: ',
+            'that takes fr, nf, or scenario targets, or the doc that takes '
+            'item targets: ',
           ),
         ),
       );
@@ -863,6 +865,46 @@ void main() {
         );
         expect(readDoc(root, shopDomain), shop);
         expect(readDoc(root, cartDomain), cart);
+      },
+    );
+
+    test(
+      "a scenario move prints the scenario-target response example's lines",
+      () async {
+        String scenario(int n) =>
+            '### Scenario $n — [edge] Case $n\n\n'
+            '- **Given** a cart in case $n\n- **When** the shopper acts\n'
+            '- **Then** the shopper sees case $n';
+        String story(String title, int count) =>
+            '---\ngoals:\n  - PG-01\n---\n\n# $title\n\n## Use Case\n\n'
+            '- **As a** Agent who shops\n- **I want to** act\n'
+            '- **so that** I finish an order\n\n## Acceptance Criteria\n\n'
+            '${[for (var n = 1; n <= count; n++) scenario(n)].join('\n\n')}\n';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$cartAdd': story('Agent adds an item', 3),
+            'docs/$cartDrop': story('Agent drops an item', 2),
+          },
+        );
+        final result = await move(root, [
+          '$addItem#S2',
+          '--under',
+          'user_story:shop/cart/drop_item',
+        ]);
+        expect(result.exitCode, 0);
+        expect(result.stderr, isEmpty);
+        expect(
+          result.stdout,
+          'moved $cartAdd#S2 to $cartDrop#S3\n'
+          'renumbered $cartDrop S2 to S3\n'
+          'rewrote $cartAdd\n'
+          'rewrote $cartDrop\n',
+        );
+        expect(
+          readDoc(root, cartDrop),
+          contains('### Scenario 3 — [edge] Case 2\n'),
+        );
+        expect(readDoc(root, cartAdd), isNot(contains('Case 2')));
       },
     );
 

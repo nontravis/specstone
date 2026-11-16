@@ -1,7 +1,7 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Moves stories, FRs, nfs, features, or items under a new parent.
+/// Moves stories, FRs, nfs, features, items, or scenarios under a new parent.
 class MoveCommand extends WriteCommand {
   new() {
     addTargetOption();
@@ -10,8 +10,8 @@ class MoveCommand extends WriteCommand {
         'under',
         help:
             'The feature that takes user_story or feature targets, the story '
-            'that takes fr or nf targets, or the doc that takes item '
-            'targets: <doc type>:<name>, a bare name, or a path.',
+            'that takes fr, nf, or scenario targets, or the doc that takes '
+            'item targets: <doc type>:<name>, a bare name, or a path.',
       )
       ..addFlag(
         'top',
@@ -35,8 +35,9 @@ class MoveCommand extends WriteCommand {
   @override
   String get description =>
       'Move stories and features under a feature, FRs and nfs under a '
-      'story, features among the top features, or items '
-      '(<doc address>#<item ID>) into another doc, '
+      'story, features among the top features, items '
+      '(<doc address>#<item ID>) into another doc, or scenarios '
+      '(<story address>#S<N>) into another story, '
       'and rewrite every reference to them.';
 
   @override

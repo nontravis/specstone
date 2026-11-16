@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/scenario_items.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
@@ -40,6 +41,9 @@ final class ItemLanding {
 
   /// The ID the item holds in [to]: its own, or the next free number there.
   final String newId;
+
+  /// Whether the item is a scenario, `S<N>`, of a story's acceptance criteria.
+  bool get isScenario => sectionKey == acceptanceSectionId;
 }
 
 /// Whether [address] names an item: its text after `#` reads whole as an
@@ -57,8 +61,9 @@ bool isItemAddress(DocIndex index, String address) {
 /// the order given, writing nothing; an item already there or named twice
 /// leaves no landing.
 ///
-/// Throws [WriteFault] `item_not_found` or an [IndexFault] before any lock;
-/// one refused item refuses the call.
+/// A scenario target `S<N>` of a story rides the same plan. Throws
+/// [WriteFault] `item_not_found` or an [IndexFault] before any lock; one
+/// refused item refuses the call.
 List<ItemLanding> planItemMove(
   WriteSession session,
   List<String> addresses, {
@@ -80,6 +85,7 @@ List<ItemLanding> planItemMove(
     _requireSection(index, destination, item);
   }
   _requireChains(index, destination, moving);
+  requireRulesTravel(index, moving);
   return _landings(index, destination, moving);
 }
 
@@ -107,19 +113,43 @@ String _keyOf(String docPath, String id) => '$docPath#$id';
 
 /// An item found in its source doc, with the section it sits in.
 final class LocatedItem {
-  const new(this.target, this.sectionAt, this.key, this.prefix);
+  const new(
+    this.target,
+    this.sectionAt,
+    this.key,
+    this.prefix, {
+    this.isScenario = false,
+  });
 
   final ItemTarget target;
 
   /// The index of the item's section among the held sections of its doc.
   final int sectionAt;
 
-  /// The key and ID prefix of the item's section.
+  /// The key of the item's section and the prefix of the item's ID.
   final String key;
   final String prefix;
+
+  /// Whether the item is a scenario, whose section carries no ID prefix.
+  final bool isScenario;
+
+  /// The key the index holds the item by: its ID, or `Scenario <N>`.
+  String get heldAs => isScenario ? scenarioKeyOfId(target.id) : target.id;
+
+  /// Whether a section of [sectionKey] whose items carry [prefixId] takes the
+  /// item.
+  bool isTakenBy(String sectionKey, String? prefixId) =>
+      sectionKey == key && prefixId == (isScenario ? null : prefix);
 }
 
+/// Returns the item [target] names in its source doc, a scenario of a story
+/// included.
+///
+/// Throws [WriteFault] `item_not_found` when the doc holds no such item.
 LocatedItem locateItem(DocIndex index, ItemTarget target) {
+  if (isScenarioId(target.id) && target.doc.docTypeId == storyType) {
+    return locateScenario(index, target);
+  }
   final content = index.contentOf(target.doc);
   final sections = citedSectionsOf(content, index.typeOf(target.doc));
   for (final (at, section) in sections.indexed) {
@@ -130,18 +160,21 @@ LocatedItem locateItem(DocIndex index, ItemTarget target) {
     );
     if (holds) return LocatedItem(target, at, section.key, prefix);
   }
-  throw WriteFault(
-    WriteFaultCode.itemNotFound,
-    '${target.doc.docPath} holds no ${target.id}',
-  );
+  throw itemNotFoundOf(target);
 }
+
+/// Returns the fault for a source doc that holds no item [target] names.
+WriteFault itemNotFoundOf(ItemTarget target) => WriteFault(
+  WriteFaultCode.itemNotFound,
+  '${target.doc.docPath} holds no ${target.id}',
+);
 
 void _requireSection(DocIndex index, IndexedDoc destination, LocatedItem item) {
   final type = index.typeOf(destination);
   final holds =
       type != null &&
       type.sections.any(
-        (section) => section.id == item.key && section.prefixId == item.prefix,
+        (section) => item.isTakenBy(section.id, section.prefixId),
       );
   if (holds) return;
   throw IndexFault(
@@ -248,9 +281,9 @@ int itemIndexOf(List<SectionItem> items, LocatedItem located) =>
             item.head,
             isHeading: item.kind == SectionItemKind.heading,
             prefixId: located.prefix,
-            isAcceptanceCriteria: false,
+            isAcceptanceCriteria: located.isScenario,
           ) ==
-          located.target.id,
+          located.heldAs,
     );
 
 /// Returns the `Overrides:` line right after the item [located], that line
@@ -316,7 +349,9 @@ List<ItemLanding> _landings(
           item,
           taken.putIfAbsent(
             item.key,
-            () => _idsIn(index, destination, item.key, item.prefix),
+            () => item.isScenario
+                ? scenarioIdsIn(index, destination)
+                : _idsIn(index, destination, item.key, item.prefix),
           ),
         ),
       ),

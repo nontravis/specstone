@@ -338,6 +338,50 @@ void main() {
         expect(fault.message, contains('prds/notes'));
       },
     );
+
+    test(
+      'a rule moved alone while a staying title names it is refused',
+      () async {
+        String scenario(int n, String title) =>
+            '### Scenario $n — [edge] Case $n$title\n\n'
+            '- **Given** a cart\n- **When** the shopper acts\n'
+            '- **Then** the shopper sees it';
+        final story =
+            '---\ngoals:\n  - PG-01\n---\n\n# Agent adds an item\n\n'
+            '## Use Case\n\n- **As a** Agent who shops\n- **I want to** act\n'
+            '- **so that** I finish an order\n\n'
+            '## Rules\n\n- **BR-01** — Rule 1 holds.\n'
+            '- **BR-02** — Rule 2 holds.\n\n'
+            '## Acceptance Criteria\n\n${scenario(1, '')}\n\n'
+            '${scenario(2, '')}\n\n${scenario(3, ' (BR-02)')}\n';
+        for (final dryRun in [false, true]) {
+          final root = await _project(extra: {'docs/$cartAdd': story});
+          final before = _docs(root);
+          Object? fault;
+          try {
+            writeIn(
+              root,
+              (session) => answerMove(
+                session,
+                const ['user_story:shop/cart/add_item#BR-02'],
+                under: 'user_story:shop/cart/drop_item',
+                dryRun: dryRun,
+              ),
+            );
+          } on IndexFault catch (caught) {
+            fault = caught;
+          }
+          expect((fault! as IndexFault).code, IndexFaultCode.argumentInvalid);
+          expect((fault as IndexFault).exitStatus, 64);
+          expect(
+            fault.message,
+            'shop/cart/add_item#BR-02 is named by Scenario 3, which stays; '
+            'move both in one call',
+          );
+          expect(_docs(root), before, reason: 'a refused move writes no doc');
+        }
+      },
+    );
   });
 
   group('the override chain a move must keep', () {
