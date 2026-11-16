@@ -207,6 +207,9 @@ T readRecord<T>(String docPath, T Function() read) {
 /// Returns, for the items of [feature]'s record, the new relative name of each
 /// that stays in [feature] under another name, and the landing of each that
 /// leaves it; keyed by the item's name now.
+///
+/// An item stays when its new name puts it in [feature] itself, so one that
+/// moves into a sub-feature of [feature] leaves.
 ({Map<String, String> inPlace, Map<String, _Landing> leaving}) _itemMovesOf(
   DocIndex index,
   IndexedDoc feature,
@@ -214,14 +217,14 @@ T readRecord<T>(String docPath, T Function() read) {
 ) {
   final inPlace = <String, String>{};
   final leaving = <String, _Landing>{};
-  final featurePrefix = '${_nameAfter(feature, renamed)}/';
+  final featureName = _nameAfter(feature, renamed);
   for (final MapEntry(key: item, value: doc) in recordItemsOf(
     feature,
     index.childrenOf,
   ).entries) {
     final name = _nameAfter(doc, renamed);
-    if (name.startsWith(featurePrefix)) {
-      final relative = name.substring(featurePrefix.length);
+    if (_featureNameOf(doc, renamed) == featureName) {
+      final relative = name.substring(featureName.length + 1);
       if (relative != item) inPlace[item] = relative;
     } else if (_landingOf(index, doc, renamed) case final landing?) {
       leaving[item] = landing;
@@ -244,14 +247,20 @@ _Landing? _landingOf(
   IndexedDoc item,
   Map<(String, String), String> renamed,
 ) {
-  final name = _nameAfter(item, renamed);
-  final storyName = item.docTypeId == storyType ? name : _parentName(name);
-  if (storyName == null) return null;
-  final featureName = _parentName(storyName);
+  final featureName = _featureNameOf(item, renamed);
   if (featureName == null) return null;
   final feature = index.ofTypeNamed(featureType, featureName).firstOrNull;
   if (feature == null) return null;
+  final name = _nameAfter(item, renamed);
   return (feature: feature, name: name.substring(featureName.length + 1));
+}
+
+/// Returns the name of the feature [item]'s new name puts it in; null when the
+/// name has no feature segment.
+String? _featureNameOf(IndexedDoc item, Map<(String, String), String> renamed) {
+  final name = _nameAfter(item, renamed);
+  final storyName = item.docTypeId == storyType ? name : _parentName(name);
+  return storyName == null ? null : _parentName(storyName);
 }
 
 String? _parentName(String name) {

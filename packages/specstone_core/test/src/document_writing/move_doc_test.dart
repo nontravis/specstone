@@ -10,9 +10,12 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
+import 'package:specstone_core/src/document_writing/rewrite_records.dart'
+    show planRecordRewrites;
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show storyType;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/index_query/refs.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -3462,6 +3465,145 @@ void main() {
         readDoc(root, '.specstone/records/f02_shop/f01_cart/IMPLEMENTATION.md'),
         isNot(contains('add_item')),
       );
+    });
+
+    group('into a sub-feature of its own feature', () {
+      const shopDir = 'prds/features/f02_shop';
+      const shopFlutter =
+          '.specstone/records/flutter/f02_shop/IMPLEMENTATION.md';
+      const shopJaspr = '.specstone/records/jaspr/f02_shop/IMPLEMENTATION.md';
+      const checkout = 'user_story:shop/checkout';
+      final shopEntries = recordText(
+        statuses: [
+          ':skipped:no tablet',
+          'checkout:implemented',
+          'checkout/total:implemented',
+        ],
+        code: [
+          'checkout:app/lib/shop.dart:Shop',
+          'checkout/total:app/lib/shop.dart:Shop',
+        ],
+      );
+
+      Future<Directory> shopWithCheckout({
+        Map<String, String> extra = const {},
+        Set<String> without = const {},
+      }) => shopTwins(
+        without: without,
+        extra: {
+          'docs/$shopDir/us01_checkout/USER_STORY.md': '# Checkout\n',
+          'docs/$shopDir/us01_checkout/fr01_total.md': '# Total\n',
+          shopFlutter: shopEntries,
+          ...extra,
+        },
+      );
+
+      test("a story moved into a sub-feature with no record creates that record as a draft holding the story and FR entries relative to it, and the parent's record loses them", () async {
+        final root = await shopWithCheckout(without: {payJaspr});
+        writeIn(root, (s) => answerMove(s, [checkout], under: 'shop/pay'));
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('draft: true'));
+        expect(created, contains('checkout:implemented'));
+        expect(created, contains('checkout/total:implemented'));
+        expect(created, contains('checkout:app/lib/shop.dart:Shop'));
+        expect(created, contains('checkout/total:app/lib/shop.dart:Shop'));
+        expect(created, isNot(contains('skipped')));
+
+        final parent = readDoc(root, shopFlutter);
+        expect(parent, contains("':skipped:no tablet'"));
+        expect(parent, isNot(contains('checkout')));
+        expect(
+          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+
+      test('a story moved into a sub-feature with a record appends its entries there, beside the ones it holds', () async {
+        final root = await shopWithCheckout(
+          extra: {
+            shopJaspr: recordText(
+              statuses: [':skipped:no web shop', 'checkout:planned'],
+            ),
+          },
+        );
+        writeIn(root, (s) => answerMove(s, [checkout], under: 'shop/pay'));
+
+        final pay = readDoc(root, payJaspr);
+        expect(pay, contains("'card:implemented'"));
+        expect(pay, contains("'checkout:planned'"));
+        expect(pay, isNot(contains('skipped')));
+        final parent = readDoc(root, shopJaspr);
+        expect(parent, contains("':skipped:no web shop'"));
+        expect(parent, isNot(contains('checkout')));
+      });
+
+      test("an fr moved to a story of a sub-feature lands in that sub-feature's record, named relative to it", () async {
+        final root = await shopWithCheckout();
+        writeIn(
+          root,
+          (s) =>
+              answerMove(s, ['fr:shop/checkout/total'], under: 'shop/pay/card'),
+        );
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('card/total:implemented'));
+        expect(created, contains('card/total:app/lib/shop.dart:Shop'));
+        expect(created, isNot(contains('checkout')));
+        final parent = readDoc(root, shopFlutter);
+        expect(parent, contains("'checkout:implemented'"));
+        expect(parent, isNot(contains('total')));
+      });
+
+      test("a story moved up out of a sub-feature lands in its parent feature's record", () async {
+        final root = await shopWithCheckout(
+          extra: {
+            payJaspr: recordText(
+              statuses: ['card:implemented', 'refund:planned'],
+            ),
+          },
+        );
+        final plan = writeIn(root, (s) {
+          final moved = planRecordRewrites(s, {
+            (storyType, 'shop/pay/card'): 'shop/card',
+          });
+          return (
+            payJaspr: moved.edits[payJaspr]?.call(readDoc(root, payJaspr)),
+            creates: moved.creates,
+            shopJaspr: moved.edits[shopJaspr]?.call(readDoc(root, shopJaspr)),
+          );
+        });
+
+        expect(plan.payJaspr, isNot(contains('card')));
+        expect(plan.payJaspr, contains("'refund:planned'"));
+        expect(plan.shopJaspr, isNull);
+        expect([
+          for (final step in plan.creates) step.path,
+        ], contains(shopJaspr));
+        expect(
+          plan.creates.map((step) => step.text).join(),
+          contains('card:implemented'),
+        );
+      });
+
+      test("a feature rename rewrites no entry of its own or its sub-feature's record, and a story rename in the feature renames its entries in place", () async {
+        final root = await shopWithCheckout();
+        rename(root, 'user_story:shop/checkout', 'purchase');
+        final shop = readDoc(root, shopFlutter);
+        expect(shop, contains("'purchase:implemented'"));
+        expect(shop, contains("'purchase/total:implemented'"));
+        expect(shop, contains("'purchase:app/lib/shop.dart:Shop'"));
+        expect(shop, isNot(contains('checkout')));
+
+        rename(root, 'feature:shop/cart', 'basket');
+        const basketFlutter =
+            '.specstone/records/flutter/f02_shop/f01_basket/IMPLEMENTATION.md';
+        expect(readDoc(root, basketFlutter), flutterCart);
+        expect(
+          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
     });
 
     group('an fr move', () {
