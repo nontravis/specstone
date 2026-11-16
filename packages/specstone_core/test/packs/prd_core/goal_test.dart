@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
@@ -43,6 +44,7 @@ void main() {
       final entries = sectionOf(goal, id).bannedPatterns!;
       expect([for (final p in entries) p.id], ['metric_number'], reason: id);
       final pattern = entries.single;
+      expect(pattern.scope, PatternScope.all, reason: id);
       expect(pattern.message, contains('numeric metric with unit'));
       expect(pattern.regExp.hasMatch('- **Metric:** a fast tool'), isTrue);
       expect(pattern.regExp.hasMatch('**Metric:** 3 calls'), isFalse);
@@ -74,6 +76,12 @@ void main() {
       'deleted from the goal doc together with its measurement',
       'leaves out `**By:**`',
       "links the goal's measurement",
+      'no ID is used again',
+      'no status field and no archive section',
+      'every other `**By:**` names a date or a milestone',
+      'GOAL holds no measured number',
+      'State the present truth; history lives in git.',
+      'Cite a rule another doc owns by a link',
     ]) {
       expect(description, contains(rule));
     }
