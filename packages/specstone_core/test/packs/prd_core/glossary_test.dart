@@ -19,7 +19,7 @@ const _sentenceRule =
     'in a script with no spaces (Japanese 60, Chinese 45).';
 
 const _nestRule =
-    'Put several conditions in a nested list; a one-sentence paragraph '
+    'Put several conditions in a nested list. A one-sentence paragraph '
     'moves its detail to the section of the same doc that owns it, '
     'never into a sub-list.';
 

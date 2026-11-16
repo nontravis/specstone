@@ -583,7 +583,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ciByZXN0YXRlIGl0LgogIEVhY2ggc2VudGVuY2UgaG9sZHMgMjUgd29yZHMgb3Ig'
       'ZmV3ZXIgKEtvcmVhbiAxNyksIG9yIDEwMCBjaGFyYWN0ZXJzIGluIGEgc2NyaXB0'
       'IHdpdGggbm8gc3BhY2VzIChKYXBhbmVzZSA2MCwgQ2hpbmVzZSA0NSkuCiAgUHV0'
-      'IHNldmVyYWwgY29uZGl0aW9ucyBpbiBhIG5lc3RlZCBsaXN0OyBhIG9uZS1zZW50'
+      'IHNldmVyYWwgY29uZGl0aW9ucyBpbiBhIG5lc3RlZCBsaXN0LiBBIG9uZS1zZW50'
       'ZW5jZSBwYXJhZ3JhcGggbW92ZXMgaXRzIGRldGFpbCB0byB0aGUgc2VjdGlvbiBv'
       'ZiB0aGUgc2FtZSBkb2MgdGhhdCBvd25zIGl0LCBuZXZlciBpbnRvIGEgc3ViLWxp'
       'c3QuCiAgUHV0IGEgY2l0ZSBvciBhbiBvd25lcnNoaXAgbm90ZSBhdCB0aGUgaXRl'
