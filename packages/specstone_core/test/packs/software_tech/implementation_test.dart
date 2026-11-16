@@ -27,7 +27,6 @@ void main() {
         'skipped',
         'one-line reason',
       ],
-      maxChars: 60000,
     );
     expectItemShape(
       record,
@@ -39,7 +38,7 @@ void main() {
   test('template_packs/write_spec_docs_from_software_tech/'
       'set_spec_lint_and_sources: the implementation type caps 400 lines, '
       'bans no word, and cites its four sources', () {
-    expectSpecLint(record, maxChars: 60000);
+    expectSpecLint(record, maxLines: 400, maxChars: 60000);
   });
 
   test(

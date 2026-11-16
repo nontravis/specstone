@@ -229,19 +229,13 @@ void main() {
     }
   });
 
-  test('project_domain and project_architecture inherit max_chars and '
-      'project_api sets none', () {
-    expect(prdCoreDocType(set, 'project_domain').lint.maxChars, 60000);
-    expect(prdCoreDocType(set, 'project_architecture').lint.maxChars, 60000);
-    expect(prdCoreDocType(set, 'project_api').lint.maxChars, isNull);
-  });
-
   test('each project spec doc type carries the four references of its base '
       'type', () {
     for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
       expectSpecLint(
         prdCoreDocType(set, id),
-        maxChars: prdCoreDocType(set, project.base).lint.maxChars,
+        maxLines: specCaps.maxLines,
+        maxChars: specCaps.maxChars,
       );
       expect(
         [for (final r in prdCoreDocType(set, id).reference!) r.title],
@@ -271,7 +265,6 @@ void main() {
           'such as `${title.example}`',
           "lives in that target's record, its `implementation` docs, only",
         ],
-        maxChars: prdCoreDocType(set, _projectTypes[id]!.base).lint.maxChars,
       );
     }
   });

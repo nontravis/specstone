@@ -4204,6 +4204,64 @@ void _sizeFixTests() {
       );
     }
   });
+
+  test('size-fix.md routes a finding with candidates or split, and an FR '
+      'over its character cap, to item moves in run order', () {
+    final sizeFix = _pluginText(_sizeFix);
+    final moves = _oneLine(
+      _sectionOf(sizeFix, 'A finding that names items to move'),
+    );
+    expect(moves, contains('`candidates`'));
+    expect(moves, contains('`split`'));
+    expect(moves, contains('an FR over its character cap'));
+    expect(
+      moves,
+      contains('one `specstone move <doc>#<ID> … --under <doc>` per'),
+    );
+    expect(moves, contains("that sub-feature's doc of the same type"));
+    final newFr = moves.indexOf(
+      '`specstone new fr --parent <story> --slug <slug>`',
+    );
+    expect(newFr, isNonNegative);
+    expect(
+      moves,
+      contains(
+        'when it cannot be formed, as with fewer stories than it needs, the '
+        'finding keeps `No split applies`',
+      ),
+    );
+    expect(
+      moves.indexOf('`specstone move <fr>#<edge case ID> … --under <new fr>`'),
+      greaterThan(newFr),
+    );
+    expect(moves, contains("the Owner's ok"));
+    expect(moves, contains('in run order'));
+    expect(
+      _oneLine(sizeFix),
+      contains('every other size finding keeps its route above'),
+    );
+  });
+
+  test('each bootstrap skill runs a split or move proposal after the '
+      "Owner's ok, naming its new, story move, and item move commands", () {
+    for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
+      final after = _oneLine(
+        _sectionOf(
+          _pluginText('specstone-$skill/SKILL.md'),
+          '3. After the reports',
+        ),
+      );
+      expect(
+        after,
+        contains('ask the Owner to approve each proposal'),
+        reason: skill,
+      );
+      expect(after, contains('`new feature`'), reason: skill);
+      expect(after, contains('`move <story> …`'), reason: skill);
+      expect(after, contains('`move <doc>#<ID> …`'), reason: skill);
+      expect(after, contains('in run order'), reason: skill);
+    }
+  });
 }
 
 /// Each bootstrap procedure and its est. tokens at `e8262ba`, which its one

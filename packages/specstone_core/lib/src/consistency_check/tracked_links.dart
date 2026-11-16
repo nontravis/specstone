@@ -6,6 +6,7 @@ import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 

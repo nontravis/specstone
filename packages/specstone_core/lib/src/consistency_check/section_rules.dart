@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/consistency_check/move_hints.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
@@ -43,6 +44,8 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   }
   final docMaxLines = type.lint.maxLines;
   final docMaxChars = type.lint.maxChars;
+  // Read only once a doc-level cap fires: a doc under its caps costs nothing.
+  late final hint = moveHintsOf(context, doc);
   if (docMaxLines != null && lines.lineCount > docMaxLines) {
     yield context.finding(
       doc,
@@ -50,8 +53,8 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
       line: 1,
       message:
           'the doc has ${lines.lineCount} lines; the limit is '
-          '$docMaxLines',
-      keys: {'limit': docMaxLines, 'actual': lines.lineCount},
+          '$docMaxLines${hint?.suffix ?? ''}',
+      keys: {'limit': docMaxLines, 'actual': lines.lineCount, ...?hint?.keys},
     );
   }
   if (docMaxChars != null && lines.charCount > docMaxChars) {
@@ -61,8 +64,8 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
       line: 1,
       message:
           'the doc has ${lines.charCount} characters; the limit is '
-          '$docMaxChars',
-      keys: {'limit': docMaxChars, 'actual': lines.charCount},
+          '$docMaxChars${hint?.suffix ?? ''}',
+      keys: {'limit': docMaxChars, 'actual': lines.charCount, ...?hint?.keys},
     );
   }
   final itemFacts = context.contentOf(doc).itemFacts;

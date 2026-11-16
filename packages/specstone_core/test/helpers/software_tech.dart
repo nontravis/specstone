@@ -237,6 +237,24 @@ String lineTargetOf(String id) => switch (projectSpecDocBases[id] ?? id) {
   _ => 'about 150 to 200 lines',
 };
 
+/// The doc-level line and character caps of a `software-tech` doc type.
+final class SpecCaps {
+  const new(this.maxLines, this.maxChars);
+
+  final int maxLines;
+  final int maxChars;
+}
+
+/// The caps of the implementation record, which keeps its larger entries.
+const recordCaps = SpecCaps(400, 60000);
+
+/// The caps of every other `software-tech` doc type.
+const specCaps = SpecCaps(300, 50000);
+
+/// The caps [id] sets, a project spec doc type taking its base type's.
+SpecCaps specCapsOf(String id) =>
+    (projectSpecDocBases[id] ?? id) == 'implementation' ? recordCaps : specCaps;
+
 /// The section id a header gives: lower case, each run of other characters
 /// one underscore (US-07 FR-02 Output, "section header").
 String snakeCaseOf(String header) =>
@@ -268,14 +286,15 @@ void expectSpecGuide(
   MergedDocType docType, {
   required String title,
   List<String> says = const [],
-  int? maxChars,
 }) {
   final id = docType.id;
+  final caps = specCapsOf(id);
   expectGuideShape(
     docType,
     title: title,
     pack: 'software-tech',
-    maxChars: maxChars,
+    maxLines: caps.maxLines,
+    maxChars: caps.maxChars,
   );
   final description = docType.description!;
   expect(description, contains('Never write `status:`'), reason: id);
@@ -316,11 +335,15 @@ void expectDescriptionSays(MergedDocType docType, List<String> phrases) {
   }
 }
 
-/// Expects the 400-line cap, the [maxChars] cap, and the four research
+/// Expects the [maxLines] cap, the [maxChars] cap, and the four research
 /// sources on [docType].
-void expectSpecLint(MergedDocType docType, {int? maxChars}) {
+void expectSpecLint(
+  MergedDocType docType, {
+  required int maxLines,
+  required int maxChars,
+}) {
   final id = docType.id;
-  expect(docType.lint.maxLines, 400, reason: id);
+  expect(docType.lint.maxLines, maxLines, reason: id);
   expect(docType.lint.maxChars, maxChars, reason: id);
   expect(docType.lint.bannedWords, isNull, reason: id);
   expect(docType.lint.allowedWords, isNull, reason: id);

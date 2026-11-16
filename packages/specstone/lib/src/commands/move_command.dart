@@ -1,15 +1,18 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Moves stories into another feature, or FRs into another story.
+/// Moves stories into another feature, FRs into another story, or items into
+/// another doc.
 class MoveCommand extends WriteCommand {
   new() {
+    addTargetOption();
     argParser
       ..addOption(
         'under',
         help:
-            'The feature that takes user_story targets, or the story that '
-            'takes fr targets: <doc type>:<name>, a bare name, or a path.',
+            'The feature that takes user_story targets, the story that '
+            'takes fr targets, or the doc that takes item targets: '
+            '<doc type>:<name>, a bare name, or a path.',
       )
       ..addFlag(
         'dry-run',
@@ -25,13 +28,14 @@ class MoveCommand extends WriteCommand {
 
   @override
   String get description =>
-      'Move stories into a feature, or FRs into a story, '
+      'Move stories into a feature, FRs into a story, or items '
+      '(<doc address>#<item ID>) into another doc, '
       'and rewrite every reference to them.';
 
   @override
   String get invocation =>
       'specstone move <doc address> … --under <doc address> '
-      '[--dry-run] [--json]';
+      '[--dry-run] [--target <name>] [--json]';
 
   @override
   Future<int> run() {
@@ -54,6 +58,7 @@ class MoveCommand extends WriteCommand {
         session,
         args.rest,
         under: args.option('under'),
+        codeTarget: targetOf(args),
         dryRun: args.flag('dry-run'),
       ),
       asJson: asJson,

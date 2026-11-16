@@ -14,7 +14,7 @@ void main() {
   final shipped = shippedPackVersions()['prd-core']!;
 
   group('prd-core manifest', () {
-    test('prd-core ships at 1.15.0 with no extends', () {
+    test('prd-core ships at 1.16.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -22,7 +22,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.15.0');
+      expect(manifest.version.toString(), '1.16.0');
       expect(manifest.extendsPack, isNull);
     });
 
@@ -129,6 +129,15 @@ void main() {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
+    });
+
+    test('every prd-core doc type caps a doc at 400 lines and 20000 '
+        'characters', () async {
+      final set = await resolvePrdCore();
+      for (final docType in set.docTypes) {
+        expect(docType.lint.maxLines, 400, reason: docType.id);
+        expect(docType.lint.maxChars, 20000, reason: docType.id);
+      }
     });
 
     test('Set the shared lint and sources: '

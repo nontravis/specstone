@@ -2,8 +2,11 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/item_mentions.dart';
+import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
     show rewriteMovedFrTraces;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart';
@@ -191,21 +194,18 @@ ReadAnswer answerRename(
 }
 
 /// Moves the stories or FRs [addresses] name to be the last children of
-/// [under], in the order given, slugs kept, rewriting every reference in one
-/// pass through one journal.
+/// [under], slugs kept, rewriting every reference in one pass.
 ///
-/// A target named twice moves once; one already in [under] stays. One refused
-/// target moves none. A code file or an agent file is never written; each
-/// mention in one that the move stops resolving is listed in the answer.
+/// An address with a `#` that names no doc whole is an item target, which
+/// goes to [answerItemMove] and alone takes [codeTarget].
 ///
-/// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// no FR, `doc_exists` for a clash; an `IndexFault` for no target, a bad
-/// [under], or a call naming both stories and FRs; `RenderFault`
-/// `output_not_writable` for roots the Owner has not recorded.
+/// Throws [WriteFault], [IndexFault] for a bad call shape, and the faults of
+/// [answerItemMove].
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
   required String? under,
+  String? codeTarget,
   bool dryRun = false,
 }) {
   if (addresses.isEmpty) {
@@ -213,6 +213,23 @@ ReadAnswer answerMove(
       'move',
       'a target',
       'specstone move user_story:login/reset_password --under account',
+    );
+  }
+  final items = [for (final a in addresses) isItemAddress(session.index, a)];
+  if (items.any((isItem) => isItem)) {
+    return _answerItemMove(
+      session,
+      addresses,
+      isMixed: !items.every((isItem) => isItem),
+      under: under,
+      codeTarget: codeTarget,
+      dryRun: dryRun,
+    );
+  }
+  if (codeTarget != null) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes --target only with item targets',
     );
   }
   if (under == null) {
@@ -269,6 +286,87 @@ ReadAnswer answerMove(
       rewrites,
       created: records.creates,
       mentions: mentions,
+      dryRun: dryRun,
+    );
+  });
+}
+
+/// Moves the items [addresses] name once the call's shape is right.
+///
+/// Throws [IndexFault] `argument_invalid` for a call that also names a doc,
+/// `argument_missing` for no [under], and the faults of [answerItemMove].
+ReadAnswer _answerItemMove(
+  WriteSession session,
+  List<String> addresses, {
+  required bool isMixed,
+  required String? under,
+  required String? codeTarget,
+  required bool dryRun,
+}) {
+  if (isMixed) {
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes item targets or doc targets, not both',
+    );
+  }
+  if (under == null) {
+    throw IndexFault(
+      IndexFaultCode.argumentMissing,
+      'move needs --under <doc address> for item targets',
+    );
+  }
+  return answerItemMove(
+    session,
+    addresses,
+    under: under,
+    codeTarget: codeTarget,
+    dryRun: dryRun,
+  );
+}
+
+/// Moves the items [addresses] name to the end of their section of the doc
+/// [under] names, marking each source doc and that doc draft.
+///
+/// An item lands with its nested items and `Overrides:` line; its ID changes
+/// only to the next free number, and every reference to it follows. A bare ID
+/// the move leaves unresolved prints as a `mentions` line. [dryRun] writes
+/// nothing, not even a journal.
+///
+/// Throws the faults of [planItemMove] and `RenderFault` `output_not_writable`.
+ReadAnswer answerItemMove(
+  WriteSession session,
+  List<String> addresses, {
+  required String under,
+  String? codeTarget,
+  bool dryRun = false,
+}) {
+  final landings = planItemMove(
+    session,
+    addresses,
+    under: under,
+    codeTarget: codeTarget,
+  );
+  if (landings.isEmpty) {
+    return _answerFor(
+      session,
+      const [],
+      const [],
+      landings: const [],
+      dryRun: dryRun,
+    );
+  }
+  return session.locked(() {
+    session.journalTarget.requireTrusted();
+    final refs = planItemRefs(session, landings);
+    final rewrites = planRewrites(session, const [], docEdits: refs.edits);
+    final mentions = itemMentions(session, landings, refs: refs);
+    if (!dryRun) MoveJournal(rewrites).run(session.journalTarget);
+    return _answerFor(
+      session,
+      const [],
+      rewrites,
+      mentions: mentions,
+      landings: landings,
       dryRun: dryRun,
     );
   });
@@ -664,12 +762,18 @@ String _stepPath(WriteSession session, String docPath) {
   return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 }
 
+/// Returns the reply to a move: one line per move, or per item of [landings]
+/// and per new number, then the written docs and the mentions.
+///
+/// A null [landings] is a doc move; an item move, even one that lands nothing,
+/// also holds `renumbered` in `--json`.
 ReadAnswer _answerFor(
   WriteSession session,
   List<PathMove> moves,
   List<WriteStep> rewrites, {
   List<CreateStep> created = const [],
   List<StaleMention> mentions = const [],
+  List<ItemLanding>? landings,
   bool dryRun = false,
 }) {
   // A record the move creates is a file it writes, listed with the rewrites.
@@ -678,10 +782,20 @@ ReadAnswer _answerFor(
     for (final step in created) step.path,
   ]..sort();
   final rewritten = [for (final path in written) session.listedPathOf(path)];
+  final items = landings ?? const <ItemLanding>[];
+  final renumbered = [
+    for (final landing in items)
+      if (landing.newId != landing.from.id) landing,
+  ];
+  final moveVerb = dryRun ? 'moves' : 'moved';
+  final renumberVerb = dryRun ? 'renumbers' : 'renumbered';
   return ReadAnswer(
     text: [
-      for (final move in moves)
-        '${dryRun ? 'moves' : 'moved'} ${move.from} to ${move.to}\n',
+      for (final move in moves) '$moveVerb ${move.from} to ${move.to}\n',
+      for (final landing in items)
+        '$moveVerb ${_sourceOf(landing)} to ${_destinationOf(landing)}\n',
+      for (final landing in renumbered)
+        '$renumberVerb ${_renumberOf(landing)}\n',
       for (final path in rewritten)
         '${dryRun ? 'rewrites' : 'rewrote'} $path\n',
       for (final mention in mentions) mentionLineOf(mention),
@@ -690,12 +804,32 @@ ReadAnswer _answerFor(
     json: {
       'moved': [
         for (final move in moves) {'from': move.from, 'to': move.to},
+        for (final landing in items)
+          {'from': _sourceOf(landing), 'to': _destinationOf(landing)},
       ],
+      if (landings != null)
+        'renumbered': [
+          for (final landing in renumbered)
+            {
+              'doc': landing.to.docPath,
+              'from': landing.from.id,
+              'to': landing.newId,
+            },
+        ],
       'rewritten': rewritten,
       'mentions': mentionsJsonOf(mentions),
       if (dryRun) 'dryRun': true,
     },
   );
 }
+
+String _sourceOf(ItemLanding landing) =>
+    '${landing.from.doc.docPath}#${landing.from.id}';
+
+String _destinationOf(ItemLanding landing) =>
+    '${landing.to.docPath}#${landing.newId}';
+
+String _renumberOf(ItemLanding landing) =>
+    '${landing.to.docPath} ${landing.from.id} to ${landing.newId}';
 
 const _dryRunClosing = 'dry run: nothing moved\n';

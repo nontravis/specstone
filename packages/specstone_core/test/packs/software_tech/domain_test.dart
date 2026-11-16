@@ -67,7 +67,7 @@ void main() {
 
   test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
       'f03/us07/fr02/e04, f03/us07/fr02/e06: the domain guide', () {
-    expectSpecGuide(domain, title: '# <Feature name> domain', maxChars: 60000);
+    expectSpecGuide(domain, title: '# <Feature name> domain');
     expectSectionsSay(domain, _says);
   });
 
@@ -116,34 +116,68 @@ void main() {
     ]);
   });
 
-  test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: domain caps 400 lines and '
-      '60000 characters, bans no word, and cites its four sources', () {
-    expectSpecLint(domain, maxChars: 60000);
+  test('domain caps 300 lines and '
+      '50000 characters, bans no word, and cites its four sources', () {
+    expectSpecLint(domain, maxLines: 300, maxChars: 50000);
   });
 
-  test('f03/us07/fr03/e03, sf-r4: a 60001-character DOMAIN.md gets '
-      'chars_over_limit, limit 60000, actual 60001', () async {
-    const loginDomain = 'specs/f01_login/DOMAIN.md';
+  // A draft takes no approval stamp, so the counts stay exact.
+  const draft = '---\ndraft: true\n---\n\n';
+
+  Future<Map<String, Object?>> overLimit(
+    String docPath,
+    String text,
+    FindingKind kind,
+  ) async {
+    final report = checkOf(await writeCheckProject(extra: {docPath: text}));
+    final finding = report.findings.singleWhere((f) => f.kind == kind);
+    expect(finding.path, docPath.substring('docs/'.length));
+    return finding.toJson();
+  }
+
+  test('a 50001-character DOMAIN.md gets '
+      'chars_over_limit, limit 50000, actual 50001', () async {
     // The index counts the laid-out text: a blank line under the title and a
     // final line break.
-    // A draft takes no approval stamp, so the character count stays exact.
-    const draft = '---\ndraft: true\n---\n\n';
     const title = '# Login domain\n';
-    final report = checkOf(
-      await writeCheckProject(
-        extra: {
-          'docs/$loginDomain':
-              '$draft$title${'x' * (60001 - draft.length - title.length - 2)}',
-        },
-      ),
+    final json = await overLimit(
+      'docs/specs/f01_login/DOMAIN.md',
+      '$draft$title${'x' * (50001 - draft.length - title.length - 2)}',
+      FindingKind.charsOverLimit,
     );
-    final finding = report.findings.singleWhere(
-      (f) => f.kind == FindingKind.charsOverLimit,
-    );
-    expect(finding.path, loginDomain);
     expect(
-      finding.toJson(),
-      allOf(containsPair('limit', 60000), containsPair('actual', 60001)),
+      json,
+      allOf(containsPair('limit', 50000), containsPair('actual', 50001)),
     );
   });
+
+  test('a DOMAIN.md body of 301 non-blank lines gets '
+      'lines_over_limit, limit 300', () async {
+    final json = await overLimit(
+      'docs/specs/f01_login/DOMAIN.md',
+      '$draft# Login domain\n\n${List.filled(300, 'x').join('\n')}\n',
+      FindingKind.linesOverLimit,
+    );
+    expect(
+      json,
+      allOf(containsPair('limit', 300), containsPair('actual', 301)),
+    );
+  });
+
+  test(
+    'a 50001-character project DOMAIN.md gets '
+    'chars_over_limit, limit 50000, the limit it inherits from domain',
+    () async {
+      const title = '# Project domain\n';
+      final json = await overLimit(
+        'docs/specs/DOMAIN.md',
+        '$draft$title${'x' * (50001 - draft.length - title.length - 2)}',
+        FindingKind.charsOverLimit,
+      );
+      expect(
+        json,
+        allOf(containsPair('limit', 50000), containsPair('actual', 50001)),
+      );
+    },
+  );
 }
