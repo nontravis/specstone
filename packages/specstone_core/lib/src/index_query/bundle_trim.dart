@@ -5,6 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
 import 'package:specstone_core/src/index_query/line_facts.dart' show LineRange;
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -266,7 +267,10 @@ String printedBodyOf(
 }) {
   final printed = removeHtmlComments(text).trimRight();
   if (after.isEmpty) return printed;
-  final comments = commentRangesOf(text);
+  final comments = [
+    for (final (:start, :end) in commentRangesOf(text))
+      _CommentRange(start: start, end: end),
+  ];
   final lineEnds = _lineEndsOf(text);
   final out = StringBuffer();
   var from = 0;
@@ -291,11 +295,20 @@ List<int> _lineEndsOf(String text) {
   return ends..add(text.length);
 }
 
+/// An HTML comment's offsets in the original text, `end` past its last
+/// character.
+final class _CommentRange {
+  const new({required this.start, required this.end});
+
+  final int start;
+  final int end;
+}
+
 /// Returns where [offset] of the original text falls once [comments] are
 /// removed.
-int _keptOffset(int offset, List<({int start, int end})> comments) {
+int _keptOffset(int offset, List<_CommentRange> comments) {
   var removed = 0;
-  for (final (:start, :end) in comments) {
+  for (final _CommentRange(:start, :end) in comments) {
     if (start >= offset) break;
     removed += (end < offset ? end : offset) - start;
   }

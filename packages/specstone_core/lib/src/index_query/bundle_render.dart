@@ -7,6 +7,9 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
+import 'package:specstone_core/src/index_query/models/bundle_text.dart';
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
 String _summaryNextStep(BundleMode mode) =>
@@ -18,40 +21,6 @@ const _overBudgetNextStep =
 
 const _overBudgetSummaryNextStep =
     'narrow the target, or run it again with --summary --out and no --budget';
-
-/// What one entry of a bundle text is.
-///
-/// - [doc]: a picked, joined, or summary doc.
-/// - [cited]: a part a link appended.
-/// - [pattern]: a feature pattern part.
-/// - [names]: a `==> names:` block of a top doc's chain children.
-/// - [citedBy]: the cited-by lines of one item, block, section, or doc, a part
-///   of its own in a split bundle.
-enum BundleEntryKind { doc, cited, pattern, names, citedBy }
-
-/// One doc or part a bundle text prints, with the lines it spans there,
-/// counted from 1: its naming line `first` to its `last` line, and the
-/// header line of each `##` section it prints whole. A cited part names
-/// the `##` section that holds it and its item ID, when it has them, and so
-/// does a cited-by part, except that a section's has its `sectionKey` alone
-/// and a doc's neither. A feature pattern part's `doc` is the doc that
-/// lists it and its `featurePattern` the pattern id; null for any other
-/// entry. A names block's `doc` is its top doc.
-typedef BundleEntry = ({
-  IndexedDoc doc,
-  BundleEntryKind kind,
-  bool summary,
-  String? sectionKey,
-  String? itemId,
-  String? featurePattern,
-  int first,
-  int last,
-  List<({String key, int first})> sections,
-});
-
-/// One file's text of a bundle: the text, each doc and part it prints in
-/// print order, and its est. token size as its closing line gives it.
-typedef BundleText = ({String text, List<BundleEntry> entries, int tokens});
 
 /// Returns the number of docs [entries] hold, as a bundle's closing line and
 /// its `--out` header count them: no part is a doc.
@@ -87,7 +56,8 @@ final class ContextAnswer extends ReadAnswer {
   final BundleText? refs;
 
   /// The read-first file: [text] with its [entries] and [tokens].
-  BundleText get readFirst => (text: text, entries: entries, tokens: tokens);
+  BundleText get readFirst =>
+      BundleText(text: text, entries: entries, tokens: tokens);
 }
 
 String _overBudgetLine(String listName, int tokens) =>
@@ -372,7 +342,7 @@ List<_Piece> _docSidePieces(
 }) {
   final summaryOnly = bundle.summaryOnly;
   final pieces = <_Piece>[];
-  for (final (:doc, :part) in slots) {
+  for (final _Slot(:doc, :part) in slots) {
     if (doc == null) {
       pieces.add(
         _Piece(
@@ -466,7 +436,7 @@ final class _Piece {
   BundleEntry? entryAt(int first) {
     final doc = this.doc;
     if (doc == null) return null;
-    return (
+    return BundleEntry(
       doc: doc,
       kind: kind,
       summary: summary,
@@ -477,7 +447,7 @@ final class _Piece {
       last: first + lineCountOf(block) - 1,
       sections: [
         for (final section in sections)
-          (key: section.key, first: first + section.line),
+          EntrySection(key: section.key, first: first + section.line),
       ],
     );
   }
@@ -530,7 +500,7 @@ BundleText _textOf(
       '${closingLineOf(docCountOf(entries), tokens)}'
       '${list.join()}'
       '${listsSummary ? '${_summaryNextStep(mode)}\n' : ''}';
-  return (
+  return BundleText(
     text: '$codeTargetLine$blocks$closing',
     entries: entries,
     tokens: tokens,
@@ -551,7 +521,12 @@ List<int> _blockStarts(List<String> blocks, {required int firstLine}) {
 
 /// One block of the doc side of a bundle text: the index of a picked doc in
 /// the print order, or of a feature pattern part, never both.
-typedef _Slot = ({int? doc, int? part});
+final class _Slot {
+  const new({required this.doc, required this.part});
+
+  final int? doc;
+  final int? part;
+}
 
 /// Returns the blocks of [ordered] with each of [patternParts] right after
 /// its lister, both in print order.
@@ -562,10 +537,10 @@ List<_Slot> _slotsOf(
   final slots = <_Slot>[];
   var next = 0;
   for (final (i, doc) in ordered.indexed) {
-    slots.add((doc: i, part: null));
+    slots.add(_Slot(doc: i, part: null));
     while (next < patternParts.length &&
         patternParts[next].lister.docPath == doc.docPath) {
-      slots.add((doc: null, part: next++));
+      slots.add(_Slot(doc: null, part: next++));
     }
   }
   return slots;
@@ -606,7 +581,7 @@ ContextAnswer _overBudget(
       : _overBudgetNextStep;
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
-    for (final (:doc, :part) in slots)
+    for (final _Slot(:doc, :part) in slots)
       if (doc == null)
         _overBudgetLine(
           featurePatternListName(patternParts[part!].pattern.id),
