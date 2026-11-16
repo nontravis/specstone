@@ -978,5 +978,44 @@ void main() {
       final finding = docLevel(project, shopDomain);
       expect(finding.toJson(), isNot(contains('candidates')));
     });
+
+    test(
+      'lists two items cited only under one sub-feature, comma separated',
+      () async {
+        final project = await shopWith({
+          shopDomain: invariants(shopItems),
+          cartDomain: invariants([
+            '- **INV-1** Cart rule. ${cite('INV-1')}',
+            '- **INV-3** Cart rule. ${cite('INV-3')}',
+          ]),
+        });
+        final finding = docLevel(project, shopDomain);
+        expect(finding.toJson()['candidates'], [
+          {'id': 'INV-1', 'under': 'shop/cart'},
+          {'id': 'INV-3', 'under': 'shop/cart'},
+        ]);
+        expect(
+          finding.message,
+          endsWith('; INV-1, INV-3 are cited only under shop/cart'),
+        );
+      },
+    );
+
+    test('a spec doc of a feature with no sub-feature and no story takes neither key', () async {
+      final project = await writeCheckProject(
+        extra: {
+          domainCap: capLayer,
+          'docs/prds/features/f03_empty/FEATURE.md': '# Empty\n',
+          'docs/specs/f03_empty/DOMAIN.md': invariants(shopItems),
+        },
+      );
+      final finding = docLevel(project, 'specs/f03_empty/DOMAIN.md');
+      expect(finding.toJson(), isNot(contains('candidates')));
+      expect(finding.toJson(), isNot(contains('split')));
+      expect(
+        finding.message,
+        'the doc has ${finding.toJson()['actual']} characters; the limit is 60',
+      );
+    });
   });
 }
