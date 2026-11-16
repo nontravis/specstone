@@ -5,7 +5,11 @@ import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, resolveDocLink;
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show NameMention, docMentionsInFile, extensionOfCodePath, readsNameMentions;
+    show
+        NameMention,
+        extensionOfCodePath,
+        nameMentionsInFile,
+        readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/body_scan.dart';
@@ -233,7 +237,7 @@ List<StaleMention> _addressMentions(
   String lf,
   String extension,
 ) => [
-  for (final mention in docMentionsInFile(lf, extension))
+  for (final mention in nameMentionsInFile(lf, extension))
     if (_namesMovedItem(index, moves, mention))
       (path: path, line: mention.line, mention: mention.text),
 ];
