@@ -149,12 +149,30 @@ void main() {
     expect(await runner.run(['move', '--help']), 0);
     expect(
       out.toString(),
-      contains(
-        'The feature that takes the stories: <doc type>:<name>, '
-        'a bare name, or a path.',
-      ),
+      contains('<doc type>:<name>, a bare name, or a path.'),
     );
   });
+
+  test(
+    'move --help names both target types and the parent each takes',
+    () async {
+      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+      expect(await runner.run(['move', '--help']), 0);
+      expect(
+        out.toString(),
+        allOf(
+          contains(
+            'Move stories into a feature, or FRs into a story, '
+            'and rewrite every reference to them.',
+          ),
+          contains(
+            'The feature that takes user_story targets, or the story that '
+            'takes fr targets: ',
+          ),
+        ),
+      );
+    },
+  );
 
   test('f02/us07/fr01/e12, P20: an --under with a #section suffix is argument_invalid, exit 64, and moves nothing', () async {
     final root = await writeNestedProject();
@@ -535,6 +553,103 @@ void main() {
       });
     });
   });
+  group('fr targets', () {
+    const checkStock = 'fr:shop/cart/add_item/check_stock';
+    const checkStockFile = '$addItemFolder/fr01_check_stock.md';
+    const refundFolder = 'prds/features/f02_shop/f02_pay/us02_refund';
+    const movedFile = '$refundFolder/fr02_check_stock.md';
+    final extra = {'docs/$refundFolder/fr01_issue_refund.md': '# Issue\n'};
+
+    test(
+      'an fr move prints a moved line per file, then its rewritten docs',
+      () async {
+        final (:runner, :out, :err) = writeRunner(
+          await writeNestedProject(extra: extra),
+        );
+        expect(
+          await runner.run(['move', checkStock, '--under', 'shop/pay/refund']),
+          0,
+        );
+        expect(err.toString(), isEmpty);
+        expect(
+          out.toString(),
+          startsWith('moved $checkStockFile to $movedFile\n'),
+        );
+        expect(out.toString(), contains('rewrote $shopApi\n'));
+        expect(
+          out.toString().indexOf('rewrote '),
+          greaterThan(out.toString().lastIndexOf('moved ')),
+        );
+      },
+    );
+
+    test(
+      'an fr move under --json prints moved, rewritten, and mentions',
+      () async {
+        final (:runner, :out, :err) = writeRunner(
+          await writeNestedProject(
+            extra: {
+              ...extra,
+              'app/lib/shop.dart':
+                  '/// Checks `shop/cart/add_item/check_stock`.\n',
+            },
+          ),
+        );
+        expect(
+          await runner.run([
+            'move',
+            checkStock,
+            '--under',
+            'shop/pay/refund',
+            '--json',
+          ]),
+          0,
+        );
+        expect(err.toString(), isEmpty);
+        final answer = jsonDecode(out.toString()) as Map;
+        expect(answer['moved'], [
+          {'from': checkStockFile, 'to': movedFile},
+        ]);
+        expect(answer['rewritten'], contains(shopApi));
+        expect(answer['mentions'], [
+          {
+            'path': 'app/lib/shop.dart',
+            'line': 1,
+            'mention': 'shop/cart/add_item/check_stock',
+          },
+        ]);
+      },
+    );
+
+    test(
+      'a mixed call exits 64 with the message on stderr and nothing moves',
+      () async {
+        final root = await writeNestedProject(extra: extra);
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'move',
+            addItem,
+            checkStock,
+            '--under',
+            'shop/pay/refund',
+          ]),
+          64,
+        );
+        expect(out.toString(), isEmpty);
+        expect(
+          err.toString(),
+          'move takes user_story targets or fr targets, not both\n',
+        );
+        expect(
+          docFile(root, '$addItemFolder/USER_STORY.md').existsSync(),
+          isTrue,
+        );
+        expect(docFile(root, checkStockFile).existsSync(), isTrue);
+      },
+    );
+  });
+
   test('move takes a suffix parent', () async {
     final root = await writeNestedProject();
     final (:runner, :out, :err) = writeRunner(root);
