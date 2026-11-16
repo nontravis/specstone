@@ -108,6 +108,51 @@ void main() {
       );
     });
 
+    test('a name with an ID farther along the line becomes its doc link and '
+        'the ID stays as written', () {
+      expect(
+        _converted(
+          'It is the one (`domain:login`); with two targets it needs it '
+          '(INV-6) |\n',
+        ),
+        'It is the one ([domain:login](../f01_login/DOMAIN.md)); with two '
+        'targets it needs it (INV-6) |\n',
+      );
+    });
+
+    test('a lone name that resolves to one doc becomes its link where it '
+        'stood', () {
+      expect(
+        _converted('Before `domain:login` after.\n'),
+        'Before [domain:login](../f01_login/DOMAIN.md) after.\n',
+      );
+    });
+
+    test('an item cite drops its name only up to its run and links each ID, '
+        'a later ID staying as written', () {
+      expect(
+        _converted('`domain:login`  INV-6 and INV-7, then see INV-7 too\n'),
+        '[INV-6](../f01_login/DOMAIN.md#invariants) and '
+        '[INV-7](../f01_login/DOMAIN.md#invariants), then see INV-7 too\n',
+      );
+    });
+
+    test('a lettered ID that opens the run stays as written, with its name '
+        'dropped only up to it', () {
+      expect(
+        _converted('`topic:doc_model` RULE-7a, RULE-14\n'),
+        'RULE-7a, [RULE-14](../topics/doc_model.md#rules)\n',
+      );
+    });
+
+    test('a lone-word span ends the run, so the ID after it is no item of the '
+        'cite', () {
+      expect(
+        _converted('`domain:login` INV-6 and `goal` INV-3.\n'),
+        '[INV-6](../f01_login/DOMAIN.md#invariants) and `goal` INV-3.\n',
+      );
+    });
+
     test('a token shaped like an ID but of no doc type prefix, such as SHA256 '
         'or UTF-8, leaves a doc cite', () {
       expect(

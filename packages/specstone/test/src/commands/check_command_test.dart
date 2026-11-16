@@ -1279,6 +1279,28 @@ void main() {
         '$loginFeature:13: cite_unlinked: cite domain:login is no link; write it as [INV-6](../../../specs/f01_login/DOMAIN.md#invariants)',
       ]);
     });
+
+    test('a doc name with an ID later on its line prints a doc link, not an item link', () async {
+      final project = await writeCheckProject(
+        extra: {
+          'docs/specs/f01_login/DOMAIN.md': '# Login domain\n\n## Invariants\n\n- **INV-6** An account holds one email.\n',
+          ...doc(
+            loginFeature,
+            'Users forget passwords.',
+            'Users forget (`domain:login`); with two targets it needs it (INV-6).',
+          ),
+        },
+      );
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 1);
+      final lines = text.out
+          .toString()
+          .split('\n')
+          .where((l) => l.contains('cite_unlinked'));
+      expect(lines, [
+        '$loginFeature:13: cite_unlinked: cite domain:login is no link; write it as [domain:login](../../../specs/f01_login/DOMAIN.md)',
+      ]);
+    });
   });
 
   group('a doc named in code', () {

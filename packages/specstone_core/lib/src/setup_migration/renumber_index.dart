@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -62,6 +64,12 @@ final class RenumberIndex {
 
   /// The prefixes of the renumbered IDs.
   final prefixes = <String>{};
+
+  /// The item ID prefixes of every doc type of the run, which an item-ID run
+  /// reads across.
+  late final Set<String> itemIdPrefixes = itemIdPrefixesOf([
+    for (final doc in _docs) doc.type,
+  ]);
 
   /// The gnfr doc holding each NFR ID.
   late final Map<String, String> _nfrPaths = _idPathsOfType(

@@ -53,7 +53,11 @@ typedef _Frs = Set<StoryFr>;
 /// then an optional `of <story>` that is the story of the labels without one.
 /// A heading with a label that names no FR of its rows or two, or that reads
 /// otherwise, stays as written and is listed in `HeadingStep.kept`.
-HeadingStep dropHeadingLabels(String lf, FrOfCell frOf) {
+HeadingStep dropHeadingLabels(
+  String lf,
+  FrOfCell frOf, {
+  required Set<String> itemPrefixes,
+}) {
   final doc = Doc.parse(lf);
   final operations = _sectionIndex(doc, _operationsHeader);
   if (operations < 0) return noHeadingStep(lf);
@@ -76,10 +80,13 @@ HeadingStep dropHeadingLabels(String lf, FrOfCell frOf) {
     if (match != null) {
       final operation = match.group(1)!;
       final frs = frsByOperation[operation.substring(1, operation.length - 1)];
-      if (_namesEachFr(match.group(2)!, frs ?? const {})) {
+      if (_namesEachFr(match.group(2)!, frs ?? const {}, itemPrefixes)) {
         text = '### $operation';
         converted.add((line: firstLine + i, operation: operation));
-      } else if (numberLabelsIn(match.group(2)!).isNotEmpty) {
+      } else if (numberLabelsIn(
+        match.group(2)!,
+        itemPrefixes: itemPrefixes,
+      ).isNotEmpty) {
         kept.add((start: offset, end: offset + text.length));
       }
     }
@@ -131,16 +138,16 @@ String? _secondCell(String row) {
 
 /// Whether [text], the labels of a heading, reads as the heading shape and
 /// each label names exactly one of [frs].
-bool _namesEachFr(String text, _Frs frs) {
+bool _namesEachFr(String text, _Frs frs, Set<String> itemPrefixes) {
   final marker = text.lastIndexOf(_storyMarker);
   final listText = marker < 0 ? text : text.substring(0, marker);
   final tail = marker < 0
       ? null
-      : _wholeLabel(text.substring(marker + _storyMarker.length));
+      : _wholeLabel(text.substring(marker + _storyMarker.length), itemPrefixes);
   if (marker >= 0 && (tail == null || tail.story == null || tail.fr != null)) {
     return false;
   }
-  final labels = _listOf(listText);
+  final labels = _listOf(listText, itemPrefixes);
   if (labels == null) return false;
   var story = tail?.story;
   for (final label in labels) {
@@ -162,8 +169,8 @@ bool _namesEachFr(String text, _Frs frs) {
 
 /// The labels of [text] when it is nothing but labels and [_joiners], else
 /// null.
-List<NumberLabel>? _listOf(String text) {
-  final labels = numberLabelsIn(text);
+List<NumberLabel>? _listOf(String text, Set<String> itemPrefixes) {
+  final labels = numberLabelsIn(text, itemPrefixes: itemPrefixes);
   if (labels.isEmpty || labels.first.start != 0) return null;
   if (labels.last.end != text.length) return null;
   for (var i = 1; i < labels.length; i++) {
@@ -177,8 +184,8 @@ List<NumberLabel>? _listOf(String text) {
 }
 
 /// The one label that is all of [text], else null.
-NumberLabel? _wholeLabel(String text) {
-  final labels = numberLabelsIn(text);
+NumberLabel? _wholeLabel(String text, Set<String> itemPrefixes) {
+  final labels = numberLabelsIn(text, itemPrefixes: itemPrefixes);
   return labels.length == 1 && labels.single.end == text.length
       ? labels.single
       : null;
