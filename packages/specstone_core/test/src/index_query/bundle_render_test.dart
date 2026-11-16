@@ -134,6 +134,43 @@ const _shopDesignUnsplit =
     '- pay (domain) · cited invariants [INV-7]\n'
     'Read a summary doc whole with: specstone context <name> --for design\n';
 
+/// Expects [readFirstTokensOf] to equal the read-first size of the split
+/// answer for each chain doc of [index], in design (in summary too, where the
+/// doc takes it) and implement.
+void _expectReadFirstSizes(DocIndex index) {
+  for (final doc in index.docs.where(index.isChainDoc)) {
+    for (final mode in [BundleMode.design, BundleMode.implement]) {
+      for (final summary in [
+        false,
+        if (mode == BundleMode.design &&
+            doc.docTypeId == index.set.nestingType?.id &&
+            index.childrenOf(doc).isNotEmpty)
+          true,
+      ]) {
+        final bundle = pickBundle(
+          index,
+          doc.docPath,
+          mode,
+          noProject: false,
+          summary: summary,
+        );
+        final answer = answerContext(
+          index,
+          bundle,
+          label: doc.name,
+          byCode: false,
+          split: true,
+        );
+        expect(
+          readFirstTokensOf(index, bundle),
+          answer.readFirst.tokens,
+          reason: '${doc.name} ${mode.wire} summary $summary',
+        );
+      }
+    }
+  }
+}
+
 void main() {
   late DocIndex index;
   setUpAll(() async => index = await indexWith());
@@ -1119,6 +1156,13 @@ void main() {
       budget: budget,
     );
 
+    test('the read-first size alone counts the feature pattern parts the split answer holds', () async {
+      final i = await patterned();
+
+      expect(designOf(i).text, contains('(feature pattern)'));
+      _expectReadFirstSizes(i);
+    });
+
     test('the part prints right after its doc, before the next doc, and lists in the closing list', () async {
       final a = designOf(await patterned());
 
@@ -1899,39 +1943,8 @@ void main() {
     test('the read-first size alone equals the split answer size, for each doc and mode', () async {
       final shop = openSession(await writeTree(_shopFiles()));
       addTearDown(shop.close);
-      for (final index in [await indexWith(), shop.index]) {
-        for (final doc in index.docs.where(index.isChainDoc)) {
-          for (final mode in [BundleMode.design, BundleMode.implement]) {
-            for (final summary in [
-              false,
-              if (mode == BundleMode.design &&
-                  doc.docTypeId == index.set.nestingType?.id &&
-                  index.childrenOf(doc).isNotEmpty)
-                true,
-            ]) {
-              final bundle = pickBundle(
-                index,
-                doc.name,
-                mode,
-                noProject: false,
-                summary: summary,
-              );
-              final answer = answerContext(
-                index,
-                bundle,
-                label: doc.name,
-                byCode: false,
-                split: true,
-              );
-              expect(
-                readFirstTokensOf(index, bundle),
-                answer.readFirst.tokens,
-                reason: '${doc.name} ${mode.wire} summary $summary',
-              );
-            }
-          }
-        }
-      }
+      _expectReadFirstSizes(await indexWith());
+      _expectReadFirstSizes(shop.index);
     });
     test('an unsplit answer is unchanged', () async {
       final session = openSession(await writeTree(_shopFiles()));

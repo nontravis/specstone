@@ -195,48 +195,21 @@ ContextAnswer answerContext(
     for (final part in patternParts) featurePatternBlock(part),
   ];
   final slots = _slotsOf(ordered, patternParts);
-  final slotBlocks = [
-    for (final (:doc, :part) in slots)
-      if (doc == null) patternBlocks[part!] else docBlocks[doc],
-  ];
-  final mapTops = _byTreeOrder(index, bundle.mapTops);
-  final nameTops = _byTreeOrder(index, bundle.nameListTops);
   final parts = followLinks(index, bundle, citedBy: citedBy);
   final partBlocks = [for (final part in parts) _partBlock(part)];
   final pieces = [
-    for (final (k, (:doc, :part)) in slots.indexed) ...[
-      if (doc == null)
-        _Piece(
-          slotBlocks[k],
-          doc: patternParts[part!].lister,
-          kind: BundleEntryKind.pattern,
-          listName: featurePatternListName(patternParts[part].pattern.id),
-          featurePattern: patternParts[part].pattern.id,
-        )
-      else
-        _Piece(
-          slotBlocks[k],
-          doc: ordered[doc],
-          listName: _listName(ordered[doc], inSummary(ordered[doc])),
-          inRefs:
-              splits &&
-              (inSummary(ordered[doc]) ||
-                  bundle.joinsRefs(index, ordered[doc])),
-          summary: inSummary(ordered[doc]),
-          sections: docPrints[doc].sections,
-        ),
-      if (splits && doc != null)
-        ..._citedByPieces(ordered[doc], docPrints[doc].cited),
-    ],
-    for (final top in mapTops)
-      _Piece(_mapBlock(index, index.at(top)!, bundle.codeTarget)),
-    for (final top in nameTops)
-      _Piece(
-        _namesBlock(index, index.at(top)!, bundle.codeTarget),
-        // An unsplit answer's index leaves a names block out, as it always has.
-        doc: splits ? index.at(top) : null,
-        kind: BundleEntryKind.names,
-      ),
+    ..._docSidePieces(
+      index,
+      bundle,
+      ordered,
+      patternParts,
+      patternBlocks,
+      slots,
+      splits: splits,
+      readFirstOnly: false,
+      printOf: (doc) => docPrints[doc],
+    ),
+    ..._listPieces(index, bundle, splits: splits),
     for (final (i, part) in parts.indexed) ...[
       _Piece(
         partBlocks[i],
@@ -339,44 +312,129 @@ ContextAnswer answerContext(
 
 /// The read-first block of each doc by index, built on first use: an index is
 /// one read snapshot, so a feature or spec doc that many bundles of one run
-/// print renders once.
+/// print renders once. It holds a block for each doc, summary, and mode a run
+/// asks for and is never trimmed; a `check` run ends with its index.
 final _readFirstBlocksOf = Expando<Map<(String, BundleMode, bool), String>>();
 
 /// Returns the est. tokens of the read-first file `answerContext` gives
 /// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
 ///
-/// It builds the read-first blocks alone, with no appended part, cited-by
-/// part, or refs text, since the size counts none of them.
+/// It builds the read-first pieces alone, with the builders `answerContext`
+/// uses, and no appended part, cited-by part, or refs block, since the size
+/// counts none of them.
 int readFirstTokensOf(DocIndex index, Bundle bundle) {
-  assert(bundle.mode != BundleMode.query, 'a query bundle never splits');
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
-  bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
   final blocks = _readFirstBlocksOf[index] ??= {};
-  String blockOf(IndexedDoc doc) =>
-      blocks[(doc.docPath, bundle.mode, inSummary(doc))] ??= _docBlock(
-        index,
-        doc,
-        bundle.mode,
-        summary: inSummary(doc),
-        citedBy: null,
-      ).block;
   final patternParts = featurePatternParts(index, bundle, ordered);
-  return tokenSizeOf(
-    [
-      for (final (:doc, :part) in _slotsOf(ordered, patternParts))
-        if (doc == null)
-          featurePatternBlock(patternParts[part!])
-        else if (!inSummary(ordered[doc]) &&
-            !bundle.joinsRefs(index, ordered[doc]))
-          blockOf(ordered[doc]),
-      for (final top in _byTreeOrder(index, bundle.mapTops))
-        _mapBlock(index, index.at(top)!, bundle.codeTarget),
-      for (final top in _byTreeOrder(index, bundle.nameListTops))
-        _namesBlock(index, index.at(top)!, bundle.codeTarget),
-    ].join('\n\n'),
-  );
+  final pieces = [
+    ..._docSidePieces(
+      index,
+      bundle,
+      ordered,
+      patternParts,
+      [for (final part in patternParts) featurePatternBlock(part)],
+      _slotsOf(ordered, patternParts),
+      splits: true,
+      readFirstOnly: true,
+      printOf: (doc) {
+        final picked = ordered[doc];
+        final summary = summaryOnly.contains(picked.docPath);
+        final block = blocks[(picked.docPath, bundle.mode, summary)] ??=
+            _docBlock(
+              index,
+              picked,
+              bundle.mode,
+              summary: summary,
+              citedBy: null,
+            ).block;
+        return (block: block, cited: const [], sections: const []);
+      },
+    ),
+    ..._listPieces(index, bundle, splits: true),
+  ];
+  return tokenSizeOf(_shownOf(pieces));
 }
+
+/// One doc's block with the places of it that carry cited-by lines and the
+/// `##` sections it prints whole.
+typedef _DocPrint = ({
+  String block,
+  List<CitedItem> cited,
+  List<SectionLine> sections,
+});
+
+/// Returns the pieces of the docs and feature pattern parts of [slots], each
+/// doc followed by its cited-by pieces when [splits].
+///
+/// A split bundle puts a summary doc and a doc that joins the refs in the refs
+/// text; with [readFirstOnly], the pieces of those docs, which no read-first
+/// file holds, are left out, and [printOf] is asked for no other doc.
+List<_Piece> _docSidePieces(
+  DocIndex index,
+  Bundle bundle,
+  List<IndexedDoc> ordered,
+  List<FeaturePatternPart> patternParts,
+  List<String> patternBlocks,
+  List<_Slot> slots, {
+  required bool splits,
+  required bool readFirstOnly,
+  required _DocPrint Function(int doc) printOf,
+}) {
+  final summaryOnly = bundle.summaryOnly;
+  final pieces = <_Piece>[];
+  for (final (:doc, :part) in slots) {
+    if (doc == null) {
+      pieces.add(
+        _Piece(
+          patternBlocks[part!],
+          doc: patternParts[part].lister,
+          kind: BundleEntryKind.pattern,
+          listName: featurePatternListName(patternParts[part].pattern.id),
+          featurePattern: patternParts[part].pattern.id,
+        ),
+      );
+      continue;
+    }
+    final picked = ordered[doc];
+    final summary = summaryOnly.contains(picked.docPath);
+    final inRefs = splits && (summary || bundle.joinsRefs(index, picked));
+    if (readFirstOnly && inRefs) continue;
+    final print = printOf(doc);
+    pieces.add(
+      _Piece(
+        print.block,
+        doc: picked,
+        listName: _listName(picked, summary),
+        inRefs: inRefs,
+        summary: summary,
+        sections: print.sections,
+      ),
+    );
+    if (splits && !readFirstOnly) {
+      pieces.addAll(_citedByPieces(picked, print.cited));
+    }
+  }
+  return pieces;
+}
+
+/// Returns the map and names pieces of [bundle], which every text of it that
+/// holds them prints after its docs.
+List<_Piece> _listPieces(
+  DocIndex index,
+  Bundle bundle, {
+  required bool splits,
+}) => [
+  for (final top in _byTreeOrder(index, bundle.mapTops))
+    _Piece(_mapBlock(index, index.at(top)!, bundle.codeTarget)),
+  for (final top in _byTreeOrder(index, bundle.nameListTops))
+    _Piece(
+      _namesBlock(index, index.at(top)!, bundle.codeTarget),
+      // An unsplit answer's index leaves a names block out, as it always has.
+      doc: splits ? index.at(top) : null,
+      kind: BundleEntryKind.names,
+    ),
+];
 
 /// One block of a bundle text, in the whole bundle's print order, with what
 /// its closing list and its entry need.

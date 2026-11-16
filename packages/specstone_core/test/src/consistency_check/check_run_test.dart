@@ -9,6 +9,8 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -427,6 +429,40 @@ void main() {
         isEmpty,
       );
     });
+
+    test(
+      'two features sharing a name are each reported on their own',
+      () async {
+        const twin = 'prds/features/f03_login/FEATURE.md';
+        final project = await writeCheckProject(
+          extra: {
+            ...oversize(),
+            'docs/$twin': '# Login again\n\n## Problem\n\n${'a' * 90000}\n',
+          },
+        );
+
+        final found = checkOf(project).findings
+            .where((f) => f.kind == FindingKind.bundleOverLimit);
+
+        expect(
+          [for (final f in found) f.path],
+          [loginFeature, signupFeature, twin],
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+        final index = session.index;
+        for (final f in found.where((f) => f.path != signupFeature)) {
+          expect(
+            f.keys['actual'],
+            readFirstTokensOf(
+              index,
+              pickBundle(index, f.path, BundleMode.design, noProject: false),
+            ),
+            reason: f.path,
+          );
+        }
+      },
+    );
 
     test('a feature within the bound gets none', () async {
       final project = await writeCheckProject();

@@ -57,7 +57,7 @@ int _designSizeOf(DocIndex index, IndexedDoc doc, {required bool summary}) =>
       index,
       pickBundle(
         index,
-        doc.name,
+        doc.docPath,
         BundleMode.design,
         noProject: false,
         summary: summary,
