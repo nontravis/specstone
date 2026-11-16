@@ -3288,8 +3288,28 @@ void main() {
           writeIn(root, (s) => answerMove(s, [checkStock], under: under));
 
       test("an fr moved to a sibling story renames its entry and matrix rows in place, and its old story's entry stays", () async {
-        final root = await shopTwins(extra: {cartFlutter: stockEntries});
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: stockEntries,
+            cartJaspr: recordText(
+              statuses: [
+                'add_item:implemented',
+                'add_item/check_stock:implemented',
+              ],
+              tests: ['add_item/check_stock:web/test/shop_test.dart:checks'],
+            ),
+          },
+        );
         moveStock(root, 'shop/cart/drop_item');
+
+        final jaspr = readDoc(root, cartJaspr);
+        expect(jaspr, contains("'add_item:implemented'"));
+        expect(jaspr, contains("'drop_item/check_stock:implemented'"));
+        expect(
+          jaspr,
+          contains('drop_item/check_stock:web/test/shop_test.dart:checks'),
+        );
+        expect(jaspr, isNot(contains('add_item/check_stock')));
 
         final cart = readDoc(root, cartFlutter);
         expect(cart, contains("'add_item:implemented'"));

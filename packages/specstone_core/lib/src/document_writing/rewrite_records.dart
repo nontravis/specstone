@@ -241,7 +241,7 @@ _Landing? _landingOf(
   final featureName = _parentName(storyName);
   if (featureName == null) return null;
   final feature = index.ofTypeNamed(featureType, featureName).firstOrNull;
-  if (feature == null || !name.startsWith('$featureName/')) return null;
+  if (feature == null) return null;
   return (feature: feature, name: name.substring(featureName.length + 1));
 }
 
