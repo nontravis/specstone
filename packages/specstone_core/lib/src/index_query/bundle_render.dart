@@ -342,7 +342,7 @@ List<_Piece> _docSidePieces(
 }) {
   final summaryOnly = bundle.summaryOnly;
   final pieces = <_Piece>[];
-  for (final (:doc, :part) in slots) {
+  for (final _Slot(:doc, :part) in slots) {
     if (doc == null) {
       pieces.add(
         _Piece(
@@ -521,7 +521,12 @@ List<int> _blockStarts(List<String> blocks, {required int firstLine}) {
 
 /// One block of the doc side of a bundle text: the index of a picked doc in
 /// the print order, or of a feature pattern part, never both.
-typedef _Slot = ({int? doc, int? part});
+final class _Slot {
+  const new({required this.doc, required this.part});
+
+  final int? doc;
+  final int? part;
+}
 
 /// Returns the blocks of [ordered] with each of [patternParts] right after
 /// its lister, both in print order.
@@ -532,10 +537,10 @@ List<_Slot> _slotsOf(
   final slots = <_Slot>[];
   var next = 0;
   for (final (i, doc) in ordered.indexed) {
-    slots.add((doc: i, part: null));
+    slots.add(_Slot(doc: i, part: null));
     while (next < patternParts.length &&
         patternParts[next].lister.docPath == doc.docPath) {
-      slots.add((doc: null, part: next++));
+      slots.add(_Slot(doc: null, part: next++));
     }
   }
   return slots;
@@ -576,7 +581,7 @@ ContextAnswer _overBudget(
       : _overBudgetNextStep;
   final sizes = [for (final block in docBlocks) tokenSizeOf(block)];
   final lines = [
-    for (final (:doc, :part) in slots)
+    for (final _Slot(:doc, :part) in slots)
       if (doc == null)
         _overBudgetLine(
           featurePatternListName(patternParts[part!].pattern.id),
