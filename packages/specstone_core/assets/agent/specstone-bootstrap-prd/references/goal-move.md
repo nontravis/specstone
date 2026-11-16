@@ -34,12 +34,12 @@ Read the goal doc with `specstone get goal:goal --json` first. Unless its title 
 
 1. Run `specstone get project --out "<file>"`, `<file>` a new
    `<folder>/reports/sdd-engineer.bootstrap.batch.<XXXXXX>.txt`, `<folder>` the path `specstone folder` prints.
-   Delete each moved goal's block, and the goals section once no goal stays in it, then run
-   `specstone set --batch "<file>"`.
+   Delete each moved goal's block, and the goals section once no goal stays in it. In the same file, point each `#pg-…`
+   link PROJECT keeps to a moved goal at `GOAL.md#pg-…`, and, once the goals section drops, each link PROJECT keeps to
+   it at `GOAL.md`: `refs` lists no link of PROJECT to itself. Then run `specstone set --batch "<file>"`.
 2. Run `specstone refs project`. In each PRD or spec doc it lists, repoint each link to a moved goal's heading,
    measurement heads included, to that heading in the goal doc, its path relative to the citing doc and its anchor
-   unchanged, so an in-file `#pg-…` link in PROJECT becomes `GOAL.md#pg-…`. A link to a kept goal keeps its target. A
-   link to the goals section stays while a goal stays in it, and goes to the goal doc with no anchor once the section
-   is dropped, in this run or a later one.
+   unchanged. A link to a kept goal keeps its target. A link to the goals section stays while a goal stays in it, and
+   goes to the goal doc with no anchor once the section is dropped, in this run or a later one.
 3. Write a spec doc's link in the code target its DocPath names. Leave the link of an untyped file, such as a design or
    a plan: it is no PRD or spec link.
