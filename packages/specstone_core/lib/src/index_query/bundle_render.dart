@@ -189,7 +189,7 @@ ContextAnswer answerContext(
         citedBy: citedBy,
       ),
   ];
-  final docBlocks = [for (final print in docPrints) print.block];
+  final docBlocks = [for (final print in docPrints) print.text];
   final patternParts = featurePatternParts(index, bundle, ordered);
   final patternBlocks = [
     for (final part in patternParts) featurePatternBlock(part),
@@ -218,10 +218,7 @@ ContextAnswer answerContext(
         listName: _partListName(part),
         inRefs: splits,
         summary: part.summary,
-        sections: [
-          for (final section in part.sections)
-            (key: section.key, line: section.line + 1),
-        ],
+        sections: [for (final section in part.sections) section.shiftedBy(1)],
         sectionKey: part.sectionKey,
         itemId: part.itemId,
       ),
@@ -347,22 +344,14 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
               bundle.mode,
               summary: summary,
               citedBy: null,
-            ).block;
-        return (block: block, cited: const [], sections: const []);
+            ).text;
+        return DocPrint(text: block, cited: const [], sections: const []);
       },
     ),
     ..._listPieces(index, bundle, splits: true),
   ];
   return tokenSizeOf(_shownOf(pieces));
 }
-
-/// One doc's block with the places of it that carry cited-by lines and the
-/// `##` sections it prints whole.
-typedef _DocPrint = ({
-  String block,
-  List<CitedItem> cited,
-  List<SectionLine> sections,
-});
 
 /// Returns the pieces of the docs and feature pattern parts of [slots], each
 /// doc followed by its cited-by pieces when [splits].
@@ -379,7 +368,7 @@ List<_Piece> _docSidePieces(
   List<_Slot> slots, {
   required bool splits,
   required bool readFirstOnly,
-  required _DocPrint Function(int doc) printOf,
+  required DocPrint Function(int doc) printOf,
 }) {
   final summaryOnly = bundle.summaryOnly;
   final pieces = <_Piece>[];
@@ -403,7 +392,7 @@ List<_Piece> _docSidePieces(
     final print = printOf(doc);
     pieces.add(
       _Piece(
-        print.block,
+        print.text,
         doc: picked,
         listName: _listName(picked, summary),
         inRefs: inRefs,
@@ -684,7 +673,7 @@ ContextAnswer _overBudget(
 /// joined by one blank line, with the lines [citedBy] holds for the whole doc
 /// printed after the naming line and for its places printed after them, and
 /// the line each kept section starts on in the block.
-({String block, List<CitedItem> cited, List<SectionLine> sections}) _docBlock(
+DocPrint _docBlock(
   DocIndex index,
   IndexedDoc doc,
   BundleMode mode, {
@@ -694,13 +683,13 @@ ContextAnswer _overBudget(
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
   if (summary) {
-    final print = summaryPrintOf(doc, content, docType, mode, citedBy);
-    final block = '${namingLine(doc, summary: true)}\n${print.text}';
-    final sections = [
-      for (final section in print.sections)
-        (key: section.key, line: section.line + 1),
-    ];
-    return (block: block, cited: print.cited, sections: sections);
+    return summaryPrintOf(
+      doc,
+      content,
+      docType,
+      mode,
+      citedBy,
+    ).afterLine(namingLine(doc, summary: true));
   }
   final parts = <String>[];
   if (mode != BundleMode.query) {
@@ -719,12 +708,12 @@ ContextAnswer _overBudget(
   for (final section in keptSectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
     cited.addAll(print.cited);
-    sections.add((key: section.key, line: line));
+    sections.add(SectionLine(key: section.key, line: line));
     line += lineAfterBlocks([print.block]);
     parts.add(print.block);
   }
   final block = [namingLine(doc), ...docLines, parts.join('\n\n')].join('\n');
-  return (block: block, cited: cited, sections: sections);
+  return DocPrint(text: block, cited: cited, sections: sections);
 }
 
 /// Returns the map block of [top]: its subtree, one line per doc with its
