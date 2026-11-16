@@ -16,8 +16,8 @@ SentenceChanges _changes({
 }) => sentenceChangesOf(
   draft: _doc(draft),
   approved: approved == null ? null : _doc(approved),
-  tree: heldTextsOf([_doc(draft), ...tree]),
-  runCopies: heldTextsOf(runCopies.map(_doc)),
+  tree: sentenceSetOf([_doc(draft), ...tree]),
+  runCopies: sentenceSetOf(runCopies.map(_doc)),
 );
 
 void main() {
@@ -200,26 +200,109 @@ void main() {
   });
 
   group('$_name run lookup', () {
-    test('a tree answer that also holds the sentences of other drafts drops '
-        'the same sentences as one for this draft alone', () {
+    test('a tree set that also holds the sentences of other drafts drops the '
+        'same sentences as one for this draft alone', () {
       final approved = _doc('## Statement\nKept. Gone.\n');
-      final tree = heldTextsOf([_doc('## Statement\nKept. Other draft.\n')]);
+      final draft = _doc('## Statement\nKept.\n');
       final own = sentenceChangesOf(
-        draft: _doc('## Statement\nKept.\n'),
+        draft: draft,
         approved: approved,
-        tree: tree,
-        runCopies: '',
+        tree: sentenceSetOf([draft]),
+        runCopies: const {},
       );
 
-      final shared = sentenceChangesGiven(
-        draft: _doc('## Statement\nKept.\n'),
-        approvedSentences: ['Kept.', 'Gone.'],
-        treeHeld: heldSentencesIn(['Kept.', 'Gone.', 'Other draft.'], tree),
-        runCopies: '',
+      final shared = sentenceChangesOf(
+        draft: draft,
+        approved: approved,
+        tree: sentenceSetOf([draft, _doc('## Statement\nOther draft.\n')]),
+        runCopies: const {},
       );
 
       expect(shared.dropped, own.dropped);
       expect(shared.dropped, ['Gone.']);
+    });
+  });
+
+  group('a sentence is held only by an equal sentence', () {
+    test('a removed item whose text sits only in frontmatter is dropped', () {
+      final changes = _changes(
+        approved: '## Statement\n- lib/core.dart\n- Kept.\n',
+        draft: '## Statement\n- Kept.\n',
+        tree: ['---\ncovers:\n  - lib/core.dart\n---\n\n# A\n'],
+      );
+      expect(changes.dropped, ['lib/core.dart']);
+    });
+
+    test(
+      'a removed item whose text sits inside a longer sentence is dropped',
+      () {
+        final changes = _changes(
+          approved: '## Statement\n- ci.yaml\n- Kept.\n',
+          draft: '## Statement\n- Kept.\n',
+          tree: ['## Rules\nRun `ci.yaml` on each push.\n'],
+        );
+        expect(changes.dropped, ['ci.yaml']);
+      },
+    );
+
+    test(
+      'labelled lines split into a label and nested items list each side',
+      () {
+        const approved =
+            '## Verification\n'
+            '- **Pass criteria:** A holds.\n'
+            '- **Pass criteria:** B holds.\n';
+        final changes = _changes(
+          approved: approved,
+          draft:
+              '## Verification\n- **Pass criteria:**\n  - A holds.\n'
+              '  - B holds.\n',
+          runCopies: [approved],
+        );
+        expect(changes.dropped, [
+          '**Pass criteria:** A holds.',
+          '**Pass criteria:** B holds.',
+        ]);
+        expect(changes.added, ['**Pass criteria:**', 'A holds.', 'B holds.']);
+      },
+    );
+
+    test('two items with no closing mark joined into one paragraph', () {
+      const approved = '## Statement\n- First item\n- Second item\n';
+      final changes = _changes(
+        approved: approved,
+        draft: '## Statement\nFirst item Second item\n',
+        runCopies: [approved],
+      );
+      expect(changes.dropped, ['First item', 'Second item']);
+      expect(changes.added, ['First item Second item']);
+    });
+
+    test('a sentence moved into a ## header elsewhere is dropped', () {
+      final changes = _changes(
+        approved: '## Statement\nMoved here. Kept.\n',
+        draft: '## Statement\nKept.\n',
+        tree: ['## Moved here.\n'],
+      );
+      expect(changes.dropped, ['Moved here.']);
+    });
+
+    test('a sentence moved into fenced code elsewhere is dropped', () {
+      final changes = _changes(
+        approved: '## Statement\nMoved here. Kept.\n',
+        draft: '## Statement\nKept.\n',
+        tree: ['## Notes\n```\nMoved here.\n```\n'],
+      );
+      expect(changes.dropped, ['Moved here.']);
+    });
+
+    test('a sentence moved into a ### heading elsewhere is held', () {
+      final changes = _changes(
+        approved: '## Statement\nMoved here. Kept.\n',
+        draft: '## Statement\nKept.\n',
+        tree: ['## Notes\n### Moved here.\n'],
+      );
+      expect(changes.dropped, isEmpty);
     });
   });
 }

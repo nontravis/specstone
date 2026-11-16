@@ -163,7 +163,7 @@ String renderApprovalView(
   for (final (at, change) in changes.indexed) {
     out.writeln(_row(at == 0 ? 'changes' : '', change));
   }
-  final (:dropped, :added) = draft.sentences;
+  final SentenceChanges(:dropped, :added) = draft.sentences;
   out
     ..writeln(_row('dropped', _count(dropped.length, 'dropped')))
     ..writeln(_row('new', _count(added.length, 'new')))
