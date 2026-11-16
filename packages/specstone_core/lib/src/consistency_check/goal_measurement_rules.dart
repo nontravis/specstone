@@ -1,23 +1,21 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/consistency_check/section_rules.dart'
     show titleLineOf;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show HeadingBlockTarget, anchorTargetOf;
 
-const _projectType = 'project';
+const _goalType = 'goal';
 const _measurementType = 'measurement';
-const _goalsSection = 'goals';
 final _metricLine = RegExp(r'^(?:- )?\*\*Metric:\*\*');
 const _unlinkedMessage =
     "Metric line links no measurement; guide line: link the goal's measurement";
 
-/// A `### PG-` heading of a project doc: its doc, file line, and ID.
+/// A `### PG-` heading of a goal doc: its doc, file line, and ID.
 typedef _Goal = ({String docPath, int line, String key});
 
-/// What a project's goal blocks and a measurement's goal links say, read once
+/// What a goal doc's goal blocks and a measurement's goal links say, read once
 /// per check run.
 typedef _GoalLinks = ({
   Map<_Goal, List<BodyLine>> goals,
@@ -27,20 +25,20 @@ typedef _GoalLinks = ({
 
 final _goalLinksOf = Expando<_GoalLinks>();
 
-/// Returns the findings of a project or measurement [doc] that join a goal to
-/// its measurement.
+/// Returns the findings of a goal or measurement [doc] that join a goal to its
+/// measurement.
 ///
 /// A goal needs one measurement whose head links it, and a head needs one goal
 /// link. A Metric line that links no measurement is unlinked, and a Metric
 /// link to a measurement that does not link the goal is a mismatch. Runs only
-/// when the merged set holds both doc types.
+/// when the merged set holds the goal and measurement doc types.
 Iterable<Finding> checkGoalMeasurements(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
-  if (!context.hasProject || !context.hasMeasurement) return;
+  if (!context.hasGoal || !context.hasMeasurement) return;
   switch (doc.docTypeId) {
-    case _projectType:
+    case _goalType:
       yield* _goalFindings(context, doc);
     case _measurementType:
       yield* _measurementFindings(context, doc);
@@ -70,20 +68,9 @@ _GoalLinks _readGoalLinks(CheckContext context) {
 }
 
 Map<_Goal, List<BodyLine>> _goalsOf(CheckContext context) => {
-  for (final project in context.index.docs)
-    if (project.docTypeId == _projectType)
-      for (final (:key, :lines) in _goalBlocksOf(context, project))
-        (docPath: project.docPath, line: lines.first.line, key: key): lines,
+  for (final (:docPath, :key, horizon: _, :lines) in context.goalBlocks())
+    (docPath: docPath, line: lines.first.line, key: key): lines,
 };
-
-List<({String key, List<BodyLine> lines})> _goalBlocksOf(
-  CheckContext context,
-  IndexedDoc project,
-) {
-  final section = context.heldIndexOf(project, _goalsSection);
-  if (section == null) return const [];
-  return headingBlocksOf(context.bodyLinesOf(project, section), goalKeyOf);
-}
 
 /// The goals of [known] that a link in the head of [measurement] names, each
 /// once, in link order.
@@ -113,14 +100,14 @@ _Goal? _goalNamedBy(
   String? anchor,
   Iterable<_Goal> known,
 ) {
-  final project = context.index.at(target);
-  if (project == null || anchor == null || anchor.isEmpty) return null;
-  final named = anchorTargetOf(context.contentOf(project).lineFacts, anchor);
+  final goalDoc = context.index.at(target);
+  if (goalDoc == null || anchor == null || anchor.isEmpty) return null;
+  final named = anchorTargetOf(context.contentOf(goalDoc).lineFacts, anchor);
   if (named is! HeadingBlockTarget) return null;
   return known
       .where(
         (goal) =>
-            goal.docPath == project.docPath && goal.line == named.headingLine,
+            goal.docPath == goalDoc.docPath && goal.line == named.headingLine,
       )
       .firstOrNull;
 }
@@ -232,7 +219,7 @@ Iterable<Finding> _measurementFindings(
       doc,
       FindingKind.measurementGoalUnresolved,
       line: titleLineOf(context, doc),
-      message: 'the head links no goal of the project',
+      message: 'the head links no goal of the goal doc',
       keys: {'measurement': doc.name},
     );
   } else if (linked.length > 1) {

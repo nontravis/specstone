@@ -36,9 +36,9 @@ const goalDoc = 'prds/GOAL.md';
 /// The DocPath of the measurement of the project doc's goal.
 const measurementDoc = 'measurements/fewer_resets/MEASUREMENT.md';
 
-/// The head link of [measurementDoc]: the goal it measures.
+/// The head link of [measurementDoc]: the goal of the goal doc it measures.
 const measurementHeadLink =
-    '[Fewer resets](../../prds/PROJECT.md#pg-01--fewer-resets)';
+    '[Fewer resets](../../prds/GOAL.md#pg-01--fewer-resets)';
 
 /// The DocPath of the project-wide requirements doc.
 const gnfrDoc = 'prds/GNFR.md';

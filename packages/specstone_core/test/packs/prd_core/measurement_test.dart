@@ -8,7 +8,7 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
-const _goalLink = '[Fewer resets](../../prds/PROJECT.md#pg-01--fewer-resets)';
+const String _goalLink = measurementHeadLink;
 
 String _measurement({
   String title = '# Grounding cost',

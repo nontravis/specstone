@@ -135,7 +135,7 @@ void main() {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(
         extra: doc(
-          projectDoc,
+          goalDoc,
           'Halve the password resets.\n',
           'Halve the password resets.\n\n### PG-02 — Faster sign-in\n\n**Serves:** PV-01\nSign in under one second.\n',
         ),
@@ -149,7 +149,7 @@ void main() {
     ];
     expect(findings, hasLength(1));
     expect(findings.single, containsPair('waitsFor', 'agent'));
-    expect(findings.single, containsPair('docPath', projectDoc));
+    expect(findings.single, containsPair('docPath', goalDoc));
     expect(findings.single, containsPair('goal', 'PG-02'));
   });
 
