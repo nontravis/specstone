@@ -456,7 +456,13 @@ void main() {
             f.keys['actual'],
             readFirstTokensOf(
               index,
-              pickBundle(index, f.path, BundleMode.design, noProject: false),
+              pickBundle(
+                index,
+                f.path,
+                BundleMode.design,
+                noProject: false,
+                summary: index.childrenOf(index.at(f.path)!).isNotEmpty,
+              ),
             ),
             reason: f.path,
           );
