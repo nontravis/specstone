@@ -3268,6 +3268,117 @@ void main() {
         isNot(contains('add_item')),
       );
     });
+
+    group('an fr move', () {
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      final stockEntries = recordText(
+        statuses: [
+          'add_item:implemented',
+          'add_item/check_stock:implemented',
+          'drop_item:planned',
+        ],
+        code: [
+          'add_item:app/lib/shop.dart:Shop',
+          'add_item/check_stock:app/lib/shop.dart:Shop',
+        ],
+        tests: ['add_item/check_stock:app/test/shop_test.dart:checks'],
+      );
+
+      ReadAnswer moveStock(Directory root, String under) =>
+          writeIn(root, (s) => answerMove(s, [checkStock], under: under));
+
+      test("an fr moved to a sibling story renames its entry and matrix rows in place, and its old story's entry stays", () async {
+        final root = await shopTwins(extra: {cartFlutter: stockEntries});
+        moveStock(root, 'shop/cart/drop_item');
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'add_item:implemented'"));
+        expect(cart, contains("'drop_item/check_stock:implemented'"));
+        expect(
+          cart,
+          contains("'drop_item/check_stock:app/lib/shop.dart:Shop'"),
+        );
+        expect(
+          cart,
+          contains("'drop_item/check_stock:app/test/shop_test.dart:checks'"),
+        );
+        expect(cart, isNot(contains('add_item/check_stock')));
+        expect(hasDoc(root, payFlutter), isFalse);
+      });
+
+      test("an fr moved to a story of another feature carries its entry and matrix rows to that feature's record, creating a missing one as a draft", () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: stockEntries,
+            cartJaspr: recordText(
+              statuses: ['add_item/check_stock:implemented'],
+              tests: ['add_item/check_stock:web/test/shop_test.dart:checks'],
+            ),
+          },
+        );
+        moveStock(root, 'shop/pay/card');
+
+        final cart = readDoc(root, cartFlutter);
+        expect(cart, contains("'add_item:implemented'"));
+        expect(cart, contains("'drop_item:planned'"));
+        expect(cart, isNot(contains('check_stock')));
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('draft: true'));
+        expect(created, contains('card/check_stock:implemented'));
+        expect(created, contains('card/check_stock:app/lib/shop.dart:Shop'));
+        expect(
+          created,
+          contains('card/check_stock:app/test/shop_test.dart:checks'),
+        );
+        expect(created, isNot(contains('add_item')));
+
+        final jaspr = readDoc(root, payJaspr);
+        expect(jaspr, contains("'card:implemented'"));
+        expect(jaspr, contains("'card/check_stock:implemented'"));
+        expect(
+          jaspr,
+          contains('card/check_stock:web/test/shop_test.dart:checks'),
+        );
+        expect(readDoc(root, cartJaspr), isNot(contains('check_stock')));
+        expect(
+          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      });
+
+      test('a target whose record lacks the fr, or has no record, is left as it was', () async {
+        final bare = recordText(statuses: ['drop_item:planned']);
+        final root = await shopTwins(
+          extra: {cartFlutter: stockEntries, cartJaspr: bare},
+          without: {payJaspr},
+        );
+        moveStock(root, 'shop/pay/card');
+        expect(readDoc(root, cartJaspr), bare);
+        expect(hasDoc(root, payJaspr), isFalse);
+
+        final noRecord = await shopTwins(without: {cartJaspr, payJaspr});
+        moveStock(noRecord, 'shop/pay/card');
+        expect(hasDoc(noRecord, cartJaspr), isFalse);
+        expect(hasDoc(noRecord, payJaspr), isFalse);
+      });
+
+      test('an fr moved across features lands in the record on disk the snapshot lacks', () async {
+        final root = await shopTwins(extra: {cartFlutter: stockEntries});
+        writeIn(root, (s) {
+          docFile(root, payFlutter)
+            ..parent.createSync(recursive: true)
+            ..writeAsStringSync(recordText(statuses: ['card:planned']));
+          return answerMove(s, [checkStock], under: 'shop/pay/card');
+        });
+
+        final pay = readDoc(root, payFlutter);
+        expect(pay, contains("'card:planned'"));
+        expect(pay, contains("'card/check_stock:implemented'"));
+        expect(pay, contains('card/check_stock:app/lib/shop.dart:Shop'));
+        expect(readDoc(root, cartFlutter), isNot(contains('check_stock')));
+      });
+    });
   });
 
   group('dry run', () {

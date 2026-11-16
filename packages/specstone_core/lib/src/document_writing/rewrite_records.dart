@@ -224,24 +224,30 @@ T readRecord<T>(String docPath, T Function() read) {
 String _nameAfter(IndexedDoc doc, Map<(String, String), String> renamed) =>
     renamed[(doc.docTypeId, doc.name)] ?? doc.name;
 
-/// Returns where [item], a story or an FR, lands: the feature its story sits
-/// in after the moves and its name relative to that feature; null when that
-/// feature is not indexed.
+/// Returns where [item], a story or an FR, lands: the feature its new name
+/// puts it in and its name relative to that feature; null when that feature
+/// is not indexed.
+///
+/// An FR's story is its new name less the last segment, so an FR moved to
+/// another story lands where that story is.
 _Landing? _landingOf(
   DocIndex index,
   IndexedDoc item,
   Map<(String, String), String> renamed,
 ) {
-  final story = item.docTypeId == storyType ? item : index.parentOf(item);
-  if (story == null) return null;
-  final storyName = _nameAfter(story, renamed);
-  final cut = storyName.lastIndexOf('/');
-  if (cut < 0) return null;
-  final featureName = storyName.substring(0, cut);
   final name = _nameAfter(item, renamed);
+  final storyName = item.docTypeId == storyType ? name : _parentName(name);
+  if (storyName == null) return null;
+  final featureName = _parentName(storyName);
+  if (featureName == null) return null;
   final feature = index.ofTypeNamed(featureType, featureName).firstOrNull;
   if (feature == null || !name.startsWith('$featureName/')) return null;
   return (feature: feature, name: name.substring(featureName.length + 1));
+}
+
+String? _parentName(String name) {
+  final cut = name.lastIndexOf('/');
+  return cut < 0 ? null : name.substring(0, cut);
 }
 
 /// Returns the DocPath and text of the record [arrival] needs, as a draft with
