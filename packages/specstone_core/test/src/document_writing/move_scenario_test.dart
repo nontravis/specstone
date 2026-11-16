@@ -3,6 +3,8 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show MoveJournal;
@@ -11,6 +13,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
@@ -162,6 +165,19 @@ void main() {
     );
   });
 
+  test('a scenario number reads by its value, so S02 names Scenario 2 and takes the next free number', () async {
+    final root = await _project();
+    final answer = _move(root, ['$_addItem#S02']);
+    expect(
+      _bodyOf(root, cartDrop),
+      _storyBody('Agent drops an item', [
+        ..._scenarios(2),
+        _scenario(2).replaceFirst('### Scenario 2', '### Scenario 3'),
+      ]),
+    );
+    expect(answer.text, startsWith('moved $cartAdd#S2 to $cartDrop#S3\n'));
+  });
+
   test(
     'a number the target lacks is kept and prints no renumbered line',
     () async {
@@ -181,7 +197,13 @@ void main() {
   );
 
   test('an under that is no user_story is argument_invalid', () async {
-    final root = await _project();
+    final root = await _project(
+      extra: {
+        '.specstone/templates/feature.yaml':
+            'max_depth: 3\nsections:\n  - id: acceptance_criteria\n'
+            '    header: Acceptance Criteria\n',
+      },
+    );
     for (final (under, docPath) in [
       ('feature:shop/cart', cartFeature),
       ('domain:shop/cart', cartDomain),
@@ -290,6 +312,10 @@ void main() {
       ]),
     );
     expect(answer.text, startsWith('moved $cartAdd#S2 to $cartDrop#S7\n'));
+    expect([
+      for (final finding in checkOf(root, docPath: cartDrop).findings)
+        finding.kind,
+    ], contains(FindingKind.subsectionsOverLimit));
   });
 
   test('the source and target stories are marked draft and other rewritten docs keep their approval', () async {
@@ -348,6 +374,7 @@ void main() {
       '$_dropItem#S1',
       '$_addItem#S2',
       'shop/cart/add_item#S2',
+      '$_addItem#S02',
     ]);
     expect(
       answer.text,
@@ -432,11 +459,32 @@ void main() {
   });
 
   test(
-    'a scenario lands after the last scenario and before a closing paragraph',
+    'a scenario lands at the end of the section, after a closing paragraph',
     () async {
       const closing = 'Error cases: N/A — dropping an item always succeeds.';
       final root = await _project(dropClosing: closing);
       _move(root, ['$_addItem#S3']);
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [
+          ..._scenarios(2),
+          closing,
+          _scenario(3),
+        ]),
+      );
+    },
+  );
+
+  test(
+    'a moved last scenario carries the paragraph that closes its block',
+    () async {
+      const closing = 'Error cases: N/A — adding an item always succeeds.';
+      final root = await _project(addClosing: closing);
+      _move(root, ['$_addItem#S3']);
+      expect(
+        _bodyOf(root, cartAdd),
+        _storyBody('Agent adds an item', _scenarios(2)),
+      );
       expect(
         _bodyOf(root, cartDrop),
         _storyBody('Agent drops an item', [
@@ -447,20 +495,30 @@ void main() {
     },
   );
 
-  test(
-    'a moved last scenario leaves the closing paragraph of its source',
-    () async {
-      const closing = 'Error cases: N/A — adding an item always succeeds.';
-      final root = await _project(addClosing: closing);
-      _move(root, ['$_addItem#S3']);
-      expect(
-        _bodyOf(root, cartAdd),
-        _storyBody('Agent adds an item', _scenarios(2), closing: closing),
-      );
-      expect(
-        _bodyOf(root, cartDrop),
-        _storyBody('Agent drops an item', [..._scenarios(2), _scenario(3)]),
-      );
-    },
-  );
+  test('a confirmed trace of the moved scenario and of its new neighbour stays clean', () async {
+    const closing = 'Error cases: N/A — dropping an item always succeeds.';
+    const frPath =
+        'prds/features/f02_shop/f01_cart/us02_drop_item/fr01_keep_cart.md';
+    final neighbour = '${_scenario(2)}\n\n$closing';
+    final root = await _project(
+      add: _scenarios(4),
+      dropClosing: closing,
+      extra: {
+        'docs/$frPath':
+            '---\ntraced_from:\n  - S2\n  - S4\nverify_method: test\n'
+            'confirmed:\n  - S2 ${fingerprintFor(neighbour)}\n'
+            '  - S4 ${fingerprintFor(_scenario(4))}\n---\n\n'
+            '# Keep the cart\n\n## Statement\nThe system shall keep the cart.\n\n'
+            '## Edge cases\n1. E01 — An empty cart → kept.\n\n'
+            '## Rationale\nCarts matter.\n\n'
+            '## Verification\nTest: a cart is kept.\n',
+      },
+    );
+    _move(root, ['$_addItem#S4']);
+    final findings = checkOf(root, docPath: frPath).findings;
+    expect([
+      for (final finding in findings)
+        if (finding.kind == FindingKind.suspect) finding.toJson(),
+    ], isEmpty);
+  });
 }

@@ -24,6 +24,12 @@ bool isScenarioId(String id) => switch (readItemId(id, _refPrefix)) {
   _ => false,
 };
 
+/// Returns the scenario ID [id] by its number's value: `S02` reads `S2`.
+String scenarioIdByValue(String id) => switch (readItemId(id, _refPrefix)) {
+  ItemId(:final number) => '$_refPrefix$number',
+  _ => throw ArgumentError.value(id, 'id', 'names no scenario'),
+};
+
 /// Returns the key the index holds the scenario [id] by: `Scenario <N>`, by
 /// the number's value.
 String scenarioKeyOfId(String id) => switch (readItemId(id, _refPrefix)) {

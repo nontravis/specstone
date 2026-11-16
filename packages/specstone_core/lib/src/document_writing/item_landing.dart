@@ -128,13 +128,7 @@ ItemSpan itemSpanOf(DocIndex index, ItemLanding landing) {
     located: located,
     head: items[at],
     first: items[at].line,
-    last: _spanEnd(
-      content,
-      located.sectionAt,
-      items,
-      at,
-      isScenario: located.isScenario,
-    ),
+    last: _spanEnd(content, located.sectionAt, items, at),
   );
 }
 
@@ -249,20 +243,15 @@ void _dropLine(List<String> lines, int at) {
 /// Returns the last file line of the item at [at] of [items], the nested items
 /// it spans and the `Overrides:` line right after it included; a heading item
 /// spans its block, up to the next heading item.
-///
-/// A scenario block that closes its section ends at its last step, so a
-/// paragraph that closes the section stays with the section.
 int _spanEnd(
   DocContent content,
   int sectionAt,
   List<SectionItem> items,
-  int at, {
-  required bool isScenario,
-}) {
+  int at,
+) {
   final head = items[at];
   if (head.kind == SectionItemKind.heading) {
-    final end = _blockEnd(content, sectionAt, items, at);
-    return isScenario ? _scenarioEnd(items, at, end) : end;
+    return _blockEnd(content, sectionAt, items, at);
   }
   var last = at;
   var hasOwn = false;
@@ -279,21 +268,6 @@ int _spanEnd(
 }
 
 int _endOf(SectionItem item) => item.line + item.text.split('\n').length - 1;
-
-/// Returns the last file line of the scenario at [at] of [items], whose block
-/// ends at file line [end]: that of its last step when no heading follows it.
-int _scenarioEnd(List<SectionItem> items, int at, int end) {
-  final after = items.skip(at + 1);
-  if (after.any((item) => item.kind == SectionItemKind.heading)) return end;
-  final lastStep = after
-      .where(
-        (item) =>
-            item.kind == SectionItemKind.listItem ||
-            item.kind == SectionItemKind.tableRow,
-      )
-      .lastOrNull;
-  return lastStep == null ? end : _endOf(lastStep);
-}
 
 /// Returns the last non-blank file line before the next heading item after the
 /// heading item at [at], or the section's last.
@@ -606,11 +580,6 @@ _Insertion _insertionIn(
     (section) => located.isTakenBy(section.key, section.prefixId),
   );
   if (at < 0) return _Insertion(key: key, lines: _stacked(cuts, null));
-  if (located.isScenario) {
-    if (_afterLastScenario(content, type, at, key, cuts) case final landed?) {
-      return landed;
-    }
-  }
   final filled = sectionBodyLines(
     content.sections,
     content.lineFacts,
@@ -630,31 +599,6 @@ _Insertion _insertionIn(
     key: key,
     lines: _stacked(cuts, previous),
     anchor: filled.last.line,
-  );
-}
-
-/// Returns the insertion of the scenario [cuts] right after the last scenario
-/// of the held section [at], before any paragraph that closes it; null when
-/// the section holds no scenario.
-_Insertion? _afterLastScenario(
-  DocContent content,
-  MergedDocType? type,
-  int at,
-  String key,
-  List<_Cut> cuts,
-) {
-  final items = sectionItemsAt(content, at, type);
-  final last = items.lastIndexWhere(
-    (item) =>
-        item.kind == SectionItemKind.heading &&
-        readItemId(item.head, scenarioIdPrefix) != null,
-  );
-  if (last < 0) return null;
-  final end = _scenarioEnd(items, last, _blockEnd(content, at, items, last));
-  return _Insertion(
-    key: key,
-    lines: _stacked(cuts, SectionItemKind.heading),
-    anchor: end,
   );
 }
 

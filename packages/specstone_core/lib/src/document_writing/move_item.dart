@@ -98,7 +98,11 @@ ItemTarget _targetOf(WriteSession session, String address, String? codeTarget) {
     );
   }
   final doc = session.target(docPart, codeTarget: codeTarget);
-  return ItemTarget(doc: doc, id: sectionKey);
+  final isScenario = doc.docTypeId == storyType && isScenarioId(sectionKey);
+  return ItemTarget(
+    doc: doc,
+    id: isScenario ? scenarioIdByValue(sectionKey) : sectionKey,
+  );
 }
 
 List<ItemTarget> _distinct(List<ItemTarget> targets) {
@@ -169,10 +173,13 @@ WriteFault itemNotFoundOf(ItemTarget target) => WriteFault(
   '${target.doc.docPath} holds no ${target.id}',
 );
 
+/// Throws [IndexFault] `argument_invalid` when [destination]'s doc type gives
+/// [item] no section, a scenario taking a story alone.
 void _requireSection(DocIndex index, IndexedDoc destination, LocatedItem item) {
   final type = index.typeOf(destination);
   final holds =
       type != null &&
+      (!item.isScenario || destination.docTypeId == storyType) &&
       type.sections.any(
         (section) => item.isTakenBy(section.id, section.prefixId),
       );
