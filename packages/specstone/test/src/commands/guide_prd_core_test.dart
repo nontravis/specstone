@@ -16,6 +16,7 @@ const _prdCoreIds = <String>[
   'features',
   'fr',
   'gnfr',
+  'goal',
   'journey',
   'measurement',
   'nf',
@@ -86,13 +87,16 @@ void main() {
       _configPath: shippedPinsConfig(['prd-core']),
     });
 
-    test('f03/us06/s1, f03/us06/fr01/e01: guide lists the twelve prd-core doc '
-        'types and no other', () async {
-      final runner = await runnerIn(await prdCoreProject());
-      expect(await runner.run(['guide']), 0);
-      expect(out.toString(), _listOf(_prdCoreIds));
-      expect(err.toString(), isEmpty);
-    });
+    test(
+      'f03/us06/s1, f03/us06/fr01/e01: guide lists the thirteen prd-core doc '
+      'types and no other',
+      () async {
+        final runner = await runnerIn(await prdCoreProject());
+        expect(await runner.run(['guide']), 0);
+        expect(out.toString(), _listOf(_prdCoreIds));
+        expect(err.toString(), isEmpty);
+      },
+    );
 
     test(
       'f03/us01/s5, f03/us01/fr04/e01: outside a project guide lists every '
@@ -401,6 +405,26 @@ void main() {
       expect(description, 0);
       expect(logRule, greaterThan(description));
       expect(at.first, greaterThan(logRule));
+      expect(at, orderedEquals(List.of(at)..sort()));
+      expect(at, everyElement(isNonNegative));
+      expect(guide, isNot(contains('Guide sources:')));
+      expect(err.toString(), isEmpty);
+    });
+
+    test('guide goal prints the goal rules and the fixed title', () async {
+      final runner = await runnerIn(await prdCoreProject());
+      expect(await runner.run(['guide', 'goal']), 0);
+      final guide = out.toString();
+      final title = guide.indexOf('# Project goals');
+      final rule = guide.indexOf('deleted from the goal doc');
+      final at = [
+        '## Long-term goals',
+        '## Mid-term goals',
+        '## Short-term goals',
+      ].map(guide.indexOf).toList();
+      expect(title, isNonNegative);
+      expect(rule, greaterThan(title));
+      expect(at.first, greaterThan(rule));
       expect(at, orderedEquals(List.of(at)..sort()));
       expect(at, everyElement(isNonNegative));
       expect(guide, isNot(contains('Guide sources:')));

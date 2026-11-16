@@ -644,15 +644,6 @@ void main() {
 
   group('a goal Metric link into a measurement', () {
     const goalLayers = {
-      '.specstone/templates/goal.yaml':
-          'id: goal\n'
-          'description: The goals.\n'
-          'path: prds/GOAL.md\n'
-          'bundle: [implement, design]\n'
-          'sections:\n'
-          '  - id: long_term\n'
-          '    header: Long-term goals\n'
-          '    prefix_id: PG-\n',
       '.specstone/templates/measurement.yaml': 'summary_for: [project, goal]\n',
       'docs/prds/GOAL.md':
           '# Goals\n\n## Long-term goals\n'

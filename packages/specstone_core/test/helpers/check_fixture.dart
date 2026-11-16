@@ -110,6 +110,7 @@ Map<String, String> checkProjectFiles() => {
       '## Results\n\nNewest first. Met: resets halved.\n\n'
       '| Date | Version | Run | Resets | Met |\n|---|---|---|---|---|\n\n'
       '## Open causes\n\nN/A\n',
+  'docs/prds/GOAL.md': '# Project goals\n',
   'docs/prds/FEATURES.md': '# Features\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
   'docs/$gnfrDoc':
       '# Project-wide requirements\n\n## Performance\n\n### NFR-P01 — Sign-in time\n\n'

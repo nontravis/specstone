@@ -136,19 +136,19 @@ void main() {
   });
 
   group('prd-core doc types', () {
-    test('only project and gnfr set bundle_refs', () async {
+    test('only project, gnfr, and goal set bundle_refs', () async {
       final set = await resolvePrdCore();
       expect(
         {
           for (final d in set.docTypes)
             if (d.bundleRefs != null) d.id: d.bundleRefs,
         },
-        {'project': true, 'gnfr': true},
+        {'project': true, 'gnfr': true, 'goal': true},
       );
     });
 
     test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
-        'holds exactly the twelve doc types', () async {
+        'holds exactly the thirteen doc types', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));

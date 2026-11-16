@@ -33,6 +33,7 @@ const _draftPaths = [
   'docs/prds/FEATURES.md',
   'docs/prds/GNFR.md',
   'docs/specs/TECH_STACK.md',
+  'docs/prds/GOAL.md',
 ];
 
 /// Runs `init` on [root] and returns its status with the printed lines.
@@ -111,7 +112,7 @@ Map<String, String> _bytesUnder(Directory root) {
 }
 
 void main() {
-  test('f06/us03/fr02, f06/us03/s1: an empty folder gets four empty drafts, '
+  test('f06/us03/fr02, f06/us03/s1: an empty folder gets five empty drafts, '
       'then the config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -123,6 +124,7 @@ void main() {
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
+      'created docs/prds/GOAL.md (draft)',
       'created .specstone/AGENT.md',
       'created AGENTS.md',
       ...skillCountLines(),
@@ -161,7 +163,7 @@ void main() {
     },
   );
 
-  test('init then check reports no format_drift on the four drafts', () async {
+  test('init then check reports no format_drift on the five drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
     final (status, _) = _run(root);
@@ -183,6 +185,7 @@ void main() {
         'created docs/prds/FEATURES.md (draft)',
         'created docs/prds/GNFR.md (draft)',
         'created docs/specs/TECH_STACK.md (draft)',
+        'created docs/prds/GOAL.md (draft)',
         'created .specstone/AGENT.md',
         'created AGENTS.md',
         ...skillCountLines(),
@@ -212,6 +215,7 @@ void main() {
       'kept docs/prds/FEATURES.md: exists',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
+      'created docs/prds/GOAL.md (draft)',
       'created .specstone/AGENT.md',
       'created AGENTS.md',
       ...skillCountLines(),

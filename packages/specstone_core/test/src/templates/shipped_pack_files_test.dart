@@ -58,7 +58,7 @@ void main() {
       prdOnly = await resolvePrdCore();
     });
 
-    test('E01: the merged set holds the twelve prd-core and the fifteen '
+    test('E01: the merged set holds the thirteen prd-core and the fifteen '
         'software-tech doc types, the record among them', () {
       expect(
         both.docTypes.map((d) => d.id).toList(),
@@ -615,6 +615,9 @@ void main() {
       expect(found, {
         'project.vision': ['quote_words', 'quote_language'],
         'project.goals': ['metric_number'],
+        'goal.long_term': ['metric_number'],
+        'goal.mid_term': ['metric_number'],
+        'goal.short_term': ['metric_number'],
         'feature.out_of_scope': ['out_of_scope_owner'],
         'user_story.acceptance_criteria': ['scenario_title'],
         'fr.statement': ['second_shall'],
@@ -880,6 +883,30 @@ const _guideRules = <_GuideRule>[
   _GuideRule(
     'project',
     'goals',
+    'metric_number',
+    phrase: 'a numeric metric with unit',
+    hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
+    misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
+  ),
+  _GuideRule(
+    'goal',
+    'long_term',
+    'metric_number',
+    phrase: 'a numeric metric with unit',
+    hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
+    misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
+  ),
+  _GuideRule(
+    'goal',
+    'mid_term',
+    'metric_number',
+    phrase: 'a numeric metric with unit',
+    hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
+    misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
+  ),
+  _GuideRule(
+    'goal',
+    'short_term',
     'metric_number',
     phrase: 'a numeric metric with unit',
     hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],

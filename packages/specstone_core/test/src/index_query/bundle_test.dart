@@ -364,15 +364,6 @@ void main() {
   });
   test("a story's implement bundle holds the goal doc", () async {
     final withGoal = await indexWith({
-      '.specstone/templates/goal.yaml':
-          'id: goal\n'
-          'description: The goals.\n'
-          'path: prds/GOAL.md\n'
-          'bundle: [implement, design]\n'
-          'sections:\n'
-          '  - id: long_term\n'
-          '    header: Long-term goals\n'
-          '    prefix_id: PG-\n',
       'docs/prds/GOAL.md': '# Goals\n\n## Long-term goals\n- **PG-01** One.\n',
     });
     Set<String> joined(

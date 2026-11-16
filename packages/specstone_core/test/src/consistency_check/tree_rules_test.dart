@@ -26,14 +26,6 @@ import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 const _goalDoc = 'prds/GOAL.md';
-const _goalLayer =
-    'id: goal\n'
-    'description: The goals.\n'
-    'path: prds/GOAL.md\n'
-    'sections:\n'
-    '  - id: long_term\n'
-    '    header: Long-term goals\n'
-    '    prefix_id: PG-\n';
 const _glossaryLayer =
     'id: glossary\n'
     'description: Terms.\n'
@@ -447,9 +439,7 @@ void main() {
     test('f04/us01/fr07/e13: a goal doc type and no prds/GOAL.md is one '
         'finding at line 1 with the type key and no name', () async {
       final report = checkOf(
-        await writeCheckProject(
-          extra: {'.specstone/templates/goal.yaml': _goalLayer},
-        ),
+        await writeCheckProject(without: {'docs/$_goalDoc'}),
       );
       final missing = _missingOf(report);
       expect(spots(report, FindingKind.singularDocMissing), [
@@ -611,10 +601,7 @@ void main() {
     test('an empty goal file is present', () async {
       final report = checkOf(
         await writeCheckProject(
-          extra: {
-            '.specstone/templates/goal.yaml': _goalLayer,
-            'docs/$_goalDoc': '',
-          },
+          extra: {'docs/$_goalDoc': ''},
           unstamped: {'docs/$_goalDoc'},
         ),
       );
