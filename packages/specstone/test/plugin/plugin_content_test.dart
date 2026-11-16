@@ -4675,6 +4675,29 @@ void _goalMoveTests() {
     );
     expect(_oneLine(_pluginText(file)), contains(_specCodeTarget));
   });
+
+  test("goal-move.md repoints PROJECT's own goal links in its drop write", () {
+    final drop = _oneLine(
+      _sectionOf(
+        _pluginText(_goalMove),
+        '3. Drop the moved blocks, then repoint',
+      ),
+    );
+    const own =
+        'point each `#pg-…` link PROJECT keeps to a moved goal at '
+        '`GOAL.md#pg-…`';
+    const section =
+        'once the goals section drops, each link PROJECT keeps to it at '
+        '`GOAL.md`';
+    final at = drop.indexOf(own);
+    expect(at, isNonNegative);
+    expect(drop.indexOf(section, at), isNonNegative);
+    expect(drop, contains('`refs` lists no link of PROJECT to itself'));
+    expect(at, lessThan(drop.indexOf('run `specstone set --batch')));
+    final refs = drop.substring(drop.indexOf('Run `specstone refs project`'));
+    expect(refs, isNot(contains('in-file')));
+    expect(refs, contains('A link to a kept goal keeps its target.'));
+  });
 }
 
 /// The glossary-move reference of bootstrap-prd, under the plugin folder.
@@ -4835,6 +4858,30 @@ void _glossaryMoveTests() {
       ),
     );
   });
+
+  test(
+    "glossary-move.md points a carried entry's link to a goal the batch's "
+    'goal move moved, or to the goals section it dropped, at the goal doc',
+    () {
+      final move = _oneLine(
+        _sectionOf(_pluginText(_glossaryMove), '2. Move each entry'),
+      );
+      const moved =
+          "one to a goal the batch's goal move moved (`#pg-…`) links to "
+          '`GOAL.md#pg-…`, its anchor unchanged';
+      const dropped =
+          'one to the goals section that move dropped links to `GOAL.md` with '
+          'no anchor';
+      final at = move.indexOf(moved);
+      expect(at, isNonNegative);
+      expect(move.indexOf(dropped, at), isNonNegative);
+      expect(
+        move,
+        contains('gains `PROJECT.md` as its path, its anchor unchanged'),
+      );
+      expect(move, contains('A link with a path keeps it.'));
+    },
+  );
 }
 
 const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
