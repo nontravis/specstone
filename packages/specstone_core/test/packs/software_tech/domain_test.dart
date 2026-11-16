@@ -33,7 +33,6 @@ const _says = <String, List<String>>{
   ],
   'lifecycle': ['stateDiagram-v2', '4 or more states'],
   'commands_and_events': ['command', 'aggregate', 'event emitted'],
-  'corrective_policies': ['eventual'],
   'terms': ['glossary'],
 };
 
@@ -45,7 +44,7 @@ void main() {
 
   test('f03/us07/fr01, f03/us07/fr01/e06: domain sits under '
       'specs/f{nn}_{slug}/ with parent feature, the overrides and tasks '
-      'fields, and nine sections', () {
+      'fields, and eight sections', () {
     expect(domain.path, 'specs/f{nn}_{slug}/DOMAIN.md');
     expect(domain.parent, 'feature');
     expectOwnFields(domain, const [
@@ -60,7 +59,6 @@ void main() {
       SectionSpec('lifecycle', 'Lifecycle'),
       SectionSpec('data_touch', 'Data touch'),
       SectionSpec('commands_and_events', 'Commands and events'),
-      SectionSpec('corrective_policies', 'Corrective policies'),
       SectionSpec('terms', 'Terms'),
     ]);
   });
@@ -80,6 +78,8 @@ void main() {
         '- **INV-<N>** <one sentence>',
         '- **Enforcer:** <aggregate root>',
         '- **Consistency:** immediate',
+        '- **Corrective policy:** <how the system restores the rule>',
+        'eventual',
         'in the invariant it bounds',
         'ARCHITECTURE',
         '`known_limits`',
@@ -87,6 +87,28 @@ void main() {
         '`reference` field',
       ],
     });
+  });
+
+  test('the invariants require a corrective policy on an eventual invariant '
+      'only', () {
+    final fields = domain.sections
+        .singleWhere((s) => s.id == 'invariants')
+        .itemFields!;
+    expect(
+      [for (final f in fields) f.field],
+      ['Enforcer', 'Consistency', 'Corrective policy'],
+    );
+    final policy = fields.last;
+    expect(policy.when!.field, 'Consistency');
+    expect(policy.when!.value, 'eventual');
+    expect(policy.values, isNull);
+  });
+
+  test('domain holds no corrective policies section', () {
+    expect(
+      domain.sections.map((s) => s.id),
+      isNot(contains('corrective_policies')),
+    );
   });
 
   test('template_packs/write_spec_docs_from_software_tech/'
