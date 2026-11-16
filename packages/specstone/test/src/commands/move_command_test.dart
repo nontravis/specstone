@@ -83,36 +83,55 @@ void main() {
   });
 
   test('another doc type is doc_type_not_movable, exit 64', () async {
-    final (:runner, :out, :err) = writeRunner(
-      await writeNestedProject(
-        extra: {'docs/$addItemFolder/nf01_load_fast.md': '# Load\n'},
-      ),
-    );
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(
-      await runner.run([
-        'move',
-        'nf:shop/cart/add_item/load_fast',
-        '--under',
-        'shop/pay',
-      ]),
+      await runner.run(['move', 'architecture:shop', '--under', 'shop/pay']),
       64,
     );
     expect(out.toString(), isEmpty);
     expect(
       err.toString(),
-      'nf docs cannot move; move takes a user_story or an fr\n',
+      'architecture docs cannot move; move takes a user_story, an fr, an nf, '
+      'or a feature\n',
     );
   });
 
-  test('no --under is argument_missing, exit 64', () async {
+  test('neither --under nor --top is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(await runner.run(['move', addItem]), 64);
     expect(out.toString(), isEmpty);
+    expect(err.toString(), 'move needs --under <doc address> or --top\n');
+  });
+
+  test('--under with --top exits 64 with argument_conflict', () async {
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
     expect(
-      err.toString(),
-      'move needs a feature or a story, such as specstone move '
-      'user_story:login/reset_password --under account\n',
+      await runner.run([
+        'move',
+        addItem,
+        '--under',
+        'shop/pay',
+        '--top',
+        '--json',
+      ]),
+      64,
     );
+    expect(out.toString(), isEmpty);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_conflict',
+    );
+    expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
+  });
+
+  test('--top beside a story target exits 64 and moves nothing', () async {
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['move', addItem, '--top']), 64);
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), 'move takes --top only with feature targets\n');
+    expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
   });
 
   test('an --under nothing carries is doc_not_found, exit 64', () async {
@@ -144,6 +163,23 @@ void main() {
       }
     },
   );
+
+  test('move --help names --top and every target form', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(await runner.run(['move', '--help']), 0);
+    expect(
+      out.toString(),
+      allOf(
+        contains('(--under <doc address> | --top)'),
+        contains('--top'),
+        contains('user_story'),
+        contains('fr'),
+        contains('nf'),
+        contains('feature'),
+        contains('<doc address>#<item ID>'),
+      ),
+    );
+  });
 
   test('move --help names the three forms of --under', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
@@ -177,13 +213,15 @@ void main() {
         out.toString(),
         allOf(
           contains(
-            'Move stories into a feature, FRs into a story, or items '
+            'Move stories and features under a feature, FRs and nfs under a '
+            'story, features among the top features, or items '
             '(<doc address>#<item ID>) into another doc, and rewrite every '
             'reference to them.',
           ),
           contains(
-            'The feature that takes user_story targets, the story that '
-            'takes fr targets, or the doc that takes item targets: ',
+            'The feature that takes user_story or feature targets, the story '
+            'that takes fr or nf targets, or the doc that takes item '
+            'targets: ',
           ),
         ),
       );
@@ -293,7 +331,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'specstone move <doc address> … --under <doc address> '
+        'specstone move <doc address> … (--under <doc address> | --top) '
         '[--dry-run] [--target <name>] [--json]',
       ),
     );
@@ -635,7 +673,7 @@ void main() {
         expect(out.toString(), isEmpty);
         expect(
           err.toString(),
-          'move takes user_story targets or fr targets, not both\n',
+          'move takes one doc type per call, not user_story and fr\n',
         );
         expect(
           docFile(root, '$addItemFolder/USER_STORY.md').existsSync(),

@@ -16,6 +16,8 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/override_chain.dart'
+    show nfTypeId;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -197,7 +199,9 @@ ReadAnswer answerRename(
 /// [under], slugs kept, rewriting every reference in one pass.
 ///
 /// An address with a `#` that names no doc whole is an item target, which
-/// goes to [answerItemMove] and alone takes [codeTarget].
+/// goes to [answerItemMove] and alone takes [codeTarget]. A call with no
+/// address, then one with both or neither of [under] and [top], is refused
+/// before any address resolves; [top] belongs to a feature move alone.
 ///
 /// Throws [WriteFault], [IndexFault] for a bad call shape, and the faults of
 /// [answerItemMove].
@@ -205,6 +209,7 @@ ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
   required String? under,
+  bool top = false,
   String? codeTarget,
   bool dryRun = false,
 }) {
@@ -216,31 +221,30 @@ ReadAnswer answerMove(
     );
   }
   final items = [for (final a in addresses) isItemAddress(session.index, a)];
+  _checkFlags(under: under, top: top, areItems: items.every((item) => item));
   if (items.any((isItem) => isItem)) {
     return _answerItemMove(
       session,
       addresses,
       isMixed: !items.every((isItem) => isItem),
       under: under,
+      top: top,
       codeTarget: codeTarget,
       dryRun: dryRun,
     );
   }
+  final targets = _distinct([for (final a in addresses) session.target(a)]);
+  final docType = _movableTypeOf(session, targets);
+  if (top && docType.id != featureType) throw _topFault();
   if (codeTarget != null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'move takes --target only with item targets',
     );
   }
-  if (under == null) {
-    throw missingArgument(
-      'move',
-      'a feature or a story',
-      'specstone move user_story:login/reset_password --under account',
-    );
+  if (under == null || docType.id == nfTypeId || docType.id == featureType) {
+    throw StateError('the ${docType.id} move is not wired yet');
   }
-  final targets = _distinct([for (final a in addresses) session.target(a)]);
-  final docType = _movableTypeOf(session, targets);
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
   final newParent = session.parentTarget(under, parentTypeId);
@@ -291,15 +295,45 @@ ReadAnswer answerMove(
   });
 }
 
+/// Throws [IndexFault] `argument_conflict` for both [under] and [top], and
+/// `argument_missing` for neither, naming item targets' own form when
+/// [areItems].
+void _checkFlags({
+  required String? under,
+  required bool top,
+  required bool areItems,
+}) {
+  if (under != null && top) {
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      'move takes --under or --top, not both',
+    );
+  }
+  if (under != null || top) return;
+  throw IndexFault(
+    IndexFaultCode.argumentMissing,
+    areItems
+        ? 'move needs --under <doc address> for item targets'
+        : 'move needs --under <doc address> or --top',
+  );
+}
+
+/// Returns the fault for `--top` beside a target that is no feature.
+IndexFault _topFault() => IndexFault(
+  IndexFaultCode.argumentInvalid,
+  'move takes --top only with feature targets',
+);
+
 /// Moves the items [addresses] name once the call's shape is right.
 ///
-/// Throws [IndexFault] `argument_invalid` for a call that also names a doc,
-/// `argument_missing` for no [under], and the faults of [answerItemMove].
+/// Throws [IndexFault] `argument_invalid` for a call that also names a doc or
+/// gives [top], and the faults of [answerItemMove].
 ReadAnswer _answerItemMove(
   WriteSession session,
   List<String> addresses, {
   required bool isMixed,
   required String? under,
+  required bool top,
   required String? codeTarget,
   required bool dryRun,
 }) {
@@ -309,12 +343,7 @@ ReadAnswer _answerItemMove(
       'move takes item targets or doc targets, not both',
     );
   }
-  if (under == null) {
-    throw IndexFault(
-      IndexFaultCode.argumentMissing,
-      'move needs --under <doc address> for item targets',
-    );
-  }
+  if (top || under == null) throw _topFault();
   return answerItemMove(
     session,
     addresses,
@@ -399,27 +428,32 @@ bool _namesStory(WriteSession session, String storyName, IndexedDoc story) {
   }
 }
 
-/// Returns the one doc type [targets] carry, a story or an FR.
+/// Returns the one doc type [targets] carry, a story, an FR, an nf, or a
+/// feature.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for the first target of any
-/// other type, then [IndexFault] `argument_invalid` for a call naming both.
+/// other type, then [IndexFault] `argument_invalid` naming the first two
+/// types that differ.
 MergedDocType _movableTypeOf(WriteSession session, List<IndexedDoc> targets) {
+  const movable = {storyType, frType, nfTypeId, featureType};
   final types = [
     for (final target in targets)
       session.index.typeOf(target) ??
           (throw StateError('${target.docPath} has no doc type')),
   ];
   for (final type in types) {
-    if (type.id == storyType || type.id == frType) continue;
+    if (movable.contains(type.id)) continue;
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
-      '${type.id} docs cannot move; move takes a $storyType or an $frType',
+      '${type.id} docs cannot move; move takes a $storyType, an $frType, an '
+      '$nfTypeId, or a $featureType',
     );
   }
-  if (types.any((type) => type.id != types.first.id)) {
+  for (final type in types) {
+    if (type.id == types.first.id) continue;
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      'move takes $storyType targets or $frType targets, not both',
+      'move takes one doc type per call, not ${types.first.id} and ${type.id}',
     );
   }
   return types.first;

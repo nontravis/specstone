@@ -948,6 +948,7 @@ void main() {
     const addItemFolder = 'prds/features/f02_shop/f01_cart/us01_add_item';
     const movedFolder = 'prds/features/f02_shop/f02_pay/us03_add_item';
     const addNf = '$addItemFolder/nf01_load_fast.md';
+    const cartAddAddress = 'user_story:shop/cart/add_item';
 
     ReadAnswer moveAll(Directory root, List<String> addresses, String? under) =>
         writeIn(root, (s) => answerMove(s, addresses, under: under));
@@ -1220,43 +1221,79 @@ void main() {
     test(
       'a doc of another type is doc_type_not_movable, and nothing moves',
       () async {
-        final root = await writeNestedProject(
-          extra: {'docs/$addNf': '# Load\n'},
-        );
+        final root = await writeNestedProject();
         expect(
-          () => move(root, 'nf:shop/cart/add_item/load_fast', 'shop/pay'),
+          () => move(root, 'api:shop', 'shop/pay'),
           throwsA(
             isA<WriteFault>()
                 .having((f) => f.code, 'code', WriteFaultCode.docTypeNotMovable)
                 .having(
                   (f) => f.message,
                   'message',
-                  'nf docs cannot move; move takes a user_story or an fr',
+                  'api docs cannot move; move takes a user_story, an fr, an '
+                      'nf, or a feature',
                 ),
           ),
         );
-        expect(hasDoc(root, addNf), isTrue);
+        expect(hasDoc(root, shopApi), isTrue);
       },
     );
 
-    test('no --under is argument_missing', () async {
+    test(
+      'a call with no target is refused before its flags are read',
+      () async {
+        final root = await writeNestedProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(s, const [], under: 'shop/pay', top: true),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move needs a target, such as specstone move '
+                      'user_story:login/reset_password --under account',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('under and top together, or neither, are refused before any target resolves', () async {
       final root = await writeNestedProject();
+      const nowhere = 'user_story:shop/cart/nothing_here';
       expect(
-        () => move(root, 'user_story:shop/cart/add_item', null),
+        () => writeIn(
+          root,
+          (s) => answerMove(s, const [nowhere], under: 'shop/pay', top: true),
+        ),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.argumentConflict,
+          ),
+        ),
+      );
+      expect(
+        () => move(root, nowhere, null),
         throwsA(
           isA<IndexFault>()
               .having((f) => f.code, 'code', IndexFaultCode.argumentMissing)
               .having(
                 (f) => f.message,
                 'message',
-                'move needs a feature or a story, such as specstone move '
-                    'user_story:login/reset_password --under account',
+                'move needs --under <doc address> or --top',
               ),
         ),
       );
+      expect(hasDoc(root, cartAdd), isTrue);
     });
 
-    test('item targets with no --under take the item message, a story keeps its own', () async {
+    test('item targets with neither flag take the item message', () async {
       final root = await writeNestedProject();
       expect(
         () => move(root, 'domain:shop#INV-1', null),
@@ -1271,16 +1308,66 @@ void main() {
         ),
       );
       expect(
-        () => move(root, 'user_story:shop/cart/add_item', null),
+        () => moveAll(root, ['domain:shop#INV-1', cartAddAddress], null),
         throwsA(
           isA<IndexFault>().having(
             (f) => f.message,
             'message',
-            startsWith('move needs a feature or a story'),
+            'move needs --under <doc address> or --top',
           ),
         ),
       );
     });
+
+    test(
+      'top beside a story, fr, or item target is refused after resolving',
+      () async {
+        final root = await writeNestedProject(extra: frExtras);
+        const refused = [
+          cartAddAddress,
+          'fr:shop/cart/add_item/check_stock',
+          'domain:shop#INV-1',
+        ];
+        for (final address in refused) {
+          expect(
+            () => writeIn(
+              root,
+              (s) => answerMove(s, [address], under: null, top: true),
+            ),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes --top only with feature targets',
+                  ),
+            ),
+            reason: address,
+          );
+        }
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              const ['user_story:shop/cart/nothing_here'],
+              under: null,
+              top: true,
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+        expect(hasDoc(root, cartAddFr), isTrue);
+      },
+    );
 
     group('fr targets', () {
       const addFolder = '$cartDir/us01_add_item';
@@ -1343,7 +1430,7 @@ void main() {
                   .having(
                     (f) => f.message,
                     'message',
-                    'move takes user_story targets or fr targets, not both',
+                    'move takes one doc type per call, not user_story and fr',
                   ),
             ),
           );
@@ -1422,13 +1509,47 @@ void main() {
       );
 
       test(
-        'an fr beside an nf is doc_type_not_movable before the mixed-type test',
+        'two doc types in one call print the two type ids in target order',
         () async {
           final root = await frProject({'docs/$addNf': '# Load\n'});
+          const nf = 'nf:shop/cart/add_item/load_fast';
+          const mixes = {
+            'fr and nf': [checkStock, nf],
+            'nf and fr': [nf, checkStock],
+            'user_story and fr': [cartAddAddress, checkStock],
+          };
+          for (final MapEntry(key: pair, value: targets) in mixes.entries) {
+            expect(
+              () => moveAll(root, targets, 'shop/pay/refund'),
+              throwsA(
+                isA<IndexFault>()
+                    .having(
+                      (f) => f.code,
+                      'code',
+                      IndexFaultCode.argumentInvalid,
+                    )
+                    .having(
+                      (f) => f.message,
+                      'message',
+                      'move takes one doc type per call, not $pair',
+                    ),
+              ),
+              reason: pair,
+            );
+          }
+          expect(hasDoc(root, checkStockFile), isTrue);
+          expect(hasDoc(root, addNf), isTrue);
+        },
+      );
+
+      test(
+        'a spec doc beside a movable doc is doc_type_not_movable first',
+        () async {
+          final root = await frProject();
           expect(
             () => moveAll(root, [
               checkStock,
-              'nf:shop/cart/add_item/load_fast',
+              'architecture:shop',
             ], 'shop/pay/refund'),
             throwsA(
               isA<WriteFault>()
@@ -1440,12 +1561,13 @@ void main() {
                   .having(
                     (f) => f.message,
                     'message',
-                    'nf docs cannot move; move takes a user_story or an fr',
+                    'architecture docs cannot move; move takes a user_story, '
+                        'an fr, an nf, or a feature',
                   ),
             ),
           );
           expect(hasDoc(root, checkStockFile), isTrue);
-          expect(hasDoc(root, addNf), isTrue);
+          expect(hasDoc(root, shopArchitecture), isTrue);
         },
       );
 
@@ -1560,8 +1682,7 @@ void main() {
                   .having(
                     (f) => f.message,
                     'message',
-                    'move needs a feature or a story, such as specstone move '
-                        'user_story:login/reset_password --under account',
+                    'move needs --under <doc address> or --top',
                   ),
             ),
           );
@@ -1612,7 +1733,8 @@ void main() {
                 .having(
                   (f) => f.message,
                   'message',
-                  'architecture docs cannot move; move takes a user_story or an fr',
+                  'architecture docs cannot move; move takes a user_story, an '
+                      'fr, an nf, or a feature',
                 ),
           ),
         );
@@ -1840,14 +1962,9 @@ void main() {
       });
 
       test('E16: a target of another type refuses the whole call, and nothing moves', () async {
-        final root = await writeNestedProject(
-          extra: {'docs/$addNf': '# Load\n'},
-        );
+        final root = await writeNestedProject();
         expect(
-          () => moveAll(root, [
-            addItem,
-            'nf:shop/cart/add_item/load_fast',
-          ], 'shop/pay'),
+          () => moveAll(root, [addItem, 'architecture:shop'], 'shop/pay'),
           throwsA(
             isA<WriteFault>().having(
               (f) => f.code,
