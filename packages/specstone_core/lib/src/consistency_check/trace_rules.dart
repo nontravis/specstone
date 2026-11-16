@@ -32,12 +32,13 @@ const _roleKey = 'role';
 const _idKey = 'id';
 const _asPrefixes = ['- **As a** ', '- **As an** '];
 const _whoSeparator = ' who ';
-const _storyVisionKeys = ['vision', 'goals'];
+const _visionKey = 'vision';
+const _goalsKey = 'goals';
+const List<String> _storyVisionKeys = [_visionKey, _goalsKey];
 const _apiType = 'api';
 const _architectureType = 'architecture';
 const _goalType = 'goal';
-const _goalKey = 'goal';
-const _goalsKey = 'goals';
+const _servingGoalKey = 'goal';
 final _servesLine = RegExp(r'^(?:- )?\*\*Serves:\*\*(.*)$');
 
 /// Where a Serves ID may open: an upper-case-led prefix ending `-` that no
@@ -304,7 +305,7 @@ Iterable<Finding> _blockServes(
       FindingKind.goalServesMissing,
       line: block.lines.first.line,
       message: '${block.key} names no vision in a **Serves:** line',
-      keys: {_goalKey: block.key},
+      keys: {_servingGoalKey: block.key},
     );
     return;
   }
@@ -329,7 +330,7 @@ Iterable<Finding> _blockServes(
         message:
             '$id is a goal of the same or a lower horizon than '
             '${block.key}',
-        keys: {_goalKey: block.key, _idKey: id},
+        keys: {_servingGoalKey: block.key, _idKey: id},
       );
     }
   }

@@ -486,6 +486,12 @@ const _gnfrType = 'gnfr';
 const _projectType = 'project';
 const _goalType = 'goal';
 const _visionIdPrefix = 'PV-';
+const _measurementType = 'measurement';
+const _rolesSection = 'roles';
+final _roleEntry = RegExp('^- `([^`]+)` — ');
+const _architectureType = 'architecture';
+const _frType = 'fr';
+const _frTraceSection = 'fr_trace';
 
 /// The horizon of each goal doc section that holds goals.
 const _goalHorizons = {'long_term': 3, 'mid_term': 2, 'short_term': 1};
@@ -497,9 +503,3 @@ typedef GoalBlock = ({
   int horizon,
   List<BodyLine> lines,
 });
-const _measurementType = 'measurement';
-const _rolesSection = 'roles';
-final _roleEntry = RegExp('^- `([^`]+)` — ');
-const _architectureType = 'architecture';
-const _frType = 'fr';
-const _frTraceSection = 'fr_trace';

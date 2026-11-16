@@ -1331,7 +1331,7 @@ void main() {
     expect(spots(report, FindingKind.scenarioTraceUnresolved), isEmpty);
   });
 
-  test('f04/us03/fr02, f04/us03/fr01: a fenced example is no Role entry, no As-a line, and no project heading', () async {
+  test('f04/us03/fr02, f04/us03/fr01: a fenced example is no Role entry, no As-a line, no goal heading, and no vision heading', () async {
     final report = checkOf(
       await writeCheckProject(
         extra: {
@@ -1380,6 +1380,46 @@ void main() {
     expect(spots(unresolvedReviewer, FindingKind.roleUnresolved), [
       '$loginStory:11: role_unresolved',
     ]);
+    final fencedVision = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(
+            projectDoc,
+            '## Project vision\n',
+            '## Project vision\n```\n### PV-02 — Example\n```\n',
+          ),
+          ...doc(loginStory, '---\ngoals:', '---\nvision:\n  - PV-02\ngoals:'),
+        },
+      ),
+    );
+    expect(spots(fencedVision, FindingKind.visionGoalUnresolved), [
+      '$loginStory:3: vision_goal_unresolved',
+    ]);
+  });
+
+  test('a PROJECT goal heading no goal doc holds resolves no Serves or '
+      'vision ID, so the PV- filter of the vision headings holds', () async {
+    final report = checkOf(
+      await writeCheckProject(
+        extra: {
+          ...doc(
+            projectDoc,
+            'Halve the password resets.\n',
+            'Halve the password resets.\n\n### PG-07 — Only here\n\n**Serves:** PV-01\nMore.\n',
+          ),
+          ...doc(goalDoc, '**Serves:** PV-01', '**Serves:** PV-01, PG-07'),
+          ...doc(loginFeature, '---\nvision:', '---\nvision:\n  - PG-07'),
+        },
+      ),
+    );
+    expect(
+      [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.visionGoalUnresolved)
+            '${f.path}:${f.toJson()['id']}',
+      ],
+      ['$goalDoc:PG-07', '$loginFeature:PG-07'],
+    );
   });
 
   test('a fenced table in the FR trace section holds no row', () async {
@@ -1567,7 +1607,7 @@ void main() {
       Map<String, String> extra = const {},
     }) async => checkOf(await writeCheckProject(extra: {...files, ...extra}));
 
-    test('E19: a mid-term goal serving a long-term goal and a short-term goal '
+    test('a mid-term goal serving a long-term goal and a short-term goal '
         'serving a higher one, beside a vision, give no finding', () async {
       final report = await checkGoals(
         goals(
@@ -1580,7 +1620,7 @@ void main() {
       expect(spots(report, FindingKind.visionGoalUnresolved), isEmpty);
     });
 
-    test('E20: a long-term goal naming any goal is goal_serves_horizon at its '
+    test('a long-term goal naming any goal is goal_serves_horizon at its '
         'Serves line, keyed by the goal and the named ID', () async {
       final report = await checkGoals(
         goals(
@@ -1600,7 +1640,7 @@ void main() {
     });
 
     test(
-      'E21: a mid-term goal naming a mid-term or a short-term goal, and a '
+      'a mid-term goal naming a mid-term or a short-term goal, and a '
       'short-term goal naming a short-term goal, are goal_serves_horizon',
       () async {
         final report = await checkGoals(
@@ -1626,14 +1666,14 @@ void main() {
       },
     );
 
-    test('E22: a goal naming its own ID is goal_serves_horizon', () async {
+    test('a goal naming its own ID is goal_serves_horizon', () async {
       final report = await checkGoals(goals(mid: block('PG-02', 'PG-02')));
       expect(found(report, FindingKind.goalServesHorizon), [
         '$goalDoc:${head + 9}:PG-02:PG-02',
       ]);
     });
 
-    test('E23: two mid-term goals serving each other give one '
+    test('two mid-term goals serving each other give one '
         'goal_serves_horizon on each Serves line', () async {
       final report = await checkGoals(
         goals(mid: block('PG-02', 'PG-03') + block('PG-03', 'PG-02')),
@@ -1644,7 +1684,7 @@ void main() {
       ]);
     });
 
-    test('E24: a Serves ID of a goal deleted from the goal doc is '
+    test('a Serves ID of a goal deleted from the goal doc is '
         'vision_goal_unresolved and no goal_serves_horizon', () async {
       final report = await checkGoals(
         goals(long: block('PG-01', 'PV-01'), mid: block('PG-02', 'PG-05')),
@@ -1655,7 +1695,7 @@ void main() {
       expect(spots(report, FindingKind.goalServesHorizon), isEmpty);
     });
 
-    test('E25: a goal heading of a section other than the three horizons '
+    test('a goal heading of a section other than the three horizons '
         'holds no goal, so a feature naming it is unresolved and its block '
         'gets no Serves check', () async {
       final report = await checkGoals(
@@ -1675,7 +1715,7 @@ void main() {
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     });
 
-    test('E08: a feature goals ID no goal block holds is unresolved at its '
+    test('a feature goals ID no goal block holds is unresolved at its '
         'key, and a held one is not', () async {
       final report = await checkGoals(
         goals(long: block('PG-01', 'PV-01')),
@@ -1687,7 +1727,7 @@ void main() {
     });
 
     test(
-      'E09: a goal block with no Serves line is goal_serves_missing at its '
+      'a goal block with no Serves line is goal_serves_missing at its '
       'heading, and an unheld vision is unresolved at the Serves line',
       () async {
         final missing = await checkGoals({
@@ -1705,7 +1745,7 @@ void main() {
       },
     );
 
-    test('E16: a lettered vision heading holds no vision, so a Serves ID of '
+    test('a lettered vision heading holds no vision, so a Serves ID of '
         'its written form is unresolved', () async {
       final report = await checkGoals(
         goals(long: block('PG-01', 'PV-01, PV-09a')),
@@ -1720,7 +1760,7 @@ void main() {
       ]);
     });
 
-    test('E17: a lettered goal heading holds no goal: neither its ID nor the '
+    test('a lettered goal heading holds no goal: neither its ID nor the '
         'plain ID resolves, and its block gets no Serves check', () async {
       for (final id in ['PG-01a', 'PG-01']) {
         final report = await checkGoals({
@@ -1735,7 +1775,7 @@ void main() {
       }
     });
 
-    test('E07: a project with no goal doc reads no goal, so goals and '
+    test('a project with no goal doc reads no goal, so goals and '
         'Serves PG- IDs are unresolved', () async {
       final report = checkOf(
         await writeCheckProject(without: {'docs/$goalDoc'}),
@@ -1747,7 +1787,7 @@ void main() {
       expect(spots(report, FindingKind.goalServesMissing), isEmpty);
     });
 
-    test('E07: a merged set with no goal doc type has no goal and no goal '
+    test('a merged set with no goal doc type has no goal and no goal '
         'blocks', () async {
       final withType = openSession(await writeCheckProject());
       addTearDown(withType.close);
