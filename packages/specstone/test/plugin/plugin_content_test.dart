@@ -2983,20 +2983,29 @@ void _agentTests() {
   group('Agent sets up a new project with no code', () {
     String init() => _oneLine(_pluginText('specstone-init/SKILL.md'));
 
-    test('set_up_and_fill_drafts S1: init skill fills the five drafts', () {
+    test('set_up_and_fill_drafts S1: init skill fills the six drafts, the '
+        'glossary doc right after the goal doc', () {
       expect(
         init(),
         contains(
           'Take the drafts one at a time, in this order: the project, goal, '
-          'features, gnfr, and tech stack docs.',
+          'glossary, features, gnfr, and tech stack docs.',
         ),
       );
       expect(
         init(),
         contains('The goal doc holds the goals the Owner names, or none.'),
       );
-      expect(init(), contains('five drafts'));
-      expect(init(), isNot(contains('four drafts')));
+      expect(
+        init(),
+        contains(
+          'The glossary doc, titled `# Domain glossary`, holds the terms the '
+          'Owner names, or none.',
+        ),
+      );
+      expect(init(), contains('six drafts'));
+      expect(init(), isNot(contains('five drafts')));
+      expect(init(), isNot(contains('five starting drafts')));
     });
 
     test('set_up_and_fill_drafts E04: a code root with no folder draws no '
