@@ -4858,6 +4858,30 @@ void _glossaryMoveTests() {
       ),
     );
   });
+
+  test(
+    "glossary-move.md points a carried entry's link to a goal the batch's "
+    'goal move moved, or to the goals section it dropped, at the goal doc',
+    () {
+      final move = _oneLine(
+        _sectionOf(_pluginText(_glossaryMove), '2. Move each entry'),
+      );
+      const moved =
+          "one to a goal the batch's goal move moved (`#pg-…`) links to "
+          '`GOAL.md#pg-…`, its anchor unchanged';
+      const dropped =
+          'one to the goals section that move dropped links to `GOAL.md` with '
+          'no anchor';
+      final at = move.indexOf(moved);
+      expect(at, isNonNegative);
+      expect(move.indexOf(dropped, at), isNonNegative);
+      expect(
+        move,
+        contains('gains `PROJECT.md` as its path, its anchor unchanged'),
+      );
+      expect(move, contains('A link with a path keeps it.'));
+    },
+  );
 }
 
 const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
