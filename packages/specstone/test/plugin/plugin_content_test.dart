@@ -4675,6 +4675,29 @@ void _goalMoveTests() {
     );
     expect(_oneLine(_pluginText(file)), contains(_specCodeTarget));
   });
+
+  test("goal-move.md repoints PROJECT's own goal links in its drop write", () {
+    final drop = _oneLine(
+      _sectionOf(
+        _pluginText(_goalMove),
+        '3. Drop the moved blocks, then repoint',
+      ),
+    );
+    const own =
+        'point each `#pg-…` link PROJECT keeps to a moved goal at '
+        '`GOAL.md#pg-…`';
+    const section =
+        'once the goals section drops, each link PROJECT keeps to it at '
+        '`GOAL.md`';
+    final at = drop.indexOf(own);
+    expect(at, isNonNegative);
+    expect(drop.indexOf(section, at), isNonNegative);
+    expect(drop, contains('`refs` lists no link of PROJECT to itself'));
+    expect(at, lessThan(drop.indexOf('run `specstone set --batch')));
+    final refs = drop.substring(drop.indexOf('Run `specstone refs project`'));
+    expect(refs, isNot(contains('in-file')));
+    expect(refs, contains('A link to a kept goal keeps its target.'));
+  });
 }
 
 /// The glossary-move reference of bootstrap-prd, under the plugin folder.
