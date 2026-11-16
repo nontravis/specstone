@@ -578,8 +578,14 @@ void main() {
       final root = await project({
         'docs/$other/f01_ship/FEATURE.md':
             '---\ndepends_on:\n  - shop/cart\n  - shop/pay\n---\n\n# Ship\n',
+        'docs/$other/f02_track/FEATURE.md':
+            '---\ndepends_on: [shop/cart]\n---\n\n# Track\n',
       });
       moveAll(root, ['feature:shop/cart'], under: 'other');
+      expect(
+        readDoc(root, '$other/f02_track/FEATURE.md'),
+        contains('depends_on: [other/cart]\n'),
+      );
       expect(
         readDoc(root, '$other/f01_ship/FEATURE.md'),
         contains('depends_on:\n  - other/cart\n  - shop/pay\n---\n\n# Ship\n'),
@@ -620,6 +626,10 @@ void main() {
             '## Operations\n### addItem\nAdds an item.\n',
       });
       final cartApiBefore = readDoc(root, cartApi);
+      expect(
+        spots(checkOf(root), FindingKind.frTraceUnresolved),
+        isNot(contains(startsWith('$cartApi:'))),
+      );
       moveAll(root, ['feature:shop/cart'], under: 'other');
       final api = readDoc(root, shopApi);
       expect(api, contains('| cart/add_item/check_stock | `addItem` |'));
@@ -627,7 +637,10 @@ void main() {
       expect(readDoc(root, '$landedSpecs/API.md'), cartApiBefore);
       final unresolved = spots(checkOf(root), FindingKind.frTraceUnresolved);
       expect(unresolved, contains(startsWith('$shopApi:')));
-      expect(unresolved.where((s) => s.contains('f03_cart')), isEmpty);
+      expect(
+        unresolved.where((s) => s.startsWith('$landedSpecs/API.md:')),
+        isEmpty,
+      );
     });
 
     test(
