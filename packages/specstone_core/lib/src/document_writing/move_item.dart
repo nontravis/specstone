@@ -3,11 +3,10 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
-import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
-    show itemKeyOfHead;
+    show itemKeyOfHead, sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart'
     show ItemCite, citedSectionsOf;
 import 'package:specstone_core/src/index_query/override_chain.dart';
@@ -210,10 +209,6 @@ void _requireChains(
     );
   }
 }
-
-/// Returns the items of the held section [at] of [content].
-List<SectionItem> sectionItemsAt(DocContent content, int at) =>
-    sectionItemsOf(sectionBodyLines(content.sections, content.lineFacts, at));
 
 /// Returns the `Overrides:` lines of [doc] that link an item, in file order.
 List<OverrideCite> overrideCitesOf(DocIndex index, IndexedDoc doc) {

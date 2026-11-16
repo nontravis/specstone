@@ -6,7 +6,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
-    show IndexedSection, indexedSectionsOf;
+    show DocContent, IndexedSection, indexedSectionsOf;
 import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
@@ -108,6 +108,11 @@ ItemFacts itemFactsOf({
     ],
   );
 }
+
+/// Returns the items of the held section [at] of [content], each at its file
+/// line, with the structure a move cuts and lands by.
+List<SectionItem> sectionItemsAt(DocContent content, int at) =>
+    sectionItemsOf(sectionBodyLines(content.sections, content.lineFacts, at));
 
 /// Returns the items of the rule-bearing sections of [doc], a typed doc of
 /// [type] parsed from [lfText], each as [RuleItemWords], in file order.

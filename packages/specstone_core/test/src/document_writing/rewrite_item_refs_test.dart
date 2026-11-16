@@ -5,11 +5,13 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
+import 'package:specstone_core/src/document_writing/item_mentions.dart'
+    show itemMentions;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart'
     show planItemMove;
 import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart'
-    show itemMentions, itemRefEdits, planItemRefs;
+    show itemRefEdits, planItemRefs;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
@@ -438,6 +440,114 @@ void main() {
         contains('- Stays, see [pay](f02_pay/DOMAIN.md#invariants).'),
       );
       expect(_body(unused, cartDomain), isNot(contains('[p]:')));
+    });
+
+    test('a reference-style item link inside a moved item whose definition stays becomes an inline link, and the definition left unused is removed', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(3, 'follows [INV-1][r].'), '', '[r]: #invariants'],
+      );
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(
+        _body(root, cartDomain),
+        _domain([
+          _inv(1),
+          _inv(3, 'follows [INV-1](../DOMAIN.md#invariants).'),
+        ]),
+      );
+      expect(_body(root, shopDomain), _domain([_inv(1)]));
+      expect(answer.text, isNot(contains('[r]:')));
+    });
+
+    test('a reference-style item link left in the source doc whose definition moves with an item becomes an inline link', () async {
+      final root = await _project(
+        shop: [
+          '### INV-1 — First',
+          '- Holds.',
+          '',
+          '### INV-5 — Cart expiry',
+          '- A cart expires.',
+          '',
+          '[r]: #invariants',
+          '',
+          '### INV-6 — Other',
+          '- Stays, see [INV-1][r].',
+        ],
+      );
+      _move(root, ['domain:shop#INV-5']);
+      expect(
+        _body(root, shopDomain),
+        contains('- Stays, see [INV-1](#invariants).'),
+      );
+      expect(_body(root, cartDomain), isNot(contains('[r]:')));
+    });
+
+    test('an indented definition of a renumbered item takes the new ID at its label', () async {
+      final root = await _project(
+        cart: _twelve,
+        pay: [
+          _inv(1, 'follows [INV-3][].'),
+          '',
+          '  [INV-3]: ../DOMAIN.md#invariants',
+        ],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      final pay = _body(root, _payDomain);
+      expect(pay, contains('follows [INV-13][].'));
+      expect(pay, contains('  [INV-13]: $_toCart\n'));
+    });
+
+    test('a definition the move leaves unused is removed at its own line, a code line of the same text kept', () async {
+      const definition = '[p]: f02_pay/DOMAIN.md#invariants';
+      final root = await _project(
+        shop: [
+          _inv(3, 'holds, see [pay][p].'),
+          '',
+          '```',
+          definition,
+          '```',
+          '',
+          definition,
+        ],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      final shop = _body(root, shopDomain);
+      expect(shop, contains('```\n$definition\n```'));
+      expect(definition.allMatches(shop), hasLength(1));
+    });
+
+    test('a listed definition in a doc the move leaves unwritten is placed on its file line, though a layout would shift it', () async {
+      final root = await _project(
+        extra: {
+          'docs/$_payDomain':
+              '# Domain\n\n## Invariants\n'
+              '${_inv(1, 'follows [INV-3][r] and [INV-1][r].')}\n\n'
+              '[r]: ../DOMAIN.md#invariants\n',
+        },
+      );
+      final payBefore = readDoc(root, _payDomain);
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(readDoc(root, _payDomain), payBefore);
+      expect(
+        answer.text,
+        contains(
+          'mentions $_payDomain:${_lineOf(payBefore, '[r]:')} [r]: ../DOMAIN.md#invariants\n',
+        ),
+      );
+    });
+
+    test('a reference-style link inside a moved item finds its definition by the label fold markdown reads', () async {
+      final root = await _project(
+        shop: [
+          _inv(3, 'holds, see [pay][MAẞE].'),
+          '',
+          '[masse]: f02_pay/DOMAIN.md#invariants',
+        ],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      expect(
+        _body(root, cartDomain),
+        contains('holds, see [pay](../f02_pay/DOMAIN.md#invariants).'),
+      );
     });
 
     test('a range of reference-style item links stays and is listed', () async {

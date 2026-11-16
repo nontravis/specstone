@@ -14,6 +14,8 @@ import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart'
+    show sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
 import 'package:specstone_core/src/index_query/override_chain.dart';
@@ -32,15 +34,21 @@ const _overridesKey = 'overrides';
 /// An edit refuses a doc that changed since the plan. [bodies] gives, by
 /// DocPath, the text a doc holds in place of its indexed text, with every line
 /// where the index has it, so a landing carries the reference rewrites of its
-/// lines. Throws [RenderFault] `output_not_writable` for `overrides` entries
-/// that are not valid YAML.
+/// lines. [droppedLines] gives, by a source doc's DocPath, file lines that go:
+/// one inside a moved item leaves it as it lands, any other leaves the source.
+/// Throws [RenderFault] `output_not_writable` for `overrides` entries that
+/// are not valid YAML.
 Map<String, TextEdit> itemLandingEdits(
   WriteSession session,
   List<ItemLanding> landings, {
   Map<String, String> bodies = const {},
+  Map<String, Set<int>> droppedLines = const {},
 }) {
   final index = session.index;
-  final cuts = [for (final landing in landings) _cutOf(index, landing, bodies)];
+  final cuts = [
+    for (final landing in landings)
+      _cutOf(index, landing, bodies, droppedLines),
+  ];
   final destination = landings.first.to;
   final entries = _entryMovesOf(index, destination, cuts);
   final bySource = <String, List<_Cut>>{};
@@ -49,7 +57,13 @@ Map<String, TextEdit> itemLandingEdits(
   }
   return {
     for (final MapEntry(:key, :value) in bySource.entries)
-      key: _sourceEdit(index, value, entries.dropsOf(key), bodies[key]),
+      key: _sourceEdit(
+        index,
+        value,
+        entries.dropsOf(key),
+        bodies[key],
+        droppedLines[key] ?? const {},
+      ),
     destination.docPath: _destinationEdit(
       index,
       destination,
@@ -122,7 +136,12 @@ final class _Cut {
   final OverrideCite? own;
 }
 
-_Cut _cutOf(DocIndex index, ItemLanding landing, Map<String, String> bodies) {
+_Cut _cutOf(
+  DocIndex index,
+  ItemLanding landing,
+  Map<String, String> bodies,
+  Map<String, Set<int>> droppedLines,
+) {
   final span = itemSpanOf(index, landing);
   final located = span.located;
   final head = span.head;
@@ -156,9 +175,40 @@ _Cut _cutOf(DocIndex index, ItemLanding landing, Map<String, String> bodies) {
     first: head.line,
     last: last,
     kind: head.kind,
-    lines: lines,
+    lines: _withoutLines(
+      lines,
+      head.line,
+      droppedLines[doc.docPath] ?? const {},
+    ),
     own: own,
   );
+}
+
+/// Returns [lines], whose first is file line [firstLine], without the file
+/// lines [dropped] names.
+List<String> _withoutLines(
+  List<String> lines,
+  int firstLine,
+  Set<int> dropped,
+) {
+  final kept = [...lines];
+  for (final line in _descending(dropped)) {
+    final at = line - firstLine;
+    if (at >= 0 && at < kept.length) _dropLine(kept, at);
+  }
+  return kept;
+}
+
+List<int> _descending(Iterable<int> lines) =>
+    lines.toList()..sort((a, b) => b.compareTo(a));
+
+/// Removes the line at [at] of [lines]; a blank line before it and one after
+/// it, or the end, leave one blank line, or none at the end.
+void _dropLine(List<String> lines, int at) {
+  lines.removeAt(at);
+  final isBlankBefore = at > 0 && _isBlank(lines[at - 1]);
+  final isBlankAfter = at == lines.length || _isBlank(lines[at]);
+  if (isBlankBefore && isBlankAfter) lines.removeAt(at - 1);
 }
 
 /// Returns the last file line of the item at [at] of [items], the nested items
@@ -236,8 +286,10 @@ String _withRebasedLink(String raw, String fromDocPath, String toDocPath) {
   final rest = raw.substring(start);
   final destination = readLeadingLinkTarget(rest);
   if (destination == null) return raw;
-  final suffixAt = destination.indexOf(RegExp('[?#]'));
-  final path = suffixAt < 0 ? destination : destination.substring(0, suffixAt);
+  final path = destination.substring(
+    0,
+    destinationPartsOf(destination, DestinationKind.inline).pathEnd,
+  );
   final rebased = rebasedHref(path, fromDocPath, toDocPath);
   if (rebased == null) return raw;
   final at = start + rest.indexOf('](') + 2;
@@ -375,16 +427,28 @@ TextEdit _sourceEdit(
   List<_Cut> cuts,
   Set<String> drops,
   String? body,
+  Set<int> dropped,
 ) {
   final doc = cuts.first.landing.from.doc;
   final type = _typeOf(index, doc);
   final expected = toLf(index.contentOf(doc).text);
   final backwards = [...cuts]..sort((a, b) => b.first.compareTo(a.first));
+  final staying = _descending([
+    for (final line in dropped)
+      if (!cuts.any((cut) => cut.first <= line && line <= cut.last)) line,
+  ]);
   return (lfText) {
     requireUnchanged(doc, expected, lfText);
     final lines = (body ?? lfText).split('\n');
+    var next = 0;
     for (final cut in backwards) {
+      for (; next < staying.length && staying[next] > cut.last; next++) {
+        _dropLine(lines, staying[next] - 1);
+      }
       _removeLines(lines, cut.first, cut.last);
+    }
+    for (; next < staying.length; next++) {
+      _dropLine(lines, staying[next] - 1);
     }
     final text = _withoutEntries(doc.docPath, lines.join('\n'), drops);
     return markDraft(text, type);
