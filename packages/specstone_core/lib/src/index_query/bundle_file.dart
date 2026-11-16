@@ -7,6 +7,8 @@ import 'package:specstone_core/src/index_query/bundle_prune.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
+import 'package:specstone_core/src/index_query/indexed_doc.dart'
+    show tokenSizeOf;
 import 'package:specstone_core/src/index_query/out_file.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
@@ -31,6 +33,9 @@ const _refsMark = '.refs';
 const _bundlesBelowRoot = '.specstone/bundles';
 
 const _refsIsReadFirst = 'the refs file is the read-first file';
+
+/// What a bundle text's closing line opens with.
+const _closingMark = '==> bundle: ';
 
 // MARK: - Name
 
@@ -96,20 +101,24 @@ int _nameStartOf(String path) {
 
 // MARK: - Write
 
-/// Writes [answer]'s bundle text to [file], and its refs text to the refs file
-/// beside it when the answer is split, then prunes old bundle files.
+/// Writes [bundle]'s text to [file], and its refs text to the refs file beside
+/// it when the answer is split, then prunes old bundle files.
 ///
+/// An `implement` refs file opens with the index lines of its docs and parts,
+/// each range counting those lines; the reply's refs header and `--json` count
+/// the file as written.
 /// The reply names each file by its canonical path. Throws
 /// `output_not_writable` for a path [requireOutPath] refuses, judged for both
 /// files before either is written, or for a write that fails; a call that
 /// throws prunes nothing.
 ReadAnswer answerBundleFile(
-  ContextAnswer answer,
+  ContextAnswer bundle,
   File file, {
   required DocsProject project,
   required bool isBare,
 }) {
-  assert(answer.exitStatus == 0, 'a bundle over budget is never written');
+  assert(bundle.exitStatus == 0, 'a bundle over budget is never written');
+  final answer = _withRefsHeadOf(bundle);
   final shownPath = canonicalPath(file.absolute.path);
   final refs = answer.refs;
   final refsPath = refs == null ? null : canonicalPath(refsPathOf(shownPath));
@@ -140,6 +149,70 @@ ReadAnswer answerBundleFile(
   );
 }
 
+/// Returns [answer] with an `implement` refs file opening with its index; any
+/// other answer comes back as it is.
+ContextAnswer _withRefsHeadOf(ContextAnswer answer) {
+  final refs = answer.refs;
+  if (refs == null || answer.json['for'] != BundleMode.implement.wire) {
+    return answer;
+  }
+  return ContextAnswer(
+    text: answer.text,
+    json: answer.json,
+    warnings: answer.warnings,
+    exitStatus: answer.exitStatus,
+    entries: answer.entries,
+    tokens: answer.tokens,
+    codeTarget: answer.codeTarget,
+    refs: _withRefsHead(refs),
+  );
+}
+
+/// Returns [refs] opened by the index lines of its entries, then a blank line.
+///
+/// Every entry, section, and token moves by the head: each range counts the
+/// head's lines, which one line per entry fixes before any range is written,
+/// and the size counts the head and the blocks, never the closing line and
+/// list. A refs file with no entry has no head.
+BundleText _withRefsHead(BundleText refs) {
+  if (refs.entries.isEmpty) return refs;
+  final closingStart = refs.text.lastIndexOf('\n$_closingMark') + 1;
+  assert(closingStart > 0, 'a bundle text ends with its closing line');
+  final blocks = refs.text.substring(0, closingStart - 1);
+  final closingList = refs.text.substring(
+    refs.text.indexOf('\n', closingStart),
+  );
+  final shift = refs.entries.length + 1;
+  final entries = [for (final entry in refs.entries) _shifted(entry, shift)];
+  final head = [
+    for (final entry in entries) _indexLine(entry, withSections: true),
+  ].join().trimRight();
+  final shown = '$head\n\n$blocks';
+  final tokens = tokenSizeOf(shown);
+  return (
+    text:
+        '$shown\n$_closingMark${docCountOf(entries)} docs, $tokens tokens <=='
+        '$closingList',
+    entries: entries,
+    tokens: tokens,
+  );
+}
+
+BundleEntry _shifted(BundleEntry entry, int lines) => (
+  doc: entry.doc,
+  kind: entry.kind,
+  summary: entry.summary,
+  sectionKey: entry.sectionKey,
+  itemId: entry.itemId,
+  featurePattern: entry.featurePattern,
+  first: entry.first + lines,
+  last: entry.last + lines,
+  sections: [
+    for (final section in entry.sections)
+      (key: section.key, first: section.first + lines),
+  ],
+);
+
 /// Prunes the project's `.specstone/bundles/`, keeping [keep].
 ///
 /// A `bundles/` that is a link, or lies below one, is left alone: its real
@@ -164,22 +237,28 @@ bool isBundlesFolderOf(String root, String path, {bool? isWindows}) =>
 /// It prints the code target line when the answer has one, then per file, the
 /// read-first file's first, a header line and one line per doc, appended
 /// part, cited-by part, names block, and feature pattern part with its line
-/// range in that file. Each line lists its sections' first lines while the
-/// whole index stays within 200 lines and 8 KiB, both files, header lines, and
-/// the code target line counted together; past either bound no line lists a
-/// section, and every doc still prints.
+/// range in that file. An `implement` answer prints the refs file's header
+/// line alone, its index heading the refs file. Each line lists its sections'
+/// first lines while the counted index stays within 200 lines and 8 KiB, header
+/// lines and the code target line counted with it, both files' for `design`
+/// and the read-first file's for `implement`; past either bound no line lists
+/// a section, and every doc still prints.
 String bundleIndex(ContextAnswer answer, String shownPath, {String? refsPath}) {
   final files = _filesOf(answer, shownPath, refsPath);
-  String index({required bool withSections}) => [
+  final isImplement = answer.json['for'] == BundleMode.implement.wire;
+  String index({required bool withSections, bool forCap = false}) => [
     codeTargetLine(answer.codeTarget),
-    for (final (:file, :path) in files)
-      _fileIndex(file, path, withSections: withSections),
+    for (final (i, (:file, :path)) in files.indexed)
+      if (i == 0 || !isImplement)
+        _fileIndex(file, path, withSections: withSections)
+      else if (!forCap)
+        _fileHeader(file, path),
   ].join();
-  final full = index(withSections: true);
+  final full = index(withSections: true, forCap: true);
   final fits =
       _lineCountOf(full) <= _indexLineCap &&
       utf8.encode(full).length <= _indexByteCap;
-  return fits ? full : index(withSections: false);
+  return index(withSections: fits);
 }
 
 /// Returns `--out`'s `--json` object for [answer]'s bundle saved at
@@ -233,15 +312,17 @@ List<({BundleText file, String path})> _filesOf(
 
 /// Returns the header line of [file] saved at [path], then one index line per
 /// entry.
-String _fileIndex(BundleText file, String path, {required bool withSections}) {
-  final lines = [
-    for (final entry in file.entries)
-      _indexLine(entry, withSections: withSections),
-  ];
-  return '==> bundle: ${docCountOf(file.entries)} docs, ${file.tokens} tokens, '
-      '${_lineCountOf(file.text)} lines · $path <==\n'
-      '${lines.join()}';
-}
+String _fileIndex(BundleText file, String path, {required bool withSections}) =>
+    _fileHeader(file, path) +
+    [
+      for (final entry in file.entries)
+        _indexLine(entry, withSections: withSections),
+    ].join();
+
+/// Returns the header line of [file] saved at [path].
+String _fileHeader(BundleText file, String path) =>
+    '==> bundle: ${docCountOf(file.entries)} docs, ${file.tokens} tokens, '
+    '${_lineCountOf(file.text)} lines · $path <==\n';
 
 /// Returns `{out, tokens, lines, docs}` for [file] saved at [path], with
 /// `codeTarget` after `out` when [codeTarget] is given.
@@ -278,8 +359,8 @@ Map<String, Object> _fileJson(
 ///
 /// The kind's mark is `cited <section key> [<ID>]` for an appended part,
 /// `cited by [<ID>]`, `cited by [#<section key>]`, or `cited by` for a
-/// cited-by part, and `names` for a names block. A
-/// feature pattern part's line is its list name, then ` · <first>-<last>`.
+/// cited-by part, and `names` for a names block. A feature pattern part's line
+/// is its list name, then ` · <first>-<last>`.
 String _indexLine(BundleEntry entry, {required bool withSections}) {
   if (entry.featurePattern case final id?) {
     return '- ${featurePatternListName(id)} · ${entry.first}-${entry.last}\n';

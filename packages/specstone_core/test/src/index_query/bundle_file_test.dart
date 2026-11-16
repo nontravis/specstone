@@ -9,6 +9,8 @@ import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart'
+    show ReadAnswer;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
@@ -114,14 +116,44 @@ BundleText _fileOf(int count, {String prefix = 'd'}) => (
 
 /// Returns a split answer whose read-first file holds [readFirst] docs and
 /// whose refs file holds [refs] docs.
-ContextAnswer _splitOf(int readFirst, int refs) {
+ContextAnswer _splitOf(
+  int readFirst,
+  int refs, {
+  BundleMode? mode,
+  BundleText? refsFile,
+}) {
   final first = _fileOf(readFirst);
   return ContextAnswer(
     text: first.text,
-    json: const {},
+    json: {'for': ?mode?.wire},
     entries: first.entries,
     tokens: first.tokens,
-    refs: _fileOf(refs, prefix: 'r'),
+    refs: refsFile ?? _fileOf(refs, prefix: 'r'),
+  );
+}
+
+/// Returns a refs file of [count] docs `r<n>`, each a naming line, one text
+/// line, and one section, closed as a bundle text closes.
+BundleText _closedRefsOf(int count) {
+  final blocks = [
+    for (var i = 0; i < count; i++)
+      '==> r$i (fr) · prds/r$i.md <==\n## Statement\nx',
+  ];
+  final starts = [for (var i = 0; i < count; i++) 4 * i + 1];
+  return (
+    text:
+        '${blocks.join('\n\n')}\n==> bundle: $count docs, 9 tokens <==\n'
+        '${[for (var i = 0; i < count; i++) '- r$i (fr)\n'].join()}',
+    tokens: 9,
+    entries: [
+      for (var i = 0; i < count; i++)
+        _entryOf(
+          'r$i',
+          starts[i],
+          starts[i] + 2,
+          sections: [(key: 'statement', first: starts[i] + 1)],
+        ),
+    ],
   );
 }
 
@@ -1025,7 +1057,13 @@ void main() {
         );
         final refs = File('${project.path}/out/b.refs.txt');
         expect(file.readAsStringSync(), answer.text);
-        expect(refs.readAsStringSync(), answer.refs!.text);
+        expect(refs.readAsStringSync(), startsWith('- '));
+        expect(
+          refs.readAsStringSync(),
+          contains(
+            answer.refs!.text.split('\n')[answer.refs!.entries.first.first - 1],
+          ),
+        );
         final shown = file.resolveSymbolicLinksSync();
         expect(reply.text, contains(' lines · $shown <==\n'));
         expect(
@@ -1100,5 +1138,197 @@ void main() {
       expect(file.existsSync(), isFalse);
       expect(config.readAsBytesSync(), before);
     }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
+  });
+
+  group('the implement refs file opens with its own index', () {
+    final stdoutHeader = RegExp(
+      r'^==> bundle: (\d+) docs, (\d+) tokens, (\d+) lines · (.+) <==$',
+    );
+
+    ContextAnswer answerOf(
+      DocIndex index,
+      BundleMode mode, {
+      bool noProject = false,
+    }) => answerContext(
+      index,
+      pickBundle(index, 'login/email_login', mode, noProject: noProject),
+      label: 'login/email_login',
+      byCode: false,
+      split: true,
+    );
+
+    /// Writes [mode]'s files for the login project and returns the refs
+    /// file's lines, the stdout reply, and the answer that was written.
+    Future<({List<String> lines, ReadAnswer reply, ContextAnswer answer})>
+    written(
+      BundleMode mode, {
+      bool noProject = false,
+      Map<String, String> extra = _layoutDocs,
+    }) async {
+      final project = await writeLoginProject(extra: extra);
+      final session = openSession(project);
+      addTearDown(session.close);
+      final answer = answerOf(session.index, mode, noProject: noProject);
+      final reply = answerBundleFile(
+        answer,
+        File('${project.path}/out/b.txt'),
+        project: session.project,
+        isBare: false,
+      );
+      return (
+        lines: File('${project.path}/out/b.refs.txt').readAsLinesSync(),
+        reply: reply,
+        answer: answer,
+      );
+    }
+
+    test('implement stdout prints the refs header line alone', () {
+      final index = bundleIndex(
+        _splitOf(2, 3, mode: BundleMode.implement),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(
+        index,
+        '==> bundle: 2 docs, 7 tokens, 4 lines · /p/b.txt <==\n'
+        '- d0 (fr) · 1-1 · statement 1\n'
+        '- d1 (fr) · 3-3 · statement 3\n'
+        '==> bundle: 3 docs, 7 tokens, 6 lines · /p/b.refs.txt <==\n',
+      );
+    });
+
+    test('each refs head range opens on its doc naming line', () async {
+      final (:lines, :reply, :answer) = await written(BundleMode.implement);
+      final head = lines.takeWhile((line) => line.startsWith('- ')).toList();
+      expect(head, hasLength(answer.refs!.entries.length));
+      expect(lines[head.length], isEmpty);
+      for (final line in head) {
+        final parsed = RegExp(r'^- (.+?) · (\d+)-(\d+)(?: · (.*))?$')
+            .firstMatch(line)!;
+        final first = int.parse(parsed.group(2)!);
+        final last = int.parse(parsed.group(3)!);
+        expect(
+          lines[first - 1],
+          startsWith('==> ${parsed.group(1)} · '),
+          reason: line,
+        );
+        expect(
+          lines[last],
+          anyOf('', startsWith('==> bundle: ')),
+          reason: line,
+        );
+        for (final section in RegExp(
+          r'[a-z_]+ (\d+)(?=,|$)',
+        ).allMatches(parsed.group(4) ?? '')) {
+          expect(
+            lines[int.parse(section.group(1)!) - 1],
+            startsWith('## '),
+            reason: line,
+          );
+        }
+      }
+    });
+
+    test('the refs header and json count the head', () async {
+      final (:lines, :reply, :answer) = await written(BundleMode.implement);
+      final text = '${lines.join('\n')}\n';
+      final closing = text.lastIndexOf('\n==> bundle: ') + 1;
+      final tokens = tokenSizeOf(text.substring(0, closing - 1));
+      final header = stdoutHeader.firstMatch(
+        reply.text.split('\n').lastWhere((line) => line.contains('.refs.txt')),
+      )!;
+      expect(header.group(2), '$tokens');
+      expect(header.group(3), '${lines.length}');
+      final refs = reply.json['refs']! as Map<String, Object?>;
+      expect((refs['tokens'], refs['lines']), (tokens, lines.length));
+      expect(
+        lines.singleWhere((line) => line.startsWith('==> bundle: ')),
+        '==> bundle: ${header.group(1)} docs, $tokens tokens <==',
+      );
+      expect(tokens, greaterThan(answer.refs!.tokens));
+    });
+
+    test('the implement cap counts the read-first index alone', () {
+      final fits = bundleIndex(
+        _splitOf(199, 150, mode: BundleMode.implement),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(fits, contains('- d198 (fr) · 397-397 · statement 397\n'));
+      expect(fits, endsWith('.refs.txt <==\n'));
+      final past = bundleIndex(
+        _splitOf(200, 1, mode: BundleMode.implement),
+        '/p/b.txt',
+        refsPath: '/p/b.refs.txt',
+      );
+      expect(past, isNot(contains('statement')));
+      expect(past, contains('- d199 (fr) · 399-399\n'));
+    });
+
+    test('past the cap the implement refs head still lists sections', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      addTearDown(session.close);
+      final answer = _splitOf(
+        201,
+        0,
+        mode: BundleMode.implement,
+        refsFile: _closedRefsOf(3),
+      );
+      final reply = answerBundleFile(
+        answer,
+        File('${project.path}/out/b.txt'),
+        project: session.project,
+        isBare: false,
+      );
+      expect(reply.text, isNot(contains('statement')));
+      final lines = File('${project.path}/out/b.refs.txt').readAsLinesSync();
+      expect(lines[0], '- r0 (fr) · 5-7 · statement 6');
+      expect(lines[2], '- r2 (fr) · 13-15 · statement 14');
+      expect(lines[4], '==> r0 (fr) · prds/r0.md <==');
+    });
+
+    test('design keeps both indexes on stdout and no head', () async {
+      final (:lines, :reply, :answer) = await written(BundleMode.design);
+      expect(lines.join('\n'), answer.refs!.text.trimRight());
+      final stdout = reply.text.split('\n');
+      final refsHeader = stdout.indexWhere(
+        (line) => line.contains('.refs.txt'),
+      );
+      final first = answer.refs!.entries.first;
+      expect(
+        stdout
+            .skip(refsHeader + 1)
+            .any((line) => line.contains(' · ${first.first}-${first.last}')),
+        isTrue,
+      );
+      expect(lines[first.first - 1], startsWith('==> '));
+    });
+
+    test('an empty refs file stays the empty closing text with no head', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      addTearDown(session.close);
+      const empty = '==> bundle: 0 docs, 0 tokens <==\n';
+      final answer = _splitOf(
+        2,
+        0,
+        mode: BundleMode.implement,
+        refsFile: (text: empty, tokens: 0, entries: const []),
+      );
+      final reply = answerBundleFile(
+        answer,
+        File('${project.path}/out/b.txt'),
+        project: session.project,
+        isBare: false,
+      );
+      expect(File('${project.path}/out/b.refs.txt').readAsStringSync(), empty);
+      expect(
+        reply.text,
+        endsWith(
+          '1 lines · ${project.resolveSymbolicLinksSync()}/out/b.refs.txt <==\n',
+        ),
+      );
+    });
   });
 }
