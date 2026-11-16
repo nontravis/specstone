@@ -1,8 +1,12 @@
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/name_mentions.dart'
+    show markdownExtension;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
+import 'package:specstone_core/src/index_query/cite_candidates.dart'
+    show headerSpanEndAfter;
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/link_places.dart'
     show sourceHrefsOf;
@@ -274,15 +278,24 @@ final class RenumberBodyRewrite {
     return tokens;
   }
 
-  List<_Citation> _spanCitations(String line) => [
-    for (final (:start, :end, :ticks) in codeSpansOf(line))
-      if (_index.citedBySpan(
-            line.substring(start + ticks, end - ticks),
-            _doc.docPath,
-          )
-          case final docPaths?)
-        _Citation(at: start, end: end, docPaths: docPaths),
-  ];
+  /// The code spans of [line] that cite a doc, each ending where its item-ID
+  /// run starts: after the section header span that follows a path.
+  List<_Citation> _spanCitations(String line) {
+    final spans = codeSpansOf(line);
+    final citations = <_Citation>[];
+    for (final (:start, :end, :ticks) in spans) {
+      final written = line.substring(start + ticks, end - ticks);
+      final docPaths = _index.citedBySpan(written, _doc.docPath);
+      if (docPaths == null) continue;
+      final header = written.endsWith(markdownExtension)
+          ? headerSpanEndAfter(line, spans, end)
+          : null;
+      citations.add(
+        _Citation(at: start, end: header ?? end, docPaths: docPaths),
+      );
+    }
+    return citations;
+  }
 
   /// The links to a doc of the run, by file line, each at its column: each
   /// resolves the href `markdown` gives it, none when it gives none or that is

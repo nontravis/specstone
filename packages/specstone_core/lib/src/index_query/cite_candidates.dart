@@ -191,6 +191,11 @@ int? _closedBy(List<CodeSpan> spans, int column, int end) {
   return null;
 }
 
+/// Returns the offset after the section header span right after the path that
+/// ends at [end] of [line], or null when none follows.
+int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
+    _headerSpanAfter(line, spans, end)?.$2;
+
 /// Returns the section key of the header the code span right after [end]
 /// holds, such as `## Error envelope`, and the offset after that span.
 (String, int)? _headerSpanAfter(String line, List<CodeSpan> spans, int end) {

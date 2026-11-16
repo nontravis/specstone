@@ -1094,6 +1094,21 @@ RULE-7a` here.
 
     expect(applied[_domainPath], domain);
   });
+
+  test('$_fr E47: a path span followed by a section header span holds the run '
+      'after the header span', () {
+    const domain =
+        '# A\n\n## Invariants\n\n'
+        '`../topics/doc_model.md` `## Rules` RULE-7a\n'
+        '`../topics/doc_model.md` `## Rules` then RULE-7a\n';
+
+    final applied = _applied({_topicPath: _topic, _domainPath: domain});
+
+    expect(
+      applied[_domainPath],
+      domain.replaceFirst('`## Rules` RULE-7a', '`## Rules` RULE-31'),
+    );
+  });
 }
 
 /// The body of the `## Statement` section of [lf], as `check` fingerprints an
