@@ -1126,8 +1126,8 @@ void _handOffTests() {
     expect(
       flatReport,
       contains(
-        'Name each draft a `Move:` line moves, the story and its FRs, by the '
-        'name it holds after the move.',
+        'Name each draft a `Move:` line moves, the moved doc and its '
+        'children, by the name it holds after the move.',
       ),
     );
     final drafts = _sectionOf(

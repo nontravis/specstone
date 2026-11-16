@@ -1,5 +1,5 @@
-`specstone-sdd-engineer` and the `specstone-brainstorming-sdd` runner run this in `mode: author`, the gate made.
-Ask the Owner nothing: list each gap in your report.
+`specstone-sdd-engineer` and the `specstone-brainstorming-sdd` runner run it in `mode: author`, the gate passed.
+Ask the Owner nothing: list each gap in the report.
 
 ## 1. Read
 
@@ -51,7 +51,7 @@ decision too, as a `design_references` link.
 
 ## 3. Sweep each ruling
 
-For each dated ruling naming text it supersedes, run `specstone search "<superseded wording>"`. Rewrite each
+For each dated ruling naming superseded text, run `specstone search "<superseded wording>"`. Rewrite each
 hit in a doc the design changes, as step 2 writes. List each other hit under `Findings:`.
 
 ## 4. Check
@@ -87,7 +87,7 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, the list less each name step 1
   dropped, plus each doc this pass added. Audit mode and `specstone-plan-sdd` take it as is: names only, no
-  `--target`. Name each draft a `Move:` line moves, the story and its FRs, by the name it holds after the move.
+  `--target`. Name each draft a `Move:` line moves, the moved doc and its children, by the name it holds after the move.
 - **Counts**: take every count, of drafts and of sentences dropped and new, from one
   `specstone approve --dry-run --json` after your last write, never your own tally. Your drafts are the docs your own
   list names; the output names a moved one, while its `Move:` line is unrun, by its name before the move; once the

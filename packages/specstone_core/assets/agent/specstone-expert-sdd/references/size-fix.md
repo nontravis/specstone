@@ -26,7 +26,7 @@ split; `A bundle over its limit` covers it.
 
 Group the feature's stories into sub-features by the placement questions `specstone guide feature` prints: at least 2
 sub-features of at least 2 stories each. Name each sub-feature's slug and its stories, then the ready commands in run
-order, one `new` per sub-feature, then one `move` per sub-feature:
+order, one `new` per sub-feature, then its `move` lines, then the two extra `move` lines:
 
 ```
 specstone new feature --parent <feature> --slug <slug>
