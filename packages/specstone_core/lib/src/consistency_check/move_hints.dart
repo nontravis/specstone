@@ -6,6 +6,7 @@ import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
 
 const _splitSuffix = '; group stories into sub-features first';
 
