@@ -30,18 +30,61 @@ typedef _Resolve = String? Function(NumberLabel label, NumberLabel? before);
 
 /// A label's replacement: the 0-based line, the column of its first character,
 /// and its length in that line.
-typedef _LineEdit = ({int line, int column, int length, String text});
+final class _LineEdit {
+  const new({
+    required this.line,
+    required this.column,
+    required this.length,
+    required this.text,
+  });
 
-typedef _Converted = ({List<_LineEdit> edits, List<KeptLabel> kept});
+  final int line;
+  final int column;
+  final int length;
+  final String text;
+}
+
+/// The edits that convert a text's labels and the labels it keeps.
+final class _Converted {
+  const new({required this.edits, required this.kept});
+
+  final List<_LineEdit> edits;
+  final List<KeptLabel> kept;
+}
 
 /// A doc after the heading step and the label conversion, the operation
 /// headings it converted, the labels it replaced, and the labels it keeps.
-typedef _DocResult = ({
-  String lf,
-  List<KeptLabel> headings,
-  int labels,
-  List<KeptLabel> kept,
-});
+final class _DocResult {
+  const new({
+    required this.lf,
+    required this.headings,
+    required this.labels,
+    required this.kept,
+  });
+
+  final String lf;
+  final List<KeptLabel> headings;
+  final int labels;
+  final List<KeptLabel> kept;
+}
+
+/// A doc the pass read, whether it changed it, the operation headings it
+/// converted, how many labels it replaced, and the labels it kept.
+final class _FileResult {
+  const new({
+    required this.path,
+    required this.converted,
+    required this.headings,
+    required this.labels,
+    required this.kept,
+  });
+
+  final String path;
+  final bool converted;
+  final List<KeptLabel> headings;
+  final int labels;
+  final List<KeptLabel> kept;
+}
 
 // MARK: - LabelPass
 
@@ -76,7 +119,7 @@ final class LabelPass {
     }, docTypes);
     final files = <_FileResult>[
       for (final LabelDoc(:docPath) in sorted)
-        (
+        _FileResult(
           path: docPath,
           converted: docTexts.containsKey(docPath),
           headings: results[docPath]!.headings,
@@ -145,7 +188,7 @@ final class LabelPass {
     if (text == null) return file;
     final passLines = (_docTexts[file.path] ?? '').split('\n');
     final writtenLines = text.split('\n');
-    return (
+    return _FileResult(
       path: file.path,
       converted: file.converted,
       headings: [
@@ -188,16 +231,6 @@ String? numberLabelsPlanLine({
   return '$_planLabel$rewrites rewrites in $files files$_leftLabel$left';
 }
 
-/// A doc the pass read, whether it changed it, the operation headings it
-/// converted, how many labels it replaced, and the labels it kept.
-typedef _FileResult = ({
-  String path,
-  bool converted,
-  List<KeptLabel> headings,
-  int labels,
-  List<KeptLabel> kept,
-});
-
 List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
     [...items]..sort((a, b) => compareCodePoints(key(a), key(b)));
 
@@ -224,7 +257,7 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
     final target = tree.resolve(label, citingDocPath: docPath, before: before);
     return target == null ? null : tree.nameOf(target);
   });
-  return (
+  return _DocResult(
     lf: converted.lf,
     headings: [
       for (final (:line, :operation) in step.converted)
@@ -307,7 +340,11 @@ LabelConversion _convertMarkdown(
   _Resolve resolve, {
   bool legacyIds = false,
 }) {
-  final (:edits, :kept) = _markdownEdits(lf, resolve, legacyIds: legacyIds);
+  final _Converted(:edits, :kept) = _markdownEdits(
+    lf,
+    resolve,
+    legacyIds: legacyIds,
+  );
   return LabelConversion(
     lf: _applyLineEdits(lf, edits),
     rewrites: edits.length,
@@ -327,7 +364,7 @@ _Converted _markdownEdits(
 }) {
   final body = Doc.parse(lf).afterFrontmatter;
   final labels = numberLabelsInMarkdown(body, legacyIds: legacyIds);
-  if (labels.isEmpty) return (edits: const [], kept: const []);
+  if (labels.isEmpty) return const _Converted(edits: [], kept: []);
   final prefixLength = lf.length - body.length;
   final firstLine = '\n'.allMatches(lf.substring(0, prefixLength)).length;
   final lines = body.split('\n');
@@ -375,14 +412,16 @@ _Converted _markdownEdits(
           label.start - starts[first],
           label.end - starts[first],
         );
-    edits.add((
-      line: firstLine + line,
-      column: label.start - starts[line],
-      length: label.end - label.start,
-      text: isBare ? name : '`$name`',
-    ));
+    edits.add(
+      _LineEdit(
+        line: firstLine + line,
+        column: label.start - starts[line],
+        length: label.end - label.start,
+        text: isBare ? name : '`$name`',
+      ),
+    );
   }
-  return (edits: edits, kept: kept);
+  return _Converted(edits: edits, kept: kept);
 }
 
 /// Whether [gap], the text between two labels, joins them in a list or a
@@ -450,7 +489,8 @@ bool _insideSpan(List<CodeSpan> spans, int start, int end) => spans.any(
 String _applyLineEdits(String text, List<_LineEdit> edits) {
   if (edits.isEmpty) return text;
   final lines = text.split('\n');
-  for (final (:line, :column, :length, text: replacement) in edits.reversed) {
+  for (final _LineEdit(:line, :column, :length, text: replacement)
+      in edits.reversed) {
     final current = lines[line];
     lines[line] =
         current.substring(0, column) +
