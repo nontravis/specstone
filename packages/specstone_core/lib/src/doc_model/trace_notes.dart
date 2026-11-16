@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/check_sentences.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/inline_holders.dart';
+import 'package:specstone_core/src/doc_model/markdown_lines.dart'
+    show tableCellRanges;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart'
     show collapseWhitespace;
@@ -11,7 +13,6 @@ typedef TraceNote = ({String text, bool closes});
 const _openBracket = 0x5B;
 const _openParen = 0x28;
 const _closeParen = 0x29;
-const _pipe = 0x7C;
 const _period = 0x2E;
 const _space = 0x20;
 const _tab = 0x09;
@@ -33,16 +34,18 @@ typedef _Span = ({int start, int end});
 /// A note is a group of item references or a clause whose first word is an
 /// item reference and whose second is `owns` or `cites`. A reference is an
 /// item or scenario link, or a bare ID of one of [idPrefixes]. An item closes
-/// with its last note; a table row closes each cell with that cell's last.
+/// with its last note; a table row ([isTableRow], read as the table reader
+/// cuts it) closes each cell with that cell's last.
 ({List<TraceNote> notes, String counted}) traceNotesOf(
   String lfItemText,
-  Set<String> idPrefixes,
-) {
+  Set<String> idPrefixes, {
+  required bool isTableRow,
+}) {
   final prefixes = idPrefixes.toList()..sort((a, b) => b.length - a.length);
   final own = lfItemText.substring(0, _ownTextEnd(lfItemText)).trimRight();
   final notes = <_Span>[];
   final closings = <_Span>[];
-  for (final scope in _scopesOf(own)) {
+  for (final scope in _scopesOf(own, isTableRow: isTableRow)) {
     final found = _notesIn(own, scope, prefixes);
     notes.addAll(found);
     if (found.isEmpty) continue;
@@ -61,23 +64,14 @@ typedef _Span = ({int start, int end});
   );
 }
 
-/// Returns the item's own text range: a table row's cells, else the whole.
-List<_Span> _scopesOf(String own) {
-  if (own.contains('\n') || !own.trimLeft().startsWith('|')) {
-    return [(start: 0, end: own.length)];
-  }
-  final scopes = <_Span>[];
-  var start = own.indexOf('|') + 1;
-  for (var i = start; i < own.length; i++) {
-    if (own.codeUnitAt(i) != _pipe || isEscaped(own, i)) continue;
-    scopes.add((start: start, end: i));
-    start = i + 1;
-  }
-  if (own.substring(start).trim().isNotEmpty) {
-    scopes.add((start: start, end: own.length));
-  }
-  return scopes;
-}
+/// Returns the ranges of the item's own text that close a note apart: a table
+/// row's cells, else the whole text.
+List<_Span> _scopesOf(String own, {required bool isTableRow}) => isTableRow
+    ? [
+        for (final cell in tableCellRanges(own))
+          (start: cell.start, end: cell.end),
+      ]
+    : [(start: 0, end: own.length)];
 
 /// Returns the notes of [scope] of [own], as offsets into [own]; a note that
 /// overlaps an earlier one is dropped.
