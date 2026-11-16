@@ -118,7 +118,7 @@ List<CitedItem> citedItemsIn(
     }
     found.add((id: id, extent: extent, by: by));
   }
-  for (final (:anchor, :line) in _blocksIn(content.lineFacts, at)) {
+  for (final _Block(:anchor, :line) in _blocksIn(content.lineFacts, at)) {
     final by =
         cited[CitedPlace(
           docPath: doc.docPath,
@@ -189,23 +189,32 @@ CitedItem? citedDocIn(CitedByIndex cited, IndexedDoc doc) {
   );
 }
 
+/// A `###` heading of a section: the anchor a link names it by, and its file
+/// line.
+final class _Block {
+  const new({required this.anchor, required this.line});
+
+  final String anchor;
+  final int line;
+}
+
 /// Returns the `###` headings inside the section [at] of [facts], each by the
 /// anchor a link names it by, first of a repeated anchor only, as
 /// [anchorTargetOf] reads it.
-List<({String anchor, int line})> _blocksIn(LineFacts facts, int at) {
+List<_Block> _blocksIn(LineFacts facts, int at) {
   final anchors = facts.anchors;
   final lines = facts.headingLines;
   if (anchors == null || lines == null) return const [];
   final starts = facts.sectionLines;
   final end = at + 1 < starts.length ? starts[at + 1] : null;
-  final blocks = <({String anchor, int line})>[];
+  final blocks = <_Block>[];
   for (final (i, anchor) in anchors.headingSlugs.indexed) {
     if (i >= lines.length) break;
     final line = lines[i];
     if (line <= starts[at] || (end != null && line >= end)) continue;
     final target = anchorTargetOf(facts, anchor);
     if (target is HeadingBlockTarget && target.headingLine == line) {
-      blocks.add((anchor: anchor, line: line));
+      blocks.add(_Block(anchor: anchor, line: line));
     }
   }
   return blocks;
@@ -351,6 +360,14 @@ List<String> _idsOf(ItemRange? range, ItemCite cite, _Doc target, int? at) {
 bool _joinsDesign(MergedDocType? type) =>
     type?.bundle?.contains(BundleMode.design.wire) ?? false;
 
+/// An item of a section by its ID, with the file lines it spans.
+final class _ItemExtent {
+  const new({required this.id, required this.extent});
+
+  final String id;
+  final LineRange extent;
+}
+
 /// One typed doc as the lines read it: its stored content, its held sections
 /// as [classifyLink] reads them, and its text by line.
 final class _Doc {
@@ -364,7 +381,7 @@ final class _Doc {
   final List<CitedSection> _sections;
 
   late final List<String> _lines = content.text.split('\n');
-  final _extents = <int, List<({String id, LineRange extent})>>{};
+  final _extents = <int, List<_ItemExtent>>{};
 
   LineFacts get facts => content.lineFacts;
 
@@ -393,7 +410,7 @@ final class _Doc {
     if (at < 0) return null;
     String? holding;
     var span = 0x7fffffff;
-    for (final (:id, :extent) in _extentsAt(at)) {
+    for (final _ItemExtent(:id, :extent) in _extentsAt(at)) {
       final size = extent.last - extent.first;
       if (extent.first <= line && line <= extent.last && size < span) {
         holding = id;
@@ -403,10 +420,9 @@ final class _Doc {
     return holding;
   }
 
-  List<({String id, LineRange extent})> _extentsAt(int at) =>
-      _extents[at] ??= _extentsOf(at);
+  List<_ItemExtent> _extentsAt(int at) => _extents[at] ??= _extentsOf(at);
 
-  List<({String id, LineRange extent})> _extentsOf(int at) {
+  List<_ItemExtent> _extentsOf(int at) {
     final section = sectionAt(at);
     if (section == null) return const [];
     final body = sectionBodyLines(content.sections, facts, at);
@@ -420,7 +436,7 @@ final class _Doc {
                 isAcceptanceCriteria: section.isAcceptanceCriteria,
               )
               case final extent?)
-            (id: id, extent: extent),
+            _ItemExtent(id: id, extent: extent),
     ];
   }
 }
