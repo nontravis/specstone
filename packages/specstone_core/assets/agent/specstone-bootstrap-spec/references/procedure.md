@@ -10,8 +10,8 @@ doc carries `--target <name>`, the finding DocPath's code target, else the first
 
 ## 2. One finding at a time
 
-Fix this skill's first unhandled finding, then run a bare `specstone check` again.
-Stop when each finding left is under `prds/` or `measurements/`, clears with no write, is a reported
+Fix this skill's first unhandled finding, then run `specstone check` again.
+Stop when each left is under `prds/` or `measurements/`, clears with no write, is a reported
 `code_uncovered`, or is tagged `(waits for the Owner)`, except an unanswered size finding.
 
 Bases: `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); a write
@@ -34,7 +34,7 @@ the Owner only when no text bears on a whole section.
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `covers_path_missing`, `code_root_missing` | fix the entry with the Owner, or drop it |
 | `untyped_doc` | step 4 |
-| `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | any other of this skill | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
@@ -62,7 +62,7 @@ An `untyped_doc` under `specs/`: merge it into the doc that takes it, else a new
   API docs, a cross-cutting statement to the tech stack's `## Constraints` or a topic doc; quote in step 6 each line
   only about the old index, as a line with no home.
 
-Skip only a sentence its new doc holds word for word, and never target the old file. Add its path to this run's
+Skip only a sentence its new doc holds word for word; never target the old file. Add its path to this run's
 retire set.
 
 ## 5. Retire the old files

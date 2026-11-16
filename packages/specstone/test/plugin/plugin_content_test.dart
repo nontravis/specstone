@@ -3967,6 +3967,7 @@ const _sizeFindings = [
   '`chars_over_limit`',
   '`lines_over_limit`',
   '`item_over_limit`',
+  '`bundle_over_limit`',
 ];
 
 /// The statement's split clause of
@@ -4075,7 +4076,11 @@ void _sizeFixTests() {
   test('size-fix.md answers bundle_over_limit with the split alone, no '
       'layout step and no text moved, and the finding waits for the Owner', () {
     final sizeFix = _pluginText(_sizeFix);
-    expect(_oneLine(sizeFix), contains('`bundle_over_limit`'));
+    final order = _oneLine(_sectionOf(sizeFix, 'The order'));
+    expect(
+      order,
+      contains('A `bundle_over_limit` finding skips steps 1, 3, and 4'),
+    );
     final bundle = _oneLine(_sectionOf(sizeFix, 'A bundle over its limit'));
     expect(bundle, contains('`bundle_over_limit`'));
     expect(bundle, contains('sub-feature split'));

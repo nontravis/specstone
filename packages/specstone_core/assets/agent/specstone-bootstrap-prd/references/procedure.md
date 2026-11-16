@@ -33,12 +33,12 @@ whole section.
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
 | `singular_doc_missing`; `section_undeclared` on PROJECT's goals section | `goal-move.md` |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
-| `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone-bootstrap-spec`; then drop the section |
+| `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc waits for `specstone-bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |
 | `feature_status_written` | drop the feature's `status` key |
 | `untyped_doc` | step 4 |
-| `chars_over_limit`, `lines_over_limit`, `item_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
+| `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
 | any other under `prds/` or `measurements/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
