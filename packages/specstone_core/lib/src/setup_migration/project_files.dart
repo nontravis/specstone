@@ -1,4 +1,6 @@
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -185,6 +187,29 @@ List<MergedDocType> singularDocTypes(MergedSet set) {
       if (_isSingular(docType.path) && !set.isProjectSpecType(docType)) docType,
   ];
   return singular..sort(_byDraftOrder);
+}
+
+/// Returns the DocPath of each singular doc type of [set], one per name in
+/// [twinNames] in place of the shared path for a per-target type.
+Set<String> singularLayoutPathsOf(
+  MergedSet set, {
+  required List<String> twinNames,
+}) => {
+  for (final type in singularDocTypes(set))
+    if (type.path case final path?)
+      if (type.isPerTarget && twinNames.isNotEmpty)
+        for (final name in twinNames) PathPattern(path).forTarget(name).source
+      else
+        path,
+};
+
+/// Whether [path] is one of [layoutPaths], or one of them under the docs
+/// folder.
+bool isSingularLayoutPath(String path, Set<String> layoutPaths) {
+  const prefix = '$docsFolderName/';
+  return layoutPaths.contains(path) ||
+      (path.startsWith(prefix) &&
+          layoutPaths.contains(path.substring(prefix.length)));
 }
 
 /// Parses the doc-type files among [files] as project-layer doc types.

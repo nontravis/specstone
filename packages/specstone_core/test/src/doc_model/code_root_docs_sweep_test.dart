@@ -6,6 +6,8 @@ import 'package:specstone_core/src/document_writing/agent_file_walk.dart'
 import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show isSingularLayoutPath, singularLayoutPathsOf;
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart' show indexWith, openSession;
@@ -92,10 +94,11 @@ String _extensionOf(String path) {
 }
 
 /// Whether [mention] names a doc of [index], by Name or by path.
-bool _namesDoc(DocIndex index, NameMention mention) {
+bool _namesDoc(DocIndex index, NameMention mention, Set<String> layoutPaths) {
   final address = mention.address;
   if (!address.isName) {
     final path = mention.text;
+    if (isSingularLayoutPath(path, layoutPaths)) return false;
     const prefix = '$_docsFolder/';
     return index.at(path) != null ||
         (path.startsWith(prefix) &&
@@ -116,13 +119,17 @@ List<String> _mentionsUnder(
   DocIndex index,
 ) {
   final found = <String>[];
+  final layoutPaths = singularLayoutPathsOf(
+    index.set,
+    twinNames: index.twinNames,
+  );
   for (final path in codeRootFiles(root, codeRoots)) {
     final extension = _extensionOf(path);
     if (!readsNameMentions(extension) || isAgentFile(path)) continue;
     final lf = _readLf(File.fromUri(root.uri.resolve(path)));
     if (lf == null) continue;
-    for (final mention in docMentionsInFile(lf, extension)) {
-      if (_namesDoc(index, mention)) {
+    for (final mention in nameMentionsInFile(lf, extension)) {
+      if (_namesDoc(index, mention, layoutPaths)) {
         found.add('$path:${mention.line}: ${mention.text}');
       }
     }
@@ -137,11 +144,11 @@ void main() {
       'file is not', () async {
     final index = await indexWith();
     final root = await writeTree({
-      'scripts/CLAUDE.md': 'Read `auth_tokens`.\n',
-      'scripts/notes.md': 'Read `auth_tokens`.\n',
+      'scripts/CLAUDE.md': 'Read `topic:auth_tokens`.\n',
+      'scripts/notes.md': 'Read `topic:auth_tokens`.\n',
     });
     expect(_mentionsUnder(root, const ['scripts/'], index), [
-      'scripts/notes.md:1: auth_tokens',
+      'scripts/notes.md:1: topic:auth_tokens',
     ]);
   });
 

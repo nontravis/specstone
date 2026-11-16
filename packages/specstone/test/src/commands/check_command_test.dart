@@ -1290,6 +1290,20 @@ void main() {
       });
     });
 
+    test("a path naming a feature doc is a finding and the goal doc's layout path is none", () async {
+      const featureDoc = 'prds/features/f01_login/FEATURE.md';
+      final project = await codeProject({
+        'app/lib/auth.dart': 'class A {}\n// See $goalDoc and $featureDoc.\n',
+      });
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 1);
+      expect(
+        text.out.toString(),
+        'app/lib/auth.dart:2: doc_cited_in_code: $featureDoc names a doc; the doc names the code, never the reverse\n'
+        '1 finding\n',
+      );
+    });
+
     test('an agent instruction file under the code folder naming a doc gives no finding', () async {
       final project = await codeProject({'app/lib/CLAUDE.md': 'Read `$fr`.\n'});
       final text = readRunner(project);

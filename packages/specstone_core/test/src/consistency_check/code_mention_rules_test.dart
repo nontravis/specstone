@@ -169,16 +169,35 @@ void main() {
     });
 
     test(
-      'a bare one-slug span reads as a name only when a doc carries it',
+      'a lone-word span raises nothing, whether a doc has that name or not',
       () async {
         final report = checkOf(
           await writeCheckProject(
-            extra: {'app/lib/auth.dart': '// `user_id` and `login`.\n'},
+            extra: {
+              'app/lib/auth.dart':
+                  '// `user_id`, `login`, `login#problem`.\n'
+                  '// `feature:login`\n',
+            },
           ),
         );
-        expect(_cited(report), ['app/lib/auth.dart:1 login']);
+        expect(_cited(report), ['app/lib/auth.dart:2 feature:login']);
       },
     );
+
+    test("a singular type's layout path in a comment or a skill file raises "
+        'nothing', () async {
+      final report = checkOf(
+        await writeCheckProject(
+          extra: {
+            'app/lib/auth.dart':
+                '// see $goalDoc\n'
+                '// see $_featureDoc\n',
+            'app/lib/SKILL.md': 'Read `docs/$goalDoc`.\n',
+          },
+        ),
+      );
+      expect(_cited(report), ['app/lib/auth.dart:2 $_featureDoc']);
+    });
 
     test('an agent file under a code root is never read', () async {
       final report = checkOf(
