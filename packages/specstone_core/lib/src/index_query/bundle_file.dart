@@ -277,7 +277,8 @@ Map<String, Object> _fileJson(
 /// [withSections].
 ///
 /// The kind's mark is `cited <section key> [<ID>]` for an appended part,
-/// `cited by [<ID>]` for a cited-by part, and `names` for a names block. A
+/// `cited by [<ID>]`, `cited by [#<section key>]`, or `cited by` for a
+/// cited-by part, and `names` for a names block. A
 /// feature pattern part's line is its list name, then ` · <first>-<last>`.
 String _indexLine(BundleEntry entry, {required bool withSections}) {
   if (entry.featurePattern case final id?) {
@@ -309,8 +310,14 @@ String _citedField(BundleEntry entry) => [
   if (entry.itemId != null) '[${entry.itemId}]',
 ].join(' ');
 
-/// Returns `cited by`, with the `[<ID>]` of the item [entry] follows.
-String _citedByField(BundleEntry entry) =>
-    ['cited by', if (entry.itemId != null) '[${entry.itemId}]'].join(' ');
+/// Returns `cited by`, with the `[<ID>]` of the item or block [entry] follows,
+/// or the `[#<section key>]` of the section; none for a whole doc.
+String _citedByField(BundleEntry entry) => [
+  'cited by',
+  if (entry.itemId case final id?)
+    '[$id]'
+  else if (entry.sectionKey case final key?)
+    '[#$key]',
+].join(' ');
 
 int _lineCountOf(String text) => const LineSplitter().convert(text).length;

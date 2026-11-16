@@ -838,6 +838,119 @@ void main() {
     });
   });
 
+  group('cited-by parts of a split design answer', () {
+    const domain = 'docs/specs/f01_login/DOMAIN.md';
+    const domainName = 'login (domain)';
+    const link = '../f01_login/DOMAIN.md';
+    const guide = 'docs/specs/topics/guide.md';
+
+    /// Returns the split design answer on a guide that cites the login domain
+    /// by [links], over a domain whose Entities section holds [entities].
+    Future<ContextAnswer> splitWith(
+      String links, {
+      String entities = '### Account\nOne per email.\n',
+    }) async {
+      final index = await indexWith({
+        domain:
+            '# Login domain\n\n## Entities\n$entities\n## Invariants\n'
+            '- **INV-1** An account locks after five failures.\n',
+        guide: '# Guide\n\n## Purpose\n$links\n',
+      });
+      return answerContext(
+        index,
+        pickBundle(
+          index,
+          'login/email_login',
+          BundleMode.design,
+          noProject: false,
+        ),
+        label: 'login/email_login',
+        byCode: false,
+        split: true,
+      );
+    }
+
+    /// Returns the cited-by parts of [answer]'s refs file that cite the domain.
+    List<BundleEntry> domainParts(ContextAnswer answer) => [
+      for (final e in answer.refs!.entries)
+        if (e.kind == BundleEntryKind.citedBy &&
+            e.doc.docPath == 'specs/f01_login/DOMAIN.md')
+          e,
+    ];
+
+    /// Returns the naming line of the one cited-by part of the domain and the
+    /// stdout index line that lists it.
+    ({String naming, String listed}) lineOf(ContextAnswer answer) {
+      final refs = answer.refs!;
+      final entry = domainParts(answer).single;
+      final index = bundleIndex(answer, '/p/b.txt', refsPath: '/p/b.refs.txt');
+      return (
+        naming: refs.text.split('\n')[entry.first - 1],
+        listed: index
+            .split('\n')
+            .singleWhere(
+              (l) => l.startsWith(
+                '- $domainName · ${entry.first}-${entry.last} · ',
+              ),
+            ),
+      );
+    }
+
+    test('a section part names its section and lists as #key', () async {
+      final answer = await splitWith('See [entities]($link#entities).');
+
+      final (:naming, :listed) = lineOf(answer);
+      expect(
+        naming,
+        '==> $domainName · specs/f01_login/DOMAIN.md#entities · cited by <==',
+      );
+      expect(listed, matches(RegExp(r' · cited by \[#entities\]$')));
+      expect(
+        answer.refs!.text,
+        contains('$naming\n  · cited by guide (topic) —: See [entities]'),
+      );
+      final entry = domainParts(answer).single;
+      expect((entry.sectionKey, entry.itemId), ('entities', null));
+    });
+
+    test(
+      'a whole-doc part names the doc alone and lists with no mark',
+      () async {
+        final answer = await splitWith('See [the domain]($link).');
+
+        final (:naming, :listed) = lineOf(answer);
+        expect(
+          naming,
+          '==> $domainName · specs/f01_login/DOMAIN.md · cited by <==',
+        );
+        expect(listed, matches(RegExp(r' · \d+-\d+ · cited by$')));
+        final entry = domainParts(answer).single;
+        expect((entry.sectionKey, entry.itemId), (null, null));
+      },
+    );
+
+    test('a block part lists like an item', () async {
+      final answer = await splitWith('See [an account]($link#account).');
+
+      final (:naming, :listed) = lineOf(answer);
+      expect(
+        naming,
+        '==> $domainName · specs/f01_login/DOMAIN.md#entities · item account · cited by <==',
+      );
+      expect(listed, matches(RegExp(r' · cited by \[account\]$')));
+    });
+
+    test('no cited-by part for a section left unprinted', () async {
+      final answer = await splitWith(
+        'See [entities]($link#entities).',
+        entities: 'N/A — no entities yet\n',
+      );
+
+      expect(domainParts(answer), isEmpty);
+      expect(answer.refs!.text, isNot(contains('cited by guide (topic)')));
+    });
+  });
+
   group('answerBundleFile refuses a path under .specstone/', () {
     test('the config is refused and its bytes stay whole', () async {
       final project = await writeLoginProject();

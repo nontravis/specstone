@@ -235,16 +235,29 @@ Map<int, List<String>> citedLinesAfter(
 /// naming line, then one line per citing link.
 ///
 /// The naming line names the item's doc, its `#<section key>`, and its
-/// `item <ID>`, then ends ` · cited by <==`.
-String citedByPartBlock(IndexedDoc doc, CitedItem item) =>
-    '==> ${nameWithType(doc)} · ${doc.docPath}#${item.sectionKey}'
-    ' · item ${item.item} · cited by <==\n'
-    '${[for (final by in item.by) citedByLineOf(by)].join('\n')}';
+/// `item <ID>` for an item or block, the `#<section key>` alone for a
+/// section, and the doc alone for a whole doc, then ends ` · cited by <==`.
+String citedByPartBlock(IndexedDoc doc, CitedItem item) {
+  final place = switch (item.kind) {
+    CitedKind.item => '${doc.docPath}#${item.sectionKey} · item ${item.item}',
+    CitedKind.section => '${doc.docPath}#${item.sectionKey}',
+    CitedKind.doc => doc.docPath,
+  };
+  return '==> ${nameWithType(doc)} · $place · cited by <==\n'
+      '${[for (final by in item.by) citedByLineOf(by)].join('\n')}';
+}
 
 /// Returns the closing-list name of the part [citedByPartBlock] gives for
-/// [item] of [doc], `<name> (<doc type>) · cited by [<ID>]`.
-String citedByListName(IndexedDoc doc, CitedItem item) =>
-    '${nameWithType(doc)} · cited by [${item.item}]';
+/// [item] of [doc], `<name> (<doc type>) · cited by`, then ` [<ID>]` for an
+/// item or block and ` [#<section key>]` for a section.
+String citedByListName(IndexedDoc doc, CitedItem item) {
+  final mark = switch (item.kind) {
+    CitedKind.item => ' [${item.item}]',
+    CitedKind.section => ' [#${item.sectionKey}]',
+    CitedKind.doc => '',
+  };
+  return '${nameWithType(doc)} · cited by$mark';
+}
 
 /// Returns [items] as the `citedBy` objects of `--json`, one per line: the
 /// place's `kind`, its `item`, and its `section` (the key of a section entry,

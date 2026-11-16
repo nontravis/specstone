@@ -501,7 +501,7 @@ void main() {
       final a = await splitDesign();
 
       final entry = a.refs!.entries.singleWhere(
-        (e) => e.kind == BundleEntryKind.citedBy,
+        (e) => e.kind == BundleEntryKind.citedBy && e.itemId != null,
       );
       final lines = a.refs!.text.split('\n');
       expect(entry.doc.name, 'signup');

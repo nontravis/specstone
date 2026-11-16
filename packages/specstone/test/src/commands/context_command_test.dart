@@ -1457,6 +1457,31 @@ void main() {
       expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
     });
 
+    test('a design bundle puts a section link in a refs part naming the section, and its stdout index line marks #key', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [components](../f01_login/ARCHITECTURE.md#components).\n',
+        },
+      );
+      final text = await saved(project, [story, '--for', 'design', '--out']);
+      final refs = bundleFile(project, 'login-email_login.design.refs.txt');
+      final lines = const LineSplitter().convert(refs.readAsStringSync());
+      final naming = lines.indexOf(
+        '==> login (architecture) · specs/f01_login/ARCHITECTURE.md#components · cited by <==',
+      );
+      expect(naming, isNonNegative);
+      expect(
+        lines[naming + 1],
+        startsWith('  · cited by guide (topic) —: See '),
+      );
+      expect(
+        text.split('\n'),
+        contains(
+          '- login (architecture) · ${naming + 1}-${naming + 2} · cited by [#components]',
+        ),
+      );
+    });
+
     test(
       'the two files hold the docs of the one-file bundle between them',
       () async {

@@ -25,15 +25,16 @@ const _overBudgetSummaryNextStep =
 /// - [cited]: a part a link appended.
 /// - [pattern]: a feature pattern part.
 /// - [names]: a `==> names:` block of a top doc's chain children.
-/// - [citedBy]: the cited-by lines of one item, a part of its own in a split
-///   bundle.
+/// - [citedBy]: the cited-by lines of one item, block, section, or doc, a part
+///   of its own in a split bundle.
 enum BundleEntryKind { doc, cited, pattern, names, citedBy }
 
 /// One doc or part a bundle text prints, with the lines it spans there,
 /// counted from 1: its naming line `first` to its `last` line, and the
 /// header line of each `##` section it prints whole. A cited part names
 /// the `##` section that holds it and its item ID, when it has them, and so
-/// does a cited-by part. A feature pattern part's `doc` is the doc that
+/// does a cited-by part, except that a section's has its `sectionKey` alone
+/// and a doc's neither. A feature pattern part's `doc` is the doc that
 /// lists it and its `featurePattern` the pattern id; null for any other
 /// entry. A names block's `doc` is its top doc.
 typedef BundleEntry = ({
@@ -389,20 +390,19 @@ final class _Piece {
   }
 }
 
-/// Returns the cited-by part of each item or block of [items] of [doc], in the
-/// refs text.
+/// Returns the cited-by part of each item, block, section, or doc of [items]
+/// of [doc], in the refs text.
 List<_Piece> _citedByPieces(IndexedDoc doc, List<CitedItem> items) => [
   for (final item in items)
-    if (item.kind == CitedKind.item)
-      _Piece(
-        citedByPartBlock(doc, item),
-        doc: doc,
-        kind: BundleEntryKind.citedBy,
-        listName: citedByListName(doc, item),
-        inRefs: true,
-        sectionKey: item.sectionKey,
-        itemId: item.item,
-      ),
+    _Piece(
+      citedByPartBlock(doc, item),
+      doc: doc,
+      kind: BundleEntryKind.citedBy,
+      listName: citedByListName(doc, item),
+      inRefs: true,
+      sectionKey: item.sectionKey,
+      itemId: item.item,
+    ),
 ];
 
 String _shownOf(List<_Piece> pieces) =>

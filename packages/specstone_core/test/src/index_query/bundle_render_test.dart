@@ -1648,6 +1648,7 @@ void main() {
           '- login/reset_password (user_story) · summary\n'
           '- login/reset_password/send_reset_link (fr) · summary\n'
           '- password_rules (reference) · summary · cited\n'
+          '- password_rules (reference) · cited by\n'
           'Read a summary doc whole with: specstone context <name> --for design\n',
         ),
       );
@@ -1664,12 +1665,14 @@ void main() {
         '- gnfr (gnfr)',
         '- project (project)',
         '- login/email_login (user_story) · summary',
+        '- login/email_login (user_story) · cited by',
         '- login/email_login/validate_credentials (fr) · summary',
         '- login/email_login/lock_after_failures (fr) · summary',
         '- login/email_login/login_latency (nf) · summary',
         '- login/reset_password (user_story) · summary',
         '- login/reset_password/send_reset_link (fr) · summary',
         '- password_rules (reference) · summary · cited',
+        '- password_rules (reference) · cited by',
       ]);
       expect(
         a.refs!.text,
