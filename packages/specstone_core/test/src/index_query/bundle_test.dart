@@ -415,10 +415,12 @@ void main() {
           pick('login/email_login', BundleMode.design).joinedPaths,
           contains(glossary),
         );
-        expect(pick('login', BundleMode.query).joinedPaths, {
-          glossary,
-          'prds/PROJECT.md',
-        });
+        for (final target in ['login', 'login/email_login']) {
+          expect(pick(target, BundleMode.query).joinedPaths, {
+            glossary,
+            'prds/PROJECT.md',
+          }, reason: target);
+        }
         for (final mode in BundleMode.values) {
           expect(
             pick('login/email_login', mode).docPaths,

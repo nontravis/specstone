@@ -418,11 +418,17 @@ void main() {
         final a = ctxIn(withGlossary, 'login/email_login', mode);
         expect(a.text, contains(whole), reason: mode.wire);
         expect(head.allMatches(a.text), hasLength(1), reason: mode.wire);
-        expect(
-          a.text.indexOf(head),
-          lessThan(a.text.indexOf('==> gnfr (gnfr)')),
-          reason: mode.wire,
-        );
+        for (final later in [
+          '==> gnfr (gnfr)',
+          '==> project (project)',
+          '==> tech_stack (tech_stack)',
+        ]) {
+          expect(
+            a.text.indexOf(head),
+            lessThan(a.text.indexOf(later)),
+            reason: '${mode.wire} $later',
+          );
+        }
         expect(listOf(a), contains('- glossary (glossary)'), reason: mode.wire);
       }
     });
