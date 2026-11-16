@@ -66,9 +66,9 @@ void main() {
     expectSectionsSay(topic, _says);
   });
 
-  test('f03/us07/fr03, f03/us07/fr03/e01: topic caps 400 lines, bans no '
-      'word, and cites its four sources', () {
-    expectSpecLint(topic);
+  test('f03/us07/fr03, f03/us07/fr03/e01: topic caps 300 lines and 50000 '
+      'characters, bans no word, and cites its four sources', () {
+    expectSpecLint(topic, maxLines: 300, maxChars: 50000);
   });
 
   test('template_packs/write_spec_docs_from_software_tech/'

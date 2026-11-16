@@ -65,9 +65,9 @@ void main() {
     expectSectionsSay(auth, _says);
   });
 
-  test('auth caps 400 lines, bans no word, and cites its four '
-      'sources', () {
-    expectSpecLint(auth);
+  test('auth caps 300 lines and 50000 characters, bans no word, and cites its '
+      'four sources', () {
+    expectSpecLint(auth, maxLines: 300, maxChars: 50000);
   });
 
   test('template_packs/write_spec_docs_from_software_tech/'

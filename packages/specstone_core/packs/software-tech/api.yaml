@@ -78,7 +78,8 @@ sections:
       Write what counts as breaking for the feature's operations.
       End with a pointer to the Rollout section of the architecture doc.
 lint:
-  max_lines: 400
+  max_chars: 50000
+  max_lines: 300
 reference:
   - title: OpenAPI Specification 3.2.1
     url: https://spec.openapis.org/oas/v3.2.1.html

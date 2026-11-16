@@ -74,9 +74,9 @@ void main() {
     expectSectionsSay(api, _says);
   });
 
-  test('api caps 400 lines, bans no word, and cites its four '
-      'sources', () {
-    expectSpecLint(api);
+  test('api caps 300 lines and 50000 characters, bans no word, and cites its '
+      'four sources', () {
+    expectSpecLint(api, maxLines: 300, maxChars: 50000);
   });
 
   test('template_packs/write_spec_docs_from_software_tech/'

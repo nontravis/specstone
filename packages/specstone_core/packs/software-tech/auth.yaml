@@ -93,7 +93,8 @@ sections:
       Cover when, where, who, what in the logged fields of each event.
       Never log tokens or passwords; name any other field that is banned from the log.
 lint:
-  max_lines: 400
+  max_chars: 50000
+  max_lines: 300
 reference:
   - title: OWASP ASVS 5.0
     url: https://github.com/OWASP/ASVS/tree/master/5.0/en
