@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
+import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
+    show rewriteMovedFrTraces;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart';
 import 'package:specstone_core/src/document_writing/stale_mentions.dart';
@@ -168,7 +170,7 @@ ReadAnswer answerRename(
       session,
       moves,
       renamed: renamed,
-      recordEdits: records.edits,
+      docEdits: records.edits,
     );
     final mentions = staleMentions(session, moves, namesChange: true);
     if (!dryRun) {
@@ -247,7 +249,10 @@ ReadAnswer answerMove(
       session,
       moves,
       renamed: renamed,
-      recordEdits: records.edits,
+      docEdits: {
+        ...records.edits,
+        if (docType.id == frType) ..._movedFrEdits(session, moving, newParent),
+      },
     );
     final mentions = staleMentions(session, moves, namesChange: true);
     if (!dryRun) {
@@ -267,6 +272,33 @@ ReadAnswer answerMove(
       dryRun: dryRun,
     );
   });
+}
+
+/// Returns, by DocPath before the move, the edit that sets each of [moving]
+/// FRs' own scenario traces for its move into [newParent].
+Map<String, TextEdit> _movedFrEdits(
+  WriteSession session,
+  List<IndexedDoc> moving,
+  IndexedDoc newParent,
+) => {
+  for (final fr in moving)
+    if (session.index.parentOf(fr) case final source?)
+      fr.docPath: (lfText) => rewriteMovedFrTraces(
+        lfText,
+        sourceStory: source.name,
+        isTargetStory: (storyName) =>
+            _namesStory(session, storyName, newParent),
+      ),
+};
+
+/// Whether [storyName], in any name form, names [story] alone.
+bool _namesStory(WriteSession session, String storyName, IndexedDoc story) {
+  try {
+    final named = session.index.resolve('$storyType:$storyName');
+    return named.length == 1 && named.single.docPath == story.docPath;
+  } on IndexFault {
+    return false;
+  }
 }
 
 /// Returns the one doc type [targets] carry, a story or an FR.

@@ -1558,6 +1558,132 @@ void main() {
       });
     });
 
+    group('the traces of a moved fr', () {
+      const dropFolder = '$cartDir/us02_drop_item';
+      const refundFolder = '$payDir/us02_refund';
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      const checkStockFile = '$cartDir/us01_add_item/fr01_check_stock.md';
+      const movedWithin = '$dropFolder/fr02_check_stock.md';
+      const movedAcross = '$refundFolder/fr02_check_stock.md';
+
+      Future<Directory> frProject([Map<String, String> more = const {}]) =>
+          writeNestedProject(extra: {...frExtras, ...more});
+
+      String scenarioFingerprint(Directory root) =>
+          RegExp('S1 ([0-9a-f]{12})')
+              .firstMatch(readDoc(root, checkStockFile))!
+              .group(1)!;
+
+      test("a moved fr's traces resolve after a move within its feature, and it gains no draft", () async {
+        final root = await frProject();
+        final fp = scenarioFingerprint(root);
+        move(root, checkStock, 'shop/cart/drop_item');
+        final moved = readDoc(root, movedWithin);
+        expect(moved, contains('traced_from:\n  - shop/cart/add_item#S1\n'));
+        expect(moved, contains('  - shop/cart/add_item#S1 $fp\n'));
+        expect(moved, isNot(contains('draft')));
+        final report = checkOf(root);
+        for (final kind in [
+          FindingKind.suspect,
+          FindingKind.unconfirmed,
+          FindingKind.confirmedEntryStale,
+          FindingKind.scenarioTraceUnresolved,
+        ]) {
+          expect(spots(report, kind), isEmpty, reason: '$kind');
+        }
+      });
+
+      test(
+        "a moved fr's traces are reported after a move to another feature",
+        () async {
+          final root = await frProject();
+          final fp = scenarioFingerprint(root);
+          move(root, checkStock, 'shop/pay/refund');
+          final moved = readDoc(root, movedAcross);
+          expect(moved, contains('  - shop/cart/add_item#S1 $fp\n'));
+          expect(
+            spots(checkOf(root), FindingKind.scenarioTraceUnresolved),
+            contains(startsWith('$movedAcross:')),
+          );
+        },
+      );
+
+      test(
+        'the api trace cell and confirmed label of a moved fr follow',
+        () async {
+          final root = await frProject();
+          final fp = RegExp('cart/add_item/check_stock ([0-9a-f]{12})')
+              .firstMatch(readDoc(root, shopApi))!
+              .group(1)!;
+          move(root, checkStock, 'shop/pay/refund');
+          final api = readDoc(root, shopApi);
+          expect(api, contains('| pay/refund/check_stock | `addItem` |'));
+          expect(api, contains('  - pay/refund/check_stock $fp\n'));
+          expect(api, isNot(contains('cart/add_item/check_stock')));
+        },
+      );
+
+      test('links into and out of a moved fr follow', () async {
+        final root = await frProject();
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [stock check](../us01_add_item/fr01_check_stock.md).\n',
+        );
+        appendTo(
+          root,
+          checkStockFile,
+          '\nSee [reserve](fr02_reserve_stock.md).\n',
+        );
+        move(root, checkStock, 'shop/pay/refund');
+        expect(
+          readDoc(root, cartDrop),
+          contains(
+            '[stock check](../../f02_pay/us02_refund/fr02_check_stock.md)',
+          ),
+        );
+        expect(
+          readDoc(root, movedAcross),
+          contains(
+            '[reserve](../../f01_cart/us01_add_item/fr02_reserve_stock.md)',
+          ),
+        );
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test('a code comment naming a moved fr is listed and kept', () async {
+        const code =
+            '/// Checks `shop/cart/add_item/check_stock`.\nclass Shop {}\n';
+        final root = await frProject({'app/lib/shop.dart': code});
+        final answer = move(root, checkStock, 'shop/pay/refund');
+        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
+        expect(answer.json['mentions'], [
+          {
+            'path': 'app/lib/shop.dart',
+            'line': 1,
+            'mention': 'shop/cart/add_item/check_stock',
+          },
+        ]);
+      });
+
+      test(
+        'an fr already under the story keeps its traces while another moves',
+        () async {
+          const held =
+              '---\ntraced_from:\n  - S1\n  - shop/cart/add_item#S2\n'
+              'confirmed:\n  - S1 00c22a7251ca\n---\n\n# Drop a line\n';
+          final root = await frProject({'docs/$dropFr': held});
+          final before = readDoc(root, dropFr);
+          move(root, checkStock, 'shop/cart/drop_item');
+          expect(readDoc(root, '$dropFolder/fr01_drop_line.md'), before);
+          expect(
+            readDoc(root, movedWithin),
+            contains('  - shop/cart/add_item#S1\n'),
+          );
+        },
+      );
+    });
+
     group('several stories in one call', () {
       const dropFolder = 'prds/features/f02_shop/f01_cart/us02_drop_item';
       const addLanded = 'prds/features/f02_shop/f02_pay/us04_add_item';

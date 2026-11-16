@@ -93,6 +93,50 @@ String? rewriteLinkLabels(
   return result == lfText ? null : result;
 }
 
+/// Returns the FR [lfText] with its `traced_from` and `confirmed` scenario
+/// entries set for a move out of [sourceStory]; null when nothing changes.
+///
+/// A bare `S<N>` becomes `<sourceStory>#S<N>`; an entry whose story part
+/// [isTargetStory] accepts, the story the FR lands in, becomes bare. Every
+/// other entry and each fingerprint keeps its text and list shape.
+String? rewriteMovedFrTraces(
+  String lfText, {
+  required String sourceStory,
+  required bool Function(String storyName) isTargetStory,
+}) {
+  String? newLabel(String label) =>
+      _movedFrLabel(label, sourceStory, isTargetStory);
+  final doc = Doc.parse(lfText);
+  var result = _withRenamedBlock(
+    lfText,
+    doc,
+    _tracedFromKey,
+    (block) => renameKeyBlockValues(block.text, block.key, newLabel),
+  );
+  result = _withRenamedBlock(
+    result,
+    doc,
+    _confirmedKey,
+    (block) => _renameEntries(block, newLabel),
+  );
+  return result == lfText ? null : result;
+}
+
+/// Returns the scenario label [label] becomes when its FR leaves
+/// [sourceStory], or null.
+String? _movedFrLabel(
+  String label,
+  String sourceStory,
+  bool Function(String storyName) isTargetStory,
+) {
+  if (readLinkLabel(label) case ScenarioLabel(:final ref)) {
+    final story = ref.storyName;
+    if (story == null) return '$sourceStory#${ref.number.written}';
+    return isTargetStory(story) ? ref.number.written : null;
+  }
+  return null;
+}
+
 /// Returns [lfText] with the step and FR trace lines that name a renamed doc
 /// set to the new name.
 String _withRewrittenBody(

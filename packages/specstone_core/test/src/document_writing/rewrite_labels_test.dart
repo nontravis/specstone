@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
+import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
@@ -583,6 +584,7 @@ void main() {
       contains(FindingKind.scenarioTraceUnresolved),
     );
   });
+  _movedFrTraceTests();
 }
 
 const _resetStory = 'prds/features/f01_login/us02_reset_password/USER_STORY.md';
@@ -648,3 +650,76 @@ Set<FindingKind> _frKinds(Directory root, {String docPath = loginFr}) => {
   for (final f in checkOf(root, docPath: docPath).findings)
     if (_frKindSet.contains(f.kind)) f.kind,
 };
+
+void _movedFrTraceTests() {
+  group('rewriteMovedFrTraces', () {
+    const source = 'shop/cart/add_item';
+    const landing = 'shop/cart/drop_item';
+    const fpOne = '00c22a7251ca';
+    const fpTwo = '11d33b8362db';
+
+    bool isLanding(String story) =>
+        story == landing || story == 'cart/drop_item' || story == 'drop_item';
+
+    String? rewrite(String frontmatter) => rewriteMovedFrTraces(
+      '---\n${frontmatter}verify_method: test\n---\n\n# Check\n',
+      sourceStory: source,
+      isTargetStory: isLanding,
+    );
+
+    test("a moved fr's bare scenario entries gain the name of the story the fr came from, each fingerprint unchanged", () {
+      expect(
+        rewrite(
+          'traced_from:\n  - S1\n  - S3\n'
+          'confirmed:\n  - S1 $fpOne\n  - S3 $fpTwo\n',
+        ),
+        '---\ntraced_from:\n  - $source#S1\n  - $source#S3\n'
+        'confirmed:\n  - $source#S1 $fpOne\n  - $source#S3 $fpTwo\n'
+        'verify_method: test\n---\n\n# Check\n',
+      );
+    });
+
+    test(
+      'an entry naming the landing story by a short or typed name becomes bare',
+      () {
+        expect(
+          rewrite(
+            'traced_from:\n  - $landing#S2\n  - cart/drop_item#S2\n'
+            '  - drop_item#S4\n'
+            'confirmed:\n  - cart/drop_item#S2 $fpOne\n',
+          ),
+          '---\ntraced_from:\n  - S2\n  - S2\n  - S4\n'
+          'confirmed:\n  - S2 $fpOne\n'
+          'verify_method: test\n---\n\n# Check\n',
+        );
+      },
+    );
+
+    test('an entry naming a third story is untouched', () {
+      expect(
+        rewrite(
+          'traced_from:\n  - shop/cart/keep_item#S1\n'
+          'confirmed:\n  - shop/cart/keep_item#S1 $fpOne\n',
+        ),
+        isNull,
+      );
+    });
+
+    test('flow-list and quoted entries keep their list shape, and an fr with no traced_from changes only confirmed', () {
+      expect(
+        rewrite(
+          "traced_from: [S1, 'S2', $landing#S3]\n"
+          "confirmed: [S1 $fpOne, 'S2 $fpTwo']\n",
+        ),
+        "---\ntraced_from: [$source#S1, '$source#S2', S3]\n"
+        "confirmed: [$source#S1 $fpOne, '$source#S2 $fpTwo']\n"
+        'verify_method: test\n---\n\n# Check\n',
+      );
+      expect(
+        rewrite('confirmed:\n  - S1 $fpOne\n'),
+        '---\nconfirmed:\n  - $source#S1 $fpOne\n'
+        'verify_method: test\n---\n\n# Check\n',
+      );
+    });
+  });
+}
