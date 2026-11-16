@@ -31,6 +31,8 @@ import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc;
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
+    show LabelTree;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';

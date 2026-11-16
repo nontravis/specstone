@@ -20,6 +20,8 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
     show LabelConversion;
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
+    show LabelTree;
 
 final _numberedTitle = RegExp(r'^[A-Z][A-Z0-9]*-\d+ — ');
 final _humanLine = RegExp(r'^- \*\*Human:\*\* (.+)$', multiLine: true);

@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';

@@ -179,7 +179,7 @@ final _allowed = <_Allowed>[
     'Upgrade reader: finds a frontmatter key line by name.',
   ),
   _core(
-    'setup_migration/label_pass.dart',
+    'setup_migration/models/label_tree.dart',
     r"""RegExp( r'^[ \t]*(?:>[ \t]*)*(?:(?:[-*+]|\d+[.)])[ \t]+)?(?:#{1,6}[ \t]+)?' r'(?:\|[ \t]*)?(?:\*\*|__|`)?' '${RegExp.escape(itemId)}(?![A-Za-z0-9])'""",
     'Label pass reader: finds the line that declares an item ID.',
   ),
@@ -373,12 +373,12 @@ final _rules = <_Rule>[
         reason: 'Legacy FR file path in a legacy tree, no label text.',
       ),
       (
-        file: _lib('setup_migration/label_pass.dart'),
+        file: _lib('setup_migration/models/label_tree.dart'),
         snippet: r"""RegExp(r'^us(\d+)_([a-z0-9_]+)$'""",
         reason: 'Story folder name of a doc path, no label text.',
       ),
       (
-        file: _lib('setup_migration/label_pass.dart'),
+        file: _lib('setup_migration/models/label_tree.dart'),
         snippet: r"""RegExp(r'^fr(\d+)_([a-z0-9_]+)\.md$'""",
         reason: 'FR file name of a doc path, no label text.',
       ),

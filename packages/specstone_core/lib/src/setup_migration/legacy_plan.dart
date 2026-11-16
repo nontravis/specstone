@@ -31,7 +31,7 @@ import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/code_root_inference.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart'
-    show LabelTree, numberLabelsPlanLine, withLabelAnchorsMoved;
+    show numberLabelsPlanLine, withLabelAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
@@ -39,6 +39,8 @@ import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
     show KeptLabel;
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
     show LabelDoc, LegacyLabelDoc;
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
+    show LabelTree;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';

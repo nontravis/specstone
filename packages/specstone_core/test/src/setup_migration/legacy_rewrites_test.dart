@@ -1,12 +1,12 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/rendering/line_ending.dart';
-import 'package:specstone_core/src/setup_migration/label_pass.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
