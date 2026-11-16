@@ -101,7 +101,10 @@ List<SiblingEntry> siblingsOnDisk(
 /// Returns the spec folder moves that follow [docType]'s doc from
 /// [oldValues] to [newValues], each folder paired with the one the same child
 /// doc type holds after the move, sorted by old folder; a folder that does
-/// not change is left out. [depth] is the nesting depth of the doc.
+/// not change is left out.
+///
+/// - [depth]: the nesting depth of the doc before the move.
+/// - [newDepth]: its nesting depth after the move; null keeps [depth].
 ///
 /// A per-target child's folder moves once per name of [targetNames], as
 /// [specFoldersOf] reads it.
@@ -111,11 +114,16 @@ List<PathMove> specFolderMovesOf(
   List<String> oldValues,
   List<String> newValues, {
   int depth = 0,
+  int? newDepth,
   List<String> targetNames = const [],
 }) {
-  final shape = DocPathShape.of(docType, set, depth: depth);
-  if (shape == null) return const [];
-  Map<(String, String?), String> foldersAt(List<String> values) => {
+  final oldShape = DocPathShape.of(docType, set, depth: depth);
+  final newShape = DocPathShape.of(docType, set, depth: newDepth ?? depth);
+  if (oldShape == null || newShape == null) return const [];
+  Map<(String, String?), String> foldersAt(
+    DocPathShape shape,
+    List<String> values,
+  ) => {
     for (final (child, folder, target) in specChildrenOf(
       set,
       docType,
@@ -125,9 +133,12 @@ List<PathMove> specFolderMovesOf(
     ))
       (child.id, target): folder,
   };
-  final newFolders = foldersAt(newValues);
+  final newFolders = foldersAt(newShape, newValues);
   final moves = <String, PathMove>{};
-  for (final MapEntry(:key, value: from) in foldersAt(oldValues).entries) {
+  for (final MapEntry(:key, value: from) in foldersAt(
+    oldShape,
+    oldValues,
+  ).entries) {
     final to = newFolders[key];
     if (to == null || to == from) continue;
     moves[from] = (from: from, to: to);

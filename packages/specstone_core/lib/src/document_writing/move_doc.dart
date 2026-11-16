@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/item_mentions.dart';
+import 'package:specstone_core/src/document_writing/move_feature.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
@@ -243,7 +244,7 @@ ReadAnswer answerMove(
     );
   }
   if (docType.id == featureType) {
-    throw StateError('the ${docType.id} move is not wired yet');
+    return _answerFeatureMove(session, targets, under: under, dryRun: dryRun);
   }
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
@@ -288,6 +289,60 @@ ReadAnswer answerMove(
       MoveJournal([
         for (final move in moves)
           MoveStep(_stepPath(session, move.from), _stepPath(session, move.to)),
+        ...rewrites,
+        ...records.creates,
+      ]).run(session.journalTarget);
+    }
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      created: records.creates,
+      mentions: mentions,
+      dryRun: dryRun,
+    );
+  });
+}
+
+/// Moves the [features] under the feature [under] names, or among the top
+/// features when it is null, with their spec and record folders.
+///
+/// The moves are staged, since a folder may land where another move leaves.
+/// Throws the faults of [WriteSession.parentTarget] and [planFeatureMoves].
+ReadAnswer _answerFeatureMove(
+  WriteSession session,
+  List<IndexedDoc> features, {
+  required String? under,
+  required bool dryRun,
+}) {
+  final newParent = under == null
+      ? null
+      : session.parentTarget(under, featureType);
+  // Refuse before the lock; the numbers are taken again inside it, since a
+  // concurrent `new` can claim one in between.
+  if (planFeatureMoves(session, features, newParent: newParent).isEmpty) {
+    return _answerFor(session, const [], const [], dryRun: dryRun);
+  }
+  return session.locked(() {
+    final moves = planFeatureMoves(session, features, newParent: newParent);
+    session.journalTarget.requireTrusted();
+    final renamed = renamedNamesOf(session, moves);
+    final records = planRecordRewrites(session, renamed);
+    final rewrites = planRewrites(
+      session,
+      moves,
+      renamed: renamed,
+      docEdits: records.edits,
+    );
+    final mentions = staleMentions(
+      session,
+      moves,
+      namesChange: true,
+      docWrites: rewrites,
+    );
+    if (!dryRun) {
+      MoveJournal([
+        ..._stageSteps(session, moves),
         ...rewrites,
         ...records.creates,
       ]).run(session.journalTarget);
@@ -567,7 +622,7 @@ List<PathMove> _landingMoves(
         (throw StateError('${target.docPath} carries no slug'));
     final first = firstOfSlug[slug];
     if (first != null) {
-      throw _existsFault(docType, first.docPath, first.docPath);
+      throw existsFault(docType, first.docPath, first.docPath);
     }
     firstOfSlug[slug] = target;
     final newDocPath = landedShape.build([
@@ -709,7 +764,7 @@ void _checkNoClash(
       ...shape.segments.skip(shape.ownIndex + 1),
     ].join('/');
     if (session.fileOf(docPath).existsSync()) {
-      throw _existsFault(docType, docPath, docPath);
+      throw existsFault(docType, docPath, docPath);
     }
   }
   for (final move in moves) {
@@ -717,14 +772,16 @@ void _checkNoClash(
     if (FileSystemEntity.typeSync(landing) == FileSystemEntityType.notFound) {
       continue;
     }
-    throw _existsFault(docType, newDocPath, move.to);
+    throw existsFault(docType, newDocPath, move.to);
   }
 }
 
 String _withoutClosingSlash(String path) =>
     path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 
-WriteFault _existsFault(MergedDocType docType, String named, String file) =>
+/// Returns the `doc_exists` fault naming the [docType] doc at [named], its
+/// envelope `file` [file].
+WriteFault existsFault(MergedDocType docType, String named, String file) =>
     WriteFault(
       WriteFaultCode.docExists,
       'a ${docType.id} named ${docNameOf(named, docType)} exists',

@@ -732,6 +732,50 @@ void main() {
     );
   });
 
+  group('feature targets', () {
+    const cartFolder = 'prds/features/f02_shop/f01_cart';
+    const other = 'prds/features/f03_other';
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test('a feature moves under another feature and the reply matches the '
+        'feature-target response example', () async {
+      final root = await writeNestedProject(
+        without: {'docs/$cartDomain', 'docs/$shopApi'},
+        extra: {
+          'docs/$other/FEATURE.md': '# Other\n',
+          'docs/$other/f01_ship/FEATURE.md': '# Ship\n',
+          'docs/$other/f02_track/FEATURE.md': '# Track\n',
+        },
+      );
+      docFile(root, shopFeature).writeAsStringSync(
+        '\nSee [Cart](f01_cart/FEATURE.md).\n',
+        mode: FileMode.append,
+      );
+      final result = await Process.run(
+        binary,
+        ['move', 'feature:shop/cart', '--under', 'other'],
+        workingDirectory: root.path,
+        environment: {'HOME': testHome().path, 'USERPROFILE': testHome().path},
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stderr, isEmpty);
+      expect(
+        result.stdout,
+        'moved $cartFolder/ to $other/f03_cart/\n'
+        'rewrote $shopFeature\n',
+      );
+      expect(
+        readDoc(root, shopFeature),
+        contains('[Cart](../f03_other/f03_cart/FEATURE.md)'),
+      );
+      expect(docFile(root, '$other/f03_cart/FEATURE.md').existsSync(), isTrue);
+    });
+  });
+
   test('move takes a suffix parent', () async {
     final root = await writeNestedProject();
     final (:runner, :out, :err) = writeRunner(root);
