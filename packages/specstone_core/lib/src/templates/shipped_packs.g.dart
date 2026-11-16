@@ -1496,7 +1496,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'MDUgUmV2MgogICAgdXJsOiBodHRwczovL3d3dy5uYXNhLmdvdi9yZWZlcmVuY2Uv'
       'c3lzdGVtcy1lbmdpbmVlcmluZy1oYW5kYm9vay8KICAgIGxvY2F0b3I6IEFwcGVu'
       'ZGl4IEMgYW5kIHNlY3Rpb24gNC4yCg==',
-  'prd-core/pack.yaml': 'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4xNi4wCg==',
+  'prd-core/pack.yaml': 'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4xNy4wCg==',
   'prd-core/persona.yaml':
       'aWQ6IHBlcnNvbmEKZGVzY3JpcHRpb246IHwtCiAgQSBwZXJzb25hOiBvbmUgYXJj'
       'aGV0eXBlIG9mIGEgaHVtYW4gUm9sZSwgZGVzY3JpYmVkIGJ5IGl0cyBnb2Fscywg'
@@ -2890,17 +2890,17 @@ const Map<String, String> shippedPackFilesBase64 = {
       'djEuMC4yL2Nsb3VkZXZlbnRzL3NwZWMubWQKICAgIGxvY2F0b3I6IFJFUVVJUkVE'
       'IEF0dHJpYnV0ZXMgKGlkLCBzb3VyY2UsIHR5cGUpCg==',
   'software-tech/pack.yaml':
-      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjkuMApleHRlbmRzOiBwcmQt'
-      'Y29yZQptaWdyYXRpb25zOgogIC0gZnJvbTogMS40LjAKICAgIHN0ZXBzOgogICAg'
-      'ICAtIG1vdmVfdG9fcmVjb3JkOgogICAgICAgICAgZG9jX3R5cGVzOiBbdXNlcl9z'
-      'dG9yeSwgZnJdCiAgICAgICAgICBmaWVsZHM6IFtzdGF0dXMsIGltcGxlbWVudHNd'
-      'CiAgICAgICAgICB0bzogaW1wbGVtZW50YXRpb24KICAtIGZyb206IDEuNi4wCiAg'
-      'ICBzdGVwczoKICAgICAgLSBzdGFtcF9jb2RlX2ZpbmdlcnByaW50czoge30KICAt'
-      'IGZyb206IDEuNy4wCiAgICBzdGVwczoKICAgICAgLSBtb3ZlX2ZpbGU6CiAgICAg'
-      'ICAgICBkb2NfdHlwZTogaW1wbGVtZW50YXRpb24KICAgICAgICAgIGZyb206IHNw'
-      'ZWNzL2Z7bm59X3tzbHVnfS9JTVBMRU1FTlRBVElPTi5tZAogICAgICAgICAgdG86'
-      'IC5zcGVjc3RvbmUvcmVjb3Jkcy9me25ufV97c2x1Z30vSU1QTEVNRU5UQVRJT04u'
-      'bWQKICAgICAgLSByZXN0YW1wX2NvZGVfZmluZ2VycHJpbnRzOiB7fQo=',
+      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjEwLjAKZXh0ZW5kczogcHJk'
+      'LWNvcmUKbWlncmF0aW9uczoKICAtIGZyb206IDEuNC4wCiAgICBzdGVwczoKICAg'
+      'ICAgLSBtb3ZlX3RvX3JlY29yZDoKICAgICAgICAgIGRvY190eXBlczogW3VzZXJf'
+      'c3RvcnksIGZyXQogICAgICAgICAgZmllbGRzOiBbc3RhdHVzLCBpbXBsZW1lbnRz'
+      'XQogICAgICAgICAgdG86IGltcGxlbWVudGF0aW9uCiAgLSBmcm9tOiAxLjYuMAog'
+      'ICAgc3RlcHM6CiAgICAgIC0gc3RhbXBfY29kZV9maW5nZXJwcmludHM6IHt9CiAg'
+      'LSBmcm9tOiAxLjcuMAogICAgc3RlcHM6CiAgICAgIC0gbW92ZV9maWxlOgogICAg'
+      'ICAgICAgZG9jX3R5cGU6IGltcGxlbWVudGF0aW9uCiAgICAgICAgICBmcm9tOiBz'
+      'cGVjcy9me25ufV97c2x1Z30vSU1QTEVNRU5UQVRJT04ubWQKICAgICAgICAgIHRv'
+      'OiAuc3BlY3N0b25lL3JlY29yZHMvZntubn1fe3NsdWd9L0lNUExFTUVOVEFUSU9O'
+      'Lm1kCiAgICAgIC0gcmVzdGFtcF9jb2RlX2ZpbmdlcnByaW50czoge30K',
   'software-tech/patterns/audit_log.yaml':
       'aWQ6IGF1ZGl0X2xvZwpkZXNjcmlwdGlvbjogV2hvIGRpZCB3aGF0IGFuZCB3aGVu'
       'LCBrZXB0IGFuZCBwcm90ZWN0ZWQuCml0ZW1zOgogIC0gaWQ6IHNpZ25faW5fZXZl'

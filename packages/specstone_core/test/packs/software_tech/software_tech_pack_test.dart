@@ -23,7 +23,7 @@ void main() {
         file: 'packs/software-tech/pack.yaml',
       );
       expect(manifest.name, 'software-tech');
-      expect(manifest.version.toString(), '1.9.0');
+      expect(manifest.version.toString(), '1.10.0');
       expect(manifest.extendsPack, 'prd-core');
     });
 

@@ -45,8 +45,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.9.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.9.0');
+  test('the shipped software-tech pack is 1.10.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.10.0');
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -608,15 +608,15 @@ void main() {
     );
   });
 
-  test('the shipped prd-core pack is 1.16.0, so the readability guide lines '
+  test('the shipped prd-core pack is 1.17.0, so the readability guide lines '
       'ride it', () {
-    expect(shippedPackVersions()['prd-core'], '1.16.0');
+    expect(shippedPackVersions()['prd-core'], '1.17.0');
   });
 
   test(
-    'the shipped prd-core pack is 1.16.0, so the guide-rule keys ride it',
+    'the shipped prd-core pack is 1.17.0, so the guide-rule keys ride it',
     () {
-      expect(shippedPackVersions()['prd-core'], '1.16.0');
+      expect(shippedPackVersions()['prd-core'], '1.17.0');
     },
   );
 

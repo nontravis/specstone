@@ -22,7 +22,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.16.0');
+      expect(manifest.version.toString(), '1.17.0');
       expect(manifest.extendsPack, isNull);
     });
 
