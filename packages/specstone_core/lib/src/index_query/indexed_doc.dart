@@ -29,6 +29,9 @@ const storyType = 'user_story';
 /// The id of the `fr` doc type.
 const frType = 'fr';
 
+/// The id of the `nf` doc type.
+const nfType = 'nf';
+
 /// Returns the SHA-256 of [bytes] as lowercase hex.
 String contentHashOf(List<int> bytes) => sha256.convert(bytes).toString();
 

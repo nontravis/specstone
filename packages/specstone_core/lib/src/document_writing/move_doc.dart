@@ -16,8 +16,6 @@ import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
-import 'package:specstone_core/src/index_query/override_chain.dart'
-    show nfTypeId;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -239,7 +237,7 @@ ReadAnswer answerMove(
       'move takes --target only with item targets',
     );
   }
-  if (docType.id == nfTypeId || docType.id == featureType) {
+  if (docType.id == featureType) {
     throw StateError('the ${docType.id} move is not wired yet');
   }
   final parentTypeId =
@@ -466,7 +464,7 @@ List<MergedDocType> _requireMovable(
   WriteSession session,
   List<IndexedDoc> targets,
 ) {
-  const movable = {storyType, frType, nfTypeId, featureType};
+  const movable = {storyType, frType, nfType, featureType};
   final types = [
     for (final target in targets)
       session.index.typeOf(target) ??
@@ -477,7 +475,7 @@ List<MergedDocType> _requireMovable(
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
       '${type.id} docs cannot move; move takes a $storyType, an $frType, an '
-      '$nfTypeId, or a $featureType',
+      '$nfType, or a $featureType',
     );
   }
   return types;

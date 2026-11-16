@@ -685,6 +685,53 @@ void main() {
     );
   });
 
+  group('nf targets', () {
+    const cartFolder = 'prds/features/f02_shop/f01_cart';
+    const loadFastFile = '$addItemFolder/nf01_load_fast.md';
+    const keepLightFile = '$cartFolder/us02_drop_item/nf01_keep_light.md';
+    const movedFile = '$cartFolder/us02_drop_item/nf02_load_fast.md';
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test(
+      'an nf moves under a sibling story and the reply names the file paths',
+      () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$loadFastFile': '# Load fast\n',
+            'docs/$keepLightFile': '# Keep light\n',
+          },
+        );
+        final result = await Process.run(
+          binary,
+          [
+            'move',
+            'nf:shop/cart/add_item/load_fast',
+            '--under',
+            'shop/cart/drop_item',
+          ],
+          workingDirectory: root.path,
+          environment: {
+            'HOME': testHome().path,
+            'USERPROFILE': testHome().path,
+          },
+        );
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(result.stderr, isEmpty);
+        expect(
+          result.stdout,
+          startsWith('moved $loadFastFile to $movedFile\n'),
+        );
+        expect(docFile(root, movedFile).existsSync(), isTrue);
+        expect(docFile(root, loadFastFile).existsSync(), isFalse);
+        expect(docFile(root, keepLightFile).existsSync(), isTrue);
+      },
+    );
+  });
+
   test('move takes a suffix parent', () async {
     final root = await writeNestedProject();
     final (:runner, :out, :err) = writeRunner(root);

@@ -1746,6 +1746,339 @@ void main() {
       });
     });
 
+    group('nf targets', () {
+      const addFolder = '$cartDir/us01_add_item';
+      const dropFolder = '$cartDir/us02_drop_item';
+      const refundFolder = '$payDir/us02_refund';
+      const loadFast = 'nf:shop/cart/add_item/load_fast';
+      const stayLight = 'nf:shop/cart/add_item/stay_light';
+      const keepLight = 'nf:shop/cart/drop_item/keep_light';
+      const checkStock = 'fr:shop/cart/add_item/check_stock';
+      const checkStockFile = '$addFolder/fr01_check_stock.md';
+      const stayLightFile = '$addFolder/nf02_stay_light.md';
+      const keepLightFile = '$dropFolder/nf01_keep_light.md';
+      const tightened =
+          '---\nkind: tighten\noverrides: NFR-P01\nverify_method: test\n'
+          'confirmed:\n  - NFR-P01 0123456789ab\n---\n\n# Load fast\n\n'
+          '## Statement\nThe system shall load within 1 s.\n\n'
+          '## Verification\nTest: a timed load.\n';
+      const added =
+          '---\nkind: add\ntraced_from:\n  - PG-02\nverify_method: test\n'
+          '---\n\n# Stay light\n\n## Statement\nThe system shall stay light.\n';
+      const nfExtras = {
+        'docs/$addNf': tightened,
+        'docs/$stayLightFile': added,
+        'docs/$keepLightFile': '# Keep light\n',
+      };
+
+      Future<Directory> nfProject([Map<String, String> more = const {}]) =>
+          writeNestedProject(extra: {...nfExtras, ...more});
+
+      test(
+        'an nf lands last in the story and its old siblings keep their numbers',
+        () async {
+          final root = await nfProject();
+          final answer = move(root, loadFast, 'shop/cart/drop_item');
+          expect(
+            answer.text,
+            startsWith('moved $addNf to $dropFolder/nf02_load_fast.md\n'),
+          );
+          expect(hasDoc(root, '$dropFolder/nf02_load_fast.md'), isTrue);
+          expect(hasDoc(root, keepLightFile), isTrue);
+          expect(hasDoc(root, stayLightFile), isTrue);
+          expect(hasDoc(root, addNf), isFalse);
+          expect(
+            readDoc(root, '$dropFolder/nf02_load_fast.md'),
+            isNot(contains('draft')),
+          );
+        },
+      );
+
+      test('several nfs from two stories land in order, in one run', () async {
+        final root = await nfProject();
+        final answer = moveAll(root, [loadFast, keepLight], 'shop/pay/refund');
+        expect(answer.json['moved'], [
+          {'from': addNf, 'to': '$refundFolder/nf01_load_fast.md'},
+          {'from': keepLightFile, 'to': '$refundFolder/nf02_keep_light.md'},
+        ]);
+        expect(
+          answer.text.split('\n').where((l) => l.startsWith('moved ')),
+          hasLength(2),
+        );
+        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isTrue);
+        expect(hasDoc(root, '$refundFolder/nf02_keep_light.md'), isTrue);
+      });
+
+      test("an nf's kind and overrides values stay as written", () async {
+        final root = await nfProject();
+        final tightenedBefore = readDoc(root, addNf);
+        final addedBefore = readDoc(root, stayLightFile);
+        moveAll(root, [loadFast, stayLight], 'shop/pay/refund');
+        final moved = readDoc(root, '$refundFolder/nf01_load_fast.md');
+        expect(moved, tightenedBefore);
+        expect(moved, contains('kind: tighten\noverrides: NFR-P01\n'));
+        expect(moved, contains('  - NFR-P01 0123456789ab\n'));
+        expect(readDoc(root, '$refundFolder/nf02_stay_light.md'), addedBefore);
+      });
+
+      test('a slug the story holds, a slug two targets share, or a taken path is doc_exists', () async {
+        const heldFile = '$dropFolder/nf03_load_fast.md';
+        final held = await nfProject({'docs/$heldFile': '# Load fast\n'});
+        expect(
+          () => move(held, loadFast, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'a nf named shop/cart/drop_item/load_fast exists',
+                )
+                .having((f) => f.file, 'file', heldFile),
+          ),
+        );
+        expect(hasDoc(held, addNf), isTrue);
+
+        const twinFile = '$payDir/us01_card/nf01_load_fast.md';
+        final twins = await nfProject({'docs/$twinFile': '# Load fast\n'});
+        expect(
+          () => moveAll(twins, [
+            loadFast,
+            'nf:shop/pay/card/load_fast',
+          ], 'shop/pay/refund'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', addNf),
+          ),
+        );
+        expect(hasDoc(twins, twinFile), isTrue);
+
+        const landing = '$dropFolder/nf02_load_fast.md';
+        final taken = await nfProject({'docs/$landing/keep.md': '# Keep\n'});
+        expect(
+          () => move(taken, loadFast, 'shop/cart/drop_item'),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.docExists)
+                .having((f) => f.file, 'file', landing),
+          ),
+        );
+        expect(hasDoc(taken, addNf), isTrue);
+      });
+
+      test(
+        'an nf already in place stays, and one named twice moves once',
+        () async {
+          final root = await nfProject();
+          final answer = moveAll(root, [
+            keepLight,
+            loadFast,
+            loadFast,
+          ], 'shop/cart/drop_item');
+          expect(answer.json['moved'], [
+            {'from': addNf, 'to': '$dropFolder/nf02_load_fast.md'},
+          ]);
+          expect(hasDoc(root, keepLightFile), isTrue);
+
+          final settled = moveAll(root, [keepLight], 'shop/cart/drop_item');
+          expect(settled.text, isEmpty);
+          expect(settled.json['moved'], isEmpty);
+        },
+      );
+
+      test(
+        'an nf beside a spec doc is doc_type_not_movable before the mixed test',
+        () async {
+          final root = await nfProject();
+          for (final targets in [
+            [loadFast, 'architecture:shop'],
+            ['architecture:shop', loadFast],
+          ]) {
+            expect(
+              () => moveAll(root, targets, 'shop/pay/refund'),
+              throwsA(
+                isA<WriteFault>()
+                    .having(
+                      (f) => f.code,
+                      'code',
+                      WriteFaultCode.docTypeNotMovable,
+                    )
+                    .having(
+                      (f) => f.message,
+                      'message',
+                      'architecture docs cannot move; move takes a user_story, '
+                          'an fr, an nf, or a feature',
+                    ),
+              ),
+              reason: '$targets',
+            );
+          }
+          expect(hasDoc(root, addNf), isTrue);
+          expect(hasDoc(root, shopArchitecture), isTrue);
+        },
+      );
+
+      test('an nf beside an fr of the same story is refused and nothing moves, in both target orders', () async {
+        final root = await nfProject();
+        const mixes = {
+          'nf and fr': [loadFast, checkStock],
+          'fr and nf': [checkStock, loadFast],
+        };
+        for (final MapEntry(key: pair, value: targets) in mixes.entries) {
+          expect(
+            () => moveAll(root, targets, 'shop/pay/refund'),
+            throwsA(
+              isA<IndexFault>()
+                  .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                  .having(
+                    (f) => f.message,
+                    'message',
+                    'move takes one doc type per call, not $pair',
+                  ),
+            ),
+            reason: pair,
+          );
+        }
+        expect(hasDoc(root, addNf), isTrue);
+        expect(hasDoc(root, checkStockFile), isTrue);
+        expect(hasDoc(root, '$refundFolder/nf01_load_fast.md'), isFalse);
+      });
+
+      test('top or a code target on an nf move is argument_invalid', () async {
+        final root = await nfProject();
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(s, [loadFast], under: null, top: true),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move takes --top only with feature targets',
+                ),
+          ),
+        );
+        expect(
+          () => writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              [loadFast],
+              under: 'shop/cart/drop_item',
+              codeTarget: 'server',
+            ),
+          ),
+          throwsA(
+            isA<IndexFault>()
+                .having((f) => f.code, 'code', IndexFaultCode.argumentInvalid)
+                .having(
+                  (f) => f.message,
+                  'message',
+                  'move takes --target only with item targets',
+                ),
+          ),
+        );
+        expect(hasDoc(root, addNf), isTrue);
+      });
+
+      test(
+        'a dry run prints the nf moves and writes nothing, journal included',
+        () async {
+          final root = await nfProject();
+          writeIn(root, (s) => s.target('feature:shop'));
+          Map<String, List<int>> tree() => {
+            for (final MapEntry(:key, :value) in treeBytes(root).entries)
+              if (!key.contains('.specstone/index.sqlite')) key: value,
+          };
+          final before = tree();
+          final answer = writeIn(
+            root,
+            (s) => answerMove(
+              s,
+              [loadFast],
+              under: 'shop/cart/drop_item',
+              dryRun: true,
+            ),
+          );
+          expect(
+            answer.text,
+            startsWith('moves $addNf to $dropFolder/nf02_load_fast.md\n'),
+          );
+          expect(answer.text, endsWith('dry run: nothing moved\n'));
+          expect(answer.json['dryRun'], isTrue);
+          expect(tree(), before);
+        },
+      );
+
+      test('a records project keeps every record byte', () async {
+        final root = await nfProject(nestedRecords());
+        Map<String, List<int>> records() => {
+          for (final MapEntry(:key, :value) in treeBytes(root).entries)
+            if (key.startsWith('.specstone/records/')) key: value,
+        };
+        final before = records();
+        expect(before, isNotEmpty);
+        move(root, loadFast, 'shop/pay/refund');
+        expect(records(), before);
+      });
+
+      test('links, doc-name mentions, and link texts follow a moved nf, and a code mention prints as mentions', () async {
+        const code =
+            '/// Loads fast `shop/cart/add_item/load_fast`.\nclass Shop {}\n';
+        final root = await nfProject({'app/lib/shop.dart': code});
+        appendTo(
+          root,
+          cartDrop,
+          '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n'
+          'See [shop/cart/add_item/load_fast](../us01_add_item/nf01_load_fast.md).\n'
+          'It reads `shop/cart/add_item/load_fast`.\n'
+          'It reads `shop/cart/add_item/load_fast Verification`.\n',
+        );
+        final answer = move(root, loadFast, 'shop/cart/drop_item');
+        final drop = readDoc(root, cartDrop);
+        expect(drop, contains('[load fast](nf02_load_fast.md)'));
+        expect(
+          drop,
+          contains('[shop/cart/drop_item/load_fast](nf02_load_fast.md)'),
+        );
+        expect(drop, contains('`shop/cart/drop_item/load_fast`'));
+        expect(drop, contains('`shop/cart/add_item/load_fast Verification`'));
+        expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
+        final mentions = (answer.json['mentions']! as List)
+            .cast<Map<String, Object?>>();
+        expect(mentions.map((m) => m['mention']), [
+          'shop/cart/add_item/load_fast',
+        ]);
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test(
+        "a rewritten doc's matching approval hash is stamped again",
+        () async {
+          final root = await nfProject();
+          appendTo(
+            root,
+            cartDrop,
+            '\nSee [load fast](../us01_add_item/nf01_load_fast.md).\n',
+          );
+          stampApproved(root, cartDrop);
+          stampApproved(root, addNf);
+          expect(holdsApproval(root, cartDrop), isTrue);
+          move(root, loadFast, 'shop/cart/drop_item');
+          expect(
+            readDoc(root, cartDrop),
+            contains('[load fast](nf02_load_fast.md)'),
+          );
+          expect(holdsApproval(root, cartDrop), isTrue);
+          expect(holdsApproval(root, '$dropFolder/nf02_load_fast.md'), isTrue);
+        },
+      );
+    });
+
     group('the traces of a moved fr', () {
       const dropFolder = '$cartDir/us02_drop_item';
       const refundFolder = '$payDir/us02_refund';
