@@ -52,7 +52,8 @@ fails, follow it for that group alone, then dispatch the next group again.
 
 ## 3. After the report
 
-When you followed the procedure yourself, its report stands in for item 1.
+Run item 1 for each group as its report comes in, and items 2 and 3 once, after the last group's report, over the picks
+of every group. A group you followed yourself stands in for item 1 by its own changes.
 
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation.

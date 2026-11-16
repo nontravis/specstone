@@ -2895,6 +2895,31 @@ void _agentTests() {
       );
     });
 
+    test("the sync skill gathers every group's picks and asks them after the "
+        'last report', () {
+      final after = _oneLine(
+        _sectionOf(
+          _pluginText('specstone-sync-sdd/SKILL.md'),
+          '3. After the report',
+        ),
+      );
+      expect(
+        after,
+        contains(
+          'Run item 1 for each group as its report comes in, and items 2 and '
+          "3 once, after the last group's report, over the picks of every "
+          'group.',
+        ),
+      );
+      expect(
+        after,
+        contains(
+          'A group you followed yourself stands in for item 1 by its own '
+          'changes.',
+        ),
+      );
+    });
+
     test("the sync skill asks the Owner's pick on each mismatch and routes a "
         'fix that lands in a spec doc to an agent, one that lands in a PRD '
         'doc to the brainstorm', () {
