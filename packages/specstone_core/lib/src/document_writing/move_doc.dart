@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/item_landing.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
@@ -192,24 +193,13 @@ ReadAnswer answerRename(
 }
 
 /// Moves the stories or FRs [addresses] name to be the last children of
-/// [under], in the order given, slugs kept, rewriting every reference in one
-/// pass through one journal.
+/// [under], slugs kept, rewriting every reference in one pass.
 ///
-/// A target named twice moves once; one already in [under] stays. One refused
-/// target moves none. A code file or an agent file is never written; each
-/// mention in one that the move stops resolving is listed in the answer.
+/// An address with a `#` that names no doc whole is an item target and goes
+/// to [answerItemMove]; only item targets take [codeTarget].
 ///
-/// An address that holds a `#` and names no doc whole is an item target, and
-/// the call plans item moves with [planItemMove], reading each address and
-/// [under] as any target among [codeTarget]'s docs and the shared docs. A
-/// story or FR move takes no [codeTarget].
-///
-/// Throws [WriteFault] `doc_type_not_movable` for a doc that is no story and
-/// no FR, `doc_exists` for a clash, and the faults of [planItemMove]; an
-/// `IndexFault` for no target, a bad [under], a call naming both stories and
-/// FRs, a call naming items beside docs, or a [codeTarget] given to a doc
-/// target; `RenderFault` `output_not_writable` for roots the Owner has not
-/// recorded.
+/// Throws [WriteFault] `doc_type_not_movable` or `doc_exists`, [IndexFault]
+/// for a bad call shape, and the faults of [answerItemMove].
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {

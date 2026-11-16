@@ -3,6 +3,7 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/item_landing.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
@@ -10,6 +11,7 @@ import 'package:specstone_core/src/document_writing/move_journal.dart'
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/nested_fixture.dart';
@@ -842,6 +844,81 @@ void main() {
           hasLength(1),
         );
         expect(readDoc(root, shopDomain), isNot(contains(rootAddress)));
+      });
+
+      test('a heading item moves as its whole block, its Overrides line and entry with it', () async {
+        final root = await project(
+          shop: [
+            '### INV-5 — Cart expiry',
+            '- A cart expires.',
+            overrideLine,
+            '- A last bullet.',
+            '',
+            '### INV-6 — Other',
+            '- Stays.',
+          ],
+        );
+        move(root, ['domain:shop#INV-5']);
+        expect(
+          bodyOf(root, cartDomain),
+          contains(
+            '${_inv(1)}\n\n### INV-5 — Cart expiry\n\n- A cart expires.\n'
+            '$landedLine\n- A last bullet.\n',
+          ),
+        );
+        expect(
+          readDoc(root, cartDomain),
+          contains('overrides:\n  - $entryLine\n'),
+        );
+        final shop = bodyOf(root, shopDomain);
+        expect(shop, contains('### INV-6 — Other\n\n- Stays.\n'));
+        expect(shop, isNot(contains('INV-5')));
+        expect(shop, isNot(contains('Overrides:')));
+        expect(readDoc(root, shopDomain), isNot(contains(rootAddress)));
+      });
+    });
+
+    test('a landing keeps the CRLF line ends of both docs', () async {
+      final root = await _project(shop: [_inv(1), _inv(2)], cart: [_inv(9)]);
+      for (final docPath in [shopDomain, cartDomain]) {
+        final text = readDoc(root, docPath);
+        docFile(root, docPath).writeAsStringSync(text.replaceAll('\n', '\r\n'));
+      }
+      move(root, ['domain:shop#INV-2']);
+      for (final docPath in [shopDomain, cartDomain]) {
+        final text = readDoc(root, docPath);
+        expect(text, contains('\r\n'));
+        expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
+      }
+      expect(
+        readDoc(root, cartDomain),
+        endsWith(
+          '# Domain\r\n\r\n## Invariants\r\n\r\n${_inv(9)}\r\n${_inv(2)}\r\n',
+        ),
+      );
+    });
+
+    test('an edit refuses a doc that changed since the plan', () async {
+      final root = await _project(shop: [_inv(1), _inv(2)], cart: [_inv(9)]);
+      writeIn(root, (session) {
+        final edits = itemLandingEdits(
+          session,
+          planItemMove(session, [
+            'domain:shop#INV-2',
+          ], under: 'domain:shop/cart'),
+        );
+        for (final docPath in [shopDomain, cartDomain]) {
+          expect(
+            () => edits[docPath]!('# Domain\n\nA late edit.\n'),
+            throwsA(
+              isA<RenderFault>().having(
+                (fault) => fault.message,
+                'message',
+                'cannot write $docPath: changed since the move was planned',
+              ),
+            ),
+          );
+        }
       });
     });
 
