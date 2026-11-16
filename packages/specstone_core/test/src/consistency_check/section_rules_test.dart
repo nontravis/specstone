@@ -13,6 +13,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/nested_fixture.dart';
 
 void main() {
   test('f04/us01/s2, f04/us01/fr04/e01: a requirement with no Statement section names the file and the section', () async {
@@ -820,5 +821,162 @@ void main() {
         );
       },
     );
+  });
+
+  group('move hints on a doc-level size finding', () {
+    const payDomain = 'specs/f02_shop/f02_pay/DOMAIN.md';
+    const domainCap = '.specstone/templates/domain.yaml';
+    const capLayer = 'lint:\n  max_chars: 60\n';
+
+    String invariants(List<String> items) =>
+        '# Domain\n\n## Invariants\n${items.join('\n')}\n';
+
+    String cite(String id) => 'See [$id](../DOMAIN.md#invariants).';
+
+    Future<Directory> shopWith(Map<String, String> docs) => writeNestedProject(
+      extra: {
+        domainCap: capLayer,
+        for (final MapEntry(:key, :value) in docs.entries) 'docs/$key': value,
+      },
+    );
+
+    Finding docLevel(Directory project, String docPath) => checkOf(project)
+        .findings
+        .singleWhere(
+          (f) =>
+              f.kind == FindingKind.charsOverLimit &&
+              f.path == docPath &&
+              f.line == 1,
+        );
+
+    const shopItems = [
+      '- **INV-1** First rule.',
+      '- **INV-2** Second rule.',
+      '- **INV-3** Third rule.',
+      '- **INV-4** Fourth rule.',
+    ];
+
+    test('lists each item cited only under one sub-feature, per sub-feature in the message', () async {
+      final project = await shopWith({
+        shopDomain: invariants(shopItems),
+        cartDomain: invariants([
+          '- **INV-1** Cart rule. ${cite('INV-1')}',
+          '- **INV-2** Cart rule. ${cite('INV-2')}',
+        ]),
+        payDomain: invariants([
+          '- **INV-2** Pay rule. ${cite('INV-2')}',
+          '- **INV-3** Pay rule. ${cite('INV-3')}',
+        ]),
+      });
+      final finding = docLevel(project, shopDomain);
+      expect(finding.toJson()['candidates'], [
+        {'id': 'INV-1', 'under': 'shop/cart'},
+        {'id': 'INV-3', 'under': 'shop/pay'},
+      ]);
+      expect(finding.toJson(), isNot(contains('split')));
+      expect(
+        finding.message,
+        endsWith(
+          '; INV-1 are cited only under shop/cart; '
+          'INV-3 are cited only under shop/pay',
+        ),
+      );
+    });
+
+    test(
+      'a feature with stories and no sub-feature takes the split key',
+      () async {
+        final project = await writeCheckProject(
+          extra: {
+            domainCap: capLayer,
+            'docs/specs/f01_login/DOMAIN.md': invariants(shopItems),
+          },
+        );
+        final finding = docLevel(project, 'specs/f01_login/DOMAIN.md');
+        expect(finding.toJson(), containsPair('split', 'sub_features'));
+        expect(finding.toJson(), isNot(contains('candidates')));
+        expect(
+          finding.message,
+          endsWith('; group stories into sub-features first'),
+        );
+      },
+    );
+
+    test(
+      'a section-level finding and a PRD doc finding carry neither key',
+      () async {
+        final project = await writeNestedProject(
+          extra: {
+            domainCap: capLayer,
+            '.specstone/templates/feature.yaml':
+                'max_depth: 3\nlint:\n  max_chars: 60\n',
+            'docs/$shopDomain': invariants(shopItems),
+            'docs/$cartDomain': invariants([
+              '- **INV-1** Cart rule. ${cite('INV-1')}',
+            ]),
+          },
+        );
+        final sized = checkOf(project).findings.where(
+          (f) =>
+              f.kind == FindingKind.charsOverLimit ||
+              f.kind == FindingKind.linesOverLimit,
+        );
+        final other = sized.where(
+          (f) =>
+              f.path.startsWith('prds/') || f.toJson().containsKey('section'),
+        );
+        expect(other, isNotEmpty);
+        for (final finding in other) {
+          expect(finding.toJson(), isNot(contains('candidates')));
+          expect(finding.toJson(), isNot(contains('split')));
+        }
+      },
+    );
+
+    test(
+      'items no doc cites leave a sub-feature feature with neither key',
+      () async {
+        final project = await shopWith({shopDomain: invariants(shopItems)});
+        final finding = docLevel(project, shopDomain);
+        expect(finding.toJson(), isNot(contains('candidates')));
+        expect(finding.toJson(), isNot(contains('split')));
+        expect(finding.message, isNot(contains('cited only under')));
+      },
+    );
+
+    test(
+      'an item an override line links is left out of the candidates',
+      () async {
+        final project = await shopWith({
+          shopDomain: invariants(shopItems),
+          cartDomain: invariants([
+            '- **INV-1** Cart rule. ${cite('INV-1')}',
+            '- **INV-2** Cart rule. ${cite('INV-2')}',
+            '- Overrides: [INV-1](../DOMAIN.md#invariants) — differs, because stock',
+          ]),
+        });
+        final finding = docLevel(project, shopDomain);
+        expect(finding.toJson()['candidates'], [
+          {'id': 'INV-2', 'under': 'shop/cart'},
+        ]);
+        expect(
+          finding.message,
+          endsWith('; INV-2 are cited only under shop/cart'),
+        );
+        expect(finding.message, isNot(contains('INV-1')));
+      },
+    );
+
+    test('an item cited under a sub-feature and from outside every sub-feature is no candidate', () async {
+      final project = await shopWith({
+        shopDomain: invariants(shopItems),
+        cartDomain: invariants(['- **INV-1** Cart rule. ${cite('INV-1')}']),
+        'specs/f02_shop/API.md':
+            '# Shop API\n\n## Operations\n### addItem\n'
+            'See [INV-1](DOMAIN.md#invariants).\n',
+      });
+      final finding = docLevel(project, shopDomain);
+      expect(finding.toJson(), isNot(contains('candidates')));
+    });
   });
 }
