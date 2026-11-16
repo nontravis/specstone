@@ -918,7 +918,7 @@ void main() {
       (s) => planRewrites(
         s,
         reorderMoves,
-        recordEdits: {linked: rename, alone: rename},
+        docEdits: {linked: rename, alone: rename},
       ),
     );
     final byPath = {for (final step in steps) step.path: step.text};

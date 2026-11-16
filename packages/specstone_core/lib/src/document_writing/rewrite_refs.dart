@@ -383,16 +383,16 @@ String? rewriteDocRefs(
 /// stay untouched. A code file or an agent file is never written: its
 /// mentions are listed by `staleMentions`.
 ///
-/// [recordEdits] maps the DocPath of a record to the edit of its entries; the
-/// record is a candidate, indexed or not, and the edit joins the other
-/// rewrites of its step.
+/// [docEdits] maps a DocPath to one edit of that doc, such as a record's
+/// entries or a moved FR's traces; the doc is a candidate, indexed or not, and
+/// the edit runs after the other rewrites of its step.
 /// Throws [RenderFault] `output_not_writable` for a candidate that is not
 /// UTF-8 text or that is read-only and would change.
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
   Map<(String, String), String> renamed = const {},
-  Map<String, TextEdit> recordEdits = const {},
+  Map<String, TextEdit> docEdits = const {},
 }) {
   final index = session.index;
   final renamedDocs = _renamedDocsOf(index, moves, renamed);
@@ -415,7 +415,7 @@ List<WriteStep> planRewrites(
       candidates[doc.docPath] = doc;
     }
   }
-  for (final docPath in recordEdits.keys) {
+  for (final docPath in docEdits.keys) {
     candidates.putIfAbsent(
       docPath,
       () => index.at(docPath) ?? _unindexedDoc(session, docPath),
@@ -429,7 +429,7 @@ List<WriteStep> planRewrites(
         moves,
         renamed,
         renamedDocs,
-        recordEdits[doc.docPath],
+        docEdits[doc.docPath],
       ),
   ]..sort((a, b) => a.path.compareTo(b.path));
   return steps;
@@ -547,7 +547,7 @@ WriteStep? _stepFor(
   List<PathMove> moves,
   Map<(String, String), String> renamed,
   RenamedDocs renamedDocs,
-  TextEdit? recordEdit,
+  TextEdit? docEdit,
 ) {
   final bytes = session.readDocBytes(doc.docPath);
   if (bytes == null) return null;
@@ -583,7 +583,7 @@ WriteStep? _stepFor(
         renamed: renamed,
       ) ??
       named;
-  final entries = recordEdit?.call(text ?? lfText) ?? text;
+  final entries = docEdit?.call(text ?? lfText) ?? text;
   if (entries == null) return null;
   session.requireWritable(doc.docPath);
   final writtenPath = movedPath(doc.docPath, moves);

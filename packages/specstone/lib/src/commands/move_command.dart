@@ -1,15 +1,15 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Moves one or more stories into another feature.
+/// Moves stories into another feature, or FRs into another story.
 class MoveCommand extends WriteCommand {
   new() {
     argParser
       ..addOption(
         'under',
         help:
-            'The feature that takes the stories: <doc type>:<name>, '
-            'a bare name, or a path.',
+            'The feature that takes user_story targets, or the story that '
+            'takes fr targets: <doc type>:<name>, a bare name, or a path.',
       )
       ..addFlag(
         'dry-run',
@@ -25,7 +25,8 @@ class MoveCommand extends WriteCommand {
 
   @override
   String get description =>
-      'Move stories into another feature and rewrite every reference to them.';
+      'Move stories into a feature, or FRs into a story, '
+      'and rewrite every reference to them.';
 
   @override
   String get invocation =>

@@ -6,14 +6,16 @@ batch; working with no batch, get them first as the skill's step 2 asks them.
 
 ## 1. A missing singular doc
 
-- **`prds/GOAL.md`:** run `specstone new goal`. With no goals section left in PROJECT, stop there: its three
-  sections stay empty, and no goal moves.
+- **`prds/GOAL.md`:** run `specstone new goal`, then title it as section 2's first step says. With no goals section
+  left in PROJECT, stop there: its three sections stay empty, and no goal moves.
 - **Any other DocPath**, such as the features doc's: run `specstone new <type>`, then fill it as the procedure's step 6
   fills a skeleton.
 
 ## 2. Move each answered goal
 
-Read the goal doc with `specstone get goal:goal --json` first, then take PROJECT's goals in turn:
+Read the goal doc with `specstone get goal:goal --json` first. Unless its title already reads `Project goals`, the one
+`specstone guide goal` names, pipe `Project goals`, with no `#`, to `specstone set goal:goal --title --base <hash>`,
+`bases.title` its base. Then take PROJECT's goals in turn:
 
 - **Kept:** a goal with no horizon answered, or whose `PG-` ID the goal doc already holds in any section, stays in
   PROJECT with its ID, never renumbered, and its section keeps its finding. List it once under open questions.
