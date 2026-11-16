@@ -36,15 +36,16 @@ for the main session. A split the Owner turns down leaves nothing to delete.
 
 ## A finding that names items to move
 
-A size finding with `candidates` or `split`, or an FR over its character cap, takes this route in place of the
-story moves above and of `No split applies`; every other size finding keeps its route above. Run the commands as the
-split's: none before the Owner's ok, then in run order, and a dispatched agent's report holds them.
+A size finding with `candidates` or `split`, or an FR over its character cap, takes this route; every other size
+finding keeps its route above. Run the commands as the split's: none before the Owner's ok, then in run order, and a
+dispatched agent's report holds them.
 
-- `candidates`: one `specstone move <doc>#<ID> … --under <doc>` per sub-feature, its target that sub-feature's doc of
-  the same type. The Owner approves the drafts each move leaves.
-- `split`: the sub-feature split above.
-- An FR over its character cap: one `specstone new fr` per new FR in the same story, then one
-  `specstone move <fr>#<edge case ID> … --under <new fr>` per new FR.
+- `candidates`: in place of `No split applies`, one `specstone move <doc>#<ID> … --under <doc>` per sub-feature, its
+  target that sub-feature's doc of the same type. The Owner approves the drafts each move leaves.
+- `split`: the sub-feature split above; when it cannot be formed, as with fewer stories than it needs, the finding
+  keeps `No split applies`.
+- An FR over its character cap, in place of `No split applies`: one `specstone new fr --parent <story> --slug <slug>`
+  per new FR in the same story, then one `specstone move <fr>#<edge case ID> … --under <new fr>` per new FR.
 
 ## No split applies
 

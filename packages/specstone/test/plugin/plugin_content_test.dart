@@ -4219,8 +4219,17 @@ void _sizeFixTests() {
       contains('one `specstone move <doc>#<ID> … --under <doc>` per'),
     );
     expect(moves, contains("that sub-feature's doc of the same type"));
-    final newFr = moves.indexOf('`specstone new fr`');
+    final newFr = moves.indexOf(
+      '`specstone new fr --parent <story> --slug <slug>`',
+    );
     expect(newFr, isNonNegative);
+    expect(
+      moves,
+      contains(
+        'when it cannot be formed, as with fewer stories than it needs, the '
+        'finding keeps `No split applies`',
+      ),
+    );
     expect(
       moves.indexOf('`specstone move <fr>#<edge case ID> … --under <new fr>`'),
       greaterThan(newFr),
@@ -4242,7 +4251,11 @@ void _sizeFixTests() {
           '3. After the reports',
         ),
       );
-      expect(after, contains('split or move proposal approved'), reason: skill);
+      expect(
+        after,
+        contains('ask the Owner to approve each proposal'),
+        reason: skill,
+      );
       expect(after, contains('`new feature`'), reason: skill);
       expect(after, contains('`move <story> …`'), reason: skill);
       expect(after, contains('`move <doc>#<ID> …`'), reason: skill);
