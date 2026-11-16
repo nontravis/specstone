@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show NameMention, docMentionsInFile, readsNameMentions;
+    show NameMention, nameMentionsInFile, readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
@@ -138,7 +138,7 @@ List<StaleMention> staleMentionsIn(
   for (final projectPath in files.keys.toList()..sort(compareCodePoints)) {
     final lf = _lfTextOf(files[projectPath]!);
     if (lf == null) continue;
-    for (final mention in docMentionsInFile(lf, _extensionOf(projectPath))) {
+    for (final mention in nameMentionsInFile(lf, _extensionOf(projectPath))) {
       if (!stopsResolving(mention)) continue;
       stale.add((path: projectPath, line: mention.line, mention: mention.text));
     }

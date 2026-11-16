@@ -99,9 +99,11 @@ void main() {
       expect(staleAfter(root, moveNf), isEmpty);
     });
 
-    test('a bare one-slug name of the sole doc that carries it is listed when that doc is removed', () async {
+    test('a lone-word span in an agent file is not listed when its doc is removed; a prefixed one is', () async {
       final root = await writeCheckProject(
-        extra: {'CLAUDE.md': 'Read `login` and `doc_model`.\n'},
+        extra: {
+          'CLAUDE.md': 'Read `login`, `feature:login`, and `doc_model`.\n',
+        },
       );
       const removedFeature = <PathMove>[
         (from: 'prds/features/f01_login/', to: ''),
@@ -109,7 +111,9 @@ void main() {
         (from: 'specs/f01_login/', to: ''),
       ];
 
-      expect(staleAfter(root, removedFeature), [at('CLAUDE.md', 1, 'login')]);
+      expect(staleAfter(root, removedFeature), [
+        at('CLAUDE.md', 1, 'feature:login'),
+      ]);
     });
 
     test('is not listed when the names do not change', () async {
