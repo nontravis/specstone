@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:specstone/src/commands/specstone_command.dart';
 import 'package:specstone_core/specstone_core.dart';
@@ -28,7 +27,6 @@ class PostEditCommand extends SpecstoneCommand {
   static const _expected =
       'hook post-edit expects one JSON object holding tool_input.file_path '
       'on stdin';
-  static const _docsFolder = 'docs/';
 
   @override
   String get name => 'post-edit';
@@ -97,18 +95,16 @@ class PostEditCommand extends SpecstoneCommand {
     throw IndexFault(IndexFaultCode.argumentInvalid, _expected);
   }
 
-  /// Returns the DocPath of [filePath] when it names a markdown file in a
-  /// checked folder of the docs root, else null.
+  /// Returns the DocPath of [filePath] when it names an existing markdown file
+  /// in a checked folder of the docs root or the records root, else null.
   String? _checkedDocPath(DocsProject project, String filePath) {
-    final resolved = File(
-      absoluteFrom(specstoneRunner.workingDirectory, filePath),
+    final docPath = project.docPathAt(
+      filePath,
+      workingDirectory: specstoneRunner.workingDirectory,
     );
-    if (!project.isInsideDocsRoot(resolved)) return null;
-    final shown = project.displayPath(resolved);
-    if (!shown.startsWith(_docsFolder)) return null;
-    final docPath = shown.substring(_docsFolder.length);
-    if (!docPath.endsWith('.md')) return null;
-    final folder = docPath.split('/').first;
-    return checkedFoldersOf(project.set).contains(folder) ? docPath : null;
+    if (docPath == null || !docPath.endsWith('.md')) return null;
+    return isInCheckedFolder(checkedFoldersOf(project.set), docPath)
+        ? docPath
+        : null;
   }
 }

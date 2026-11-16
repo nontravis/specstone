@@ -169,6 +169,34 @@ void main() {
       expect(temp.readAsStringSync(), 'new\n');
     }, skip: Platform.isWindows ? 'Windows has no permission bits' : false);
 
+    test('a 250-byte ASCII target name writes, its temp name at most 255 '
+        'bytes', () {
+      final file = File('${folder.path}/${'a' * 250}');
+
+      writeFileAtomic(file, utf8.encode('x'));
+
+      expect(file.readAsStringSync(), 'x');
+      final temp = writeTempSibling(file, utf8.encode('y'));
+      final name = temp.uri.pathSegments.last;
+      expect(utf8.encode(name).length, lessThanOrEqualTo(255));
+      expect(
+        name,
+        matches(RegExp('^\\.a+\\.$pid\\.[0-9a-f]{16}\\.specstone\\.tmp\$')),
+      );
+    });
+
+    test('a multibyte target name is cut on a code point boundary in its '
+        'temp name', () {
+      final file = File('${folder.path}/${'\u{1F600}' * 60}');
+
+      final temp = writeTempSibling(file, utf8.encode('y'));
+
+      final name = temp.uri.pathSegments.last;
+      expect(utf8.decode(utf8.encode(name)), name);
+      expect(utf8.encode(name).length, lessThanOrEqualTo(255));
+      expect(name, endsWith('.specstone.tmp'));
+    });
+
     test('two calls for one target write two temps', () {
       final file = File('${folder.path}/FEATURE.md');
 
