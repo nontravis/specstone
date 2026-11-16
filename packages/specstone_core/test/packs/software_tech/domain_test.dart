@@ -116,7 +116,7 @@ void main() {
     ]);
   });
 
-  test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: domain caps 300 lines and '
+  test('domain caps 300 lines and '
       '50000 characters, bans no word, and cites its four sources', () {
     expectSpecLint(domain, maxLines: 300, maxChars: 50000);
   });
@@ -135,7 +135,7 @@ void main() {
     return finding.toJson();
   }
 
-  test('f03/us07/fr03/e03: a 50001-character DOMAIN.md gets '
+  test('a 50001-character DOMAIN.md gets '
       'chars_over_limit, limit 50000, actual 50001', () async {
     // The index counts the laid-out text: a blank line under the title and a
     // final line break.
@@ -151,7 +151,7 @@ void main() {
     );
   });
 
-  test('f03/us07/fr03/e03: a DOMAIN.md body of 301 non-blank lines gets '
+  test('a DOMAIN.md body of 301 non-blank lines gets '
       'lines_over_limit, limit 300', () async {
     final json = await overLimit(
       'docs/specs/f01_login/DOMAIN.md',
@@ -165,7 +165,7 @@ void main() {
   });
 
   test(
-    'f03/us07/fr03/e06: a 50001-character project DOMAIN.md gets '
+    'a 50001-character project DOMAIN.md gets '
     'chars_over_limit, limit 50000, the limit it inherits from domain',
     () async {
       const title = '# Project domain\n';

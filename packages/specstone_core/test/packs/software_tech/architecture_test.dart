@@ -120,7 +120,7 @@ void main() {
     expect(at, orderedEquals(List.of(at)..sort()));
   });
 
-  test('f03/us07/fr03, f03/us07/fr03/e03, sf-r4: architecture caps 300 lines '
+  test('architecture caps 300 lines '
       'and 50000 characters, bans no word, and cites its four sources', () {
     expectSpecLint(architecture, maxLines: 300, maxChars: 50000);
   });

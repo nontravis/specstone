@@ -229,20 +229,6 @@ void main() {
     }
   });
 
-  test('each project spec doc type inherits the line and character caps of '
-      'its base type', () {
-    for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
-      final base = prdCoreDocType(set, project.base).lint;
-      final lint = prdCoreDocType(set, id).lint;
-      expect((lint.maxLines, lint.maxChars), (300, 50000), reason: id);
-      expect(
-        (lint.maxLines, lint.maxChars),
-        (base.maxLines, base.maxChars),
-        reason: id,
-      );
-    }
-  });
-
   test('each project spec doc type carries the four references of its base '
       'type', () {
     for (final MapEntry(key: id, value: project) in _projectTypes.entries) {

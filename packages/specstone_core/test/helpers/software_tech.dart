@@ -245,9 +245,10 @@ final class SpecCaps {
   final int maxChars;
 }
 
-/// The caps the record keeps; every other `software-tech` type takes
-/// [specCaps], and a project spec doc type takes its base type's.
+/// The caps of the implementation record, which keeps its larger entries.
 const recordCaps = SpecCaps(400, 60000);
+
+/// The caps of every other `software-tech` doc type.
 const specCaps = SpecCaps(300, 50000);
 
 /// The caps [id] sets, a project spec doc type taking its base type's.
