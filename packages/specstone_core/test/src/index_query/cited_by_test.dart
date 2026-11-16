@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
@@ -46,13 +47,16 @@ Future<DocIndex> _index(
 CitedByIndex _citedBy(DocIndex index) => citedByIndex(index);
 
 List<CitedBy> _of(CitedByIndex cited, String docPath, String itemId) =>
-    cited[(docPath: docPath, kind: CitedKind.item, key: itemId)] ?? const [];
+    cited[CitedPlace(docPath: docPath, kind: CitedKind.item, key: itemId)] ??
+    const [];
 
 List<CitedBy> _ofSection(CitedByIndex cited, String docPath, String key) =>
-    cited[(docPath: docPath, kind: CitedKind.section, key: key)] ?? const [];
+    cited[CitedPlace(docPath: docPath, kind: CitedKind.section, key: key)] ??
+    const [];
 
 List<CitedBy> _ofDoc(CitedByIndex cited, String docPath) =>
-    cited[(docPath: docPath, kind: CitedKind.doc, key: null)] ?? const [];
+    cited[CitedPlace(docPath: docPath, kind: CitedKind.doc, key: null)] ??
+    const [];
 
 void main() {
   test(

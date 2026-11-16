@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/bundle_follow.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
