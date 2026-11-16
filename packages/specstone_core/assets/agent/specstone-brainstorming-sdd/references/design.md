@@ -63,9 +63,9 @@ Before the Docs to change table closes, find each decision's dependents in your 
 - An amend for an Owner decision that adds or changes behavior runs the same steps on that decision's
   terms and adds its rows and searched terms before the author writes it.
 
-Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the Owner's answers leave open, naming the
-one owner item its rule takes, or list it as an open question; a design holding such a point open goes to no author.
-Leave a code-level point, such as a class name, to the builder, with no decision and no open question.
+Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the Owner's answers leave open,
+naming the one owner item its rule takes, or list it as an open question; a design holding such a point open goes to
+no author. Leave a code-level point, such as a class name, to the builder, with no decision and no open question.
 
 Leave out what a doc will carry verbatim (story text, FR statement, scenario, edge case, endpoint shape, an entity's
 field list): name the decision.

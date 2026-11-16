@@ -5636,8 +5636,9 @@ void _designBriefTests() {
       expect(
         step,
         contains(
-          'Write no brief and run no `context` call before a dispatch; a claim '
-          'your saved files do not ground is an open question of the document.',
+          'Write no brief and run no `context` call again on a target already '
+          'grounded before a dispatch; a claim your saved files do not ground '
+          'is an open question of the document.',
         ),
       );
     });

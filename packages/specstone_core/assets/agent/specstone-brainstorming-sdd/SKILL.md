@@ -65,8 +65,8 @@ After step 1's calls, take `<folder>` the path `specstone folder` prints, run on
 `specstone-sdd-engineer` in this step follows `../specstone-expert-sdd/references/dispatch.md` and passes
 `report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that
 file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
-Write no brief and run no `context` call before a dispatch; a claim your saved files do not ground is an open question
-of the document.
+Write no brief and run no `context` call again on a target already grounded before a dispatch; a claim your saved files
+do not ground is an open question of the document.
 
 1. After approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
 2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
