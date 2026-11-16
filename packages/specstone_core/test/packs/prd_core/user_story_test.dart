@@ -122,4 +122,11 @@ void main() {
       '`vision:` and `goals:`, never in the prose.',
     );
   });
+
+  test('goals field description names the goal doc', () {
+    expect(
+      fieldOf(story, 'goals').description,
+      contains('goal IDs (`PG-*`) of the goal doc'),
+    );
+  });
 }

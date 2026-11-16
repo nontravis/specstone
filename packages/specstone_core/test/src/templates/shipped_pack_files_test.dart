@@ -582,9 +582,9 @@ void main() {
   });
 
   test(
-    'the shipped prd-core pack is 1.12.0, so the guide-rule keys ride it',
+    'the shipped prd-core pack is 1.13.0, so the guide-rule keys ride it',
     () {
-      expect(shippedPackVersions()['prd-core'], '1.12.0');
+      expect(shippedPackVersions()['prd-core'], '1.13.0');
     },
   );
 
@@ -614,7 +614,6 @@ void main() {
       };
       expect(found, {
         'project.vision': ['quote_words', 'quote_language'],
-        'project.goals': ['metric_number'],
         'goal.long_term': ['metric_number'],
         'goal.mid_term': ['metric_number'],
         'goal.short_term': ['metric_number'],
@@ -879,14 +878,6 @@ const _guideRules = <_GuideRule>[
       '- **Why:** a: b',
       '> Note this: x',
     ],
-  ),
-  _GuideRule(
-    'project',
-    'goals',
-    'metric_number',
-    phrase: 'a numeric metric with unit',
-    hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
-    misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
   ),
   _GuideRule(
     'goal',

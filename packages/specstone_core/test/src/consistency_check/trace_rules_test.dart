@@ -1404,8 +1404,8 @@ void main() {
         extra: {
           ...doc(
             projectDoc,
-            'Halve the password resets.\n',
-            'Halve the password resets.\n\n### PG-07 — Only here\n\n**Serves:** PV-01\nMore.\n',
+            '## Role\n',
+            '## Project goals\n\n### PG-07 — Only here\n\n**Serves:** PV-01\nMore.\n\n## Role\n',
           ),
           ...doc(goalDoc, '**Serves:** PV-01', '**Serves:** PV-01, PG-07'),
           ...doc(loginFeature, '---\nvision:', '---\nvision:\n  - PG-07'),
@@ -1815,9 +1815,9 @@ void main() {
         extra: {
           ...doc(
             projectDoc,
-            'Halve the password resets.\n',
-            'Halve the password resets.\n\n### PG-02 — Only here\n\n**Serves:** PG-01\nMore.\n\n'
-                '### PG-03 — No serves\n\nMore.\n',
+            '## Role\n',
+            '## Project goals\n\n### PG-02 — Only here\n\n**Serves:** PG-01\nMore.\n\n'
+                '### PG-03 — No serves\n\nMore.\n\n## Role\n',
           ),
           ...edit(loginFeature, [('  - PG-01\n', '  - PG-01\n  - PG-02\n')]),
         },

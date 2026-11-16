@@ -14,12 +14,6 @@ const _templates = {
       '- **Why:** <one sentence>\n'
       '- **Problem:** <one sentence>\n'
       '- **Audience:** <one sentence>',
-  'goals':
-      '### PG-01 — <short name>\n'
-      '- **Serves:** PV-01\n'
-      '- **Statement:** <goal statement>\n'
-      '- **Metric:** <numeric target with unit>\n'
-      '- **By:** <date or milestone>',
   'roles': '- `<RoleName>` — <one-line definition>',
   'out_of_scope': '- <thing the project will NOT do>',
   'glossary': '- **<Term>** — <one-line definition tying to a concrete entity>',
@@ -32,7 +26,7 @@ void main() {
   });
 
   test('project sits at prds/PROJECT.md with no parent, an '
-      'owner field, and six sections', () {
+      'owner field, and five sections', () {
     expect(project.path, 'prds/PROJECT.md');
     expect(project.parent, isNull);
     expectOwnFields(project, const [
@@ -42,11 +36,14 @@ void main() {
     expectSections(project, const [
       SectionSpec('name', 'Project name', required: true),
       SectionSpec('vision', 'Project vision', prefixId: 'PV-', required: true),
-      SectionSpec('goals', 'Project goals', prefixId: 'PG-'),
       SectionSpec('roles', 'Role', required: true),
       SectionSpec('out_of_scope', 'Out-of-scope', required: true),
       SectionSpec('glossary', 'Domain glossary'),
     ]);
+  });
+
+  test('project holds no goals section', () {
+    expect(project.sections.map((s) => s.id), isNot(contains('goals')));
   });
 
   test('the status field gives the three meanings', () {
@@ -98,11 +95,8 @@ void main() {
       'mechanics, and trace', () {
     expectItemShape(
       project,
-      'Write one rule per `PV-*` or `PG-*` ID, '
-      'and leave mechanics to the spec docs.\n'
-      "Keep a goal's bound in its own `- **Metric:**` and "
-      '`- **By:**` lines, and its trace in its `- **Serves:**` '
-      'line.',
+      'Write one rule per `PV-*` ID, '
+      'and leave mechanics to the spec docs.',
     );
   });
 
@@ -117,31 +111,5 @@ void main() {
       sectionOf(project, 'vision').description,
       contains('with Problem in general words.'),
     );
-    final goals = sectionOf(project, 'goals').description!;
-    expect(
-      goals,
-      allOf(
-        contains('pass bound and its unit, and names no other project'),
-        contains('no scope item, and no baseline number'),
-        contains("link the goal's measurement"),
-      ),
-    );
-    expect(goals.split('\n').length, lessThanOrEqualTo(5));
-  });
-
-  group('metric lint', () {
-    late Map<String, RegExp> lint;
-    setUpAll(() {
-      lint = {
-        for (final p in sectionOf(project, 'goals').bannedPatterns!)
-          p.id: p.regExp,
-      };
-    });
-
-    test('metric_number still hits a digit-free Metric line', () {
-      final pattern = lint['metric_number']!;
-      expect(pattern.hasMatch('- **Metric:** a fast tool'), isTrue);
-      expect(pattern.hasMatch('**Metric:** 3 calls'), isFalse);
-    });
   });
 }

@@ -114,12 +114,33 @@ MergedDocType _typeIn(MergedSet set, String docPath) =>
 
 MergedDocType _typeAt(String docPath) => _typeIn(_set, docPath);
 
-/// The shipped packs merged with a project-layer `goal` doc type.
+const _projectGoalsLayer =
+    'id: project\n'
+    'sections:\n'
+    '  - id: goals\n'
+    '    header: Project goals\n'
+    '    prefix_id: PG-\n';
+
+/// The shipped packs merged with a project-layer `goal` doc type and a
+/// project layer that keeps the goals section in `project`, as a project
+/// pinned before the goal doc holds it.
 MergedSet _goalSet() => TemplateResolver().resolveCarried(
   packNames: const ['prd-core', 'software-tech'],
   homeDirectory: null,
-  projectLayers: parseOverrides({'.specstone/templates/goal.yaml': _goalLayer}),
+  projectLayers: parseOverrides({
+    '.specstone/templates/goal.yaml': _goalLayer,
+    '.specstone/templates/project.yaml': _projectGoalsLayer,
+  }),
 );
+
+/// The pass over [docs], typed by [_goalSet].
+RenumberPass _planWithGoals(Map<String, String> docs) {
+  final set = _goalSet();
+  return RenumberPass.plan([
+    for (final MapEntry(key: docPath, value: lf) in docs.entries)
+      (docPath: docPath, lf: lf, type: _typeIn(set, docPath)),
+  ]);
+}
 
 RenumberPass _planOf(Map<String, String> docs) => RenumberPass.plan([
   for (final MapEntry(key: docPath, value: lf) in docs.entries)
@@ -581,7 +602,7 @@ confirmed:
 ''';
     const nf = '---\nkind: add\ntraced_from:\n  - PG-2a\n---\n# D\n';
 
-    final pass = _planOf({'prds/PROJECT.md': project, _nfPath: nf});
+    final pass = _planWithGoals({'prds/PROJECT.md': project, _nfPath: nf});
 
     expect(pass.apply(_nfPath, nf), nf.replaceFirst('PG-2a', 'PG-02'));
     expect(pass.planLine, 'renumber ids: 1 IDs in 2 docs');
@@ -717,7 +738,7 @@ confirmed:
         '---\nstatus: planned\nvision: [PV-1a]\ngoals: [PG-2a]\n'
         'name: PG-2a team\n---\n# B\n';
 
-    final pass = _planOf({
+    final pass = _planWithGoals({
       'prds/PROJECT.md': project,
       'prds/features/f01_a/FEATURE.md': feature,
       _storyPath: story,

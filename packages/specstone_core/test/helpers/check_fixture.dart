@@ -104,7 +104,6 @@ Map<String, String> checkProjectFiles() => {
   'docs/$projectDoc':
       '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\n\nLogin demo\n\n'
       '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n\n'
-      '## Project goals\n\n### PG-01 — Fewer resets\n\n**Serves:** PV-01\nHalve the password resets.\n\n'
       '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n'
       '## Out-of-scope\n\n- Billing — not planned\n',
   'docs/$measurementDoc':

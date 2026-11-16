@@ -92,7 +92,7 @@ void main() {
       'no doc_citation', () async {
     final found = await _banned({
       ...doc(
-        projectDoc,
+        goalDoc,
         'Halve the password resets.',
         'Halve the password resets.\n**By:** milestone',
       ),
