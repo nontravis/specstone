@@ -356,12 +356,9 @@ ReadAnswer answerItemMove(
   }
   return session.locked(() {
     session.journalTarget.requireTrusted();
-    final rewrites = planRewrites(
-      session,
-      const [],
-      docEdits: itemRefEdits(session, landings),
-    );
-    final mentions = itemMentions(session, landings);
+    final refs = planItemRefs(session, landings);
+    final rewrites = planRewrites(session, const [], docEdits: refs.edits);
+    final mentions = itemMentions(session, landings, refs: refs);
     if (!dryRun) MoveJournal(rewrites).run(session.journalTarget);
     return _answerFor(
       session,

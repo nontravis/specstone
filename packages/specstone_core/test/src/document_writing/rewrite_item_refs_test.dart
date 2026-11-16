@@ -9,7 +9,7 @@ import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart'
     show planItemMove;
 import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart'
-    show itemRefEdits;
+    show itemMentions, itemRefEdits, planItemRefs;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
@@ -211,6 +211,102 @@ void main() {
         ),
       );
     });
+
+    test('a link inside a moved item that resolves the same from the target doc keeps every byte', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(4)],
+        pay: [_inv(5, 'holds, with [INV-4](./../DOMAIN.md#invariants).')],
+      );
+      writeIn(
+        root,
+        (session) => answerMove(session, [
+          'domain:shop/pay#INV-5',
+        ], under: 'domain:shop/cart'),
+      );
+      expect(
+        _body(root, cartDomain),
+        _domain([
+          _inv(1),
+          _inv(5, 'holds, with [INV-4](./../DOMAIN.md#invariants).'),
+        ]),
+      );
+    });
+
+    test('a definition shared by an item link and another link stays and is listed', () async {
+      final root = await _project(
+        pay: [
+          _inv(1, 'follows [INV-3][r] and see [the rules][r].'),
+          '',
+          '[r]: ../DOMAIN.md#invariants',
+        ],
+      );
+      final payBefore = readDoc(root, _payDomain);
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(readDoc(root, _payDomain), payBefore);
+      expect(
+        answer.text,
+        contains(
+          'mentions $_payDomain:${_lineOf(payBefore, '[r]:')} [r]: ../DOMAIN.md#invariants\n',
+        ),
+      );
+    });
+
+    test('a reference-style link inside a moved item becomes an inline link that resolves from the target doc', () async {
+      final root = await _project(
+        shop: [
+          _inv(3, 'holds, see [pay][p].'),
+          '',
+          '[p]: f02_pay/DOMAIN.md#invariants',
+        ],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      expect(
+        _body(root, cartDomain),
+        contains('holds, see [pay](../f02_pay/DOMAIN.md#invariants).'),
+      );
+    });
+
+    test('a range of reference-style item links stays and is listed', () async {
+      final root = await _project(
+        shop: [_inv(2), _inv(3), _inv(4), _inv(5)],
+        pay: [
+          _inv(1, 'Covers [INV-2][a] to [INV-5][b].'),
+          '',
+          '[a]: ../DOMAIN.md#invariants',
+          '[b]: ../DOMAIN.md#invariants',
+        ],
+      );
+      final payBefore = readDoc(root, _payDomain);
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(readDoc(root, _payDomain), payBefore);
+      expect(
+        answer.text,
+        contains(
+          'mentions $_payDomain:${_lineOf(payBefore, 'Covers')} '
+          '[INV-2][a] to [INV-5][b]\n',
+        ),
+      );
+    });
+
+    test(
+      'the mentions of a plan made once equal those of a fresh one',
+      () async {
+        final root = await _project(
+          shop: [_inv(3), _inv(4, 'follows INV-3 of this doc.')],
+        );
+        writeIn(root, (session) {
+          final landings = planItemMove(session, [
+            'domain:shop#INV-3',
+          ], under: 'domain:shop/cart');
+          final refs = planItemRefs(session, landings);
+          expect(
+            itemMentions(session, landings, refs: refs),
+            itemMentions(session, landings),
+          );
+          expect(refs.edits.keys, itemRefEdits(session, landings).keys);
+        });
+      },
+    );
 
     test('a link keeps the title written after its destination', () async {
       final root = await _project(
