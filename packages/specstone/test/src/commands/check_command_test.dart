@@ -583,6 +583,73 @@ void main() {
     });
   });
 
+  group('readability breaks', () {
+    const domainDoc = 'specs/f01_login/DOMAIN.md';
+    const sentenceGuide =
+        'guide line: Each sentence holds 25 words or fewer (Korean 17), or '
+        '100 characters in a script with no spaces (Japanese 60, Chinese 45).';
+    const noteGuide =
+        "guide line: Put a cite or an ownership note at the item's end.";
+    const readabilityKinds = [
+      'words_over_limit',
+      'sentence_chars_over_limit',
+      'trace_note_not_last',
+    ];
+
+    // Runs `check` on a project whose domain doc holds [invariants]; returns
+    // the readability finding lines and the file line of each ID.
+    Future<({List<String> lines, int Function(String id) lineOf})> checkOf(
+      String invariants,
+    ) async {
+      final project = await writeCheckProject(
+        extra: {
+          'docs/$domainDoc':
+              '# Login domain\n\n## Entities\n\n- Account\n\n'
+              '## Invariants\n\n$invariants',
+        },
+      );
+      final fileLines = File('${project.path}/docs/$domainDoc')
+          .readAsLinesSync();
+      final run = await Process.run(binary, [
+        'check',
+      ], workingDirectory: project.path);
+      return (
+        lines: [
+          for (final line in (run.stdout as String).split('\n'))
+            if (readabilityKinds.any(line.contains)) line,
+        ],
+        lineOf: (String id) =>
+            fileLines.indexWhere((line) => line.contains('**$id**')) + 1,
+      );
+    }
+
+    test('check prints S1 findings', () async {
+      final thirty = List.filled(30, 'word').join(' ');
+      final (:lines, :lineOf) = await checkOf(
+        '- **INV-1** — $thirty.\n- **INV-2** — An email (INV-1) is unique.\n',
+      );
+      final words =
+          '$domainDoc:${lineOf('INV-1')}: words_over_limit: the longest '
+          'sentence holds 30 words; the limit is 25 for language default; '
+          '$sentenceGuide';
+      final note =
+          '$domainDoc:${lineOf('INV-2')}: trace_note_not_last: the note '
+          "(INV-1) comes before the item's end; $noteGuide";
+      expect(lines, [words, note]);
+    });
+
+    test('check prints S2 finding naming th', () async {
+      final (:lines, :lineOf) = await checkOf(
+        '- **INV-1** — ${'ก' * 105} check.\n',
+      );
+      final chars =
+          '$domainDoc:${lineOf('INV-1')}: sentence_chars_over_limit: the '
+          'longest sentence holds 109 characters; the limit is 100 for '
+          'language th; $sentenceGuide';
+      expect(lines, [chars]);
+    });
+  });
+
   test('f04/us01/s9, f04/us01/fr01/e05, f04/us01/fr02/e07: a name no doc carries refuses, exit 64, no finding', () async {
     final (:runner, :out, :err) = readRunner(await writeCheckProject());
     expect(await runner.run(['check', 'login/emial_login']), 64);
