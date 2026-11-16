@@ -884,6 +884,10 @@ void main() {
           extra: {
             'docs/$cartAdd': story('Agent adds an item', 3),
             'docs/$cartDrop': story('Agent drops an item', 2),
+            'docs/$cartAddFr':
+                '---\ntraced_from:\n  - S1\n  - S2\nverify_method: test\n'
+                '---\n\n# Check stock\n\n'
+                '## Statement\nThe system shall check.\n',
           },
         );
         final result = await move(root, [
@@ -898,7 +902,12 @@ void main() {
           'moved $cartAdd#S2 to $cartDrop#S3\n'
           'renumbered $cartDrop S2 to S3\n'
           'rewrote $cartAdd\n'
+          'rewrote $cartAddFr\n'
           'rewrote $cartDrop\n',
+        );
+        expect(
+          readDoc(root, cartAddFr),
+          contains('traced_from:\n  - S1\n  - shop/cart/drop_item#S3\n'),
         );
         expect(
           readDoc(root, cartDrop),

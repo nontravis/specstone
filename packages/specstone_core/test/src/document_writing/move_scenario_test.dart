@@ -134,6 +134,65 @@ Object _refusal(
   return fail('no fault raised');
 }
 
+const _dropFr =
+    'prds/features/f02_shop/f01_cart/us02_drop_item/fr01_keep_cart.md';
+const _payFr = 'prds/features/f02_shop/f02_pay/us01_card/fr01_charge_card.md';
+const _journey = 'prds/journeys/buy/JOURNEY.md';
+const _toAddItem = '../../../prds/features/f02_shop/f01_cart/us01_add_item';
+const _toDropItem = '../../../prds/features/f02_shop/f01_cart/us02_drop_item';
+
+final String _fp1 = fingerprintFor(_scenario(1));
+final String _fp2 = fingerprintFor(_scenario(2));
+
+String _list(String key, List<String> entries) =>
+    '$key:\n${[for (final entry in entries) '  - $entry\n'].join()}';
+
+String _fr(String title, List<String> traced, List<String> confirmed) =>
+    '---\n${_list('traced_from', traced)}verify_method: test\n'
+    '${_list('confirmed', confirmed)}---\n\n'
+    '# $title\n\n## Statement\nThe system shall $title.\n\n'
+    '## Edge cases\n1. E01 — An empty cart → kept.\n\n'
+    '## Rationale\nCarts matter.\n\n'
+    '## Verification\nTest: it holds.\n';
+
+/// A project whose docs name scenarios of `add_item` in every reference form.
+Future<Directory> _citedProject() => _project(
+  addClosing: 'Error cases: see S2.',
+  extra: {
+    'docs/$cartAddFr': _fr(
+      'check the stock',
+      ['S1', 'S2', 'shop/cart/add_item#S3'],
+      ['S1 $_fp1', 'S2 $_fp2'],
+    ),
+    'docs/$_dropFr': _fr(
+      'keep the cart',
+      ['S2', 'cart/add_item#S02'],
+      ['S2 $_fp2', 'shop/cart/add_item#S2 $_fp2'],
+    ),
+    'docs/$_payFr': _fr(
+      'charge the card',
+      ['S1', 'shop/cart/add_item#S2', 'shop/cart/add_item#S1'],
+      ['shop/cart/add_item#S2 $_fp2'],
+    ),
+    'docs/$_journey':
+        '---\n'
+        '${_list('confirmed', ['shop/cart/add_item#S1 $_fp1', 'shop/cart/add_item#S2 $_fp2'])}'
+        '---\n\n# Buy\n\n## Goal\nBuy.\n\n## Flow\n\n## Steps\n'
+        '### 1. Add\nstep: shop/cart/add_item S1\n\n'
+        '### 2. Again\nstep: shop/cart/add_item S2\nafter: 1\n',
+    'docs/$cartDomain':
+        '# Cart domain\n\n## Entities\n'
+        '| Entity | Kind | Identity | Owns | Notes |\n'
+        '|--------|------|----------|------|-------|\n'
+        '| Order | Aggregate root | id | lines | — |\n\n'
+        '## Invariants\n- **INV-1** An order holds at least one line.\n'
+        '- **INV-2** As [Scenario 2]($_toAddItem/USER_STORY.md#scenario-2--edge-case-2) gives.\n'
+        '- **INV-3** As [S2]($_toAddItem/USER_STORY.md#acceptance-criteria) gives.\n'
+        '- **INV-4** As [S1]($_toAddItem/USER_STORY.md#acceptance-criteria) to [S3]($_toAddItem/USER_STORY.md#acceptance-criteria) give.\n'
+        '- **INV-5** As `shop/cart/add_item#S2` gives.\n',
+  },
+);
+
 /// The doc text after its frontmatter, which carries the move's marks.
 String _bodyOf(Directory root, String docPath) => readDoc(
   root,
@@ -520,5 +579,206 @@ void main() {
       for (final finding in findings)
         if (finding.kind == FindingKind.suspect) finding.toJson(),
     ], isEmpty);
+  });
+
+  group('references', () {
+    test("a source-story fr's bare trace and confirmed entry name the target story and new number, fingerprint kept, no draft", () async {
+      final root = await _citedProject();
+      _move(root, ['$_addItem#S2']);
+      final text = readDoc(root, cartAddFr);
+      expect(
+        text,
+        contains(
+          _list('traced_from', [
+            'S1',
+            'shop/cart/drop_item#S3',
+            'shop/cart/add_item#S3',
+          ]),
+        ),
+      );
+      expect(
+        text,
+        contains(
+          _list('confirmed', ['S1 $_fp1', 'shop/cart/drop_item#S3 $_fp2']),
+        ),
+      );
+      expect(text, isNot(contains('draft: true')));
+    });
+
+    test("a target-story fr's entry naming the source scenario turns bare with the new number", () async {
+      final root = await _citedProject();
+      _move(root, ['$_addItem#S2']);
+      final text = readDoc(root, _dropFr);
+      expect(text, contains(_list('traced_from', ['S2', 'S3'])));
+      expect(text, contains(_list('confirmed', ['S2 $_fp2', 'S3 $_fp2'])));
+    });
+
+    test(
+      "another story's fr entry names the target story and new number",
+      () async {
+        final root = await _citedProject();
+        _move(root, ['$_addItem#S2']);
+        final text = readDoc(root, _payFr);
+        expect(
+          text,
+          contains(
+            _list('traced_from', [
+              'S1',
+              'shop/cart/drop_item#S3',
+              'shop/cart/add_item#S1',
+            ]),
+          ),
+        );
+        expect(
+          text,
+          contains(_list('confirmed', ['shop/cart/drop_item#S3 $_fp2'])),
+        );
+      },
+    );
+
+    test('an entry naming a scenario that stays keeps its text', () async {
+      final root = await _citedProject();
+      final before = readDoc(root, _payFr);
+      _move(root, ['$_addItem#S3']);
+      expect(readDoc(root, _payFr), before);
+      expect(
+        readDoc(root, _dropFr),
+        contains(_list('traced_from', ['S2', 'cart/add_item#S02'])),
+      );
+      expect(
+        readDoc(root, cartAddFr),
+        contains(_list('traced_from', ['S1', 'S2', 'shop/cart/drop_item#S3'])),
+      );
+      expect(
+        readDoc(root, cartAddFr),
+        contains(_list('confirmed', ['S1 $_fp1', 'S2 $_fp2'])),
+      );
+    });
+
+    test(
+      'a journey step and its confirmed entry name the new story and number',
+      () async {
+        final root = await _citedProject();
+        _move(root, ['$_addItem#S2']);
+        final text = readDoc(root, _journey);
+        expect(
+          text,
+          contains(
+            _list('confirmed', [
+              'shop/cart/add_item#S1 $_fp1',
+              'shop/cart/drop_item#S3 $_fp2',
+            ]),
+          ),
+        );
+        expect(text, contains('step: shop/cart/add_item S1\n'));
+        expect(text, contains('step: shop/cart/drop_item S3\nafter: 1\n'));
+      },
+    );
+
+    test("a heading-anchor link reaches the target story at the new heading's anchor", () async {
+      final root = await _citedProject();
+      _move(root, ['$_addItem#S2']);
+      expect(
+        readDoc(root, cartDomain),
+        contains(
+          '- **INV-2** As [Scenario 2]($_toDropItem/USER_STORY.md#scenario-3--edge-case-2) gives.\n',
+        ),
+      );
+    });
+
+    test("another reference form follows as an item's does", () async {
+      final root = await _citedProject();
+      _move(root, ['$_addItem#S2']);
+      final text = readDoc(root, cartDomain);
+      expect(
+        text,
+        contains(
+          '- **INV-3** As [S3]($_toDropItem/USER_STORY.md#acceptance-criteria) gives.\n',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          '- **INV-4** As [S1]($_toAddItem/USER_STORY.md#acceptance-criteria), '
+          '[S3]($_toDropItem/USER_STORY.md#acceptance-criteria), '
+          '[S3]($_toAddItem/USER_STORY.md#acceptance-criteria) give.\n',
+        ),
+      );
+    });
+
+    test('a bare S number outside a link is kept and prints one mentions line', () async {
+      final root = await _citedProject();
+      final answer = _move(root, ['$_addItem#S2']);
+      final mentions = [
+        for (final line in answer.text.split('\n'))
+          if (line.startsWith('mentions ')) line,
+      ];
+      expect(mentions, hasLength(2));
+      for (final (docPath, mention) in [
+        (cartAdd, 'S2'),
+        (cartDomain, 'shop/cart/add_item#S2'),
+      ]) {
+        final match = RegExp(
+          '^mentions ${RegExp.escape(docPath)}:([0-9]+) ${RegExp.escape(mention)}\$',
+        );
+        final line = mentions.where(match.hasMatch).single;
+        final number = int.parse(match.firstMatch(line)!.group(1)!);
+        expect(
+          readDoc(root, docPath).split('\n')[number - 1],
+          contains(mention),
+          reason: line,
+        );
+      }
+      expect(readDoc(root, cartAdd), contains('Error cases: see S2.\n'));
+    });
+
+    test('a bare S number inside a landed scenario that names a co-moved renumbered scenario prints a mentions line', () async {
+      final root = await _project(
+        add: [
+          _scenario(1),
+          _scenario(2).replaceFirst('sees case 2', 'sees case 2, as S3 gives'),
+          _scenario(3),
+        ],
+      );
+      final answer = _move(root, ['$_addItem#S2', '$_addItem#S3']);
+      final match = RegExp(
+        '^mentions ${RegExp.escape(cartDrop)}:([0-9]+) S3\$',
+        multiLine: true,
+      ).firstMatch(answer.text);
+      expect(match, isNotNull, reason: answer.text);
+      expect(
+        readDoc(root, cartDrop).split('\n')[int.parse(match!.group(1)!) - 1],
+        contains('as S3 gives'),
+      );
+    });
+
+    test(
+      'only the two stories gain a draft mark among the rewritten docs',
+      () async {
+        final root = await _citedProject();
+        final answer = _move(root, ['$_addItem#S2']);
+        final rewritten = [...answer.json['rewritten']! as List<Object?>];
+        expect(
+          rewritten,
+          containsAll([
+            cartAdd,
+            cartDrop,
+            cartAddFr,
+            _dropFr,
+            _payFr,
+            _journey,
+            cartDomain,
+          ]),
+        );
+        for (final docPath in rewritten.cast<String>()) {
+          final isStory = docPath == cartAdd || docPath == cartDrop;
+          expect(
+            readDoc(root, docPath).contains('draft: true\n'),
+            isStory,
+            reason: docPath,
+          );
+        }
+      },
+    );
   });
 }
