@@ -82,4 +82,4 @@ Outside the drafts:
   each name dropped from the `get` call; and each whole draft story or FR that is invented, marked as a deletion for
   the Owner. It goes to the Owner, never to a fix round.
 - **An empty heading:** write `none` under it. A fix round takes only the untagged `Findings:` lines; a `[behavior]`
-  line goes to a design-mode amend.
+  line goes to the runner's design amend.
