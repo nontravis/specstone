@@ -2870,7 +2870,7 @@ void main() {
       const before =
           '/// Lays out `login/email_login`.\n'
           'final a = "`login/email_login`";\n'
-          '  // see `user_story:login/email_login#acceptance_criteria` and `login`\n'
+          '  // see `user_story:login/email_login#acceptance_criteria` and `feature:login`\n'
           'void f() {} // also `login/email_login`\n'
           '// split `login/\n'
           '// email_login`\n'
@@ -2888,7 +2888,7 @@ void main() {
           'line': 3,
           'mention': 'user_story:login/email_login#acceptance_criteria',
         },
-        {'path': 'app/lib/doc.dart', 'line': 3, 'mention': 'login'},
+        {'path': 'app/lib/doc.dart', 'line': 3, 'mention': 'feature:login'},
       ]);
       expect(answer.json['rewritten'], isNot(contains('app/lib/doc.dart')));
       expect(
@@ -2897,7 +2897,7 @@ void main() {
           'mentions app/lib/doc.dart:1 login/email_login\n'
           'mentions app/lib/doc.dart:3 '
           'user_story:login/email_login#acceptance_criteria\n'
-          'mentions app/lib/doc.dart:3 login\n',
+          'mentions app/lib/doc.dart:3 feature:login\n',
         ),
       );
     });

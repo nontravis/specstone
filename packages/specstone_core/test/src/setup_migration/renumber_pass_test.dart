@@ -79,6 +79,7 @@ const _frCitations = '''
 `doc_model` RULE-7a
 `topic:doc_model` RULE-7a
 `doc_model` RULE-12 and RULE-7a
+`topic:doc_model` RULE-12 and RULE-7a
 `RULE-7a` in a code span
 RULE-7a on a line that cites no doc
 `other_topic` RULE-7a
@@ -253,7 +254,7 @@ void main() {
 
   test('$_fr E18: a line of another doc rewrites the token its nearest '
       'citation names the renumbered doc for, outside code spans and '
-      'fences', () {
+      'fences; a lone-word span is no citation', () {
     final applied = _applied({
       _topicPath: _topic,
       _otherTopicPath: _otherTopic,
@@ -263,9 +264,10 @@ void main() {
     expect(
       applied,
       contains('''
-`doc_model` RULE-31
+`doc_model` RULE-7a
 `topic:doc_model` RULE-31
-`doc_model` RULE-12 and RULE-31
+`doc_model` RULE-12 and RULE-7a
+`topic:doc_model` RULE-12 and RULE-31
 `RULE-7a` in a code span
 RULE-7a on a line that cites no doc
 `other_topic` RULE-7a
@@ -685,7 +687,7 @@ confirmed:
   test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
       'written', () {
     const statement =
-        '- **Statement:** The tool shall keep `doc_model` RULE-7a.';
+        '- **Statement:** The tool shall keep `topic:doc_model` RULE-7a.';
     const gnfr =
         '# GNFR\n\n## Performance\n\n### NFR-P01 — First\n$statement\n';
     String nf(String fingerprint) =>
@@ -698,7 +700,7 @@ confirmed:
       _nfPath: nf(fingerprintOf(statement)),
     });
 
-    expect(applied[_gnfrPath], contains('`doc_model` RULE-31.\n'));
+    expect(applied[_gnfrPath], contains('`topic:doc_model` RULE-31.\n'));
     expect(applied[_nfPath], nf(fingerprintOf(statement)));
   });
 
@@ -914,7 +916,7 @@ confirmed:
     const target = '../../prds/features/f01_a/us01_b/USER_STORY.md';
     const architecture =
         '# A\n\n## Concerns\n\n'
-        '- Errors — `doc_model` RULE-7a, see $target#$anchor\n'
+        '- Errors — `topic:doc_model` RULE-7a, see $target#$anchor\n'
         '- Auth — [it]($target#$anchor), see $target#$anchor\n';
 
     final applied = _applied({
@@ -926,7 +928,7 @@ confirmed:
     expect(
       applied,
       '# A\n\n## Concerns\n\n'
-      '- Errors — `doc_model` RULE-31, see $target#$moved\n'
+      '- Errors — `topic:doc_model` RULE-31, see $target#$moved\n'
       '- Auth — [it]($target#$moved), see $target#$moved\n',
     );
   });
@@ -937,7 +939,7 @@ confirmed:
     const notes =
         '---\nfront: matter\n---\n# Notes\n\n'
         '[it](features/f01_a/us01_b/USER_STORY.md#scenario-6a--edge-lettered)'
-        ' and `doc_model` RULE-7a.\n';
+        ' and `topic:doc_model` RULE-7a.\n';
 
     final pass = RenumberPass.plan([
       (docPath: notesPath, lf: notes, type: null),

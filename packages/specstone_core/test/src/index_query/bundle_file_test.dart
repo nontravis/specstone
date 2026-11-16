@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
@@ -289,6 +290,78 @@ void main() {
         ),
         'architecture-login.implement.txt',
       );
+    });
+
+    String longName(String codePath, BundleMode mode, {String? codeTarget}) =>
+        bundleFileName(
+          codePath: codePath,
+          mode: mode,
+          summary: false,
+          noProject: false,
+          codeTarget: codeTarget,
+        );
+
+    int bytesOf(String text) => utf8.encode(text).length;
+
+    test('a 300-byte name keeps its head and ends in a hash', () {
+      final path = 'a' * 295;
+      final name = longName(path, BundleMode.implement);
+      final uncut = 'code-$path.implement.txt';
+      expect(bytesOf(name), lessThanOrEqualTo(250));
+      expect(name, matches(RegExp(r'^code-a+-[0-9a-f]{8}\.implement\.txt$')));
+      expect(
+        name,
+        contains(
+          '-${sha256.convert(utf8.encode(uncut)).toString().substring(0, 8)}.',
+        ),
+      );
+    });
+
+    test('an implement name whose refs name would pass 255 bytes is cut', () {
+      final name = longName('a' * 234, BundleMode.implement);
+      expect(bytesOf('code-${'a' * 234}.implement.txt'), 253);
+      expect(bytesOf(name), lessThanOrEqualTo(250));
+      expect(name, endsWith('.implement.txt'));
+    });
+
+    test('a query name of 253 bytes keeps its name', () {
+      final path = 'a' * 238;
+      final uncut = 'code-$path.query.txt';
+      expect(bytesOf(uncut), 253);
+      expect(longName(path, BundleMode.query), uncut);
+    });
+
+    test('a name of 250 bytes keeps its name in every mode', () {
+      for (final mode in BundleMode.values) {
+        final path = 'a' * (250 - 'code-'.length - '.${mode.wire}.txt'.length);
+        final uncut = 'code-$path.${mode.wire}.txt';
+        expect(bytesOf(uncut), 250);
+        expect(longName(path, mode), uncut, reason: mode.wire);
+      }
+    });
+
+    test('a --target part stays after the hash', () {
+      final name = longName(
+        'a' * 295,
+        BundleMode.implement,
+        codeTarget: 'jaspr',
+      );
+      expect(name, endsWith('.implement.jaspr.txt'));
+      expect(bytesOf(name), lessThanOrEqualTo(250));
+    });
+
+    test('a multibyte target is cut on a code point boundary', () {
+      for (final character in ['\u65e5', '\u{1F600}']) {
+        final name = bundleFileName(
+          target: character * 100,
+          mode: BundleMode.implement,
+          summary: false,
+          noProject: false,
+        );
+        expect(utf8.decode(utf8.encode(name)), name);
+        expect(bytesOf(name), lessThanOrEqualTo(250));
+        expect(name, endsWith('.implement.txt'));
+      }
     });
   });
 

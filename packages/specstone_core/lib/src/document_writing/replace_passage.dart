@@ -5,37 +5,33 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 const _oldMarker = '==> old <==';
 const _newMarker = '==> new <==';
 
-/// Reads the stdin of `set --replace`, as written, as the old and the new
-/// passage.
+/// Reads the stdin of `set --replace` as the old and the new passage.
 ///
-/// The first line is the old marker and exactly one later line is the new
-/// marker; a marker line may end in CR. Each passage is the text between or
-/// after the marker lines with its last line end dropped. The old passage
-/// keeps any other CR, so it matches only text with the same line ends; the
-/// new passage is read in LF line ends.
+/// Each CRLF becomes LF first, marker lines and passages alike; a lone CR
+/// stays as written. The first line is the old marker and exactly one later
+/// line is the new marker. Each passage is the text between or after the
+/// marker lines with its last line end dropped.
 /// Throws [IndexFault] `argument_invalid` for a first line that is not the old
 /// marker, a missing or repeated marker line, and an empty old passage.
 ({String oldPassage, String newPassage}) parseReplaceStdin(String stdin) {
-  final lines = stdin.split('\n');
-  if (_withoutCr(lines.first) != _oldMarker) {
+  final lines = toLf(stdin).split('\n');
+  if (lines.first != _oldMarker) {
     throw _invalid('the first line must be exactly "$_oldMarker"');
   }
   final markerAt = [
     for (var i = 1; i < lines.length; i++)
-      if (_withoutCr(lines[i]) == _newMarker ||
-          _withoutCr(lines[i]) == _oldMarker)
-        i,
+      if (lines[i] == _newMarker || lines[i] == _oldMarker) i,
   ];
-  if (markerAt.isEmpty || _withoutCr(lines[markerAt.first]) != _newMarker) {
+  if (markerAt.isEmpty || lines[markerAt.first] != _newMarker) {
     throw _invalid('stdin needs one "$_newMarker" line after the old passage');
   }
   if (markerAt.length > 1) {
     throw _invalid('stdin holds a second marker line; send one old, one new');
   }
   final newAt = markerAt.single;
-  final oldPassage = _withoutCr(lines.sublist(1, newAt).join('\n'));
+  final oldPassage = lines.sublist(1, newAt).join('\n');
   if (oldPassage.isEmpty) throw _invalid('the old passage is empty');
-  final newText = toLf(lines.sublist(newAt + 1).join('\n'));
+  final newText = lines.sublist(newAt + 1).join('\n');
   return (
     oldPassage: oldPassage,
     newPassage: newText.endsWith('\n')
@@ -83,9 +79,6 @@ String replacedBody(
       newPassage +
       body.substring(at + oldPassage.length);
 }
-
-String _withoutCr(String line) =>
-    line.endsWith('\r') ? line.substring(0, line.length - 1) : line;
 
 int _occurrencesOf(String text, String passage) {
   var count = 0;

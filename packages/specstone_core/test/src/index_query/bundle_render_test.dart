@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
+import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -374,13 +375,104 @@ void main() {
         '- **Doc** — one markdown file under the docs root\n\n'
         '==> project (project) · prds/PROJECT.md <==\n## Role\n'
         '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'
-        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n## Problem\n'
+        '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login\n\n## Problem\n'
         'Users sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n\n'
         '==> map: login (feature) <==\n- login (feature) · ',
       ),
     );
     expect(a.text, contains('\n  - login/email_login (user_story) · '));
     expect(a.text, contains('==> bundle: 3 docs, '));
+  });
+  test(
+    'a query on an FR prints its head and kept sections, with no frontmatter',
+    () {
+      final a = ctx('login/email_login/validate_credentials', BundleMode.query);
+      expect(
+        a.text,
+        contains(
+          '==> login/email_login/validate_credentials (fr) · prds/features/f01_login/us01_email_login/fr01_validate_credentials.md <==\n'
+          '# Validate credentials\n\n## Statement\nThe system shall check the email and the password.',
+        ),
+      );
+      expect(
+        a.text,
+        contains('## Edge cases\n\n1. E01 — A wrong password → refused.'),
+      );
+      expect(a.text, isNot(contains('fill in later')));
+      expect(a.text, isNot(contains('verify_method')));
+      expect(a.text, isNot(contains('# Agent signs in with email')));
+      expect(a.text, contains('==> map: login (feature) <=='));
+    },
+  );
+  test('a query on an FR drops its not-applicable section', () {
+    final a = ctx('login/email_login/lock_after_failures', BundleMode.query);
+    expect(a.text, contains('## Statement\nThe system shall lock the account'));
+    expect(a.text, isNot(contains('## Rationale')));
+  });
+  test('a query on a spec doc prints it whole and its feature cut', () {
+    final a = ctx('architecture:login', BundleMode.query);
+    expect(a.text, contains('# Login architecture\n\n## Components\n'));
+    expect(a.text, isNot(contains('## Tier-2 decisions')));
+    expect(
+      a.text,
+      isNot(
+        contains(
+          '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n# Login',
+        ),
+      ),
+    );
+  });
+  test('a query on a shared name prints each doc whole', () {
+    final a = ctx('buyer', BundleMode.query);
+    expect(a.text, contains('# Buyer\n\n## Snapshot\nBuys things.'));
+    expect(
+      a.text,
+      contains('# Buyer anti-persona\n\n## Snapshot\nAbuses refunds.'),
+    );
+  });
+  test('an implement or design bundle keeps the blank line a leading comment leaves above the title', () async {
+    final i = await indexWith({
+      featureKey: '<!-- c -->\n# Login\n\n## Problem\nUsers sign in.\n',
+    });
+    for (final mode in [BundleMode.implement, BundleMode.design]) {
+      expect(
+        ctxIn(i, 'login/email_login', mode).text,
+        contains('prds/features/f01_login/FEATURE.md <==\n\n# Login\n'),
+        reason: mode.name,
+      );
+    }
+  });
+  test('a query on a record prints its head with no frontmatter', () async {
+    final i = await indexWith(loginRecords);
+    final a = ctxIn(i, 'implementation:login', BundleMode.query);
+    expect(a.text, contains('# Login implementation'));
+    expect(a.text, isNot(contains('statuses:')));
+  });
+  test('a query target gives its head in the JSON text too', () {
+    final a = ctx('login/email_login/validate_credentials', BundleMode.query);
+    final docs = (a.json['docs']! as List).cast<Map<String, Object?>>();
+    final fr = docs.singleWhere((d) => d['docType'] == 'fr');
+    expect(fr['text'], startsWith('# Validate credentials'));
+  });
+  test('a code-path query prints no doc whole', () async {
+    final project = await writeLoginProject(extra: loginRecords);
+    final session = openSession(project);
+    addTearDown(session.close);
+    const path = 'app/lib/src/login/credential_validator.dart';
+    final bundle = pickCodeBundle(
+      session.index,
+      resolveCodePath(
+        path,
+        workingDirectory: project,
+        targets: session.project.targets,
+        codeRootOf: session.project.codeRootOf,
+      ),
+      BundleMode.query,
+      noProject: false,
+    );
+    final a = answerContext(session.index, bundle, label: path, byCode: true);
+    expect(a.text, isNot(contains('# Validate credentials')));
+    expect(a.text, isNot(contains('# Login\n')));
   });
   test(
     'a leftover project glossary section prints in no query bundle',

@@ -1450,7 +1450,7 @@ agent_file_roots:
           'finding', () async {
         final citing = tracing(
           fingerprintOf(lettered),
-          body: '\n## Statement\n\n`doc_model` RULE-7a\n',
+          body: '\n## Statement\n\n`topic:doc_model` RULE-7a\n',
         );
         final statement = Doc.parse(citing).sections.single.body;
         final root = await gitFixture({
@@ -2744,8 +2744,17 @@ agent_file_roots:
             '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n',
             'domain',
           ),
+          'docs/prds/features/f01_login/f01_sso/FEATURE.md': approved(
+            '# Single sign-on\n',
+            'feature',
+          ),
+          'docs/specs/f01_login/f01_sso/DOMAIN.md': approved(
+            '# SSO domain\n',
+            'domain',
+          ),
           topicPath: approved(
-            '# Cites\n\n## Rules\n\nSee `domain:login` INV-6 and `login`.\n',
+            '# Cites\n\n## Rules\n\n'
+                'See `domain:login` INV-6 and `login/sso`.\n',
             'topic',
           ),
         });
@@ -2760,7 +2769,7 @@ agent_file_roots:
             'prds/features/f01_login/us01_email_login/USER_STORY.md',
             'specs/topics/cites.md',
           ],
-          'left': [matches(RegExp(r'^specs/topics/cites\.md:\d+ login$'))],
+          'left': [matches(RegExp(r'^specs/topics/cites\.md:\d+ login/sso$'))],
         });
         expect(result.status, 0, reason: result.err);
         expect(
@@ -2777,7 +2786,7 @@ agent_file_roots:
         expect(
           _read(root, topicPath),
           contains(
-            'See [INV-6](../f01_login/DOMAIN.md#invariants) and `login`.\n',
+            'See [INV-6](../f01_login/DOMAIN.md#invariants) and `login/sso`.\n',
           ),
         );
         final after = await findings(root, home);

@@ -53,12 +53,17 @@ void main() {
       expect(read.oldPassage, 'a  ');
     });
 
-    test('splits CRLF stdin, keeps CR inside the old passage, new in LF', () {
+    test('reads a CRLF stdin, markers and both passages, as LF', () {
       final read = parseReplaceStdin(
         '==> old <==\r\none\r\ntwo\r\n==> new <==\r\nthree\r\nfour\r\n',
       );
-      expect(read.oldPassage, 'one\r\ntwo');
+      expect(read.oldPassage, 'one\ntwo');
       expect(read.newPassage, 'three\nfour');
+    });
+
+    test('keeps a lone CR inside the old passage', () {
+      final read = parseReplaceStdin('==> old <==\na\rb\n==> new <==\nc\n');
+      expect(read.oldPassage, 'a\rb');
     });
 
     test('refuses stdin whose first line is not the old marker', () {
