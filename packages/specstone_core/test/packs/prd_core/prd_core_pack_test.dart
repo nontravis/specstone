@@ -27,13 +27,12 @@ void main() {
       expect(manifest.extendsPack, isNull);
     });
 
-    test('prd-core carries 1.13.0 with one no-step entry from 1.11.0', () {
+    test('prd-core lists no migration entry with an empty step list', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
       );
-      expect(manifest.migrations.map((e) => e.from.toString()), ['1.11.0']);
-      expect(manifest.migrations.single.steps, isEmpty);
+      expect(manifest.migrations.where((e) => e.steps.isEmpty), isEmpty);
     });
 
     test('prd-core carries no bullet_lines step', () {

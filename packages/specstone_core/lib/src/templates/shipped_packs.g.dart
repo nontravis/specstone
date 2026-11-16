@@ -1321,9 +1321,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'aHR0cHM6Ly93d3cubmFzYS5nb3YvcmVmZXJlbmNlL3N5c3RlbXMtZW5naW5lZXJp'
       'bmctaGFuZGJvb2svCiAgICBsb2NhdG9yOiBBcHBlbmRpeCBDIGFuZCBzZWN0aW9u'
       'IDQuMgo=',
-  'prd-core/pack.yaml':
-      'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4xMy4wCm1pZ3JhdGlvbnM6CiAgLSBm'
-      'cm9tOiAxLjExLjAKICAgIHN0ZXBzOiBbXQo=',
+  'prd-core/pack.yaml': 'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4xMy4wCg==',
   'prd-core/persona.yaml':
       'aWQ6IHBlcnNvbmEKZGVzY3JpcHRpb246IHwtCiAgQSBwZXJzb25hOiBvbmUgYXJj'
       'aGV0eXBlIG9mIGEgaHVtYW4gUm9sZSwgZGVzY3JpYmVkIGJ5IGl0cyBnb2Fscywg'
