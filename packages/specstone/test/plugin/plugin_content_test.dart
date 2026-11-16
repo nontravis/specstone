@@ -1345,6 +1345,28 @@ void _handOffTests() {
     );
   });
 
+  test('the audit reports a dropped or departed decision once and names the '
+      'citer commands', () {
+    final compare = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/references/audit.md'),
+        '2. Compare',
+      ),
+    );
+    String bullet(String label) {
+      final start = compare.indexOf('- **$label:**');
+      expect(start, isNonNegative, reason: label);
+      final next = compare.indexOf(' - **', start + 1);
+      return compare.substring(start, next < 0 ? compare.length : next);
+    }
+
+    expect(compare, isNot(contains('Draft and decision')));
+    expect(compare, isNot(contains('draft-and-decision')));
+    expect(bullet('Decision dropped'), contains('departs'));
+    expect(bullet('Repoint'), contains('specstone refs'));
+    expect(bullet('Repoint'), contains('specstone list --cites'));
+  });
+
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final hits = <String>[];
@@ -6782,8 +6804,8 @@ void _docLevelPointTests() {
       _pluginText('specstone-brainstorming-sdd/references/audit.md'),
     );
 
-    expect(text, contains('departs from the decision it carries out'));
-    expect(text, contains('a decision the design gives an owner item'));
+    expect(text, contains('a draft that departs from its decision'));
+    expect(text, contains("naming the draft (or the design's owner doc)"));
     expect(text, contains('a citer a size-fix move repointed or kept'));
     expect(text, contains('name the citer and the item it should link'));
   });

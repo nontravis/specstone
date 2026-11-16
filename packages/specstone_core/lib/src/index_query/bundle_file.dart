@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_prune.dart';
@@ -31,6 +32,15 @@ const _nameSeparators = ['/', r'\', ':'];
 /// What a refs file's name carries before its extension.
 const _refsMark = '.refs';
 
+/// The most UTF-8 bytes a file name may hold.
+const _fileNameByteCap = 255;
+
+/// The most UTF-8 bytes a cut name holds, which leaves room for [_refsMark].
+const _cutNameByteCap = 250;
+
+/// The hex characters of a cut name's hash.
+const _nameHashLength = 8;
+
 /// The `/`-separated path of the bundles folder below a project root.
 const _bundlesBelowRoot = '.specstone/bundles';
 
@@ -39,6 +49,9 @@ const _refsIsReadFirst = 'the refs file is the read-first file';
 // MARK: - Name
 
 /// Returns the name a bare `--out` gives the bundle file.
+///
+/// A name, or its refs file's name, past 255 bytes is cut to at most 250 bytes
+/// as [_cutName] gives.
 ///
 /// - [target]: the call's target, as given; else [codePath], the `--code`
 ///   value as given, which takes `code-` before it.
@@ -65,8 +78,35 @@ String bundleFileName({
     if (noProject) 'no-project',
   ].join('-');
   final targetPart = codeTarget == null ? '' : '.$codeTarget';
-  return '$named.$modePart$targetPart.txt';
+  final tail = '.$modePart$targetPart.txt';
+  final full = '$named$tail';
+  final refsBytes = mode == BundleMode.query ? 0 : _refsMark.length;
+  if (_byteCountOf(full) + refsBytes <= _fileNameByteCap) return full;
+  return _cutName(named, tail, full);
 }
+
+/// Returns [named] cut to the leading code points that fit, then `-`, the
+/// first 8 hex characters of the SHA-256 of [full], and [tail].
+String _cutName(String named, String tail, String full) {
+  final room = _cutNameByteCap - _byteCountOf(tail) - _nameHashLength - 1;
+  final hash = sha256.convert(utf8.encode(full)).toString();
+  return '${_leadingBytes(named, room)}-'
+      '${hash.substring(0, _nameHashLength)}$tail';
+}
+
+/// Returns the leading code points of [text] that fit [limit] UTF-8 bytes.
+String _leadingBytes(String text, int limit) {
+  final kept = StringBuffer();
+  var used = 0;
+  for (final rune in text.runes) {
+    used += _byteCountOf(String.fromCharCode(rune));
+    if (used > limit) break;
+    kept.writeCharCode(rune);
+  }
+  return kept.toString();
+}
+
+int _byteCountOf(String text) => utf8.encode(text).length;
 
 /// Returns the folder under [projectRoot] that holds the files a bare `--out`
 /// writes.

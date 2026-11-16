@@ -545,6 +545,24 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
+  test(
+    'migrate --dry-run --json over a dirty tree holds dirty true, exit 0',
+    () async {
+      final root = await gitFixture(acmeLegacy);
+      File('${root.path}/notes.txt').writeAsStringSync('x\n');
+      final before = _bytesUnder(root);
+      final (:runner, :out, :err) = writeRunner(root);
+
+      expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
+
+      final object = jsonDecode(out.toString()) as Map<String, Object?>;
+      expect(object['dirty'], isTrue);
+      expect(err.toString(), isEmpty);
+      expect(_bytesUnder(root), before);
+    },
+    skip: hasGit ? null : 'git is not available',
+  );
+
   test('migrate --yes --plan --json applies the run, prints one object, and '
       'ends its notes with the closing count', () async {
     final root = await gitFixture(acmeLegacy);
