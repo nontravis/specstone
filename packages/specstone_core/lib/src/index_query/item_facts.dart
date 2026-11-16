@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/section_counts.dart'
 import 'package:specstone_core/src/rendering/formatter.dart' show Formatted;
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show generatedBlockLines;
+import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One item of a doc: the key `check` holds it by when it reads one, its
@@ -109,10 +110,28 @@ ItemFacts itemFactsOf({
   );
 }
 
-/// Returns the items of the held section [at] of [content], each at its file
-/// line, with the structure a move cuts and lands by.
-List<SectionItem> sectionItemsAt(DocContent content, int at) =>
-    sectionItemsOf(sectionBodyLines(content.sections, content.lineFacts, at));
+/// Returns the items of the held section [at] of [content], a doc of [type],
+/// each at its file line, with the structure a move cuts and lands by.
+///
+/// A closed generated block holds none, as the index reads items.
+List<SectionItem> sectionItemsAt(
+  DocContent content,
+  int at,
+  MergedDocType? type,
+) {
+  final body = sectionBodyLines(content.sections, content.lineFacts, at);
+  final kinds = type?.listedGenerators.toSet() ?? const <String>{};
+  if (kinds.isEmpty) return sectionItemsOf(body);
+  final isGenerated = _generatedLines[content] ??= () {
+    final text = toLf(content.text);
+    return generatedLineTest(Doc.parse(text), text, kinds);
+  }();
+  return sectionItemsOf(withGeneratedFenced(body, isGenerated));
+}
+
+/// The generated-line test of each doc [sectionItemsAt] read, so a doc is
+/// parsed once however many of its sections are read.
+final _generatedLines = Expando<bool Function(int line)>();
 
 /// Returns the items of the rule-bearing sections of [doc], a typed doc of
 /// [type] parsed from [lfText], each as [RuleItemWords], in file order.

@@ -98,7 +98,11 @@ final class ItemSpan {
 ItemSpan itemSpanOf(DocIndex index, ItemLanding landing) {
   final located = locateItem(index, landing.from);
   final content = index.contentOf(landing.from.doc);
-  final items = sectionItemsAt(content, located.sectionAt);
+  final items = sectionItemsAt(
+    content,
+    located.sectionAt,
+    index.typeOf(landing.from.doc),
+  );
   final at = itemIndexOf(items, located);
   return ItemSpan(
     located: located,
@@ -531,15 +535,17 @@ List<_Insertion> _insertionsOf(
     byKey.putIfAbsent(cut.located.key, () => []).add(cut);
   }
   final content = index.contentOf(destination);
-  final held = citedSectionsOf(content, index.typeOf(destination));
+  final type = index.typeOf(destination);
+  final held = citedSectionsOf(content, type);
   return [
     for (final MapEntry(:key, :value) in byKey.entries)
-      _insertionIn(content, held, key, value),
+      _insertionIn(content, type, held, key, value),
   ];
 }
 
 _Insertion _insertionIn(
   DocContent content,
+  MergedDocType? type,
   List<CitedSection> held,
   String key,
   List<_Cut> cuts,
@@ -562,7 +568,8 @@ _Insertion _insertionIn(
     );
   }
   final previous =
-      sectionItemsAt(content, at).lastOrNull?.kind ?? SectionItemKind.paragraph;
+      sectionItemsAt(content, at, type).lastOrNull?.kind ??
+      SectionItemKind.paragraph;
   return _Insertion(
     key: key,
     lines: _stacked(cuts, previous),

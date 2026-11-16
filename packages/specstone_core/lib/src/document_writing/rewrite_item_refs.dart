@@ -53,13 +53,26 @@ final class ItemRefs {
   final Map<String, List<ListedRef>> listed;
 }
 
-/// A reference an item move leaves as written: its text and the file line the
-/// doc that held it before the move had it on.
+/// A reference an item move leaves for the Agent: the file line the doc that
+/// held it before the move had it on, and its text before and after the write.
 final class ListedRef {
-  const new(this.line, this.text);
+  const new(this.line, this.textBefore, this.text);
 
   final int line;
+  final String textBefore;
+
+  /// The text once the move's rewrites of its line apply.
   final String text;
+}
+
+/// A reference the link rewrite leaves: the characters from [start] up to
+/// [end] of file [line].
+final class _Listed {
+  const new(this.line, this.start, this.end);
+
+  final int line;
+  final int start;
+  final int end;
 }
 
 /// Plans [itemRefEdits] and the references it leaves, in one read of the docs.
@@ -206,17 +219,34 @@ _Rewritten? _linkBodyOf(DocIndex index, IndexedDoc doc, ItemMoves moves) {
   final lines = lf.split('\n');
   final plan = _linkPlanOf(index, doc, moves, lf, lines);
   if (plan.edits.isEmpty && plan.listed.isEmpty) return null;
+  final listed = [
+    for (final span in plan.listed)
+      ListedRef(
+        span.line,
+        lines[span.line - 1].substring(span.start, span.end),
+        _editedSpan(lines[span.line - 1], span, plan.edits[span.line]),
+      ),
+  ];
   for (final MapEntry(key: number, value: edits) in plan.edits.entries) {
     lines[number - 1] = _withEdits(lines[number - 1], edits);
   }
-  return _Rewritten(lf, lines.join('\n'), plan.listed, plan.removals);
+  return _Rewritten(lf, lines.join('\n'), listed, plan.removals);
 }
 
+/// Returns the text [span] covers of [line] once those of [edits] that sit
+/// inside it apply.
+String _editedSpan(String line, _Listed span, List<_Edit>? edits) =>
+    _withEdits(line.substring(span.start, span.end), [
+      for (final edit in edits ?? const <_Edit>[])
+        if (span.start <= edit.start && edit.end <= span.end)
+          _Edit(edit.start - span.start, edit.end - span.start, edit.text),
+    ]);
+
 /// What the link rewrite finds in one doc: the edits by file line, and the
-/// references it leaves as written, each as the text a line holds.
+/// references it leaves for the Agent.
 final class _LinkPlan {
   final edits = <int, List<_Edit>>{};
-  final listed = <ListedRef>[];
+  final listed = <_Listed>[];
 
   /// The file lines of the reference definitions the move leaves unused.
   final removals = <int>{};
@@ -463,8 +493,13 @@ void _planReferences(
         afters.every((after) => after?.docPath == first.docPath);
     if (!isOneWay) {
       if (afters.any((after) => after != null)) {
+        final text = refs.lines[definition.line - 1];
         plan.listed.add(
-          ListedRef(definition.line, refs.lines[definition.line - 1].trim()),
+          _Listed(
+            definition.line,
+            text.length - text.trimLeft().length,
+            text.trimRight().length,
+          ),
         );
       }
       continue;
@@ -576,11 +611,8 @@ void _planRebasedReferences(
     if (definition == null) continue;
     final place = refs.placeOf(link.line);
     if (place == refs.placeOf(definition.line)) continue;
-    final line = refs.lines[link.line - 1];
     if (_hasTitle(refs.lines[definition.line - 1], definition)) {
-      plan.listed.add(
-        ListedRef(link.line, line.substring(link.column, link.end)),
-      );
+      plan.listed.add(_Listed(link.line, link.column, link.end));
       continue;
     }
     final item = itemLinks[(link.line, link.column)];
@@ -678,11 +710,7 @@ String _destinationFrom(String destination, String from, String to) {
 
 /// Returns the edits of the links of one [line]: one per range and one per
 /// link outside a range, in no order.
-List<_Edit> _editsOn(
-  _Line line,
-  List<_ReadLink> links,
-  List<ListedRef> listed,
-) {
+List<_Edit> _editsOn(_Line line, List<_ReadLink> links, List<_Listed> listed) {
   links.sort((a, b) => a.link.column.compareTo(b.link.column));
   final byLink = {for (final read in links) read.link: read};
   final ranges = itemRangesOn(line.text, [
@@ -817,7 +845,7 @@ _Edit? _rangeEdit(
   ItemRange range,
   _ReadLink first,
   List<String> ids,
-  List<ListedRef> listed,
+  List<_Listed> listed,
 ) {
   final firstLink = range.first.link;
   final lastLink = range.last.link;
@@ -828,12 +856,7 @@ _Edit? _rangeEdit(
   if (!_isOneLine(line.text, firstLink) || !_isOneLine(line.text, lastLink)) {
     if (firstLink.endLine == firstLink.line &&
         lastLink.endLine == lastLink.line) {
-      listed.add(
-        ListedRef(
-          line.number,
-          line.text.substring(firstLink.column, lastLink.endColumn),
-        ),
-      );
+      listed.add(_Listed(line.number, firstLink.column, lastLink.endColumn));
     }
     return null;
   }

@@ -42,10 +42,16 @@ final class ItemLanding {
   final String newId;
 }
 
-/// Whether [address] names an item: it holds a `#` and its whole text names
-/// no doc, so a path whose file name holds `#` stays a doc target.
-bool isItemAddress(DocIndex index, String address) =>
-    index.splitAddress(address).sectionKey != null;
+/// Whether [address] names an item: its text after `#` reads whole as an
+/// item ID and its whole text names no doc.
+///
+/// A `#<section key>`, and a path whose file name holds `#`, stay doc targets.
+bool isItemAddress(DocIndex index, String address) {
+  final key = index.splitAddress(address).sectionKey;
+  if (key == null) return false;
+  final id = readItemIdOfWrittenPrefix(key);
+  return id is ItemId && id.written == key;
+}
 
 /// Returns where each item [addresses] name lands in the doc [under] names, in
 /// the order given, writing nothing; an item already there or named twice
@@ -216,7 +222,7 @@ List<OverrideCite> overrideCitesOf(DocIndex index, IndexedDoc doc) {
   final content = index.contentOf(doc);
   final items = [
     for (var at = 0; at < content.sections.length; at++)
-      ...sectionItemsAt(content, at).where(isOverrideLine),
+      ...sectionItemsAt(content, at, index.typeOf(doc)).where(isOverrideLine),
   ];
   if (items.isEmpty) return const [];
   final lines = toLf(content.text).split('\n');
@@ -252,7 +258,7 @@ int itemIndexOf(List<SectionItem> items, LocatedItem located) =>
 OwnLine? ownOverrideOf(DocIndex index, LocatedItem located) {
   final doc = located.target.doc;
   final content = index.contentOf(doc);
-  final items = sectionItemsAt(content, located.sectionAt);
+  final items = sectionItemsAt(content, located.sectionAt, index.typeOf(doc));
   final at = itemIndexOf(items, located);
   final isBlock = items[at].kind == SectionItemKind.heading;
   for (var k = at + 1; k < items.length; k++) {
@@ -332,7 +338,7 @@ List<IdRead> _idsIn(
   );
   if (at < 0) return [];
   return [
-    for (final item in sectionItemsAt(content, at))
+    for (final item in sectionItemsAt(content, at, index.typeOf(destination)))
       ?readItemId(item.head, prefix),
   ];
 }

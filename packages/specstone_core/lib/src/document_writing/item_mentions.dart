@@ -186,7 +186,7 @@ List<StaleMention> _listedMentions(
         : landed[path]!.where((s) => s.landing == span.landing).firstOrNull;
     final nth = _linesHolding(
       before,
-      ref.text,
+      ref.textBefore,
       span?.first ?? 1,
       span?.last ?? before.length,
       (line) => span != null || !movedBefore.contains(line),

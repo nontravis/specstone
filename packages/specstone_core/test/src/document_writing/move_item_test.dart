@@ -121,6 +121,24 @@ void main() {
       expect(landing.newId, 'INV-13');
     });
 
+    test('an ID only a generated block of the target holds stays', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [
+          _inv(1),
+          '',
+          '<!-- specstone:generated scenario_copy (do not edit) -->',
+          _inv(3),
+          '<!-- specstone:generated end -->',
+        ],
+        extra: {
+          '.specstone/templates/domain.yaml': 'generators: [scenario_copy]\n',
+        },
+      );
+      final landing = _plan(root, ['domain:shop#INV-3']).single;
+      expect(landing.newId, 'INV-3');
+    });
+
     test('two clashing items of one doc count after each other', () async {
       final root = await _project(
         shop: [_inv(1), _inv(2), _inv(3)],
@@ -494,6 +512,31 @@ void main() {
         'move takes --target only with item targets',
       );
     });
+
+    test('a #<section key> that reads as no item ID stays a doc target and is argument_invalid', () async {
+      final fault = await refused([
+        'domain:shop#invariants',
+      ], under: 'domain:shop/cart');
+      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
+      expect(fault.exitStatus, 64);
+      expect(fault.message, contains('takes no #<section key>'));
+    });
+
+    test(
+      'only a suffix that reads whole as an item ID names an item',
+      () async {
+        final root = await _project(shop: [_inv(1), _inv(2), _inv(3)]);
+        writeIn(root, (session) {
+          final index = session.index;
+          expect(isItemAddress(index, 'domain:shop#INV-3'), isTrue);
+          expect(isItemAddress(index, 'domain:shop#INV-99'), isTrue);
+          expect(isItemAddress(index, 'domain:shop#invariants'), isFalse);
+          expect(isItemAddress(index, 'domain:shop#INV-3a'), isFalse);
+          expect(isItemAddress(index, 'domain:shop#INV-3 x'), isFalse);
+          expect(isItemAddress(index, 'domain:shop#'), isFalse);
+        });
+      },
+    );
 
     test(
       'a path that holds # and names a doc is a doc target, not an item',

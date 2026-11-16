@@ -550,6 +550,28 @@ void main() {
       );
     });
 
+    test('a range of reference-style item links inside a moved item is listed as it reads after the write', () async {
+      final root = await _project(
+        shop: [
+          _inv(1),
+          _inv(2),
+          _inv(3, 'Covers [INV-1][a] to [INV-2][b].'),
+          '',
+          '[a]: #invariants',
+          '[b]: #invariants',
+        ],
+      );
+      final answer = _move(root, ['domain:shop#INV-3']);
+      const written =
+          '[INV-1](../DOMAIN.md#invariants) to [INV-2](../DOMAIN.md#invariants)';
+      final cart = readDoc(root, cartDomain);
+      expect(cart, contains('Covers $written.'));
+      expect(
+        answer.text.split('\n').where((line) => line.startsWith('mentions ')),
+        ['mentions $cartDomain:${_lineOf(cart, 'Covers')} $written'],
+      );
+    });
+
     test('a range of reference-style item links stays and is listed', () async {
       final root = await _project(
         shop: [_inv(2), _inv(3), _inv(4), _inv(5)],
