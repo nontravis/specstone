@@ -165,7 +165,7 @@ void main() {
     },
   );
 
-  test('init then check reports no format_drift on the five drafts', () async {
+  test('init then check reports no format_drift on the six drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
     final (status, _) = _run(root);
@@ -267,8 +267,7 @@ void main() {
         allOf(
           startsWith('---\ndraft: true\n'),
           contains('\n# glossary\n'),
-          contains('\n## Terms\n'),
-          isNot(contains('\n### ')),
+          endsWith('\n## Terms\n'),
         ),
       );
     },
