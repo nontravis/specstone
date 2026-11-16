@@ -332,6 +332,114 @@ void main() {
       );
     });
 
+    test('a reference-style link inside a moved item whose destination resolves the same from the target doc becomes an inline link with that destination', () async {
+      final root = await _project(
+        pay: [
+          _inv(1),
+          _inv(5, 'holds, see [shop][s].'),
+          '',
+          '[s]: ../DOMAIN.md#invariants',
+        ],
+      );
+      writeIn(
+        root,
+        (session) => answerMove(session, [
+          'domain:shop/pay#INV-5',
+        ], under: 'domain:shop/cart'),
+      );
+      expect(
+        _body(root, cartDomain),
+        contains('holds, see [shop](../DOMAIN.md#invariants).'),
+      );
+      expect(_body(root, _payDomain), isNot(contains('[s]:')));
+    });
+
+    test('a reference-style link inside a moved item whose path stays as written, or whose destination is a web address, becomes an inline link with that destination', () async {
+      final root = await _project(
+        pay: [
+          _inv(1),
+          _inv(5, 'holds, see [odd][o] and [site][w].'),
+          '',
+          '[o]: ../a%2Fb.md',
+          '[w]: https://example.com/rules',
+        ],
+      );
+      writeIn(
+        root,
+        (session) => answerMove(session, [
+          'domain:shop/pay#INV-5',
+        ], under: 'domain:shop/cart'),
+      );
+      expect(
+        _body(root, cartDomain),
+        contains(
+          'holds, see [odd](../a%2Fb.md) and [site](https://example.com/rules).',
+        ),
+      );
+    });
+
+    test('a ./ link inside an item moved to a doc in the same folder keeps every byte, and a reference-style one becomes an inline link with the same destination', () async {
+      final root = await _project(
+        shop: [
+          _inv(1),
+          _inv(
+            3,
+            'with [INV-1](./f01_cart/DOMAIN.md#invariants), '
+            '[cart](./f01_cart/DOMAIN.md) and [rules][r].',
+          ),
+          '',
+          '[r]: ./f01_cart/DOMAIN.md#invariants',
+        ],
+        extra: {
+          '.specstone/templates/api.yaml':
+              'sections:\n  - id: invariants\n    header: Invariants\n'
+              '    prefix_id: INV-\n',
+        },
+      );
+      writeIn(
+        root,
+        (session) =>
+            answerMove(session, ['domain:shop#INV-3'], under: 'api:shop'),
+      );
+      expect(
+        _body(root, shopApi),
+        contains(
+          'with [INV-1](./f01_cart/DOMAIN.md#invariants), '
+          '[cart](./f01_cart/DOMAIN.md) and '
+          '[rules](./f01_cart/DOMAIN.md#invariants).',
+        ),
+      );
+    });
+
+    test('a reference-style link left in the source doc whose definition moves with an item becomes an inline link, and a definition the move leaves unused is removed from the target doc', () async {
+      List<String> shop(String moved) => [
+        '### INV-5 — Cart expiry',
+        '- A cart expires$moved.',
+        '',
+        '[p]: f02_pay/DOMAIN.md#invariants',
+        '',
+        '### INV-6 — Other',
+        '- Stays, see [pay][p].',
+      ];
+      final root = await _project(shop: shop(', see [pay][p]'));
+      _move(root, ['domain:shop#INV-5']);
+      expect(
+        _body(root, shopDomain),
+        contains('- Stays, see [pay](f02_pay/DOMAIN.md#invariants).'),
+      );
+      expect(
+        _body(root, cartDomain),
+        contains('[p]: ../f02_pay/DOMAIN.md#invariants'),
+      );
+      final unused = await _project(shop: shop(''));
+      _move(unused, ['domain:shop#INV-5']);
+      expect(
+        _body(unused, shopDomain),
+        contains('- Stays, see [pay](f02_pay/DOMAIN.md#invariants).'),
+      );
+      expect(_body(unused, cartDomain), isNot(contains('[p]:')));
+    });
+
     test('a range of reference-style item links stays and is listed', () async {
       final root = await _project(
         shop: [_inv(2), _inv(3), _inv(4), _inv(5)],
