@@ -16,7 +16,6 @@ const _templates = {
       '- **Audience:** <one sentence>',
   'roles': '- `<RoleName>` — <one-line definition>',
   'out_of_scope': '- <thing the project will NOT do>',
-  'glossary': '- **<Term>** — <one-line definition tying to a concrete entity>',
 };
 
 void main() {
@@ -26,7 +25,7 @@ void main() {
   });
 
   test('project sits at prds/PROJECT.md with no parent, an '
-      'owner field, and five sections', () {
+      'owner field, and four sections', () {
     expect(project.path, 'prds/PROJECT.md');
     expect(project.parent, isNull);
     expectOwnFields(project, const [
@@ -38,12 +37,15 @@ void main() {
       SectionSpec('vision', 'Project vision', prefixId: 'PV-', required: true),
       SectionSpec('roles', 'Role', required: true),
       SectionSpec('out_of_scope', 'Out-of-scope', required: true),
-      SectionSpec('glossary', 'Domain glossary'),
     ]);
   });
 
   test('project holds no goals section', () {
     expect(project.sections.map((s) => s.id), isNot(contains('goals')));
+  });
+
+  test('project holds no glossary section', () {
+    expect(project.sections.map((s) => s.id), isNot(contains('glossary')));
   });
 
   test('the status field gives the three meanings', () {
@@ -77,8 +79,8 @@ void main() {
     expect(project.bundleRefs, isTrue);
   });
 
-  test('project joins every bundle mode and marks roles, '
-      'out_of_scope, and glossary query', () async {
+  test('project joins every bundle mode and marks roles and '
+      'out_of_scope query', () async {
     final project = prdCoreDocType(await resolvePrdCore(), 'project');
     expect(project.bundle, ['query', 'implement', 'design']);
     expect(
@@ -86,7 +88,7 @@ void main() {
         for (final s in project.sections)
           if (s.query == true) s.id,
       ],
-      ['roles', 'out_of_scope', 'glossary'],
+      ['roles', 'out_of_scope'],
     );
   });
 

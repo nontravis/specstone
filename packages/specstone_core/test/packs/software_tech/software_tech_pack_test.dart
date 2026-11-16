@@ -60,7 +60,7 @@ void main() {
       set = await resolveSoftwareTech();
     });
 
-    test('the set holds the thirteen prd-core and the fifteen '
+    test('the set holds the fourteen prd-core and the fifteen '
         'software-tech doc types', () {
       expect(
         set.docTypes.map((d) => d.id).toList(),
@@ -215,6 +215,7 @@ void main() {
             if (t.bundle != null) t.id,
         ],
         [
+          'glossary',
           'gnfr',
           'goal',
           'project',
@@ -233,7 +234,7 @@ void main() {
             for (final s in t.sections)
               if (s.query != null) t.id,
         },
-        {'feature', 'project'},
+        {'feature', 'glossary', 'project'},
       );
     });
 

@@ -560,6 +560,29 @@ void main() {
       expect(itemFindings(await withEdgeItem(900, template: raised)), isEmpty);
     });
 
+    test('a glossary entry of 301 characters is item_over_limit and one of 300 '
+        'is no finding', () async {
+      Future<Directory> withTerm(int chars) => writeCheckProject(
+        extra: {
+          'docs/prds/GLOSSARY.md':
+              '# Domain glossary\n\n## Terms\n\n'
+              '${padded('- **Term** — A definition', chars)}\n',
+        },
+      );
+
+      expect(itemFindings(await withTerm(300)), isEmpty);
+      final finding = itemFindings(await withTerm(301)).single;
+      expect(finding.path, 'prds/GLOSSARY.md');
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('section', 'terms'),
+          containsPair('limit', 300),
+          containsPair('actual', 301),
+        ),
+      );
+    });
+
     test('a scenario over the limit is item_over_limit on its story and not '
         'on the copy a journey holds in a generated block', () async {
       final given = '- **Given** ${'x' * 710}';

@@ -106,6 +106,7 @@ Map<String, String> checkProjectFiles() => {
       '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n\n'
       '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n'
       '## Out-of-scope\n\n- Billing — not planned\n',
+  'docs/prds/GLOSSARY.md': '# Domain glossary\n\n## Terms\n\n- **Agent** — the coding agent that writes the docs.\n',
   'docs/$measurementDoc':
       '# Fewer resets\n\n$measurementHeadLink\n\n## Scope\n\n- Password resets per week.\n\n'
       '## Method\n\n1. Count the resets of one week.\n\n'
