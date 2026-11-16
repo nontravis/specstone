@@ -37,6 +37,8 @@ import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
     show KeptLabel;
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
+    show LabelDoc, LegacyLabelDoc;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
@@ -832,7 +834,11 @@ LabelTree _convertLabels(
   final tree = LabelTree.legacy(
     [
       for (final work in works)
-        (docPath: work.newPath, legacyPath: work.legacyPath, lf: work.lf),
+        LegacyLabelDoc(
+          docPath: work.newPath,
+          legacyPath: work.legacyPath,
+          lf: work.lf,
+        ),
     ],
     docTypes: {for (final work in works) work.newPath: ?typeOf(work)},
     featurePaths: {
@@ -841,7 +847,7 @@ LabelTree _convertLabels(
     },
   );
   final before = [
-    for (final work in works) (docPath: work.legacyPath, lf: work.lf),
+    for (final work in works) LabelDoc(docPath: work.legacyPath, lf: work.lf),
   ];
   final conversions = {
     for (final work in works)

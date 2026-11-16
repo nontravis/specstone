@@ -10,6 +10,7 @@ import 'package:specstone_core/src/setup_migration/label_pass.dart'
     show LabelTree;
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
     show planLegacyRun;
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate;
 import 'package:specstone_core/src/setup_migration/test_name_pass.dart';
@@ -121,7 +122,7 @@ Future<Directory?> _home() async => null;
     ));
   }
   final tree = LabelTree.of(
-    [for (final doc in docs) (docPath: doc.plannedPath, lf: doc.lf)],
+    [for (final doc in docs) LabelDoc(docPath: doc.plannedPath, lf: doc.lf)],
     set: set,
     docTypes: types,
   );

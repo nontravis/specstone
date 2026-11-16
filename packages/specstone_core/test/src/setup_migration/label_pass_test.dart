@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart';
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -62,7 +63,7 @@ LabelPass _passOf(
   return LabelPass.plan(
     [
       for (final MapEntry(:key, :value) in docs.entries)
-        (docPath: key, lf: value),
+        LabelDoc(docPath: key, lf: value),
     ],
     set: _set,
     docTypes: _typesOf(docs.keys),
@@ -75,7 +76,7 @@ String _convert(String citing, String text) =>
 LabelTree _tree() => LabelTree.of(
   [
     for (final MapEntry(:key, :value) in _baseDocs().entries)
-      (docPath: key, lf: value),
+      LabelDoc(docPath: key, lf: value),
   ],
   set: _set,
   docTypes: _typesOf(_baseDocs().keys),
@@ -85,17 +86,20 @@ void main() {
   test('$_fr E26: a label among many features finds its one doc by lookup', () {
     final docs = [
       for (var f = 1; f <= 300; f++) ...[
-        (
+        LabelDoc(
           docPath: 'prds/features/f${'$f'.padLeft(2, '0')}_f$f/FEATURE.md',
           lf: '# F\n',
         ),
-        (
+        LabelDoc(
           docPath:
               'prds/features/f${'$f'.padLeft(2, '0')}_f$f/us01_s/USER_STORY.md',
           lf: '# S\n',
         ),
       ],
-      (docPath: _topic, lf: '# R\n\nSee F-299 US-01 and F-301 US-01.\n'),
+      const LabelDoc(
+        docPath: _topic,
+        lf: '# R\n\nSee F-299 US-01 and F-301 US-01.\n',
+      ),
     ];
 
     final pass = LabelPass.plan(
@@ -276,7 +280,7 @@ void main() {
       final tree = LabelTree.of(
         [
           for (final MapEntry(:key, :value) in docs.entries)
-            (docPath: key, lf: value),
+            LabelDoc(docPath: key, lf: value),
         ],
         set: _set,
         docTypes: _typesOf(docs.keys),
@@ -458,7 +462,7 @@ void main() {
       return LabelPass.plan(
         [
           for (final MapEntry(:key, :value) in docs.entries)
-            (docPath: key, lf: value),
+            LabelDoc(docPath: key, lf: value),
         ],
         set: _set,
         docTypes: _typesOf(docs.keys),
@@ -584,7 +588,7 @@ void main() {
       final built = LabelPass.plan(
         [
           for (final MapEntry(:key, :value) in docs.entries)
-            (docPath: key, lf: value),
+            LabelDoc(docPath: key, lf: value),
         ],
         set: _set,
         docTypes: {..._typesOf(docs.keys), path: type},

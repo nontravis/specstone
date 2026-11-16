@@ -6,6 +6,7 @@ import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart';
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/legacy_fixture.dart';
@@ -666,7 +667,7 @@ name: login
             'prds/features/f01_third/us01_z/fr05_w.md',
           ),
         ])
-          (docPath: docPath, legacyPath: legacyPath, lf: ''),
+          LegacyLabelDoc(docPath: docPath, legacyPath: legacyPath, lf: ''),
       ],
       featurePaths: {
         '$base/': 'f01_login',

@@ -11,6 +11,7 @@ import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
     show legacyFolderIdOf;
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart';
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
 import 'package:specstone_core/src/setup_migration/models/story_fr.dart';
 import 'package:specstone_core/src/setup_migration/renumber_anchors.dart'
     show SlugMoves, headingSlugsOf, withAnchorsMoved, withConcernsAnchorsMoved;
@@ -94,7 +95,7 @@ final class LabelTree {
   /// parent chain in [set], at any depth, numbered by their own path segment.
   /// A feature, user story, FR, or spec doc under a feature is numbered.
   new of(
-    Iterable<({String docPath, String lf})> docs, {
+    Iterable<LabelDoc> docs, {
     required MergedSet set,
     required Map<String, MergedDocType> docTypes,
   }) : this._fromIndex(_readIndex(docs, set, docTypes));
@@ -109,11 +110,11 @@ final class LabelTree {
   /// [featurePaths] gives it (legacy feature folder to FeaturePath); a doc
   /// under no such folder keeps its path's own place.
   new legacy(
-    Iterable<({String docPath, String legacyPath, String lf})> docs, {
+    Iterable<LegacyLabelDoc> docs, {
     Map<String, MergedDocType> docTypes = const {},
     Map<String, String> featurePaths = const {},
   }) : _docs = [
-         for (final (:docPath, :legacyPath, :lf) in docs)
+         for (final LegacyLabelDoc(:docPath, :legacyPath, :lf) in docs)
            ?_TreeDoc.parseLegacy(
              docPath,
              lf,
@@ -355,12 +356,12 @@ typedef _Own = ({int? number, String? slug, bool isSpec});
 /// Reads each typed doc of [docs] as the index does: its place from its type
 /// and parent chain in [set], never from the shape of its path.
 _Index _readIndex(
-  Iterable<({String docPath, String lf})> docs,
+  Iterable<LabelDoc> docs,
   MergedSet set,
   Map<String, MergedDocType> docTypes,
 ) {
   final typed = [
-    for (final (:docPath, :lf) in docs)
+    for (final LabelDoc(:docPath, :lf) in docs)
       if (docTypes[docPath] case final type?)
         (docPath: docPath, lf: lf, type: type),
   ];
@@ -584,21 +585,21 @@ final class LabelPass {
   /// the types they merge into, which place each doc; an `architecture` doc's
   /// bare `see` anchors move only with it.
   static LabelPass plan(
-    List<({String docPath, String lf})> docs, {
+    List<LabelDoc> docs, {
     required MergedSet set,
     required Map<String, MergedDocType> docTypes,
   }) {
     final tree = LabelTree.of(docs, set: set, docTypes: docTypes);
     final sorted = _sortedBy(docs, (doc) => doc.docPath);
     final results = {
-      for (final (:docPath, :lf) in sorted)
+      for (final LabelDoc(:docPath, :lf) in sorted)
         docPath: _convertDoc(tree, docPath, lf),
     };
     final docTexts = withLabelAnchorsMoved(sorted, {
       for (final MapEntry(:key, :value) in results.entries) key: value.lf,
     }, docTypes);
     final files = <_FileResult>[
-      for (final (:docPath, lf: _) in sorted)
+      for (final LabelDoc(:docPath) in sorted)
         (
           path: docPath,
           converted: docTexts.containsKey(docPath),
@@ -767,22 +768,22 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
 /// its slug when its operation label is dropped or a label in its text
 /// becomes a doc name; the move is read heading by heading.
 Map<String, String> withLabelAnchorsMoved(
-  List<({String docPath, String lf})> docs,
+  List<LabelDoc> docs,
   Map<String, String> converted,
   Map<String, MergedDocType> docTypes,
 ) {
   final texts = {
-    for (final (:docPath, :lf) in docs)
+    for (final LabelDoc(:docPath, :lf) in docs)
       if (converted[docPath] case final text? when text != lf) docPath: text,
   };
   final moves = SlugMoves({
-    for (final (:docPath, :lf) in docs)
+    for (final LabelDoc(:docPath, :lf) in docs)
       if (texts[docPath] case final text?
           when _slugMovesOf(lf, text).isNotEmpty)
         docPath: _slugMovesOf(lf, text),
   });
   if (moves.isEmpty) return texts;
-  for (final (:docPath, :lf) in docs) {
+  for (final LabelDoc(:docPath, :lf) in docs) {
     var text = texts[docPath] ?? lf;
     text = withAnchorsMoved(text, docPath, moves).moved?.lf ?? text;
     final type = docTypes[docPath];
