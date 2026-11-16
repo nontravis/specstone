@@ -6,6 +6,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
@@ -912,7 +913,10 @@ void main() {
             projectPath: newPath,
             text: File('${repo.path}/$newPath').readAsStringSync(),
             lookup: lookup,
-            sentences: (dropped: <String>[], added: <String>[]),
+            sentences: const SentenceChanges(
+              dropped: <String>[],
+              added: <String>[],
+            ),
           ),
           position: 1,
           count: 1,

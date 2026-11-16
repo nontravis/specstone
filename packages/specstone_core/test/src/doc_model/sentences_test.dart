@@ -6,30 +6,12 @@ import 'package:test/test.dart' hide collapseWhitespace;
 const _story =
     'document_writing/approve_drafts/show_changes_since_approval E22';
 
-/// Expects every sentence of [source] to occur in the held text of [source].
-void _expectEachHeld(String source) {
-  final held = heldTextOf(source);
-  for (final sentence in sentencesOf(source)) {
-    expect(held, contains(sentence), reason: 'sentence: "$sentence"');
-  }
-}
-
-/// The regex form `collapseWhitespace` and `heldTextOf` were read by, kept as
-/// the reference their one-pass scans must match.
+/// The regex form `collapseWhitespace` was read by, kept as the reference its
+/// one-pass scan must match.
 String _referenceCollapse(String text) => text.replaceAll(RegExp(r'\s+'), ' ');
 
-String _referenceHeld(String lfText) => _referenceCollapse(
-  lfText.replaceAllMapped(
-    RegExp(
-      r'^(?:[ \t]*(?:>[ \t]?|(?:[-+*]|\d{1,9}[.)])[ \t]+))+',
-      multiLine: true,
-    ),
-    (opening) => opening[0]!.replaceAll(RegExp(r'>[ \t]?'), ''),
-  ),
-);
-
 void main() {
-  group('collapseWhitespace and heldTextOf read as the regex form did', () {
+  group('collapseWhitespace reads as the regex form did', () {
     test('$_story: every code unit is whitespace as \\s says', () {
       for (var unit = 0; unit <= 0xFFFF; unit++) {
         final char = String.fromCharCode(unit);
@@ -37,11 +19,6 @@ void main() {
           expect(
             collapseWhitespace(text),
             _referenceCollapse(text),
-            reason: 'U+${unit.toRadixString(16)} in "$text"',
-          );
-          expect(
-            heldTextOf(text),
-            _referenceHeld(text),
             reason: 'U+${unit.toRadixString(16)} in "$text"',
           );
         }
@@ -59,7 +36,6 @@ void main() {
         '>\n> \n>\t\n  \n',
         '',
       ]) {
-        expect(heldTextOf(text), _referenceHeld(text), reason: '"$text"');
         expect(
           collapseWhitespace(text),
           _referenceCollapse(text),
@@ -80,10 +56,6 @@ void main() {
             alphabet[random.nextInt(alphabet.length)],
         ].join();
 
-        final held = heldTextOf(text);
-        if (held != _referenceHeld(text)) {
-          fail('heldTextOf differs on ${text.codeUnits}');
-        }
         if (collapseWhitespace(text) != _referenceCollapse(text)) {
           fail('collapseWhitespace differs on ${text.codeUnits}');
         }
@@ -332,7 +304,6 @@ void main() {
         'the CLI, for it.',
         'Not e.g.',
       ]);
-      _expectEachHeld(text);
     });
 
     test('$_story: a paragraph wrapped over lines is found in its source '
@@ -345,7 +316,6 @@ void main() {
         'A sentence that is wrapped.',
         'And one more across lines.',
       ]);
-      _expectEachHeld(text);
     });
 
     test('$_story: a blockquote wrapped over two > lines gives one sentence, '
@@ -354,8 +324,6 @@ void main() {
           '> foo\n'
           '> bar.\n';
       expect(sentencesOf(text), ['foo bar.']);
-      expect(heldTextOf(text), 'foo bar. ');
-      _expectEachHeld(text);
     });
 
     test('$_story: a nested blockquote, a quoted list, and a quoted table '
@@ -379,7 +347,6 @@ void main() {
         'cell.',
         'item quote that wraps.',
       ]);
-      _expectEachHeld(text);
     });
 
     test('$_story: a mark followed by a closing quote or parenthesis cuts '
@@ -389,25 +356,21 @@ void main() {
         'She said "hi." Next one.',
         'It was (really?) Yes.',
       ]);
-      _expectEachHeld(text);
     });
 
     test('a mark and a space inside an inline code span cut no sentence', () {
       const text = 'Run `a. b` now.\n';
       expect(sentencesOf(text), ['Run `a. b` now.']);
-      _expectEachHeld(text);
     });
 
     test('a code span holding ?, ., and ! ends no sentence', () {
       const text = 'Try `x? y. z!` then stop. Rest.\n';
       expect(sentencesOf(text), ['Try `x? y. z!` then stop.', 'Rest.']);
-      _expectEachHeld(text);
     });
 
     test('a cut right after a closed code span still cuts', () {
       const text = 'See `a.b`. Next one.\n';
       expect(sentencesOf(text), ['See `a.b`.', 'Next one.']);
-      _expectEachHeld(text);
     });
 
     test(
@@ -415,7 +378,6 @@ void main() {
       () {
         const text = '| a |\n|---|\n| `v. w` here. |\n';
         expect(sentencesOf(text), ['a', '`v. w` here.']);
-        _expectEachHeld(text);
       },
     );
 
@@ -435,21 +397,6 @@ void main() {
     test('$_story: each run of whitespace becomes one space', () {
       expect(collapseWhitespace('a  b\n\n c\t\td\r\n'), 'a b c d ');
       expect(collapseWhitespace(''), '');
-    });
-  });
-
-  group('heldTextOf', () {
-    test('$_story: block quote marks go and whitespace collapses', () {
-      expect(heldTextOf('> a\n>> b\n> > c\n  > d\n'), 'a b c d ');
-    });
-
-    test('$_story: a > inside a line stays', () {
-      expect(heldTextOf('a -> b and x > y\n'), 'a -> b and x > y ');
-    });
-
-    test('$_story: a quote mark after a list marker goes, the marker '
-        'stays', () {
-      expect(heldTextOf('- > item\n'), '- item ');
     });
   });
 }

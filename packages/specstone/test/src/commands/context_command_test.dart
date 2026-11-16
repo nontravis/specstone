@@ -971,6 +971,35 @@ void main() {
       );
     });
 
+    test('a query on an FR saves its text in one file and appends no cited part', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/prds/references/password_rules/REFERENCE.md':
+              '# Password rules\n\n## Summary\nTwelve characters at least.\n',
+          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+              '# Validate credentials\n\n## Statement\nThe system shall check the password by the '
+              '[password rules](../../../references/password_rules/REFERENCE.md).\n',
+        },
+      );
+      const fr = 'login/email_login/validate_credentials';
+      final stdout = await saved(project, [fr, '--for', 'query', '--out']);
+      final headers = [
+        for (final line in stdout.split('\n')) ?header.firstMatch(line),
+      ];
+      expect(headers, hasLength(1));
+      final text = File(headers.single.group(4)!).readAsStringSync();
+      expect(
+        text,
+        contains(
+          '# Validate credentials\n\n## Statement\nThe system shall check the password',
+        ),
+      );
+      expect(text, isNot(contains(' · cited <==')));
+      expect(text, isNot(contains('Twelve characters at least.')));
+      final implement = await printed(project, [fr, '--for', 'implement']);
+      expect(implement, contains(' · cited <=='));
+    });
+
     test('a bare --for query --out from a subfolder writes under the root and prints the same absolute path, text and --json', () async {
       final project = await writeReadProject(extra: {'app/lib/.keep': ''});
       final nested = Directory('${project.path}/app/lib');
