@@ -4450,6 +4450,28 @@ void _goalMoveTests() {
     expect(RegExp(r'\]\([^)]*\b(?:prds|specs)/').hasMatch(text), isFalse);
   });
 
+  test('goal-move.md titles the goal doc per its guide', () {
+    final move = _oneLine(
+      _sectionOf(_pluginText(_goalMove), '2. Move each answered goal'),
+    );
+    final read = move.indexOf('`specstone get goal:goal --json`');
+    expect(read, isNonNegative);
+    final skip = move.indexOf(
+      'Unless its title already reads `Project goals`',
+      read,
+    );
+    expect(skip, isNonNegative);
+    final guide = move.indexOf('`specstone guide goal`', skip);
+    expect(guide, isNonNegative);
+    final title = move.indexOf(
+      '`specstone set goal:goal --title --base <hash>`',
+      guide,
+    );
+    expect(title, isNonNegative);
+    expect(move.indexOf('`bases.title`', title), isNonNegative);
+    expect(title, lessThan(move.indexOf('specstone set goal:goal#<key>')));
+  });
+
   test("bootstrap-prd SKILL.md asks each goal's horizon before the rest "
       "batch's dispatch and keeps a kept goal out of the run's later "
       'questions and rounds', () {
