@@ -278,7 +278,7 @@ int _headingEnd(List<_Line> lines, int i) {
   final isParagraph =
       next < lines.length &&
       lines[next].kind == _Kind.text &&
-      lines[next].quote == lines[i].quote &&
+      lines[next].quote >= lines[i].quote &&
       !_startsTable(lines, next);
   return isParagraph ? _paragraphEnd(lines, next) : i;
 }

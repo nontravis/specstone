@@ -117,6 +117,21 @@ void main() {
       ]);
     });
 
+    test('E09: a ### heading '
+        'counts with the quoted paragraph right under it', () {
+      final items = _items(
+        '### PV-01\n'
+        '\n'
+        '> en: One line.\n'
+        '- bullet',
+      );
+
+      expect(items, [
+        (line: 20, chars: 26, text: 'PV-01', heading: true),
+        (line: 23, chars: 8, text: 'bullet', heading: false),
+      ]);
+    });
+
     test('E09: a blockquote '
         'paragraph and list item are items as anywhere else', () {
       final items = _items(
