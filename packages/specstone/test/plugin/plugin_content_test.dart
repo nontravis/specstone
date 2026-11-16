@@ -2928,11 +2928,20 @@ void _agentTests() {
         contains(
           'Ask the Owner, per point under `Mismatches:`, fix the code or fix '
           'the spec. Fix the code writes nothing: the next `check` lists the '
-          'link again. Send a fix-the-spec pick to the same agent while it is '
-          'live, else to a new one with the answers, when the fix lands in a '
-          'spec doc.',
+          'link again.',
         ),
       );
+      expect(
+        skill(),
+        contains(
+          'When a fix lands in a spec doc, send the picks to a new '
+          '`specstone-sdd-engineer` per group that holds picks, one at a '
+          "time, each with `mode: sync`, `picks`, and that group's `scope:` "
+          '(`scope: uncovered` for an `Uncovered:` file), never `feature:` '
+          'unless the Owner named the feature.',
+        ),
+      );
+      expect(skill(), isNot(contains('the same agent while it is live')));
       expect(
         skill(),
         contains(

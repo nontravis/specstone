@@ -58,9 +58,11 @@ of every group. A group you followed yourself stands in for item 1 by its own ch
 1. Show the Owner the agent's `Report:` line, then its relay block word for word, before your own notes.
 2. Get each draft approved through `specstone-expert-sdd`'s Owner confirmation.
 3. Ask the Owner, per point under `Mismatches:`, fix the code or fix the spec. Fix the code writes nothing: the next
-   `check` lists the link again. Send a fix-the-spec pick to the same agent while it is live, else to a new one with the
-   answers, when the fix lands in a spec doc. Ask the Owner, per file under `Uncovered:`, write a spec or change or
-   remove the code; change or remove writes nothing, and a write-a-spec pick routes as a fix-the-spec pick does.
+   `check` lists the link again. Ask the Owner, per file under `Uncovered:`, write a spec or change or
+   remove the code; change or remove writes nothing, and a write-a-spec pick routes as a fix-the-spec pick does. When a
+   fix lands in a spec doc, send the picks to a new `specstone-sdd-engineer` per group that holds picks, one at a time,
+   each with `mode: sync`, `picks`, and that group's `scope:` (`scope: uncovered` for an `Uncovered:` file), never
+   `feature:` unless the Owner named the feature.
 4. For each pointer that waited on an approval, once its draft is approved, write that one entry: pipe the corrected
    list to `specstone set implementation:<feature> --field implements --base <hash>` (or
    `specstone set <type>:<name> --field covers --base <hash>`), each with `--target <name>`, the target the report
