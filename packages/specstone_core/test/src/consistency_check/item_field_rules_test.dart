@@ -8,6 +8,7 @@ import '../../helpers/check_fixture.dart';
 const _frLayer = '.specstone/templates/fr.yaml';
 const Set<FindingKind> _fieldKinds = {
   FindingKind.itemFieldMissing,
+  FindingKind.itemFieldUnneeded,
   FindingKind.requiredSectionMissing,
   FindingKind.sectionUnneeded,
 };
@@ -27,6 +28,16 @@ sections:
         section: rationale
         field: Consistency
         value: eventual
+''';
+
+const _whenLayer = '''
+sections:
+  - id: rationale
+    lint:
+      item_fields:
+        - field: Consistency
+        - field: Policy
+          when: {field: Consistency, value: eventual}
 ''';
 
 const _held =
@@ -160,6 +171,136 @@ void main() {
       checkOf(project).findings.where((f) => _fieldKinds.contains(f.kind)),
       isEmpty,
     );
+  });
+
+  group('a conditional item field', () {
+    Future<List<Finding>> found(String body, {String layer = _whenLayer}) =>
+        _found(_withRationale(body), layer: layer);
+
+    test(
+      'an eventual item holding the conditional field has no finding',
+      () async {
+        expect(
+          await found(
+            '- **R1** Refuse it.\n'
+            '  - **Consistency:** eventual\n'
+            '  - **Policy:** Retry.',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('an eventual item without the conditional field reports it at the '
+        'item line', () async {
+      final result = await found(
+        '- **R1** Refuse it.\n  - **Consistency:** eventual',
+      );
+      expect(result, hasLength(1));
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Policy'));
+      expect(result.single.line, _lineOf('- **R1**'));
+    });
+
+    test('an immediate item holding the conditional field reports it as '
+        'unneeded', () async {
+      final result = await found(
+        '- **R1** Refuse it.\n'
+        '  - **Consistency:** immediate\n'
+        '  - **Policy:** Retry.',
+      );
+      expect(result, hasLength(1));
+      expect(result.single.kind, FindingKind.itemFieldUnneeded);
+      expect(result.single.toJson(), containsPair('field', 'Policy'));
+      expect(result.single.line, _lineOf('- **R1**'));
+      expect(result.single.waitsFor, WaitsFor.agent);
+      expect(
+        await found('- **R1** Refuse it.\n  - **Consistency:** immediate'),
+        isEmpty,
+      );
+    });
+
+    test('an item with no Consistency needs no conditional field', () async {
+      final result = await found('- **R1** Refuse it.\n  - **Policy:** Retry.');
+      expect(result.map((f) => (f.kind, f.toJson()['field'])), [
+        (FindingKind.itemFieldMissing, 'Consistency'),
+        (FindingKind.itemFieldUnneeded, 'Policy'),
+      ]);
+    });
+
+    test('an entry with values and when reports a met item value outside '
+        'values and an unmet item field whatever its text', () async {
+      const layer = '''
+sections:
+  - id: rationale
+    lint:
+      item_fields:
+        - field: Consistency
+        - field: Policy
+          values: [retry]
+          when: {field: Consistency, value: eventual}
+''';
+      final met = await found(
+        '- **R1** Refuse it.\n'
+        '  - **Consistency:** eventual\n'
+        '  - **Policy:** later',
+        layer: layer,
+      );
+      expect(met.single.kind, FindingKind.itemFieldMissing);
+      final unmet = await found(
+        '- **R1** Refuse it.\n'
+        '  - **Consistency:** immediate\n'
+        '  - **Policy:** retry',
+        layer: layer,
+      );
+      expect(unmet.single.kind, FindingKind.itemFieldUnneeded);
+    });
+
+    test('a Consistency in another letter case meets no condition', () async {
+      final result = await found(
+        '- **R1** Refuse it.\n'
+        '  - **Consistency:** Eventual\n'
+        '  - **Policy:** Retry.',
+      );
+      expect(result.map((f) => f.kind), [FindingKind.itemFieldUnneeded]);
+    });
+
+    test('the first of two Consistency items decides the condition', () async {
+      final result = await found(
+        '- **R1** Refuse it.\n'
+        '  - **Consistency:** eventual\n'
+        '  - **Consistency:** immediate',
+      );
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Policy'));
+    });
+
+    test('an empty conditional field on a met item is missing', () async {
+      final result = await found(
+        '- **R1** Refuse it.\n'
+        '  - **Consistency:** eventual\n'
+        '  - **Policy:**',
+      );
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Policy'));
+    });
+
+    test('a condition reads a nested field no entry lists', () async {
+      const layer = '''
+sections:
+  - id: rationale
+    lint:
+      item_fields:
+        - field: Policy
+          when: {field: Kind, value: async}
+''';
+      final result = await found(
+        '- **R1** Refuse it.\n  - **Kind:** async',
+        layer: layer,
+      );
+      expect(result.single.kind, FindingKind.itemFieldMissing);
+      expect(result.single.toJson(), containsPair('field', 'Policy'));
+    });
   });
 
   group('a closed generated block', () {

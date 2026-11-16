@@ -47,6 +47,7 @@ enum FindingKind {
   linesUnderLimit('lines_under_limit'),
   subsectionsOverLimit('subsections_over_limit'),
   itemFieldMissing('item_field_missing'),
+  itemFieldUnneeded('item_field_unneeded'),
   sectionUnneeded('section_unneeded'),
   systemUnresolved('system_unresolved'),
   operationUnmatched('operation_unmatched'),
