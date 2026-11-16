@@ -117,12 +117,12 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZHsyfXxbQS1aYS16XSsgXGR7NH0pfFtTc11pbmNlICg/OnBsYW58bWlsZXN0b25l'
       'KSlcYicKICAgICAgbWVzc2FnZTogaGlzdG9yeSBwcm9zZTsgc3RhdGUgdGhlIHBy'
       'ZXNlbnQgdHJ1dGggb25seQogICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAw'
-      'CnJlZmVyZW5jZToKICAtIHRpdGxlOiAiTk4vZywgQW50aXBlcnNvbmFzOiBXaGF0'
-      'LCBIb3csIFdobywgYW5kIFdoeT8gKDIwMjIpIgogICAgdXJsOiBodHRwczovL3d3'
-      'dy5ubmdyb3VwLmNvbS9hcnRpY2xlcy9hbnRpcGVyc29uYXMtd2hhdC1ob3cvCiAg'
-      'LSB0aXRsZTogSHViU3BvdCwgQnV5ZXIgcGVyc29uYSByZXNlYXJjaAogICAgdXJs'
-      'OiBodHRwczovL2Jsb2cuaHVic3BvdC5jb20vbWFya2V0aW5nL2J1eWVyLXBlcnNv'
-      'bmEtcmVzZWFyY2gK',
+      'CiAgbWF4X2NoYXJzOiAyMDAwMApyZWZlcmVuY2U6CiAgLSB0aXRsZTogIk5OL2cs'
+      'IEFudGlwZXJzb25hczogV2hhdCwgSG93LCBXaG8sIGFuZCBXaHk/ICgyMDIyKSIK'
+      'ICAgIHVybDogaHR0cHM6Ly93d3cubm5ncm91cC5jb20vYXJ0aWNsZXMvYW50aXBl'
+      'cnNvbmFzLXdoYXQtaG93LwogIC0gdGl0bGU6IEh1YlNwb3QsIEJ1eWVyIHBlcnNv'
+      'bmEgcmVzZWFyY2gKICAgIHVybDogaHR0cHM6Ly9ibG9nLmh1YnNwb3QuY29tL21h'
+      'cmtldGluZy9idXllci1wZXJzb25hLXJlc2VhcmNoCg==',
   'prd-core/feature.yaml':
       'aWQ6IGZlYXR1cmUKZGVzY3JpcHRpb246IHwtCiAgQSBmZWF0dXJlOiBmdW5jdGlv'
       'bmFsaXR5IHRoYXQgZGVsaXZlcnMgdmFsdWUgdG8gYSBwZXJzb25hLCBtZWV0cyBv'
@@ -320,18 +320,19 @@ const Map<String, String> shippedPackFilesBase64 = {
       'cyBvZiAoPzpcZHs0fS1cZHsyfS1cZHsyfXxbQS1aYS16XSsgXGR7NH0pfFtTc11p'
       'bmNlICg/OnBsYW58bWlsZXN0b25lKSlcYicKICAgICAgbWVzc2FnZTogaGlzdG9y'
       'eSBwcm9zZTsgc3RhdGUgdGhlIHByZXNlbnQgdHJ1dGggb25seQogICAgICBpbjog'
-      'dGV4dAogIG1heF9saW5lczogNDAwCnJlZmVyZW5jZToKICAtIHRpdGxlOiBCcnlh'
-      'ciAmIENhcnIsIFBSL0ZBUSBJbnN0cnVjdGlvbnMgJiBUZW1wbGF0ZQogICAgdXJs'
-      'OiBodHRwczovL3dvcmtpbmdiYWNrd2FyZHMuY29tL3Jlc291cmNlcy93b3JraW5n'
-      'LWJhY2t3YXJkcy1wci1mYXEvCiAgLSB0aXRsZTogIlNBRmUgRmVsbG93IGJsb2cs'
-      'IENyYWZ0aW5nIENsYXJpdHk6IEZlYXR1cmUgVGVtcGxhdGVzICgyMDI0KSIKICAg'
-      'IHVybDogaHR0cHM6Ly9mcmFtZXdvcmsuc2NhbGVkYWdpbGUuY29tL2Jsb2cvY3Jh'
-      'ZnRpbmctY2xhcml0eS11c2luZy1mZWF0dXJlLXRlbXBsYXRlcy10by1zaGFwZS1h'
-      'bmQtY29tbXVuaWNhdGUtaW50ZW50LwogIC0gdGl0bGU6IFNoYXBlIFVwLCBXcml0'
-      'ZSB0aGUgUGl0Y2gKICAgIHVybDogaHR0cHM6Ly9iYXNlY2FtcC5jb20vc2hhcGV1'
-      'cC8xLjUtY2hhcHRlci0wNgogIC0gdGl0bGU6IE1hcnR5IENhZ2FuLCBBc3Nlc3Np'
-      'bmcgUHJvZHVjdCBPcHBvcnR1bml0aWVzCiAgICB1cmw6IGh0dHBzOi8vd3d3LnN2'
-      'cGcuY29tL2Fzc2Vzc2luZy1wcm9kdWN0LW9wcG9ydHVuaXRpZXMvCg==',
+      'dGV4dAogIG1heF9saW5lczogNDAwCiAgbWF4X2NoYXJzOiAyMDAwMApyZWZlcmVu'
+      'Y2U6CiAgLSB0aXRsZTogQnJ5YXIgJiBDYXJyLCBQUi9GQVEgSW5zdHJ1Y3Rpb25z'
+      'ICYgVGVtcGxhdGUKICAgIHVybDogaHR0cHM6Ly93b3JraW5nYmFja3dhcmRzLmNv'
+      'bS9yZXNvdXJjZXMvd29ya2luZy1iYWNrd2FyZHMtcHItZmFxLwogIC0gdGl0bGU6'
+      'ICJTQUZlIEZlbGxvdyBibG9nLCBDcmFmdGluZyBDbGFyaXR5OiBGZWF0dXJlIFRl'
+      'bXBsYXRlcyAoMjAyNCkiCiAgICB1cmw6IGh0dHBzOi8vZnJhbWV3b3JrLnNjYWxl'
+      'ZGFnaWxlLmNvbS9ibG9nL2NyYWZ0aW5nLWNsYXJpdHktdXNpbmctZmVhdHVyZS10'
+      'ZW1wbGF0ZXMtdG8tc2hhcGUtYW5kLWNvbW11bmljYXRlLWludGVudC8KICAtIHRp'
+      'dGxlOiBTaGFwZSBVcCwgV3JpdGUgdGhlIFBpdGNoCiAgICB1cmw6IGh0dHBzOi8v'
+      'YmFzZWNhbXAuY29tL3NoYXBldXAvMS41LWNoYXB0ZXItMDYKICAtIHRpdGxlOiBN'
+      'YXJ0eSBDYWdhbiwgQXNzZXNzaW5nIFByb2R1Y3QgT3Bwb3J0dW5pdGllcwogICAg'
+      'dXJsOiBodHRwczovL3d3dy5zdnBnLmNvbS9hc3Nlc3NpbmctcHJvZHVjdC1vcHBv'
+      'cnR1bml0aWVzLwo=',
   'prd-core/features.yaml':
       'aWQ6IGZlYXR1cmVzCmRlc2NyaXB0aW9uOiB8LQogIFRoZSBzeXN0ZW0gbWFwOiBv'
       'bmUgZGlhZ3JhbSBvZiB0aGUgYWN0b3JzIGFuZCBzeXN0ZW1zLCBhbmQgdGhlIHRh'
@@ -376,7 +377,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZHsyfS1cZHsyfXxbQS1aYS16XSsgXGR7NH0pfFtTc11pbmNlICg/OnBsYW58bWls'
       'ZXN0b25lKSlcYicKICAgICAgbWVzc2FnZTogaGlzdG9yeSBwcm9zZTsgc3RhdGUg'
       'dGhlIHByZXNlbnQgdHJ1dGggb25seQogICAgICBpbjogdGV4dAogIG1heF9saW5l'
-      'czogNDAwCg==',
+      'czogNDAwCiAgbWF4X2NoYXJzOiAyMDAwMAo=',
   'prd-core/fr.yaml':
       'aWQ6IGZyCmRlc2NyaXB0aW9uOiB8LQogIEEgZnVuY3Rpb25hbCByZXF1aXJlbWVu'
       'dDogb25lIHRlc3RhYmxlIHN0YXRlbWVudCBvZiB3aGF0IHRoZSBwcm9kdWN0IHNo'
@@ -562,11 +563,12 @@ const Map<String, String> shippedPackFilesBase64 = {
       'cl1ldmVyc2VkfFtBYV1zIG9mICg/OlxkezR9LVxkezJ9LVxkezJ9fFtBLVphLXpd'
       'KyBcZHs0fSl8W1NzXWluY2UgKD86cGxhbnxtaWxlc3RvbmUpKVxiJwogICAgICBt'
       'ZXNzYWdlOiBoaXN0b3J5IHByb3NlOyBzdGF0ZSB0aGUgcHJlc2VudCB0cnV0aCBv'
-      'bmx5CiAgICAgIGluOiB0ZXh0CiAgbWF4X2xpbmVzOiA0MDAKcmVmZXJlbmNlOgog'
-      'IC0gdGl0bGU6IE5BU0EgU3lzdGVtcyBFbmdpbmVlcmluZyBIYW5kYm9vaywgTkFT'
-      'QSBTUC0yMDE2LTYxMDUgUmV2MgogICAgdXJsOiBodHRwczovL3d3dy5uYXNhLmdv'
-      'di9yZWZlcmVuY2Uvc3lzdGVtcy1lbmdpbmVlcmluZy1oYW5kYm9vay8KICAgIGxv'
-      'Y2F0b3I6IEFwcGVuZGl4IEMgYW5kIHNlY3Rpb24gNC4yCg==',
+      'bmx5CiAgICAgIGluOiB0ZXh0CiAgbWF4X2xpbmVzOiA0MDAKICBtYXhfY2hhcnM6'
+      'IDIwMDAwCnJlZmVyZW5jZToKICAtIHRpdGxlOiBOQVNBIFN5c3RlbXMgRW5naW5l'
+      'ZXJpbmcgSGFuZGJvb2ssIE5BU0EgU1AtMjAxNi02MTA1IFJldjIKICAgIHVybDog'
+      'aHR0cHM6Ly93d3cubmFzYS5nb3YvcmVmZXJlbmNlL3N5c3RlbXMtZW5naW5lZXJp'
+      'bmctaGFuZGJvb2svCiAgICBsb2NhdG9yOiBBcHBlbmRpeCBDIGFuZCBzZWN0aW9u'
+      'IDQuMgo=',
   'prd-core/glossary.yaml':
       'aWQ6IGdsb3NzYXJ5CmRlc2NyaXB0aW9uOiB8LQogIFRoZSBwcm9qZWN0IGdsb3Nz'
       'YXJ5IGRvYzogZXZlcnkgZG9tYWluIHRlcm0sIG9uZSBsaW5lIGVhY2guCiAgVGl0'
@@ -613,7 +615,8 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZiAoPzpcZHs0fS1cZHsyfS1cZHsyfXxbQS1aYS16XSsgXGR7NH0pfFtTc11pbmNl'
       'ICg/OnBsYW58bWlsZXN0b25lKSlcYicKICAgICAgbWVzc2FnZTogaGlzdG9yeSBw'
       'cm9zZTsgc3RhdGUgdGhlIHByZXNlbnQgdHJ1dGggb25seQogICAgICBpbjogdGV4'
-      'dAogIG1heF9saW5lczogNDAwCiAgbWF4X2l0ZW1fY2hhcnM6IDMwMAo=',
+      'dAogIG1heF9saW5lczogNDAwCiAgbWF4X2NoYXJzOiAyMDAwMAogIG1heF9pdGVt'
+      'X2NoYXJzOiAzMDAK',
   'prd-core/gnfr.yaml':
       'aWQ6IGduZnIKZGVzY3JpcHRpb246IHwtCiAgVGhlIHByb2plY3Qtd2lkZSBub24t'
       'ZnVuY3Rpb25hbCByZXF1aXJlbWVudHM7IGV2ZXJ5IGl0ZW0gYXBwbGllcyB0byBl'
@@ -1003,11 +1006,11 @@ const Map<String, String> shippedPackFilesBase64 = {
       'Mn0tXGR7Mn18W0EtWmEtel0rIFxkezR9KXxbU3NdaW5jZSAoPzpwbGFufG1pbGVz'
       'dG9uZSkpXGInCiAgICAgIG1lc3NhZ2U6IGhpc3RvcnkgcHJvc2U7IHN0YXRlIHRo'
       'ZSBwcmVzZW50IHRydXRoIG9ubHkKICAgICAgaW46IHRleHQKICBtYXhfbGluZXM6'
-      'IDQwMApyZWZlcmVuY2U6CiAgLSB0aXRsZTogTkFTQSBTeXN0ZW1zIEVuZ2luZWVy'
-      'aW5nIEhhbmRib29rLCBOQVNBIFNQLTIwMTYtNjEwNSBSZXYyCiAgICB1cmw6IGh0'
-      'dHBzOi8vd3d3Lm5hc2EuZ292L3JlZmVyZW5jZS9zeXN0ZW1zLWVuZ2luZWVyaW5n'
-      'LWhhbmRib29rLwogICAgbG9jYXRvcjogQXBwZW5kaXggQyBhbmQgc2VjdGlvbiA0'
-      'LjIK',
+      'IDQwMAogIG1heF9jaGFyczogMjAwMDAKcmVmZXJlbmNlOgogIC0gdGl0bGU6IE5B'
+      'U0EgU3lzdGVtcyBFbmdpbmVlcmluZyBIYW5kYm9vaywgTkFTQSBTUC0yMDE2LTYx'
+      'MDUgUmV2MgogICAgdXJsOiBodHRwczovL3d3dy5uYXNhLmdvdi9yZWZlcmVuY2Uv'
+      'c3lzdGVtcy1lbmdpbmVlcmluZy1oYW5kYm9vay8KICAgIGxvY2F0b3I6IEFwcGVu'
+      'ZGl4IEMgYW5kIHNlY3Rpb24gNC4yCg==',
   'prd-core/goal.yaml':
       'aWQ6IGdvYWwKZGVzY3JpcHRpb246IHwtCiAgVGhlIHByb2plY3QgZ29hbCBkb2M6'
       'IGV2ZXJ5IGdvYWwsIGdyb3VwZWQgYnkgdGhlIGhvcml6b24gaXQgc2VydmVzLgog'
@@ -1091,7 +1094,8 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZHxbUnJdZXZlcnNlZHxbQWFdcyBvZiAoPzpcZHs0fS1cZHsyfS1cZHsyfXxbQS1a'
       'YS16XSsgXGR7NH0pfFtTc11pbmNlICg/OnBsYW58bWlsZXN0b25lKSlcYicKICAg'
       'ICAgbWVzc2FnZTogaGlzdG9yeSBwcm9zZTsgc3RhdGUgdGhlIHByZXNlbnQgdHJ1'
-      'dGggb25seQogICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAwCg==',
+      'dGggb25seQogICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAwCiAgbWF4X2No'
+      'YXJzOiAyMDAwMAo=',
   'prd-core/journey.yaml':
       'aWQ6IGpvdXJuZXkKZGVzY3JpcHRpb246IHwtCiAgQSBqb3VybmV5OiB0aGUgc3Rv'
       'cnkgc2NlbmFyaW9zIG9uZSBwZXJzb25hIHdhbGtzIHRvd2FyZCBvbmUgZ29hbCwg'
@@ -1157,7 +1161,8 @@ const Map<String, String> shippedPackFilesBase64 = {
       'cnNlZHxbQWFdcyBvZiAoPzpcZHs0fS1cZHsyfS1cZHsyfXxbQS1aYS16XSsgXGR7'
       'NH0pfFtTc11pbmNlICg/OnBsYW58bWlsZXN0b25lKSlcYicKICAgICAgbWVzc2Fn'
       'ZTogaGlzdG9yeSBwcm9zZTsgc3RhdGUgdGhlIHByZXNlbnQgdHJ1dGggb25seQog'
-      'ICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAwCg==',
+      'ICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAwCiAgbWF4X2NoYXJzOiAyMDAw'
+      'MAo=',
   'prd-core/measurement.yaml':
       'aWQ6IG1lYXN1cmVtZW50CmRlc2NyaXB0aW9uOiB8LQogIEEgbWVhc3VyZW1lbnQ6'
       'IHRoZSBldmlkZW5jZSBmb3Igb25lIHByb2plY3QgZ29hbCwga2VwdCBhcyBhIGxv'
@@ -1233,7 +1238,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'NH0tXGR7Mn0tXGR7Mn18W0EtWmEtel0rIFxkezR9KXxbU3NdaW5jZSAoPzpwbGFu'
       'fG1pbGVzdG9uZSkpXGInCiAgICAgIG1lc3NhZ2U6IGhpc3RvcnkgcHJvc2U7IHN0'
       'YXRlIHRoZSBwcmVzZW50IHRydXRoIG9ubHkKICAgICAgaW46IHRleHQKICBtYXhf'
-      'bGluZXM6IDQwMAo=',
+      'bGluZXM6IDQwMAogIG1heF9jaGFyczogMjAwMDAK',
   'prd-core/nf.yaml':
       'aWQ6IG5mCmRlc2NyaXB0aW9uOiB8LQogIEEgc3RvcnktbGV2ZWwgbm9uLWZ1bmN0'
       'aW9uYWwgcmVxdWlyZW1lbnQ6IG9uZSBxdWFudGlmaWVkIHF1YWxpdHkgdGFyZ2V0'
@@ -1363,12 +1368,12 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZHsyfS1cZHsyfXxbQS1aYS16XSsgXGR7NH0pfFtTc11pbmNlICg/OnBsYW58bWls'
       'ZXN0b25lKSlcYicKICAgICAgbWVzc2FnZTogaGlzdG9yeSBwcm9zZTsgc3RhdGUg'
       'dGhlIHByZXNlbnQgdHJ1dGggb25seQogICAgICBpbjogdGV4dAogIG1heF9saW5l'
-      'czogNDAwCnJlZmVyZW5jZToKICAtIHRpdGxlOiBOQVNBIFN5c3RlbXMgRW5naW5l'
-      'ZXJpbmcgSGFuZGJvb2ssIE5BU0EgU1AtMjAxNi02MTA1IFJldjIKICAgIHVybDog'
-      'aHR0cHM6Ly93d3cubmFzYS5nb3YvcmVmZXJlbmNlL3N5c3RlbXMtZW5naW5lZXJp'
-      'bmctaGFuZGJvb2svCiAgICBsb2NhdG9yOiBBcHBlbmRpeCBDIGFuZCBzZWN0aW9u'
-      'IDQuMgo=',
-  'prd-core/pack.yaml': 'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4xNS4wCg==',
+      'czogNDAwCiAgbWF4X2NoYXJzOiAyMDAwMApyZWZlcmVuY2U6CiAgLSB0aXRsZTog'
+      'TkFTQSBTeXN0ZW1zIEVuZ2luZWVyaW5nIEhhbmRib29rLCBOQVNBIFNQLTIwMTYt'
+      'NjEwNSBSZXYyCiAgICB1cmw6IGh0dHBzOi8vd3d3Lm5hc2EuZ292L3JlZmVyZW5j'
+      'ZS9zeXN0ZW1zLWVuZ2luZWVyaW5nLWhhbmRib29rLwogICAgbG9jYXRvcjogQXBw'
+      'ZW5kaXggQyBhbmQgc2VjdGlvbiA0LjIK',
+  'prd-core/pack.yaml': 'bmFtZTogcHJkLWNvcmUKdmVyc2lvbjogMS4xNi4wCg==',
   'prd-core/persona.yaml':
       'aWQ6IHBlcnNvbmEKZGVzY3JpcHRpb246IHwtCiAgQSBwZXJzb25hOiBvbmUgYXJj'
       'aGV0eXBlIG9mIGEgaHVtYW4gUm9sZSwgZGVzY3JpYmVkIGJ5IGl0cyBnb2Fscywg'
@@ -1537,18 +1542,19 @@ const Map<String, String> shippedPackFilesBase64 = {
       'UnJdZXZlcnNlZHxbQWFdcyBvZiAoPzpcZHs0fS1cZHsyfS1cZHsyfXxbQS1aYS16'
       'XSsgXGR7NH0pfFtTc11pbmNlICg/OnBsYW58bWlsZXN0b25lKSlcYicKICAgICAg'
       'bWVzc2FnZTogaGlzdG9yeSBwcm9zZTsgc3RhdGUgdGhlIHByZXNlbnQgdHJ1dGgg'
-      'b25seQogICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAwCnJlZmVyZW5jZToK'
-      'ICAtIHRpdGxlOiBLaW0gR29vZHdpbiwgUGVyZmVjdGluZyBZb3VyIFBlcnNvbmFz'
-      'IChDb29wZXIgSm91cm5hbCwgMjAwMTsgV2F5YmFjaykKICAgIHVybDogaHR0cHM6'
-      'Ly93ZWIuYXJjaGl2ZS5vcmcvd2ViLzIwMTAxMjI5MTAyMDU1L2h0dHA6Ly93d3cu'
-      'Y29vcGVyLmNvbS9qb3VybmFsLzIwMDEvMDgvcGVyZmVjdGluZ195b3VyX3BlcnNv'
-      'bmFzLmh0bWwKICAtIHRpdGxlOiBOTi9nLCAzIFBlcnNvbmEgVHlwZXMgKDIwMjAp'
-      'CiAgICB1cmw6IGh0dHBzOi8vd3d3Lm5uZ3JvdXAuY29tL2FydGljbGVzL3BlcnNv'
-      'bmEtdHlwZXMvCiAgLSB0aXRsZTogTk4vZywgUGVyc29uYXMgTWFrZSBVc2VycyBN'
-      'ZW1vcmFibGUgKDIwMjUpCiAgICB1cmw6IGh0dHBzOi8vd3d3Lm5uZ3JvdXAuY29t'
-      'L2FydGljbGVzL3BlcnNvbmEvCiAgLSB0aXRsZTogMThGIE1ldGhvZHMsIFBlcnNv'
-      'bmFzIGNhcmQgKGFyY2hpdmVkIHJlcG8pCiAgICB1cmw6IGh0dHBzOi8vZ2l0aHVi'
-      'LmNvbS8xOEYvbWV0aG9kcy9ibG9iL21haW4vX21ldGhvZHMvcGVyc29uYXMubWQK',
+      'b25seQogICAgICBpbjogdGV4dAogIG1heF9saW5lczogNDAwCiAgbWF4X2NoYXJz'
+      'OiAyMDAwMApyZWZlcmVuY2U6CiAgLSB0aXRsZTogS2ltIEdvb2R3aW4sIFBlcmZl'
+      'Y3RpbmcgWW91ciBQZXJzb25hcyAoQ29vcGVyIEpvdXJuYWwsIDIwMDE7IFdheWJh'
+      'Y2spCiAgICB1cmw6IGh0dHBzOi8vd2ViLmFyY2hpdmUub3JnL3dlYi8yMDEwMTIy'
+      'OTEwMjA1NS9odHRwOi8vd3d3LmNvb3Blci5jb20vam91cm5hbC8yMDAxLzA4L3Bl'
+      'cmZlY3RpbmdfeW91cl9wZXJzb25hcy5odG1sCiAgLSB0aXRsZTogTk4vZywgMyBQ'
+      'ZXJzb25hIFR5cGVzICgyMDIwKQogICAgdXJsOiBodHRwczovL3d3dy5ubmdyb3Vw'
+      'LmNvbS9hcnRpY2xlcy9wZXJzb25hLXR5cGVzLwogIC0gdGl0bGU6IE5OL2csIFBl'
+      'cnNvbmFzIE1ha2UgVXNlcnMgTWVtb3JhYmxlICgyMDI1KQogICAgdXJsOiBodHRw'
+      'czovL3d3dy5ubmdyb3VwLmNvbS9hcnRpY2xlcy9wZXJzb25hLwogIC0gdGl0bGU6'
+      'IDE4RiBNZXRob2RzLCBQZXJzb25hcyBjYXJkIChhcmNoaXZlZCByZXBvKQogICAg'
+      'dXJsOiBodHRwczovL2dpdGh1Yi5jb20vMThGL21ldGhvZHMvYmxvYi9tYWluL19t'
+      'ZXRob2RzL3BlcnNvbmFzLm1kCg==',
   'prd-core/project.yaml':
       'aWQ6IHByb2plY3QKZGVzY3JpcHRpb246IHwtCiAgVGhlIHByb2plY3Qtd2lkZSBj'
       'b250ZXh0IGRvYzogbmFtZSwgdmlzaW9uLCByb2xlcywgYW5kIHNjb3BlIGxpbWl0'
@@ -1629,7 +1635,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'XGR7NH0tXGR7Mn0tXGR7Mn18W0EtWmEtel0rIFxkezR9KXxbU3NdaW5jZSAoPzpw'
       'bGFufG1pbGVzdG9uZSkpXGInCiAgICAgIG1lc3NhZ2U6IGhpc3RvcnkgcHJvc2U7'
       'IHN0YXRlIHRoZSBwcmVzZW50IHRydXRoIG9ubHkKICAgICAgaW46IHRleHQKICBt'
-      'YXhfbGluZXM6IDQwMAo=',
+      'YXhfbGluZXM6IDQwMAogIG1heF9jaGFyczogMjAwMDAK',
   'prd-core/reference.yaml':
       'aWQ6IHJlZmVyZW5jZQpkZXNjcmlwdGlvbjogfC0KICBBIHJlZmVyZW5jZSBjYXJk'
       'OiB0aGUgc3VtbWFyeSBvZiBvbmUgb3V0c2lkZSBzb3VyY2UgdGhhdCB0aGUgcHJv'
@@ -1673,7 +1679,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZSBzb3VyY2UgdGhhdCB0aGUgcHJvamVjdCByZXVzZXMsIGluIHRoZSBzb3VyY2Un'
       'cyBvd24gd29yZHMuCiAgICB0ZW1wbGF0ZTogfC0KICAgICAgLSAqKjxUZXJtPjoq'
       'KiA8dGhlIHNvdXJjZSdzIGRlZmluaXRpb24+ICg8cGFnZSBvciBzZWN0aW9uPikK'
-      'bGludDoKICBtYXhfbGluZXM6IDQwMAo=',
+      'bGludDoKICBtYXhfbGluZXM6IDQwMAogIG1heF9jaGFyczogMjAwMDAK',
   'prd-core/user_story.yaml':
       'aWQ6IHVzZXJfc3RvcnkKZGVzY3JpcHRpb246IHwtCiAgQSB1c2VyIHN0b3J5OiBv'
       'bmUgY2hhbmdlIGluIGJlaGF2aW9yIHRoYXQgc29tZW9uZSBvdXRzaWRlIHRoZSB0'
@@ -1799,16 +1805,17 @@ const Map<String, String> shippedPackFilesBase64 = {
       'ZGVkfFtScl1ldmVyc2VkfFtBYV1zIG9mICg/OlxkezR9LVxkezJ9LVxkezJ9fFtB'
       'LVphLXpdKyBcZHs0fSl8W1NzXWluY2UgKD86cGxhbnxtaWxlc3RvbmUpKVxiJwog'
       'ICAgICBtZXNzYWdlOiBoaXN0b3J5IHByb3NlOyBzdGF0ZSB0aGUgcHJlc2VudCB0'
-      'cnV0aCBvbmx5CiAgICAgIGluOiB0ZXh0CiAgbWF4X2xpbmVzOiA0MDAKcmVmZXJl'
-      'bmNlOgogIC0gdGl0bGU6IERhbiBOb3J0aCwgV2hhdCdzIGluIGEgU3Rvcnk/CiAg'
-      'ICB1cmw6IGh0dHBzOi8vZGFubm9ydGgubmV0L2Jsb2cvd2hhdHMtaW4tYS1zdG9y'
-      'eS8KICAtIHRpdGxlOiBNaWtlIENvaG4sIFVzZXIgU3RvcmllcyBndWlkZQogICAg'
-      'dXJsOiBodHRwczovL3d3dy5tb3VudGFpbmdvYXRzb2Z0d2FyZS5jb20vYWdpbGUv'
-      'dXNlci1zdG9yaWVzCiAgLSB0aXRsZTogQ3VjdW1iZXIsIEdoZXJraW4gUmVmZXJl'
-      'bmNlCiAgICB1cmw6IGh0dHBzOi8vY3VjdW1iZXIuaW8vZG9jcy9naGVya2luL3Jl'
-      'ZmVyZW5jZS8KICAtIHRpdGxlOiBNYXR0IFd5bm5lLCBJbnRyb2R1Y2luZyBFeGFt'
-      'cGxlIE1hcHBpbmcKICAgIHVybDogaHR0cHM6Ly9jdWN1bWJlci5pby9ibG9nL2Jk'
-      'ZC9leGFtcGxlLW1hcHBpbmctaW50cm9kdWN0aW9uLwo=',
+      'cnV0aCBvbmx5CiAgICAgIGluOiB0ZXh0CiAgbWF4X2xpbmVzOiA0MDAKICBtYXhf'
+      'Y2hhcnM6IDIwMDAwCnJlZmVyZW5jZToKICAtIHRpdGxlOiBEYW4gTm9ydGgsIFdo'
+      'YXQncyBpbiBhIFN0b3J5PwogICAgdXJsOiBodHRwczovL2Rhbm5vcnRoLm5ldC9i'
+      'bG9nL3doYXRzLWluLWEtc3RvcnkvCiAgLSB0aXRsZTogTWlrZSBDb2huLCBVc2Vy'
+      'IFN0b3JpZXMgZ3VpZGUKICAgIHVybDogaHR0cHM6Ly93d3cubW91bnRhaW5nb2F0'
+      'c29mdHdhcmUuY29tL2FnaWxlL3VzZXItc3RvcmllcwogIC0gdGl0bGU6IEN1Y3Vt'
+      'YmVyLCBHaGVya2luIFJlZmVyZW5jZQogICAgdXJsOiBodHRwczovL2N1Y3VtYmVy'
+      'LmlvL2RvY3MvZ2hlcmtpbi9yZWZlcmVuY2UvCiAgLSB0aXRsZTogTWF0dCBXeW5u'
+      'ZSwgSW50cm9kdWNpbmcgRXhhbXBsZSBNYXBwaW5nCiAgICB1cmw6IGh0dHBzOi8v'
+      'Y3VjdW1iZXIuaW8vYmxvZy9iZGQvZXhhbXBsZS1tYXBwaW5nLWludHJvZHVjdGlv'
+      'bi8K',
   'software-tech/api.yaml':
       'aWQ6IGFwaQpkZXNjcmlwdGlvbjogfC0KICBUaGUgQVBJIG9mIG9uZSBmZWF0dXJl'
       'OiB3aGljaCBvcGVyYXRpb25zIGl0IHVzZXMsIGhvdyBlYWNoIGlzIGNhbGxlZCwg'

@@ -591,9 +591,9 @@ void main() {
   });
 
   test(
-    'the shipped prd-core pack is 1.15.0, so the guide-rule keys ride it',
+    'the shipped prd-core pack is 1.16.0, so the guide-rule keys ride it',
     () {
-      expect(shippedPackVersions()['prd-core'], '1.15.0');
+      expect(shippedPackVersions()['prd-core'], '1.16.0');
     },
   );
 

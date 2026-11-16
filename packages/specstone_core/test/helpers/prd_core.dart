@@ -225,13 +225,12 @@ void expectItemShape(MergedDocType docType, String shape) {
 /// Expects the guide shape every `prd-core` doc type shares.
 ///
 /// [maxLines] and [maxChars] are the doc type's line and character caps;
-/// [maxChars] is null when it sets none.
 void expectGuideShape(
   MergedDocType docType, {
   required String title,
   String pack = 'prd-core',
   int maxLines = 400,
-  int? maxChars,
+  int maxChars = 20000,
 }) {
   final id = docType.id;
   expect(docType.pack, pack, reason: id);
