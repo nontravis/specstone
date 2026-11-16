@@ -175,7 +175,12 @@ ReadAnswer answerRename(
       renamed: renamed,
       docEdits: records.edits,
     );
-    final mentions = staleMentions(session, moves, namesChange: true);
+    final mentions = staleMentions(
+      session,
+      moves,
+      namesChange: true,
+      docWrites: rewrites,
+    );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
@@ -273,7 +278,12 @@ ReadAnswer answerMove(
         if (docType.id == frType) ..._movedFrEdits(session, moving, newParent),
       },
     );
-    final mentions = staleMentions(session, moves, namesChange: true);
+    final mentions = staleMentions(
+      session,
+      moves,
+      namesChange: true,
+      docWrites: rewrites,
+    );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)

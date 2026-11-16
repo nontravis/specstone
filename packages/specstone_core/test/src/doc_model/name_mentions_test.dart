@@ -243,4 +243,37 @@ void main() {
       expect([for (final m in mentions) m.line], [1]);
     });
   });
+  group('longerSpanMentionsInMarkdown', () {
+    test('a span holding a name inside longer text yields that name', () {
+      final mentions = longerSpanMentionsInMarkdown(
+        'Read `shop/cart/add_item E05` and `fr:shop/cart/x see`.\n',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text, m.address.docPart)],
+        [
+          (1, 'shop/cart/add_item E05', 'shop/cart/add_item'),
+          (1, 'fr:shop/cart/x see', 'fr:shop/cart/x'),
+        ],
+      );
+    });
+
+    test(
+      'a whole-text name, a bare one-slug word, and fenced code yield none',
+      () {
+        expect(
+          longerSpanMentionsInMarkdown(
+            '`shop/cart/add_item` `cat add_item`\n\n```\n`a/b c`\n```\n',
+          ),
+          isEmpty,
+        );
+      },
+    );
+
+    test('frontmatter is skipped and a line counts from the file top', () {
+      final mentions = longerSpanMentionsInMarkdown(
+        '---\nk: v\n---\n\nx `a/b c`\n',
+      );
+      expect([for (final m in mentions) m.line], [5]);
+    });
+  });
 }

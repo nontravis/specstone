@@ -2,10 +2,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
-    show NameMention, docMentionsInFile, readsNameMentions;
+    show
+        NameMention,
+        docMentionsInFile,
+        longerSpanMentionsInMarkdown,
+        readsNameMentions;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show WriteStep;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/git_process.dart' show RunGit, runRealGit;
@@ -111,12 +117,22 @@ final class MentionScope {
 /// docs root or the project root, counts when no doc sits at the path after
 /// the moves. A move to [removedPath] removes the doc. Files are the ones the
 /// `code:` roots list and the agent files of the walk; none is written.
+///
+/// [docWrites], the doc writes the change plans, adds after those each code
+/// span in a doc whose longer text holds a Name that stops resolving, by the
+/// doc's path after the moves, then line in the doc as written; no doc is
+/// written here.
 List<StaleMention> staleMentions(
   WriteSession session,
   List<PathMove> moves, {
   required bool namesChange,
-}) =>
-    staleMentionsIn(MentionScope.of(session), moves, namesChange: namesChange);
+  List<WriteStep>? docWrites,
+}) => staleMentionsIn(
+  MentionScope.of(session),
+  moves,
+  namesChange: namesChange,
+  docWrites: docWrites,
+);
 
 /// Returns the mentions [staleMentions] returns for the project [scope]
 /// describes.
@@ -126,6 +142,7 @@ List<StaleMention> staleMentionsIn(
   MentionScope scope,
   List<PathMove> moves, {
   required bool namesChange,
+  List<WriteStep>? docWrites,
 }) {
   if (moves.isEmpty) return const [];
   final stopsResolving = _stopsResolvingTest(
@@ -143,7 +160,45 @@ List<StaleMention> staleMentionsIn(
       stale.add((path: projectPath, line: mention.line, mention: mention.text));
     }
   }
+  if (docWrites != null) {
+    stale.addAll(_docSpanMentions(scope, moves, docWrites, stopsResolving));
+  }
   return stale;
+}
+
+/// Returns each code span in a doc of [scope] whose longer text holds an
+/// address [stopsResolving] holds, by the doc's project path after [moves],
+/// then line, the doc read as [docWrites] write it or else as it stands.
+List<StaleMention> _docSpanMentions(
+  MentionScope scope,
+  List<PathMove> moves,
+  List<WriteStep> docWrites,
+  bool Function(NameMention mention) stopsResolving,
+) {
+  final written = {for (final write in docWrites) write.path: write.text};
+  final stale = <StaleMention>[];
+  for (final doc in scope.docs) {
+    final landed = movedPath(doc.docPath, moves);
+    if (landed == removedPath) continue;
+    final path = '$_docsPrefix$landed';
+    final text = written[path];
+    final lf = text == null
+        ? _lfTextOf(_fileIn(scope.docsRoot, doc.docPath))
+        : _lfOf(text);
+    if (lf == null) continue;
+    final listed = <(int, int)>{};
+    for (final mention in longerSpanMentionsInMarkdown(lf)) {
+      if (!stopsResolving(mention)) continue;
+      if (!listed.add((mention.line, mention.column))) continue;
+      stale.add((path: path, line: mention.line, mention: mention.text));
+    }
+  }
+  return stale..sort(_byPathThenLine);
+}
+
+int _byPathThenLine(StaleMention a, StaleMention b) {
+  final byPath = compareCodePoints(a.path, b.path);
+  return byPath != 0 ? byPath : a.line.compareTo(b.line);
 }
 
 /// Returns the text line that lists [mention]:
@@ -288,12 +343,15 @@ File _fileIn(Directory folder, String path) => File(
   '${path.split(_separator).join(Platform.pathSeparator)}',
 );
 
+/// Returns [text] with LF line ends and no byte-order mark.
+String _lfOf(String text) =>
+    toLf(text.startsWith(byteOrderMark) ? text.substring(1) : text);
+
 /// Returns the text of [file] with LF line ends and no byte-order mark, or
 /// null when it cannot be read or is not UTF-8.
 String? _lfTextOf(File file) {
   try {
-    final text = utf8.decode(readPlanInput(file));
-    return toLf(text.startsWith(byteOrderMark) ? text.substring(1) : text);
+    return _lfOf(utf8.decode(readPlanInput(file)));
   } on FormatException {
     return null;
   } on FileSystemException {

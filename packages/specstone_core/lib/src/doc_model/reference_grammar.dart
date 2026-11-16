@@ -91,6 +91,21 @@ DocAddress readDocAddress(String text) {
   );
 }
 
+/// A run of the characters a Name or a doc type prefix is written in.
+final _addressRun = RegExp('[a-z0-9_/:]+');
+
+/// The `/` and `:` that open or close a run.
+final _runEdge = RegExp(r'^[/:]+|[/:]+$');
+
+/// Returns the no-lookup addresses [text] holds, each a run of slug
+/// characters, `/`, and `:` that any other text bounds, in order.
+List<DocAddress> referencesWithoutLookupIn(String text) => [
+  for (final run in _addressRun.allMatches(text))
+    if (readDocAddress(run[0]!.replaceAll(_runEdge, '')) case final address
+        when address.isReferenceWithoutLookup)
+      address,
+];
+
 /// A line suffix such as `:12` or `:12:5` after a path written in prose.
 final _lineSuffix = RegExp(r'(?::\d+)+$');
 

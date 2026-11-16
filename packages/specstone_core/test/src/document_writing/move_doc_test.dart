@@ -1746,6 +1746,105 @@ void main() {
       });
     });
 
+    group('longer code spans in docs', () {
+      const spanDoc = 'notes/ideas.md';
+      const spanDocPath = 'docs/$spanDoc';
+      const note =
+          '# Ideas\n\nA span `shop/cart/add_item E05` and a span '
+          '`shop/cart/drop_item E05`.\n';
+
+      List<Object?> mentionsOf(ReadAnswer answer) =>
+          answer.json['mentions']! as List<Object?>;
+
+      test('a story move lists a longer span naming it, keeps every byte, and lists none naming a doc that stays', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = move(root, cartAddAddress, 'shop/pay');
+        expect(readDoc(root, spanDoc), note);
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+        expect(
+          answer.text,
+          endsWith('mentions $spanDocPath:3 shop/cart/add_item E05\n'),
+        );
+        expect(
+          answer.text.indexOf('rewrote '),
+          lessThan(answer.text.indexOf('mentions ')),
+        );
+      });
+
+      test('a longer span inside a doc the move moves lists at its path after the move', () async {
+        final root = await writeNestedProject();
+        appendTo(root, cartAdd, '\nIt is `shop/cart/add_item E05`.\n');
+        final answer = move(root, cartAddAddress, 'shop/pay');
+        final moved = readDoc(root, '$movedFolder/USER_STORY.md');
+        expect(mentionsOf(answer), [
+          {
+            'path': 'docs/$movedFolder/USER_STORY.md',
+            'line': moved.split('\n').indexWhere((l) => l.contains('E05`')) + 1,
+            'mention': 'shop/cart/add_item E05',
+          },
+        ]);
+      });
+
+      test(
+        'an fr move lists a longer span naming it and keeps every byte',
+        () async {
+          const text =
+              '# Ideas\n\nIt is `shop/cart/add_item/check_stock E05`.\n';
+          final root = await writeNestedProject(extra: {spanDocPath: text});
+          final answer = move(
+            root,
+            'fr:shop/cart/add_item/check_stock',
+            'shop/pay/refund',
+          );
+          expect(readDoc(root, spanDoc), text);
+          expect(mentionsOf(answer), [
+            {
+              'path': spanDocPath,
+              'line': 3,
+              'mention': 'shop/cart/add_item/check_stock E05',
+            },
+          ]);
+        },
+      );
+
+      test('a rename lists a longer span naming the renamed doc', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = rename(root, cartAddAddress, 'add_one');
+        expect(readDoc(root, spanDoc), note);
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+      });
+
+      test('a dry run lists the longer span the apply would list', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = writeIn(
+          root,
+          (s) =>
+              answerMove(s, [cartAddAddress], under: 'shop/pay', dryRun: true),
+        );
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions $spanDocPath:3 shop/cart/add_item E05\n'
+            'dry run: nothing moved\n',
+          ),
+        );
+        expect(hasDoc(root, cartAdd), isTrue);
+      });
+
+      test('a reorder keeps every name, so it lists no longer span', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
+        expect(mentionsOf(answer), isEmpty);
+      });
+    });
+
     group('nf targets', () {
       const addFolder = '$cartDir/us01_add_item';
       const dropFolder = '$cartDir/us02_drop_item';
@@ -1777,18 +1876,21 @@ void main() {
       test(
         'an nf lands last in the story and its old siblings keep their numbers',
         () async {
-          final root = await nfProject();
+          final root = await nfProject({
+            'docs/$dropFolder/nf03_far_light.md': '# Far light\n',
+          });
           final answer = move(root, loadFast, 'shop/cart/drop_item');
           expect(
             answer.text,
-            startsWith('moved $addNf to $dropFolder/nf02_load_fast.md\n'),
+            startsWith('moved $addNf to $dropFolder/nf04_load_fast.md\n'),
           );
-          expect(hasDoc(root, '$dropFolder/nf02_load_fast.md'), isTrue);
+          expect(hasDoc(root, '$dropFolder/nf04_load_fast.md'), isTrue);
+          expect(hasDoc(root, '$dropFolder/nf02_load_fast.md'), isFalse);
           expect(hasDoc(root, keepLightFile), isTrue);
           expect(hasDoc(root, stayLightFile), isTrue);
           expect(hasDoc(root, addNf), isFalse);
           expect(
-            readDoc(root, '$dropFolder/nf02_load_fast.md'),
+            readDoc(root, '$dropFolder/nf04_load_fast.md'),
             isNot(contains('draft')),
           );
         },
@@ -2048,12 +2150,56 @@ void main() {
         expect(drop, contains('`shop/cart/drop_item/load_fast`'));
         expect(drop, contains('`shop/cart/add_item/load_fast Verification`'));
         expect(File('${root.path}/app/lib/shop.dart').readAsStringSync(), code);
-        final mentions = (answer.json['mentions']! as List)
-            .cast<Map<String, Object?>>();
-        expect(mentions.map((m) => m['mention']), [
-          'shop/cart/add_item/load_fast',
+        final spanLine =
+            drop.split('\n').indexWhere((l) => l.contains('Verification`')) + 1;
+        expect(answer.json['mentions'], [
+          {
+            'path': 'app/lib/shop.dart',
+            'line': 1,
+            'mention': 'shop/cart/add_item/load_fast',
+          },
+          {
+            'path': 'docs/$cartDrop',
+            'line': spanLine,
+            'mention': 'shop/cart/add_item/load_fast Verification',
+          },
         ]);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions docs/$cartDrop:$spanLine '
+            'shop/cart/add_item/load_fast Verification\n',
+          ),
+        );
         expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      });
+
+      test('a link inside a moved nf follows, and a longer span in it lists at its new path', () async {
+        final root = await nfProject({
+          'docs/$addNf':
+              '$tightened\nSee [check stock](fr01_check_stock.md).\n'
+              'It is `shop/cart/add_item/load_fast Verification`.\n',
+        });
+        final answer = move(root, loadFast, 'shop/cart/drop_item');
+        const landed = '$dropFolder/nf02_load_fast.md';
+        final moved = readDoc(root, landed);
+        expect(
+          moved,
+          contains('[check stock](../us01_add_item/fr01_check_stock.md)'),
+        );
+        expect(moved, contains('`shop/cart/add_item/load_fast Verification`'));
+        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(answer.json['mentions'], [
+          {
+            'path': 'docs/$landed',
+            'line':
+                moved
+                    .split('\n')
+                    .indexWhere((l) => l.contains('Verification`')) +
+                1,
+            'mention': 'shop/cart/add_item/load_fast Verification',
+          },
+        ]);
       });
 
       test(
