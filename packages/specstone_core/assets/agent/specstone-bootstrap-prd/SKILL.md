@@ -55,8 +55,8 @@ in for item 4.
    proposal; on ok, run its commands yourself, in run order
    (`../specstone-expert-sdd/references/size-fix.md`).
 3. Ask the Owner each open question; send the answers to that batch's agent while it is live, else dispatch a new one
-   for the batch with them. Show the question on a goal a goal move kept in PROJECT without asking it, and count it
-   settled for item 4.
+   for the batch with them. Show the Owner the question on a goal that a goal move kept in PROJECT without asking it,
+   and count it settled for item 4.
 4. Once every batch of the round has reported, with no open question left, join their `specstone delete` lines into
    one command naming each path once, each still quoted. Leave out each path under `specs/` and each path an untyped
    referrer under `specs/` names: they wait for `specstone-bootstrap-spec`'s delete. Then get the Owner's word on the
