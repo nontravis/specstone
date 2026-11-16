@@ -45,17 +45,19 @@ exit status:
 1. **0:** stdout is the index: per saved file a `==> bundle: … · <path> <==` header, then one line per doc with its
    line range in that file and, while the index stays within 200 lines and 8 KiB, its sections' first lines. Read
    with the host's file read, at any point of the task: in `implement` and `design`, the read-first file whole and the
-   refs file by line range, for the parts needed; in `query`, the parts of its one file. Once the index lists docs
-   only, find a section by searching the files for its `## ` header. The files are the task's docs: open no doc file.
-   When a plan words a requirement differently, the files win: someone may have edited the doc since the plan was made.
+   refs file by line range, for the parts needed, found in `implement` by the refs file's head, one index line per
+   part, and in `design` by the stdout index; in `query`, the parts of its one file. Once the index lists docs only,
+   find a section by searching the files for its `## ` header; an `implement` refs head keeps its sections. The files
+   are the task's docs: open no doc file.
+   When a plan words a requirement differently, the files win: the doc may have moved on.
 2. **78 with `project_not_found`:** no folder from here upward holds a Specstone project. Tell the Owner the project
    is still on the old format: `specstone migrate` moves it, or they can keep using the old skills. Then stop: run no
    second command, and neither read nor write a doc.
 3. **Any other non-zero exit:** report the CLI's error to the Owner and stop.
 
-That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward, so a run
-from a subfolder goes on as normal; to read the files, such a session needs the project root among its working
-directories. A later call with the same target and flags replaces the files: read by the newest index.
+That call is also the project gate: never look for `.specstone/` first. The CLI searches each folder upward; to read
+the files, a session in a subfolder needs the project root among its working directories. A later call with the same
+target and flags replaces the files: read by the newest index.
 
 ## Search before `get`
 

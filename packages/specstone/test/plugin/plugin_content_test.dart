@@ -2131,6 +2131,24 @@ void _agentTests() {
     );
   });
 
+  test('read-sdd finds the refs parts of an implement bundle by the refs '
+      "file's head and those of a design bundle by the stdout index", () {
+    final step = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-read-sdd/SKILL.md'),
+        'Ground in one call',
+      ),
+    );
+    expect(
+      step,
+      contains(
+        "found in `implement` by the refs file's head, one index line per "
+        'part, and in `design` by the stdout index',
+      ),
+    );
+    expect(step, contains('an `implement` refs head keeps its sections'));
+  });
+
   test('the reader takes both saved paths', () {
     final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
     expect(
