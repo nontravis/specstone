@@ -40,6 +40,20 @@ sections:
           when: {field: Consistency, value: eventual}
 ''';
 
+const _domainPath = 'docs/specs/f01_login/DOMAIN.md';
+
+const _eventual =
+    '- **INV-1** A reset link expires.\n'
+    '  - **Enforcer:** Account\n'
+    '  - **Consistency:** eventual';
+
+const _immediate =
+    '- **INV-2** An email is unique.\n'
+    '  - **Enforcer:** Account\n'
+    '  - **Consistency:** immediate';
+
+const _policy = '  - **Corrective policy:** Sweep expired links daily.';
+
 const _held =
     '- **R1** Refuse it.\n'
     '  - **Enforcer:** CheckRun\n'
@@ -171,6 +185,76 @@ void main() {
       checkOf(project).findings.where((f) => _fieldKinds.contains(f.kind)),
       isEmpty,
     );
+  });
+
+  group('the shipped domain invariants', () {
+    const domainKinds = {
+      FindingKind.itemFieldMissing,
+      FindingKind.itemFieldUnneeded,
+      FindingKind.sectionUndeclared,
+    };
+
+    Future<List<Finding>> domainFindings(
+      String invariants, {
+      String after = '',
+    }) async {
+      _project = await writeCheckProject(
+        extra: {
+          _domainPath:
+              '# Login domain\n\n## Entities\n- Account\n\n'
+              '## Invariants\n$invariants\n$after',
+        },
+      );
+      return [
+        for (final f in checkOf(_project).findings)
+          if (domainKinds.contains(f.kind)) f,
+      ];
+    }
+
+    int domainLineOf(String needle) =>
+        File('${_project.path}/$_domainPath')
+            .readAsLinesSync()
+            .indexWhere((line) => line.contains(needle)) +
+        1;
+
+    test('an eventual invariant with no corrective policy is reported at its '
+        'line', () async {
+      final found = await domainFindings(_eventual);
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.itemFieldMissing);
+      expect(found.single.toJson(), containsPair('field', 'Corrective policy'));
+      expect(found.single.line, domainLineOf('- **INV-1**'));
+    });
+
+    test('an immediate invariant with a corrective policy is reported as not '
+        'needing it', () async {
+      final found = await domainFindings('$_immediate\n$_policy');
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.itemFieldUnneeded);
+      expect(found.single.toJson(), containsPair('field', 'Corrective policy'));
+      expect(found.single.line, domainLineOf('- **INV-2**'));
+    });
+
+    test('an eventual invariant with its corrective policy and an immediate '
+        'one without have no item-field finding', () async {
+      expect(
+        await domainFindings('$_eventual\n$_policy\n$_immediate'),
+        isEmpty,
+      );
+    });
+
+    test('a leftover corrective policies section is undeclared and its '
+        'invariant still lacks the field', () async {
+      final found = await domainFindings(
+        _eventual,
+        after: '## Corrective policies\n- **INV-1** Sweep expired links.\n',
+      );
+      expect(found.map((f) => f.kind), [
+        FindingKind.itemFieldMissing,
+        FindingKind.sectionUndeclared,
+      ]);
+      expect(found.last.line, domainLineOf('## Corrective policies'));
+    });
   });
 
   group('a conditional item field', () {
