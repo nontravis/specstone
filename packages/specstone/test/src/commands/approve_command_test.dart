@@ -615,6 +615,42 @@ void main() {
     );
     expect(out.toString(), isNot(contains('- Ends the session.')));
   });
+  test('--dry-run lists removed items held only in frontmatter or inside a longer sentence', () async {
+    String story(String mark, String useCase) =>
+        '---\nstatus: planned\n$mark---\n\n# Sign out\n\n## Use Case\n\n'
+        '$useCase\n\n## Acceptance Criteria\n\n- **Given** a signed-in user\n';
+    final root = await writeWriteProject(
+      extra: {
+        'docs/$story2': story(
+          'approved: true\n',
+          '- lib/core.dart\n- ci.yaml\n- Signs the user out.',
+        ),
+      },
+    );
+    expect(git(root, ['init', '-q']).exitCode, 0);
+    expect(git(root, ['config', 'core.autocrlf', 'false']).exitCode, 0);
+    commitAll(root, 'approved');
+    File('${root.path}/docs/$story2')
+        .writeAsStringSync(story('draft: true\n', '- Signs the user out.'));
+    File('${root.path}/docs/notes.md').writeAsStringSync(
+      '---\ncovers:\n  - lib/core.dart\n---\n\n# Notes\n\n'
+      'Run `ci.yaml` on each push.\n',
+    );
+    commitAll(root, 'edited as a draft');
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(
+      await runner.run(['approve', '--dry-run', 'user_story:login/sign_out']),
+      0,
+    );
+
+    expect(out.toString(), contains('| dropped | 2 sentences dropped |\n'));
+    expect(out.toString(), contains('| new     | 0 sentences new |\n'));
+    expect(
+      out.toString(),
+      endsWith('\n```\n\nDropped sentences:\n- lib/core.dart\n- ci.yaml\n'),
+    );
+  });
   group('--context reaches the view', () {
     Future<Directory> editedDraft() async {
       final root = await writeWriteProject(

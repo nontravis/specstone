@@ -18,7 +18,7 @@ const _neuDraft =
     '## Statement\nA.\n\n## Rationale\nR2.\n';
 const _path = 'docs/fr01_t.md';
 const _commit = '4b1c2d3e5f60718293a4b5c6d7e8f9012345abcd';
-const SentenceChanges _noSentences = (dropped: <String>[], added: <String>[]);
+const _noSentences = SentenceChanges(dropped: <String>[], added: <String>[]);
 const _noChangeEnd =
     '| dropped | 0 sentences dropped |\n'
     '| new     | 0 sentences new |\n\n'
@@ -560,7 +560,10 @@ void main() {
         'follows the diff', () {
       final view = _render(
         _draft(
-          sentences: (dropped: ['Gone one.', 'Gone two.'], added: ['Fresh.']),
+          sentences: const SentenceChanges(
+            dropped: ['Gone one.', 'Gone two.'],
+            added: ['Fresh.'],
+          ),
         ),
       );
 
@@ -584,10 +587,20 @@ void main() {
 
     test('a list is printed only when its count is above 0', () {
       final onlyDropped = _render(
-        _draft(sentences: (dropped: ['Gone.'], added: <String>[])),
+        _draft(
+          sentences: const SentenceChanges(
+            dropped: ['Gone.'],
+            added: <String>[],
+          ),
+        ),
       );
       final onlyNew = _render(
-        _draft(sentences: (dropped: <String>[], added: ['Fresh.'])),
+        _draft(
+          sentences: const SentenceChanges(
+            dropped: <String>[],
+            added: ['Fresh.'],
+          ),
+        ),
       );
 
       expect(onlyDropped, contains('| dropped | 1 sentence dropped |\n'));
@@ -603,7 +616,10 @@ void main() {
       final view = _render(
         _draft(
           lookup: _copy(_neu),
-          sentences: (dropped: ['Gone.'], added: <String>[]),
+          sentences: const SentenceChanges(
+            dropped: ['Gone.'],
+            added: <String>[],
+          ),
         ),
       );
 
@@ -627,7 +643,12 @@ void main() {
 
     test('colour touches no sentence line', () {
       final view = _render(
-        _draft(sentences: (dropped: ['Gone.'], added: ['Fresh.'])),
+        _draft(
+          sentences: const SentenceChanges(
+            dropped: ['Gone.'],
+            added: ['Fresh.'],
+          ),
+        ),
         color: true,
       );
 
