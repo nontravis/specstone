@@ -123,7 +123,6 @@ final class RenumberBodyRewrite {
       ..._index.prefixes,
       if (_shortRefStories.isNotEmpty) _shortRefPrefix,
     ];
-    final runPrefixes = {..._index.itemIdPrefixes, _shortRefPrefix};
     for (var index = _firstLine; index < _lines.length; index++) {
       final prose = _proseOf(index - _firstLine);
       if (!prefixes.any(prose.contains)) continue;
@@ -132,7 +131,7 @@ final class RenumberBodyRewrite {
         prose,
         index + 1,
         prefixes,
-        runPrefixes,
+        _index.itemIdPrefixes,
       );
       _lines[index] = text;
       citesOthers = citesOthers || othersChanged;
