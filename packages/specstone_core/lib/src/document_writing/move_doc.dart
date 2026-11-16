@@ -195,11 +195,11 @@ ReadAnswer answerRename(
 /// Moves the stories or FRs [addresses] name to be the last children of
 /// [under], slugs kept, rewriting every reference in one pass.
 ///
-/// An address with a `#` that names no doc whole is an item target and goes
-/// to [answerItemMove]; only item targets take [codeTarget].
+/// An address with a `#` that names no doc whole is an item target, which
+/// goes to [answerItemMove] and alone takes [codeTarget].
 ///
-/// Throws [WriteFault] `doc_type_not_movable` or `doc_exists`, [IndexFault]
-/// for a bad call shape, and the faults of [answerItemMove].
+/// Throws [WriteFault], [IndexFault] for a bad call shape, and the faults of
+/// [answerItemMove].
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
@@ -323,19 +323,13 @@ ReadAnswer _answerItemMove(
   );
 }
 
-/// Moves the items [addresses] name to be the last items of their section of
-/// the doc [under] names, in the order given.
+/// Moves the items [addresses] name to the end of their section of the doc
+/// [under] names, marking each source doc and that doc draft.
 ///
-/// Each item lands with its nested items and its `Overrides:` line, its text
-/// kept but its ID, which takes the next free number when the doc holds it.
-/// Every source doc and the destination doc become drafts and are written
-/// through one journal; with [dryRun] nothing is written, not even a journal.
-/// An item already in the doc stays, and a call that leaves every item there
-/// changes nothing.
+/// An item lands with its nested items and `Overrides:` line; its ID changes
+/// only to the next free number. [dryRun] writes nothing, not even a journal.
 ///
-/// Throws the faults of [planItemMove] before any lock, `RenderFault`
-/// `output_not_writable` for roots the Owner has not recorded, a read-only
-/// doc, or a doc that changed since the plan.
+/// Throws the faults of [planItemMove] and `RenderFault` `output_not_writable`.
 ReadAnswer answerItemMove(
   WriteSession session,
   List<String> addresses, {
