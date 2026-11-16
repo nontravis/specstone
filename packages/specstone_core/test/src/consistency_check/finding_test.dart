@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 116 snake_case kinds, no error code', () {
+  test('consistency_check: 117 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -86,6 +86,7 @@ void main() {
       'vision_goal_widened',
       'vision_goal_unresolved',
       'goal_serves_missing',
+      'goal_serves_horizon',
       'goal_measurement_missing',
       'measurement_goal_unresolved',
       'goal_measurement_duplicate',
@@ -124,6 +125,7 @@ void main() {
       'override_not_in_chain',
       'task_item_missing',
       'task_ref_leftover',
+      'singular_doc_missing',
     ]);
     // document_writing/s05_errors.md's catalog, whose code F-04 does not import.
     const writeCodes = {
@@ -159,6 +161,7 @@ void main() {
         FindingKind.codeUncovered,
         FindingKind.referenceDocUnresolved,
         FindingKind.agentBlockStale,
+        FindingKind.singularDocMissing,
       ],
     );
   });
@@ -182,6 +185,7 @@ void main() {
     }
     expect(WaitsFor.values.map((w) => w.wire), ['owner', 'agent']);
     for (final kind in [
+      FindingKind.goalServesHorizon,
       FindingKind.goalMeasurementMissing,
       FindingKind.measurementGoalUnresolved,
       FindingKind.goalMeasurementDuplicate,

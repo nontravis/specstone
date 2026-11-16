@@ -1285,6 +1285,7 @@ final String _importBlock = importBlock(
   cliVersion: specstoneVersion,
   agentMdPath: '.specstone/AGENT.md',
   projectDocPath: 'docs/prds/PROJECT.md',
+  goalDocPath: 'docs/prds/GOAL.md',
 );
 
 /// The stamp an upgrade that writes the config leaves: the running Version.

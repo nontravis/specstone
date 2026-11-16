@@ -362,6 +362,35 @@ void main() {
       {'prds/PROJECT.md'},
     );
   });
+  test("a story's implement bundle holds the goal doc", () async {
+    final withGoal = await indexWith({
+      'docs/prds/GOAL.md': '# Goals\n\n## Long-term goals\n- **PG-01** One.\n',
+    });
+    Set<String> joined(
+      BundleMode mode, {
+      bool noProject = false,
+      String target = 'login/email_login',
+    }) => pickBundle(withGoal, target, mode, noProject: noProject).joinedPaths;
+
+    expect(joined(BundleMode.implement), {
+      'prds/GOAL.md',
+      'prds/GNFR.md',
+      'prds/PROJECT.md',
+      'specs/TECH_STACK.md',
+    });
+    expect(joined(BundleMode.design), contains('prds/GOAL.md'));
+    expect(joined(BundleMode.implement, noProject: true), isEmpty);
+    expect(
+      pickBundle(
+        withGoal,
+        'login/email_login',
+        BundleMode.implement,
+        noProject: true,
+      ).droppedPaths,
+      contains('prds/GOAL.md'),
+    );
+    expect(joined(BundleMode.query, target: 'login'), {'prds/PROJECT.md'});
+  });
   test('s03/inv13: a set with no bundle keys joins nothing', () async {
     final bare = await indexWith({
       '.specstone/templates/project.yaml':

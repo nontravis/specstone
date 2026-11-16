@@ -1599,6 +1599,30 @@ void main() {
       expect(a.text, endsWith('${listOf(a.text).join('\n')}\n'));
       expect(a.refs!.text, endsWith('${refs.join('\n')}\n'));
     });
+    test('the refs list names the goal doc beside project and gnfr', () async {
+      final i = await indexWith({
+        'docs/prds/GOAL.md':
+            '# Project goals\n\n## Long-term goals\n### PG-01 — Sign in fast\n'
+            '- **Serves:** PV-01\n- **Statement:** Sign in is quick.\n'
+            '- **Metric:** 3 calls\n',
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+            '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+        frDoc: '# Validate credentials\n\n## Statement\nLock, by $inv14.\n',
+        'docs/specs/f02_signup/DOMAIN.md':
+            '# Sign-up domain\n\n## Invariants\n- **INV-13** One email.\n'
+            '- **INV-14** Locks after five failures.\n',
+      });
+      final a = splitIn(i, frName, BundleMode.implement);
+
+      final refs = listOf(a.refs!.text);
+      expect(refs, [
+        '- gnfr (gnfr)',
+        '- goal (goal)',
+        '- project (project)',
+        '- signup (domain) · cited invariants [INV-14]',
+      ]);
+      expect(listOf(a.text).toSet().intersection(refs.toSet()), isEmpty);
+    });
     test('a split design bundle puts summary docs in the refs text, and the next-step line closes the refs list only', () async {
       final a = splitIn(
         await indexWith(),

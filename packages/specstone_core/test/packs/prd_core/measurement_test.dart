@@ -8,7 +8,6 @@ import '../../helpers/index_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 const _docPath = 'measurements/grounding_cost/MEASUREMENT.md';
-const _goalLink = '[Fewer resets](../../prds/PROJECT.md#pg-01--fewer-resets)';
 
 String _measurement({
   String title = '# Grounding cost',
@@ -19,7 +18,7 @@ String _measurement({
   String method = '1. Run the task.\n2. Count the calls.\n',
   String openCauses = 'N/A\n',
 }) =>
-    '$title\n\n$_goalLink\n\n'
+    '$title\n\n$measurementHeadLink\n\n'
     '## Scope\n\n- One run per feature.\n\n'
     '## Method\n\n$method\n'
     '${baseline == null ? '' : '## Baseline\n\n$baseline\n'}'
@@ -51,10 +50,10 @@ void main() {
   });
 
   test('scope is a summary section, results counts one summary row, and '
-      'the doc is summarized for the project target', () {
+      'the doc is summarized for the project and goal targets', () {
     expect(sectionOf(measurement, 'scope').summary, isTrue);
     expect(sectionOf(measurement, 'results').summaryRowCount, 1);
-    expect(measurement.summaryFor, ['project']);
+    expect(measurement.summaryFor, ['project', 'goal']);
     for (final id in ['method', 'baseline', 'open_causes']) {
       expect(sectionOf(measurement, id).summaryRowCount, isNull, reason: id);
     }
@@ -92,7 +91,8 @@ void main() {
         'older row',
       ),
     );
-    expect(guide, contains("goal's `### PG-` heading"));
+    expect(guide, contains("goal's `### PG-` heading in the goal doc"));
+    expect(guide, isNot(contains('in the project doc')));
     expect(guide, contains('`**Metric:**` line links back'));
     expect(guide, contains('never restate it.'));
   });

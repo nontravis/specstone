@@ -25,7 +25,7 @@ fields:
     type: string
     list: true
     description: |-
-      Lists the goal IDs (`PG-*`) the story serves; each must be one the parent feature lists.
+      Lists the goal IDs (`PG-*`) of the goal doc that the story serves; each must be one the parent feature lists.
       Write at least one ID across `vision` and `goals`.
   - id: persona
     type: doc_ref

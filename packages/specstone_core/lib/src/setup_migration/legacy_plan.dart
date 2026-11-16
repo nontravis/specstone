@@ -1039,8 +1039,8 @@ List<String> prunesOf(List<PathMove> moves) => {
 /// Returns a draft for each singular doc type whose path the moved tree
 /// lacks, project spec doc types excluded.
 ///
-/// With two or more [targetNames] a per-target doc type's path is read in the
-/// first target's folder.
+/// With two or more [targetNames] a per-target doc type gets one draft per
+/// target, in [targetNames] order.
 List<PlannedCreate> _draftsOf(
   MergedSet set,
   List<String> docPaths,
@@ -1051,21 +1051,22 @@ List<PlannedCreate> _draftsOf(
   final present = {for (final path in docPaths) moved[path] ?? path};
   return [
     for (final docType in singularDocTypes(set))
-      if (_draftPathOf(docType, targetNames) case final path?
-          when !present.contains(path))
-        PlannedCreate(
-          path: '$_docsFolder$path',
-          text: skeletonOf(docType, docType.id),
-          note: draftNote,
-        ),
+      for (final path in _draftPathsOf(docType, targetNames))
+        if (!present.contains(path))
+          PlannedCreate(
+            path: '$_docsFolder$path',
+            text: skeletonOf(docType, docType.id),
+            note: draftNote,
+          ),
   ];
 }
 
-String? _draftPathOf(MergedDocType docType, List<String> targetNames) {
+List<String> _draftPathsOf(MergedDocType docType, List<String> targetNames) {
   final path = docType.path;
-  final first = twinNamesOf(targetNames).firstOrNull;
-  if (path == null || !docType.isPerTarget || first == null) return path;
-  return PathPattern(path).forTarget(first).source;
+  if (path == null) return const [];
+  final names = twinNamesOf(targetNames);
+  if (!docType.isPerTarget || names.isEmpty) return [path];
+  return [for (final name in names) PathPattern(path).forTarget(name).source];
 }
 
 String _pinList(Map<String, PackVersion> pins) => [

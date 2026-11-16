@@ -103,6 +103,7 @@ enum FindingKind {
   visionGoalWidened('vision_goal_widened'),
   visionGoalUnresolved('vision_goal_unresolved'),
   goalServesMissing('goal_serves_missing'),
+  goalServesHorizon('goal_serves_horizon'),
   goalMeasurementMissing('goal_measurement_missing'),
   measurementGoalUnresolved('measurement_goal_unresolved'),
   goalMeasurementDuplicate('goal_measurement_duplicate'),
@@ -140,7 +141,8 @@ enum FindingKind {
   overrideLineMalformed('override_line_malformed'),
   overrideNotInChain('override_not_in_chain'),
   taskItemMissing('task_item_missing'),
-  taskRefLeftover('task_ref_leftover');
+  taskRefLeftover('task_ref_leftover'),
+  singularDocMissing('singular_doc_missing');
 
   new(this.wire);
 
@@ -162,7 +164,8 @@ enum FindingKind {
       this == codeUncovered ||
       this == docCitedInCode ||
       this == referenceDocUnresolved ||
-      this == agentBlockStale;
+      this == agentBlockStale ||
+      this == singularDocMissing;
 }
 
 /// One rule violation at a line of a file.

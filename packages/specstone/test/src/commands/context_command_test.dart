@@ -1505,6 +1505,23 @@ void main() {
       expect(first.readAsStringSync(), isNot(contains('==> signup (feature)')));
     });
 
+    test("a story's --out puts GOAL in the refs file", () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/prds/GOAL.md':
+              '# Project goals\n\n## Long-term goals\n### PG-01 — Sign in fast\n'
+              '- **Serves:** PV-01\n- **Statement:** Sign in is quick.\n'
+              '- **Metric:** 3 calls\n',
+        },
+      );
+      await saved(project, [story, '--for', 'implement', '--out']);
+      final first = bundleFile(project, 'login-email_login.implement.txt');
+      final refs = bundleFile(project, 'login-email_login.implement.refs.txt');
+      const head = '==> goal (goal) · prds/GOAL.md <==';
+      expect(refs.readAsStringSync(), contains(head));
+      expect(first.readAsStringSync(), isNot(contains(head)));
+    });
+
     test('--out <path> from a subfolder writes b.txt and b.refs.txt beside it, and --json describes both', () async {
       final project = await writeReadProject(extra: {'app/.keep': ''});
       final nested = Directory('${project.path}/app');

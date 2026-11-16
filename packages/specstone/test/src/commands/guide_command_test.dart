@@ -1346,5 +1346,27 @@ items:
         'feature\nuser_story\n',
       );
     });
+
+    test(
+      'prd-core and software-tech list thirteen and fifteen doc types',
+      () async {
+        final project = await writeTree({_configPath: shippedPinsConfig()});
+        final runner = SpecstoneCommandRunner(
+          out: out,
+          err: err,
+          templates: TemplateResolver(),
+          workingDirectory: project,
+          homeDirectory: await writeTree({}),
+        );
+
+        expect(await runner.run(['guide', '--json']), 0);
+        final packs = [
+          for (final row in jsonDecode(out.toString()) as List<Object?>)
+            (row! as Map<String, Object?>)['pack'],
+        ];
+        expect(packs.where((pack) => pack == 'prd-core'), hasLength(13));
+        expect(packs.where((pack) => pack == 'software-tech'), hasLength(15));
+      },
+    );
   });
 }

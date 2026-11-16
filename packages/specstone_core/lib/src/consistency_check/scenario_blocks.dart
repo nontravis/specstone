@@ -13,6 +13,7 @@ const _subHeadingMarker = '###';
 const _deeperHeadingMarker = '####';
 const _itemHeadingMarker = '### ';
 const _statementPrefix = '- **Statement:**';
+const _goalIdPrefix = 'PG-';
 
 // MARK: - Held sections
 
@@ -50,6 +51,10 @@ String? itemHeadingKeyOf(String heading, String? prefix) {
       : readItemId(text, prefix);
   return id is ItemId ? id.written : null;
 }
+
+/// Returns the ID a `### PG-` [heading] opens with, as written; null for any
+/// other heading, a lettered ID, and an unreadable ID.
+String? goalKeyOf(String heading) => itemHeadingKeyOf(heading, _goalIdPrefix);
 
 /// Returns the first unfenced `- **Statement:**` line of [block], trimmed, as
 /// an NFR is fingerprinted; empty without one.
