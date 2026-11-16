@@ -100,7 +100,7 @@ final class CatalogLint {
 
 /// A nested `- **<field>:** <text>` item every top-level item must hold.
 final class ItemFieldLint {
-  const new({required this.field, this.values});
+  const new({required this.field, this.values, this.when});
 
   /// The nested item's label; the merge key.
   final String field;
@@ -108,8 +108,36 @@ final class ItemFieldLint {
   /// The texts the nested item may hold; any text when null.
   final List<String>? values;
 
-  /// Returns the JSON object of this item field, `values` only when set.
-  Map<String, Object> toJson() => {'field': field, 'values': ?values};
+  /// The condition under which the item must hold this field; always when null.
+  final ItemFieldWhen? when;
+
+  /// Returns whether an item with these nested [fields] must hold this field.
+  bool appliesTo(Map<String, String> fields) => when?.isMetBy(fields) ?? true;
+
+  /// Returns the JSON object of this item field, `values` and `when` only when
+  /// set.
+  Map<String, Object> toJson() => {
+    'field': field,
+    'values': ?values,
+    'when': ?when?.toJson(),
+  };
+}
+
+/// A condition on one nested field of an item: the field holds exactly a value.
+final class ItemFieldWhen {
+  const new({required this.field, required this.value});
+
+  /// The label of the nested item that is read.
+  final String field;
+
+  /// The text that nested item must hold, compared exactly.
+  final String value;
+
+  /// Returns whether [fields] holds [field] with exactly [value].
+  bool isMetBy(Map<String, String> fields) => fields[field] == value;
+
+  /// Returns the JSON object of this condition.
+  Map<String, Object> toJson() => {'field': field, 'value': value};
 }
 
 /// A section that is required while an item of another section holds a value.
