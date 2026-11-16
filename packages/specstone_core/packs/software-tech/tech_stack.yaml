@@ -57,7 +57,8 @@ sections:
     description: |-
       List what the project steers clear of, in a table with the columns What, Why.
 lint:
-  max_lines: 400
+  max_chars: 50000
+  max_lines: 300
 reference:
   - title: arc42 section 2, Architecture Constraints
     url: https://docs.arc42.org/section-2/

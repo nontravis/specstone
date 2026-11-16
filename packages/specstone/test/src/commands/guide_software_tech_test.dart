@@ -427,6 +427,22 @@ void main() {
       }
     });
 
+    test('each guide states a line target below its line cap', () async {
+      final target = RegExp(r'(?:about|under) (\d+)(?: to (\d+))? lines');
+      final runner = await runnerFor(_bothPacks);
+      for (final id in _softwareTechIds.where((id) => id != 'implementation')) {
+        out.clear();
+        expect(await runner.run(['guide', id, '--json']), 0, reason: id);
+        final json = jsonDecode(out.toString()) as Map<String, Object?>;
+        final match = target.firstMatch(json['description']! as String);
+        expect(match, isNotNull, reason: id);
+        final upper = int.parse(match![2] ?? match[1]!);
+        final lint = json['lint']! as Map<String, Object?>;
+        expect(lint['maxLines'], 300, reason: id);
+        expect(upper, lessThan(lint['maxLines']! as int), reason: id);
+      }
+    });
+
     test('each guide states its item shape, one rule per '
         'ID', () async {
       const shapes = {

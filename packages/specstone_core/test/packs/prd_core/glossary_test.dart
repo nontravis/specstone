@@ -73,11 +73,13 @@ void main() {
     expect(terms.description, _termsDescription);
   });
 
-  test('glossary is titled # Domain glossary, caps items at 300 characters '
-      'and lines at 400, and carries the doc_citation and history entries '
-      'with no word list or source', () {
+  test('glossary is titled # Domain glossary, caps items at 300 characters, '
+      'lines at 400, and the doc at 20000 characters, and carries the '
+      'doc_citation and history entries with no word list or source', () {
     expectGuideShape(glossary, title: '# Domain glossary');
     expect(glossary.lint.maxItemChars, 300);
+    expect(glossary.lint.maxLines, 400);
+    expect(glossary.lint.maxChars, 20000);
     expectNoNasaLint(glossary);
     expectSources(glossary, []);
     expect(

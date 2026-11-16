@@ -60,9 +60,9 @@ void main() {
     expectSectionsSay(techStack, _says);
   });
 
-  test('tech_stack caps 400 lines, bans no word, and cites '
-      'its four sources', () {
-    expectSpecLint(techStack);
+  test('tech_stack caps 300 lines and 50000 characters, bans no word, and '
+      'cites its four sources', () {
+    expectSpecLint(techStack, maxLines: 300, maxChars: 50000);
   });
 
   test('tech_stack joins implement and design', () async {

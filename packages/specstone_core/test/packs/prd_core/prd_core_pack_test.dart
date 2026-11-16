@@ -131,6 +131,15 @@ void main() {
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
     });
 
+    test('every prd-core doc type caps a doc at 400 lines and 20000 '
+        'characters', () async {
+      final set = await resolvePrdCore();
+      for (final docType in set.docTypes) {
+        expect(docType.lint.maxLines, 400, reason: docType.id);
+        expect(docType.lint.maxChars, 20000, reason: docType.id);
+      }
+    });
+
     test('Set the shared lint and sources: '
         'only glossary sets max_item_chars, so every other prd-core doc type '
         'takes the default', () async {

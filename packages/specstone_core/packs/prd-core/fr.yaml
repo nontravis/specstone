@@ -208,6 +208,7 @@ lint:
       message: history prose; state the present truth only
       in: text
   max_lines: 400
+  max_chars: 20000
 reference:
   - title: NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2
     url: https://www.nasa.gov/reference/systems-engineering-handbook/

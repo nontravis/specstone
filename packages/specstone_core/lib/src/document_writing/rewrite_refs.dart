@@ -595,7 +595,8 @@ WriteStep? _stepFor(
     session.docTypeAt(doc.docPath),
     statusesOutside: statusesOutside,
   );
-  final stamped = wasApproved
+  // An edit that marked the doc draft, as an item move does, takes no stamp.
+  final stamped = wasApproved && !Doc.parse(laidOut).isDraft
       ? withApprovalHash(laidOut, writtenType, statusesOutside: statusesOutside)
       : laidOut;
   return session.docWriteStep(writtenPath, stamped, bytes);

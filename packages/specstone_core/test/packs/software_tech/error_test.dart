@@ -54,9 +54,9 @@ void main() {
     expectSectionsSay(error, _says);
   });
 
-  test('error caps 400 lines, bans no word, and cites its '
-      'four sources', () {
-    expectSpecLint(error);
+  test('error caps 300 lines and 50000 characters, bans no word, and cites '
+      'its four sources', () {
+    expectSpecLint(error, maxLines: 300, maxChars: 50000);
   });
 
   test('template_packs/write_spec_docs_from_software_tech/'

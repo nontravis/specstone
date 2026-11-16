@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/setup_migration/models/story_fr.dart';
 
 // MARK: - Constants
 
@@ -19,7 +20,7 @@ final _headingLine = RegExp(r'^###[ \t]+(`[^`]+`)[ \t]+—[ \t]+(.+?)[ \t]*$');
 
 /// The story and FR numbers of the FR doc a `## FR trace` cell names; null
 /// for a cell that names none.
-typedef FrOfCell = ({int story, int fr})? Function(String cell);
+typedef FrOfCell = StoryFr? Function(String cell);
 
 /// An operation heading the step converted: its 1-based file line and the
 /// operation as the heading writes it, backticks included.
@@ -39,7 +40,7 @@ typedef HeadingStep = ({
 HeadingStep noHeadingStep(String lf) =>
     (lf: lf, converted: const [], kept: const []);
 
-typedef _Frs = Set<({int story, int fr})>;
+typedef _Frs = Set<StoryFr>;
 
 // MARK: - dropHeadingLabels
 

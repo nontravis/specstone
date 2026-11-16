@@ -482,25 +482,34 @@ void main() {
       }
     });
 
-    test('the record caps its characters at 60000 beside domain and '
-        'architecture, and no other spec type sets a cap', () {
+    test('the record caps 400 lines and 60000 characters, and every other '
+        'spec type 300 lines and 50000 characters', () {
       for (final docType in set.docTypes) {
         if (docType.pack != 'software-tech') continue;
+        final caps = specCapsOf(docType.id);
         expect(
-          docType.lint.maxChars,
-          {
-                'domain',
-                'architecture',
-                'implementation',
-                'project_domain',
-                'project_architecture',
-              }.contains(docType.id)
-              ? 60000
-              : isNull,
+          (docType.lint.maxLines, docType.lint.maxChars),
+          (caps.maxLines, caps.maxChars),
           reason: docType.id,
         );
       }
     });
+
+    test(
+      'each project spec doc type takes the caps of the type it extends',
+      () {
+        for (final MapEntry(key: id, value: base)
+            in projectSpecDocBases.entries) {
+          final project = prdCoreDocType(set, id).lint;
+          final extended = prdCoreDocType(set, base).lint;
+          expect(
+            (project.maxLines, project.maxChars),
+            (extended.maxLines, extended.maxChars),
+            reason: id,
+          );
+        }
+      },
+    );
   });
 
   group('the shipped api and topic lint entries under check', () {
@@ -603,6 +612,13 @@ void main() {
       'ride it', () {
     expect(shippedPackVersions()['prd-core'], '1.16.0');
   });
+
+  test(
+    'the shipped prd-core pack is 1.16.0, so the guide-rule keys ride it',
+    () {
+      expect(shippedPackVersions()['prd-core'], '1.16.0');
+    },
+  );
 
   group('the prd-core guide-rule lint', () {
     late MergedSet set;

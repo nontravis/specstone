@@ -5,6 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show CitedSection, citedSectionsOf;
 import 'package:specstone_core/src/index_query/line_facts.dart' show LineRange;
+import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/summary_cut.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -13,7 +14,51 @@ export 'package:specstone_core/src/index_query/html_comments.dart'
 
 /// A `##` section a printed text holds whole, with the line its header sits
 /// on, counted from 0 at the text's first line.
-typedef SectionLine = ({String key, int line});
+final class SectionLine {
+  const new({required this.key, required this.line});
+
+  final String key;
+  final int line;
+
+  /// Returns this section [lines] lines lower in the text.
+  SectionLine shiftedBy(int lines) => SectionLine(key: key, line: line + lines);
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is SectionLine && other.key == key && other.line == line;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(key, line);
+}
+
+/// One `##` section as a bundle prints it, with the places of it that carry
+/// cited-by lines.
+final class SectionPrint {
+  const new({required this.block, required this.cited});
+
+  final String block;
+  final List<CitedItem> cited;
+}
+
+/// One doc as a bundle prints it, with the places of it that carry cited-by
+/// lines and the `##` sections it prints whole.
+final class DocPrint {
+  const new({required this.text, required this.cited, required this.sections});
+
+  final String text;
+  final List<CitedItem> cited;
+  final List<SectionLine> sections;
+
+  /// Returns this print with [line] before its text, each section one line
+  /// lower.
+  DocPrint afterLine(String line) => DocPrint(
+    text: '$line\n$text',
+    cited: cited,
+    sections: [for (final section in sections) section.shiftedBy(1)],
+  );
+}
 
 /// Returns the number of lines [text] spans.
 int lineCountOf(String text) => '\n'.allMatches(text).length + 1;
@@ -27,8 +72,7 @@ int lineAfterBlocks(Iterable<String> blocks) =>
 /// lines [citedBy] holds for the whole doc, its `# ` title line, then its
 /// summary sections, one blank line apart, with the places [citedBy] holds
 /// lines for printed there, and the line each section starts on.
-({String text, List<CitedItem> cited, List<SectionLine> sections})
-summaryPrintOf(
+DocPrint summaryPrintOf(
   IndexedDoc doc,
   DocContent content,
   MergedDocType? docType,
@@ -52,12 +96,12 @@ summaryPrintOf(
       citedBy,
       summaryRows: summaryRowCountOf(docType, section.key),
     );
-    sections.add((key: section.key, line: line));
+    sections.add(SectionLine(key: section.key, line: line));
     line += lineAfterBlocks([print.block]);
     blocks.add(print.block);
     cited.addAll(print.cited);
   }
-  return (
+  return DocPrint(
     text: [...docLines, blocks.join('\n\n')].join('\n'),
     cited: cited,
     sections: sections,
@@ -70,7 +114,7 @@ summaryPrintOf(
 ///
 /// With [summaryRows], the section prints cut by [cutToRows], and only the
 /// items and blocks whole inside the printed lines get a cited-by line.
-({String block, List<CitedItem> cited}) sectionPrintOf(
+SectionPrint sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
   List<CitedSection> held,
@@ -106,7 +150,7 @@ summaryPrintOf(
     bodyLine: content.lineFacts.sectionLines[at] + 1,
     after: citedLinesAfter(citedBy, items),
   );
-  return (block: block, cited: items);
+  return SectionPrint(block: block, cited: items);
 }
 
 /// Returns the kept sections of a summary doc whose merged section is a
@@ -223,7 +267,10 @@ String printedBodyOf(
 }) {
   final printed = removeHtmlComments(text).trimRight();
   if (after.isEmpty) return printed;
-  final comments = commentRangesOf(text);
+  final comments = [
+    for (final (:start, :end) in commentRangesOf(text))
+      _CommentRange(start: start, end: end),
+  ];
   final lineEnds = _lineEndsOf(text);
   final out = StringBuffer();
   var from = 0;
@@ -248,11 +295,20 @@ List<int> _lineEndsOf(String text) {
   return ends..add(text.length);
 }
 
+/// An HTML comment's offsets in the original text, `end` past its last
+/// character.
+final class _CommentRange {
+  const new({required this.start, required this.end});
+
+  final int start;
+  final int end;
+}
+
 /// Returns where [offset] of the original text falls once [comments] are
 /// removed.
-int _keptOffset(int offset, List<({int start, int end})> comments) {
+int _keptOffset(int offset, List<_CommentRange> comments) {
   var removed = 0;
-  for (final (:start, :end) in comments) {
+  for (final _CommentRange(:start, :end) in comments) {
     if (start >= offset) break;
     removed += (end < offset ? end : offset) - start;
   }

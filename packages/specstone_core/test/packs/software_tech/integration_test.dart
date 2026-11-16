@@ -68,9 +68,9 @@ void main() {
     expectSectionsSay(integration, _says);
   });
 
-  test('integration caps 400 lines, bans no word, and cites '
-      'its four sources', () {
-    expectSpecLint(integration);
+  test('integration caps 300 lines and 50000 characters, bans no word, and '
+      'cites its four sources', () {
+    expectSpecLint(integration, maxLines: 300, maxChars: 50000);
   });
 
   test('template_packs/write_spec_docs_from_software_tech/'

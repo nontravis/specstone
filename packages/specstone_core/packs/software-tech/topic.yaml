@@ -91,7 +91,8 @@ sections:
     description: |-
       List the unresolved decisions.
 lint:
-  max_lines: 400
+  max_chars: 50000
+  max_lines: 300
 reference:
   - title: arc42 section 8, Crosscutting Concepts
     url: https://docs.arc42.org/section-8/

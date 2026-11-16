@@ -60,7 +60,8 @@ sections:
       Write Action as send or receive.
       Write Payload schema as a pointer to the source of truth; copy no payload schema.
 lint:
-  max_lines: 400
+  max_chars: 50000
+  max_lines: 300
 reference:
   - title: Marc Brooker, Timeouts, retries, and backoff with jitter (Amazon Builders' Library)
     url: https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/
