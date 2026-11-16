@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
     show featurePatternDocAddress, featurePatternListName;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
+import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/out_file.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
@@ -192,7 +193,7 @@ BundleText _withRefsHead(BundleText refs) {
   );
 }
 
-BundleEntry _shifted(BundleEntry entry, int lines) => (
+BundleEntry _shifted(BundleEntry entry, int lines) => BundleEntry(
   doc: entry.doc,
   kind: entry.kind,
   summary: entry.summary,
@@ -203,7 +204,7 @@ BundleEntry _shifted(BundleEntry entry, int lines) => (
   last: entry.last + lines,
   sections: [
     for (final section in entry.sections)
-      (key: section.key, first: section.first + lines),
+      EntrySection(key: section.key, first: section.first + lines),
   ],
 );
 

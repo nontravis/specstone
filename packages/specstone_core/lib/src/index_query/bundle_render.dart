@@ -7,6 +7,7 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
+import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
@@ -19,36 +20,6 @@ const _overBudgetNextStep =
 
 const _overBudgetSummaryNextStep =
     'narrow the target, or run it again with --summary --out and no --budget';
-
-/// What one entry of a bundle text is.
-///
-/// - [doc]: a picked, joined, or summary doc.
-/// - [cited]: a part a link appended.
-/// - [pattern]: a feature pattern part.
-/// - [names]: a `==> names:` block of a top doc's chain children.
-/// - [citedBy]: the cited-by lines of one item, block, section, or doc, a part
-///   of its own in a split bundle.
-enum BundleEntryKind { doc, cited, pattern, names, citedBy }
-
-/// One doc or part a bundle text prints, with the lines it spans there,
-/// counted from 1: its naming line `first` to its `last` line, and the
-/// header line of each `##` section it prints whole. A cited part names
-/// the `##` section that holds it and its item ID, when it has them, and so
-/// does a cited-by part, except that a section's has its `sectionKey` alone
-/// and a doc's neither. A feature pattern part's `doc` is the doc that
-/// lists it and its `featurePattern` the pattern id; null for any other
-/// entry. A names block's `doc` is its top doc.
-typedef BundleEntry = ({
-  IndexedDoc doc,
-  BundleEntryKind kind,
-  bool summary,
-  String? sectionKey,
-  String? itemId,
-  String? featurePattern,
-  int first,
-  int last,
-  List<({String key, int first})> sections,
-});
 
 /// One file's text of a bundle: the text, each doc and part it prints in
 /// print order, and its est. token size as its closing line gives it.
@@ -467,7 +438,7 @@ final class _Piece {
   BundleEntry? entryAt(int first) {
     final doc = this.doc;
     if (doc == null) return null;
-    return (
+    return BundleEntry(
       doc: doc,
       kind: kind,
       summary: summary,
@@ -478,7 +449,7 @@ final class _Piece {
       last: first + lineCountOf(block) - 1,
       sections: [
         for (final section in sections)
-          (key: section.key, first: first + section.line),
+          EntrySection(key: section.key, first: first + section.line),
       ],
     );
   }

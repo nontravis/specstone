@@ -9,6 +9,7 @@ import 'package:specstone_core/src/index_query/bundle_file.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -55,7 +56,7 @@ ContextAnswer _answerOf(
 }) {
   final entries = <BundleEntry>[
     for (var i = 0; i < count; i++)
-      (
+      BundleEntry(
         doc: _doc('d$i'),
         summary: false,
         kind: BundleEntryKind.doc,
@@ -65,7 +66,8 @@ ContextAnswer _answerOf(
         first: 2 * i + 1,
         last: 2 * i + 1,
         sections: [
-          for (var s = 0; s < sections; s++) (key: '$key$s', first: 2 * i + 1),
+          for (var s = 0; s < sections; s++)
+            EntrySection(key: '$key$s', first: 2 * i + 1),
         ],
       ),
   ];
@@ -85,8 +87,8 @@ BundleEntry _entryOf(
   bool summary = false,
   String? sectionKey,
   String? itemId,
-  List<({String key, int first})> sections = const [],
-}) => (
+  List<EntrySection> sections = const [],
+}) => BundleEntry(
   doc: _doc(name),
   summary: summary,
   kind: kind,
@@ -109,7 +111,7 @@ BundleText _fileOf(int count, {String prefix = 'd'}) => (
         '$prefix$i',
         2 * i + 1,
         2 * i + 1,
-        sections: [(key: 'statement', first: 2 * i + 1)],
+        sections: [EntrySection(key: 'statement', first: 2 * i + 1)],
       ),
   ],
 );
@@ -151,7 +153,7 @@ BundleText _closedRefsOf(int count) {
           'r$i',
           starts[i],
           starts[i] + 2,
-          sections: [(key: 'statement', first: starts[i] + 1)],
+          sections: [EntrySection(key: 'statement', first: starts[i] + 1)],
         ),
     ],
   );
@@ -295,7 +297,7 @@ void main() {
         text: 'a\nb\nc\n\nd\ne\n\nf\n\ng\n\nh\n\ni\n',
         json: const {},
         entries: [
-          (
+          BundleEntry(
             doc: _doc('one'),
             summary: false,
             kind: BundleEntryKind.doc,
@@ -305,11 +307,11 @@ void main() {
             first: 1,
             last: 3,
             sections: const [
-              (key: 'statement', first: 2),
-              (key: 'edge_cases', first: 3),
+              EntrySection(key: 'statement', first: 2),
+              EntrySection(key: 'edge_cases', first: 3),
             ],
           ),
-          (
+          BundleEntry(
             doc: _doc('two'),
             summary: false,
             kind: BundleEntryKind.cited,
@@ -318,9 +320,9 @@ void main() {
             featurePattern: null,
             first: 5,
             last: 6,
-            sections: const [(key: 'statement', first: 5)],
+            sections: const [EntrySection(key: 'statement', first: 5)],
           ),
-          (
+          BundleEntry(
             doc: _doc('three'),
             summary: false,
             kind: BundleEntryKind.cited,
@@ -331,7 +333,7 @@ void main() {
             last: 8,
             sections: const [],
           ),
-          (
+          BundleEntry(
             doc: _doc('four'),
             summary: true,
             kind: BundleEntryKind.doc,
@@ -340,9 +342,9 @@ void main() {
             featurePattern: null,
             first: 10,
             last: 10,
-            sections: const [(key: 'use_case', first: 10)],
+            sections: const [EntrySection(key: 'use_case', first: 10)],
           ),
-          (
+          BundleEntry(
             doc: _doc('five'),
             summary: true,
             kind: BundleEntryKind.cited,
@@ -353,8 +355,8 @@ void main() {
             last: 12,
             sections: const [],
           ),
-          (
-            doc: const IndexedDoc(
+          const BundleEntry(
+            doc: IndexedDoc(
               docPath: 'prds/notes.txt',
               name: 'prds/notes.txt',
               frontmatter: {},
@@ -367,7 +369,7 @@ void main() {
             featurePattern: null,
             first: 14,
             last: 14,
-            sections: const [],
+            sections: [],
           ),
         ],
         tokens: 42,
@@ -479,7 +481,7 @@ void main() {
   });
 
   group('bundleIndex and its --json hold each feature pattern part', () {
-    BundleEntry docEntry(String name, int first, int last) => (
+    BundleEntry docEntry(String name, int first, int last) => BundleEntry(
       doc: _doc(name),
       summary: false,
       kind: BundleEntryKind.doc,
@@ -488,9 +490,9 @@ void main() {
       featurePattern: null,
       first: first,
       last: last,
-      sections: [(key: 'statement', first: first)],
+      sections: [EntrySection(key: 'statement', first: first)],
     );
-    BundleEntry partEntry(String id, int first, int last) => (
+    BundleEntry partEntry(String id, int first, int last) => BundleEntry(
       doc: const IndexedDoc(
         docPath: 'prds/features/f01_login/FEATURE.md',
         docTypeId: 'feature',
@@ -589,7 +591,12 @@ void main() {
       tokens: 5,
       codeTarget: codeTarget,
       entries: [
-        _entryOf('one', 1, 2, sections: [(key: 'statement', first: 2)]),
+        _entryOf(
+          'one',
+          1,
+          2,
+          sections: [const EntrySection(key: 'statement', first: 2)],
+        ),
         _entryOf('one', 4, 4, kind: BundleEntryKind.names),
       ],
       refs: (
@@ -604,7 +611,7 @@ void main() {
             kind: BundleEntryKind.cited,
             sectionKey: 'statement',
             itemId: 'E01',
-            sections: [(key: 'statement', first: 3)],
+            sections: [const EntrySection(key: 'statement', first: 3)],
           ),
           _entryOf(
             'one',
