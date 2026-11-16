@@ -176,6 +176,16 @@ void main() {
     }
   });
 
+  test('project_domain invariants allow a closing note', () {
+    expectSectionsSay(prdCoreDocType(set, 'project_domain'), const {
+      'invariants': [
+        'no trace tag',
+        '`reference` field',
+        'a cite or ownership note may close',
+      ],
+    });
+  });
+
   test('project_api holds conventions between source_of_truth and '
       'compatibility and no fr_trace, operations, or confirmed', () {
     final type = prdCoreDocType(set, 'project_api');

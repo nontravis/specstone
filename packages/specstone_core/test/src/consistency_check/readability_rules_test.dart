@@ -320,13 +320,19 @@ void main() {
     },
   );
 
-  test('guide line constants match every shipped prd-core guide', () async {
+  test('guide line constants match every shipped guide', () async {
     final project = await writeCheckProject();
     final types = TemplateResolver()
         .resolve(workingDirectory: project, homeDirectory: null)
         .docTypes
-        .where((type) => type.pack == 'prd-core');
-    expect(types, isNotEmpty);
+        .where(
+          (type) => type.pack == 'prd-core' || type.pack == 'software-tech',
+        )
+        .toList();
+    expect(types.map((type) => type.pack).toSet(), {
+      'prd-core',
+      'software-tech',
+    });
     for (final type in types) {
       final lines = type.description!.split('\n');
       expect(lines, contains(sentenceLengthGuideLine), reason: type.id);

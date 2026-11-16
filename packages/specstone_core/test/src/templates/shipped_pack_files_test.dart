@@ -45,8 +45,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.8.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.8.0');
+  test('the shipped software-tech pack is 1.9.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.9.0');
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -462,6 +462,24 @@ void main() {
         'project_error.error_catalog',
         'project_api.conventions',
       });
+    });
+
+    test('no software-tech yaml writes a readability lint key', () {
+      final files = {
+        for (final MapEntry(:key, :value) in shippedPackFiles.entries)
+          if (key.startsWith('software-tech/') && key.endsWith('.yaml'))
+            key: utf8.decode(value),
+      };
+      expect(files, isNotEmpty);
+      for (final MapEntry(:key, :value) in files.entries) {
+        for (final lintKey in const [
+          'max_sentence_words',
+          'max_sentence_chars',
+          'trace_note_last',
+        ]) {
+          expect(value, isNot(contains(lintKey)), reason: '$key $lintKey');
+        }
+      }
     });
 
     test('the record caps its characters at 60000 beside domain and '

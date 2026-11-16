@@ -10,6 +10,11 @@ description: |-
   The project's DOMAIN cites the project's ARCHITECTURE by a section link, such as `[architecture](ARCHITECTURE.md#components)`.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
+  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
+  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
+  Put a cite or an ownership note at the item's end.
+  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
+  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: specs/DOMAIN.md
 parent:
 bundle: [implement, design]
@@ -28,7 +33,7 @@ sections:
       Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
       Write numbers and checkable conditions; keep a bound, such as `timeout 10 s`, in the invariant it bounds.
       Leave mechanics to the project's ARCHITECTURE and a case the system does not handle to `known_limits`.
-      Write no trace tag; the DOMAIN's `reference` field holds its trace.
+      Write no trace tag, since the `reference` field holds the trace; a cite or ownership note may close an invariant.
   - id: data_touch
     description: |-
       Write a table with the columns Table, Operation, Field / Change; write one row per table the project touches.
