@@ -153,6 +153,65 @@ void main() {
       );
     });
 
+    test('a link inside a moved item to a third doc is rebased to reach it from the target doc', () async {
+      final root = await _project(
+        shop: [
+          _inv(
+            3,
+            'holds, see [pay](f02_pay/DOMAIN.md#invariants) and '
+            '[INV-1](f02_pay/DOMAIN.md#invariants).',
+          ),
+        ],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      expect(
+        _body(root, cartDomain),
+        _domain([
+          _inv(1),
+          _inv(
+            3,
+            'holds, see [pay](../f02_pay/DOMAIN.md#invariants) and '
+            '[INV-1](../f02_pay/DOMAIN.md#invariants).',
+          ),
+        ]),
+      );
+    });
+
+    test('a reference-style link and its definition follow the item', () async {
+      final root = await _project(
+        cart: _twelve,
+        pay: [
+          _inv(1, 'follows [INV-3][r].'),
+          '',
+          '[r]: ../DOMAIN.md#invariants',
+        ],
+      );
+      _move(root, ['domain:shop#INV-3']);
+      expect(
+        _body(root, _payDomain),
+        _domain([_inv(1, 'follows [INV-13][r].'), '', '[r]: $_toCart']),
+      );
+    });
+
+    test('a definition that serves a moved and a kept item stays and is listed', () async {
+      final root = await _project(
+        pay: [
+          _inv(1, 'follows [INV-3][r] and [INV-1][r].'),
+          '',
+          '[r]: ../DOMAIN.md#invariants',
+        ],
+      );
+      final payBefore = readDoc(root, _payDomain);
+      final answer = _move(root, ['domain:shop#INV-3']);
+      expect(readDoc(root, _payDomain), payBefore);
+      expect(
+        answer.text,
+        contains(
+          'mentions $_payDomain:${_lineOf(payBefore, '[r]:')} [r]: ../DOMAIN.md#invariants\n',
+        ),
+      );
+    });
+
     test('a link keeps the title written after its destination', () async {
       final root = await _project(
         pay: [_inv(1, 'follows [INV-3](../DOMAIN.md#invariants "the rule").')],
@@ -284,6 +343,26 @@ void main() {
     );
 
     test(
+      'a range whose end links carry titles splits and keeps each title',
+      () async {
+        final root = await _project(
+          shop: shop(
+            'Covers [INV-2](#invariants "a") to [INV-5](#invariants "b").',
+          ),
+        );
+        _move(root, ['domain:shop#INV-3']);
+        expect(
+          _body(root, shopDomain),
+          contains(
+            'Covers [INV-2](#invariants "a"), '
+            '[INV-3](f01_cart/DOMAIN.md#invariants), '
+            '[INV-4](#invariants) to [INV-5](#invariants "b").',
+          ),
+        );
+      },
+    );
+
+    test(
       'a range of two moved items keeps one range into the target doc',
       () async {
         final root = await _project(
@@ -389,13 +468,12 @@ void main() {
         shop: [_inv(3), _inv(4, 'follows INV-3 of this doc.')],
         pay: [_inv(1, 'cites `domain:shop#INV-3`.')],
       );
-      final shopBefore = readDoc(root, shopDomain);
       final payBefore = readDoc(root, _payDomain);
       final answer = _move(root, ['domain:shop#INV-3']);
       expect(
         answer.text,
         contains(
-          '$mention$shopDomain:${_lineOf(shopBefore, 'follows INV-3')} INV-3\n',
+          '$mention$shopDomain:${_lineOf(readDoc(root, shopDomain), 'follows INV-3')} INV-3\n',
         ),
       );
       expect(
@@ -452,14 +530,13 @@ void main() {
         shop: [_inv(3, 'as INV-4 gives, and see INV-7.'), _inv(4), _inv(7)],
         cart: _twelve.take(7).toList(),
       );
-      final before = readDoc(root, shopDomain);
       final answer = _move(root, ['domain:shop#INV-3', 'domain:shop#INV-7']);
-      final line = _lineOf(before, 'as INV-4');
+      final line = _lineOf(readDoc(root, cartDomain), 'as INV-4');
       expect(
         answer.text,
         allOf(
-          contains('$mention$shopDomain:$line INV-4\n'),
-          contains('$mention$shopDomain:$line INV-7\n'),
+          contains('$mention$cartDomain:$line INV-4\n'),
+          contains('$mention$cartDomain:$line INV-7\n'),
         ),
       );
       expect(
@@ -472,24 +549,25 @@ void main() {
       final root = await _project(
         shop: [_inv(3, 'see INV-7 and `domain:shop#INV-7`.'), _inv(7)],
       );
-      final before = readDoc(root, shopDomain);
       final answer = _move(root, ['domain:shop#INV-3', 'domain:shop#INV-7']);
-      final line = _lineOf(before, 'see INV-7');
+      final line = _lineOf(readDoc(root, cartDomain), 'see INV-7');
       expect(answer.text.split('\n').where((l) => l.startsWith(mention)), [
-        '$mention$shopDomain:$line domain:shop#INV-7',
+        '$mention$cartDomain:$line domain:shop#INV-7',
       ]);
     });
 
-    test('a dry run prints the mentions lines and writes no file', () async {
-      final root = await _project(
-        shop: [_inv(3), _inv(4, 'follows INV-3 of this doc.')],
-      );
+    test('a dry run prints the mentions lines a real move prints and writes no file', () async {
+      final shop = [_inv(3), _inv(4, 'follows INV-3 of this doc.')];
+      final twin = await _project(shop: shop);
+      final written = _move(twin, ['domain:shop#INV-3']);
+      final root = await _project(shop: shop);
       final before = readDoc(root, shopDomain);
       final answer = _move(root, ['domain:shop#INV-3'], dryRun: true);
+      expect(answer.json['mentions'], written.json['mentions']);
       expect(
         answer.text,
         contains(
-          '$mention$shopDomain:${_lineOf(before, 'follows INV-3')} INV-3\n',
+          '$mention$shopDomain:${_lineOf(readDoc(twin, shopDomain), 'follows INV-3')} INV-3\n',
         ),
       );
       expect(answer.text, endsWith('dry run: nothing moved\n'));
