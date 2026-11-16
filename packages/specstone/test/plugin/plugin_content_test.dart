@@ -2907,8 +2907,9 @@ void _agentTests() {
       expect(
         input,
         contains(
-          '- **`feature`** (sync, optional): the feature name the Owner gave; '
-          'absent, your gate `check` gives the work list.',
+          '- **`feature`** (sync, optional): the feature name the Owner gave, '
+          'never sent with `scope`; absent, your gate `check` gives the work '
+          'list.',
         ),
       );
       expect(
@@ -2925,6 +2926,40 @@ void _agentTests() {
       }
     });
 
+    test('sdd-engineer takes a scope input in sync mode in each of its three '
+        'forms, apart from feature', () {
+      final input = _oneLine(
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Input Contract'),
+      );
+      expect(input, contains('- **`scope`** (sync, optional):'));
+      for (final form in [
+        '`feature:<name>`',
+        '`<type>:<name>`',
+        '`uncovered`',
+      ]) {
+        expect(input, contains(form), reason: form);
+      }
+    });
+
+    test('sdd-engineer runs its gate check on its scope, bare for uncovered, '
+        'and draws its work list from it', () {
+      final workflow = _oneLine(
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Workflow'),
+      );
+      expect(workflow, contains('`specstone check <scope>`'));
+      expect(
+        workflow,
+        contains(
+          'bare `specstone check` for `scope: uncovered`, keeping its '
+          '`code_uncovered` findings',
+        ),
+      );
+      expect(
+        workflow,
+        contains("on your gate `check`'s work list, scoped by `scope`,"),
+      );
+    });
+
     test('sdd-engineer syncs on its gate check work list or a named feature '
         "and writes each pick by the procedure's step 5", () {
       expect(
@@ -2933,8 +2968,9 @@ void _agentTests() {
         ),
         contains(
           '2. **Sync**: follow the On-Demand procedure from its step 2, on '
-          "your gate `check`'s work list, or on every code link of `feature`; "
-          'write each of `picks` by its step 5. Then Workflow step 5.',
+          "your gate `check`'s work list, scoped by `scope`, or on every code "
+          'link of `feature`; write each of `picks` by its step 5. Then '
+          'Workflow step 5.',
         ),
       );
     });
