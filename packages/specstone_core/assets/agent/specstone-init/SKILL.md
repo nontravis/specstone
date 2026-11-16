@@ -3,10 +3,10 @@ name: specstone-init
 description: Use when the Owner wants a new Specstone project in a folder that holds no code, no docs, and no `.specstone/config.yaml`, such as starting a product from nothing.
 ---
 
-# Create a project, then fill its four starting drafts
+# Create a project, then fill its five starting drafts
 
 This skill creates the project, so it has no project gate: there is no project yet for a gate to find. With the
-Owner, you fill the four drafts the CLI writes; then the Owner approves each one.
+Owner, you fill the five drafts the CLI writes; then the Owner approves each one.
 
 ## 1. Create the project: the first call
 
@@ -19,7 +19,7 @@ specstone init
 Run no `specstone check` and no look for `.specstone/` before it: `specstone init` refuses on its own in a folder
 that is already a project.
 
-- **0:** it printed the four drafts and the config it created. Go on, and follow the `specstone-expert-sdd` skill from
+- **0:** it printed the five drafts and the config it created. Go on, and follow the `specstone-expert-sdd` skill from
   here: its gate now passes, and its rules govern every write below.
 - **64, `config_exists`:** tell the Owner this folder is already a Specstone project, and stop. The CLI changed no
   file; run nothing more.
@@ -27,8 +27,8 @@ that is already a project.
 
 ## 2. Fill each draft with the Owner
 
-Take the drafts one at a time, in this order: the project, features, gnfr, and tech stack docs.
-For each one:
+Take the drafts one at a time, in this order: the project, goal, features, gnfr, and tech stack docs.
+The goal doc holds the goals the Owner names, or none. For each one:
 
 1. Run `specstone guide <type>` for its title and sections, and `specstone guide <type> --json` for its fields.
 2. Ask the Owner for the title, each section, and each field the guide describes, such as `owner` on the project doc and
@@ -54,12 +54,12 @@ is and the folder is still missing; keep the entry either way.
 
 ## 3. Get the drafts approved
 
-Tell the Owner the four drafts are filled, then get each one approved through the `specstone-expert-sdd` skill's
+Tell the Owner the five drafts are filled, then get each one approved through the `specstone-expert-sdd` skill's
 Owner confirmation (terminal or chat), which covers both the `ask` and the `auto` mode.
 
 ## 4. Features go to brainstorming
 
-This skill writes no feature doc. A feature the Owner names during setup waits until the four drafts are written;
+This skill writes no feature doc. A feature the Owner names during setup waits until the five drafts are written;
 then, and for every later feature, follow the `specstone-brainstorming-sdd` skill, one feature at a time.
 
 ## Red flags
