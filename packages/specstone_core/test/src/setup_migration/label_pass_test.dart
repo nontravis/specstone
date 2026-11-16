@@ -185,8 +185,14 @@ void main() {
       'a label after another reads against the doc and the label before it',
       () {
         final tree = _tree();
-        final named = numberLabelsIn('US-02 FR-01, FR-04');
-        final split = numberLabelsIn('US-02 FR-01, FR-02');
+        final named = numberLabelsIn(
+          'US-02 FR-01, FR-04',
+          itemPrefixes: const {},
+        );
+        final split = numberLabelsIn(
+          'US-02 FR-01, FR-02',
+          itemPrefixes: const {},
+        );
 
         // FR-04 names a doc only against the label before it.
         expect(

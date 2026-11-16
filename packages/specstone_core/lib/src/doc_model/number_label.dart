@@ -93,11 +93,11 @@ final class NumberLabel {
 /// With [legacyIds] a folder path may open with any lowercase prefix before
 /// its digits, as a legacy feature folder does. A label's item ID is the first
 /// item ID of the run right after it (`itemIdRunAt`), a token of one of
-/// [itemPrefixes]; with none given no label holds an item ID.
+/// [itemPrefixes]; an empty set reads no item ID.
 List<NumberLabel> numberLabelsIn(
   String line, {
   bool legacyIds = false,
-  Set<String> itemPrefixes = const {},
+  required Set<String> itemPrefixes,
 }) => _labelsIn(line, line, legacyIds, itemPrefixes);
 
 /// The labels of [line], each with the item ID read on [rawLine], the line as
@@ -130,7 +130,7 @@ List<({int line, String written})> numberLabelLinesInMarkdown(String lfText) {
   final labels = <({int line, String written})>[];
   var line = 0;
   var from = 0;
-  for (final label in numberLabelsInMarkdown(lfText)) {
+  for (final label in numberLabelsInMarkdown(lfText, itemPrefixes: const {})) {
     for (var i = from; i < label.start; i++) {
       if (lfText.codeUnitAt(i) == _lineFeed) line++;
     }
@@ -152,7 +152,7 @@ const _spaceUnit = 0x20;
 List<NumberLabel> numberLabelsInMarkdown(
   String lfText, {
   bool legacyIds = false,
-  Set<String> itemPrefixes = const {},
+  required Set<String> itemPrefixes,
 }) {
   final lines = lfText.split('\n');
   final readable = _readableLines(lines);
