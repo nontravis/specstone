@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
+import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -102,7 +103,7 @@ BundleEntry _entryOf(
 
 /// Returns one file of [count] docs named `<prefix><n>`, each of one section
 /// and one line, as [_answerOf] does.
-BundleText _fileOf(int count, {String prefix = 'd'}) => (
+BundleText _fileOf(int count, {String prefix = 'd'}) => BundleText(
   text: '${List.filled(2 * count, 'x').join('\n')}\n',
   tokens: 7,
   entries: [
@@ -142,7 +143,7 @@ BundleText _closedRefsOf(int count) {
       '==> r$i (fr) · prds/r$i.md <==\n## Statement\nx',
   ];
   final starts = [for (var i = 0; i < count; i++) 4 * i + 1];
-  return (
+  return BundleText(
     text:
         '${blocks.join('\n\n')}\n==> bundle: $count docs, 9 tokens <==\n'
         '${[for (var i = 0; i < count; i++) '- r$i (fr)\n'].join()}',
@@ -599,7 +600,7 @@ void main() {
         ),
         _entryOf('one', 4, 4, kind: BundleEntryKind.names),
       ],
-      refs: (
+      refs: BundleText(
         text: 'x\n\ny\nz\n',
         tokens: 3,
         entries: [
@@ -1333,7 +1334,7 @@ void main() {
         2,
         0,
         mode: BundleMode.implement,
-        refsFile: (text: empty, tokens: 0, entries: const []),
+        refsFile: const BundleText(text: empty, tokens: 0, entries: []),
       );
       final reply = answerBundleFile(
         answer,

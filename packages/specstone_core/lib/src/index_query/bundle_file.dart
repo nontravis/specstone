@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/feature_pattern_parts.dart'
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show tokenSizeOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
+import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/out_file.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show ReadAnswer, nameWithType;
@@ -186,7 +187,7 @@ BundleText _withRefsHead(BundleText refs) {
   final shown = '$head\n\n${lines.take(blocksEnd).join('\n')}';
   final tokens = tokenSizeOf(shown);
   final closing = closingLineOf(docCountOf(entries), tokens);
-  return (
+  return BundleText(
     text: '$shown\n$closing${lines.skip(blocksEnd + 1).join('\n')}',
     entries: entries,
     tokens: tokens,
@@ -243,11 +244,11 @@ String bundleIndex(ContextAnswer answer, String shownPath, {String? refsPath}) {
   final isImplement = answer.json['for'] == BundleMode.implement.wire;
   String index({required bool withSections, bool forCap = false}) => [
     codeTargetLine(answer.codeTarget),
-    for (final (i, (:file, :path)) in files.indexed)
+    for (final (i, saved) in files.indexed)
       if (i == 0 || !isImplement)
-        _fileIndex(file, path, withSections: withSections)
+        _fileIndex(saved.file, saved.path, withSections: withSections)
       else if (!forCap)
-        _fileHeader(file, path),
+        _fileHeader(saved.file, saved.path),
   ].join();
   final full = index(withSections: true, forCap: true);
   final fits =
@@ -289,7 +290,7 @@ Map<String, Object> bundleIndexJson(
 
 /// Returns each file [answer] saves, the read-first file first, with its
 /// path; the refs file's is [refsPath], which a split answer needs.
-List<({BundleText file, String path})> _filesOf(
+List<_SavedFile> _filesOf(
   ContextAnswer answer,
   String shownPath,
   String? refsPath,
@@ -299,10 +300,18 @@ List<({BundleText file, String path})> _filesOf(
     'a split answer names its refs path, an unsplit one none',
   );
   return [
-    (file: answer.readFirst, path: shownPath),
+    _SavedFile(file: answer.readFirst, path: shownPath),
     if ((answer.refs, refsPath) case (final refs?, final path?))
-      (file: refs, path: path),
+      _SavedFile(file: refs, path: path),
   ];
+}
+
+/// One file [bundleIndex] lists: its text and the path it is saved at.
+final class _SavedFile {
+  const new({required this.file, required this.path});
+
+  final BundleText file;
+  final String path;
 }
 
 /// Returns the header line of [file] saved at [path], then one index line per

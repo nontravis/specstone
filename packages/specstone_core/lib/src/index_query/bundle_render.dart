@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
     show citedSectionsOf;
 import 'package:specstone_core/src/index_query/models/bundle_entry.dart';
+import 'package:specstone_core/src/index_query/models/bundle_text.dart';
 import 'package:specstone_core/src/index_query/models/cited_item.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
@@ -20,10 +21,6 @@ const _overBudgetNextStep =
 
 const _overBudgetSummaryNextStep =
     'narrow the target, or run it again with --summary --out and no --budget';
-
-/// One file's text of a bundle: the text, each doc and part it prints in
-/// print order, and its est. token size as its closing line gives it.
-typedef BundleText = ({String text, List<BundleEntry> entries, int tokens});
 
 /// Returns the number of docs [entries] hold, as a bundle's closing line and
 /// its `--out` header count them: no part is a doc.
@@ -59,7 +56,8 @@ final class ContextAnswer extends ReadAnswer {
   final BundleText? refs;
 
   /// The read-first file: [text] with its [entries] and [tokens].
-  BundleText get readFirst => (text: text, entries: entries, tokens: tokens);
+  BundleText get readFirst =>
+      BundleText(text: text, entries: entries, tokens: tokens);
 }
 
 String _overBudgetLine(String listName, int tokens) =>
@@ -502,7 +500,7 @@ BundleText _textOf(
       '${closingLineOf(docCountOf(entries), tokens)}'
       '${list.join()}'
       '${listsSummary ? '${_summaryNextStep(mode)}\n' : ''}';
-  return (
+  return BundleText(
     text: '$codeTargetLine$blocks$closing',
     entries: entries,
     tokens: tokens,
