@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/readability_rules.dart';
+import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -195,7 +196,7 @@ void main() {
       doc(
         projectDoc,
         '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
-        '### PV-01 — ระบบล็อกอินเดียว\n\n> en: ${_sentenceOf(25)}',
+        '### PV-01 — ระบบล็อกอินเดียว\n\n> en: ${_sentenceOf(30)}',
       ),
     );
     expect(found, hasLength(1));
@@ -207,7 +208,6 @@ void main() {
         containsPair('section', 'vision'),
         containsPair('language', 'default'),
         containsPair('limit', 25),
-        containsPair('actual', 26),
       ),
     );
   });
@@ -264,10 +264,74 @@ void main() {
     expect(note.single.message, endsWith('$_noGuideTail$citeNoteGuideLine'));
   });
 
-  test('guide line constants match the shipped guide', () {
-    final lines = fixtureDocTypeOf(loginFr).description!.split('\n');
-    expect(lines, contains(sentenceLengthGuideLine));
-    expect(lines, contains(citeNoteGuideLine));
+  test('a korean sentence takes the ko word cap', () async {
+    final found = await _found(_edgeCase(_sentenceOf(18, '가')));
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.wordsOverLimit);
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('language', 'ko'),
+        containsPair('limit', 17),
+        containsPair('actual', 18),
+      ),
+    );
+  });
+
+  test('a long lead item gives a finding under the lead key', () async {
+    final found = await _found({
+      'docs/$_domainDoc':
+          '# Login domain\n\n${_sentenceOf(30)}\n\n'
+          '## Entities\n\n- Account\n\n## Invariants\n\n- **INV-1** — Ok.\n',
+    });
+    expect(found, hasLength(1));
+    expect(found.single.kind, FindingKind.wordsOverLimit);
+    expect(found.single.path, _domainDoc);
+    expect(
+      found.single.toJson(),
+      allOf(
+        containsPair('section', '_lead'),
+        isNot(contains('id')),
+        containsPair('actual', 30),
+      ),
+    );
+  });
+
+  test(
+    'a misplaced note in a table row gives trace_note_not_last at the row',
+    () async {
+      final found = await _found(
+        fr(
+          'A wrong password must not sign in.',
+          '| Part | Responsibility |\n|---|---|\n'
+              '| Form | Takes it (INV-4) now. |',
+        ),
+      );
+      expect(found, hasLength(1));
+      expect(found.single.kind, FindingKind.traceNoteNotLast);
+      expect(found.single.line, _lineOf(loginFr, '| Form |'));
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('section', 'rationale'),
+          containsPair('note', '(INV-4)'),
+        ),
+      );
+    },
+  );
+
+  test('guide line constants match every shipped prd-core guide', () async {
+    final project = await writeCheckProject();
+    final types = TemplateResolver()
+        .resolve(workingDirectory: project, homeDirectory: null)
+        .docTypes
+        .where((type) => type.pack == 'prd-core');
+    expect(types, isNotEmpty);
+    for (final type in types) {
+      final lines = type.description!.split('\n');
+      expect(lines, contains(sentenceLengthGuideLine), reason: type.id);
+      expect(lines, contains(citeNoteGuideLine), reason: type.id);
+    }
   });
 }
 

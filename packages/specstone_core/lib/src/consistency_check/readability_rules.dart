@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
@@ -47,97 +49,119 @@ Iterable<Finding> _sectionFindings(
   List<ItemFact> items,
 ) sync* {
   for (final item in items) {
-    final keys = {'section': sectionKey, 'id': ?item.id};
-    for (final run in _lengthRunsOf(item.readability, lint)) {
-      if (run.over == 0) continue;
-      yield context.finding(
-        doc,
-        run.countsChars
-            ? FindingKind.sentenceCharsOverLimit
-            : FindingKind.wordsOverLimit,
-        line: item.line,
-        message:
-            'the longest sentence holds ${run.longest} '
-            '${run.countsChars ? 'characters' : 'words'}; the limit is '
-            '${run.limit} for language ${run.language}; '
-            'guide line: $sentenceLengthGuideLine',
-        keys: {
-          ...keys,
-          'language': run.language,
-          'limit': run.limit,
-          'actual': run.longest,
-          'sentences': run.over,
-        },
-      );
-    }
-    if (!lint.isTraceNoteLast) continue;
-    for (final note in item.readability.notes) {
-      if (note.closes) continue;
-      yield context.finding(
-        doc,
-        FindingKind.traceNoteNotLast,
-        line: item.line,
-        message:
-            "the note ${note.text} comes before the item's end; "
-            'guide line: $citeNoteGuideLine',
-        keys: {...keys, 'note': note.text},
-      );
-    }
+    final keys = <String, Object>{'section': sectionKey, 'id': ?item.id};
+    yield* _lengthFindings(context, doc, lint, item, keys);
+    if (lint.isTraceNoteLast) yield* _noteFindings(context, doc, item, keys);
   }
 }
 
-/// The sentences of one item that share a language, measured against that
-/// language's cap.
-final class _LengthRun {
-  new({required this.language, required this.countsChars, required this.limit});
-
-  final String language;
-  final bool countsChars;
-  final int limit;
-
-  /// The most words or characters one sentence holds.
-  int longest = 0;
-
-  /// How many sentences pass [limit].
-  int over = 0;
-
-  void add(int size) {
-    if (size > longest) longest = size;
-    if (size > limit) over++;
+Iterable<Finding> _lengthFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  MergedLint lint,
+  ItemFact item,
+  Map<String, Object> keys,
+) sync* {
+  for (final run in _lengthRunsOf(item.readability, lint)) {
+    if (run.over == 0) continue;
+    final unit = run.countsChars ? 'characters' : 'words';
+    yield context.finding(
+      doc,
+      run.countsChars
+          ? FindingKind.sentenceCharsOverLimit
+          : FindingKind.wordsOverLimit,
+      line: item.line,
+      message:
+          'the longest sentence holds ${run.longest} $unit; the limit is '
+          '${run.limit} for language ${run.language}; '
+          'guide line: $sentenceLengthGuideLine',
+      keys: {
+        ...keys,
+        'language': run.language,
+        'limit': run.limit,
+        'actual': run.longest,
+        'sentences': run.over,
+      },
+    );
   }
 }
+
+Iterable<Finding> _noteFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  ItemFact item,
+  Map<String, Object> keys,
+) sync* {
+  for (final note in item.readability.notes) {
+    if (note.closes) continue;
+    yield context.finding(
+      doc,
+      FindingKind.traceNoteNotLast,
+      line: item.line,
+      message:
+          "the note ${note.text} comes before the item's end; "
+          'guide line: $citeNoteGuideLine',
+      keys: {...keys, 'note': note.text},
+    );
+  }
+}
+
+/// One sentence's size against the cap of its language.
+typedef _Sized = ({String language, bool countsChars, int limit, int size});
+
+/// The sentences of one item that share a language.
+///
+/// `longest` is the most words or characters one holds; `over` counts the
+/// sentences past `limit`.
+typedef _Run = ({
+  String language,
+  bool countsChars,
+  int limit,
+  int longest,
+  int over,
+});
 
 /// Returns one run per language of [facts]' sentences, in the order each
 /// language first appears.
 ///
 /// A `###` heading's sentence counts here, as it does in the sentence cut.
-Iterable<_LengthRun> _lengthRunsOf(ReadabilityFacts facts, MergedLint lint) {
-  final runs = <String, _LengthRun>{};
+List<_Run> _lengthRunsOf(ReadabilityFacts facts, MergedLint lint) {
+  final byLanguage = <String, List<_Sized>>{};
   for (final sentence in facts.cells.expand((cell) => cell)) {
-    final caps = sentence.countsChars
-        ? lint.sentenceCharCaps
-        : lint.sentenceWordCaps;
-    final limit = caps.capFor(sentence.language);
-    runs
-        .putIfAbsent(
-          sentence.language,
-          () => _LengthRun(
-            language: sentence.language,
-            countsChars: sentence.countsChars,
-            limit: limit,
-          ),
-        )
-        .add(
-          sentence.countsChars
-              ? weightedChars((
-                  language: sentence.language,
-                  countsChars: true,
-                  words: sentence.words,
-                  chars: sentence.chars,
-                  runs: sentence.runs,
-                ), limit)
-              : sentence.words,
-        );
+    byLanguage
+        .putIfAbsent(sentence.language, () => [])
+        .add(_sizedOf(sentence, lint));
   }
-  return runs.values;
+  return [
+    for (final sizes in byLanguage.values)
+      (
+        language: sizes.first.language,
+        countsChars: sizes.first.countsChars,
+        limit: sizes.first.limit,
+        longest: sizes.map((sized) => sized.size).reduce(max),
+        over: sizes.where((sized) => sized.size > sized.limit).length,
+      ),
+  ];
+}
+
+_Sized _sizedOf(SentenceFact sentence, MergedLint lint) {
+  final caps = sentence.countsChars
+      ? lint.sentenceCharCaps
+      : lint.sentenceWordCaps;
+  final limit = caps.capFor(sentence.language);
+  final size = sentence.countsChars
+      ? weightedChars((
+          language: sentence.language,
+          countsChars: true,
+          words: sentence.words,
+          chars: sentence.chars,
+          runs: sentence.runs,
+        ), limit)
+      : sentence.words;
+  return (
+    language: sentence.language,
+    countsChars: sentence.countsChars,
+    limit: limit,
+    size: size,
+  );
 }
