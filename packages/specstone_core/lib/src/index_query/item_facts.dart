@@ -1,9 +1,12 @@
+import 'package:specstone_core/src/doc_model/check_sentences.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show itemHeadingMarker;
+    show itemHeadingMarker, tableCellRanges;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
+import 'package:specstone_core/src/doc_model/trace_notes.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show IndexedSection, indexedSectionsOf;
@@ -16,11 +19,42 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show generatedBlockLines;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-/// One item of a doc: the key `check` holds it by when it reads one, its
-/// first line, and its code points.
+/// One sentence of an item as `check` counts it: its language and counts, and
+/// whether a `###` heading ends it.
 ///
-/// `line` and `chars` are those of the text the doc's counts cover.
-typedef ItemFact = ({String? id, int line, int chars});
+/// `countsChars` says which counts the language reads; see [SentenceMeasure].
+typedef SentenceFact = ({
+  String language,
+  bool countsChars,
+  int words,
+  int chars,
+  int runs,
+  bool isHeading,
+});
+
+/// What `check` reads of an item's readability.
+///
+/// `cells` holds the sentences of the item, one list for an item that is no
+/// table row and one per cell for a table row; `notes` holds its trace notes.
+/// A doc with no doc type holds none of either.
+typedef ReadabilityFacts = ({
+  List<List<SentenceFact>> cells,
+  List<TraceNote> notes,
+});
+
+const ReadabilityFacts _noReadability = (cells: [], notes: []);
+
+/// One item of a doc: the key `check` holds it by when it reads one, its
+/// first line, its code points, and its readability facts.
+///
+/// `line`, `chars`, and `readability` are those of the text the doc's counts
+/// cover.
+typedef ItemFact = ({
+  String? id,
+  int line,
+  int chars,
+  ReadabilityFacts readability,
+});
 
 /// The items of one doc, the lead's included, as the index stores them.
 final class ItemFacts {
@@ -56,8 +90,8 @@ final class ItemFacts {
   /// the same order.
   final List<List<ItemFact>> sectionItems;
 
-  /// Returns the facts as JSON values, each item one `[id, line, chars]`
-  /// array.
+  /// Returns the facts as JSON values, each item one
+  /// `[id, line, chars, cells, notes]` array.
   Object toJson() => {
     'lead': switch (lead) {
       final counts? => [counts.lines, counts.chars],
@@ -72,19 +106,23 @@ final class ItemFacts {
 ///
 /// [lineFacts] are those of [lfText]. The counts cover [laid]'s text when
 /// [laid] is not null, else [lfText]; each section of [doc] takes the items of
-/// its twin there, which [Formatted.twinOf] names.
+/// its twin there, which [Formatted.twinOf] names. A doc of a [type] holds the
+/// readability facts of its items, read against [idPrefixes], the item ID
+/// prefixes of the merged doc type set.
 ItemFacts itemFactsOf({
   required Doc doc,
   required String lfText,
   required LineFacts lineFacts,
   required Formatted? laid,
   required MergedDocType? type,
+  Set<String> idPrefixes = const {},
 }) {
   final counted = laid?.doc ?? doc;
   final countedText = laid?.text ?? lfText;
   final lines = countedText == lfText
       ? lineFacts
       : LineFacts.structureOf(lfText: countedText, doc: counted);
+  final reads = _Reads(isTyped: type != null, idPrefixes: idPrefixes);
   final held = indexedSectionsOf(counted, type);
   final templates = heldTemplatesOf(held, type);
   final isGenerated = generatedLineTest(
@@ -92,7 +130,13 @@ ItemFacts itemFactsOf({
     countedText,
     type?.listedGenerators.toSet() ?? const {},
   );
-  final (:counts, :items) = _leadOf(counted, countedText, lines, isGenerated);
+  final (:counts, :items) = _leadOf(
+    counted,
+    countedText,
+    lines,
+    isGenerated,
+    reads,
+  );
   return ItemFacts(
     lead: counts,
     leadItems: items,
@@ -104,6 +148,7 @@ ItemFacts itemFactsOf({
             isGenerated,
           ),
           templates[laid?.twinOf[i] ?? i],
+          reads,
         ),
     ],
   );
@@ -220,6 +265,7 @@ List<BodyLine> leadBodyLinesOf(
   String text,
   LineFacts lines,
   bool Function(int line) isGenerated,
+  _Reads reads,
 ) {
   final body = leadBodyLinesOf(doc, text, lines, isGenerated);
   bool holdsText(BodyLine line) => line.text.trim().isNotEmpty;
@@ -232,27 +278,114 @@ List<BodyLine> leadBodyLinesOf(
   }
   return (
     counts: (lines: last - first + 1, chars: chars),
-    items: _itemFactsIn(body, null),
+    items: _itemFactsIn(body, null, reads),
   );
 }
 
-int _codePointsOf(String text) => text.length - scanText(text).pairs;
+/// What an item's readability facts are read against.
+///
+/// A doc with no doc type holds none; a typed doc's trace notes read item
+/// references of [idPrefixes].
+final class _Reads {
+  const new({required this.isTyped, required this.idPrefixes});
 
-List<ItemFact> _itemFactsIn(List<BodyLine> body, MergedSection? template) => [
-  for (final item in itemsOf(body))
-    (id: _itemIdOf(item, template), line: item.line, chars: item.chars),
+  final bool isTyped;
+  final Set<String> idPrefixes;
+}
+
+List<ItemFact> _itemFactsIn(
+  List<BodyLine> body,
+  MergedSection? template,
+  _Reads reads,
+) => [
+  for (final item in sectionItemsOf(body))
+    _itemFactOf(item, _idReadOf(item, template), reads),
 ];
 
-/// Returns the key `check` holds [item] by, or null when it holds none.
+ItemFact _itemFactOf(SectionItem item, _ItemIdRead? read, _Reads reads) => (
+  id: read == null ? null : itemKeyOf(read.id, isScenario: read.isScenario),
+  line: item.line,
+  chars: _codePointsOf(item.text),
+  readability: reads.isTyped
+      ? _readabilityOf(item, read, reads.idPrefixes)
+      : _noReadability,
+);
+
+/// Returns the sentences and trace notes of [item].
+///
+/// Its leading ID [read] and its closing trace notes count in no sentence; a
+/// table row is cut into its cells first, so each cell's end ends a sentence.
+ReadabilityFacts _readabilityOf(
+  SectionItem item,
+  _ItemIdRead? read,
+  Set<String> idPrefixes,
+) {
+  final isRow = item.kind == SectionItemKind.tableRow;
+  final own = isRow ? item.firstLine : item.text;
+  final (:notes, :counted) = traceNotesOf(own, idPrefixes, isTableRow: isRow);
+  final text = _withoutLeadingId(counted, own, item.head, read);
+  return (
+    cells: isRow
+        ? [
+            for (final cell in tableCellRanges(text))
+              _sentencesIn(text.substring(cell.start, cell.end)),
+          ]
+        : [_sentencesIn(text)],
+    notes: notes,
+  );
+}
+
+/// Returns [counted], the item text [own] less its closing notes, without the
+/// ID [read] at the start of [head], the end of [own]'s first line.
+///
+/// Text with no ID there, since a closing note took the place, stays whole.
+String _withoutLeadingId(
+  String counted,
+  String own,
+  String head,
+  _ItemIdRead? read,
+) {
+  if (read == null) return counted;
+  final firstLineEnd = own.contains('\n') ? own.indexOf('\n') : own.length;
+  final boldLength = !read.isScenario && head.startsWith(_boldMark)
+      ? _boldMark.length
+      : 0;
+  final start = firstLineEnd - head.length + boldLength;
+  final written = read.id.written;
+  if (!counted.startsWith(written, start)) return counted;
+  return counted.replaceRange(start, start + written.length, '');
+}
+
+const _boldMark = '**';
+
+List<SentenceFact> _sentencesIn(String text) => [
+  for (final sentence in checkSentencesOf(text))
+    _factOf(measureSentence(sentence.text), isHeading: sentence.isHeading),
+];
+
+SentenceFact _factOf(SentenceMeasure measure, {required bool isHeading}) => (
+  language: measure.language,
+  countsChars: measure.countsChars,
+  words: measure.words,
+  chars: measure.chars,
+  runs: measure.runs,
+  isHeading: isHeading,
+);
+
+/// Returns the ID and kind [item] holds at its start, or null when it holds
+/// none.
 ///
 /// A letter right after the digits makes no ID, so a lettered or
 /// unreadable form holds none.
-String? _itemIdOf(DocItem item, MergedSection? template) => itemKeyOfHead(
-  item.text,
-  isHeading: item.heading,
-  prefixId: template?.prefixId,
-  isAcceptanceCriteria: template?.id == acceptanceSectionId,
-);
+_ItemIdRead? _idReadOf(SectionItem item, MergedSection? template) =>
+    _idReadOfHead(
+      item.head,
+      isHeading: item.kind == SectionItemKind.heading,
+      prefixId: template?.prefixId,
+      isAcceptanceCriteria: template?.id == acceptanceSectionId,
+    );
+
+int _codePointsOf(String text) => text.length - scanText(text).pairs;
 
 /// Returns the key `check` holds an item by, read from its [head] (the
 /// item's first line after any marker), or null when it holds none.
@@ -265,23 +398,88 @@ String? itemKeyOfHead(
   required bool isHeading,
   required String? prefixId,
   required bool isAcceptanceCriteria,
+}) => switch (_idReadOfHead(
+  head,
+  isHeading: isHeading,
+  prefixId: prefixId,
+  isAcceptanceCriteria: isAcceptanceCriteria,
+)) {
+  final read? => itemKeyOf(read.id, isScenario: read.isScenario),
+  null => null,
+};
+
+/// An item ID read at the start of an item, and whether it is the number of a
+/// `### Scenario <N>` heading.
+typedef _ItemIdRead = ({ItemId id, bool isScenario});
+
+_ItemIdRead? _idReadOfHead(
+  String head, {
+  required bool isHeading,
+  required String? prefixId,
+  required bool isAcceptanceCriteria,
 }) {
   if (isHeading && isAcceptanceCriteria) {
     final scenario = readScenarioHeading('$itemHeadingMarker$head');
-    if (scenario is ItemId) return itemKeyOf(scenario, isScenario: true);
+    if (scenario is ItemId) return (id: scenario, isScenario: true);
   }
   if (prefixId == null) return null;
   return switch (readItemId(head, prefixId)) {
-    final ItemId id => itemKeyOf(id, isScenario: false),
+    final ItemId id => (id: id, isScenario: false),
     _ => null,
   };
 }
 
 List<List<Object?>> _itemsToJson(List<ItemFact> items) => [
-  for (final item in items) [item.id, item.line, item.chars],
+  for (final item in items)
+    [
+      item.id,
+      item.line,
+      item.chars,
+      [
+        for (final cell in item.readability.cells)
+          [
+            for (final s in cell)
+              [
+                s.language,
+                s.countsChars,
+                s.words,
+                s.chars,
+                s.runs,
+                s.isHeading,
+              ],
+          ],
+      ],
+      [
+        for (final note in item.readability.notes) [note.text, note.closes],
+      ],
+    ],
 ];
 
 List<ItemFact> _itemsOfJson(Object? json) => [
   for (final item in (json! as List<Object?>).cast<List<Object?>>())
-    (id: item[0] as String?, line: item[1]! as int, chars: item[2]! as int),
+    (
+      id: item[0] as String?,
+      line: item[1]! as int,
+      chars: item[2]! as int,
+      readability: (
+        cells: [
+          for (final cell in (item[3]! as List<Object?>).cast<List<Object?>>())
+            [
+              for (final s in cell.cast<List<Object?>>())
+                (
+                  language: s[0]! as String,
+                  countsChars: s[1]! as bool,
+                  words: s[2]! as int,
+                  chars: s[3]! as int,
+                  runs: s[4]! as int,
+                  isHeading: s[5]! as bool,
+                ),
+            ],
+        ],
+        notes: [
+          for (final note in (item[4]! as List<Object?>).cast<List<Object?>>())
+            (text: note[0]! as String, closes: note[1]! as bool),
+        ],
+      ),
+    ),
 ];

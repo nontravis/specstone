@@ -57,8 +57,10 @@ const _notWritableMessage =
 /// the `item_words` table. Layout 18 holds both, so an index of any earlier
 /// layout, which lacks one or the other, is rebuilt. Layout 19 adds the
 /// `search_hash` column, so an index of layout 18, whose `putDoc` wrote the
-/// search rows with no hash to tell a lagging doc by, is rebuilt.
-const indexLayoutVersion = 19;
+/// search rows with no hash to tell a lagging doc by, is rebuilt. Layout 20
+/// adds each item's readability facts to the item facts, so an index of layout
+/// 19, whose items hold none, is rebuilt.
+const indexLayoutVersion = 20;
 
 const _schema = '''
 CREATE TABLE meta (

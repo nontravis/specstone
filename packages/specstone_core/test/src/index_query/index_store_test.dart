@@ -529,6 +529,38 @@ void main() {
         jsonEncode(written.content.itemFacts.toJson()),
       );
     });
+    test('readability facts round-trip through json', () async {
+      final doc = (await resolveSoftwareTech()).lookup('feature')!;
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      final written = parseIndexedDoc(
+        docPath: 'a.md',
+        bytes: utf8.encode(
+          '# F\n\n## Problem\n\nThe pair is checked (RULE-1) twice.\n\n'
+          'ทุกครั้ง `check`\n',
+        ),
+        match: MatchedDocType(doc),
+        statusesOutside: true,
+        idPrefixes: const {'RULE-'},
+      );
+      store.write(() {
+        store
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(written);
+      });
+      final was = written.content.itemFacts.sectionItems.single;
+      final now = store.loadContent('a.md').itemFacts.sectionItems.single;
+
+      expect(was, hasLength(2));
+      expect(was.first.readability.notes, isNotEmpty);
+      expect(was.last.readability.cells.single.single.language, 'th');
+      for (var i = 0; i < was.length; i++) {
+        expect(now[i].readability.cells, was[i].readability.cells);
+        expect(now[i].readability.notes, was[i].readability.notes);
+      }
+    });
     test('loadContent keeps the '
         'item facts column undecoded until they are read', () async {
       final r = await root();

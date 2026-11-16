@@ -148,10 +148,14 @@ int weightedChars(SentenceMeasure measure, int cap) =>
 /// and the emphasis marks dropped.
 String _plainText(String markdown) {
   final text = markdown.replaceAll(_spanMark, '');
-  return _linkTexts(_spansAsMarks(text)).replaceAll(_emphasisMarks, '');
+  final linked = _linkTexts(_spansAsMarks(text));
+  return linked.contains('*') || linked.contains('_')
+      ? linked.replaceAll(_emphasisMarks, '')
+      : linked;
 }
 
 String _spansAsMarks(String text) {
+  if (!text.contains('`')) return text;
   final buffer = StringBuffer();
   var from = 0;
   for (final span in codeSpansOf(text)) {

@@ -341,6 +341,7 @@ ParsedDoc parseIndexedDoc({
     lineFacts: lineFacts,
     laid: laid is Formatted ? laid : null,
     type: docType,
+    idPrefixes: idPrefixes,
   );
   final content = DocContent(
     readText: () => text,

@@ -23,6 +23,7 @@ final _ownershipWord = RegExp(
   r'\s+(?:owns|cites)(?![\p{L}\p{N}])',
   unicode: true,
 );
+final _wordSeparator = RegExp(r'[\s>]+');
 final _wrapMarks = RegExp(r'(?<=\n)[ \t]*(?:>[ \t]?)+');
 final _nestedLine = RegExp(r'^[ \t]+(?:[-+*]|\d{1,9}[.)])[ \t]');
 
@@ -78,8 +79,8 @@ List<_Span> _scopesOf(String own, {required bool isTableRow}) => isTableRow
 List<_Span> _notesIn(String own, _Span scope, List<String> prefixes) {
   final text = own.substring(scope.start, scope.end);
   final spans = [
-    ..._groupSpans(text, prefixes),
-    ..._clauseSpans(text, prefixes),
+    if (text.contains('(')) ..._groupSpans(text, prefixes),
+    if (_mayHoldClause(text)) ..._clauseSpans(text, prefixes),
   ]..sort((a, b) => a.start - b.start);
   final merged = <_Span>[];
   for (final span in spans) {
@@ -90,6 +91,11 @@ List<_Span> _notesIn(String own, _Span scope, List<String> prefixes) {
       (start: span.start + scope.start, end: span.end + scope.start),
   ];
 }
+
+/// Whether [text] holds a word an ownership clause needs, so a text with none
+/// is never cut into sentences.
+bool _mayHoldClause(String text) =>
+    text.contains('owns') || text.contains('cites');
 
 /// Returns [text] without each of [spans], the blanks before each dropped.
 String _withoutSpans(String text, List<_Span> spans) {
@@ -236,10 +242,39 @@ List<_Span> _clauseSpans(String text, List<String> prefixes) {
 }
 
 /// Finds [sentence], cut from whitespace-collapsed text, in [text] from [from].
+///
+/// Each space of [sentence] stands for a run of blanks and `>` marks in [text],
+/// as the sentence cut drops the marks of a wrapped quote. No pattern is
+/// built, so a sentence of any length is found.
 _Span? _locate(String text, String sentence, int from) {
-  final pattern = RegExp(
-    sentence.split(' ').map(RegExp.escape).join(r'(?:\s|>)+'),
-  );
-  final match = pattern.allMatches(text, from).firstOrNull;
-  return match == null ? null : (start: match.start, end: match.end);
+  final words = sentence.split(' ');
+  var start = text.indexOf(words.first, from);
+  while (start >= 0) {
+    final end = _wordsEnd(text, start, words);
+    if (end != null) return (start: start, end: end);
+    start = text.indexOf(words.first, start + 1);
+  }
+  return null;
 }
+
+/// Returns where [words] end in [text] when they begin at [start], each pair
+/// apart by a run of blanks and `>` marks, else null.
+///
+/// A word that opens with `>` takes the last `>` of its run that it fits.
+int? _wordsEnd(String text, int start, List<String> words) {
+  var at = start + words.first.length;
+  for (final word in words.skip(1)) {
+    var wordStart = _separatorEnd(text, at);
+    if (word.startsWith('>')) {
+      while (wordStart > at && !text.startsWith(word, wordStart)) {
+        wordStart--;
+      }
+    }
+    if (wordStart == at || !text.startsWith(word, wordStart)) return null;
+    at = wordStart + word.length;
+  }
+  return at;
+}
+
+int _separatorEnd(String text, int from) =>
+    _wordSeparator.matchAsPrefix(text, from)?.end ?? from;

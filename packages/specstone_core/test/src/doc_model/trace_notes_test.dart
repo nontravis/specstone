@@ -251,4 +251,22 @@ void main() {
     expect(read.notes, [(text: '(RULE-1)', closes: false)]);
     expect(read.counted, 'A (RULE-1) | B');
   });
+
+  test('a sentence of 70,000 characters is read, no regex built from it', () {
+    final read = traceNotesOf(
+      '${'a' * 70000}. INV-4 owns it.',
+      _prefixes,
+      isTableRow: false,
+    );
+    expect(read.notes, [(text: 'INV-4 owns it', closes: true)]);
+  });
+
+  test('clause holding a lone > word is found', () {
+    final read = traceNotesOf(
+      'A rule. INV-4 owns a > b here.',
+      _prefixes,
+      isTableRow: false,
+    );
+    expect(read.notes, [(text: 'INV-4 owns a > b here', closes: true)]);
+  });
 }
