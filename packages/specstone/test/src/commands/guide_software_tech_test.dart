@@ -13,9 +13,9 @@ const _guideUsage = 'Usage: specstone guide [type …] [--json]';
 final String _bothPacks = shippedPinsConfig();
 final String _prdCoreOnly = shippedPinsConfig(['prd-core']);
 final String _softwareTechOnly = shippedPinsConfig(['software-tech']);
-const _twentySevenIds =
+const _twentyEightIds =
     'anti_persona\napi\narchitecture\nauth\ndomain\nerror\nfeature\nfeatures\n'
-    'fr\ngnfr\nimplementation\nintegration\njourney\nmeasurement\nnf\n'
+    'fr\ngnfr\ngoal\nimplementation\nintegration\njourney\nmeasurement\nnf\n'
     'persona\nproject\n'
     'project_api\nproject_architecture\nproject_auth\nproject_domain\n'
     'project_error\nproject_integration\nreference\ntech_stack\ntopic\n'
@@ -91,11 +91,11 @@ void main() {
     Future<SpecstoneCommandRunner> runnerFor(String packs) async =>
         runnerIn(await writeTree({_configPath: packs}));
 
-    test('f03/us07/s1, f03/us07/fr01/e01: guide lists the twelve prd-core and '
-        'the fifteen software-tech doc types and no other', () async {
+    test('f03/us07/s1, f03/us07/fr01/e01: guide lists the thirteen prd-core '
+        'and the fifteen software-tech doc types and no other', () async {
       final runner = await runnerFor(_bothPacks);
       expect(await runner.run(['guide']), 0);
-      expect(out.toString(), _twentySevenIds);
+      expect(out.toString(), _twentyEightIds);
       expect(err.toString(), isEmpty);
     });
 

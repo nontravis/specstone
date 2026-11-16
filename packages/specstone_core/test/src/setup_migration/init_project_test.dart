@@ -30,6 +30,7 @@ import '../../helpers/write_fixture.dart' show testHome;
 
 const _draftPaths = [
   'docs/prds/PROJECT.md',
+  'docs/prds/GOAL.md',
   'docs/prds/FEATURES.md',
   'docs/prds/GNFR.md',
   'docs/specs/TECH_STACK.md',
@@ -78,6 +79,7 @@ final String _importBlock = importBlock(
   cliVersion: specstoneVersion,
   agentMdPath: '.specstone/AGENT.md',
   projectDocPath: 'docs/prds/PROJECT.md',
+  goalDocPath: 'docs/prds/GOAL.md',
 );
 
 /// The config `init` writes on the shipped pins: the running Version stamped.
@@ -110,7 +112,7 @@ Map<String, String> _bytesUnder(Directory root) {
 }
 
 void main() {
-  test('f06/us03/fr02, f06/us03/s1: an empty folder gets four empty drafts, '
+  test('f06/us03/fr02, f06/us03/s1: an empty folder gets five empty drafts, '
       'then the config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
@@ -119,6 +121,7 @@ void main() {
     expect(status, 0);
     expect(lines, [
       'created docs/prds/PROJECT.md (draft)',
+      'created docs/prds/GOAL.md (draft)',
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
@@ -160,7 +163,7 @@ void main() {
     },
   );
 
-  test('init then check reports no format_drift on the four drafts', () async {
+  test('init then check reports no format_drift on the five drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
     final (status, _) = _run(root);
@@ -179,6 +182,7 @@ void main() {
       expect(status, 0);
       expect(lines, [
         'kept docs/prds/PROJECT.md: exists',
+        'created docs/prds/GOAL.md (draft)',
         'created docs/prds/FEATURES.md (draft)',
         'created docs/prds/GNFR.md (draft)',
         'created docs/specs/TECH_STACK.md (draft)',
@@ -197,10 +201,10 @@ void main() {
     final whole = await writeTree({'keep.txt': 'x\n'});
     _run(whole);
     final project = _read(whole, _draftPaths[0]);
-    final features = _read(whole, _draftPaths[1]);
+    final features = _read(whole, _draftPaths[2]);
     final root = await writeTree({
       _draftPaths[0]: project,
-      _draftPaths[1]: features,
+      _draftPaths[2]: features,
     });
 
     final (status, lines) = _run(root);
@@ -208,6 +212,7 @@ void main() {
     expect(status, 0);
     expect(lines, [
       'kept docs/prds/PROJECT.md: exists',
+      'created docs/prds/GOAL.md (draft)',
       'kept docs/prds/FEATURES.md: exists',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
@@ -217,7 +222,49 @@ void main() {
       _configLine(),
     ]);
     expect(_read(root, _draftPaths[0]), project);
-    expect(_read(root, _draftPaths[1]), features);
+    expect(_read(root, _draftPaths[2]), features);
+  });
+
+  test('rerun keeps project and goal and creates the rest in order', () async {
+    final whole = await writeTree({'keep.txt': 'x\n'});
+    _run(whole);
+    final project = _read(whole, _draftPaths[0]);
+    final goal = _read(whole, _draftPaths[1]);
+    final root = await writeTree({
+      _draftPaths[0]: project,
+      _draftPaths[1]: goal,
+    });
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines.take(5), [
+      'kept docs/prds/PROJECT.md: exists',
+      'kept docs/prds/GOAL.md: exists',
+      'created docs/prds/FEATURES.md (draft)',
+      'created docs/prds/GNFR.md (draft)',
+      'created docs/specs/TECH_STACK.md (draft)',
+    ]);
+    expect(_read(root, _draftPaths[0]), project);
+    expect(_read(root, _draftPaths[1]), goal);
+  });
+
+  test('init writes GOAL with its three headers', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+
+    _run(root);
+
+    expect(
+      _read(root, 'docs/prds/GOAL.md'),
+      allOf(
+        startsWith('---\ndraft: true\n'),
+        contains('\n# goal\n'),
+        contains('\n## Long-term goals\n'),
+        contains('\n## Mid-term goals\n'),
+        contains('\n## Short-term goals\n'),
+        isNot(contains('\n### ')),
+      ),
+    );
   });
 
   test('verification: '
@@ -247,6 +294,7 @@ void main() {
       cliVersion: specstoneVersion,
       agentMdPath: '.specstone/AGENT.md',
       projectDocPath: 'docs/prds/PROJECT.md',
+      goalDocPath: 'docs/prds/GOAL.md',
     );
     expect(_read(root, 'CLAUDE.md'), "Owner's rules\n\n$imports");
     expect(

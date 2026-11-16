@@ -37,6 +37,20 @@ void main() {
       );
     });
 
+    test('a goal section takes bullet lines', () {
+      const lf =
+          '# Goals\n\n## Long-term goals\n\n### PG-01 — Cost\n\n'
+          '**Serves:** PV-01\n- **By:** v1.0 release\n\n'
+          '## Mid-term goals\n\n**Serves:** PV-02\n';
+
+      expect(
+        _bulleted(lf, header: 'Long-term goals'),
+        '# Goals\n\n## Long-term goals\n\n### PG-01 — Cost\n\n'
+        '- **Serves:** PV-01\n- **By:** v1.0 release\n\n'
+        '## Mid-term goals\n\n**Serves:** PV-02\n',
+      );
+    });
+
     test('returns a doc with no such section unchanged', () {
       const lf = '# Project\n\n## Vision\n\n**Serves:** PV-01\n';
 

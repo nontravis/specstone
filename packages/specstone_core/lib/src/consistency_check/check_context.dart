@@ -339,12 +339,44 @@ final class CheckContext {
 
   late final Set<String> _projectHeadingIds = {
     for (final doc in _projectDocs)
-      for (final (:key, lines: _) in _itemHeadingBlocksOf(doc)) key,
+      for (final (:key, lines: _) in _itemHeadingBlocksOf(doc))
+        if (key.startsWith(_visionIdPrefix)) key,
   };
 
-  /// Returns the ID of each `###` item heading of every project doc, as
+  /// Returns the ID of each `### PV-` vision heading of every project doc, as
   /// [_itemHeadingBlocksOf] reads it.
   Set<String> projectHeadingIds() => _projectHeadingIds;
+
+  /// Whether the merged set holds a goal doc type.
+  bool get hasGoal =>
+      _session.project.set.docTypes.any((type) => type.id == _goalType);
+
+  late final List<GoalBlock> _goalBlocks = [
+    for (final doc in index.docs)
+      if (doc.docTypeId == _goalType)
+        for (final (i, template) in _heldTemplatesOf(doc).indexed)
+          if (_goalHorizons[template?.id] case final horizon?)
+            for (final (:key, :lines) in headingBlocksOf(
+              bodyLinesOf(doc, i),
+              goalKeyOf,
+            ))
+              (docPath: doc.docPath, key: key, horizon: horizon, lines: lines),
+  ];
+
+  /// Returns the goal blocks of every goal doc, in doc order.
+  ///
+  /// A block is a `### PG-` heading of the `long_term`, `mid_term`, or
+  /// `short_term` section, keyed by the ID the grammar reads there; a lettered
+  /// or unreadable ID keys no block, and a heading of any other section holds
+  /// no goal. A block's horizon is its section's: 3, 2, or 1.
+  List<GoalBlock> goalBlocks() => _goalBlocks;
+
+  late final Set<String> _goalIds = {
+    for (final block in _goalBlocks) block.key,
+  };
+
+  /// Returns the ID of each goal block of every goal doc.
+  Set<String> goalIds() => _goalIds;
 
   /// Returns the `###` blocks of each held section of [doc], keyed by the ID
   /// the grammar reads at the heading; a lettered or unreadable ID keys no
@@ -452,9 +484,22 @@ final class CheckContext {
 
 const _gnfrType = 'gnfr';
 const _projectType = 'project';
+const _goalType = 'goal';
+const _visionIdPrefix = 'PV-';
 const _measurementType = 'measurement';
 const _rolesSection = 'roles';
 final _roleEntry = RegExp('^- `([^`]+)` — ');
 const _architectureType = 'architecture';
 const _frType = 'fr';
 const _frTraceSection = 'fr_trace';
+
+/// The horizon of each goal doc section that holds goals.
+const _goalHorizons = {'long_term': 3, 'mid_term': 2, 'short_term': 1};
+
+/// A `### PG-` block of a goal doc: its doc, ID, horizon, and lines.
+typedef GoalBlock = ({
+  String docPath,
+  String key,
+  int horizon,
+  List<BodyLine> lines,
+});

@@ -51,6 +51,7 @@ List<String> _rules(String text) => text
     .toList();
 
 const _projectRule = '- Run `specstone get project` before any task.';
+const _goalRule = '- Run `specstone get goal` before any task.';
 const _begin = '<!-- BEGIN specstone v$specstoneVersion -->';
 const _end = '<!-- END specstone -->';
 
@@ -62,6 +63,7 @@ String _importBlock() => importBlock(
   cliVersion: specstoneVersion,
   agentMdPath: '.specstone/AGENT.md',
   projectDocPath: 'docs/prds/PROJECT.md',
+  goalDocPath: 'docs/prds/GOAL.md',
 );
 
 String _inlineBlock() => inlineBlock(cliVersion: specstoneVersion);
@@ -185,26 +187,25 @@ void main() {
       }
     });
 
-    test(
-      '$_fr: the import block holds the two imports between the markers',
-      () {
-        expect(
-          _importBlock(),
-          _lines([
-            _begin,
-            '@.specstone/AGENT.md',
-            '@docs/prds/PROJECT.md',
-            _end,
-          ]),
-        );
-      },
-    );
+    test('$_fr: the import block holds the goal line before END', () {
+      expect(
+        _importBlock(),
+        _lines([
+          _begin,
+          '@.specstone/AGENT.md',
+          '@docs/prds/PROJECT.md',
+          '@docs/prds/GOAL.md',
+          _end,
+        ]),
+      );
+    });
 
     test('$_fr E15: the import block paths run from the file folder', () {
       final block = importBlock(
         cliVersion: '9.8.7',
         agentMdPath: '../.specstone/AGENT.md',
         projectDocPath: '../docs/prds/PROJECT.md',
+        goalDocPath: '../docs/prds/GOAL.md',
       );
 
       expect(
@@ -213,17 +214,18 @@ void main() {
           '<!-- BEGIN specstone v9.8.7 -->',
           '@../.specstone/AGENT.md',
           '@../docs/prds/PROJECT.md',
+          '@../docs/prds/GOAL.md',
           _end,
         ]),
       );
     });
 
-    test(
-      '$_fr: the inline block holds AGENT.md plus the project rule last',
-      () {
-        expect(_inlineBlock(), '$_begin\n$_agentMd$_projectRule\n$_end\n');
-      },
-    );
+    test('$_fr: the inline block ends with the project and goal rules', () {
+      expect(
+        _inlineBlock(),
+        '$_begin\n$_agentMd$_projectRule\n$_goalRule\n$_end\n',
+      );
+    });
 
     test(
       '$_fr E21: the cursor rules file is frontmatter then the inline block',

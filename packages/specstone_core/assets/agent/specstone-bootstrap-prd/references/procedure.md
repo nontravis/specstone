@@ -31,6 +31,7 @@ whole section.
 | Finding | Fix |
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
+| `singular_doc_missing`; `section_undeclared` on PROJECT's goals section | `goal-move.md` |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
 | `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc, such as PROJECT's Tech stack, waits for `specstone-bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
@@ -50,9 +51,9 @@ proposal named in step 6. Pipe that record's whole new list, as YAML `- item` li
 
 ## 4. Merge an old file, or split a full one
 
-Merge an `untyped_doc`, an old file the migration left such as a group's container `FEATURE.md`, into the doc that
-takes it, else a new one from `specstone new <type>`. Skip only a sentence that
-doc holds word for word, and never target the untyped file: a write refuses it. Add its path to this run's retire set.
+Merge an `untyped_doc`, such as a group's old `FEATURE.md`, into the doc that takes it, else a new one from
+`specstone new <type>`. Skip only a sentence that doc holds word for word; never target the untyped file: a write
+refuses it. Add its path to this run's retire set.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
 Keep the first; put each other in its own `specstone new <type>` doc under the same parent, named from its heading.

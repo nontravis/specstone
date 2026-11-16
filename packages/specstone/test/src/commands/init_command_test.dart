@@ -49,6 +49,25 @@ void main() {
     );
   });
 
+  test('init prints the five drafts in the project, goal, features, gnfr, '
+      'tech_stack order', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+    final (:runner, :out, :err) = writeRunner(root);
+
+    expect(await runner.run(['init']), 0);
+
+    expect(
+      out.toString(),
+      startsWith(
+        'created docs/prds/PROJECT.md (draft)\n'
+        'created docs/prds/GOAL.md (draft)\n'
+        'created docs/prds/FEATURES.md (draft)\n'
+        'created docs/prds/GNFR.md (draft)\n'
+        'created docs/specs/TECH_STACK.md (draft)\n',
+      ),
+    );
+  });
+
   test('list --draft lists every doc init created', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
@@ -59,7 +78,7 @@ void main() {
     final listRunner = listed.runner;
     final listOut = listed.out;
     final listErr = listed.err;
-    for (final type in ['project', 'features', 'gnfr', 'tech_stack']) {
+    for (final type in ['project', 'goal', 'features', 'gnfr', 'tech_stack']) {
       expect(await listRunner.run(['list', type, '--draft']), 0, reason: type);
       expect(listOut.toString(), contains('$type ($type) — $type · draft · '));
       listOut.clear();

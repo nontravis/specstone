@@ -119,7 +119,11 @@ CheckReport runCheck(
       ..addAll(uncoveredCode(context, work))
       ..addAll(docNamesInCode(context, work))
       ..addAll(unresolvedTemplateReferences(context))
-      ..addAll(staleAgentBlocks(context));
+      ..addAll(staleAgentBlocks(context))
+      ..addAll(
+        missingSingularDocs(context)
+            .where((finding) => scope.contains(finding.path)),
+      );
   }
   findings
     ..addAll(

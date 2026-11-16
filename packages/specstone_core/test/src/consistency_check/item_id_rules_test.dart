@@ -90,11 +90,7 @@ void main() {
 
   test('a repeated ID reports the second item with the first line', () async {
     final found = await _itemIdFindings(
-      doc(
-        projectDoc,
-        '## Project goals',
-        '### PV-01 — Again\n\n## Project goals',
-      ),
+      doc(projectDoc, '## Role', '### PV-01 — Again\n\n## Role'),
       kind: FindingKind.itemIdDuplicate,
     );
     expect(found, hasLength(1));

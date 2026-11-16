@@ -382,6 +382,7 @@ void main() {
           cliVersion: specstoneVersion,
           agentMdPath: '.specstone/AGENT.md',
           projectDocPath: 'docs/prds/PROJECT.md',
+          goalDocPath: 'docs/prds/GOAL.md',
         ),
       });
 

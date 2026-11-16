@@ -378,6 +378,7 @@ final class DocTypeMerger {
             query: entry.query,
             summary: entry.summary,
             summaryRows: entry.summaryRows,
+            skeleton: entry.skeleton,
             bannedPatterns: _mergeSectionPatterns(
               null,
               entry.lint?.bannedPatterns,
@@ -442,6 +443,7 @@ final class DocTypeMerger {
         query: entry.query,
         summary: entry.summary,
         summaryRows: entry.summaryRows,
+        skeleton: entry.skeleton,
         bannedPatterns: _mergeSectionPatterns(
           sections[index].bannedPatterns,
           entry.lint?.bannedPatterns,

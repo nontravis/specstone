@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
@@ -18,6 +19,16 @@ const _frPath = 'prds/features/f01_a/us01_b/fr01_c.md';
 const _siblingFrPath = 'prds/features/f01_a/us02_e/fr01_f.md';
 const _journeyPath = 'prds/journeys/onboard/JOURNEY.md';
 const _gnfrPath = 'prds/GNFR.md';
+const _goalPath = 'prds/GOAL.md';
+
+const _goalLayer =
+    'id: goal\n'
+    'description: The goals.\n'
+    'path: prds/GOAL.md\n'
+    'sections:\n'
+    '  - id: long_term\n'
+    '    header: Long-term goals\n'
+    '    prefix_id: PG-\n';
 const _nfPath = 'prds/features/f01_a/us01_b/nf01_d.md';
 
 const _topic = '''
@@ -95,11 +106,41 @@ $_fenced''';
 
 late MergedSet _set;
 
-MergedDocType _typeAt(String docPath) =>
-    switch (DocTypeMatcher(_set, targetNames: const []).match(docPath)) {
+MergedDocType _typeIn(MergedSet set, String docPath) =>
+    switch (DocTypeMatcher(set, targetNames: const []).match(docPath)) {
       MatchedDocType(:final docType) => docType,
       _ => throw StateError('no doc type at $docPath'),
     };
+
+MergedDocType _typeAt(String docPath) => _typeIn(_set, docPath);
+
+const _projectGoalsLayer =
+    'id: project\n'
+    'sections:\n'
+    '  - id: goals\n'
+    '    header: Project goals\n'
+    '    prefix_id: PG-\n';
+
+/// The shipped packs merged with a project-layer `goal` doc type and a
+/// project layer that keeps the goals section in `project`, as a project
+/// pinned before the goal doc holds it.
+MergedSet _goalSet() => TemplateResolver().resolveCarried(
+  packNames: const ['prd-core', 'software-tech'],
+  homeDirectory: null,
+  projectLayers: parseOverrides({
+    '.specstone/templates/goal.yaml': _goalLayer,
+    '.specstone/templates/project.yaml': _projectGoalsLayer,
+  }),
+);
+
+/// The pass over [docs], typed by [_goalSet].
+RenumberPass _planWithGoals(Map<String, String> docs) {
+  final set = _goalSet();
+  return RenumberPass.plan([
+    for (final MapEntry(key: docPath, value: lf) in docs.entries)
+      (docPath: docPath, lf: lf, type: _typeIn(set, docPath)),
+  ]);
+}
 
 RenumberPass _planOf(Map<String, String> docs) => RenumberPass.plan([
   for (final MapEntry(key: docPath, value: lf) in docs.entries)
@@ -561,11 +602,84 @@ confirmed:
 ''';
     const nf = '---\nkind: add\ntraced_from:\n  - PG-2a\n---\n# D\n';
 
-    final pass = _planOf({'prds/PROJECT.md': project, _nfPath: nf});
+    final pass = _planWithGoals({'prds/PROJECT.md': project, _nfPath: nf});
 
     expect(pass.apply(_nfPath, nf), nf.replaceFirst('PG-2a', 'PG-02'));
     expect(pass.planLine, 'renumber ids: 1 IDs in 2 docs');
     expect(pass.paths, contains(_nfPath));
+  });
+
+  test('$_fr E20: goals renumber from the goal doc', () {
+    const goal = '''
+# Goals
+
+## Long-term goals
+
+### PG-01 — One
+
+### PG-2a — Two
+''';
+    const feature = '---\ngoals:\n  - PG-2a\nname: PG-2a team\n---\n# A\n';
+    final set = _goalSet();
+    MergedDocType typeAt(String docPath) => _typeIn(set, docPath);
+    const featurePath = 'prds/features/f01_a/FEATURE.md';
+
+    final pass = RenumberPass.plan([
+      (docPath: _goalPath, lf: goal, type: typeAt(_goalPath)),
+      (docPath: featurePath, lf: feature, type: typeAt(featurePath)),
+    ]);
+
+    expect(
+      pass.apply(featurePath, feature),
+      '---\ngoals:\n  - PG-02\nname: PG-2a team\n---\n# A\n',
+    );
+  });
+
+  test('$_fr E20: the goal doc wins a lettered goal ID the project doc also '
+      'holds; an ID only the project doc holds still renumbers', () {
+    const project = '''
+# P
+
+## Project goals
+
+### PG-01 — One
+
+### PG-3b — Two
+
+### PG-2a — Three
+''';
+    const goal = '''
+# Goals
+
+## Long-term goals
+
+### PG-01 — One
+
+### PG-02 — Two
+
+### PG-03 — Three
+
+### PG-2a — Four
+''';
+    const feature = '---\ngoals: [PG-2a, PG-3b]\n---\n# A\n';
+    final set = _goalSet();
+    MergedDocType typeAt(String docPath) => _typeIn(set, docPath);
+    const featurePath = 'prds/features/f01_a/FEATURE.md';
+
+    final pass = RenumberPass.plan([
+      (
+        docPath: 'prds/PROJECT.md',
+        lf: project,
+        type: typeAt('prds/PROJECT.md'),
+      ),
+      (docPath: _goalPath, lf: goal, type: typeAt(_goalPath)),
+      (docPath: featurePath, lf: feature, type: typeAt(featurePath)),
+    ]);
+
+    expect(
+      pass.apply(featurePath, feature),
+      '---\ngoals: [PG-04, PG-02]\n---\n# A\n',
+    );
   });
 
   test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
@@ -624,7 +738,7 @@ confirmed:
         '---\nstatus: planned\nvision: [PV-1a]\ngoals: [PG-2a]\n'
         'name: PG-2a team\n---\n# B\n';
 
-    final pass = _planOf({
+    final pass = _planWithGoals({
       'prds/PROJECT.md': project,
       'prds/features/f01_a/FEATURE.md': feature,
       _storyPath: story,
