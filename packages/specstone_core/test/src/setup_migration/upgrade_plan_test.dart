@@ -1968,7 +1968,9 @@ Map<String, String> _e18Docs({String topic = _topic}) => {
   _storyPath: _story,
   'prds/features/f01_a/us01_b/fr01_c.md': _tracingFr(
     fingerprintOf(_lettered),
-    body: '\n## Statement\n\n`doc_model` RULE-7a\n`other_topic` RULE-7a\n',
+    body:
+        '\n## Statement\n\n'
+        '`topic:doc_model` RULE-7a\n`topic:other_topic` RULE-7a\n',
   ),
   'prds/features/f01_a/us01_b/fr02_g.md': _tracingFr('000000000000'),
   'specs/f01_a/DOMAIN.md':
@@ -2035,7 +2037,7 @@ void _renumberTests() {
           // lettered ID is no item ID, so its cite links the doc alone.
           contains(
             '[RULE-31](../../../../specs/topics/doc_model.md#rules)\n'
-            '[other_topic](../../../../specs/topics/other_topic.md) RULE-7a\n',
+            '[topic:other_topic](../../../../specs/topics/other_topic.md) RULE-7a\n',
           ),
         ),
       );

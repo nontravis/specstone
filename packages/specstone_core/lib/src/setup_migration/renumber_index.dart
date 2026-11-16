@@ -285,17 +285,18 @@ final class RenumberIndex {
   // MARK: - Citations
 
   /// The docs the code span text [text] in the doc at [fromPath] cites: a
-  /// Name, `<doc type>:<Name>`, or a path that resolves; empty for
-  /// a doc address naming no doc of the run; null when it cites no doc.
+  /// Name of two or more slugs, `<doc type>:<Name>`, or a path that resolves;
+  /// empty for a doc address naming no doc of the run; null when it cites no
+  /// doc, a lone-word span included.
   List<String>? citedBySpan(String text, String fromPath) {
     final address = readDocAddress(text);
     if (address.isName) {
+      if (!address.isReferenceWithoutLookup) return null;
       final typeId = address.typeId;
-      final named = typeId == null
-          ? _byName[address.body]
-          : _byTypedName['$typeId:${address.body}'];
-      if (named != null) return named;
-      return address.isReferenceWithoutLookup ? const [] : null;
+      return (typeId == null
+              ? _byName[address.body]
+              : _byTypedName['$typeId:${address.body}']) ??
+          const [];
     }
     if (address.typeId != null) return null;
     final docPath = docAtPath(address.body, fromPath);
