@@ -41,8 +41,9 @@ final class CitedByIndex
 /// A place a bundle prints whose `by` lines print right after file line
 /// `after` of its doc, or as a part of their own ([CitedByIndex.inline]).
 ///
-/// An item or `###` block has its `item` (the ID, or the anchor of a block
-/// that starts no item) and the `##` section `sectionKey` that holds it; a
+/// An item has its `item` ID, and a `###` block its heading's anchor as a
+/// link names it, even when the block starts an item; each has the `##`
+/// section `sectionKey` that holds it; a
 /// section has its `sectionKey` alone, `after` its header's file line; a doc
 /// has neither, `after` 0, the line of its naming line.
 typedef CitedItem = ({
@@ -303,7 +304,7 @@ List<_Cite> _citesOn(
   final found = <_Cite>[];
   for (final (:link, :cite, :target, :at) in classified) {
     final docPath = target.doc.docPath;
-    if (docPath == reader.doc.docPath || _joinsDesign(target.type)) continue;
+    if (_joinsDesign(target.type)) continue;
     _Cite place(CitedKind kind, String? key) =>
         (doc: docPath, kind: kind, key: key);
     switch (cite) {

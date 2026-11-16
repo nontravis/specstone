@@ -433,6 +433,8 @@ void main() {
     });
 
     test('a bundle: doc, a self link, and an untyped citer get none', () async {
+      // A link to the doc itself is a self link, which the index keeps apart from
+      // its doc links, so no doc cites itself.
       final index = await _index(
         'Cites [the vision](../../../PROJECT.md#project-vision) and [the project](../../../PROJECT.md).',
         extra: {
