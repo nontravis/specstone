@@ -62,17 +62,16 @@ bool _endsSentence(String text, List<bool> held, int i, int parenDepth) {
   if (spacedTerminators.contains(unit)) {
     return next == text.length || text.codeUnitAt(next) == _space;
   }
-  final isOpenStop =
-      _openStops.contains(unit) ||
-      (_clauseStops.contains(unit) && parenDepth == 0);
-  if (!isOpenStop) return false;
+  if (!_isUnspacedStop(unit, parenDepth)) return false;
   return next == text.length ||
       held[next] ||
-      !_isUnspacedStop(text.codeUnitAt(next));
+      !_isUnspacedStop(text.codeUnitAt(next), parenDepth);
 }
 
-bool _isUnspacedStop(int unit) =>
-    _openStops.contains(unit) || _clauseStops.contains(unit);
+/// Whether [unit] ends a sentence with no space after it at [parenDepth].
+bool _isUnspacedStop(int unit, int parenDepth) =>
+    _openStops.contains(unit) ||
+    (_clauseStops.contains(unit) && parenDepth == 0);
 
 /// Returns, per offset of [text], whether a code span or a link holds it.
 List<bool> _heldMask(String text) {

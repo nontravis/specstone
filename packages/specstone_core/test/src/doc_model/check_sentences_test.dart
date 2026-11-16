@@ -90,6 +90,23 @@ void main() {
     ]);
   });
 
+  test('a clause stop held by parentheses is no part of a stop run', () {
+    expect(checkSentencesOf('(a。;b)'), _plain(['(a。', ';b)']));
+    expect(checkSentencesOf('a。;b'), _plain(['a。;', 'b']));
+  });
+
+  test('escaped bracket opens no link', () {
+    expect(checkSentencesOf(r'\[a](b. c) end'), _plain([r'\[a](b.', 'c) end']));
+  });
+
+  test('an unclosed parenthesis holds a later semicolon', () {
+    expect(checkSentencesOf('a (b; c'), _plain(['a (b; c']));
+  });
+
+  test('a run of clause stops cuts once', () {
+    expect(checkSentencesOf('a；；b'), _plain(['a；；', 'b']));
+  });
+
   test('blank text has no sentence', () {
     expect(checkSentencesOf(''), isEmpty);
     expect(checkSentencesOf('  \n'), isEmpty);
