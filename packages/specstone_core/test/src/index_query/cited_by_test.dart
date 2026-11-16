@@ -8,6 +8,7 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/bundle_trim.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:test/test.dart';
 
@@ -65,7 +66,7 @@ void main() {
       const line = '1. E01 — A wrong password → refused, by $_inv14.';
       final cited = _citedBy(await _index('Check it.', edge: line));
       expect(_of(cited, _domain, 'INV-14'), [
-        (name: _frName, docType: 'fr', byItem: 'E01', line: line),
+        const CitedBy(name: _frName, docType: 'fr', byItem: 'E01', line: line),
       ]);
     },
   );
@@ -74,7 +75,7 @@ void main() {
     const line = 'The system shall lock, by $_inv13.';
     final cited = _citedBy(await _index(line));
     expect(_of(cited, _domain, 'INV-13'), [
-      (name: _frName, docType: 'fr', byItem: null, line: line),
+      const CitedBy(name: _frName, docType: 'fr', byItem: null, line: line),
     ]);
   });
 
@@ -88,7 +89,7 @@ void main() {
     final guide = index.at('specs/topics/guide.md')!;
     for (final id in ['RULE-2', 'RULE-3', 'RULE-4']) {
       expect(_of(cited, 'specs/topics/ranges.md', id), [
-        (name: guide.name, docType: 'topic', byItem: null, line: line),
+        CitedBy(name: guide.name, docType: 'topic', byItem: null, line: line),
       ], reason: id);
     }
     expect(_of(cited, 'specs/topics/ranges.md', 'RULE-1'), isEmpty);
@@ -247,14 +248,14 @@ void main() {
       item: 'INV-14',
       sectionKey: 'invariants',
       after: 7,
-      by: [(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
+      by: [CitedBy(name: 'a', docType: 'fr', byItem: null, line: 'outer')],
     );
     const inner = (
       kind: CitedKind.item,
       item: 'INV-15',
       sectionKey: 'invariants',
       after: 7,
-      by: [(name: 'b', docType: 'fr', byItem: 'E01', line: 'inner')],
+      by: [CitedBy(name: 'b', docType: 'fr', byItem: 'E01', line: 'inner')],
     );
     expect(citedLinesAfter(null, [inner, outer]), {
       7: ['  · cited by b (fr) E01: inner', '  · cited by a (fr) —: outer'],
@@ -455,7 +456,7 @@ void main() {
 
     test('json entries carry kind and section', () {
       const by = <CitedBy>[
-        (name: 'guide', docType: 'topic', byItem: null, line: 'x'),
+        CitedBy(name: 'guide', docType: 'topic', byItem: null, line: 'x'),
       ];
       const own = {
         'name': 'guide',
@@ -589,7 +590,9 @@ void main() {
       item: 'E01',
       sectionKey: 'edge_cases',
       after: 3,
-      by: <CitedBy>[(name: 'guide', docType: 'topic', byItem: null, line: 'x')],
+      by: <CitedBy>[
+        CitedBy(name: 'guide', docType: 'topic', byItem: null, line: 'x'),
+      ],
     );
     final inline = CitedByIndex(const {}, inline: true);
     final parts = CitedByIndex(const {}, inline: false);

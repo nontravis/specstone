@@ -7,15 +7,11 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/models/cited_by.dart';
 import 'package:specstone_core/src/index_query/models/cited_place.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
     show nameWithType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-/// One link to an item, section, or doc, from the citing doc's `name` and
-/// `docType`: the ID of its item whose lines hold the link, null when none
-/// does, and the trimmed `line` that holds the link.
-typedef CitedBy = ({String name, String docType, String? byItem, String line});
 
 /// The lines that cite each [CitedPlace].
 ///
@@ -81,12 +77,14 @@ Map<CitedPlace, List<CitedBy>> _citedLinksIn(DocIndex index) {
     if (reader == null) continue;
     for (final line in reader.linkLines) {
       for (final place in _citesOn(index, reader, line, read)) {
-        (cited[place] ??= []).add((
-          name: source.name,
-          docType: reader.docTypeId,
-          byItem: reader.itemHolding(line),
-          line: reader.lineText(line).trim(),
-        ));
+        (cited[place] ??= []).add(
+          CitedBy(
+            name: source.name,
+            docType: reader.docTypeId,
+            byItem: reader.itemHolding(line),
+            line: reader.lineText(line).trim(),
+          ),
+        );
       }
     }
   }
