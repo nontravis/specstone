@@ -2143,8 +2143,12 @@ void _agentTests() {
       step,
       contains(
         "found in `implement` by the refs file's head, one index line per "
-        'part, and in `design` by the stdout index',
+        'doc and part, and in `design` by the stdout index',
       ),
+    );
+    expect(
+      step,
+      contains('in `implement` the refs file prints its header alone'),
     );
     expect(step, contains('an `implement` refs head keeps its sections'));
   });
