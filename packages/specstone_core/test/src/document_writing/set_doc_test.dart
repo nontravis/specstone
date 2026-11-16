@@ -3896,24 +3896,41 @@ void main() {
       );
     });
 
-    test('refuses a CRLF old passage against a body with LF ends', () async {
+    test('matches a CRLF old passage against a body with LF ends', () async {
       final root = await writeWriteProject();
       final before = readDoc(root, story1);
-      expect(
-        () => replace(
-          root,
-          criteria,
-          '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
-          '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
-        ),
-        throwsA(
-          isA<WriteFault>()
-              .having((f) => f.code, 'code', WriteFaultCode.replaceUnmatched)
-              .having((f) => f.exitStatus, 'exitStatus', 75),
-        ),
+      const passage =
+          '### Scenario 1 — [happy] Sign in\n\n- **Given** a registered email';
+      expect(before, contains(passage));
+      replace(
+        root,
+        criteria,
+        '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
+        '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
       );
-      expect(readDoc(root, story1), before);
+      expect(readDoc(root, story1), before.replaceFirst(passage, 'x'));
     });
+
+    test(
+      'refuses an old passage holding a lone CR against an LF body',
+      () async {
+        final root = await writeWriteProject();
+        final before = readDoc(root, story1);
+        expect(
+          () => replace(
+            root,
+            useCase,
+            '==> old <==\nSign\rin with an email\n==> new <==\nx\n',
+          ),
+          throwsA(
+            isA<WriteFault>()
+                .having((f) => f.code, 'code', WriteFaultCode.replaceUnmatched)
+                .having((f) => f.exitStatus, 'exitStatus', 75),
+          ),
+        );
+        expect(readDoc(root, story1), before);
+      },
+    );
 
     test('matches a one-line old passage sent with CRLF stdin', () async {
       final root = await writeWriteProject();
@@ -4003,7 +4020,7 @@ void main() {
     });
 
     test(
-      'refuses a CRLF old passage on a CRLF doc and writes nothing',
+      'matches a CRLF old passage on a CRLF doc and keeps its CRLF ends',
       () async {
         final root = await writeWriteProject();
         docFile(
@@ -4011,16 +4028,16 @@ void main() {
           story1,
         ).writeAsStringSync(readDoc(root, story1).replaceAll('\n', '\r\n'));
         final before = readDoc(root, story1);
-        expect(
-          () => replace(
-            root,
-            criteria,
-            '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
-            '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
-          ),
-          throwsWriteFault(WriteFaultCode.replaceUnmatched),
+        replace(
+          root,
+          criteria,
+          '==> old <==\r\n### Scenario 1 — [happy] Sign in\r\n\r\n'
+          '- **Given** a registered email\r\n==> new <==\r\nx\r\n',
         );
-        expect(readDoc(root, story1), before);
+        final after = readDoc(root, story1);
+        expect(after, isNot(contains('registered email')));
+        expect(after.replaceAll('\r\n', ''), isNot(contains('\n')));
+        expect(after.length, lessThan(before.length));
       },
     );
 
