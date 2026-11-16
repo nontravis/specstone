@@ -326,6 +326,9 @@ final class LintLayer {
     this.allowedWords,
     this.bannedPatterns,
     this.requiredFieldGroups,
+    this.maxSentenceWords,
+    this.maxSentenceChars,
+    this.traceNoteLast,
     this.titleNoNumber,
   });
 
@@ -350,6 +353,17 @@ final class LintLayer {
   /// The field groups of which a doc must carry at least one field each, when
   /// written; an upper layer's value replaces the lower one.
   final List<List<String>>? requiredFieldGroups;
+
+  /// The most words of one sentence per language key, when written; each
+  /// entry an upper layer writes replaces the lower entry.
+  final Map<String, int>? maxSentenceWords;
+
+  /// The most characters of one sentence per language key in a script with no
+  /// spaces, when written; merged per entry as [maxSentenceWords] is.
+  final Map<String, int>? maxSentenceChars;
+
+  /// Whether a trace note must close its item, when written.
+  final bool? traceNoteLast;
 
   /// Whether a digit in the title line is a finding, when written.
   final bool? titleNoNumber;
@@ -722,6 +736,9 @@ const _docLintKeys = {
   'allowed_words',
   'banned_patterns',
   'required_field_groups',
+  'max_sentence_words',
+  'max_sentence_chars',
+  'trace_note_last',
   'title_no_number',
 };
 
@@ -948,6 +965,24 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
       forRequired: false,
     ),
     requiredFieldGroups: _fieldGroups(map, file: file),
+    maxSentenceWords: _sentenceCaps(
+      map,
+      'max_sentence_words',
+      sentenceWordLanguages,
+      file: file,
+    ),
+    maxSentenceChars: _sentenceCaps(
+      map,
+      'max_sentence_chars',
+      sentenceCharLanguages,
+      file: file,
+    ),
+    traceNoteLast: optionalValue<bool>(
+      map,
+      'trace_note_last',
+      file: file,
+      prefix: 'lint.',
+    ),
     titleNoNumber: optionalValue<bool>(
       map,
       'title_no_number',
@@ -955,6 +990,42 @@ LintLayer _parseLint(YamlMap map, {required String file}) {
       prefix: 'lint.',
     ),
   );
+}
+
+/// Returns the doc-level sentence cap map at [key], or null when absent.
+///
+/// Throws `unknown_value` for a map that is no map, a language key outside
+/// [languages], or an entry that is no whole number of 1 or more.
+Map<String, int>? _sentenceCaps(
+  YamlMap map,
+  String key,
+  Set<String> languages, {
+  required String file,
+}) {
+  final caps = optionalValue<YamlMap>(map, key, file: file, prefix: 'lint.');
+  if (caps == null) return null;
+  final entries = <String, int>{};
+  for (final MapEntry(key: language, :value) in caps.entries) {
+    final entryKey = 'lint.$key.$language';
+    if (language is! String || !languages.contains(language)) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $key takes the languages ${languages.join(', ')}',
+        file: file,
+        key: entryKey,
+      );
+    }
+    if (value is! int || value < 1) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'the key $language of $key must be a whole number of 1 or more',
+        file: file,
+        key: entryKey,
+      );
+    }
+    entries[language] = value;
+  }
+  return entries;
 }
 
 SectionLint _parseSectionLint(

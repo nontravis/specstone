@@ -952,6 +952,96 @@ sections:
       );
     });
 
+    test('no layer writes caps gives built-in maps and null fields', () {
+      final lint = shipped().lint;
+
+      expect(lint.maxSentenceWords, isNull);
+      expect(lint.maxSentenceChars, isNull);
+      expect(lint.traceNoteLast, isNull);
+      expect(lint.sentenceWordCaps.entries, {'default': 25, 'ko': 17});
+      expect(lint.sentenceCharCaps.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 60,
+        'zh': 45,
+      });
+      expect(lint.isTraceNoteLast, isTrue);
+      expect(lint.sentenceWordCaps.capFor('ko'), 17);
+      expect(lint.sentenceWordCaps.capFor('ar'), 25);
+      expect(lint.sentenceCharCaps.capFor('zh'), 45);
+      expect(lint.sentenceCharCaps.capFor('km'), 100);
+      expect(merger.builtInBase('feature').lint.maxSentenceWords, isNull);
+    });
+
+    test('upper entry replaces one language', () {
+      final merged = project(
+        shipped(),
+        'lint: {max_sentence_words: {default: 30}}',
+      );
+
+      expect(merged.lint.maxSentenceWords?.entries, {'default': 30, 'ko': 17});
+      expect(merged.lint.sentenceWordCaps.capFor('ko'), 17);
+      expect(merged.lint.sentenceWordCaps.capFor('fr'), 30);
+      expect(shipped().lint.sentenceWordCaps.capFor('fr'), 25);
+    });
+
+    test('chars entry keeps the other entries', () {
+      final merged = project(shipped(), 'lint: {max_sentence_chars: {ja: 50}}');
+
+      expect(merged.lint.maxSentenceChars?.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 50,
+        'zh': 45,
+      });
+      final again = project(
+        merged,
+        'lint: {max_sentence_chars: {zh: 40, km: 70}}',
+      );
+      expect(again.lint.maxSentenceChars?.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 50,
+        'zh': 40,
+        'km': 70,
+      });
+      expect(
+        project(again, 'lint: {max_chars: 9}').lint.maxSentenceChars?.entries,
+        again.lint.maxSentenceChars?.entries,
+      );
+    });
+
+    test('trace_note_last false replaces true', () {
+      final on = project(shipped(), 'lint: {trace_note_last: true}');
+      final off = project(on, 'lint: {trace_note_last: false}');
+
+      expect(on.lint.traceNoteLast, isTrue);
+      expect(off.lint.traceNoteLast, isFalse);
+      expect(off.lint.isTraceNoteLast, isFalse);
+      expect(project(off, 'lint: {max_chars: 9}').lint.traceNoteLast, isFalse);
+    });
+
+    test('project-own doc type keeps built-in caps', () {
+      final merged = merger.apply(
+        merger.builtInBase('runbook'),
+        layer(
+          'description: Runbook\npath: runbook.md\n'
+          'lint: {max_sentence_words: {ko: 12}}',
+          kind: LayerKind.project,
+          docTypeId: 'runbook',
+        ),
+      );
+
+      expect(merged.lint.sentenceWordCaps.entries, {'default': 25, 'ko': 12});
+      expect(merged.lint.sentenceCharCaps.entries, {
+        'default': 100,
+        'th': 100,
+        'ja': 60,
+        'zh': 45,
+      });
+      expect(merged.lint.isTraceNoteLast, isTrue);
+    });
+
     test('a section keeps its own lint and an unwritten '
         'one stays null', () {
       final merged = project(

@@ -450,6 +450,46 @@ final class MergedSection {
 /// The most characters one item may hold when no layer sets `max_item_chars`.
 const defaultMaxItemChars = 600;
 
+/// A language key mapped to a sentence cap, a whole number of 1 or more.
+///
+/// Every map holds `default`, which a language with no entry of its own takes.
+final class SentenceCaps {
+  const new(this.entries);
+
+  /// The cap of each language key.
+  final Map<String, int> entries;
+
+  /// Returns the cap of [language], else the `default` cap.
+  int capFor(String language) =>
+      entries[language] ??
+      entries[_defaultLanguage] ??
+      (throw StateError('a sentence cap map holds no $_defaultLanguage'));
+
+  /// Returns these caps with each entry of [upper] replacing the same entry.
+  SentenceCaps mergedWith(Map<String, int>? upper) =>
+      upper == null ? this : SentenceCaps({...entries, ...upper});
+
+  static const _defaultLanguage = 'default';
+}
+
+/// The most words of one sentence when no layer sets `max_sentence_words`.
+const builtInSentenceWords = SentenceCaps({'default': 25, 'ko': 17});
+
+/// The most characters of one sentence in a script with no spaces when no
+/// layer sets `max_sentence_chars`.
+const builtInSentenceChars = SentenceCaps({
+  'default': 100,
+  'th': 100,
+  'ja': 60,
+  'zh': 45,
+});
+
+/// The language keys `max_sentence_words` takes.
+const sentenceWordLanguages = {'default', 'ko', 'ar', 'he', 'hi', 'el'};
+
+/// The language keys `max_sentence_chars` takes.
+const sentenceCharLanguages = {'default', 'th', 'lo', 'km', 'my', 'zh', 'ja'};
+
 /// The doc-level lint settings of a merged doc type.
 ///
 /// A null limit or word list means no layer defines it.
@@ -462,6 +502,9 @@ final class MergedLint {
     this.allowedWords,
     this.bannedPatterns,
     this.requiredFieldGroups,
+    this.maxSentenceWords,
+    this.maxSentenceChars,
+    this.traceNoteLast,
     this.titleNoNumber,
   });
 
@@ -489,6 +532,27 @@ final class MergedLint {
   /// The groups of fields a doc must carry at least one of each.
   final List<List<String>>? requiredFieldGroups;
 
+  /// The word caps after the merge, built-in entries included; null when no
+  /// layer writes `max_sentence_words`.
+  final SentenceCaps? maxSentenceWords;
+
+  /// The word caps `check` applies: [maxSentenceWords], else the built-in ones.
+  SentenceCaps get sentenceWordCaps => maxSentenceWords ?? builtInSentenceWords;
+
+  /// The character caps after the merge, built-in entries included; null when
+  /// no layer writes `max_sentence_chars`.
+  final SentenceCaps? maxSentenceChars;
+
+  /// The character caps `check` applies: [maxSentenceChars], else the built-in
+  /// ones.
+  SentenceCaps get sentenceCharCaps => maxSentenceChars ?? builtInSentenceChars;
+
+  /// Whether a trace note must close its item; null when no layer sets it.
+  final bool? traceNoteLast;
+
+  /// Whether a trace note must close its item: [traceNoteLast], else `true`.
+  bool get isTraceNoteLast => traceNoteLast ?? true;
+
   /// Whether a digit in the `# ` title line is a finding; null when no layer
   /// sets it.
   final bool? titleNoNumber;
@@ -502,6 +566,9 @@ final class MergedLint {
     List<String>? allowedWords,
     List<PatternEntry>? bannedPatterns,
     List<List<String>>? requiredFieldGroups,
+    SentenceCaps? maxSentenceWords,
+    SentenceCaps? maxSentenceChars,
+    bool? traceNoteLast,
     bool? titleNoNumber,
   }) => MergedLint(
     maxChars: maxChars ?? this.maxChars,
@@ -511,6 +578,9 @@ final class MergedLint {
     allowedWords: allowedWords ?? this.allowedWords,
     bannedPatterns: bannedPatterns ?? this.bannedPatterns,
     requiredFieldGroups: requiredFieldGroups ?? this.requiredFieldGroups,
+    maxSentenceWords: maxSentenceWords ?? this.maxSentenceWords,
+    maxSentenceChars: maxSentenceChars ?? this.maxSentenceChars,
+    traceNoteLast: traceNoteLast ?? this.traceNoteLast,
     titleNoNumber: titleNoNumber ?? this.titleNoNumber,
   );
 

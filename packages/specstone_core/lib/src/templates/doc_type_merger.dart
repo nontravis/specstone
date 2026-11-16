@@ -179,9 +179,22 @@ final class DocTypeMerger {
         key: 'lint.banned_patterns',
       ),
       requiredFieldGroups: lint.requiredFieldGroups,
+      maxSentenceWords: _mergeCaps(
+        base.sentenceWordCaps,
+        lint.maxSentenceWords,
+      ),
+      maxSentenceChars: _mergeCaps(
+        base.sentenceCharCaps,
+        lint.maxSentenceChars,
+      ),
+      traceNoteLast: lint.traceNoteLast,
       titleNoNumber: lint.titleNoNumber,
     );
   }
+
+  /// Returns [lower] with the entries of [upper] applied, null when [upper] is.
+  SentenceCaps? _mergeCaps(SentenceCaps lower, Map<String, int>? upper) =>
+      upper == null ? null : lower.mergedWith(upper);
 
   /// Returns [base] with the pattern [write] applied, entries matched by `id`.
   List<PatternEntry>? _mergePatterns(
