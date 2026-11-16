@@ -315,7 +315,7 @@ ReadAnswer _answerItemMove(
   if (isMixed) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      'move takes one kind of target per call',
+      'move takes item targets or doc targets, not both',
     );
   }
   if (under == null) {

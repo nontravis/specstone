@@ -1,12 +1,12 @@
 import 'package:specstone_core/src/consistency_check/fr_trace_rows.dart';
-import 'package:specstone_core/src/consistency_check/override_lines.dart'
-    show carriesOverrides;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
     show renamedNameOf;
+import 'package:specstone_core/src/index_query/override_chain.dart'
+    show carriesOverrides;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';

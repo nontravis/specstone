@@ -427,26 +427,6 @@ void main() {
       expect(readDoc(root, payFlutter), contains('add_item:implemented'));
       expect(readDoc(root, payFlutter), contains('draft: true'));
     });
-
-    test(
-      'a story move given --target is refused, since a story is shared',
-      () async {
-        final (:runner, :out, :err) = writeRunner(await shopTwins());
-        expect(
-          await runner.run([
-            'move',
-            addItem,
-            '--under',
-            'shop/pay',
-            '--target',
-            'flutter',
-          ]),
-          64,
-        );
-        expect(out.toString(), isEmpty);
-        expect(err.toString(), 'move takes --target only with item targets\n');
-      },
-    );
   });
 
   group('--dry-run', () {

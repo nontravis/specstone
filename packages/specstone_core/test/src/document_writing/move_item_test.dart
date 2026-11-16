@@ -278,6 +278,10 @@ void main() {
       final fault = await _refusal(['domain:shop#INV-3'], under: 'api:shop');
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
       expect(fault.exitStatus, 64);
+      expect(
+        fault.message,
+        '$shopApi has no invariants section for INV- items',
+      );
     });
 
     test('an untyped file as the source is untyped_target', () async {
@@ -322,7 +326,10 @@ void main() {
       );
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
       expect(fault.exitStatus, 64);
-      expect(fault.message, contains(_payDomain));
+      expect(
+        fault.message,
+        '$_payDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
+      );
     });
 
     test('the same holds when the overriding doc is the target doc', () async {
@@ -334,7 +341,10 @@ void main() {
         ],
       );
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.message, contains(cartDomain));
+      expect(
+        fault.message,
+        '$cartDomain overrides $shopDomain#INV-3; $cartDomain sits outside its chain',
+      );
     });
 
     test('an Overrides line on another item leaves the move allowed', () async {
@@ -357,21 +367,24 @@ void main() {
       );
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
       expect(fault.exitStatus, 64);
-      expect(fault.message, contains('$cartDomain#INV-2'));
+      expect(
+        fault.message,
+        '$_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $_payDomain',
+      );
     });
 
-    test(
-      'the same holds when the target doc holds the overridden item',
-      () async {
-        final fault = await _refusal(
-          ['domain:shop/cart/coupon#INV-5'],
-          cart: [_inv(1), _inv(2)],
-          extra: _couponWithOverride,
-        );
-        expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-        expect(fault.message, contains('$cartDomain#INV-2'));
-      },
-    );
+    test('the same holds when the target doc holds the overridden item', () async {
+      final fault = await _refusal(
+        ['domain:shop/cart/coupon#INV-5'],
+        cart: [_inv(1), _inv(2)],
+        extra: _couponWithOverride,
+      );
+      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
+      expect(
+        fault.message,
+        '$_couponDomain#INV-5 overrides $cartDomain#INV-2, outside the chain of $cartDomain',
+      );
+    });
 
     test('an own Overrides line that the target chain holds leaves the move allowed', () async {
       final root = await _project(
@@ -423,7 +436,10 @@ void main() {
         ], under: 'shop/cart');
         expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
         expect(fault.exitStatus, 64);
-        expect(fault.message, 'move takes one kind of target per call');
+        expect(
+          fault.message,
+          'move takes item targets or doc targets, not both',
+        );
       },
     );
 
@@ -433,7 +449,7 @@ void main() {
         'domain:shop/pay',
       ], under: 'domain:shop/cart');
       expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.message, 'move takes one kind of target per call');
+      expect(fault.message, 'move takes item targets or doc targets, not both');
     });
 
     test(

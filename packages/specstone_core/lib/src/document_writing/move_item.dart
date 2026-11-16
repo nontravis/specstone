@@ -9,11 +9,9 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart'
     show itemKeyOfHead;
 import 'package:specstone_core/src/index_query/item_links.dart'
-    show ItemCite, anchorTargetOf, citedSectionsOf, classifyLink;
+    show ItemCite, citedSectionsOf;
 import 'package:specstone_core/src/index_query/override_chain.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
-
-const _overridesMarker = 'Overrides:';
 
 /// One item a `move` call names: the doc that holds it and its ID there.
 final class ItemTarget {
@@ -51,17 +49,11 @@ bool isItemAddress(DocIndex index, String address) =>
     index.splitAddress(address).sectionKey != null;
 
 /// Returns where each item [addresses] name lands in the doc [under] names, in
-/// the order given, writing nothing.
+/// the order given, writing nothing; an item already there or named twice
+/// leaves no landing.
 ///
-/// An item already in that doc stays and an item named twice lands once, so
-/// both leave no landing. [codeTarget] keeps each address and [under] to that
-/// code target's docs and the shared docs.
-///
-/// Throws [WriteFault] `item_not_found` for an ID its doc lacks; an
-/// [IndexFault] for a name that no doc or 2 or more docs carry, an untyped
-/// doc, an [under] doc type with no section of the item's key and prefix, and
-/// an `Overrides:` line the move would leave outside its chain. Every fault
-/// comes before any lock, and one refused item refuses the whole call.
+/// Throws [WriteFault] `item_not_found` or an [IndexFault] before any lock;
+/// one refused item refuses the call.
 List<ItemLanding> planItemMove(
   WriteSession session,
   List<String> addresses, {
@@ -149,8 +141,8 @@ void _requireSection(DocIndex index, IndexedDoc destination, _Located item) {
   if (holds) return;
   throw IndexFault(
     IndexFaultCode.argumentInvalid,
-    '${destination.docPath} takes no ${item.target.id}: its doc type has no '
-    '${item.key} section numbered ${item.prefix}',
+    '${destination.docPath} has no ${item.key} section for ${item.prefix} '
+    'items',
   );
 }
 
@@ -170,11 +162,9 @@ final class _OverrideCite {
 
 /// Refuses a move that leaves an `Overrides:` line outside its chain.
 ///
-/// Throws [IndexFault] `argument_invalid` naming the doc of a line that links
-/// a moved item while [destination] sits outside its chain, then the
-/// overridden item of a moved item's own line that [destination]'s chain does
-/// not hold. An own line moves with its item, so only the second rule reads
-/// it.
+/// Throws [IndexFault] `argument_invalid`: first for a line that links a moved
+/// item while [destination] sits outside its chain, then for a moved item's
+/// own line, which moves with it, linking an item [destination]'s chain lacks.
 void _requireChains(
   DocIndex index,
   IndexedDoc destination,
@@ -184,7 +174,7 @@ void _requireChains(
     for (final item in moving) _keyOf(item.target.doc.docPath, item.target.id),
   };
   final own = [for (final item in moving) ?_ownOverrideOf(index, item)];
-  final ownLines = {for (final cite in own) cite.lineKey};
+  final ownLines = {for (final line in own) line.cite.lineKey};
   for (final doc in index.docs) {
     for (final cite in _overrideCitesOf(index, doc)) {
       if (ownLines.contains(cite.lineKey) || !moved.contains(cite.address)) {
@@ -197,21 +187,23 @@ void _requireChains(
       }
       throw IndexFault(
         IndexFaultCode.argumentInvalid,
-        '${doc.docPath} overrides ${cite.address}, and '
-        '${destination.docPath} would sit outside its chain',
+        '${doc.docPath} overrides ${cite.address}; '
+        '${destination.docPath} sits outside its chain',
       );
     }
   }
   final destinationChain = overrideChainOf(index, destination);
-  for (final cite in own) {
+  for (final line in own) {
+    final cite = line.cite;
     final holder = moved.contains(cite.address)
         ? destination.docPath
         : cite.upstream.docPath;
     if (destinationChain.contains(holder)) continue;
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
-      '${cite.address} sits outside the chain of ${destination.docPath}, '
-      'so the item that overrides it cannot move there',
+      '${_keyOf(line.item.target.doc.docPath, line.item.target.id)} '
+      'overrides ${cite.address}, outside the chain of '
+      '${destination.docPath}',
     );
   }
 }
@@ -219,24 +211,13 @@ void _requireChains(
 List<SectionItem> _itemsOf(DocContent content, int at) =>
     sectionItemsOf(sectionBodyLines(content.sections, content.lineFacts, at));
 
-bool _isOverrideLine(SectionItem item) =>
-    item.kind == SectionItemKind.listItem &&
-    item.head.startsWith(_overridesMarker);
-
-/// Returns the `Overrides:` lines of [doc], in file order.
-///
-/// A line whose link names no item of a doc is left out, as it is no cite.
+/// Returns the `Overrides:` lines of [doc] that link an item, in file order.
 List<_OverrideCite> _overrideCitesOf(DocIndex index, IndexedDoc doc) {
-  final type = index.typeOf(doc);
-  if (type == null ||
-      !carriesOverrides(type) ||
-      index.set.isProjectSpecType(type)) {
-    return const [];
-  }
+  if (!holdsOverrideLines(index, doc)) return const [];
   final content = index.contentOf(doc);
   final items = [
     for (var at = 0; at < content.sections.length; at++)
-      ..._itemsOf(content, at).where(_isOverrideLine),
+      ..._itemsOf(content, at).where(isOverrideLine),
   ];
   if (items.isEmpty) return const [];
   final lines = toLf(content.text).split('\n');
@@ -246,9 +227,17 @@ List<_OverrideCite> _overrideCitesOf(DocIndex index, IndexedDoc doc) {
   ];
 }
 
+/// A moved item and the `Overrides:` line right after it.
+final class _OwnLine {
+  const new(this.item, this.cite);
+
+  final _Located item;
+  final _OverrideCite cite;
+}
+
 /// Returns the `Overrides:` line right after the item [located], that line
 /// nested under it included.
-_OverrideCite? _ownOverrideOf(DocIndex index, _Located located) {
+_OwnLine? _ownOverrideOf(DocIndex index, _Located located) {
   final doc = located.target.doc;
   final content = index.contentOf(doc);
   final items = _itemsOf(content, located.sectionAt);
@@ -264,9 +253,16 @@ _OverrideCite? _ownOverrideOf(DocIndex index, _Located located) {
   );
   for (var k = at + 1; k < items.length; k++) {
     final next = items[k];
-    if (_isOverrideLine(next)) {
+    if (isOverrideLine(next)) {
       final lines = toLf(content.text).split('\n');
-      return _citeAt(index, doc, content, next.line, lines[next.line - 1]);
+      final cite = _citeAt(
+        index,
+        doc,
+        content,
+        next.line,
+        lines[next.line - 1],
+      );
+      return cite == null ? null : _OwnLine(located, cite);
     }
     if (!next.nested) return null;
   }
@@ -282,34 +278,13 @@ _OverrideCite? _citeAt(
   int line,
   String raw,
 ) {
-  final column = _textStartOf(raw);
-  final link = content.lineFacts.linkTexts
-      .where((text) => text.line == line && text.column == column)
-      .firstOrNull;
-  final upstream = link == null ? null : index.at(link.target);
-  if (link == null || upstream == null) return null;
-  final upstreamContent = index.contentOf(upstream);
-  final anchor = link.anchor;
-  final sections = citedSectionsOf(upstreamContent, index.typeOf(upstream));
-  final cite = classifyLink(
-    link,
-    target: anchor == null || anchor.isEmpty
-        ? null
-        : anchorTargetOf(upstreamContent.lineFacts, anchor),
-    sectionAt: (at) => at < sections.length ? sections[at] : null,
-  );
-  return cite is ItemCite
-      ? _OverrideCite(doc, line, upstream, cite.itemId)
-      : null;
-}
-
-// The offset of the first character after `Overrides:` and its spaces.
-int _textStartOf(String raw) {
-  var at = raw.indexOf(_overridesMarker) + _overridesMarker.length;
-  while (at < raw.length && raw[at] == ' ') {
-    at++;
-  }
-  return at;
+  final link = overrideLinkAt(content, line, overrideTextStart(raw));
+  final read = link == null ? null : readOverrideLink(index, link);
+  return switch (read) {
+    OverrideLinkRead(cite: ItemCite(:final itemId), :final target) =>
+      _OverrideCite(doc, line, target, itemId),
+    _ => null,
+  };
 }
 
 List<ItemLanding> _landings(
