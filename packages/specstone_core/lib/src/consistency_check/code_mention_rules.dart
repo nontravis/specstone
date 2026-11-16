@@ -11,6 +11,8 @@ import 'package:specstone_core/src/index_query/code_root_files.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart' show toLf;
+import 'package:specstone_core/src/setup_migration/project_files.dart'
+    show isSingularLayoutPath, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/code_target.dart';
 
 const _codeField = 'code';
@@ -25,7 +27,8 @@ const _byteOrderMark = '﻿';
 /// hidden folders, and nested checkouts. An agent file is never read, and a
 /// file with no comment mark or markdown extension is not read at all. A
 /// mention counts only when it resolves to a doc in the index, so a layout
-/// template, an item ID, or a number label never does. A file that is not
+/// template, an item ID, or a number label never does; a one-slug span and
+/// the layout path of a singular doc type are no mention. A file that is not
 /// UTF-8 or cannot be read is a warning, not a finding.
 Iterable<Finding> docNamesInCode(
   CheckContext context,
@@ -78,6 +81,10 @@ final class _DocMentionReader {
         (segment) => segment.isNotEmpty,
       ),
       _names = {for (final doc in _context.index.docs) doc.name},
+      _layoutPaths = singularLayoutPathsOf(
+        _context.index.set,
+        twinNames: _context.index.twinNames,
+      ),
       _paths = ProjectPathReader(
         projectRoot: _context.projectRoot,
         docsRoot: _context.docsRoot,
@@ -87,6 +94,7 @@ final class _DocMentionReader {
   final DocIndex _index;
   final String _docsFolder;
   final Set<String> _names;
+  final Set<String> _layoutPaths;
   final ProjectPathReader _paths;
 
   Iterable<Finding> mentionsIn(CodeTarget target, String codePath) sync* {
@@ -97,7 +105,7 @@ final class _DocMentionReader {
     final text = _readText(target, codePath, projectPath);
     if (text == null) return;
     final lf = toLf(text);
-    for (final mention in docMentionsInFile(lf, extension)) {
+    for (final mention in nameMentionsInFile(lf, extension)) {
       if (_isCited(mention)) yield _finding(projectPath, mention);
     }
   }
@@ -131,9 +139,9 @@ final class _DocMentionReader {
   /// project root, or a Name some doc carries.
   bool _isCited(NameMention mention) {
     final address = mention.address;
-    return address.isName
-        ? _namesDoc(address)
-        : _docAtPath(mention.text) != null;
+    if (address.isName) return _namesDoc(address);
+    return !isSingularLayoutPath(mention.text, _layoutPaths) &&
+        _docAtPath(mention.text) != null;
   }
 
   bool _namesDoc(DocAddress address) => switch (address.typeId) {

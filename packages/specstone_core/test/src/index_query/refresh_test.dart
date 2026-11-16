@@ -414,9 +414,9 @@ void main() {
       expect(facts.lineCount, greaterThan(0));
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
-    test('an index at layout 2 is rebuilt to layout 19', () async {
+    test('an index at layout 2 is rebuilt to layout 20', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -426,9 +426,9 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
-    test('an index at layout 3 is rebuilt to layout 19', () async {
+    test('an index at layout 3 is rebuilt to layout 20', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -438,11 +438,11 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
     test(
       'domain:index_query INV-2: an index at layout 4, with no banned-pattern '
-      'matches, is rebuilt to layout 19 with them',
+      'matches, is rebuilt to layout 20 with them',
       () async {
         final project = await writeLoginProject();
         refresh(project);
@@ -454,12 +454,12 @@ void main() {
         expect(result.fullBuild, isTrue);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 20);
         expect(after.select('SELECT banned_matches FROM docs'), hasLength(25));
       },
     );
     test('domain:index_query INV-2: an index at layout 5, its banned-pattern '
-        'matches from the old backtick pairing, is rebuilt to layout 19 with '
+        'matches from the old backtick pairing, is rebuilt to layout 20 with '
         'them recomputed', () async {
       final project = await writeLoginProject();
       refresh(project);
@@ -471,7 +471,7 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
       expect(
         after.select(
           "SELECT doc_path FROM docs WHERE banned_matches = 'stale'",
@@ -479,7 +479,7 @@ void main() {
         isEmpty,
       );
     });
-    test('an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 19', () async {
+    test('an index at layout 6, its undeclared keys hyphenated, is rebuilt to layout 20', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -489,11 +489,11 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
     test(
       'an index at '
-      'layout 11 is rebuilt to layout 19 with the TBR markers filled',
+      'layout 11 is rebuilt to layout 20 with the TBR markers filled',
       () async {
         final project = await writeLoginProject(
           extra: {'docs/note.md': '# N\n\nTBR \u2014 pick a value.\n'},
@@ -509,11 +509,11 @@ void main() {
         ]);
         final after = sqlite3.open('${project.path}/$indexFilePath');
         addTearDown(after.close);
-        expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+        expect(after.select('SELECT layout FROM meta').single['layout'], 20);
       },
     );
     test('domain:index_query INV-2: an index at layout 12, with no item facts, '
-        'is rebuilt in full to layout 19 with them', () async {
+        'is rebuilt in full to layout 20 with them', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -531,9 +531,9 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
-    test('an index at layout 15, its approval hashes counting record statuses, is rebuilt to layout 19', () async {
+    test('an index at layout 15, its approval hashes counting record statuses, is rebuilt to layout 20', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -543,11 +543,11 @@ void main() {
       expect(result.fullBuild, isTrue);
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
     for (final old in [16, 17]) {
       test(
-        "an index at layout $old, which lacks the other build's rows, is rebuilt to layout 19",
+        "an index at layout $old, which lacks the other build's rows, is rebuilt to layout 20",
         () async {
           final project = await writeLoginProject();
           refresh(project);
@@ -558,11 +558,11 @@ void main() {
           expect(result.fullBuild, isTrue);
           final after = sqlite3.open('${project.path}/$indexFilePath');
           addTearDown(after.close);
-          expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+          expect(after.select('SELECT layout FROM meta').single['layout'], 20);
         },
       );
     }
-    test('an index at layout 7, its line facts with no file links, is rebuilt to layout 19', () async {
+    test('an index at layout 7, its line facts with no file links, is rebuilt to layout 20', () async {
       final project = await writeLoginProject();
       refresh(project);
       sqlite3.open('${project.path}/$indexFilePath')
@@ -579,7 +579,7 @@ void main() {
       );
       final after = sqlite3.open('${project.path}/$indexFilePath');
       addTearDown(after.close);
-      expect(after.select('SELECT layout FROM meta').single['layout'], 19);
+      expect(after.select('SELECT layout FROM meta').single['layout'], 20);
     });
     test('a doc stored under layout 15, with '
         'no cite candidates and no item_words rows, holds both after the '

@@ -26,8 +26,8 @@ String _doc(String body) => '---\nstatus: planned\n---\n\n# T\n$body';
 
 void main() {
   group('citeCandidatesOf', () {
-    test('a name, a bare one-slug name, and a '
-        'path each give one candidate at its file line', () {
+    test('a prefixed address and a path are candidates, a lone-word span is '
+        'not', () {
       final read = _readAll(
         _doc(
           '`domain:login`\n'
@@ -38,7 +38,6 @@ void main() {
       );
       expect(read, [
         (6, 'domain:login', null, ''),
-        (7, 'login', null, ''),
         (8, '../f01_login/DOMAIN.md', null, ''),
         (9, '../f01_login/DOMAIN.md', null, ''),
       ]);
@@ -105,9 +104,10 @@ void main() {
 
     test('a token of no section prefix, such '
         'as UTF-8, SHA256, or Base64, makes no item ID', () {
-      expect(_readAll(_doc('`gnfr` UTF-8, SHA256, Base64 and NFR-P01\n')), [
-        (6, 'gnfr', null, 'NFR-P01'),
-      ]);
+      expect(
+        _readAll(_doc('`gnfr:gnfr` UTF-8, SHA256, Base64 and NFR-P01\n')),
+        [(6, 'gnfr:gnfr', null, 'NFR-P01')],
+      );
     });
 
     test('a lettered ID makes no item ID', () {

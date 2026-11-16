@@ -283,15 +283,19 @@ void main() {
       String lf(String key) =>
           File.fromUri(root.uri.resolve(key)).readAsStringSync();
       const docPaths = [loginFeature, loginStory, journeyDocPath];
-      final pass = CitePass.plan([
-        for (final docPath in docPaths)
-          (
-            docPath: docPath,
-            lf: lf('docs/$docPath'),
-            type: fixtureDocTypeOf(docPath),
-            target: null,
-          ),
-      ], idPrefixes: itemIdPrefixesOf(docPaths.map(fixtureDocTypeOf)));
+      final pass = CitePass.plan(
+        [
+          for (final docPath in docPaths)
+            (
+              docPath: docPath,
+              lf: lf('docs/$docPath'),
+              type: fixtureDocTypeOf(docPath),
+              target: null,
+            ),
+        ],
+        idPrefixes: itemIdPrefixesOf(docPaths.map(fixtureDocTypeOf)),
+        layoutPaths: const {},
+      );
       for (final (docPath, key) in [
         (loginStory, storyKey),
         (journeyDocPath, _journeyKey),

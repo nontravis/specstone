@@ -360,6 +360,55 @@ void main() {
       expect(entry.value, isNot(contains('id: safety\n')));
     });
 
+    test("the singular types' paths, one per target for a per-target type "
+        'with two targets', () {
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+      );
+
+      final shared = singularLayoutPathsOf(set, twinNames: const []);
+      final twins = singularLayoutPathsOf(set, twinNames: const ['app', 'web']);
+
+      expect(shared, containsAll(['prds/GOAL.md', 'specs/TECH_STACK.md']));
+      expect(
+        twins,
+        containsAll(['specs/app/TECH_STACK.md', 'specs/web/TECH_STACK.md']),
+      );
+      expect(twins, isNot(contains('specs/TECH_STACK.md')));
+      expect(twins, contains('prds/GOAL.md'));
+    });
+
+    test("a project spec type's one path is a layout path too, though it "
+        'gets no draft', () {
+      final set = TemplateResolver().resolveCarried(
+        packNames: _packs,
+        homeDirectory: null,
+      );
+
+      expect(
+        singularLayoutPathsOf(set, twinNames: const []),
+        containsAll(['specs/DOMAIN.md', 'specs/API.md']),
+      );
+      expect(
+        singularDocTypes(set).map((type) => type.path),
+        isNot(contains('specs/DOMAIN.md')),
+      );
+    });
+
+    test('a path is a singular layout path when it, or it under the docs '
+        'folder, is in the set', () {
+      const paths = {'prds/GOAL.md'};
+
+      expect(isSingularLayoutPath('prds/GOAL.md', paths), isTrue);
+      expect(isSingularLayoutPath('docs/prds/GOAL.md', paths), isTrue);
+      expect(isSingularLayoutPath('../../GOAL.md', paths), isFalse);
+      expect(
+        isSingularLayoutPath('prds/features/f01_login/FEATURE.md', paths),
+        isFalse,
+      );
+    });
+
     test('f06/us01/fr05/e06, f06/us01/fr05/e07: singular doc types order '
         'goal after project', () {
       final set = TemplateResolver().resolveCarried(

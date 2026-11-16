@@ -58,7 +58,9 @@ const _notWritableMessage =
 /// layout, which lacks one or the other, is rebuilt. Layout 19 adds the
 /// `search_hash` column, so an index of layout 18, whose `putDoc` wrote the
 /// search rows with no hash to tell a lagging doc by, is rebuilt.
-const indexLayoutVersion = 19;
+/// Layout 20 stores no bare one-slug cite candidate, so an index of layout 19
+/// is rebuilt.
+const indexLayoutVersion = 20;
 
 const _schema = '''
 CREATE TABLE meta (

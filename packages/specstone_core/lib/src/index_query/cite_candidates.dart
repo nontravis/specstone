@@ -49,11 +49,12 @@ typedef CiteForm = ({
 /// Returns the cite candidates of [lfText], a typed doc with LF line ends, in
 /// file order.
 ///
-/// Each doc mention `docMentionsInFile` reads from the body outside fenced
-/// code is a candidate, bar one inside a link or a link reference's
-/// destination, and one inside a code span it does not fill, such as a path in
-/// quoted CLI output. The section key is the `#key` after the mention, or,
-/// after a path, the header of a code span that follows it, such as
+/// Each doc mention `nameMentionsInFile` reads from the body outside fenced
+/// code, no lone-word span among them, is a candidate, bar one inside a link
+/// or a link reference's destination, and one inside a code span it does not
+/// fill, such as a path in quoted CLI output. The section key is the `#key`
+/// after the mention, or, after a path, the header of a code span that follows
+/// it, such as
 /// `` `## Error envelope` ``. The item IDs are the IDs the reference grammar
 /// reads in the line's prose after the candidate, up to the next citation, a
 /// link or another candidate, so the nearest citation before an ID owns it;
@@ -70,7 +71,7 @@ List<CiteCandidate> citeCandidatesOf(
 /// Returns the cite candidates of [lfText] as [citeCandidatesOf] reads them,
 /// each with its place on its line.
 List<CiteForm> citeFormsOf(String lfText, {required Set<String> idPrefixes}) {
-  final mentions = docMentionsInFile(lfText, markdownExtension);
+  final mentions = nameMentionsInFile(lfText, markdownExtension);
   if (mentions.isEmpty) return const [];
   final body = Doc.parse(lfText).afterFrontmatter;
   final firstLine = _lineFeedsIn(lfText, lfText.length - body.length) + 1;
