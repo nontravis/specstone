@@ -140,6 +140,11 @@ Map<String, Object> _partKeys(AppendedPart part) => {
   'item': ?part.itemId,
 };
 
+/// Returns the closing line of a bundle text of [docs] docs and [tokens] est.
+/// tokens, with its line end.
+String closingLineOf(int docs, int tokens) =>
+    '==> bundle: $docs docs, $tokens tokens <==\n';
+
 /// Returns the header line that names the code target a `--code` path lies
 /// in, or '' when there is none to name (one target).
 String codeTargetLine(String? name) =>
@@ -434,7 +439,7 @@ BundleText _textOf(
   final listsSummary = pieces.any((piece) => piece.summary);
   final blocks = isRefs && pieces.isEmpty ? '' : '$shown\n';
   final closing =
-      '==> bundle: ${docCountOf(entries)} docs, $tokens tokens <==\n'
+      '${closingLineOf(docCountOf(entries), tokens)}'
       '${list.join()}'
       '${listsSummary ? '${_summaryNextStep(mode)}\n' : ''}';
   return (

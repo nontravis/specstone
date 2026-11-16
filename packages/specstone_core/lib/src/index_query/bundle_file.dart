@@ -34,9 +34,6 @@ const _bundlesBelowRoot = '.specstone/bundles';
 
 const _refsIsReadFirst = 'the refs file is the read-first file';
 
-/// What a bundle text's closing line opens with.
-const _closingMark = '==> bundle: ';
-
 // MARK: - Name
 
 /// Returns the name a bare `--out` gives the bundle file.
@@ -173,26 +170,23 @@ ContextAnswer _withRefsHeadOf(ContextAnswer answer) {
 /// Every entry, section, and token moves by the head: each range counts the
 /// head's lines, which one line per entry fixes before any range is written,
 /// and the size counts the head and the blocks, never the closing line and
-/// list. A refs file with no entry has no head.
+/// list. The blocks end on the last entry's last line, and the closing line
+/// that follows is written again for the new size. A refs file with no entry
+/// has no head.
 BundleText _withRefsHead(BundleText refs) {
   if (refs.entries.isEmpty) return refs;
-  final closingStart = refs.text.lastIndexOf('\n$_closingMark') + 1;
-  assert(closingStart > 0, 'a bundle text ends with its closing line');
-  final blocks = refs.text.substring(0, closingStart - 1);
-  final closingList = refs.text.substring(
-    refs.text.indexOf('\n', closingStart),
-  );
+  final lines = refs.text.split('\n');
+  final blocksEnd = refs.entries.last.last;
   final shift = refs.entries.length + 1;
   final entries = [for (final entry in refs.entries) _shifted(entry, shift)];
   final head = [
     for (final entry in entries) _indexLine(entry, withSections: true),
   ].join().trimRight();
-  final shown = '$head\n\n$blocks';
+  final shown = '$head\n\n${lines.take(blocksEnd).join('\n')}';
   final tokens = tokenSizeOf(shown);
+  final closing = closingLineOf(docCountOf(entries), tokens);
   return (
-    text:
-        '$shown\n$_closingMark${docCountOf(entries)} docs, $tokens tokens <=='
-        '$closingList',
+    text: '$shown\n$closing${lines.skip(blocksEnd + 1).join('\n')}',
     entries: entries,
     tokens: tokens,
   );

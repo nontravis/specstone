@@ -10,7 +10,7 @@ import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart'
-    show ReadAnswer;
+    show ReadAnswer, nameWithType;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
@@ -1041,39 +1041,51 @@ void main() {
       split: true,
     );
 
-    test(
-      'both files are written, and the reply indexes both by canonical path',
-      () async {
-        final project = await writeLoginProject();
-        final session = openSession(project);
-        addTearDown(session.close);
-        final answer = splitAnswer(session.index);
-        final file = File('${project.path}/out/b.txt');
-        final reply = answerBundleFile(
-          answer,
-          file,
-          project: session.project,
-          isBare: false,
-        );
-        final refs = File('${project.path}/out/b.refs.txt');
-        expect(file.readAsStringSync(), answer.text);
-        expect(refs.readAsStringSync(), startsWith('- '));
+    test('both files are written, and the reply indexes both by canonical path', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      addTearDown(session.close);
+      final answer = splitAnswer(session.index);
+      final file = File('${project.path}/out/b.txt');
+      final reply = answerBundleFile(
+        answer,
+        file,
+        project: session.project,
+        isBare: false,
+      );
+      final refs = File('${project.path}/out/b.refs.txt');
+      expect(file.readAsStringSync(), answer.text);
+      final original = answer.refs!;
+      final originalLines = original.text.split('\n');
+      final blocksEnd = original.entries.last.last;
+      final count = original.entries.length;
+      final written = refs.readAsStringSync().split('\n');
+      for (final (i, entry) in original.entries.indexed) {
+        final first = entry.first + count + 1;
+        final last = entry.last + count + 1;
         expect(
-          refs.readAsStringSync(),
-          contains(
-            answer.refs!.text.split('\n')[answer.refs!.entries.first.first - 1],
-          ),
+          written[i],
+          startsWith('- ${nameWithType(entry.doc)} · $first-$last'),
         );
-        final shown = file.resolveSymbolicLinksSync();
-        expect(reply.text, contains(' lines · $shown <==\n'));
-        expect(
-          reply.text,
-          contains(' lines · ${refs.resolveSymbolicLinksSync()} <==\n'),
-        );
-        final json = reply.json;
-        expect((json['refs']! as Map)['out'], refs.resolveSymbolicLinksSync());
-      },
-    );
+      }
+      final tokens = tokenSizeOf(
+        written.take(count + 1 + blocksEnd).join('\n'),
+      );
+      expect(written.skip(count), [
+        '',
+        ...originalLines.take(blocksEnd),
+        '==> bundle: ${docCountOf(original.entries)} docs, $tokens tokens <==',
+        ...originalLines.skip(blocksEnd + 1),
+      ]);
+      final shown = file.resolveSymbolicLinksSync();
+      expect(reply.text, contains(' lines · $shown <==\n'));
+      expect(
+        reply.text,
+        contains(' lines · ${refs.resolveSymbolicLinksSync()} <==\n'),
+      );
+      final json = reply.json;
+      expect((json['refs']! as Map)['out'], refs.resolveSymbolicLinksSync());
+    });
 
     test(
       'a refs path that is the read-first file is refused and writes nothing',
