@@ -360,8 +360,8 @@ void main() {
       expect(entry.value, isNot(contains('id: safety\n')));
     });
 
-    test('f06/us01/fr05/e06, f06/us01/fr05/e07: the singular doc types are '
-        'project, features, gnfr, tech_stack, goal', () {
+    test('f06/us01/fr05/e06, f06/us01/fr05/e07: singular doc types order '
+        'goal after project', () {
       final set = TemplateResolver().resolveCarried(
         packNames: _packs,
         homeDirectory: null,
@@ -369,10 +369,10 @@ void main() {
 
       expect(singularDocTypes(set).map((type) => type.path), [
         'prds/PROJECT.md',
+        'prds/GOAL.md',
         'prds/FEATURES.md',
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
-        'prds/GOAL.md',
       ]);
     });
 
@@ -465,7 +465,7 @@ void main() {
     });
 
     test('a project-layer singular doc type follows the '
-        'four by DocPath, goal beside it', () {
+        'five by DocPath', () {
       final set = TemplateResolver().resolveCarried(
         packNames: _packs,
         homeDirectory: null,
@@ -477,11 +477,11 @@ void main() {
 
       expect(singularDocTypes(set).map((type) => type.path), [
         'prds/PROJECT.md',
+        'prds/GOAL.md',
         'prds/FEATURES.md',
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
         'prds/EXTRA.md',
-        'prds/GOAL.md',
       ]);
     });
 
@@ -501,11 +501,11 @@ void main() {
 
       expect(singularDocTypes(set).map((type) => type.path), [
         'prds/PROJECT.md',
+        'prds/GOAL.md',
         'prds/FEATURES.md',
         'prds/GNFR.md',
         'specs/TECH_STACK.md',
         'prds/EXTRA.md',
-        'prds/GOAL.md',
       ]);
     });
 

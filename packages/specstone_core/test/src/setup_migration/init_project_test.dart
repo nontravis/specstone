@@ -30,10 +30,10 @@ import '../../helpers/write_fixture.dart' show testHome;
 
 const _draftPaths = [
   'docs/prds/PROJECT.md',
+  'docs/prds/GOAL.md',
   'docs/prds/FEATURES.md',
   'docs/prds/GNFR.md',
   'docs/specs/TECH_STACK.md',
-  'docs/prds/GOAL.md',
 ];
 
 /// Runs `init` on [root] and returns its status with the printed lines.
@@ -121,10 +121,10 @@ void main() {
     expect(status, 0);
     expect(lines, [
       'created docs/prds/PROJECT.md (draft)',
+      'created docs/prds/GOAL.md (draft)',
       'created docs/prds/FEATURES.md (draft)',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
-      'created docs/prds/GOAL.md (draft)',
       'created .specstone/AGENT.md',
       'created AGENTS.md',
       ...skillCountLines(),
@@ -182,10 +182,10 @@ void main() {
       expect(status, 0);
       expect(lines, [
         'kept docs/prds/PROJECT.md: exists',
+        'created docs/prds/GOAL.md (draft)',
         'created docs/prds/FEATURES.md (draft)',
         'created docs/prds/GNFR.md (draft)',
         'created docs/specs/TECH_STACK.md (draft)',
-        'created docs/prds/GOAL.md (draft)',
         'created .specstone/AGENT.md',
         'created AGENTS.md',
         ...skillCountLines(),
@@ -201,10 +201,10 @@ void main() {
     final whole = await writeTree({'keep.txt': 'x\n'});
     _run(whole);
     final project = _read(whole, _draftPaths[0]);
-    final features = _read(whole, _draftPaths[1]);
+    final features = _read(whole, _draftPaths[2]);
     final root = await writeTree({
       _draftPaths[0]: project,
-      _draftPaths[1]: features,
+      _draftPaths[2]: features,
     });
 
     final (status, lines) = _run(root);
@@ -212,17 +212,59 @@ void main() {
     expect(status, 0);
     expect(lines, [
       'kept docs/prds/PROJECT.md: exists',
+      'created docs/prds/GOAL.md (draft)',
       'kept docs/prds/FEATURES.md: exists',
       'created docs/prds/GNFR.md (draft)',
       'created docs/specs/TECH_STACK.md (draft)',
-      'created docs/prds/GOAL.md (draft)',
       'created .specstone/AGENT.md',
       'created AGENTS.md',
       ...skillCountLines(),
       _configLine(),
     ]);
     expect(_read(root, _draftPaths[0]), project);
-    expect(_read(root, _draftPaths[1]), features);
+    expect(_read(root, _draftPaths[2]), features);
+  });
+
+  test('rerun keeps project and goal and creates the rest in order', () async {
+    final whole = await writeTree({'keep.txt': 'x\n'});
+    _run(whole);
+    final project = _read(whole, _draftPaths[0]);
+    final goal = _read(whole, _draftPaths[1]);
+    final root = await writeTree({
+      _draftPaths[0]: project,
+      _draftPaths[1]: goal,
+    });
+
+    final (status, lines) = _run(root);
+
+    expect(status, 0);
+    expect(lines.take(5), [
+      'kept docs/prds/PROJECT.md: exists',
+      'kept docs/prds/GOAL.md: exists',
+      'created docs/prds/FEATURES.md (draft)',
+      'created docs/prds/GNFR.md (draft)',
+      'created docs/specs/TECH_STACK.md (draft)',
+    ]);
+    expect(_read(root, _draftPaths[0]), project);
+    expect(_read(root, _draftPaths[1]), goal);
+  });
+
+  test('init writes GOAL with its three headers', () async {
+    final root = await writeTree({'keep.txt': 'x\n'});
+
+    _run(root);
+
+    expect(
+      _read(root, 'docs/prds/GOAL.md'),
+      allOf(
+        startsWith('---\ndraft: true\n'),
+        contains('\n# goal\n'),
+        contains('\n## Long-term goals\n'),
+        contains('\n## Mid-term goals\n'),
+        contains('\n## Short-term goals\n'),
+        isNot(contains('### PG-')),
+      ),
+    );
   });
 
   test('verification: '
