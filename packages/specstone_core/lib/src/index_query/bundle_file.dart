@@ -306,7 +306,7 @@ List<_SavedFile> _filesOf(
   ];
 }
 
-/// One file [bundleIndex] lists: its text and the path it is saved at.
+/// One file a bundle answer saves: its text and the path it is saved at.
 final class _SavedFile {
   const new({required this.file, required this.path});
 
