@@ -4469,7 +4469,16 @@ void _goalMoveTests() {
     );
     expect(title, isNonNegative);
     expect(move.indexOf('`bases.title`', title), isNonNegative);
+    expect(move, contains('pipe `Project goals`, with no `#`,'));
     expect(title, lessThan(move.indexOf('specstone set goal:goal#<key>')));
+    final missing = _oneLine(
+      _sectionOf(_pluginText(_goalMove), '1. A missing singular doc'),
+    );
+    final created = missing.indexOf('run `specstone new goal`');
+    expect(created, isNonNegative);
+    final titled = missing.indexOf("title it as section 2's first step says");
+    expect(titled, greaterThan(created));
+    expect(titled, lessThan(missing.indexOf('stop there')));
   });
 
   test("bootstrap-prd SKILL.md asks each goal's horizon before the rest "
