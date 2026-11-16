@@ -262,7 +262,7 @@ void main() {
         contains('\n## Long-term goals\n'),
         contains('\n## Mid-term goals\n'),
         contains('\n## Short-term goals\n'),
-        isNot(contains('### PG-')),
+        isNot(contains('\n### ')),
       ),
     );
   });
