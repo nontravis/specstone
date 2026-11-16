@@ -8,7 +8,8 @@ batch; working with no batch, get them first as the skill's step 2 asks them.
 
 - **`prds/GOAL.md`:** run `specstone new goal`, then title it as section 2's first step says. With no goals section
   left in PROJECT, stop there: its three sections stay empty, and no goal moves.
-- **Any other DocPath** but `prds/GLOSSARY.md`, which `glossary-move.md` takes, such as the features doc's: run `specstone new <type>`, then fill it as the procedure's step 6
+- **`prds/GLOSSARY.md`:** `glossary-move.md` takes it.
+- **Any other DocPath**, such as the features doc's: run `specstone new <type>`, then fill it as the procedure's step 6
   fills a skeleton.
 
 ## 2. Move each answered goal

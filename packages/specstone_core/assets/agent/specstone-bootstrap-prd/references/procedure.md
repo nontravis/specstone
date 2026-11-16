@@ -1,10 +1,10 @@
 Step 1, the gate, ran before you were sent here.
 As `specstone-sdd-engineer`, ask the Owner nothing: each step with the Owner goes into your report.
 
-Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming
-canonicalization sections go to `specstone-bootstrap-spec`.
-Follow the `specstone-expert-sdd` skill for every write; before the first, run `specstone guide <type> …` once, naming every
-type you write; a type met later gets its own call before its first write.
+Findings under `specs/`, `architecture_missing`, `code_uncovered`, and PROJECT's Tech stack and Naming canonicalization
+sections go to `specstone-bootstrap-spec`. Follow the `specstone-expert-sdd` skill for every write; before the first,
+run `specstone guide <type> …` once, naming every type you write; a type met later gets its own call before its first
+write.
 
 **Code target** (two or more `targets:`): each `new`, `get`, and `set` of a per-target
 doc carries `--target <name>`, the finding DocPath's code target, else the first listed one.
@@ -31,7 +31,7 @@ whole section.
 | Finding | Fix |
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
-| `singular_doc_missing`; `section_undeclared` on PROJECT's goals section | `goal-move.md`; `glossary-move.md` for `prds/GLOSSARY.md` and glossary section |
+| `singular_doc_missing`; `section_undeclared` on PROJECT's goals or glossary section | `goal-move.md`; `glossary-move.md` for `prds/GLOSSARY.md` and the glossary |
 | `section_undeclared` holding several items the guide wants one per file | step 4 |
 | `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; a statement whose home is a spec doc waits for `specstone-bootstrap-spec`; then drop the section |
 | `field_undeclared` on a feature's `implements` | step 3 |
@@ -52,7 +52,7 @@ proposal named in step 6. Pipe that record's whole new list, as YAML `- item` li
 ## 4. Merge an old file, or split a full one
 
 Merge an `untyped_doc` into the doc that takes it, else a new one from
-`specstone new <type>`. Skip only a sentence that doc holds word for word; never target the untyped file. Add its path to this run's retire set.
+`specstone new <type>`. Skip only a sentence that doc holds word for word. Add its path to this run's retire set.
 
 A typed doc may hold several items its guide wants one per file, such as an old `nf` with a `### NFR-…` block each.
 Keep the first; put each other in its own `specstone new <type>` doc under the same parent, named from its heading.
@@ -77,8 +77,11 @@ Exit 64 `doc_referenced`: repoint the referrers it lists, then ask again.
 
 ## 6. Fill the skeletons, then ask for approval
 
-`specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (the project, features, and gnfr docs): read each with `specstone get` and fill it with the Owner. Set a goal or glossary doc's title to its guide's with `--title` when it differs.
+`specstone check` misses an unfilled `<…>` placeholder in a skeleton the migration wrote (the project, features, and
+gnfr docs): read each with `specstone get` and fill it with the Owner. Set a goal or glossary doc's title to its guide's
+with `--title` when it differs.
 
 Last, take every count from one `specstone approve --dry-run --json` after your last write. Your drafts are the docs
-your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding.
-Name per draft each change, proposal, moved pointer, dropped key, and finding that clears with no write; then get each approved as step 5 says.
+your own list names; name each other draft it lists, never counted; one of yours it shows as no draft is a finding. Name
+per draft each change, proposal, moved pointer, dropped key, and finding that clears with no write; then get each
+approved as step 5 says.

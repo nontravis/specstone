@@ -4644,9 +4644,9 @@ void _glossaryMoveTests() {
       pointers.single,
       allOf(
         contains('`goal-move.md`'),
+        contains("PROJECT's goals or glossary section |"),
         contains('`glossary-move.md`'),
         contains('`prds/GLOSSARY.md`'),
-        contains('glossary section'),
       ),
     );
     final text = _pluginText(file);
@@ -4686,7 +4686,10 @@ void _glossaryMoveTests() {
       'gains `PROJECT.md` as its path, its anchor unchanged',
       'links to `GLOSSARY.md` with no anchor',
       'A link with a path keeps it.',
-      'an in-file `#domain-glossary` link in PROJECT included',
+      'also point each `#domain-glossary` link PROJECT keeps at `GLOSSARY.md`',
+      'A glossary doc already there takes the same retitle',
+      'stop there: its `terms` section stays empty, and no entry moves.',
+      'and the glossary section once no entry stays in it',
       'While an entry stays in the section, each link to it stays',
       'a link to another heading of PROJECT,',
       'or to PROJECT with no anchor, stays',
@@ -4705,11 +4708,9 @@ void _glossaryMoveTests() {
     );
     expect(
       step,
-      contains(
-        '**Any other DocPath** but `prds/GLOSSARY.md`, which '
-        '`glossary-move.md` takes,',
-      ),
+      contains('- **`prds/GLOSSARY.md`:** `glossary-move.md` takes it.'),
     );
+    expect(step, contains('- **Any other DocPath**, such as the features'));
   });
 
   test('f08/us05/fr01/e19, e58, e59: bootstrap-prd SKILL.md names the goal '
