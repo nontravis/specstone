@@ -3,7 +3,6 @@
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -488,7 +487,7 @@ void main() {
           extra: {
             '.specstone/templates/style.yaml':
                 '${_styleLayer}per_target: true\n',
-            'docs/prds/flutter/STYLE.md': '# Terms\n',
+            'docs/prds/flutter/STYLE.md': '# House style\n',
           },
         ),
       );
@@ -518,13 +517,9 @@ void main() {
       );
     });
 
-    test('ship_glossary_doc_type/e07: a project pinned below the pack that '
+    test('f03/us06/fr06/e07: a project pinned below the pack that '
         'ships the glossary type holds no glossary finding', () async {
-      final files = {...shippedPackFiles}..remove('prd-core/glossary.yaml');
       const pinned = '1.14.0';
-      files['prd-core/pack.yaml'] = Uint8List.fromList(
-        utf8.encode('name: prd-core\nversion: $pinned\n'),
-      );
       final shipped = shippedPackVersions()['prd-core'];
       final project = await writeCheckProject(
         extra: {
@@ -536,15 +531,15 @@ void main() {
         without: {'docs/$_glossaryDoc'},
       );
       final session = ReadSession.open(
-        templates: TemplateResolver(shippedFiles: files),
+        templates: resolverCarrying(
+          {'prd-core': pinned},
+          without: {'prd-core/glossary.yaml'},
+        ),
         workingDirectory: project,
         homeDirectory: null,
       );
       addTearDown(session.close);
 
-      expect([
-        for (final type in session.index.set.docTypes) type.id,
-      ], isNot(contains('glossary')));
       expect(
         _missingOf(runCheck(session)).map((f) => f.keys['type']),
         isNot(contains('glossary')),

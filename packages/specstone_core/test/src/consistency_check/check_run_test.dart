@@ -534,7 +534,7 @@ void main() {
   });
 
   test(
-    'ship_prd_core_pack/e06: a project doc still holding Domain glossary '
+    'f03/us06/fr01/e06: a project doc still holding Domain glossary '
     'and no glossary doc is section_undeclared and singular_doc_missing',
     () async {
       final project = await writeCheckProject(
@@ -562,6 +562,14 @@ void main() {
         ],
       );
       expect(report.findings, hasLength(2));
+      final undeclared = report.findings.firstWhere(
+        (f) => f.kind == FindingKind.sectionUndeclared,
+      );
+      final headerLine = File('${project.path}/docs/$projectDoc')
+          .readAsLinesSync()
+          .indexOf('## Domain glossary');
+      expect(undeclared.line, headerLine + 1);
+      expect(undeclared.toJson()['header'], 'Domain glossary');
     },
   );
 
