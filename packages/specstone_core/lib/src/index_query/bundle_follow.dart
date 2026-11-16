@@ -380,7 +380,11 @@ final class _Walk {
     }
     final range = view.sectionRange(at);
     if (!view.keeps(at, bundle.mode) || _prints(view, range)) return;
-    final cited = _citedIn(view, at);
+    final held = view.citedSectionAt(at);
+    final own = citedBy == null || held == null
+        ? null
+        : citedSectionIn(citedBy!, view.doc, view.content, held, at);
+    final cited = [?own, ..._citedIn(view, at)];
     _add(
       AppendedPart(
         doc: view.doc,

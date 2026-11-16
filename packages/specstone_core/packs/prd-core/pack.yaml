@@ -1,5 +1,2 @@
 name: prd-core
 version: 1.13.0
-migrations:
-  - from: 1.11.0
-    steps: []

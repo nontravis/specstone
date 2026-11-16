@@ -227,6 +227,36 @@ void main() {
     expect(finding['message'], isNot(contains('waits for the Owner)')));
   });
 
+  test('a bundle_over_limit finding ends its line with the tag, and its JSON '
+      'holds waitsFor owner with the doc, limit, and actual keys', () async {
+    final project = await writeCheckProject(
+      extra: edit(loginStory, [
+        (
+          '## Acceptance Criteria\n\n',
+          '## Acceptance Criteria\n\n${'a' * 90000}\n\n',
+        ),
+      ]),
+    );
+    final text = readRunner(project);
+    expect(await text.runner.run(['check']), 1);
+    final lines = text.out.toString().split('\n');
+    final line = lines.singleWhere((l) => l.contains(': bundle_over_limit: '));
+    expect(line, startsWith('$loginFeature:1: bundle_over_limit: '));
+    expect(line, endsWith(' (waits for the Owner)'));
+
+    final json = readRunner(project);
+    expect(await json.runner.run(['check', '--json']), 1);
+    final finding =
+        ((jsonDecode(json.out.toString()) as Map)['findings']! as List)
+            .cast<Map<String, Object?>>()
+            .singleWhere((f) => f['kind'] == 'bundle_over_limit');
+    expect(finding['waitsFor'], 'owner');
+    expect(finding['doc'], 'login/email_login');
+    expect(finding['limit'], 20000);
+    expect(finding['actual'], greaterThan(20000));
+    expect(finding['message'], isNot(contains('waits for the Owner)')));
+  });
+
   group('user_story:consistency_check/find_template_breaks S16', () {
     const reason = 'legacy states none';
     // The marker is built from parts so this file holds none outside a value.

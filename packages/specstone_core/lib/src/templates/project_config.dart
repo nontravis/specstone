@@ -17,6 +17,7 @@ const _specstoneFolder = '.specstone';
 const _coreName = 'prd-core';
 const _codeRootKey = 'code_root';
 const _targetsKey = 'targets';
+const _reservedTargetName = 'refs';
 const _agentFileRootsKey = 'agent_file_roots';
 const _agentFilesVersionKey = 'agent_files_version';
 
@@ -348,6 +349,15 @@ List<CodeTarget> _readTargets(Directory root, YamlMap map) {
   final targets = <CodeTarget>[];
   for (final MapEntry(:key) in targetsMap.nodes.entries) {
     final name = '${(key as YamlNode).value}';
+    if (name.toLowerCase() == _reservedTargetName) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'a target cannot be named $_reservedTargetName in any letter case: '
+        'it names the refs file of a bundle written without a target',
+        file: projectConfigPath,
+        key: _targetsKey,
+      );
+    }
     if (!_targetNamePattern.hasMatch(name)) {
       throw TemplateFault(
         FaultCode.unknownKey,

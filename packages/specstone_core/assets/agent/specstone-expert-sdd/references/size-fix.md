@@ -1,13 +1,14 @@
 # Fix a doc over its size limit
 
-This covers the three size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`, and
-`item_over_limit`, under `specstone-expert-sdd`'s rule 5.
+This covers the four size findings `specstone check` raises, `chars_over_limit`, `lines_over_limit`,
+`item_over_limit`, and `bundle_over_limit`, under `specstone-expert-sdd`'s rule 5.
 
 ## The order
 
 Answer each `chars_over_limit` or `lines_over_limit` finding once in your report, though `check` tags it
 `(waits for the Owner)`: a split proposal, or why none applies. Give `item_over_limit` neither: it needs no
-answer; `An item over its limit` covers it.
+answer; `An item over its limit` covers it. A `bundle_over_limit` finding skips steps 1, 3, and 4 and takes only the
+split; `A bundle over its limit` covers it.
 
 1. **Layout.** Every write lays its doc out. A size finding `check` still lists takes the next step; `check` counts
    the laid-out doc.
@@ -40,6 +41,12 @@ Say why in your report and leave the finding as it is: it waits for the Owner.
 - A feature of fewer than 4 stories, since a split needs at least 2 sub-features of at least 2 stories each, and a
   feature holds stories or sub-features, never both; or a top doc, such as the gnfr doc: the Owner picks text moved to its
   home or the doc type's limit raised in the project's templates.
+
+## A bundle over its limit
+
+`bundle_over_limit` on a feature: propose the sub-feature split, as above, with no layout step and no text moved: the
+size is the feature's design read-first file, never one doc's text, so no layout or move shrinks it. Run the split only
+after the Owner's ok. The finding waits for the Owner; answer it once in your report, as the other split findings.
 
 ## An item over its limit
 

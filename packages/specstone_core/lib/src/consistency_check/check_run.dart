@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/consistency_check/agent_block_rules.dart';
 import 'package:specstone_core/src/consistency_check/approval_rules.dart';
 import 'package:specstone_core/src/consistency_check/banned_words.dart';
+import 'package:specstone_core/src/consistency_check/bundle_size_rule.dart';
 import 'package:specstone_core/src/consistency_check/catalog_rules.dart';
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/check_report.dart';
@@ -36,12 +37,14 @@ import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
 import 'package:specstone_core/src/consistency_check/trace_rules.dart';
 import 'package:specstone_core/src/consistency_check/tracked_links.dart';
 import 'package:specstone_core/src/consistency_check/tree_rules.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_session.dart';
 
 /// Runs every rule over the scope of [target], the one doc at [docPath], or
 /// the whole project.
 ///
-/// A [docPath] scope holds that doc's own findings and no project-level one.
+/// A [docPath] scope holds that doc's own findings and no project-level one;
+/// on a feature or a story it also holds that feature's `bundle_over_limit`.
 /// [codeTarget] names the one code target the run keeps; null keeps every
 /// target. Throws an [ArgumentError] when both [target] and [docPath] are
 /// given, an `IndexFault` for a name no doc carries or a [codeTarget] the
@@ -114,6 +117,9 @@ CheckReport runCheck(
       ..addAll(checkReferenceEntries(context, doc))
       ..addAll(checkDiagrams(context, doc));
   }
+  for (final feature in _featuresReached(context, scope, docPath)) {
+    findings.addAll(checkBundleSize(context, feature));
+  }
   if (scope.isProject) {
     findings
       ..addAll(uncoveredCode(context, work))
@@ -134,6 +140,32 @@ CheckReport runCheck(
     )
     ..addAll(unreadableFindings(context, scope));
   return CheckReport(findings: findings, warnings: context.unstatedWarnings);
+}
+
+/// Returns the checked nesting-type docs [scope] holds, and for a [docPath]
+/// scope on a story, that story's feature.
+Iterable<IndexedDoc> _featuresReached(
+  CheckContext context,
+  CheckScope scope,
+  String? docPath,
+) sync* {
+  final index = context.index;
+  final nesting = index.set.nestingType;
+  if (nesting == null) return;
+  for (final doc in index.docs) {
+    if (doc.docTypeId != nesting.id || !context.isChecked(doc)) continue;
+    final holdsStory =
+        docPath != null &&
+        index
+            .childrenOf(doc)
+            .any(
+              (child) =>
+                  child.docPath == docPath &&
+                  child.docTypeId != nesting.id &&
+                  index.isChainDoc(child),
+            );
+    if (holdsStory || scope.contains(doc.docPath)) yield doc;
+  }
 }
 
 /// Lists the repeat groups of the project, or of [target]'s docs, and no

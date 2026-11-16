@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_follow.dart';
+import 'package:specstone_core/src/index_query/cited_by.dart';
 import 'package:specstone_core/src/index_query/code_bundle.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:test/test.dart';
@@ -289,6 +290,47 @@ void main() {
       ]);
     },
   );
+  group('in a design bundle', () {
+    const frName = 'login/email_login/validate_credentials';
+
+    Future<List<AppendedPart>> followedWithLines(String statement) async {
+      final index = await indexFor(statement);
+      return followLinks(
+        index,
+        pickBundle(index, frName, BundleMode.design, noProject: false),
+        citedBy: citedByIndex(index),
+      );
+    }
+
+    test('a section part a link appends carries the line right after its header', () async {
+      const line = 'See [the examples]($_specs/topics/doc_model.md#examples).';
+      final part = (await followedWithLines(line)).single;
+
+      expect(
+        part.text,
+        startsWith(
+          '## Examples\n  · cited by $frName (fr) —: $line\n### A worked example',
+        ),
+      );
+      expect(part.cited.map((c) => (c.kind, c.sectionKey)), [
+        (CitedKind.section, 'examples'),
+      ]);
+    });
+
+    test('a block part a link appends carries the line right after its heading', () async {
+      const line =
+          'See [a worked example]($_specs/topics/doc_model.md#a-worked-example).';
+      final part = (await followedWithLines(line)).single;
+
+      expect(
+        part.text,
+        '### A worked example\n  · cited by $frName (fr) —: $line\nOne link.',
+      );
+      expect(part.cited.map((c) => (c.kind, c.item)), [
+        (CitedKind.item, 'a-worked-example'),
+      ]);
+    });
+  });
   test('a section of a summary doc is appended unless the summary prints it', () async {
     final parts = await followed(
       'See [reset]($_resetStory#use-case) and [reset criteria]($_resetStory#acceptance-criteria).',

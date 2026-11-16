@@ -5,16 +5,14 @@ Run this until the Owner approves the drafts.
 A decision adds or changes behavior when it brings a new state, input, output, edge case, error, or reader of a
 rule. Every other decision only words or records one.
 
-- **A refused design path**, an open question with no document written: append nothing; refresh the ranges as the
-  skill's step 3 says and dispatch `mode: design` again with the brief's path and the Owner's new path in place of the
-  refused one.
-- **Only words or records**: append it to the design document's Rulings yourself, as design mode writes them, and
+- **A refused design path**, an open question with no document written: append nothing; write the document at the
+  Owner's new path in place of the refused one, by `design.md`.
+- **Only words or records**: append it to the design document's Rulings yourself, as `design.md` writes them, and
   dispatch nothing; the author, or the fix round under way, goes on.
-- **Adds or changes behavior**, or needs more PRD or spec grounding: add it to the brief as the skill's
-  step 3 says, a doc newly reached grounded by its own `specstone context <doc> --for design --out`, never `get`,
-  and dispatch `mode: design` again with the brief's path and the document's path, an amend of the same file. Design
-  mode searches the decision's terms (`design.md`) before the author writes it.
-- **Before the author**: after an append or an amend, ask for the approval again. When the design report holds
+- **Adds or changes behavior**, or needs more PRD or spec grounding: ground a doc newly reached by its own
+  `specstone context <doc> --for design --out`, never `get`, then amend the same file yourself. `design.md` finds the
+  decision's dependents before the author writes it.
+- **Before the author**: after an append or an amend, ask for the approval again. When the design document holds
   open questions, gather the Owner's answers, append each that only words or records one, send the rest to one
   amend, and ask for the approval only after it.
 - **During fix rounds**, a decision that adds or changes behavior takes an amend, then one fresh author pass and a
@@ -34,7 +32,7 @@ section 3 says.
   round adds the audit's `Findings:` lines that carry no `[behavior]` tag, those that only correct text against the
   design. The author re-reads those drafts before its first write
   and fixes only those findings, in those drafts.
-- **A `[behavior]` line** never goes to a fix round: put it, with the decision that answers it, in the brief for an
+- **A `[behavior]` line** never goes to a fix round: take it, with the decision that answers it, to an
   amend (section 1). The one fresh author pass after the amend takes the amended design and the drafts list. When the
   audit that raised it also holds untagged lines, that pass takes them too and counts as a fix round; a pass that
   carries the amend alone is no fix round.

@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 117 snake_case kinds, no error code', () {
+  test('consistency_check: 118 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -44,6 +44,7 @@ void main() {
       'feature_mixed_children',
       'sub_feature_too_small',
       'nesting_over_limit',
+      'bundle_over_limit',
       'path_over_limit',
       'file_not_utf8',
       'file_unreadable',
@@ -171,6 +172,7 @@ void main() {
       'Output lists', () {
     const owner = {
       FindingKind.approvalStale,
+      FindingKind.bundleOverLimit,
       FindingKind.charsOverLimit,
       FindingKind.itemOverLimit,
       FindingKind.linesOverLimit,

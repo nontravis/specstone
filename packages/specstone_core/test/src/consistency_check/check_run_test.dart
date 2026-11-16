@@ -9,6 +9,8 @@ import 'package:specstone_core/src/consistency_check/check_report.dart';
 import 'package:specstone_core/src/consistency_check/check_run.dart';
 import 'package:specstone_core/src/consistency_check/check_scope.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/index_query/bundle.dart';
+import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -364,6 +366,115 @@ void main() {
       checkOf(project, docPath: loginFeature).findings.map((f) => f.path),
       isNot(contains(_brokenRecord)),
     );
+  });
+
+  group('a feature whose design read-first file is over the bound', () {
+    const signupFeature = 'prds/features/f02_signup/FEATURE.md';
+    Map<String, String> oversize() => {
+      ...edit(loginFeature, [
+        ('## Problem\n\n', '## Problem\n\n${'a' * 90000}\n\n'),
+      ]),
+      'docs/$signupFeature': '# Sign up\n\n## Problem\n\n${'a' * 90000}\n',
+    };
+
+    test(
+      "check <target> reports each feature in the target's unit, once",
+      () async {
+        final project = await writeCheckProject(extra: oversize());
+
+        expect(spots(checkOf(project), FindingKind.bundleOverLimit), [
+          '$loginFeature:1: bundle_over_limit',
+          '$signupFeature:1: bundle_over_limit',
+        ]);
+        expect(
+          spots(
+            checkOf(project, target: 'feature:login'),
+            FindingKind.bundleOverLimit,
+          ),
+          ['$loginFeature:1: bundle_over_limit'],
+        );
+      },
+    );
+
+    test(
+      'a docPath scope on the feature or on a story reports that feature alone',
+      () async {
+        final project = await writeCheckProject(extra: oversize());
+
+        for (final docPath in [loginFeature, loginStory]) {
+          expect(
+            spots(
+              checkOf(project, docPath: docPath),
+              FindingKind.bundleOverLimit,
+            ),
+            ['$loginFeature:1: bundle_over_limit'],
+            reason: docPath,
+          );
+        }
+      },
+    );
+
+    test('a docPath scope on an FR, and a story target, report none', () async {
+      final project = await writeCheckProject(extra: oversize());
+
+      expect(
+        spots(checkOf(project, docPath: loginFr), FindingKind.bundleOverLimit),
+        isEmpty,
+      );
+      expect(
+        spots(
+          checkOf(project, target: 'login/email_login'),
+          FindingKind.bundleOverLimit,
+        ),
+        isEmpty,
+      );
+    });
+
+    test(
+      'two features sharing a name are each reported on their own',
+      () async {
+        const twin = 'prds/features/f03_login/FEATURE.md';
+        final project = await writeCheckProject(
+          extra: {
+            ...oversize(),
+            'docs/$twin': '# Login again\n\n## Problem\n\n${'a' * 90000}\n',
+          },
+        );
+
+        final found = checkOf(project).findings
+            .where((f) => f.kind == FindingKind.bundleOverLimit);
+
+        expect(
+          [for (final f in found) f.path],
+          [loginFeature, signupFeature, twin],
+        );
+        final session = openSession(project);
+        addTearDown(session.close);
+        final index = session.index;
+        for (final f in found.where((f) => f.path != signupFeature)) {
+          expect(
+            f.keys['actual'],
+            readFirstTokensOf(
+              index,
+              pickBundle(
+                index,
+                f.path,
+                BundleMode.design,
+                noProject: false,
+                summary: index.childrenOf(index.at(f.path)!).isNotEmpty,
+              ),
+            ),
+            reason: f.path,
+          );
+        }
+      },
+    );
+
+    test('a feature within the bound gets none', () async {
+      final project = await writeCheckProject();
+
+      expect(spots(checkOf(project), FindingKind.bundleOverLimit), isEmpty);
+    });
   });
 
   test('an untyped .md file in prds/ gets its untyped_doc finding', () async {

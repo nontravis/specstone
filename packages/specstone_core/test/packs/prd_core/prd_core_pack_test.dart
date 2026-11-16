@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
@@ -27,23 +26,12 @@ void main() {
       expect(manifest.extendsPack, isNull);
     });
 
-    test('prd-core carries 1.13.0 with one no-step entry from 1.11.0', () {
+    test('prd-core lists no migration entry with an empty step list', () {
       final manifest = PackManifest.parse(
         utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
         file: 'packs/prd-core/pack.yaml',
       );
-      expect(manifest.migrations.map((e) => e.from.toString()), ['1.11.0']);
-      expect(manifest.migrations.single.steps, isEmpty);
-    });
-
-    test('prd-core carries no bullet_lines step', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-        file: 'packs/prd-core/pack.yaml',
-      );
-      for (final entry in manifest.migrations) {
-        expect(entry.steps.whereType<BulletLines>(), isEmpty);
-      }
+      expect(manifest.migrations.where((e) => e.steps.isEmpty), isEmpty);
     });
 
     test('a 1.7.0 or 1.9.0 pin upgrades to the shipped version with no '

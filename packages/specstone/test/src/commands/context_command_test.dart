@@ -1457,6 +1457,31 @@ void main() {
       expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
     });
 
+    test('a design bundle puts a section link in a refs part naming the section, and its stdout index line marks #key', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [components](../f01_login/ARCHITECTURE.md#components).\n',
+        },
+      );
+      final text = await saved(project, [story, '--for', 'design', '--out']);
+      final refs = bundleFile(project, 'login-email_login.design.refs.txt');
+      final lines = const LineSplitter().convert(refs.readAsStringSync());
+      final naming = lines.indexOf(
+        '==> login (architecture) · specs/f01_login/ARCHITECTURE.md#components · cited by <==',
+      );
+      expect(naming, isNonNegative);
+      expect(
+        lines[naming + 1],
+        startsWith('  · cited by guide (topic) —: See '),
+      );
+      expect(
+        text.split('\n'),
+        contains(
+          '- login (architecture) · ${naming + 1}-${naming + 2} · cited by [#components]',
+        ),
+      );
+    });
+
     test(
       'the two files hold the docs of the one-file bundle between them',
       () async {
@@ -1477,7 +1502,7 @@ void main() {
       },
     );
 
-    test('an appended part goes to the refs file, and its index line ranges into that file', () async {
+    test('an appended part goes to the refs file, and its index line at the refs head ranges into that file', () async {
       final project = await writeReadProject(
         extra: {
           'docs/prds/features/f02_signup/FEATURE.md': '---\nvision:\n  - PV-01\n---\n\n# Signup\n\n## Problem\nNew users sign up.\n',
@@ -1494,12 +1519,15 @@ void main() {
       final part = RegExp(
         r'^- signup \(feature\) · (\d+)-(\d+) · summary · cited',
       );
-      expect(lines.take(split).any(part.hasMatch), isFalse);
-      final range = part.firstMatch(
-        lines.skip(split).firstWhere(part.hasMatch),
-      )!;
+      expect(lines.any(part.hasMatch), isFalse);
       expect(
-        refs.readAsLinesSync()[int.parse(range.group(1)!) - 1],
+        lines.skip(split + 1).where((line) => line.startsWith('- ')),
+        isEmpty,
+      );
+      final refsLines = refs.readAsLinesSync();
+      final range = part.firstMatch(refsLines.firstWhere(part.hasMatch))!;
+      expect(
+        refsLines[int.parse(range.group(1)!) - 1],
         startsWith('==> signup (feature) · '),
       );
       expect(first.readAsStringSync(), isNot(contains('==> signup (feature)')));

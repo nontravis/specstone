@@ -134,6 +134,43 @@ const _shopDesignUnsplit =
     '- pay (domain) · cited invariants [INV-7]\n'
     'Read a summary doc whole with: specstone context <name> --for design\n';
 
+/// Expects [readFirstTokensOf] to equal the read-first size of the split
+/// answer for each chain doc of [index], in design (in summary too, where the
+/// doc takes it) and implement.
+void _expectReadFirstSizes(DocIndex index) {
+  for (final doc in index.docs.where(index.isChainDoc)) {
+    for (final mode in [BundleMode.design, BundleMode.implement]) {
+      for (final summary in [
+        false,
+        if (mode == BundleMode.design &&
+            doc.docTypeId == index.set.nestingType?.id &&
+            index.childrenOf(doc).isNotEmpty)
+          true,
+      ]) {
+        final bundle = pickBundle(
+          index,
+          doc.docPath,
+          mode,
+          noProject: false,
+          summary: summary,
+        );
+        final answer = answerContext(
+          index,
+          bundle,
+          label: doc.name,
+          byCode: false,
+          split: true,
+        );
+        expect(
+          readFirstTokensOf(index, bundle),
+          answer.readFirst.tokens,
+          reason: '${doc.name} ${mode.wire} summary $summary',
+        );
+      }
+    }
+  }
+}
+
 void main() {
   late DocIndex index;
   setUpAll(() async => index = await indexWith());
@@ -847,7 +884,9 @@ void main() {
       ]);
       expect(picked['citedBy'], [
         {
+          'kind': 'item',
           'item': 'E02',
+          'section': null,
           'name': 'guide',
           'docType': 'topic',
           'byItem': null,
@@ -858,7 +897,9 @@ void main() {
       expect(part.keys.last, 'citedBy');
       expect(part['citedBy'], [
         {
+          'kind': 'item',
           'item': 'INV-14',
+          'section': null,
           'name': frName,
           'docType': 'fr',
           'byItem': 'E01',
@@ -940,7 +981,9 @@ void main() {
       expect(
         a.text,
         contains(
-          '· summary · cited <==\n# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
+          '· summary · cited <==\n'
+          '  · cited by $frName (fr) —: See [sign-up](../../f02_signup/us01_create_account/USER_STORY.md).\n'
+          '# Agent creates an account\n\n## Use Case\nCreate one.\n\n## Rules\n- **BR-1** One email.\n'
           '  · cited by guide (topic) —: See [BR-1]',
         ),
       );
@@ -1112,6 +1155,13 @@ void main() {
       byCode: false,
       budget: budget,
     );
+
+    test('the read-first size alone counts the feature pattern parts the split answer holds', () async {
+      final i = await patterned();
+
+      expect(designOf(i).text, contains('(feature pattern)'));
+      _expectReadFirstSizes(i);
+    });
 
     test('the part prints right after its doc, before the next doc, and lists in the closing list', () async {
       final a = designOf(await patterned());
@@ -1319,9 +1369,12 @@ void main() {
           .firstWhere(
             (d) => d['name'] == 'fewer_resets' && d['summary'] == true,
           );
-      expect((summary['citedBy']! as List).map((c) => (c as Map)['item']), [
+      final entries = (summary['citedBy']! as List)
+          .cast<Map<String, Object?>>();
+      expect(entries.where((c) => c['kind'] == 'item').map((c) => c['item']), [
         'RUN-1',
       ]);
+      expect(entries.where((c) => c['kind'] == 'doc'), hasLength(1));
     });
     test('a summary_rows section written as prose prints whole', () async {
       final text = await printed('Run one met the goal.');
@@ -1639,6 +1692,7 @@ void main() {
           '- login/reset_password (user_story) · summary\n'
           '- login/reset_password/send_reset_link (fr) · summary\n'
           '- password_rules (reference) · summary · cited\n'
+          '- password_rules (reference) · cited by\n'
           'Read a summary doc whole with: specstone context <name> --for design\n',
         ),
       );
@@ -1655,12 +1709,14 @@ void main() {
         '- gnfr (gnfr)',
         '- project (project)',
         '- login/email_login (user_story) · summary',
+        '- login/email_login (user_story) · cited by',
         '- login/email_login/validate_credentials (fr) · summary',
         '- login/email_login/lock_after_failures (fr) · summary',
         '- login/email_login/login_latency (nf) · summary',
         '- login/reset_password (user_story) · summary',
         '- login/reset_password/send_reset_link (fr) · summary',
         '- password_rules (reference) · summary · cited',
+        '- password_rules (reference) · cited by',
       ]);
       expect(
         a.refs!.text,
@@ -1852,6 +1908,43 @@ void main() {
           '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).\n',
         ),
       );
+    });
+    test('one index serves a split answer after an unsplit one, and the reverse, each with its own cited-by place', () async {
+      final session = openSession(await writeTree(_shopFiles()));
+      addTearDown(session.close);
+      final i = session.index;
+      ContextAnswer answer({required bool split}) => answerContext(
+        i,
+        pickBundle(
+          i,
+          'shop/cart/add_item',
+          BundleMode.design,
+          noProject: false,
+        ),
+        label: 'shop/cart/add_item',
+        byCode: false,
+        split: split,
+      );
+      const citedLine =
+          '  · cited by guide (topic) —: See [E01](../../prds/features/f01_shop/f01_cart/us01_add_item/fr01_check_stock.md#edge-cases).';
+
+      final unsplitFirst = answer(split: false);
+      final splitAfter = answer(split: true);
+      final unsplitAfter = answer(split: false);
+
+      expect(unsplitFirst.text, contains(citedLine));
+      expect(splitAfter.text, isNot(contains('· cited by')));
+      expect(
+        splitAfter.refs!.text,
+        contains('· item E01 · cited by <==\n$citedLine'),
+      );
+      expect(unsplitAfter.text, unsplitFirst.text);
+    });
+    test('the read-first size alone equals the split answer size, for each doc and mode', () async {
+      final shop = openSession(await writeTree(_shopFiles()));
+      addTearDown(shop.close);
+      _expectReadFirstSizes(await indexWith());
+      _expectReadFirstSizes(shop.index);
     });
     test('an unsplit answer is unchanged', () async {
       final session = openSession(await writeTree(_shopFiles()));

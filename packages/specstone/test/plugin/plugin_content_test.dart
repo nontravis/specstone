@@ -238,10 +238,7 @@ const _agentFileNames = <String, List<String>>{
   'specstone-bootstrap-prd/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
   _goalMove: ['sdd-engineer.bootstrap.batch.<XXXXXX>.txt'],
   'specstone-bootstrap-spec/SKILL.md': ['sdd-engineer.bootstrap.<XXXXXX>.md'],
-  'specstone-brainstorming-sdd/SKILL.md': [
-    'sdd-engineer.<mode>.<XXXXXX>.md',
-    'sdd-engineer.design.brief.<XXXXXX>.md',
-  ],
+  'specstone-brainstorming-sdd/SKILL.md': ['sdd-engineer.<mode>.<XXXXXX>.md'],
   'specstone-brainstorming-sdd/references/author.md': [
     'sdd-engineer.author.batch.<XXXXXX>.txt',
   ],
@@ -258,7 +255,7 @@ const _reportsFolder = '<folder>/reports/';
 /// [_reportsFolder].
 final _agentFileSpan = RegExp(
   r'^<folder>/reports/(?:sdd|plan)-engineer\.(?:<mode>|[a-z]+)\.'
-  r'(?:(?:brief|batch|source)\.)?<XXXXXX>\.(?:md|txt)$',
+  r'(?:(?:batch|source)\.)?<XXXXXX>\.(?:md|txt)$',
 );
 
 final _contextRun = RegExp(r'specstone context\s+\S');
@@ -786,7 +783,7 @@ const _procedures = <_Procedure>[
   (
     file: 'specstone-brainstorming-sdd/references/design.md',
     tags: 'f08/us02/fr01, f08/us02/fr06',
-    commands: ['refs', 'search'],
+    commands: ['check'],
   ),
   (
     file: 'specstone-brainstorming-sdd/references/audit.md',
@@ -942,13 +939,17 @@ void _handOffTests() {
   });
 
   test('f08/us02/fr01, f08/us02/fr06, f08/us02/fr07: brainstorming-sdd '
-      'dispatches specstone-sdd-engineer in each of its modes and names the '
-      'reference of each mode it can run itself, as the agent does', () {
+      'dispatches specstone-sdd-engineer in author and audit mode, writes the '
+      'design document itself, and names the reference of each mode, as the '
+      'agent does', () {
     final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
     final agent = _pluginText('specstone-sdd-engineer.md');
     expect(skill, contains('`specstone-sdd-engineer`'));
+    expect(skill, isNot(contains('`mode: design`')));
     for (final mode in _brainstormModes) {
-      expect(skill, contains('`mode: $mode`'), reason: mode);
+      if (mode != 'design') {
+        expect(skill, contains('`mode: $mode`'), reason: mode);
+      }
       expect(
         skill,
         contains('`references/$mode.md`'),
@@ -956,9 +957,12 @@ void _handOffTests() {
       );
       expect(
         agent,
-        contains(
-          '`.agents/skills/specstone-brainstorming-sdd/references/$mode.md`',
-        ),
+        mode == 'design'
+            ? isNot(contains('references/$mode.md'))
+            : contains(
+                '`.agents/skills/specstone-brainstorming-sdd/references/'
+                '$mode.md`',
+              ),
         reason: 'specstone-sdd-engineer.md, $mode',
       );
     }
@@ -988,7 +992,7 @@ void _handOffTests() {
       ),
     );
     expect(output, contains('never their text'));
-    for (final mode in ['author', 'design', 'audit', 'sync', 'bootstrap']) {
+    for (final mode in ['author', 'audit', 'sync', 'bootstrap']) {
       expect(
         output,
         contains('**${mode[0].toUpperCase()}${mode.substring(1)}'),
@@ -1005,7 +1009,7 @@ void _handOffTests() {
     expect(_sectionOf(agent, 'Scope Boundaries'), contains('`report:`'));
     expect(
       _sectionOf(agent, 'Scope Boundaries'),
-      contains('Beyond the `report:` file, write or edit only the one file'),
+      contains('Beyond the `report:` file, write or edit only a batch file'),
     );
   });
 
@@ -1709,6 +1713,20 @@ String _sectionOf(String text, String heading) {
   return end < 0 ? body : body.substring(0, end);
 }
 
+/// The unknown-mode bullet of the engineer's Input Contract with its
+/// continuation lines.
+String _designStopBullet() {
+  final contract = _sectionOf(
+    _pluginText('specstone-sdd-engineer.md'),
+    'Input Contract',
+  );
+  return RegExp(r'- \*\*Any other `mode`\*\*(?:.|\n(?!- |\n))*')
+      .firstMatch(contract)!
+      .group(0)!;
+}
+
+String _designStop() => _oneLine(_designStopBullet());
+
 /// The `- **`mode`**` bullet with its indented continuation lines, its label
 /// left out.
 final _modeBullet = RegExp(
@@ -1765,7 +1783,7 @@ List<List<String>> _contextCalls(String markdown) {
 void _agentTests() {
   test(
     'E04, '
-    'sd-r9: the sdd-engineer Input Contract names exactly its five modes',
+    'sd-r9: the sdd-engineer Input Contract names exactly its four modes',
     () {
       final contract = _sectionOf(
         _pluginText('specstone-sdd-engineer.md'),
@@ -1774,7 +1792,7 @@ void _agentTests() {
       final bullet = _modeBullet.firstMatch(contract)?.group(1) ?? '';
       expect([
         for (final span in _codeSpan.allMatches(bullet)) span.group(1),
-      ], unorderedEquals(['author', 'sync', 'bootstrap', 'design', 'audit']));
+      ], unorderedEquals(['author', 'sync', 'bootstrap', 'audit']));
     },
   );
 
@@ -1792,29 +1810,25 @@ void _agentTests() {
     }
   });
 
-  test(
-    'E04: the '
-    'sdd-engineer description sends sync and bootstrap through their skills '
-    'and names the three modes a caller may dispatch directly, plan none',
-    () {
-      final description = RegExp(
-        r'^description:(.*)$',
-        multiLine: true,
-      ).firstMatch(_pluginText('specstone-sdd-engineer.md'))?.group(1);
-      expect(description, contains('`specstone-sync-sdd`'));
-      expect(description, contains('`specstone-bootstrap-prd`'));
-      for (final mode in _brainstormModes) {
-        expect(description, contains('`$mode`'), reason: mode);
-      }
-      expect(description, isNot(contains('`plan`')));
-    },
-  );
+  test('E04: the '
+      'sdd-engineer description sends sync and bootstrap through their skills '
+      'and names the two modes a caller may dispatch directly, plan none', () {
+    final description = RegExp(
+      r'^description:(.*)$',
+      multiLine: true,
+    ).firstMatch(_pluginText('specstone-sdd-engineer.md'))?.group(1);
+    expect(description, contains('`specstone-sync-sdd`'));
+    expect(description, contains('`specstone-bootstrap-prd`'));
+    for (final mode in ['author', 'audit']) {
+      expect(description, contains('`$mode`'), reason: mode);
+    }
+    expect(description, isNot(contains('`plan`')));
+  });
 
   test('domain:agent_plugin INV-10, '
-      'statement: sdd-engineer holds Write and Edit for '
-      'the one design document a design dispatch names, audit and design mode '
-      'write no other file but the report file, and no file names '
-      'docs/superpowers/', () {
+      'statement: sdd-engineer holds Write and Edit for its report and batch '
+      'files, audit mode writes no other file but the report file, and no '
+      'file names docs/superpowers/', () {
     final agent = _pluginText('specstone-sdd-engineer.md');
     final tools = RegExp(
       r'^tools:(.*)$',
@@ -1828,11 +1842,8 @@ void _agentTests() {
     final design = _pluginText(
       'specstone-brainstorming-sdd/references/design.md',
     );
-    expect(
-      design,
-      contains("Write no other file but the agent's `report:` file"),
-    );
-    expect(design, contains("write nothing but the agent's `report:` file"));
+    expect(design, contains('Write no other file, and no PRD or spec doc.'));
+    expect(design, contains('write nothing; the path is an open question'));
     final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
     for (final (file, text) in [
       (
@@ -1845,15 +1856,12 @@ void _agentTests() {
       expect(text, isNot(contains('docs/superpowers/')), reason: file);
     }
     for (final (file, text) in [
-      (
-        'specstone-sdd-engineer.md Scope Boundaries',
-        _sectionOf(agent, 'Scope Boundaries'),
-      ),
       ('references/design.md', design),
       ('brainstorming-sdd/SKILL.md', skill),
     ]) {
       expect(text, contains(_designPath), reason: file);
     }
+    expect(_sectionOf(agent, 'Scope Boundaries'), isNot(contains(_designPath)));
   });
 
   test('statement, '
@@ -2123,6 +2131,28 @@ void _agentTests() {
     );
   });
 
+  test('read-sdd finds the refs parts of an implement bundle by the refs '
+      "file's head and those of a design bundle by the stdout index", () {
+    final step = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-read-sdd/SKILL.md'),
+        'Ground in one call',
+      ),
+    );
+    expect(
+      step,
+      contains(
+        "found in `implement` by the refs file's head, one index line per "
+        'doc and part, and in `design` by the stdout index',
+      ),
+    );
+    expect(
+      step,
+      contains('in `implement` the refs file prints its header alone'),
+    );
+    expect(step, contains('an `implement` refs head keeps its sections'));
+  });
+
   test('the reader takes both saved paths', () {
     final reader = _oneLine(_pluginText('specstone-sdd-reader.md'));
     expect(
@@ -2278,12 +2308,19 @@ void _agentTests() {
     );
   });
 
-  test('E17: design '
-      'mode runs refs on a per-target owner by its DocPath', () {
-    expect(
-      _oneLine(_pluginText('specstone-brainstorming-sdd/references/design.md')),
-      contains('A per-target owner goes to `refs` by its DocPath.'),
+  test('the design reference finds dependents in the saved files and through '
+      'check --repeats, and runs no refs or search', () {
+    final design = _pluginText(
+      'specstone-brainstorming-sdd/references/design.md',
     );
+    expect(cliCommands(design), isNot(contains('refs')));
+    expect(cliCommands(design), isNot(contains('search')));
+    expect(cliCommands(design), contains('check'));
+    expect(
+      _oneLine(design),
+      contains('Run no `get`, no `search`, and no `refs` for a doc'),
+    );
+    expect(_oneLine(design), contains('`specstone check <feature> --repeats`'));
   });
 
   test('design mode links every design a doc still states: the design '
@@ -2334,10 +2371,7 @@ void _agentTests() {
     expect(audit, contains("The drafts list's names need no `--target`."));
     expect(
       _oneLine(_pluginText('specstone-sdd-engineer.md')),
-      contains(
-        'design writes a code target on each per-target spec doc row; audit '
-        'passes no `--target` on `context --for design`.',
-      ),
+      contains('audit passes no `--target` on `context --for design`.'),
     );
   });
 
@@ -3427,9 +3461,8 @@ void _agentTests() {
           'steps are steps',
     );
     final skill = _pluginText('specstone-brainstorming-sdd/SKILL.md');
-    final design = _sectionOf(skill, '3. Write the document: design mode');
+    final design = _sectionOf(skill, '3. Write the document');
     expect(design, contains('`$_roundsPath`'));
-    expect(_oneLine(design), contains('Dispatch `mode: design` once'));
     expect(_oneLine(design), isNot(contains('dispatch again')));
     final fixRounds = _sectionOf(
       skill,
@@ -3510,6 +3543,30 @@ void _agentTests() {
     expect(nonLatinLetterLines(agentAssetsRoot()).where(ofSource), isEmpty);
   });
 
+  test('source.md names the runner as its one reader and holds no brief and '
+      'no design mode, the Source map being the runner own step', () {
+    final text = _oneLine(_pluginText(_source));
+    expect(
+      text,
+      contains(
+        'The runner of `specstone-brainstorming-sdd` follows '
+        '`## Take in the source` and `## Map the source`.',
+      ),
+    );
+    for (final stale in [
+      'brief',
+      'mode: design',
+      'design mode',
+      'specstone-sdd-engineer',
+      '`report:`',
+      'As the agent',
+    ]) {
+      expect(text, isNot(contains(stale)), reason: stale);
+    }
+    final map = _oneLine(_sectionOf(_pluginText(_source), 'Map the source'));
+    expect(map, contains('at each write and amend of the design document'));
+  });
+
   test('E04, '
       'verification; agent_plugin/write_prd_and_spec/run_brainstorm_to_design '
       'E26: step 1 makes the gate call, with no budget, opens no link or '
@@ -3535,8 +3592,8 @@ void _agentTests() {
 
   test('Map each source item in the design document '
       'verification; write_design_document input_output; take_in_a_source '
-      'E02, E03, E08: design.md points design mode to source.md, and design '
-      "mode grounds on the brief's saved file and line ranges", () {
+      'E02, E03, E08: design.md points the runner to source.md, and the '
+      "runner grounds on its saved files and the Owner's answers", () {
     final design = _pluginText(
       'specstone-brainstorming-sdd/references/design.md',
     );
@@ -3547,7 +3604,10 @@ void _agentTests() {
     final ground = _oneLine(_sectionOf(design, '2. Ground each claim'));
     expect(
       ground,
-      contains('the saved file and line range the brief gives under it'),
+      contains(
+        'Ground each claim in the saved bundle files of your `context` calls '
+        "or in an Owner's answer",
+      ),
     );
     expect(ground, isNot(contains('--for design --no-project')));
     expect(
@@ -3618,27 +3678,30 @@ void _agentTests() {
   });
 }
 
-/// Each point of `write_design_and_plan`'s dependents search and state-table
-/// clauses, E09-E12, as step 3 of design.md words it, cut at line width.
+/// Each point of the design document's dependents and state-table clauses, as
+/// step 3 of design.md words it, cut at line width.
 const _dependentsSearchPoints = [
   "its rule's owner doc (`none` for a decision with no rule, such as a pure",
   'ruling or an approach pick), and the terms you searched for it.',
   'A decision whose rule has states, such as a refusal set or a set of name',
   'forms, also gets a table of each state against each command or skill',
-  "Before the Docs to change table closes, search each decision's dependents:",
+  "Before the Docs to change table closes, find each decision's dependents in",
+  'your saved files, with no `search` and no `refs` call:',
   "Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7).",
-  'Run `specstone refs <owner>` for the docs that cite it, and',
-  "`specstone search` on the decision's terms and on the wording it supersedes",
+  "The owner item's cited-by lines in the saved files give the docs that link",
+  'it.',
+  'Run `specstone check <feature> --repeats` for the repeat groups that hold',
+  "the owner item, and search the saved files' text for the decision's terms",
+  'and for the wording it supersedes.',
   'Each doc found that restates the rule instead of citing its owner gets a',
   "Docs to change row: its change links the owner's item that holds the rule,",
   'or rewrites the',
   "doc when that doc owns a rule that reads the decision's rule.",
-  'When `refs` lists no typed citer, as in a tree that still cites by number',
-  'labels, the search carries the decision, as it does for the limit of',
-  '`refs` that rule 7 names.',
+  'When the owner item has no cited-by line, as in a tree that still cites by',
+  'number labels, the repeat groups and the text search carry the decision.',
   'Record the searched terms either way, so the audit sees what was searched.',
   'An amend for an Owner decision that adds or changes behavior runs',
-  "the same search on that decision's terms and adds its rows and",
+  "the same steps on that decision's terms and adds its rows and",
   'searched terms before the author writes it.',
 ];
 
@@ -3685,7 +3748,7 @@ const _auditReportPoints = [
   'a line whose fix only corrects text against the design stays untagged.',
   'each target that is no draft, and each name dropped from the `get` call;',
   'A fix round takes only the untagged `Findings:` lines; a `[behavior]` line',
-  'goes to a design-mode amend.',
+  "goes to the runner's design amend.",
 ];
 
 /// Text that `specstone-expert-sdd` rule 7 or `run_brainstorm_to_design` E13
@@ -3705,7 +3768,7 @@ const _rounds = 'specstone-brainstorming-sdd/references/rounds.md';
 const _roundsPath = 'references/rounds.md';
 
 /// The take-in and Source map reference file of `brainstorming-sdd`, which
-/// its runner and design mode both read, under the plugin folder.
+/// its runner alone reads, under the plugin folder.
 const _source = 'specstone-brainstorming-sdd/references/source.md';
 
 /// Each rule of `take_in_a_source` and `map_source_items` as source.md words
@@ -3730,7 +3793,7 @@ const _sourcePoints = [
   // E10: the copy is no source.
   'the copy is no source',
   // E11: an untyped file is refused and never named.
-  'Run no other command on its path; the brief never names it',
+  'Run no other command on its path.',
   // E12: a typed doc is the change's target, its path call the narrow call.
   'no source, no copy, no Source map',
   'That call was your narrow call',
@@ -3739,11 +3802,11 @@ const _sourcePoints = [
   'after Docs to change and before Open questions',
   'one row per source item, 0 items left out',
   'its reason that task management is out of scope',
-  'an open question in your report, as for any gap',
+  'an open question in the design document, as for any gap',
   'never recorded as the source',
-  'A brief with no source gets no Source map',
-  'Never edit, move, or delete the source; write only your `report:` file',
-  'and the one design document',
+  'A change with no source gets no Source map',
+  'Never edit, move, or delete the source;',
+  'write only the copy and the one design document.',
 ];
 
 /// Each point of `run_brainstorm_to_design`'s dispatch, fix-round, amend, and
@@ -3752,16 +3815,14 @@ const _sourcePoints = [
 const _roundsPoints = [
   'adds or changes behavior when it brings a new state, input, output,',
   'edge case, error, or reader of a rule.',
-  "append it to the design document's Rulings yourself, as design mode writes",
+  "append it to the design document's Rulings yourself, as `design.md` writes",
   'them, and dispatch nothing;',
   'the author, or the fix round under way, goes on.',
   'or needs more PRD or spec grounding',
-  "dispatch `mode: design` again with the brief's path and the document's",
-  'path, an amend of the same file.',
-  "Design mode searches the decision's terms (`design.md`)",
-  'before the author writes it.',
+  'amend the same file yourself',
+  "`design.md` finds the decision's dependents before the author writes it.",
   'after an append or an amend, ask for the approval again.',
-  "When the design report holds open questions, gather the Owner's answers,",
+  "When the design document holds open questions, gather the Owner's answers,",
   'append each that only words or records one, send the rest to one amend,',
   'and ask for the approval only after it.',
   '**During fix rounds**, a decision that adds or changes behavior takes',
@@ -3781,8 +3842,8 @@ const _roundsPoints = [
   "a fix round adds the audit's `Findings:` lines that carry no `[behavior]`",
   'The author re-reads those drafts before its first write',
   'and fixes only those findings, in those drafts.',
-  'never goes to a fix round: put it, with the decision that answers it,',
-  'in the brief for an amend (section 1).',
+  'never goes to a fix round: take it, with the decision that answers it,',
+  'to an amend (section 1).',
   'that pass takes them too and counts as a fix round; a pass that carries',
   'the amend alone is no fix round.',
   'run at most two fix rounds, counted across an amend.',
@@ -3878,14 +3939,14 @@ const _batchTableText = ['exit status', '`75`', 'argument_invalid'];
 /// Contract of sdd-engineer words them, cut at line width.
 const _laterPassInputs = [
   '(author, required in each pass after the first, a fresh dispatch: a fix',
-  'round, or the pass after a design-mode amend)',
+  'round, or the pass after an amend of the design document)',
   "the drafts list, the first author report's drafts plus each doc a fix",
   "round or pass added; in a fix round, the audit's `Findings:` lines too.",
 ];
 
 /// The batch file sdd-engineer makes, as its Scope Boundaries word it.
 const _batchFileRedirect =
-    'and a batch file: made by `specstone get … --out "<file>"`, `<file>` '
+    'a batch file: made by `specstone get … --out "<file>"`, `<file>` '
     '`<folder>/reports/sdd-engineer.<mode>.batch.<XXXXXX>.txt`, and passed to '
     '`specstone set --batch "<file>"`.';
 
@@ -3906,6 +3967,7 @@ const _sizeFindings = [
   '`chars_over_limit`',
   '`lines_over_limit`',
   '`item_over_limit`',
+  '`bundle_over_limit`',
 ];
 
 /// The statement's split clause of
@@ -4009,6 +4071,22 @@ void _sizeFixTests() {
     expect(text, contains('fewer than 4 stories'));
     expect(text, isNot(contains('Cite a size only')));
     expect(text, isNot(contains('Never cut meaning')));
+  });
+
+  test('size-fix.md answers bundle_over_limit with the split alone, no '
+      'layout step and no text moved, and the finding waits for the Owner', () {
+    final sizeFix = _pluginText(_sizeFix);
+    final order = _oneLine(_sectionOf(sizeFix, 'The order'));
+    expect(
+      order,
+      contains('A `bundle_over_limit` finding skips steps 1, 3, and 4'),
+    );
+    final bundle = _oneLine(_sectionOf(sizeFix, 'A bundle over its limit'));
+    expect(bundle, contains('`bundle_over_limit`'));
+    expect(bundle, contains('sub-feature split'));
+    expect(bundle, contains('no layout step'));
+    expect(bundle, contains('no text moved'));
+    expect(bundle, contains('waits for the Owner'));
   });
 
   test('E12, E13: '
@@ -5526,7 +5604,7 @@ void _brainstormTests() {
         );
         expect(
           _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
-          contains('(`design.md`)'),
+          contains('`design.md`'),
         );
         expect(
           _pluginText('specstone-brainstorming-sdd/SKILL.md'),
@@ -5554,7 +5632,6 @@ void _brainstormTests() {
         'expert-sdd/references/size-fix.md',
         'expert-sdd/references/repeats.md',
         'brainstorming-sdd/references/author.md',
-        'brainstorming-sdd/references/design.md',
         'brainstorming-sdd/references/audit.md',
       ]) {
         expect(
@@ -5596,39 +5673,114 @@ const _designWorkFiles = [
 ];
 
 void _designBriefTests() {
-  group('the design brief and design mode', () {
-    String skillStep3() => _oneLine(
-      _sectionOf(
-        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
-        '3. Write the document: design mode',
-      ),
+  group('the design document the runner writes', () {
+    String skillStep(String heading) => _oneLine(
+      _sectionOf(_pluginText('specstone-brainstorming-sdd/SKILL.md'), heading),
     );
-    String designGround() => _oneLine(
+    String design() => _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/design.md'),
+    );
+    String designSection(String heading) => _oneLine(
       _sectionOf(
         _pluginText('specstone-brainstorming-sdd/references/design.md'),
-        '2. Ground each claim',
+        heading,
       ),
     );
-    String engineer() => _oneLine(_pluginText('specstone-sdd-engineer.md'));
+    String rounds() => _oneLine(
+      _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
+    );
 
-    test('the brief carries a saved file and line range per claim', () {
+    test('step 3 has the runner write the one design document from its saved '
+        "files and the Owner's answers, with no dispatch and no brief", () {
+      final step = skillStep('3. Write the document');
+
+      expect(step, contains('Write the one design document yourself'));
+      expect(step, contains('`references/design.md`'));
       expect(
-        skillStep3(),
-        contains(
-          "under each claim of the brief the saved bundle file's path and "
-          'the line range that grounds it',
-        ),
+        step,
+        contains("from step 1's saved files and the Owner's answers"),
       );
+      expect(step, contains(_designPath));
+      expect(step, contains('Dispatch nothing for it.'));
+      expect(step, isNot(contains('mode: design')));
+      expect(step.toLowerCase(), isNot(contains('brief')));
+      expect(step, isNot(contains('rerun')));
+      expect(step, isNot(contains('line range')));
+    });
+
+    test('step 3 names a refused design path as an open question written at '
+        "the Owner's new path", () {
       expect(
-        designGround(),
-        contains('the saved file and line range the brief gives under it'),
+        skillStep('3. Write the document'),
+        contains(
+          "A refused path is an open question; write at the Owner's new path.",
+        ),
       );
     });
 
-    test('design mode runs no context', () {
-      const rule = 'run no `context` and no `get` for a doc';
-      expect(designGround().toLowerCase(), contains(rule));
-      expect(engineer().toLowerCase(), contains(rule));
+    test('step 4 names the report folder once and runs no context call and '
+        'writes no brief before a dispatch', () {
+      final step = skillStep('4. Write the drafts, then audit them');
+
+      expect(
+        step,
+        contains(
+          'take `<folder>` the path `specstone folder` prints, run once',
+        ),
+      );
+      expect(
+        step,
+        contains('passes `report:` `<folder>/reports/sdd-engineer.<mode>'),
+      );
+      expect(
+        step,
+        contains(
+          'Write no brief and run no `context` call again on a target already '
+          'grounded before a dispatch; a claim your saved files do not ground '
+          'is an open question of the document.',
+        ),
+      );
+    });
+
+    test('no step of the skill dispatches design mode or writes a brief', () {
+      final skill = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/SKILL.md'),
+      );
+
+      expect(skill, isNot(contains('mode: design')));
+      expect(skill, isNot(contains('design.brief')));
+      expect(skill, isNot(contains('design mode')));
+    });
+
+    test('design.md takes the Owner answers and the saved files as its '
+        'inputs', () {
+      final inputs = designSection('1. Check the inputs');
+
+      expect(
+        inputs,
+        contains(
+          "the Owner's approved answers in the conversation (decisions in the "
+          "Owner's words, rulings, the approach picked, open questions)",
+        ),
+      );
+      expect(
+        inputs,
+        contains('also follow `## Map the source` in `source.md`'),
+      );
+      expect(
+        inputs,
+        contains(
+          'the saved bundle files of your `context --for design --out` calls',
+        ),
+      );
+      expect(design(), isNot(contains('the brief')));
+    });
+
+    test('design.md runs no get, search, or refs, and no context', () {
+      expect(
+        designSection('2. Ground each claim'),
+        contains('Run no `get`, no `search`, and no `refs` for a doc'),
+      );
       expect(
         _contextCalls(
           _pluginText('specstone-brainstorming-sdd/references/design.md'),
@@ -5637,67 +5789,135 @@ void _designBriefTests() {
       );
     });
 
-    test('a claim with no range is an open question', () {
-      expect(designGround(), contains('a claim with no range is an open'));
-      expect(engineer(), contains('a claim with no range is an open question'));
-      expect(skillStep3(), contains('a claim with no range is an open'));
+    test('design.md has a claim neither the saved files nor an answer grounds '
+        'become an open question', () {
+      expect(
+        designSection('2. Ground each claim'),
+        contains('A claim neither grounds is an open question.'),
+      );
     });
 
-    test('main holds same-flag context until design mode replies', () {
+    test('design.md has the runner write at the Owner new path in place of a '
+        'refused one', () {
       expect(
-        skillStep3(),
+        designSection('2. Ground each claim'),
         contains(
-          'run no `context` call with the same target and flags until design '
-          'mode replies',
+          'write nothing; the path is an open question, and you write at the '
+          "Owner's new path in its place",
         ),
       );
     });
 
-    test('main reruns the cited context calls before each design dispatch', () {
+    test('design.md lists each open question and each claim or code name it '
+        'could not find', () {
+      final tell = designSection('5. Tell the Owner');
+
+      expect(tell, contains('each open question'));
+      expect(tell, contains('each claim its saved files could not ground'));
+      expect(tell, contains('each code path or symbol not found'));
+    });
+
+    test('design.md keeps the engineer report out of the design document', () {
+      expect(design(), isNot(contains('`report:`')));
+      expect(design(), isNot(contains("agent's")));
+    });
+
+    test('rounds.md has the runner write and amend the document itself', () {
+      final text = rounds();
+
       expect(
-        skillStep3(),
+        text,
         contains(
-          'Before each `mode: design` dispatch, first or amend, rerun each '
-          '`context` call whose file the brief cites and rewrite every range '
-          'from the new index',
+          "write the document at the Owner's new path in place of the refused "
+          'one',
         ),
+      );
+      expect(text, isNot(contains('mode: design')));
+      expect(text, isNot(contains('the brief')));
+      expect(text, isNot(contains('design report')));
+      expect(text, isNot(contains('rerun')));
+      expect(text, isNot(contains('line range')));
+    });
+
+    test('the engineer runs author, sync, bootstrap, and audit, and loads no '
+        'design reference', () {
+      final agent = _pluginText('specstone-sdd-engineer.md');
+      final description = RegExp(
+        r'^description:(.*)$',
+        multiLine: true,
+      ).firstMatch(agent)!.group(1)!;
+
+      expect(
+        _oneLine(_sectionOf(agent, 'Input Contract')),
+        contains('`author`, `sync`, `bootstrap`, or `audit`'),
+      );
+      expect(description, contains('`author`'));
+      expect(description, contains('`audit`'));
+      expect(description, isNot(contains('`design`')));
+      expect(
+        _sectionOf(agent, 'On-Demand Loads'),
+        isNot(contains('references/design.md')),
       );
     });
 
-    test('rounds.md points to the skill step for the range refresh', () {
-      final rounds = _oneLine(
-        _pluginText('specstone-brainstorming-sdd/references/rounds.md'),
-      );
+    test('a design mode dispatch gets the unknown-mode stop naming the '
+        'runner skill', () {
+      final stop = _designStop();
 
-      expect(
-        rounds,
-        contains(
-          "refresh the ranges as the skill's step 3 says and dispatch "
-          '`mode: design` again',
-        ),
-      );
-      expect(rounds, isNot(contains('rerun each `context` call')));
+      expect(stop, contains('`design`'));
+      expect(stop, contains('`specstone-brainstorming-sdd`'));
+      expect(stop, contains('`specstone-plan-sdd`'));
     });
 
-    test('a missing cited file or a range naming another doc is an open '
-        'question that names the file', () {
+    test('the engineer file names design mode only in its unknown-mode '
+        'stop', () {
+      final text = _pluginText('specstone-sdd-engineer.md');
+      final rest = text.replaceFirst(_designStopBullet(), '');
+
+      expect(rest, isNot(contains('mode: design')));
+      for (final stale in [
+        '`design`',
+        'design mode',
+        'design-mode',
+        'design dispatch',
+        'In design',
+      ]) {
+        expect(rest, isNot(contains(stale)), reason: stale);
+      }
+    });
+
+    test('no plugin file names a design brief file', () {
+      for (final file in agentSourceFiles(agentAssetsRoot())) {
+        expect(
+          file.readAsStringSync(),
+          isNot(contains('sdd-engineer.design.brief')),
+          reason: shippedPathOf(file),
+        );
+      }
       expect(
-        designGround(),
-        contains(
-          'So is a missing cited file or a range whose `==> ` line is not '
-          "the claim's doc; name the file.",
+        _agentFileSpan.hasMatch(
+          '<folder>/reports/sdd-engineer.design.brief.<XXXXXX>.md',
         ),
+        isFalse,
+      );
+      expect(
+        _agentFileSpan.hasMatch(
+          '<folder>/reports/sdd-engineer.design.source.<XXXXXX>.md',
+        ),
+        isTrue,
       );
     });
 
-    test('step 3 lists what the brief holds', () {
-      expect(
-        skillStep3(),
-        contains(
-          "(the decisions, the rulings in the Owner's words, the approach "
-          'picked, the open questions)',
-        ),
+    test('the audit sends a behavior line to the runner design amend', () {
+      final audit = _oneLine(
+        _pluginText('specstone-brainstorming-sdd/references/audit.md'),
       );
+
+      expect(
+        audit,
+        contains("a `[behavior]` line goes to the runner's design amend."),
+      );
+      expect(audit, isNot(contains('design-mode')));
     });
 
     test('the Intent section stays in a few lines', () {

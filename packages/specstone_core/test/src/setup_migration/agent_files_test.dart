@@ -15,9 +15,9 @@ const _agentMd =
     'the PRD asks; when code outgrows its spec, stop and\n'
     '  ask the Owner. Code and tests name no doc, path, or item ID.\n'
     '- Read docs with `specstone context <target> --for <mode> --out`; '
-    'search saved files before any `specstone get`; in design work (design '
-    'mode excepted) ground a doc they lack with `specstone context <doc> '
-    '--for design --out`, never `get`; never open doc files.\n'
+    'search saved files before any `specstone get`; in design work ground a '
+    'doc they lack with `specstone context <doc> --for design --out`, never '
+    '`get`; never open doc files.\n'
     '- With 2+ code targets, add `--target <code target>`.\n'
     '- Change docs only with `specstone set`, `new`, `move`, `rename`; '
     "drafts await Owner's `specstone approve` (main session's when clean "
@@ -157,10 +157,11 @@ void main() {
         expect(
           rule,
           contains(
-            'in design work (design mode excepted) ground a doc they lack '
+            'in design work ground a doc they lack '
             'with `specstone context <doc> --for design --out`, never `get`',
           ),
         );
+        expect(rule, isNot(contains('design mode')));
         expect(rule, contains('before any `specstone get`'));
       }
     });

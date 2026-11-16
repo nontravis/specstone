@@ -25,15 +25,16 @@ const _overBudgetSummaryNextStep =
 /// - [cited]: a part a link appended.
 /// - [pattern]: a feature pattern part.
 /// - [names]: a `==> names:` block of a top doc's chain children.
-/// - [citedBy]: the cited-by lines of one item, a part of its own in a split
-///   bundle.
+/// - [citedBy]: the cited-by lines of one item, block, section, or doc, a part
+///   of its own in a split bundle.
 enum BundleEntryKind { doc, cited, pattern, names, citedBy }
 
 /// One doc or part a bundle text prints, with the lines it spans there,
 /// counted from 1: its naming line `first` to its `last` line, and the
 /// header line of each `##` section it prints whole. A cited part names
 /// the `##` section that holds it and its item ID, when it has them, and so
-/// does a cited-by part. A feature pattern part's `doc` is the doc that
+/// does a cited-by part, except that a section's has its `sectionKey` alone
+/// and a doc's neither. A feature pattern part's `doc` is the doc that
 /// lists it and its `featurePattern` the pattern id; null for any other
 /// entry. A names block's `doc` is its top doc.
 typedef BundleEntry = ({
@@ -139,6 +140,11 @@ Map<String, Object> _partKeys(AppendedPart part) => {
   'item': ?part.itemId,
 };
 
+/// Returns the closing line of a bundle text of [docs] docs and [tokens] est.
+/// tokens, with its line end.
+String closingLineOf(int docs, int tokens) =>
+    '==> bundle: $docs docs, $tokens tokens <==\n';
+
 /// Returns the header line that names the code target a `--code` path lies
 /// in, or '' when there is none to name (one target).
 String codeTargetLine(String? name) =>
@@ -189,48 +195,21 @@ ContextAnswer answerContext(
     for (final part in patternParts) featurePatternBlock(part),
   ];
   final slots = _slotsOf(ordered, patternParts);
-  final slotBlocks = [
-    for (final (:doc, :part) in slots)
-      if (doc == null) patternBlocks[part!] else docBlocks[doc],
-  ];
-  final mapTops = _byTreeOrder(index, bundle.mapTops);
-  final nameTops = _byTreeOrder(index, bundle.nameListTops);
   final parts = followLinks(index, bundle, citedBy: citedBy);
   final partBlocks = [for (final part in parts) _partBlock(part)];
   final pieces = [
-    for (final (k, (:doc, :part)) in slots.indexed) ...[
-      if (doc == null)
-        _Piece(
-          slotBlocks[k],
-          doc: patternParts[part!].lister,
-          kind: BundleEntryKind.pattern,
-          listName: featurePatternListName(patternParts[part].pattern.id),
-          featurePattern: patternParts[part].pattern.id,
-        )
-      else
-        _Piece(
-          slotBlocks[k],
-          doc: ordered[doc],
-          listName: _listName(ordered[doc], inSummary(ordered[doc])),
-          inRefs:
-              splits &&
-              (inSummary(ordered[doc]) ||
-                  bundle.joinsRefs(index, ordered[doc])),
-          summary: inSummary(ordered[doc]),
-          sections: docPrints[doc].sections,
-        ),
-      if (splits && doc != null)
-        ..._citedByPieces(ordered[doc], docPrints[doc].cited),
-    ],
-    for (final top in mapTops)
-      _Piece(_mapBlock(index, index.at(top)!, bundle.codeTarget)),
-    for (final top in nameTops)
-      _Piece(
-        _namesBlock(index, index.at(top)!, bundle.codeTarget),
-        // An unsplit answer's index leaves a names block out, as it always has.
-        doc: splits ? index.at(top) : null,
-        kind: BundleEntryKind.names,
-      ),
+    ..._docSidePieces(
+      index,
+      bundle,
+      ordered,
+      patternParts,
+      patternBlocks,
+      slots,
+      splits: splits,
+      readFirstOnly: false,
+      printOf: (doc) => docPrints[doc],
+    ),
+    ..._listPieces(index, bundle, splits: splits),
     for (final (i, part) in parts.indexed) ...[
       _Piece(
         partBlocks[i],
@@ -331,6 +310,132 @@ ContextAnswer answerContext(
   );
 }
 
+/// The read-first block of each doc by index, built on first use: an index is
+/// one read snapshot, so a feature or spec doc that many bundles of one run
+/// print renders once. It holds a block for each doc, summary, and mode a run
+/// asks for and is never trimmed; a `check` run ends with its index.
+final _readFirstBlocksOf = Expando<Map<(String, BundleMode, bool), String>>();
+
+/// Returns the est. tokens of the read-first file `answerContext` gives
+/// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
+///
+/// It builds the read-first pieces alone, with the builders `answerContext`
+/// uses, and no appended part, cited-by part, or refs block, since the size
+/// counts none of them.
+int readFirstTokensOf(DocIndex index, Bundle bundle) {
+  final ordered = bundle.printOrder(index);
+  final summaryOnly = bundle.summaryOnly;
+  final blocks = _readFirstBlocksOf[index] ??= {};
+  final patternParts = featurePatternParts(index, bundle, ordered);
+  final pieces = [
+    ..._docSidePieces(
+      index,
+      bundle,
+      ordered,
+      patternParts,
+      [for (final part in patternParts) featurePatternBlock(part)],
+      _slotsOf(ordered, patternParts),
+      splits: true,
+      readFirstOnly: true,
+      printOf: (doc) {
+        final picked = ordered[doc];
+        final summary = summaryOnly.contains(picked.docPath);
+        final block = blocks[(picked.docPath, bundle.mode, summary)] ??=
+            _docBlock(
+              index,
+              picked,
+              bundle.mode,
+              summary: summary,
+              citedBy: null,
+            ).block;
+        return (block: block, cited: const [], sections: const []);
+      },
+    ),
+    ..._listPieces(index, bundle, splits: true),
+  ];
+  return tokenSizeOf(_shownOf(pieces));
+}
+
+/// One doc's block with the places of it that carry cited-by lines and the
+/// `##` sections it prints whole.
+typedef _DocPrint = ({
+  String block,
+  List<CitedItem> cited,
+  List<SectionLine> sections,
+});
+
+/// Returns the pieces of the docs and feature pattern parts of [slots], each
+/// doc followed by its cited-by pieces when [splits].
+///
+/// A split bundle puts a summary doc and a doc that joins the refs in the refs
+/// text; with [readFirstOnly], the pieces of those docs, which no read-first
+/// file holds, are left out, and [printOf] is asked for no other doc.
+List<_Piece> _docSidePieces(
+  DocIndex index,
+  Bundle bundle,
+  List<IndexedDoc> ordered,
+  List<FeaturePatternPart> patternParts,
+  List<String> patternBlocks,
+  List<_Slot> slots, {
+  required bool splits,
+  required bool readFirstOnly,
+  required _DocPrint Function(int doc) printOf,
+}) {
+  final summaryOnly = bundle.summaryOnly;
+  final pieces = <_Piece>[];
+  for (final (:doc, :part) in slots) {
+    if (doc == null) {
+      pieces.add(
+        _Piece(
+          patternBlocks[part!],
+          doc: patternParts[part].lister,
+          kind: BundleEntryKind.pattern,
+          listName: featurePatternListName(patternParts[part].pattern.id),
+          featurePattern: patternParts[part].pattern.id,
+        ),
+      );
+      continue;
+    }
+    final picked = ordered[doc];
+    final summary = summaryOnly.contains(picked.docPath);
+    final inRefs = splits && (summary || bundle.joinsRefs(index, picked));
+    if (readFirstOnly && inRefs) continue;
+    final print = printOf(doc);
+    pieces.add(
+      _Piece(
+        print.block,
+        doc: picked,
+        listName: _listName(picked, summary),
+        inRefs: inRefs,
+        summary: summary,
+        sections: print.sections,
+      ),
+    );
+    if (splits && !readFirstOnly) {
+      pieces.addAll(_citedByPieces(picked, print.cited));
+    }
+  }
+  return pieces;
+}
+
+/// Returns the map and names pieces of [bundle], which every text of it that
+/// holds them prints after its docs.
+List<_Piece> _listPieces(
+  DocIndex index,
+  Bundle bundle, {
+  required bool splits,
+}) => [
+  for (final top in _byTreeOrder(index, bundle.mapTops))
+    _Piece(_mapBlock(index, index.at(top)!, bundle.codeTarget)),
+  for (final top in _byTreeOrder(index, bundle.nameListTops))
+    _Piece(
+      _namesBlock(index, index.at(top)!, bundle.codeTarget),
+      // An unsplit answer's index leaves a names block out, as it always has.
+      doc: splits ? index.at(top) : null,
+      kind: BundleEntryKind.names,
+    ),
+];
+
 /// One block of a bundle text, in the whole bundle's print order, with what
 /// its closing list and its entry need.
 final class _Piece {
@@ -389,7 +494,8 @@ final class _Piece {
   }
 }
 
-/// Returns the cited-by part of each of [items] of [doc], in the refs text.
+/// Returns the cited-by part of each item, block, section, or doc of [items]
+/// of [doc], in the refs text.
 List<_Piece> _citedByPieces(IndexedDoc doc, List<CitedItem> items) => [
   for (final item in items)
     _Piece(
@@ -432,7 +538,7 @@ BundleText _textOf(
   final listsSummary = pieces.any((piece) => piece.summary);
   final blocks = isRefs && pieces.isEmpty ? '' : '$shown\n';
   final closing =
-      '==> bundle: ${docCountOf(entries)} docs, $tokens tokens <==\n'
+      '${closingLineOf(docCountOf(entries), tokens)}'
       '${list.join()}'
       '${listsSummary ? '${_summaryNextStep(mode)}\n' : ''}';
   return (
@@ -575,9 +681,9 @@ ContextAnswer _overBudget(
 
 /// Returns the doc block of [doc] for [mode]: its naming line, then its
 /// frontmatter text, head, and kept sections, each trimmed at its end and
-/// joined by one blank line, with the lines
-/// [citedBy] holds for its items printed after them, and the line each kept
-/// section starts on in the block.
+/// joined by one blank line, with the lines [citedBy] holds for the whole doc
+/// printed after the naming line and for its places printed after them, and
+/// the line each kept section starts on in the block.
 ({String block, List<CitedItem> cited, List<SectionLine> sections}) _docBlock(
   DocIndex index,
   IndexedDoc doc,
@@ -603,11 +709,13 @@ ContextAnswer _overBudget(
     final head = removeHtmlComments(content.head);
     if (head.trim().isNotEmpty) parts.add(head.trimRight());
   }
-  final cited = <CitedItem>[];
+  final docEntry = citedBy == null ? null : citedDocIn(citedBy, doc);
+  final docLines = citedLinesAfter(citedBy, [?docEntry])[0] ?? const [];
+  final cited = <CitedItem>[?docEntry];
   final sections = <SectionLine>[];
   final held = citedSectionsOf(content, docType);
   // The naming line is the block's line 0.
-  var line = 1 + lineAfterBlocks(parts);
+  var line = 1 + docLines.length + lineAfterBlocks(parts);
   for (final section in keptSectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
     cited.addAll(print.cited);
@@ -615,7 +723,7 @@ ContextAnswer _overBudget(
     line += lineAfterBlocks([print.block]);
     parts.add(print.block);
   }
-  final block = '${namingLine(doc)}\n${parts.join('\n\n')}';
+  final block = [namingLine(doc), ...docLines, parts.join('\n\n')].join('\n');
   return (block: block, cited: cited, sections: sections);
 }
 
