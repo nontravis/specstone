@@ -300,10 +300,10 @@ ReadAnswer answerMove(
   });
 }
 
-/// Plans the item move [addresses] name.
+/// Moves the items [addresses] name once the call's shape is right.
 ///
 /// Throws [IndexFault] `argument_invalid` for a call that also names a doc,
-/// `argument_missing` for no [under], and the faults of [planItemMove].
+/// `argument_missing` for no [under], and the faults of [answerItemMove].
 ReadAnswer _answerItemMove(
   WriteSession session,
   List<String> addresses, {
@@ -324,6 +324,35 @@ ReadAnswer _answerItemMove(
       'move needs --under <doc address> for item targets',
     );
   }
+  return answerItemMove(
+    session,
+    addresses,
+    under: under,
+    codeTarget: codeTarget,
+    dryRun: dryRun,
+  );
+}
+
+/// Moves the items [addresses] name to be the last items of their section of
+/// the doc [under] names, in the order given.
+///
+/// Each item lands with its nested items and its `Overrides:` line, its text
+/// kept but its ID, which takes the next free number when the doc holds it.
+/// Every source doc and the destination doc become drafts and are written
+/// through one journal; with [dryRun] nothing is written, not even a journal.
+/// An item already in the doc stays, and a call that leaves every item there
+/// changes nothing.
+///
+/// Throws the faults of [planItemMove] before any lock, `RenderFault`
+/// `output_not_writable` for roots the Owner has not recorded, a read-only
+/// doc, or a doc that changed since the plan.
+ReadAnswer answerItemMove(
+  WriteSession session,
+  List<String> addresses, {
+  required String under,
+  String? codeTarget,
+  bool dryRun = false,
+}) {
   final landings = planItemMove(
     session,
     addresses,
@@ -331,9 +360,30 @@ ReadAnswer _answerItemMove(
     codeTarget: codeTarget,
   );
   if (landings.isEmpty) {
-    return _answerFor(session, const [], const [], dryRun: dryRun);
+    return _answerFor(
+      session,
+      const [],
+      const [],
+      landings: const [],
+      dryRun: dryRun,
+    );
   }
-  throw UnimplementedError('an item move lands its items in the next task');
+  return session.locked(() {
+    session.journalTarget.requireTrusted();
+    final rewrites = planRewrites(
+      session,
+      const [],
+      docEdits: itemLandingEdits(session, landings),
+    );
+    if (!dryRun) MoveJournal(rewrites).run(session.journalTarget);
+    return _answerFor(
+      session,
+      const [],
+      rewrites,
+      landings: landings,
+      dryRun: dryRun,
+    );
+  });
 }
 
 /// Returns, by DocPath before the move, the edit that sets each of [moving]
@@ -726,12 +776,18 @@ String _stepPath(WriteSession session, String docPath) {
   return path.endsWith('/') ? path.substring(0, path.length - 1) : path;
 }
 
+/// Returns the reply to a move: one line per move, or per item of [landings]
+/// and per new number, then the written docs and the mentions.
+///
+/// A null [landings] is a doc move; an item move, even one that lands nothing,
+/// also holds `renumbered` in `--json`.
 ReadAnswer _answerFor(
   WriteSession session,
   List<PathMove> moves,
   List<WriteStep> rewrites, {
   List<CreateStep> created = const [],
   List<StaleMention> mentions = const [],
+  List<ItemLanding>? landings,
   bool dryRun = false,
 }) {
   // A record the move creates is a file it writes, listed with the rewrites.
@@ -740,10 +796,20 @@ ReadAnswer _answerFor(
     for (final step in created) step.path,
   ]..sort();
   final rewritten = [for (final path in written) session.listedPathOf(path)];
+  final items = landings ?? const <ItemLanding>[];
+  final renumbered = [
+    for (final landing in items)
+      if (landing.newId != landing.from.id) landing,
+  ];
+  final moveVerb = dryRun ? 'moves' : 'moved';
+  final renumberVerb = dryRun ? 'renumbers' : 'renumbered';
   return ReadAnswer(
     text: [
-      for (final move in moves)
-        '${dryRun ? 'moves' : 'moved'} ${move.from} to ${move.to}\n',
+      for (final move in moves) '$moveVerb ${move.from} to ${move.to}\n',
+      for (final landing in items)
+        '$moveVerb ${_sourceOf(landing)} to ${_destinationOf(landing)}\n',
+      for (final landing in renumbered)
+        '$renumberVerb ${_renumberOf(landing)}\n',
       for (final path in rewritten)
         '${dryRun ? 'rewrites' : 'rewrote'} $path\n',
       for (final mention in mentions) mentionLineOf(mention),
@@ -752,12 +818,32 @@ ReadAnswer _answerFor(
     json: {
       'moved': [
         for (final move in moves) {'from': move.from, 'to': move.to},
+        for (final landing in items)
+          {'from': _sourceOf(landing), 'to': _destinationOf(landing)},
       ],
+      if (landings != null)
+        'renumbered': [
+          for (final landing in renumbered)
+            {
+              'doc': landing.to.docPath,
+              'from': landing.from.id,
+              'to': landing.newId,
+            },
+        ],
       'rewritten': rewritten,
       'mentions': mentionsJsonOf(mentions),
       if (dryRun) 'dryRun': true,
     },
   );
 }
+
+String _sourceOf(ItemLanding landing) =>
+    '${landing.from.doc.docPath}#${landing.from.id}';
+
+String _destinationOf(ItemLanding landing) =>
+    '${landing.to.docPath}#${landing.newId}';
+
+String _renumberOf(ItemLanding landing) =>
+    '${landing.to.docPath} ${landing.from.id} to ${landing.newId}';
 
 const _dryRunClosing = 'dry run: nothing moved\n';

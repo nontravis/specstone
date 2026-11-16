@@ -683,6 +683,59 @@ void main() {
       return '# Domain\n\n## Invariants\n\n${rules.join('\n')}\n';
     }
 
+    test('an item move prints moved, renumbered, and rewrote lines', () async {
+      final root = await writeNestedProject(
+        extra: {'docs/$shopDomain': domain(3), 'docs/$cartDomain': domain(12)},
+      );
+      final result = await move(root, [
+        'domain:shop#INV-3',
+        '--under',
+        'domain:shop/cart',
+      ]);
+      expect(result.exitCode, 0);
+      expect(result.stderr, isEmpty);
+      expect(
+        result.stdout,
+        'moved $shopDomain#INV-3 to $cartDomain#INV-13\n'
+        'renumbered $cartDomain INV-3 to INV-13\n'
+        'rewrote $shopDomain\n'
+        'rewrote $cartDomain\n',
+      );
+      expect(readDoc(root, cartDomain), contains('- **INV-13** Rule 3 holds.'));
+      expect(readDoc(root, shopDomain), isNot(contains('INV-3')));
+    });
+
+    test(
+      'an item move with --dry-run prints moves and writes nothing',
+      () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$shopDomain': domain(3),
+            'docs/$cartDomain': domain(12),
+          },
+        );
+        final shop = readDoc(root, shopDomain);
+        final cart = readDoc(root, cartDomain);
+        final result = await move(root, [
+          'domain:shop#INV-3',
+          '--under',
+          'domain:shop/cart',
+          '--dry-run',
+        ]);
+        expect(result.exitCode, 0);
+        expect(
+          result.stdout,
+          'moves $shopDomain#INV-3 to $cartDomain#INV-13\n'
+          'renumbers $cartDomain INV-3 to INV-13\n'
+          'rewrites $shopDomain\n'
+          'rewrites $cartDomain\n'
+          'dry run: nothing moved\n',
+        );
+        expect(readDoc(root, shopDomain), shop);
+        expect(readDoc(root, cartDomain), cart);
+      },
+    );
+
     test('a story move given --target is argument_invalid, exit 64', () async {
       final root = await writeNestedProject();
       final result = await move(root, [

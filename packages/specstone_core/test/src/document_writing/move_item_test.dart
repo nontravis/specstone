@@ -5,11 +5,16 @@ import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show MoveJournal;
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/nested_fixture.dart';
+import '../../helpers/override_link_fixture.dart'
+    show domainDoc, overrideFiles, rootAddress, rootFingerprint;
 import '../../helpers/shipped_pins.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -568,6 +573,321 @@ void main() {
         fault = caught;
       }
       expect((fault! as IndexFault).code, IndexFaultCode.argumentInvalid);
+    });
+  });
+
+  group('an item move writes', () {
+    // The doc text after its frontmatter, which carries the move's marks.
+    String bodyOf(Directory root, String docPath) => readDoc(
+      root,
+      docPath,
+    ).replaceFirst(RegExp(r'^---\n.*?\n---\n\n', dotAll: true), '');
+
+    ReadAnswer move(
+      Directory root,
+      List<String> addresses, {
+      bool dryRun = false,
+    }) => writeIn(
+      root,
+      (session) => answerMove(
+        session,
+        addresses,
+        under: 'domain:shop/cart',
+        dryRun: dryRun,
+      ),
+    );
+
+    test('the item with its nested items lands last in the target section and the source keeps the gap', () async {
+      final root = await _project(
+        shop: [
+          '- **INV-3** Rule 3 holds.',
+          '  - **Enforcer:** Cart',
+          '  - **Consistency:** immediate',
+          _inv(4),
+        ],
+        cart: [_inv(1)],
+      );
+      final answer = move(root, ['domain:shop#INV-3']);
+      expect(
+        bodyOf(root, cartDomain),
+        _domain([
+          _inv(1),
+          '- **INV-3** Rule 3 holds.',
+          '  - **Enforcer:** Cart',
+          '  - **Consistency:** immediate',
+        ]),
+      );
+      expect(bodyOf(root, shopDomain), _domain([_inv(4)]));
+      expect(
+        answer.text,
+        'moved $shopDomain#INV-3 to $cartDomain#INV-3\n'
+        'rewrote $shopDomain\n'
+        'rewrote $cartDomain\n',
+      );
+    });
+
+    test('several items land in the order given', () async {
+      final root = await _project(
+        shop: [_inv(5), _inv(6), _inv(7)],
+        cart: [_inv(1)],
+      );
+      final answer = move(root, ['domain:shop#INV-7', 'domain:shop#INV-5']);
+      expect(bodyOf(root, cartDomain), _domain([_inv(1), _inv(7), _inv(5)]));
+      expect(bodyOf(root, shopDomain), _domain([_inv(6)]));
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shopDomain#INV-7 to $cartDomain#INV-7\n'
+          'moved $shopDomain#INV-5 to $cartDomain#INV-5\n',
+        ),
+      );
+    });
+
+    test(
+      'a target doc that lacks the section gains it at its template place',
+      () async {
+        final root = await _project(
+          shop: [_inv(1), _inv(2)],
+          extra: {
+            'docs/$cartDomain':
+                '# Cart domain\n\n## Entities\n\nA cart holds lines.\n\n'
+                '## Known limits\n\n- A cart holds one coupon.\n',
+          },
+        );
+        move(root, ['domain:shop#INV-2']);
+        expect(
+          bodyOf(root, cartDomain),
+          '# Cart domain\n\n## Entities\n\nA cart holds lines.\n\n'
+          '## Invariants\n\n${_inv(2)}\n\n'
+          '## Known limits\n\n- A cart holds one coupon.\n',
+        );
+      },
+    );
+
+    test('a clashing ID takes the next free number and the reply and the text name it', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+      );
+      final answer = move(root, ['domain:shop#INV-3']);
+      expect(
+        readDoc(root, cartDomain),
+        contains('\n- **INV-13** Rule 3 holds.\n'),
+      );
+      expect(
+        answer.text,
+        'moved $shopDomain#INV-3 to $cartDomain#INV-13\n'
+        'renumbered $cartDomain INV-3 to INV-13\n'
+        'rewrote $shopDomain\n'
+        'rewrote $cartDomain\n',
+      );
+    });
+
+    test('two clashing items count after each other', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+      );
+      final answer = move(root, ['domain:shop#INV-1', 'domain:shop#INV-2']);
+      expect(
+        answer.text,
+        startsWith(
+          'moved $shopDomain#INV-1 to $cartDomain#INV-13\n'
+          'moved $shopDomain#INV-2 to $cartDomain#INV-14\n'
+          'renumbered $cartDomain INV-1 to INV-13\n'
+          'renumbered $cartDomain INV-2 to INV-14\n',
+        ),
+      );
+    });
+
+    test('--json holds moved, renumbered, rewritten, and mentions', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+      );
+      final json = move(root, ['domain:shop#INV-3']).json;
+      expect(json, {
+        'moved': [
+          {'from': '$shopDomain#INV-3', 'to': '$cartDomain#INV-13'},
+        ],
+        'renumbered': [
+          {'doc': cartDomain, 'from': 'INV-3', 'to': 'INV-13'},
+        ],
+        'rewritten': [shopDomain, cartDomain],
+        'mentions': <Object?>[],
+      });
+    });
+
+    test('a dry run prints moves, renumbers, rewrites, and the closing line, and writes no file', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+      );
+      final before = _docs(root);
+      final answer = move(root, ['domain:shop#INV-3'], dryRun: true);
+      expect(
+        answer.text,
+        'moves $shopDomain#INV-3 to $cartDomain#INV-13\n'
+        'renumbers $cartDomain INV-3 to INV-13\n'
+        'rewrites $shopDomain\n'
+        'rewrites $cartDomain\n'
+        'dry run: nothing moved\n',
+      );
+      expect(answer.json['dryRun'], isTrue);
+      expect(answer.json['renumbered'], [
+        {'doc': cartDomain, 'from': 'INV-3', 'to': 'INV-13'},
+      ]);
+      expect(_docs(root), before);
+      expect(
+        File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+        isFalse,
+        reason: 'a dry run writes no journal',
+      );
+    });
+
+    test(
+      'every item already in the target doc changes nothing and replies empty',
+      () async {
+        final root = await _project();
+        final before = _docs(root);
+        final answer = move(root, ['domain:shop/cart#INV-1']);
+        expect(answer.text, isEmpty);
+        expect(answer.json['moved'], isEmpty);
+        expect(answer.json['renumbered'], isEmpty);
+        expect(_docs(root), before);
+      },
+    );
+
+    test('an approved source doc and an approved target doc both become drafts and keep their approved value', () async {
+      final root = await _project(shop: [_inv(1), _inv(2)], cart: [_inv(1)]);
+      String approvedOf(String docPath) => RegExp(
+        r'^approved: "([^"]+)"$',
+        multiLine: true,
+      ).firstMatch(readDoc(root, docPath))!.group(1)!;
+      final shopApproved = approvedOf(shopDomain);
+      final cartApproved = approvedOf(cartDomain);
+      final pay = readDoc(root, _payDomain);
+      move(root, ['domain:shop#INV-2']);
+      for (final (docPath, approved) in [
+        (shopDomain, shopApproved),
+        (cartDomain, cartApproved),
+      ]) {
+        final text = readDoc(root, docPath);
+        expect(text, contains('draft: true\n'));
+        expect(text, contains('approved: "$approved"\n'));
+      }
+      expect(readDoc(root, _payDomain), pay);
+    });
+
+    group('the Overrides line a moved item carries', () {
+      const entry = '$rootAddress ';
+      final entryLine = '$entry$rootFingerprint';
+      const overrideLine =
+          '- Overrides: [INV-3](../DOMAIN.md#invariants) — $_because';
+      const landedLine =
+          '- Overrides: [INV-3](../../DOMAIN.md#invariants) — $_because';
+
+      Future<Directory> project({
+        List<String> shop = const [],
+        List<String> cartEntries = const [],
+      }) => writeNestedProject(
+        extra: overrideFiles(
+          extra: {
+            'docs/$shopDomain': domainDoc(
+              shop.isEmpty ? [_inv(5), overrideLine] : shop,
+              entries: [entryLine],
+            ),
+            'docs/$cartDomain': domainDoc([_inv(1)], entries: cartEntries),
+          },
+        ),
+      );
+
+      test('lands right after the item with its link rebased, and its entry leaves the source for the target', () async {
+        final root = await project();
+        move(root, ['domain:shop#INV-5']);
+        final cart = readDoc(root, cartDomain);
+        expect(cart, contains('\n${_inv(5)}\n$landedLine\n'));
+        expect(cart, contains('overrides:\n  - $entryLine\n'));
+        final shop = readDoc(root, shopDomain);
+        expect(shop, isNot(contains('Overrides:')));
+        expect(shop, isNot(contains('overrides:')));
+        expect(shop, isNot(contains(rootAddress)));
+      });
+
+      test('an Overrides line that stays in the source keeps the entry and the target takes a copy', () async {
+        final root = await project(
+          shop: [_inv(5), overrideLine, _inv(6), overrideLine],
+        );
+        move(root, ['domain:shop#INV-5']);
+        expect(
+          readDoc(root, shopDomain),
+          contains('overrides:\n  - $entryLine\n'),
+        );
+        expect(
+          readDoc(root, shopDomain),
+          contains('\n${_inv(6)}\n$overrideLine\n'),
+        );
+        expect(
+          readDoc(root, cartDomain),
+          contains('overrides:\n  - $entryLine\n'),
+        );
+      });
+
+      test('a target that already holds an entry for the item keeps that one entry', () async {
+        final root = await project(cartEntries: [entryLine]);
+        move(root, ['domain:shop#INV-5']);
+        final cart = readDoc(root, cartDomain);
+        expect(
+          RegExp(RegExp.escape(rootAddress)).allMatches(cart),
+          hasLength(1),
+        );
+        expect(readDoc(root, shopDomain), isNot(contains(rootAddress)));
+      });
+    });
+
+    group('the source layout around the gap', () {
+      Future<Directory> project() => _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [_inv(9)],
+        extra: {
+          'docs/$shopDomain':
+              '# Domain\n\n## Invariants\n\n${_inv(1)}\n${_inv(2)}\n${_inv(3)}\n\n'
+              '## Known limits\n\n- A cart holds one coupon.\n',
+        },
+      );
+
+      const tail = '\n## Known limits\n\n- A cart holds one coupon.\n';
+
+      test('the last item of a section leaves one blank line before the next section', () async {
+        final root = await project();
+        move(root, ['domain:shop#INV-3']);
+        expect(
+          bodyOf(root, shopDomain),
+          '# Domain\n\n## Invariants\n\n${_inv(1)}\n${_inv(2)}\n$tail',
+        );
+      });
+
+      test(
+        'the first item of a section leaves one blank line after the header',
+        () async {
+          final root = await project();
+          move(root, ['domain:shop#INV-1']);
+          expect(
+            bodyOf(root, shopDomain),
+            '# Domain\n\n## Invariants\n\n${_inv(2)}\n${_inv(3)}\n$tail',
+          );
+        },
+      );
+
+      test('every item of a section leaves its header and one blank line before the next', () async {
+        final root = await project();
+        move(root, [
+          'domain:shop#INV-1',
+          'domain:shop#INV-2',
+          'domain:shop#INV-3',
+        ]);
+        expect(bodyOf(root, shopDomain), '# Domain\n\n## Invariants\n$tail');
+      });
     });
   });
 }
