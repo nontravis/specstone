@@ -15,12 +15,9 @@ final _listMarker = RegExp(r'^[ \t]*(?:[-+*]|\d{1,9}[.)])(?:[ \t]+|$)');
 final _unescapedPipe = RegExp(r'(?<!\\)\|');
 
 const _tab = 0x09;
-const _lineFeed = 0x0A;
 const _carriageReturn = 0x0D;
 const _lineSeparator = 0x2028;
 const _paragraphSeparator = 0x2029;
-const _quoteMark = 0x3E;
-const _maxMarkerDigits = 9;
 
 /// Whether [unit] is whitespace as the regex `\s` reads it: the ECMAScript set,
 /// which holds the no-break space and the byte order mark.
@@ -38,9 +35,6 @@ bool _isWhitespace(int unit) =>
     unit == 0xFEFF;
 
 /// Returns each of [text]'s runs of whitespace as one space.
-///
-/// Both sides of "holds" are read in this form: a sentence and the text it is
-/// looked for in.
 String collapseWhitespace(String text) {
   StringBuffer? out;
   var copied = 0;
@@ -66,119 +60,11 @@ String collapseWhitespace(String text) {
   return (out..write(text.substring(copied))).toString();
 }
 
-/// Returns [lfText] as the text a sentence is looked for in: its block quote
-/// marks stripped, then [collapseWhitespace].
-///
-/// A sentence of a block quote wrapped over `>` lines is read without those
-/// marks, so the text it is held in is read without them too. A `>` inside a
-/// line stays.
-String heldTextOf(String lfText) =>
-    collapseWhitespace(_withoutOpeningQuoteMarks(lfText));
-
-/// Returns [text] without the `>` marks, and the blank after each, that sit in
-/// the quote marks and list markers a line opens with.
-///
-/// A line starts at the text's start and after a line feed, a carriage return,
-/// or a line or paragraph separator.
-String _withoutOpeningQuoteMarks(String text) {
-  if (!text.contains('>')) return text;
-  final out = StringBuffer();
-  var copied = 0;
-  var at = 0;
-  while (at < text.length) {
-    final openingEnd = _skipOpening(text, at, (mark, blankEnd) {
-      out.write(text.substring(copied, mark));
-      copied = blankEnd;
-    });
-    at = _nextLineStart(text, openingEnd);
-  }
-  return (out..write(text.substring(copied))).toString();
-}
-
-/// Reads the opening of the line that starts at [start], calling [onQuote]
-/// with the index of each `>` and the index after the blank that follows it;
-/// returns the index after the opening, [start] when the line has none.
-///
-/// An opening is one or more of: blanks then a `>` and at most one blank, or
-/// blanks then a list marker and at least one blank.
-int _skipOpening(
-  String text,
-  int start,
-  void Function(int mark, int blankEnd) onQuote,
-) {
-  var end = start;
-  while (true) {
-    final markAt = _skipBlanks(text, end);
-    if (markAt >= text.length) return end;
-    if (text.codeUnitAt(markAt) == _quoteMark) {
-      final afterMark = markAt + 1;
-      final blankEnd = afterMark < text.length && _isBlank(text, afterMark)
-          ? afterMark + 1
-          : afterMark;
-      onQuote(markAt, blankEnd);
-      end = blankEnd;
-      continue;
-    }
-    final afterMarker = _afterListMarker(text, markAt);
-    if (afterMarker == null) return end;
-    final afterBlanks = _skipBlanks(text, afterMarker);
-    if (afterBlanks == afterMarker) return end;
-    end = afterBlanks;
-  }
-}
-
-bool _isBlank(String text, int at) {
-  final unit = text.codeUnitAt(at);
-  return unit == _space || unit == _tab;
-}
-
-int _skipBlanks(String text, int from) {
-  var at = from;
-  while (at < text.length && _isBlank(text, at)) {
-    at++;
-  }
-  return at;
-}
-
-/// Returns the index after the list marker at [at], `-`, `+`, `*`, or one to
-/// nine digits then `.` or `)`; null when none starts there.
-int? _afterListMarker(String text, int at) {
-  final unit = text.codeUnitAt(at);
-  if (unit == 0x2D || unit == 0x2B || unit == 0x2A) return at + 1;
-  var digits = 0;
-  while (at + digits < text.length &&
-      text.codeUnitAt(at + digits) >= 0x30 &&
-      text.codeUnitAt(at + digits) <= 0x39) {
-    digits++;
-  }
-  if (digits == 0 || digits > _maxMarkerDigits) return null;
-  final end = at + digits;
-  if (end >= text.length) return null;
-  final terminator = text.codeUnitAt(end);
-  return terminator == 0x2E || terminator == 0x29 ? end + 1 : null;
-}
-
-/// Returns the index where the next line starts after [from], or the text's
-/// length when none does.
-int _nextLineStart(String text, int from) {
-  for (var i = from; i < text.length; i++) {
-    final unit = text.codeUnitAt(i);
-    if (unit == _lineFeed ||
-        unit == _carriageReturn ||
-        unit == _lineSeparator ||
-        unit == _paragraphSeparator) {
-      return i + 1;
-    }
-  }
-  return text.length;
-}
-
 /// Returns the sentences of [lfText], a doc's LF text, whitespace collapsed.
 ///
 /// They come from paragraphs, list items, table cells, and `###` or deeper
 /// headings, outside the frontmatter, the title, the `##` headers, and fenced
-/// code. Inline markup stays, so each sentence occurs in `heldTextOf` of any
-/// doc that holds it.
+/// code. Inline markup stays in each sentence.
 List<String> sentencesOf(String lfText) {
   final lines = _linesOf(Doc.parse(lfText).afterFrontmatter);
   final scan = blockScan(lines);
