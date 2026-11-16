@@ -28,7 +28,7 @@ that is already a project.
 ## 2. Fill each draft with the Owner
 
 Take the drafts one at a time, in this order: the project, goal, features, gnfr, and tech stack docs.
-The goal doc holds the goals the Owner names, or none. For each one:
+The goal doc holds the goals the Owner names, or none. For each draft:
 
 1. Run `specstone guide <type>` for its title and sections, and `specstone guide <type> --json` for its fields.
 2. Ask the Owner for the title, each section, and each field the guide describes, such as `owner` on the project doc and
