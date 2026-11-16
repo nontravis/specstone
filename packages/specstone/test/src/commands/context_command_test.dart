@@ -1288,6 +1288,42 @@ void main() {
     });
 
     test(
+      'a bare --out from a long code path writes a name of 250 bytes or fewer',
+      () async {
+        final segments = ['\u3042' * 45, '\u3044' * 45];
+        final code = 'app/lib/${segments.join('/')}.dart';
+        final project = await writeReadProject(extra: {code: ''});
+
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            '--code',
+            code,
+            '--for',
+            'implement',
+            '--out',
+          ]),
+          0,
+        );
+
+        final paths = [
+          for (final line in run.out.toString().split('\n'))
+            ?header.firstMatch(line)?.group(4),
+        ];
+        expect(paths, hasLength(2));
+        final names = [
+          for (final path in paths) path.split(RegExp(r'[/\\]')).last,
+        ];
+        expect(utf8.encode(names.first).length, lessThanOrEqualTo(250));
+        expect(utf8.encode(names.last).length, lessThanOrEqualTo(255));
+        expect(names.last, endsWith('.implement.refs.txt'));
+        expect(File(paths.first).existsSync(), isTrue);
+        expect(File(paths.last).existsSync(), isTrue);
+      },
+    );
+
+    test(
       'a --code path names one file from the root and from a subfolder',
       () async {
         final project = await writeReadProject(
