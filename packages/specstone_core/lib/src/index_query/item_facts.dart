@@ -323,37 +323,53 @@ ReadabilityFacts _readabilityOf(
   final isRow = item.kind == SectionItemKind.tableRow;
   final own = isRow ? item.firstLine : item.text;
   final (:notes, :counted) = traceNotesOf(own, idPrefixes, isTableRow: isRow);
-  final text = _withoutLeadingId(counted, own, item.head, read);
+  // RULE-12 names a scenario number apart from an item ID; only an item ID is
+  // stripped.
+  final id = read != null && !read.isScenario ? read.id.written : null;
   return (
     cells: isRow
-        ? [
-            for (final cell in tableCellRanges(text))
-              _sentencesIn(text.substring(cell.start, cell.end)),
-          ]
-        : [_sentencesIn(text)],
-    notes: notes,
+        ? _rowCells(counted, id)
+        : [_sentencesIn(_withoutIdAt(counted, _idStartOf(own, item.head), id))],
+    notes: [
+      for (final note in notes)
+        (text: note.closes ? '' : note.text, closes: note.closes),
+    ],
   );
 }
 
-/// Returns [counted], the item text [own] less its closing notes, without the
-/// ID [read] at the start of [head], the end of [own]'s first line.
-///
-/// Text with no ID there, since a closing note took the place, stays whole.
-String _withoutLeadingId(
-  String counted,
-  String own,
-  String head,
-  _ItemIdRead? read,
-) {
-  if (read == null) return counted;
+/// Returns the sentences of each cell of the table [row], less the item [id]
+/// that opens its first cell.
+List<List<SentenceFact>> _rowCells(String row, String? id) => [
+  for (final (i, range) in tableCellRanges(row).indexed)
+    _sentencesIn(
+      i == 0
+          ? _withoutIdAt(
+              row.substring(range.start, range.end),
+              _boldLengthOf(row.substring(range.start, range.end)),
+              id,
+            )
+          : row.substring(range.start, range.end),
+    ),
+];
+
+/// Returns where the item ID starts in [own], whose first line ends with
+/// [head].
+int _idStartOf(String own, String head) {
   final firstLineEnd = own.contains('\n') ? own.indexOf('\n') : own.length;
-  final boldLength = !read.isScenario && head.startsWith(_boldMark)
-      ? _boldMark.length
-      : 0;
-  final start = firstLineEnd - head.length + boldLength;
-  final written = read.id.written;
-  if (!counted.startsWith(written, start)) return counted;
-  return counted.replaceRange(start, start + written.length, '');
+  return firstLineEnd - head.length + _boldLengthOf(head);
+}
+
+/// Returns the length of the `**` an item ID may open behind, else 0.
+int _boldLengthOf(String text) =>
+    text.startsWith(_boldMark) ? _boldMark.length : 0;
+
+/// Returns [counted] without [id] at [start]; text with no [id] there, since a
+/// closing note took its place, stays whole.
+String _withoutIdAt(String counted, int start, String? id) {
+  if (id == null || start > counted.length || !counted.startsWith(id, start)) {
+    return counted;
+  }
+  return counted.replaceRange(start, start + id.length, '');
 }
 
 const _boldMark = '**';

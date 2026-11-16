@@ -449,8 +449,56 @@ void main() {
         0,
       );
 
-      expect(item.readability.notes, [(text: '(RULE-10)', closes: true)]);
+      expect(item.readability.notes, [(text: '', closes: true)]);
       expect(item.readability.cells.single, hasLength(1));
+    });
+
+    test('pipe-less row with an id first cell keeps one list per column', () {
+      const text =
+          '# V\n\n## Edge cases\n\nID | One | Two\n---|---|---\n'
+          'E01 | one word | two\n';
+
+      final item = only(factsOf(_frPath, text), 0);
+
+      expect(item.id, 'E01');
+      expect(item.readability.cells, hasLength(3));
+      expect(item.readability.cells[0], isEmpty);
+      expect(item.readability.cells[1].single.words, 2);
+      expect(item.readability.cells[2].single.words, 1);
+    });
+
+    test('scenario heading number stays in the text', () {
+      const text =
+          '# S\n\n## Acceptance criteria\n\n### Scenario 01\n\nGiven it.\n';
+
+      final sentences = only(
+        factsOf(_storyPath, text),
+        0,
+      ).readability.cells.single;
+
+      expect(sentences.first.isHeading, isTrue);
+      expect(sentences.first.words, 2);
+    });
+
+    test('bold id is stripped', () {
+      const text = '# V\n\n## Edge cases\n\n1. **E01** — one two three\n';
+
+      final item = only(factsOf(_frPath, text), 0);
+
+      expect(item.id, 'E01');
+      expect(item.readability.cells.single.single.words, 3);
+    });
+
+    test('note that took the id place leaves the text whole', () {
+      const text = '# V\n\n## Edge cases\n\n1. E01 owns the thing.\n';
+
+      final item = only(
+        parse(_frPath, text, idPrefixes: idPrefixes).content.itemFacts,
+        0,
+      );
+
+      expect(item.readability.notes, [(text: '', closes: true)]);
+      expect(item.readability.cells.single.every((s) => s.words == 0), isTrue);
     });
 
     test('thai sentence stores th chars and runs', () {

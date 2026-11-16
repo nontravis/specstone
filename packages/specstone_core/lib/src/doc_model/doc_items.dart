@@ -25,23 +25,10 @@ final _listMarker = RegExp(r'^\s*(?:[-*+]|\d+[.)])(?:\s+|$)');
 /// true for a `###` item.
 typedef DocItem = ({int line, int chars, String text, bool heading});
 
-/// Returns the items of a section's [body] lines in order.
-///
-/// An item is a list item without its nested items, a nested item alone, a
-/// table row below the delimiter row, a paragraph, or a `###` heading with
-/// the paragraph right under it and never its bullets, inside a blockquote
-/// as anywhere else. A fenced code block, a thematic break, and a table's
-/// header and delimiter rows are no item. A list item ends at a blank line or
-/// a fence, and the text after it is its own item. A line scan, no markdown
-/// parse.
-List<DocItem> itemsOf(List<BodyLine> body) => [
-  for (final span in _spansOf(body, _linesOf(body))) span.item,
-];
-
 /// What a [SectionItem] is.
 enum SectionItemKind { listItem, tableRow, paragraph, heading }
 
-/// One item of a section, as [itemsOf] reads it, with what a rule reads.
+/// One item of a section, with what a rule reads.
 ///
 /// `line` is its first file line; `head` its first line after any `>` mark,
 /// list marker, or `### `; `firstLine` that line with its marker, after any
@@ -60,8 +47,15 @@ typedef SectionItem = ({
   List<String>? cells,
 });
 
-/// Returns every item of a section's [body] lines in order, read as [itemsOf]
-/// reads them; a fenced line belongs to no item.
+/// Returns the items of a section's [body] lines in order.
+///
+/// An item is a list item without its nested items, a nested item alone, a
+/// table row below the delimiter row, a paragraph, or a `###` heading with
+/// the paragraph right under it and never its bullets, inside a blockquote
+/// as anywhere else. A fenced code block, a thematic break, and a table's
+/// header and delimiter rows are no item; a fenced line belongs to no item. A
+/// list item ends at a blank line or a fence, and the text after it is its own
+/// item. A line scan, no markdown parse.
 List<SectionItem> sectionItemsOf(List<BodyLine> body) {
   final lines = _linesOf(body);
   final headers = <int, List<String>>{};
@@ -142,8 +136,8 @@ List<_Span> _spansOf(List<BodyLine> body, List<_Line> lines) {
 }
 
 /// Returns the index after the header, the delimiter row, and the first
-/// [rows] body rows of the first table of [body], read as [itemsOf] reads a
-/// table, or null when none starts.
+/// [rows] body rows of the first table of [body], read as [sectionItemsOf]
+/// reads a table, or null when none starts.
 int? firstTableOf(List<BodyLine> body, int rows) {
   final lines = _linesOf(body);
   for (var at = 0; at < lines.length; at++) {
