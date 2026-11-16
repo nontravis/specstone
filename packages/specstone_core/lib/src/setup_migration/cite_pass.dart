@@ -210,8 +210,7 @@ _DocResult _convertDoc(
 ///
 /// A doc or section cite becomes its one link. An item cite drops its doc
 /// part and the gap up to its run, and each item ID of the run becomes its own
-/// link, the words between them kept; with no item to link it writes nothing,
-/// so the name is never dropped without a link in its place.
+/// link, the words between them kept, a lettered ID of the run as written.
 List<_Edit> _editsOf(CiteForm form, CiteLink link, List<String> markdown) {
   final number = form.candidate.line;
   if (link.items.isEmpty) {
@@ -228,9 +227,8 @@ List<_Edit> _editsOf(CiteForm form, CiteLink link, List<String> markdown) {
       if (linkOf[itemId] case final text?)
         (line: number, start: column, end: column + itemId.length, text: text),
   ];
-  if (links.isEmpty) return const [];
   return [
-    (line: number, start: form.start, end: links.first.start, text: ''),
+    (line: number, start: form.start, end: form.runAt, text: ''),
     ...links,
   ];
 }

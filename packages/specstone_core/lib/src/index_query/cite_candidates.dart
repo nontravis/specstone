@@ -32,12 +32,14 @@ typedef CiteItemAt = ({int column, String itemId});
 /// A cite candidate with its place on its line, which the cite pass rewrites.
 ///
 /// `start` and `end` are the 0-based columns the doc part spans, its code
-/// span's backticks, `#key`, and header span included; `items` holds each
-/// item ID it owns, repeats included.
+/// span's backticks, `#key`, and header span included; `runAt` is the column
+/// of the first ID of its run, a lettered one included, or `end` when the run
+/// is empty; `items` holds each item ID it owns, repeats included.
 typedef CiteForm = ({
   CiteCandidate candidate,
   int start,
   int end,
+  int runAt,
   List<CiteItemAt> items,
 });
 
@@ -133,8 +135,9 @@ bool _fills(CodeSpan holder, int column, int end) =>
 
 CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
   final (:mention, :line, :spans, extent: (:key, :end), offset: _) = kept;
+  final run = itemIdRunAt(line, end, prefixes: idPrefixes).items;
   final items = [
-    for (final item in itemIdRunAt(line, end, prefixes: idPrefixes).items)
+    for (final item in run)
       if (item.id is ItemId) (column: item.at, itemId: item.id.written),
   ];
   final holder = _spanHolding(spans, mention.column);
@@ -149,6 +152,7 @@ CiteForm _formOf(_Kept kept, {required Set<String> idPrefixes}) {
     ),
     start: holder?.start ?? mention.column,
     end: end,
+    runAt: run.firstOrNull?.at ?? end,
     items: items,
   );
 }

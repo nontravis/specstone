@@ -137,6 +137,22 @@ void main() {
       );
     });
 
+    test('a lettered ID that opens the run stays as written, with its name '
+        'dropped only up to it', () {
+      expect(
+        _converted('`topic:doc_model` RULE-7a, RULE-14\n'),
+        'RULE-7a, [RULE-14](../topics/doc_model.md#rules)\n',
+      );
+    });
+
+    test('a lone-word span ends the run, so the ID after it is no item of the '
+        'cite', () {
+      expect(
+        _converted('`domain:login` INV-6 and `goal` INV-3.\n'),
+        '[INV-6](../f01_login/DOMAIN.md#invariants) and `goal` INV-3.\n',
+      );
+    });
+
     test('a token shaped like an ID but of no doc type prefix, such as SHA256 '
         'or UTF-8, leaves a doc cite', () {
       expect(

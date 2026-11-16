@@ -145,6 +145,13 @@ void main() {
       ]);
     });
 
+    test('a lone-word span ends the run, so the ID after it is no item of '
+        'the cite', () {
+      expect(_readAll(_doc('`domain:login` INV-6 and `goal` INV-3.\n')), [
+        (6, 'domain:login', null, 'INV-6'),
+      ]);
+    });
+
     test('a lettered ID makes no item ID', () {
       expect(_readAll(_doc('`a/b` RULE-7a and RULE-8\n')), [
         (6, 'a/b', null, 'RULE-8'),
