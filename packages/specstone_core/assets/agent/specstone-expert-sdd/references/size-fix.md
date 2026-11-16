@@ -16,9 +16,11 @@ split; `A bundle over its limit` covers it.
    split, as below. `item_over_limit` skips this step: a split never shrinks one item.
 3. **Text to its home.** After an approved split, the next round fills each new feature draft and moves each spec
    doc's text to its sub-feature's spec doc. Without a split, text moves only as the Owner picks.
-4. **A moved item.** Text that takes a new item ID: in the same pass, run `specstone refs <old item's doc>`, repoint
-   each citer that cites the moved part to the new item's link, and keep each other citer. `check` cannot tell which
-   part a citer means, so the audit checks each repoint.
+4. **A moved item.** An item of a `prefix_id` section or a scenario to another doc: one ready
+   `specstone move <doc>#<ID> … --under <doc>` or `specstone move <story>#S<N> … --under <story>`, which rewrites each
+   citer. For a keyed item, or a new ID split off inside one doc: in the same pass, run
+   `specstone refs <old item's doc>`, repoint each citer that cites the moved part to the new item's link, and keep
+   each other citer. `check` cannot tell which part a citer means, so the audit checks each repoint.
 
 ## The split proposal
 
@@ -29,7 +31,11 @@ order, one `new` per sub-feature, then one `move` per sub-feature:
 ```
 specstone new feature --parent <feature> --slug <slug>
 specstone move <story> … --under <sub-feature>
+specstone move feature:<x> … --under <feature>
+specstone move <story>#S<N> … --under <story>
 ```
+
+The `move feature` line is for a feature that exists; the scenario line is for a story past its scenario cap.
 
 Run none of them before the Owner's ok, and then in that order. A dispatched agent runs none: its report holds them
 for the main session. A split the Owner turns down leaves nothing to delete.

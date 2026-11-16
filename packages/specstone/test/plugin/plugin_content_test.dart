@@ -1105,19 +1105,22 @@ void _handOffTests() {
       _pluginText('specstone-brainstorming-sdd/references/author.md'),
       '5. Report',
     );
-    expect(
-      report,
-      contains(
-        '\nMove: specstone move <story> … --under <feature>\n'
-        'Move: specstone move <story> … --under <other feature>\n',
-      ),
-    );
+    for (final line in [
+      'Move: specstone move <story> … --under <feature>\n',
+      'Move: specstone move <fr or nf> … --under <story>\n',
+      'Move: specstone move feature:<name> … --under <feature>\n',
+      'Move: specstone move feature:<name> … --top\n',
+      'Move: specstone move <doc>#<ID> … --under <doc>\n',
+      'Move: specstone move <story>#S<N> … --under <story>\n',
+    ]) {
+      expect(report, contains('\n$line'), reason: line);
+    }
     final flatReport = report.replaceAll(RegExp(r'\s+'), ' ');
     expect(
       flatReport,
       contains(
-        'only when the design moves stories, one line per target feature; '
-        'copy each into the relay block.',
+        'only for a moved doc, item, or scenario: one line per target parent '
+        'or `--top`; copy each into the relay block.',
       ),
     );
     expect(
@@ -6810,14 +6813,50 @@ void _docLevelPointTests() {
     expect(text, contains('name the citer and the item it should link'));
   });
 
-  test('size-fix repoints each citer of a moved item through refs', () {
-    final text = _oneLine(
-      _pluginText('specstone-expert-sdd/references/size-fix.md'),
-    );
+  test('size-fix.md gives a moved item or scenario a ready move and keeps '
+      'refs repoints for keyed items and a split-off ID', () {
+    final text = _oneLine(_sectionOf(_pluginText(_sizeFix), 'The order'));
 
-    expect(text, contains('a new item ID'));
+    expect(
+      text,
+      contains(
+        'An item of a `prefix_id` section or a scenario to another doc: one '
+        'ready `specstone move <doc>#<ID> … --under <doc>` or '
+        '`specstone move <story>#S<N> … --under <story>`, which rewrites each '
+        'citer',
+      ),
+    );
+    expect(
+      text,
+      contains('a keyed item, or a new ID split off inside one doc'),
+    );
     expect(text, contains("`specstone refs <old item's doc>`"));
     expect(text, contains('repoint each citer that cites the moved part'));
     expect(text, contains('keep each other citer'));
+  });
+
+  test("size-fix.md's split proposal lists move feature and the scenario "
+      'move in run order', () {
+    final text = _oneLine(
+      _sectionOf(_pluginText(_sizeFix), 'The split proposal'),
+    );
+    final newFeature = text.indexOf(
+      'specstone new feature --parent <feature> --slug <slug>',
+    );
+    final moveStory = text.indexOf(
+      'specstone move <story> … --under <sub-feature>',
+    );
+    final moveFeature = text.indexOf(
+      'specstone move feature:<x> … --under <feature>',
+    );
+    final moveScenario = text.indexOf(
+      'specstone move <story>#S<N> … --under <story>',
+    );
+    expect(newFeature, isNonNegative);
+    expect(moveStory, greaterThan(newFeature));
+    expect(moveFeature, greaterThan(moveStory));
+    expect(moveScenario, greaterThan(moveFeature));
+    expect(text, contains('for a feature that exists'));
+    expect(text, contains('for a story past its scenario cap'));
   });
 }
