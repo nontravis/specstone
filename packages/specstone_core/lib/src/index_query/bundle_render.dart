@@ -218,10 +218,7 @@ ContextAnswer answerContext(
         listName: _partListName(part),
         inRefs: splits,
         summary: part.summary,
-        sections: [
-          for (final section in part.sections)
-            (key: section.key, line: section.line + 1),
-        ],
+        sections: [for (final section in part.sections) section.shiftedBy(1)],
         sectionKey: part.sectionKey,
         itemId: part.itemId,
       ),
@@ -697,8 +694,7 @@ ContextAnswer _overBudget(
     final print = summaryPrintOf(doc, content, docType, mode, citedBy);
     final block = '${namingLine(doc, summary: true)}\n${print.text}';
     final sections = [
-      for (final section in print.sections)
-        (key: section.key, line: section.line + 1),
+      for (final section in print.sections) section.shiftedBy(1),
     ];
     return (block: block, cited: print.cited, sections: sections);
   }
@@ -719,7 +715,7 @@ ContextAnswer _overBudget(
   for (final section in keptSectionsOf(content, docType, mode)) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
     cited.addAll(print.cited);
-    sections.add((key: section.key, line: line));
+    sections.add(SectionLine(key: section.key, line: line));
     line += lineAfterBlocks([print.block]);
     parts.add(print.block);
   }

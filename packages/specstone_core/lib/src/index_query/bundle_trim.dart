@@ -13,7 +13,24 @@ export 'package:specstone_core/src/index_query/html_comments.dart'
 
 /// A `##` section a printed text holds whole, with the line its header sits
 /// on, counted from 0 at the text's first line.
-typedef SectionLine = ({String key, int line});
+final class SectionLine {
+  const new({required this.key, required this.line});
+
+  final String key;
+  final int line;
+
+  /// Returns this section [lines] lines lower in the text.
+  SectionLine shiftedBy(int lines) => SectionLine(key: key, line: line + lines);
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is SectionLine && other.key == key && other.line == line;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(key, line);
+}
 
 /// Returns the number of lines [text] spans.
 int lineCountOf(String text) => '\n'.allMatches(text).length + 1;
@@ -52,7 +69,7 @@ summaryPrintOf(
       citedBy,
       summaryRows: summaryRowCountOf(docType, section.key),
     );
-    sections.add((key: section.key, line: line));
+    sections.add(SectionLine(key: section.key, line: line));
     line += lineAfterBlocks([print.block]);
     blocks.add(print.block);
     cited.addAll(print.cited);

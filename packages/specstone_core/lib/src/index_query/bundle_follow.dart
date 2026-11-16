@@ -390,7 +390,7 @@ final class _Walk {
         doc: view.doc,
         sectionKey: sectionKey,
         cited: cited,
-        sections: [(key: sectionKey, line: 0)],
+        sections: [SectionLine(key: sectionKey, line: 0)],
         text: sectionBlockOf(
           view.content.sections[at],
           bodyLine: view.facts.sectionLines[at] + 1,
@@ -465,7 +465,7 @@ final class _Walk {
         sectionKey: sectionKey,
         summary: true,
         cited: print.cited,
-        sections: [(key: sectionKey, line: 0)],
+        sections: [SectionLine(key: sectionKey, line: 0)],
         text: print.block,
       ),
       view,
