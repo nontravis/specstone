@@ -877,6 +877,38 @@ sections:
       expect(section.minLines, 2);
     });
 
+    test("a section lint prints an item field's when", () {
+      const withWhen = MergedSection(
+        id: 'invariants',
+        header: 'Invariants',
+        itemFields: [
+          ItemFieldLint(
+            field: 'P',
+            when: ItemFieldWhen(field: 'K', value: 'v'),
+          ),
+        ],
+      );
+      final lint = withWhen.toJson()['lint']! as Map<String, Object?>;
+      expect(lint['itemFields'], [
+        {
+          'field': 'P',
+          'when': {'field': 'K', 'value': 'v'},
+        },
+      ]);
+    });
+
+    test('an item field applies when it has no when or its when is met', () {
+      const bare = ItemFieldLint(field: 'P');
+      const conditional = ItemFieldLint(
+        field: 'P',
+        when: ItemFieldWhen(field: 'K', value: 'v'),
+      );
+      expect(bare.appliesTo(const {}), isTrue);
+      expect(conditional.appliesTo(const {'K': 'v'}), isTrue);
+      expect(conditional.appliesTo(const {'K': 'V'}), isFalse);
+      expect(conditional.appliesTo(const {}), isFalse);
+    });
+
     test('a section with no guide-rule key reads each as null', () {
       const bare = MergedSection(id: 'a', header: 'A');
       expect(bare.catalog, isNull);

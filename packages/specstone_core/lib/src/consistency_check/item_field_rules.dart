@@ -12,7 +12,9 @@ final _fieldItem = RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$');
 ///
 /// Each top-level item of a section whose template sets `item_fields` holds a
 /// nested `- **<field>:** <text>` item per entry, its text one of the entry's
-/// `values` when it gives them. A section whose template sets `required_when`
+/// `values` when it gives them. An entry with a `when` applies only to an item
+/// that meets it; an item that does not meet it and holds the field gives
+/// `item_field_unneeded`. A section whose template sets `required_when`
 /// is required exactly while an item of the named section holds the named
 /// field value: missing and met gives `required_section_missing`, held and
 /// unmet gives `section_unneeded`.
@@ -37,11 +39,11 @@ Iterable<Finding> checkItemFields(CheckContext context, IndexedDoc doc) sync* {
   for (var i = 0; i < held.length; i++) {
     final template = context.templateSectionAt(doc, i);
     if (template == null || !watched.contains(template.id)) continue;
-    final (:fieldsByItem, :values) = _readSection(context.itemsIn(doc, i));
-    valuesBySection[template.id] = values;
+    final section = _readSection(context.itemsIn(doc, i));
+    valuesBySection[template.id] = section.values;
     final entries = entriesBySection[template.id];
     if (entries == null) continue;
-    for (final MapEntry(:key, :value) in fieldsByItem.entries) {
+    for (final MapEntry(:key, :value) in section.fieldsByItem.entries) {
       yield* _fieldFindings(context, doc, key, value, entries);
     }
   }
@@ -80,6 +82,17 @@ Iterable<Finding> _fieldFindings(
 ) sync* {
   for (final entry in entries) {
     final text = fields[entry.field];
+    if (!entry.appliesTo(fields)) {
+      if (text == null) continue;
+      yield context.finding(
+        doc,
+        FindingKind.itemFieldUnneeded,
+        line: itemLine,
+        message: 'the item holds a ${entry.field} field it does not need',
+        keys: {'field': entry.field},
+      );
+      continue;
+    }
     final holds =
         text != null &&
         text.isNotEmpty &&
@@ -104,8 +117,7 @@ Iterable<Finding> _fieldFindings(
 /// A nested item is one whose line opens indented; a field item is a nested
 /// item whose text opens `- **<field>:** <text>`. A `###` heading belongs to
 /// no item, so it closes the one open above it.
-({Map<int, Map<String, String>> fieldsByItem, Map<String, Set<String>> values})
-_readSection(List<SectionItem> items) {
+_SectionFields _readSection(List<SectionItem> items) {
   final fieldsByItem = <int, Map<String, String>>{};
   final values = <String, Set<String>>{};
   var itemLine = -1;
@@ -128,5 +140,12 @@ _readSection(List<SectionItem> items) {
       fieldsByItem[itemLine] = {};
     }
   }
-  return (fieldsByItem: fieldsByItem, values: values);
+  return _SectionFields(fieldsByItem: fieldsByItem, values: values);
+}
+
+final class _SectionFields {
+  const new({required this.fieldsByItem, required this.values});
+
+  final Map<int, Map<String, String>> fieldsByItem;
+  final Map<String, Set<String>> values;
 }
