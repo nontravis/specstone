@@ -18,6 +18,13 @@ import '../../helpers/target_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
 const _projectFile = 'docs/prds/PROJECT.md';
+const _glossaryFile = 'docs/prds/GLOSSARY.md';
+const _glossaryBody =
+    '# Domain glossary\n\n## Terms\n\n'
+    '- **Doc** — one markdown file under the docs root\n';
+final String _projectWithoutGlossary = loginProject[_projectFile]!
+    .split('\n## Domain glossary')
+    .first;
 const _projectLinking =
     '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
     'Login demo; see [resets](../measurements/fewer_resets/MEASUREMENT.md).\n';
@@ -354,20 +361,104 @@ void main() {
     );
   });
   test('f01/us05/s3, f01/us05/fr02/e05: query prints query sections with no frontmatter, then the map', () async {
-    final a = ctx('login', BundleMode.query);
+    final i = await indexWith({
+      _projectFile: _projectWithoutGlossary,
+      _glossaryFile: _glossaryBody,
+    });
+    final a = ctxIn(i, 'login', BundleMode.query);
     expect(
       shown(a),
       startsWith(
+        '==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n\n'
+        '- **Doc** — one markdown file under the docs root\n\n'
         '==> project (project) · prds/PROJECT.md <==\n## Role\n'
         '- `Owner` — the solo builder who owns the docs.\n\n## Out-of-scope\n- Billing — not planned\n\n'
-        '## Domain glossary\n- **Doc** — one markdown file under the docs root\n\n'
         '==> login (feature) · prds/features/f01_login/FEATURE.md <==\n## Problem\n'
         'Users sign in with an email and a password.\n\n## Out-of-scope\n- Social sign-in — not planned\n\n'
         '==> map: login (feature) <==\n- login (feature) · ',
       ),
     );
     expect(a.text, contains('\n  - login/email_login (user_story) · '));
-    expect(a.text, contains('==> bundle: 2 docs, '));
+    expect(a.text, contains('==> bundle: 3 docs, '));
+  });
+  test(
+    'a leftover project glossary section prints in no query bundle',
+    () async {
+      expect(loginProject[_projectFile], contains('\n## Domain glossary\n'));
+      final i = await indexWith({_glossaryFile: _glossaryBody});
+      final a = ctxIn(i, 'login', BundleMode.query);
+
+      expect(
+        '- **Doc** — one markdown file under the docs root'.allMatches(a.text),
+        hasLength(1),
+      );
+      expect(a.text, isNot(contains('## Domain glossary')));
+      expect(
+        a.text,
+        contains('==> glossary (glossary) · prds/GLOSSARY.md <==\n## Terms\n'),
+      );
+    },
+  );
+  group('the glossary doc in a one-file bundle', () {
+    const head = '==> glossary (glossary) · prds/GLOSSARY.md <==';
+    const whole = '$head\n$_glossaryBody';
+    late DocIndex withGlossary;
+    setUpAll(
+      () async =>
+          withGlossary = await indexWith({_glossaryFile: _glossaryBody}),
+    );
+    List<String> listOf(ReadAnswer a) => [
+      for (final line
+          in a.text.split('\n==> bundle: ').last.split('\n').skip(1))
+        if (line.startsWith('- ')) line,
+    ];
+
+    test('f01/us05/fr01/e29, f01/us05/fr02/e05: implement and design print it whole, first in tree order', () {
+      for (final mode in [BundleMode.implement, BundleMode.design]) {
+        final a = ctxIn(withGlossary, 'login/email_login', mode);
+        expect(a.text, contains(whole), reason: mode.wire);
+        expect(head.allMatches(a.text), hasLength(1), reason: mode.wire);
+        expect(
+          a.text.indexOf(head),
+          lessThan(a.text.indexOf('==> gnfr (gnfr)')),
+          reason: mode.wire,
+        );
+        expect(listOf(a), contains('- glossary (glossary)'), reason: mode.wire);
+      }
+    });
+    test('f01/us05/fr01/e13, f01/us05/fr02/e08: --no-project prints none of it, and the list and size leave it out', () {
+      for (final mode in BundleMode.values) {
+        final a = ctxIn(
+          withGlossary,
+          'login/email_login',
+          mode,
+          noProject: true,
+        );
+        expect(
+          a.text,
+          isNot(contains('glossary (glossary)')),
+          reason: mode.wire,
+        );
+        expect(a.text, isNot(contains('- **Doc** —')), reason: mode.wire);
+        expect(a.json['tokens'], tokenSizeOf(shown(a)), reason: mode.wire);
+      }
+    });
+    test('f01/us05/fr01/e11, f01/us05/fr01/e13: its own target prints it once, whole, with or without --no-project', () {
+      for (final noProject in [false, true]) {
+        final a = ctxIn(
+          withGlossary,
+          'glossary',
+          BundleMode.implement,
+          noProject: noProject,
+        );
+        expect(a.text, contains(whole), reason: 'noProject $noProject');
+        expect(head.allMatches(a.text), hasLength(1));
+        expect(
+          listOf(a).where((line) => line == '- glossary (glossary)'),
+          hasLength(1),
+        );
+      }
+    });
   });
   test('f01/us05/s4, f01/us05/fr02/e01, f01/us05/fr02/e03, f01/us05/fr02/e05, f01/us05/fr02/e07: scaffolding and N/A go, every other line stays', () async {
     final text = ctx('login/email_login', BundleMode.implement).text;
@@ -1651,6 +1742,66 @@ void main() {
       expect(listOf(a.text), contains('- tech_stack (tech_stack)'));
       expect(a.text, endsWith('${listOf(a.text).join('\n')}\n'));
       expect(a.refs!.text, endsWith('${refs.join('\n')}\n'));
+    });
+    group('the glossary doc', () {
+      const head = '==> glossary (glossary) · prds/GLOSSARY.md <==';
+      const whole = '$head\n$_glossaryBody';
+
+      Future<DocIndex> glossaryIndex() => indexWith({
+        _glossaryFile: _glossaryBody,
+        'docs/prds/features/f01_login/us01_email_login/USER_STORY.md':
+            '# Agent signs in with email\n\n## Use Case\nSign in.\n',
+        frDoc: '# Validate credentials\n\n## Statement\nLock the account.\n',
+      });
+
+      test('f01/us05/fr01/e28, f01/us05/fr02/e21: implement and design put it whole in the refs text, each list apart', () async {
+        final i = await glossaryIndex();
+        for (final mode in [BundleMode.implement, BundleMode.design]) {
+          final a = splitIn(i, frName, mode);
+
+          expect(
+            head.allMatches(a.refs!.text),
+            hasLength(1),
+            reason: mode.wire,
+          );
+          expect(a.refs!.text, contains(whole), reason: mode.wire);
+          expect(a.text, isNot(contains(head)), reason: mode.wire);
+          expect(listOf(a.refs!.text), contains('- glossary (glossary)'));
+          expect(listOf(a.text), isNot(contains('- glossary (glossary)')));
+        }
+        expect(listOf(splitIn(i, frName, BundleMode.implement).refs!.text), [
+          '- glossary (glossary)',
+          '- gnfr (gnfr)',
+          '- project (project)',
+        ]);
+      });
+      test('f01/us05/fr01/e29, f01/us05/fr02/e05: a query bundle never splits, so its terms print in the one text', () async {
+        final a = splitIn(await glossaryIndex(), 'login', BundleMode.query);
+
+        expect(a.refs, isNull);
+        expect(a.text, contains('$head\n## Terms\n\n- **Doc** — '));
+      });
+      test('f01/us05/fr01/e11, f01/us05/fr01/e13: its own target prints it in the read-first text, with or without --no-project', () async {
+        final i = await glossaryIndex();
+        for (final noProject in [false, true]) {
+          final a = splitIn(
+            i,
+            'glossary',
+            BundleMode.implement,
+            noProject: noProject,
+          );
+
+          expect(a.text, contains(whole), reason: 'noProject $noProject');
+          expect(
+            listOf(a.text),
+            noProject
+                ? equals(['- glossary (glossary)'])
+                : contains('- glossary (glossary)'),
+          );
+          expect(a.refs!.text, isNot(contains(head)));
+          expect(listOf(a.refs!.text), noProject ? isEmpty : isNotEmpty);
+        }
+      });
     });
     test('the refs list names the goal doc beside project and gnfr', () async {
       final i = await indexWith({

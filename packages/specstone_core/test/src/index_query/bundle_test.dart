@@ -391,6 +391,81 @@ void main() {
     );
     expect(joined(BundleMode.query, target: 'login'), {'prds/PROJECT.md'});
   });
+  group('the glossary doc', () {
+    const glossary = 'prds/GLOSSARY.md';
+    late DocIndex withGlossary;
+    setUpAll(
+      () async => withGlossary = await indexWith({
+        'docs/$glossary': '# Domain glossary\n\n## Terms\n\n- **Doc** — one markdown file under the docs root.\n',
+      }),
+    );
+    Bundle pick(String target, BundleMode mode, {bool noProject = false}) =>
+        pickBundle(withGlossary, target, mode, noProject: noProject);
+
+    test(
+      'f01/us05/fr01/e01: a story bundle in every mode holds it, joined',
+      () {
+        expect(pick('login/email_login', BundleMode.implement).joinedPaths, {
+          glossary,
+          'prds/GNFR.md',
+          'prds/PROJECT.md',
+          'specs/TECH_STACK.md',
+        });
+        expect(
+          pick('login/email_login', BundleMode.design).joinedPaths,
+          contains(glossary),
+        );
+        expect(pick('login', BundleMode.query).joinedPaths, {
+          glossary,
+          'prds/PROJECT.md',
+        });
+        for (final mode in BundleMode.values) {
+          expect(
+            pick('login/email_login', mode).docPaths,
+            isNot(contains(glossary)),
+            reason: mode.wire,
+          );
+        }
+      },
+    );
+    test(
+      'f01/us05/fr01/e28: it joins the refs file in implement and design',
+      () {
+        for (final mode in [BundleMode.implement, BundleMode.design]) {
+          final b = pick('login/email_login', mode);
+          expect(b.joinsRefs(withGlossary, withGlossary.at(glossary)!), isTrue);
+        }
+      },
+    );
+    test('f01/us05/fr01/e13: --no-project drops it from a story bundle', () {
+      for (final mode in BundleMode.values) {
+        final b = pick('login/email_login', mode, noProject: true);
+        expect(b.joinedPaths, isEmpty, reason: mode.wire);
+        expect(b.droppedPaths, contains(glossary), reason: mode.wire);
+      }
+    });
+    test('f01/us05/fr01/e13: --no-project keeps it as the chain doc of its own target', () {
+      for (final mode in BundleMode.values) {
+        final b = pick('glossary', mode, noProject: true);
+        expect(b.docPaths, {glossary}, reason: mode.wire);
+        expect(b.joinedPaths, isEmpty, reason: mode.wire);
+      }
+    });
+    test(
+      'f01/us05/fr01/e11: its own target holds it once, never as a join',
+      () {
+        for (final mode in BundleMode.values) {
+          final b = pick('glossary', mode);
+          expect(b.docPaths, {glossary}, reason: mode.wire);
+          expect(b.joinedPaths, isNot(contains(glossary)), reason: mode.wire);
+          expect(
+            b.joinsRefs(withGlossary, withGlossary.at(glossary)!),
+            isFalse,
+          );
+        }
+      },
+    );
+  });
   test('s03/inv13: a set with no bundle keys joins nothing', () async {
     final bare = await indexWith({
       '.specstone/templates/project.yaml':

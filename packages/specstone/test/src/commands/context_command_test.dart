@@ -1550,6 +1550,42 @@ void main() {
       expect(first.readAsStringSync(), isNot(contains(head)));
     });
 
+    group('the glossary doc', () {
+      const head = '==> glossary (glossary) · prds/GLOSSARY.md <==';
+      const glossaryFile = {
+        'docs/prds/GLOSSARY.md': '# Domain glossary\n\n## Terms\n\n- **Doc** — one markdown file under the docs root.\n',
+      };
+
+      test('context glossary --no-project --out puts it whole in the read-first file, and the refs file holds no doc', () async {
+        final project = await writeReadProject(extra: glossaryFile);
+        final text = await saved(project, [
+          'glossary',
+          '--for',
+          'implement',
+          '--no-project',
+          '--out',
+        ]);
+        final headers = headersOf(text);
+        expect(headers, hasLength(2));
+        final first = File(headers[0].group(4)!);
+        final refs = File(headers[1].group(4)!);
+
+        expect(
+          first.readAsStringSync(),
+          contains(
+            '$head\n# Domain glossary\n\n## Terms\n\n'
+            '- **Doc** — one markdown file under the docs root.\n',
+          ),
+        );
+        expect(closingListOf(first.readAsStringSync()), [
+          '- glossary (glossary)',
+        ]);
+        expect(refs.readAsStringSync(), startsWith('==> bundle: 0 docs, '));
+        expect(refs.readAsStringSync(), isNot(contains(head)));
+        expect(text, contains('- glossary (glossary) · '));
+      });
+    });
+
     test('--out <path> from a subfolder writes b.txt and b.refs.txt beside it, and --json describes both', () async {
       final project = await writeReadProject(extra: {'app/.keep': ''});
       final nested = Directory('${project.path}/app');
