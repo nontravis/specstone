@@ -1307,6 +1307,10 @@ void main() {
               ),
         ),
       );
+    });
+
+    test('a call of items beside a story with neither flag takes the doc-target message', () async {
+      final root = await writeNestedProject();
       expect(
         () => moveAll(root, ['domain:shop#INV-1', cartAddAddress], null),
         throwsA(

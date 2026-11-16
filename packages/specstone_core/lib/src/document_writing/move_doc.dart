@@ -195,16 +195,13 @@ ReadAnswer answerRename(
   });
 }
 
-/// Moves the stories or FRs [addresses] name to be the last children of
-/// [under], slugs kept, rewriting every reference in one pass.
+/// Moves the docs or items [addresses] name under [under], rewriting every
+/// reference in one pass.
 ///
-/// An address with a `#` that names no doc whole is an item target, which
-/// goes to [answerItemMove] and alone takes [codeTarget]. A call with no
-/// address, then one with both or neither of [under] and [top], is refused
-/// before any address resolves; [top] belongs to a feature move alone.
+/// The flags are judged before any address resolves; only an item target
+/// takes [codeTarget], and only a feature takes [top].
 ///
-/// Throws [WriteFault], [IndexFault] for a bad call shape, and the faults of
-/// [answerItemMove].
+/// Throws [WriteFault], [IndexFault], and the faults of [answerItemMove].
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
@@ -226,7 +223,7 @@ ReadAnswer answerMove(
     return _answerItemMove(
       session,
       addresses,
-      isMixed: !items.every((isItem) => isItem),
+      isItem: items,
       under: under,
       top: top,
       codeTarget: codeTarget,
@@ -242,12 +239,15 @@ ReadAnswer answerMove(
       'move takes --target only with item targets',
     );
   }
-  if (under == null || docType.id == nfTypeId || docType.id == featureType) {
+  if (docType.id == nfTypeId || docType.id == featureType) {
     throw StateError('the ${docType.id} move is not wired yet');
   }
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
-  final newParent = session.parentTarget(under, parentTypeId);
+  final newParent = session.parentTarget(
+    under ?? (throw StateError('${docType.id} move reached with no --under')),
+    parentTypeId,
+  );
   final moving = [
     for (final target in targets)
       if (session.index.parentOf(target)?.docPath != newParent.docPath) target,
@@ -324,30 +324,42 @@ IndexFault _topFault() => IndexFault(
   'move takes --top only with feature targets',
 );
 
-/// Moves the items [addresses] name once the call's shape is right.
+/// Moves the items [addresses] name once every target resolves, [isItem]
+/// marking each address that is an item.
 ///
-/// Throws [IndexFault] `argument_invalid` for a call that also names a doc or
-/// gives [top], and the faults of [answerItemMove].
+/// Throws [WriteFault] `doc_type_not_movable` for a doc target of another type,
+/// [IndexFault] `argument_invalid` for a doc target at all or [top], and the
+/// faults of [answerItemMove].
 ReadAnswer _answerItemMove(
   WriteSession session,
   List<String> addresses, {
-  required bool isMixed,
+  required List<bool> isItem,
   required String? under,
   required bool top,
   required String? codeTarget,
   required bool dryRun,
 }) {
-  if (isMixed) {
+  final docs = <IndexedDoc>[];
+  for (var i = 0; i < addresses.length; i++) {
+    if (!isItem[i]) {
+      docs.add(session.target(addresses[i]));
+      continue;
+    }
+    final docPart = session.index.splitAddress(addresses[i]).docPart;
+    session.target(docPart, codeTarget: codeTarget);
+  }
+  _requireMovable(session, docs);
+  if (docs.isNotEmpty) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'move takes item targets or doc targets, not both',
     );
   }
-  if (top || under == null) throw _topFault();
+  if (top) throw _topFault();
   return answerItemMove(
     session,
     addresses,
-    under: under,
+    under: under ?? (throw StateError('an item move reached with no --under')),
     codeTarget: codeTarget,
     dryRun: dryRun,
   );
@@ -435,6 +447,25 @@ bool _namesStory(WriteSession session, String storyName, IndexedDoc story) {
 /// other type, then [IndexFault] `argument_invalid` naming the first two
 /// types that differ.
 MergedDocType _movableTypeOf(WriteSession session, List<IndexedDoc> targets) {
+  final types = _requireMovable(session, targets);
+  for (final type in types) {
+    if (type.id == types.first.id) continue;
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes one doc type per call, not ${types.first.id} and ${type.id}',
+    );
+  }
+  return types.first;
+}
+
+/// Returns the doc type of each of [targets].
+///
+/// Throws [WriteFault] `doc_type_not_movable` for the first target whose type
+/// `move` takes none of.
+List<MergedDocType> _requireMovable(
+  WriteSession session,
+  List<IndexedDoc> targets,
+) {
   const movable = {storyType, frType, nfTypeId, featureType};
   final types = [
     for (final target in targets)
@@ -449,14 +480,7 @@ MergedDocType _movableTypeOf(WriteSession session, List<IndexedDoc> targets) {
       '$nfTypeId, or a $featureType',
     );
   }
-  for (final type in types) {
-    if (type.id == types.first.id) continue;
-    throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      'move takes one doc type per call, not ${types.first.id} and ${type.id}',
-    );
-  }
-  return types.first;
+  return types;
 }
 
 /// Returns [targets] without a doc named twice, first mention first.

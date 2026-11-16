@@ -171,12 +171,13 @@ void main() {
       out.toString(),
       allOf(
         contains('(--under <doc address> | --top)'),
+        contains(
+          'Move stories and features under a feature, FRs and nfs under a '
+          'story, features among the top features, or items '
+          '(<doc address>#<item ID>) into another doc, and rewrite every '
+          'reference to them.',
+        ),
         contains('--top'),
-        contains('user_story'),
-        contains('fr'),
-        contains('nf'),
-        contains('feature'),
-        contains('<doc address>#<item ID>'),
       ),
     );
   });

@@ -468,14 +468,39 @@ void main() {
       },
     );
 
-    test('an item beside a doc of another type is argument_invalid', () async {
+    test('an item beside a spec doc is doc_type_not_movable, before the mixed test', () async {
       final fault = await refused([
         'domain:shop#INV-3',
-        'domain:shop/pay',
+        'domain:shop',
       ], under: 'domain:shop/cart');
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.message, 'move takes item targets or doc targets, not both');
+      expect((fault as WriteFault).code, WriteFaultCode.docTypeNotMovable);
+      expect(
+        fault.message,
+        'domain docs cannot move; move takes a user_story, an fr, an nf, '
+        'or a feature',
+      );
     });
+
+    test(
+      'an item target that names no doc is doc_not_found, even with --top',
+      () async {
+        final root = await _project(shop: [_inv(1)]);
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                answerMove(s, const ['nowhere#INV-1'], under: null, top: true),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+      },
+    );
 
     test(
       'item targets with no --under are argument_missing with the item message',
