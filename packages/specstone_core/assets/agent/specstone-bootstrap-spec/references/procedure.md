@@ -14,11 +14,10 @@ Fix this skill's first unhandled finding, then run a bare `specstone check` agai
 Stop when each finding left is under `prds/` or `measurements/`, clears with no write, is a reported
 `code_uncovered`, or is tagged `(waits for the Owner)`, except an unanswered size finding.
 
-Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
-each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
-`--title` in place of `#<key>`); a section body leaves out its `## ` line, a list field takes its whole list, and
-empty text drops the section or key. The text between the title and the first `##` section is `#_lead`. Exit 75
-`base_mismatch`: read again, merge, retry.
+Bases: `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`); a write
+prints the new one. Pipe to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or `--title` for
+`#<key>`) a section body without its `## ` line, a list field's whole list, or empty text to drop it. The text between
+the title and the first `##` section is `#_lead`. Exit 75 `base_mismatch`: read again, merge, retry.
 
 Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
 `#quot;`.
@@ -29,6 +28,7 @@ the Owner only when no text bears on a whole section.
 | Finding | Fix |
 |---|---|
 | `required_section_missing`, `required_field_missing`, `title_missing` | fill it from the old text |
+| `singular_doc_missing` | `specstone new <type>`, then step 6 |
 | `section_undeclared` | move each statement into the section that takes it, else the closest, even if another doc holds it; then drop the section |
 | `field_undeclared` on `implements`, `architecture_missing`, `code_uncovered` | step 3 |
 | `field_undeclared`, any other | move its value to the field that takes it, then drop the key |

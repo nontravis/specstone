@@ -26,7 +26,9 @@ specstone check
 With a subagent, split the gate's findings this skill takes by doc path: one batch per feature folder, and one for
 the rest. In the first round the rest batch always runs, even with no finding, and names the project, features, and
 gnfr docs, the skeletons the procedure's step 6 fills; no feature batch fills them. In a later round it runs only when
-findings it owns remain. Dispatch one `specstone-sdd-engineer` per batch as
+findings it owns remain. When it holds the `section_undeclared` on PROJECT's goals section, first ask the Owner each
+goal's horizon, long-, mid-, or short-term, one question per goal showing its `**By:**`, and send the answers with the
+batch. Dispatch one `specstone-sdd-engineer` per batch as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: bootstrap`, `procedure: bootstrap-prd`, `batch:`
 the batch's paths, and `report:` `<folder>/reports/sdd-engineer.bootstrap.<XXXXXX>.md`, a new name per batch; batches
 may run at once. Send no doc text, and work no step of the procedure yourself while a dispatch can run. Take
@@ -60,8 +62,10 @@ in for item 4.
    command per `specstone-expert-sdd`. On exit 64, dispatch again each batch whose file a listed referrer names, with
    those referrers.
 5. Run `specstone check` again. A finding this skill takes starts another round at step 2 unless it is tagged
-   `(waits for the Owner)`, the last reports name it as one that clears with no write, or it waits on
-   `specstone-bootstrap-spec`, such as a finding on a path item 4 left out for it. With none left, go to item 6.
+   `(waits for the Owner)`, the last reports name it as one that clears with no write, it is the `section_undeclared`
+   on PROJECT's goals section after a goal move kept a goal there, or it waits on `specstone-bootstrap-spec`, such as
+   a finding on a path item 4 left out for it. For the rest of the run, no batch holds that goals finding, and no
+   question, item 3's included, asks a kept goal's horizon again. With none left, go to item 6.
 6. Once per run, after the last round, run `specstone check --repeats`, then dispatch the repeats batch
    (`../specstone-expert-sdd/references/repeats.md`) as in step 2 with `batch: repeats` and each
    group with an item under `prds/` or `measurements/`, if any; work items 1 and 2 on its report. A group it keeps
