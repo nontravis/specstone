@@ -5,13 +5,15 @@ import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
+import 'package:specstone_core/src/document_writing/approval.dart'
+    show withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor, spots;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/record_fixture.dart';
 import '../../helpers/write_fixture.dart';
@@ -514,5 +516,188 @@ void main() {
       recordBefore,
     );
     expect(hasDoc(root, 'specs/f03_other/f01_ship/f01_cart/DOMAIN.md'), isTrue);
+  });
+
+  group('references', () {
+    const cartApi = 'specs/f02_shop/f01_cart/API.md';
+    const payCardFr = 'prds/features/f02_shop/f02_pay/us01_card/fr01_charge.md';
+    const journeyPath = 'prds/journeys/sign_in/JOURNEY.md';
+    final fingerprint = fingerprintFor('a scenario');
+
+    void appendTo(Directory root, String docPath, String text) =>
+        docFile(root, docPath).writeAsStringSync(text, mode: FileMode.append);
+
+    List<String> mentionLines(ReadAnswer answer) => [
+      for (final line in answer.text.split('\n'))
+        if (line.startsWith('mentions ')) line,
+    ];
+
+    test('a link to a doc under the moved feature, and one inside it to a doc that stays, both follow', () async {
+      final root = await project();
+      appendTo(
+        root,
+        shopFeature,
+        '\nSee [cart](f01_cart/FEATURE.md) and '
+        '[add item](f01_cart/us01_add_item/USER_STORY.md).\n',
+      );
+      appendTo(
+        root,
+        cartAdd,
+        '\nSee [card](../../f02_pay/us01_card/USER_STORY.md).\n',
+      );
+      moveAll(root, ['feature:shop/cart'], under: 'other');
+      expect(
+        readDoc(root, shopFeature),
+        contains(
+          '[cart](../f03_other/f03_cart/FEATURE.md) and '
+          '[add item](../f03_other/f03_cart/us01_add_item/USER_STORY.md).\n',
+        ),
+      );
+      expect(
+        readDoc(root, '$landed/us01_add_item/USER_STORY.md'),
+        contains('[card](../../../f02_shop/f02_pay/us01_card/USER_STORY.md)'),
+      );
+      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+    });
+
+    test('a doc-name mention and a typed link text follow', () async {
+      final root = await project({
+        'docs/notes.md':
+            'See `shop/cart/add_item`, plain shop/cart/add_item, and '
+            '[domain:shop/cart]($cartSpecs/DOMAIN.md).\n',
+      });
+      moveAll(root, ['feature:shop/cart'], under: 'other');
+      expect(
+        readDoc(root, 'notes.md'),
+        'See `other/cart/add_item`, plain shop/cart/add_item, and '
+        '[domain:other/cart]($landedSpecs/DOMAIN.md).\n',
+      );
+    });
+
+    test('a depends_on entry naming the moved feature takes its new Name, and an entry for any other feature is unchanged', () async {
+      final root = await project({
+        'docs/$other/f01_ship/FEATURE.md':
+            '---\ndepends_on:\n  - shop/cart\n  - shop/pay\n---\n\n# Ship\n',
+      });
+      moveAll(root, ['feature:shop/cart'], under: 'other');
+      expect(
+        readDoc(root, '$other/f01_ship/FEATURE.md'),
+        contains('depends_on:\n  - other/cart\n  - shop/pay\n---\n\n# Ship\n'),
+      );
+    });
+
+    test('a journey step and an fr trace entry naming a moved story keep their fingerprints and name it at its new place', () async {
+      final root = await project({
+        'docs/$journeyPath':
+            '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
+            '### 1. Add\nstep: shop/cart/add_item S1\n',
+        'docs/$payCardFr':
+            '---\ntraced_from:\n  - S1\n  - shop/cart/add_item#S1\n'
+            'verify_method: test\nconfirmed:\n'
+            '  - shop/cart/add_item#S1 $fingerprint\n---\n\n# Charge\n',
+      });
+      moveAll(root, ['feature:shop/cart'], under: 'other');
+      expect(
+        readDoc(root, journeyPath),
+        contains('step: other/cart/add_item S1\n'),
+      );
+      expect(
+        readDoc(root, payCardFr),
+        contains(
+          'traced_from:\n  - S1\n  - other/cart/add_item#S1\n'
+          'verify_method: test\nconfirmed:\n'
+          '  - other/cart/add_item#S1 $fingerprint\n---\n\n# Charge\n',
+        ),
+      );
+    });
+
+    test("an ancestor's api trace cell keeps its text, and the moved feature's own api cell still resolves", () async {
+      final root = await project({
+        'docs/$cartApi':
+            '---\nconfirmed:\n  - add_item/check_stock ${fingerprintFor(checkStockStatement)}\n---\n\n'
+            '# Cart API\n\n## FR trace\n| FR | Operation |\n|----|-----------|\n'
+            '| add_item/check_stock | `addItem` |\n\n'
+            '## Operations\n### addItem\nAdds an item.\n',
+      });
+      final cartApiBefore = readDoc(root, cartApi);
+      moveAll(root, ['feature:shop/cart'], under: 'other');
+      final api = readDoc(root, shopApi);
+      expect(api, contains('| cart/add_item/check_stock | `addItem` |'));
+      expect(api, contains('  - cart/add_item/check_stock '));
+      expect(readDoc(root, '$landedSpecs/API.md'), cartApiBefore);
+      final unresolved = spots(checkOf(root), FindingKind.frTraceUnresolved);
+      expect(unresolved, contains(startsWith('$shopApi:')));
+      expect(unresolved.where((s) => s.contains('f03_cart')), isEmpty);
+    });
+
+    test(
+      "the moved record's entries are byte-identical after the move",
+      () async {
+        final root = await project(nestedRecords());
+        final cartBefore = readDoc(root, cartRecord);
+        final payBefore = readDoc(root, payRecord);
+        moveAll(root, ['feature:shop/cart'], under: 'other');
+        expect(
+          readDoc(
+            root,
+            '.specstone/records/f03_other/f03_cart/IMPLEMENTATION.md',
+          ),
+          cartBefore,
+        );
+        expect(readDoc(root, payRecord), payBefore);
+        expect(
+          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          isEmpty,
+        );
+      },
+    );
+
+    test('a mention in code or an agent file prints as mentions and its file is unchanged', () async {
+      const code =
+          '/// Sells `user_story:shop/cart/add_item`.\nclass Shop {}\n';
+      const agent = 'Read `feature:shop/cart` first.\n';
+      final root = await project({
+        'app/lib/cart.dart': code,
+        'CLAUDE.md': agent,
+        'docs/notes.md': 'Plain.\n\nSee `shop/cart/add_item E05` here.\n',
+      });
+      final answer = moveAll(root, ['feature:shop/cart'], under: 'other');
+      expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
+      expect(File('${root.path}/CLAUDE.md').readAsStringSync(), agent);
+      expect(readDoc(root, 'notes.md'), contains('`shop/cart/add_item E05`'));
+      expect(mentionLines(answer), [
+        'mentions CLAUDE.md:1 feature:shop/cart',
+        'mentions app/lib/cart.dart:1 user_story:shop/cart/add_item',
+        'mentions docs/notes.md:3 shop/cart/add_item E05',
+      ]);
+      expect(answer.json['rewritten'], isNot(contains('app/lib/cart.dart')));
+    });
+
+    test('a rewritten doc approved before gets its new hash, and no draft mark is written', () async {
+      final root = await project();
+      final approvedText =
+          '${readDoc(root, shopDomain)}\nSee `shop/cart/add_item`.\n';
+      docFile(root, shopDomain).writeAsStringSync(
+        writeIn(
+          root,
+          (s) => withApprovalHash(
+            approvedText,
+            s.docTypeAt(shopDomain),
+            statusesOutside: s.project.statusesOutsideApproval,
+          ),
+        ),
+      );
+      final hash = RegExp(r'^approved: "([^"]+)"$', multiLine: true);
+      final before = hash.firstMatch(readDoc(root, shopDomain))?.group(1);
+      moveAll(root, ['feature:shop/cart'], under: 'other');
+      final after = readDoc(root, shopDomain);
+      expect(after, contains('`other/cart/add_item`'));
+      expect(hash.firstMatch(after)?.group(1), isNot(before));
+      expect(after, isNot(contains('draft: true')));
+      expect(
+        spots(checkOf(root), FindingKind.approvalStale),
+        isNot(contains(startsWith('$shopDomain:'))),
+      );
+    });
   });
 }
