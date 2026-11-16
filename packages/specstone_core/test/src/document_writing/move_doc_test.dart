@@ -688,6 +688,48 @@ void main() {
     );
   });
 
+  /// Every file under [root] outside `.specstone`, by path, with its bytes.
+  Map<String, List<int>> filesUnder(Directory root) => {
+    for (final file in root.listSync(recursive: true).whereType<File>())
+      if (!file.path.contains('.specstone')) file.path: file.readAsBytesSync(),
+  };
+
+  for (final (:address, :docPath, :text) in [
+    (
+      address: 'goal:goal',
+      docPath: 'prds/GOAL.md',
+      text: '# Project goals\n\n## Long-term goals\n',
+    ),
+    (
+      address: 'glossary:glossary',
+      docPath: 'prds/GLOSSARY.md',
+      text: '# Domain glossary\n\n## Terms\n\n- **Agent** — an AI agent.\n',
+    ),
+  ]) {
+    test(
+      'f02/us06/fr01/e06: $address holds no slug, so it is doc_type_not_movable, and nothing changes',
+      () async {
+        final root = await writeWriteProject(extra: {'docs/$docPath': text});
+        final before = filesUnder(root);
+        expect(
+          () => rename(root, address, 'renamed'),
+          throwsA(
+            isA<WriteFault>().having(
+              (f) => f.code,
+              'code',
+              WriteFaultCode.docTypeNotMovable,
+            ),
+          ),
+        );
+        final after = filesUnder(root);
+        expect(after.keys, before.keys);
+        for (final MapEntry(:key, :value) in before.entries) {
+          expect(after[key], value, reason: key);
+        }
+      },
+    );
+  }
+
   test('a bad or missing slug is refused', () async {
     final root = await writeWriteProject();
     expect(
