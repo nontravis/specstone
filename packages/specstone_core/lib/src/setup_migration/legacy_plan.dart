@@ -31,10 +31,16 @@ import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/code_root_inference.dart';
 import 'package:specstone_core/src/setup_migration/first_fingerprints.dart';
 import 'package:specstone_core/src/setup_migration/label_pass.dart'
-    show LabelTree, numberLabelsPlanLine, withLabelAnchorsMoved;
+    show numberLabelsPlanLine, withLabelAnchorsMoved;
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
+import 'package:specstone_core/src/setup_migration/models/label_conversion.dart'
+    show KeptLabel;
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
+    show LabelDoc, LegacyLabelDoc;
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
+    show LabelTree;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/project_root.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
@@ -830,7 +836,11 @@ LabelTree _convertLabels(
   final tree = LabelTree.legacy(
     [
       for (final work in works)
-        (docPath: work.newPath, legacyPath: work.legacyPath, lf: work.lf),
+        LegacyLabelDoc(
+          docPath: work.newPath,
+          legacyPath: work.legacyPath,
+          lf: work.lf,
+        ),
     ],
     docTypes: {for (final work in works) work.newPath: ?typeOf(work)},
     featurePaths: {
@@ -839,7 +849,7 @@ LabelTree _convertLabels(
     },
   );
   final before = [
-    for (final work in works) (docPath: work.legacyPath, lf: work.lf),
+    for (final work in works) LabelDoc(docPath: work.legacyPath, lf: work.lf),
   ];
   final conversions = {
     for (final work in works)
@@ -871,7 +881,7 @@ LabelTree _convertLabels(
 /// Read from the text the run writes, so each line is the line of the file.
 List<String> _keptLabelsOf(LabelTree tree, List<_Work> works) => [
   for (final work in works)
-    for (final (:line, :label) in convertLegacyLabels(
+    for (final KeptLabel(:line, :label) in convertLegacyLabels(
       tree,
       legacyPath: work.legacyPath,
       lf: work.lf,

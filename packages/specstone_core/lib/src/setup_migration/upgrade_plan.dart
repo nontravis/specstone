@@ -29,6 +29,10 @@ import 'package:specstone_core/src/setup_migration/legacy_plan.dart'
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/setup_migration/models/label_doc.dart'
+    show LabelDoc;
+import 'package:specstone_core/src/setup_migration/models/label_tree.dart'
+    show LabelTree;
 import 'package:specstone_core/src/setup_migration/project_files.dart';
 import 'package:specstone_core/src/setup_migration/record_placement.dart';
 import 'package:specstone_core/src/setup_migration/renumber_pass.dart';
@@ -396,7 +400,7 @@ RunPlan _upgradeRunOf(
       ? LabelPass.plan(
           [
             for (final (index, work) in works.indexed)
-              (docPath: work.plannedPath, lf: renumbered[index]),
+              LabelDoc(docPath: work.plannedPath, lf: renumbered[index]),
           ],
           set: finalSet,
           docTypes: {for (final work in works) work.plannedPath: ?work.docType},
@@ -673,7 +677,7 @@ TestNamePass _testNamesOf(
   final tree = LabelTree.of(
     [
       for (final (index, work) in works.indexed)
-        (docPath: work.plannedPath, lf: texts[index]),
+        LabelDoc(docPath: work.plannedPath, lf: texts[index]),
     ],
     set: set,
     docTypes: {for (final work in works) work.plannedPath: ?work.docType},
