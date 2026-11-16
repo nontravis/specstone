@@ -265,7 +265,8 @@ ItemIdRun itemIdRunAt(String line, int from, {required Set<String> prefixes}) {
 /// Reads the item or lettered ID of one of [longestFirst] at [at]; null when
 /// none starts there, or the form is unreadable.
 IdRead? _runIdAt(String line, int at, List<String> longestFirst) {
-  if (at > 0 && at < line.length && _endsWord(line, at)) return null;
+  if (at >= line.length) return null;
+  if (at > 0 && _endsWord(line, at)) return null;
   for (final prefix in longestFirst) {
     final id = readItemIdAt(line, at, prefix);
     if (id == null) continue;

@@ -22,9 +22,42 @@ final _wordChar = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
 // MARK: - Types
 
-/// A link or code span opening at column `at` of a line, and the DocPaths
-/// it cites: empty for a doc address that names no doc of the run.
-typedef _Citation = ({int at, List<String> docPaths});
+/// A link or code span opening at column `at` of a line and ending at column
+/// `end`, and the DocPaths it cites: empty for a doc address that names no doc
+/// of the run.
+final class _Citation {
+  const new({required this.at, required this.end, required this.docPaths});
+
+  final int at;
+  final int end;
+  final List<String> docPaths;
+}
+
+/// The citations of one line, each with the item-ID run right after it.
+final class _LineCitations {
+  new(this._citations, String line, Set<String> prefixes)
+    : _runs = [
+        for (final citation in _citations)
+          itemIdRunAt(line, citation.end, prefixes: prefixes),
+      ];
+
+  final List<_Citation> _citations;
+  final List<ItemIdRun> _runs;
+
+  /// The DocPaths of the citation whose run holds the token at column [at],
+  /// else of the link whose text holds it, else null.
+  List<String>? ownerOf(int at) {
+    for (final (index, run) in _runs.indexed) {
+      if (run.items.any((item) => item.at == at)) {
+        return _citations[index].docPaths;
+      }
+    }
+    for (final citation in _citations) {
+      if (citation.at < at && at < citation.end) return citation.docPaths;
+    }
+    return null;
+  }
+}
 
 /// An ID token of a prose line: its column, its text, and its prefix.
 typedef _Token = ({int at, String written, IdRead id});
@@ -77,15 +110,16 @@ final class RenumberBodyRewrite {
   bool get linksRead => _hrefs != null;
 
   /// Rewrites each item ID token of the prose that its doc renumbers: the
-  /// doc of the nearest citation before it on its line, else this doc,
-  /// and each short scenario ref of a story in [_shortRefStories].
-  /// Returns whether a token of another doc changed.
+  /// doc of the citation whose item-ID run holds it, else the doc of the link
+  /// whose text holds it, else this doc, and each short scenario ref of a story
+  /// in [_shortRefStories]. Returns whether a token of another doc changed.
   bool rewriteTokens() {
     var citesOthers = false;
     final prefixes = [
       ..._index.prefixes,
       if (_shortRefStories.isNotEmpty) _shortRefPrefix,
     ];
+    final runPrefixes = {..._index.itemIdPrefixes, _shortRefPrefix};
     for (var index = _firstLine; index < _lines.length; index++) {
       final prose = _proseOf(index - _firstLine);
       if (!prefixes.any(prose.contains)) continue;
@@ -94,6 +128,7 @@ final class RenumberBodyRewrite {
         prose,
         index + 1,
         prefixes,
+        runPrefixes,
       );
       _lines[index] = text;
       citesOthers = citesOthers || othersChanged;
@@ -153,16 +188,20 @@ final class RenumberBodyRewrite {
     String prose,
     int fileLine,
     List<String> prefixes,
+    Set<String> runPrefixes,
   ) {
-    final citations = [..._spanCitations(line), ...?_linkCitations[fileLine]]
-      ..sort((a, b) => a.at - b.at);
+    final citations = _LineCitations(
+      [..._spanCitations(line), ...?_linkCitations[fileLine]],
+      line,
+      runPrefixes,
+    );
     // An item's own start line takes its own number, so two items lettered
     // alike still get two numbers.
     var opener = _openers[fileLine];
     var othersChanged = false;
     final edits = <({int at, int end, String to})>[];
     for (final token in _tokensOf(prose, prefixes)) {
-      final cited = _citedAt(citations, token.at);
+      final cited = citations.ownerOf(token.at);
       final edit = token.id.prefix == _shortRefPrefix
           ? _shortRefEdit(token, cited)
           : _idEdit(token, cited, opener);
@@ -235,17 +274,6 @@ final class RenumberBodyRewrite {
     return tokens;
   }
 
-  /// The DocPaths the nearest citation before column [at] names, or null
-  /// when none precedes it.
-  static List<String>? _citedAt(List<_Citation> citations, int at) {
-    List<String>? cited;
-    for (final citation in citations) {
-      if (citation.at >= at) break;
-      cited = citation.docPaths;
-    }
-    return cited;
-  }
-
   List<_Citation> _spanCitations(String line) => [
     for (final (:start, :end, :ticks) in codeSpansOf(line))
       if (_index.citedBySpan(
@@ -253,7 +281,7 @@ final class RenumberBodyRewrite {
             _doc.docPath,
           )
           case final docPaths?)
-        (at: start, docPaths: docPaths),
+        _Citation(at: start, end: end, docPaths: docPaths),
   ];
 
   /// The links to a doc of the run, by file line, each at its column: each
@@ -263,14 +291,20 @@ final class RenumberBodyRewrite {
     final citations = <int, List<_Citation>>{};
     final hrefs = _hrefs;
     if (hrefs == null) return citations;
-    for (final (index, (:offset, :line, shown: _, end: _, angle: _, textEnd: _))
+    for (final (index, (:offset, :line, shown: _, :end, angle: _, textEnd: _))
         in _scan.sources.indexed) {
       final href = hrefs[index];
       if (href == null) continue;
       final docPath = _index.docAtPath(href, _doc.docPath);
       if (docPath == null) continue;
-      final at = offset - _lineStarts[line - 1 - _firstLine];
-      (citations[line] ??= []).add((at: at, docPaths: [docPath]));
+      final lineStart = _lineStarts[line - 1 - _firstLine];
+      (citations[line] ??= []).add(
+        _Citation(
+          at: offset - lineStart,
+          end: end - lineStart,
+          docPaths: [docPath],
+        ),
+      );
     }
     return citations;
   }

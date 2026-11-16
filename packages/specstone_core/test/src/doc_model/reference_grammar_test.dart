@@ -223,6 +223,11 @@ void main() {
       expect(runOf('X INV-1, SHA256 and INV-2', 1), '2:INV-1 end 7');
     });
 
+    test('reads no run from a column at or past the end of the line', () {
+      expect(runOf('X INV-1', 7), ' end 7');
+      expect(runOf('X INV-1', 40), ' end 40');
+    });
+
     test('takes the longest prefix first', () {
       expect(runOf('X NFR-P01 and E10', 1), '2:NFR-P01 14:E10 end 17');
     });

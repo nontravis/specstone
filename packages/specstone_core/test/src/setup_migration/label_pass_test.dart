@@ -215,6 +215,20 @@ void main() {
       );
     });
 
+    test('an item ID right after a label settles which doc it names', () {
+      expect(
+        _convert(_topic, 'Holds F-01 and INV-5 here.\nAnd F-01 INV-5.\n'),
+        'Holds `feature:alpha` and INV-5 here.\nAnd `domain:alpha` INV-5.\n',
+      );
+    });
+
+    test('an item ID beyond the run of a label settles nothing', () {
+      expect(
+        _convert(_topic, 'Holds F-01 and then see INV-5 here.\n'),
+        'Holds `feature:alpha` and then see INV-5 here.\n',
+      );
+    });
+
     test('an item ID that follows stays after the name', () {
       expect(
         _convert(_topic, 'Holds F-01 INV-5 here.\n'),
