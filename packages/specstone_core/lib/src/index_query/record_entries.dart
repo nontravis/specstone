@@ -285,16 +285,18 @@ final class RecordFieldUnreadable implements Exception {
 }
 
 /// Returns [lfText], the text of a record of [recordType], with the item of
-/// each line of its `record_status`, `item_exact`, and `item_test` fields set
-/// to what [rewrite] returns; null when no line changes.
+/// each line of its `record_status`, `item_exact`, and `item_test` fields, and
+/// of each row of its Verification matrix, set to what [rewrite] returns; null
+/// when no line changes.
 ///
 /// [rewrite] takes a line's item, empty for the feature itself, and returns
 /// the item to write in its place, the same item to leave the line, or null to
-/// drop the line. A line that names no item stays. A field that changes is
-/// written back through the list writer, or removed when no line is left;
-/// every other key, and a field that does not change, stays as written. It
-/// marks no draft. Throws [RecordFieldUnreadable] when a field's
-/// block is not valid YAML.
+/// drop the line. A line that names no item stays, and so does a matrix line
+/// that is no row. A field that changes is written back through the list
+/// writer, or removed when no line is left; every other key, and a field that
+/// does not change, stays as written. A row changes in its item alone, its
+/// literal, edge case, and fingerprint stay byte for byte. It marks no draft.
+/// Throws [RecordFieldUnreadable] when a field's block is not valid YAML.
 String? rewriteRecordItems(
   String lfText,
   MergedDocType recordType,
@@ -304,7 +306,32 @@ String? rewriteRecordItems(
   for (final field in _recordFieldsOf(recordType)) {
     text = _rewriteField(text, field, rewrite);
   }
+  text = _rewriteMatrixRows(text, recordType, rewrite);
   return text == lfText ? null : text;
+}
+
+/// Returns [lfText] with the item of each matrix row set to what [rewrite]
+/// returns, a null dropping the row; every other line stays as written.
+String _rewriteMatrixRows(
+  String lfText,
+  MergedDocType recordType,
+  String? Function(String item) rewrite,
+) {
+  final changes = <int, String?>{};
+  final lines = lfText.split('\n');
+  for (final row in matrixLinesIn(lfText, recordType).whereType<MatrixRow>()) {
+    final item = rewrite(row.item);
+    if (item == row.item) continue;
+    final written = lines[row.line - 1];
+    changes[row.line - 1] = item == null
+        ? null
+        : '- $item${written.substring(2 + row.item.length)}';
+  }
+  if (changes.isEmpty) return lfText;
+  return [
+    for (final (i, line) in lines.indexed)
+      if (!changes.containsKey(i)) line else ?changes[i],
+  ].join('\n');
 }
 
 /// Returns the lines of [lfText]'s `record_status`, `item_exact`, and

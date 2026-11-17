@@ -238,6 +238,88 @@ void main() {
       },
     );
 
+    group('matrix rows', () {
+      const story = 'reset_password';
+      const frName = '$story/send_reset_link';
+      const renamedFr = 'recover/send_reset_link';
+      const tail = 'E02: `refuses a wrong password` 5d1e0c4b7a92';
+      const skipTail = 'E03 skipped: needs root on CI  9a1c03be55d2';
+      const note = 'A paragraph naming $frName E02.';
+
+      String record(String status, {String lineEnd = '\n'}) =>
+          '${recordText(statuses: ['$story:$status'])}\n'
+                  '## Verification matrix\n\n'
+                  '- $frName $tail\n'
+                  '- $frName $skipTail\n'
+                  '- $frName E04 `no colon`\n'
+                  '$note\n'
+              .replaceAll('\n', lineEnd);
+
+      Future<Directory> matrixTwins({String lineEnd = '\n'}) =>
+          writeWriteProject(
+            extra: {
+              '.specstone/config.yaml': twinConfig(),
+              '.specstone/templates/implementation.yaml': recordLayer,
+              '.specstone/templates/architecture.yaml':
+                  'id: architecture\nper_target: true\n',
+              'docs/$flutterRecord': record('implemented', lineEnd: lineEnd),
+              'docs/$jasprRecord': record('planned'),
+              'docs/specs/flutter/f01_login/ARCHITECTURE.md':
+                  '# Login architecture\n',
+              'docs/specs/jaspr/f01_login/ARCHITECTURE.md':
+                  '# Login architecture\n',
+            },
+            without: {'docs/specs/f01_login/ARCHITECTURE.md'},
+          );
+
+      test('E22: rename sets the item of each matrix row in each target '
+          'record and keeps the rest of the row', () async {
+        final root = await matrixTwins();
+        final (:runner, :out, :err) = writeRunner(root);
+        expect(
+          await runner.run([
+            'rename',
+            'user_story:login/reset_password',
+            '--to',
+            'recover',
+          ]),
+          0,
+          reason: err.toString(),
+        );
+
+        for (final path in [flutterRecord, jasprRecord]) {
+          final text = readDoc(root, path);
+          expect(text, contains('\n- $renamedFr $tail\n'), reason: path);
+          expect(text, contains('\n- $renamedFr $skipTail\n'), reason: path);
+          expect(text, contains('\n- $frName E04 `no colon`\n'), reason: path);
+          expect(text, contains('\n$note\n'), reason: path);
+        }
+      });
+
+      test(
+        'a CRLF record keeps its line ends through the row rewrite',
+        () async {
+          final root = await matrixTwins(lineEnd: '\r\n');
+          final (:runner, :out, :err) = writeRunner(root);
+          expect(
+            await runner.run([
+              'rename',
+              'user_story:login/reset_password',
+              '--to',
+              'recover',
+            ]),
+            0,
+            reason: err.toString(),
+          );
+
+          final text = readDoc(root, flutterRecord);
+          expect(text, contains('\r\n- $renamedFr $tail\r\n'));
+          expect(text, contains('\r\n- $renamedFr $skipTail\r\n'));
+          expect(text.replaceAll('\r\n', ''), isNot(contains('\n')));
+        },
+      );
+    });
+
     test(
       'E06: rename --target reads a per-target doc and names its feature',
       () async {

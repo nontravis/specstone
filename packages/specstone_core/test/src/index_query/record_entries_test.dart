@@ -875,6 +875,104 @@ void main() {
       expect(seen, ['b']);
       expect(text, '---\nimplements:\n  - ":lib/a.dart"\n---\n\n# R\n');
     });
+
+    group('matrix rows', () {
+      const header = '## Verification matrix\n\n';
+
+      String? Function(String) rename(String from, String to) =>
+          (item) => item == from ? to : item;
+
+      String sectionOf(String? text) => text!.substring(text.indexOf(header));
+
+      test('a renamed item sets each row of it and keeps the rest of the row, '
+          'the literal, the edge case, the fingerprint, and every other '
+          'line', () {
+        final text = rewriteRecordItems(
+          _matrixRecord([
+            '- show_toast/queue_toasts E01: `queues a second toast` 3f9a1c0b7e2d',
+            '- show_toast/queue_toasts E02 skipped: needs root on CI  9a1c03be55d2 ',
+            '- show_toast E03: `shows a toast`',
+            'A paragraph that names show_toast/queue_toasts E01.',
+          ]),
+          _matrixRecordType,
+          rename('show_toast/queue_toasts', 'toast/queue'),
+        );
+
+        expect(
+          sectionOf(text),
+          '$header'
+          '- toast/queue E01: `queues a second toast` 3f9a1c0b7e2d\n'
+          '- toast/queue E02 skipped: needs root on CI  9a1c03be55d2 \n'
+          '- show_toast E03: `shows a toast`\n'
+          'A paragraph that names show_toast/queue_toasts E01.\n',
+        );
+      });
+
+      test('a row whose item the rewrite drops leaves the section', () {
+        final text = rewriteRecordItems(
+          _matrixRecord([
+            '- show_toast/queue_toasts E01: `queues a second toast`',
+            '- show_toast E03: `shows a toast`',
+            '- show_toast/queue_toasts E02 skipped: needs root on CI',
+          ]),
+          _matrixRecordType,
+          (item) => item == 'show_toast/queue_toasts' ? null : item,
+        );
+
+        expect(sectionOf(text), '$header- show_toast E03: `shows a toast`\n');
+      });
+
+      test('a malformed line is left unchanged', () {
+        const malformed = '- show_toast/queue_toasts E01 `no colon`';
+        final text = rewriteRecordItems(
+          _matrixRecord([malformed, '- show_toast/queue_toasts E02: `ok`']),
+          _matrixRecordType,
+          rename('show_toast/queue_toasts', 'toast/queue'),
+        );
+
+        expect(sectionOf(text), '$header$malformed\n- toast/queue E02: `ok`\n');
+      });
+
+      test('a literal holding a backtick, a colon, a dollar sign, and a '
+          'backslash keeps its span exactly', () {
+        const literal = r'a `b`: $c \d';
+        const tail = 'E01: ``$literal`` 3f9a1c0b7e2d';
+        final text = rewriteRecordItems(
+          _matrixRecord(['- show_toast/queue_toasts $tail']),
+          _matrixRecordType,
+          rename('show_toast/queue_toasts', 'toast/queue'),
+        );
+
+        expect(sectionOf(text), '$header- toast/queue $tail\n');
+      });
+
+      test('a record without rows is untouched by the row rewrite', () {
+        expect(
+          rewriteRecordItems(
+            _matrixRecord(const []),
+            _matrixRecordType,
+            rename('show_toast', 'toast'),
+          ),
+          isNull,
+        );
+        expect(
+          rewriteRecordItems(
+            _matrixRecord(['- show_toast E01: `shows a toast`']),
+            _matrixRecordType,
+            (item) => item,
+          ),
+          isNull,
+        );
+        expect(
+          rewriteRecordItems(
+            _matrixRecord(['- show_toast E01: `shows a toast`']),
+            _recordType,
+            rename('show_toast', 'toast'),
+          ),
+          isNull,
+        );
+      });
+    });
   });
   group('recordLinesCarried and addRecordLines', () {
     const record =
