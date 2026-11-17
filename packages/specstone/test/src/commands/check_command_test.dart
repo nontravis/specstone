@@ -1030,6 +1030,91 @@ void main() {
     });
   });
 
+  group('verification matrix rows', () {
+    const item = 'email_login/check_password';
+    const testFile = 'app/test/login_test.dart';
+    // The first row sits on file line 12, under the matrix header on line 10.
+    const rows = [
+      '- $item E01: `refuses a blank password`',
+      '- $item E01 skipped: no clock on CI',
+      'A paragraph in the section.',
+    ];
+
+    Future<Directory> matrixProject() => writeCheckProject(
+      extra: {
+        loginRecord:
+            "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
+            '# Login implementation\n\n## Verification matrix\n\n${rows.join('\n')}\n',
+        testFile:
+            "void main() {\n  test('refuses an empty password', () {});\n}\n",
+      },
+      // A stamp would add an `approved:` line and move every line below it.
+      unstamped: {loginRecord},
+    );
+
+    test('check prints matrix findings on the record, each waiting for the Agent', () async {
+      final project = await matrixProject();
+
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 1);
+      expect(text.out.toString().split('\n').where((l) => l.contains(': matrix_')), [
+        '$loginRecord:12: matrix_test_unresolved: refuses a blank password occurs in no test file of $item',
+        '$loginRecord:13: matrix_skip_conflict: $item#E01 has a skip row beside another row; line 12 holds the other',
+        '$loginRecord:14: matrix_row_malformed: ${rows[2]} is no matrix row; write "- <item> <edge case>: `<test name>`" or "- <item> <edge case> skipped: <reason>"',
+      ]);
+
+      final json = readRunner(project);
+      expect(await json.runner.run(['check', '--json']), 1);
+      final all =
+          (jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+              as List;
+      final findings = [
+        for (final f in all.cast<Map<String, Object?>>())
+          if ((f['kind']! as String).startsWith('matrix_')) f,
+      ];
+      expect(
+        [
+          for (final f in findings) [f['kind'], f['line'], f['waitsFor']],
+        ],
+        [
+          ['matrix_test_unresolved', 12, 'agent'],
+          ['matrix_skip_conflict', 13, 'agent'],
+          ['matrix_row_malformed', 14, 'agent'],
+        ],
+      );
+      expect(
+        [
+          for (final f in findings)
+            {
+              for (final MapEntry(:key, :value) in f.entries)
+                if (!const [
+                  'kind',
+                  'docPath',
+                  'line',
+                  'message',
+                  'waitsFor',
+                ].contains(key))
+                  key: value,
+            },
+        ],
+        [
+          // The `name` key of this kind replaces the doc's name, as it does for `tests_unresolved`.
+          {'name': 'refuses a blank password', 'item': item},
+          {'name': 'login', 'first': 12},
+          {'name': 'login', 'row': rows[2]},
+        ],
+      );
+      expect({for (final f in findings) f['docPath']}, {loginRecord});
+    });
+
+    test('check on the requirement alone prints none of them', () async {
+      final (:runner, :out, :err) = readRunner(await matrixProject());
+
+      expect(await runner.run(['check', loginFr]), 0, reason: out.toString());
+      expect(out.toString(), '0 findings\n');
+    });
+  });
+
   group('mermaid parse through the built binary', () {
     final hasNode = _nodeStarts();
     final noNode = hasNode ? null : 'node is not on PATH';

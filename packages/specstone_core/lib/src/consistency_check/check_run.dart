@@ -23,6 +23,7 @@ import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/journey_rules.dart';
 import 'package:specstone_core/src/consistency_check/label_rules.dart';
 import 'package:specstone_core/src/consistency_check/link_rules.dart';
+import 'package:specstone_core/src/consistency_check/matrix_rules.dart';
 import 'package:specstone_core/src/consistency_check/mermaid_node_run.dart';
 import 'package:specstone_core/src/consistency_check/mermaid_parse_rules.dart';
 import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
@@ -114,6 +115,7 @@ Future<CheckReport> runCheck(
       ..addAll(checkItemIds(context, doc))
       ..addAll(checkImplements(context, doc))
       ..addAll(checkTestPointers(context, doc))
+      ..addAll(checkMatrixRows(context, doc))
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkCodeLinks(context, work, doc))
       ..addAll(checkDocLinks(context, doc))

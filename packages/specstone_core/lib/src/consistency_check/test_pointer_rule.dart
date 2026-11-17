@@ -60,8 +60,7 @@ Iterable<Finding> _resolve(
   }
   final name = entry.testName;
   if (name == null || name.isEmpty) return;
-  final texts = _textsByContext[context] ??= _TestTexts();
-  final text = texts.textOf(context, target, path);
+  final text = testFileTextOf(context, target, path);
   if (text == null || text.contains(name)) return;
   yield context.finding(
     doc,
@@ -79,6 +78,14 @@ bool _isResolved(CheckContext context, IndexedDoc item, String? codeTarget) =>
       RecordStatus.implemented || RecordStatus.deprecated => true,
       RecordStatus.planned || RecordStatus.skipped => false,
     };
+
+/// Returns the text of the test file at [path] under [target]'s code root, or
+/// null when it cannot be read.
+///
+/// A run reads each file once whichever rule asks first, and an unreadable
+/// file adds one warning.
+String? testFileTextOf(CheckContext context, CodeTarget target, String path) =>
+    (_textsByContext[context] ??= _TestTexts()).textOf(context, target, path);
 
 /// The test files each run has read, held for the run's lifetime.
 final Expando<_TestTexts> _textsByContext = Expando('test files read');

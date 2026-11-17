@@ -186,7 +186,8 @@ const _skipMark = ' skipped: ';
 ///
 /// A test row is ``- <item> <edge case>: `<literal>`[ <fingerprint>]``; a
 /// skip row is `- <item> <edge case> skipped: <reason>[ <fingerprint>]`. A
-/// fingerprint is 12 lowercase hex characters.
+/// fingerprint is 12 lowercase hex characters. A skip row with no reason is
+/// malformed. Trailing whitespace after a row is no part of it.
 MatrixLine parseMatrixLine(String text, int line) =>
     _testRowOf(text, line) ??
     _skipRowOf(text, line) ??
@@ -231,7 +232,7 @@ bool _isEdgeCase(String text) =>
 TestRow? _testRowOf(String text, int line) {
   final head = _headOf(text);
   if (head == null || !head.rest.startsWith(': ')) return null;
-  final rest = head.rest.substring(2);
+  final rest = head.rest.substring(2).trimRight();
   final span = codeSpansOf(rest).firstOrNull;
   if (span == null || span.start != 0) return null;
   final tail = rest.substring(span.end);
