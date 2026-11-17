@@ -105,9 +105,9 @@ final class StampPass {
       }
       planned[doc.docPath] = doc.lf;
       final entries = restamps == null
-          ? (lf: doc.lf, count: 0)
+          ? RestampedEntries(doc.lf, 0)
           : _restamped(doc, old, beforeWorld, world, restamps);
-      var lf = entries.lf;
+      var lf = entries.lfText;
       // A doc that did not await approval before the run counts as approved;
       // one `check` flagged then (a stale hash, a bad value) stays.
       if (!awaitsApproval(
@@ -120,7 +120,7 @@ final class StampPass {
       if (lf == doc.lf) continue;
       stamped[doc.docPath] = lf;
       fingerprints += entries.count;
-      if (lf != entries.lf) approvals++;
+      if (lf != entries.lfText) approvals++;
     }
     return StampPass._(planned, stamped, approvals, fingerprints, skipped);
   }
@@ -174,9 +174,40 @@ String? stampsPlanLine(
 
 // MARK: - Confirmed entries
 
-/// A doc's text with its matched `confirmed` entries re-stamped, and how many
-/// changed.
-typedef _Restamped = ({String lf, int count});
+/// A doc's text with its matched entries re-stamped, and how many changed.
+final class RestampedEntries {
+  const new(this.lfText, this.count);
+
+  final String lfText;
+  final int count;
+}
+
+/// Returns [lfText] with each entry of the frontmatter key [key],
+/// `<label> <fingerprint>`, that [matched] its block before a step set to the
+/// fingerprint [after] gives that block once the step ran.
+///
+/// An entry stale before the step, which [matched] rejects, keeps its value,
+/// as does one whose block [after] gives none for.
+RestampedEntries withEntriesRestamped(
+  String lfText,
+  String key, {
+  required bool Function(int index, String label, String fingerprint) matched,
+  required String? Function(String label) after,
+}) {
+  var count = 0;
+  final text = withBlockValues(
+    lfText,
+    key,
+    _EntryWalk((index, label, fingerprint) {
+      if (!matched(index, label, fingerprint)) return null;
+      final now = after(label);
+      if (now == null || now == fingerprint) return null;
+      count++;
+      return now;
+    }).call,
+  );
+  return RestampedEntries(text, count);
+}
 
 /// Whether the matched entry [label] of the doc at [docPath] takes its
 /// block's fingerprint after the run.
@@ -210,14 +241,14 @@ _Restamps? _restampRule(
 /// Re-stamps each entry of [doc] whose fingerprint matched its upstream block
 /// in [old], the doc before the run, and that [restamps] picks, with the
 /// block's fingerprint in [after].
-_Restamped _restamped(
+RestampedEntries _restamped(
   StampDoc doc,
   StampDoc old,
   _World before,
   _World after,
   _Restamps restamps,
 ) {
-  final unchanged = (lf: doc.lf, count: 0);
+  final unchanged = RestampedEntries(doc.lf, 0);
   if (!_holdsConfirmed(doc.type!)) return unchanged;
   final matched = <bool>[];
   withBlockValues(
@@ -238,19 +269,13 @@ _Restamped _restamped(
     }).call,
   );
   if (seen != matched.length || !matched.contains(true)) return unchanged;
-  var count = 0;
-  final lf = withBlockValues(
+  return withEntriesRestamped(
     doc.lf,
     _confirmedKey,
-    _EntryWalk((index, label, fingerprint) {
-      if (!matched[index] || !restamps(doc.docPath, label)) return null;
-      final now = after.currentFingerprint(doc.docPath, label);
-      if (now == null || now == fingerprint) return null;
-      count++;
-      return now;
-    }).call,
+    matched: (index, label, _) =>
+        matched[index] && restamps(doc.docPath, label),
+    after: (label) => after.currentFingerprint(doc.docPath, label),
   );
-  return (lf: lf, count: count);
 }
 
 bool _holdsConfirmed(MergedDocType type) =>

@@ -16,7 +16,7 @@ import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/check_fixture.dart' show checkOf, fingerprintFor, spots;
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/write_fixture.dart';
 
@@ -813,6 +813,80 @@ void main() {
       );
       expect(coupon, isNot(contains('domain:shop#INV-3')));
     });
+
+    test('an overrides entry that matched a renumbered item takes the landed fingerprint and checks clean, while a stale one keeps its value and stays suspect', () async {
+      List<Map<String, Object>> suspects(Directory root) => [
+        for (final finding in checkOf(root, docPath: _couponDomain).findings)
+          if (finding.kind == FindingKind.suspect) finding.toJson(),
+      ];
+      Future<Directory> coupon(String fingerprint) => _project(
+        shop: [_inv(1), _inv(3)],
+        cart: _twelve,
+        extra: {
+          'docs/$_couponFeature': '# Coupon\n',
+          'docs/$_couponDomain': _domain(
+            [
+              _inv(5),
+              '- Overrides: [INV-3](../../DOMAIN.md#invariants) — $_because',
+            ],
+            frontmatter:
+                '---\noverrides:\n  - domain:shop#INV-3 $fingerprint\n---\n\n',
+          ),
+        },
+      );
+
+      final matched = await coupon(fingerprintFor(_inv(3)));
+      expect(suspects(matched), isEmpty);
+      _move(matched, ['domain:shop#INV-3']);
+      expect(
+        readDoc(matched, _couponDomain),
+        contains(
+          'overrides:\n  - domain:shop/cart#INV-13 '
+          '${fingerprintFor(_inv(13).replaceFirst('Rule 13', 'Rule 3'))}\n',
+        ),
+      );
+      expect(suspects(matched), isEmpty);
+
+      final stale = await coupon(_fingerprint);
+      expect(suspects(stale), hasLength(1));
+      _move(stale, ['domain:shop#INV-3']);
+      expect(
+        readDoc(stale, _couponDomain),
+        contains('overrides:\n  - domain:shop/cart#INV-13 $_fingerprint\n'),
+      );
+      expect(
+        [
+          for (final suspect in suspects(stale))
+            (suspect['link'], suspect['recorded']),
+        ],
+        [('domain:shop/cart#INV-13', _fingerprint)],
+      );
+    });
+
+    test(
+      'a dry run of a renumbering move stamps no overrides fingerprint',
+      () async {
+        final root = await _project(
+          shop: [_inv(1), _inv(3)],
+          cart: _twelve,
+          extra: {
+            'docs/$_couponFeature': '# Coupon\n',
+            'docs/$_couponDomain': _domain(
+              [
+                _inv(5),
+                '- Overrides: [INV-3](../../DOMAIN.md#invariants) — $_because',
+              ],
+              frontmatter:
+                  '---\noverrides:\n  - domain:shop#INV-3 '
+                  '${fingerprintFor(_inv(3))}\n---\n\n',
+            ),
+          },
+        );
+        final before = readDoc(root, _couponDomain);
+        _move(root, ['domain:shop#INV-3'], dryRun: true);
+        expect(readDoc(root, _couponDomain), before);
+      },
+    );
 
     test('a confirmed entry that names no item keeps its text', () async {
       final root = await _project();

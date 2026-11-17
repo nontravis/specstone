@@ -49,6 +49,21 @@ void main() {
       expect(blocks, {'S1': '### Scenario 01 — one\n- a'});
     });
 
+    test('a ###x line, a ### line with no text, and a quoted ### line stay '
+        'inside the block, as no item heading opens there', () {
+      final blocks = scenarioBlocksIn(
+        _body(
+          '### Scenario 1 — one\n###x\n###\n> ### quoted\n- a\n'
+          '### Scenario 2 — two\n- b',
+        ),
+      );
+
+      expect(blocks, {
+        'S1': '### Scenario 1 — one\n###x\n###\n> ### quoted\n- a',
+        'S2': '### Scenario 2 — two\n- b',
+      });
+    });
+
     test('Scenario 1 does not match Scenario 10', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 10 — ten\n- a\n### Scenario 1 — one\n- b'),

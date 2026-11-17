@@ -9,8 +9,6 @@ export 'package:specstone_core/src/doc_model/reference_grammar.dart'
 export 'package:specstone_core/src/index_query/held_sections.dart'
     show BodyLine;
 
-const _subHeadingMarker = '###';
-const _deeperHeadingMarker = '####';
 const _itemHeadingMarker = '### ';
 const _statementPrefix = '- **Statement:**';
 const _goalIdPrefix = 'PG-';
@@ -66,16 +64,18 @@ String nfrStatementOf(Iterable<BodyLine> block) =>
         .firstOrNull ??
     '';
 
-/// Whether [line] opens a `###` heading (not a deeper one).
-bool isSubHeading(String line) =>
-    line.startsWith(_subHeadingMarker) &&
-    !line.startsWith(_deeperHeadingMarker);
+/// Whether [line] opens a `### ` heading, the line that ends a `###` block
+/// for `check` and for `move` alike.
+///
+/// A `###x` line, a bare `###`, and a quoted `> ### ` line open none, as the
+/// item reader opens no heading item there.
+bool isSubHeading(String line) => line.startsWith(_itemHeadingMarker);
 
 /// Splits [body] into the `###` blocks that [keyOf] names.
 ///
-/// A block runs from its heading line to the next `###` line outside fenced
-/// code, or the end of [body]. [keyOf] names a block from its heading line;
-/// null opens no block and closes the one above.
+/// A block runs from its heading line to the next [isSubHeading] line outside
+/// fenced code, or the end of [body]. [keyOf] names a block from its heading
+/// line; null opens no block and closes the one above.
 List<({String key, List<BodyLine> lines})> headingBlocksOf(
   List<BodyLine> body,
   String? Function(String heading) keyOf,
@@ -123,13 +123,16 @@ Map<String, String> scenarioBlocksIn(List<BodyLine> body) {
 /// Returns the `### Scenario <N>` blocks of [story], keyed `S<N>`.
 ///
 /// Reads the `acceptance_criteria` section; empty when [story] holds none.
-Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) {
-  final content = index.contentOf(story);
-  final section = heldSectionIndex(
-    content,
-    index.typeOf(story),
-    acceptanceSectionId,
-  );
+Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) =>
+    scenarioBlocksOfContent(index.contentOf(story), index.typeOf(story));
+
+/// Returns the `### Scenario <N>` blocks of [content], a doc of [type], keyed
+/// `S<N>`; empty when it holds no `acceptance_criteria` section.
+Map<String, String> scenarioBlocksOfContent(
+  DocContent content,
+  MergedDocType? type,
+) {
+  final section = heldSectionIndex(content, type, acceptanceSectionId);
   if (section == null) return const {};
   return scenarioBlocksIn(
     sectionBodyLines(content.sections, content.lineFacts, section),

@@ -6,7 +6,9 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/doc_model/task_ref.dart';
 import 'package:specstone_core/src/document_writing/item_moves.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart'
-    show overrideCitesOf;
+    show ItemLanding, overrideCitesOf;
+import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
+    show MovedFingerprints;
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -19,32 +21,30 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _overridesKey = 'overrides';
 
 /// Returns, by DocPath, the edit of each doc's frontmatter entries that follow
-/// a moved item: an `overrides` entry that names it, and a task ref that
-/// leaves its source doc for the target doc.
+/// a moved item: an `overrides` entry that names it, re-stamped from
+/// [fingerprints] when it matched, and a task ref that leaves its source doc
+/// for the target doc.
 ///
 /// Throws [RenderFault] `output_not_writable` for a task ref field that is
 /// not valid YAML.
 Map<String, String Function(String lfText)> itemEntryEdits(
   DocIndex index,
-  ItemMoves moves,
-) {
-  final renames = <String, Map<String, String>>{};
+  ItemMoves moves, {
+  required Map<ItemLanding, MovedFingerprints> fingerprints,
+}) {
+  final named = <String, Map<String, ItemLanding>>{};
   for (final doc in index.docs) {
-    final renamed = _renamedEntries(index, doc, moves);
-    if (renamed.isNotEmpty) renames[doc.docPath] = renamed;
+    final landings = _namedLandings(index, doc, moves);
+    if (landings.isNotEmpty) named[doc.docPath] = landings;
   }
   final tasks = _taskMoves(index, moves);
   return {
-    for (final path in {...renames.keys, ...tasks.keys})
+    for (final path in {...named.keys, ...tasks.keys})
       path: (lfText) {
-        final renamed = renames[path];
-        var text = renamed == null
+        final landings = named[path];
+        var text = landings == null
             ? lfText
-            : withBlockValues(
-                lfText,
-                _overridesKey,
-                (value) => _renamedEntry(value, renamed),
-              );
+            : _withEntriesFollowing(lfText, landings, fingerprints);
         if (index.at(path) case final doc?) {
           text = tasks[path]?.applyTo(text, index.typeOf(doc), path) ?? text;
         }
@@ -54,21 +54,44 @@ Map<String, String Function(String lfText)> itemEntryEdits(
 }
 
 /// Returns, by the identity of the label an `overrides` entry of [doc] holds,
-/// the label of the moved item it names after the moves.
-Map<String, String> _renamedEntries(
+/// the landing of the moved item it names.
+Map<String, ItemLanding> _namedLandings(
   DocIndex index,
   IndexedDoc doc,
   ItemMoves moves,
+) => {
+  for (final cite in overrideCitesOf(index, doc))
+    if (moves.landingOf(cite.upstream.docPath, cite.itemId) case final landing?
+        when landing.to.docTypeId != null)
+      linkIdentityOf(cite.entryLabel): landing,
+};
+
+/// Returns [lfText] with each `overrides` entry naming a landing of [landings]
+/// re-stamped when it matched, then set to the label the item lands under.
+String _withEntriesFollowing(
+  String lfText,
+  Map<String, ItemLanding> landings,
+  Map<ItemLanding, MovedFingerprints> fingerprints,
 ) {
-  final renamed = <String, String>{};
-  for (final cite in overrideCitesOf(index, doc)) {
-    final landing = moves.landingOf(cite.upstream.docPath, cite.itemId);
-    final typeId = landing?.to.docTypeId;
-    if (landing == null || typeId == null) continue;
-    renamed[linkIdentityOf(cite.entryLabel)] =
-        '$typeId:${landing.to.name}#${landing.newId}';
+  var text = lfText;
+  for (final MapEntry(key: identity, value: landing) in landings.entries) {
+    text =
+        fingerprints[landing]?.restampIn(
+          text,
+          _overridesKey,
+          (label) => linkIdentityOf(label) == identity,
+        ) ??
+        text;
   }
-  return renamed;
+  final renamed = {
+    for (final MapEntry(key: identity, value: landing) in landings.entries)
+      identity: '${landing.to.docTypeId}:${landing.to.name}#${landing.newId}',
+  };
+  return withBlockValues(
+    text,
+    _overridesKey,
+    (value) => _renamedEntry(value, renamed),
+  );
 }
 
 String? _renamedEntry(String value, Map<String, String> renamed) {

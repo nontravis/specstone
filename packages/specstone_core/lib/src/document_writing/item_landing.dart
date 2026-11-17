@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show isSubHeading;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
@@ -242,7 +244,7 @@ void _dropLine(List<String> lines, int at) {
 
 /// Returns the last file line of the item at [at] of [items], the nested items
 /// it spans and the `Overrides:` line right after it included; a heading item
-/// spans its block, up to the next heading item.
+/// spans its block (see [_blockEnd]).
 int _spanEnd(
   DocContent content,
   int sectionAt,
@@ -251,7 +253,7 @@ int _spanEnd(
 ) {
   final head = items[at];
   if (head.kind == SectionItemKind.heading) {
-    return _blockEnd(content, sectionAt, items, at);
+    return _blockEnd(content, sectionAt, head.line);
   }
   var last = at;
   var hasOwn = false;
@@ -269,21 +271,17 @@ int _spanEnd(
 
 int _endOf(SectionItem item) => item.line + item.text.split('\n').length - 1;
 
-/// Returns the last non-blank file line before the next heading item after the
-/// heading item at [at], or the section's last.
-int _blockEnd(
-  DocContent content,
-  int sectionAt,
-  List<SectionItem> items,
-  int at,
-) {
+/// Returns the last non-blank file line of the block whose heading is file
+/// line [headLine]: up to the next unfenced [isSubHeading] line, as `check`
+/// reads a block, or the section's last.
+int _blockEnd(DocContent content, int sectionAt, int headLine) {
   final body = sectionBodyLines(content.sections, content.lineFacts, sectionAt);
-  final next = items
-      .skip(at + 1)
-      .where((item) => item.kind == SectionItemKind.heading)
+  final next = body
+      .where((line) => line.line > headLine)
+      .where((line) => !line.fenced && isSubHeading(line.text))
       .firstOrNull;
   var end = next == null ? body.last.line : next.line - 1;
-  while (end > items[at].line && _isBlank(body[end - body.first.line].text)) {
+  while (end > headLine && _isBlank(body[end - body.first.line].text)) {
     end--;
   }
   return end;

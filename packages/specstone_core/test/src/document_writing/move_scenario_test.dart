@@ -144,6 +144,14 @@ const _toDropItem = '../../../prds/features/f02_shop/f01_cart/us02_drop_item';
 final String _fp1 = fingerprintFor(_scenario(1));
 final String _fp2 = fingerprintFor(_scenario(2));
 
+/// Scenario 2 as it lands renumbered to Scenario 3.
+final String _fp2Landed = fingerprintFor(
+  _scenario(2).replaceFirst('### Scenario 2', '### Scenario 3'),
+);
+
+/// A fingerprint no block of the fixture holds, so its entry is stale.
+const _stale = '0123456789ab';
+
 String _list(String key, List<String> entries) =>
     '$key:\n${[for (final entry in entries) '  - $entry\n'].join()}';
 
@@ -196,6 +204,12 @@ Future<Directory> _citedProject() => _project(
         '[s2]: $_toAddItem/USER_STORY.md#scenario-2--edge-case-2\n',
   },
 );
+
+/// The `suspect` findings `check` reports on [docPath], as their JSON.
+List<Map<String, Object>> _suspects(Directory root, String docPath) => [
+  for (final finding in checkOf(root, docPath: docPath).findings)
+    if (finding.kind == FindingKind.suspect) finding.toJson(),
+];
 
 /// The doc text after its frontmatter, which carries the move's marks.
 String _bodyOf(Directory root, String docPath) => readDoc(
@@ -586,7 +600,7 @@ void main() {
   });
 
   group('references', () {
-    test("a source-story fr's bare trace and confirmed entry name the target story and new number, fingerprint kept, no draft", () async {
+    test("a source-story fr's bare trace and confirmed entry name the target story and new number, the landed fingerprint stamped, no draft", () async {
       final root = await _citedProject();
       _move(root, ['$_addItem#S2']);
       final text = readDoc(root, cartAddFr);
@@ -603,7 +617,10 @@ void main() {
       expect(
         text,
         contains(
-          _list('confirmed', ['S1 $_fp1', 'shop/cart/drop_item#S3 $_fp2']),
+          _list('confirmed', [
+            'S1 $_fp1',
+            'shop/cart/drop_item#S3 $_fp2Landed',
+          ]),
         ),
       );
       expect(text, isNot(contains('draft: true')));
@@ -614,7 +631,87 @@ void main() {
       _move(root, ['$_addItem#S2']);
       final text = readDoc(root, _dropFr);
       expect(text, contains(_list('traced_from', ['S2', 'S3'])));
-      expect(text, contains(_list('confirmed', ['S2 $_fp2', 'S3 $_fp2'])));
+      expect(
+        text,
+        contains(_list('confirmed', ['S2 $_fp2', 'S3 $_fp2Landed'])),
+      );
+    });
+
+    test('every confirmed entry that matched the moved scenario checks clean after a renumbering move', () async {
+      final root = await _citedProject();
+      final traced = [cartAddFr, _dropFr, _payFr, _journey];
+      for (final docPath in traced) {
+        expect(_suspects(root, docPath), isEmpty, reason: 'before: $docPath');
+      }
+      _move(root, ['$_addItem#S2']);
+      for (final docPath in traced) {
+        expect(_suspects(root, docPath), isEmpty, reason: 'after: $docPath');
+      }
+    });
+
+    test(
+      'an entry stale before the move keeps its fingerprint and stays suspect',
+      () async {
+        final root = await _project(
+          extra: {
+            'docs/$cartAddFr': _fr(
+              'check the stock',
+              ['S1', 'S2'],
+              ['S1 $_fp1', 'S2 $_stale'],
+            ),
+          },
+        );
+        expect(_suspects(root, cartAddFr), hasLength(1));
+        _move(root, ['$_addItem#S2']);
+        expect(
+          readDoc(root, cartAddFr),
+          contains(
+            _list('confirmed', ['S1 $_fp1', 'shop/cart/drop_item#S3 $_stale']),
+          ),
+        );
+        final suspects = _suspects(root, cartAddFr);
+        expect(suspects, hasLength(1));
+        expect(suspects.single['link'], 'shop/cart/drop_item#S3');
+        expect(suspects.single['recorded'], _stale);
+      },
+    );
+
+    test('a dry run of a renumbering move stamps no fingerprint', () async {
+      final root = await _citedProject();
+      final before = _docs(root);
+      _move(root, ['$_addItem#S2'], dryRun: true);
+      expect(_docs(root), before);
+    });
+
+    test('a ###x line and a quoted ### line inside a scenario move with it, and its matched entry checks clean before and after', () async {
+      final odd = _scenario(2).replaceFirst(
+        '\n- **When**',
+        '\n\n###x is no heading\n\n> ### nor is a quoted one\n\n- **When**',
+      );
+      final root = await _project(
+        add: [_scenario(1), odd, _scenario(3)],
+        extra: {
+          'docs/$cartAddFr': _fr(
+            'check the stock',
+            ['S2'],
+            ['S2 ${fingerprintFor(odd)}'],
+          ),
+        },
+      );
+      expect(_suspects(root, cartAddFr), isEmpty);
+      _move(root, ['$_addItem#S2']);
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [
+          ..._scenarios(2),
+          odd.replaceFirst('### Scenario 2', '### Scenario 3'),
+        ]),
+      );
+      expect(
+        _bodyOf(root, cartAdd),
+        _storyBody('Agent adds an item', [_scenario(1), _scenario(3)]),
+      );
+      expect(_suspects(root, cartAddFr), isEmpty);
     });
 
     test(
@@ -635,7 +732,7 @@ void main() {
         );
         expect(
           text,
-          contains(_list('confirmed', ['shop/cart/drop_item#S3 $_fp2'])),
+          contains(_list('confirmed', ['shop/cart/drop_item#S3 $_fp2Landed'])),
         );
       },
     );
@@ -670,7 +767,7 @@ void main() {
           contains(
             _list('confirmed', [
               'shop/cart/add_item#S1 $_fp1',
-              'shop/cart/drop_item#S3 $_fp2',
+              'shop/cart/drop_item#S3 $_fp2Landed',
             ]),
           ),
         );
