@@ -297,16 +297,31 @@ void main() {
     );
   });
 
-  test('cc-s03/inv1: a check writes no file of its own', () async {
-    final project = await writeCheckProject();
-    await checkOf(project); // the first open builds the index
+  test('cc-s03/inv1: a check writes no file of its own, a run that parses diagrams with Node included', () async {
+    const parsing = 'sequenceDiagram\n  A->>B: ok';
+    const refused = 'sequenceDiagram\n  A->>B: ok\n  A->>B: x;y';
+    final project = await writeCheckProject(
+      extra: {
+        'docs/$loginArchitecture':
+            '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
+            '## Component diagram\n\n```mermaid\n$parsing\n```\n\n'
+            '```mermaid\n$refused\n```\n\n## Components\n\n'
+            '| Component | Responsibility |\n|---|---|\n| Sign-in page | Takes the form |\n',
+      },
+      unstamped: {'docs/$loginArchitecture'},
+    );
+    int refusedBlocks(CheckReport report) => report.findings
+        .where((f) => f.kind == FindingKind.diagramParseFailed)
+        .length;
+    // The first open builds the index and parses the blocks.
+    expect(refusedBlocks(await checkOf(project)), 1);
     Map<String, String> snapshot() => {
       for (final f in project.listSync(recursive: true).whereType<File>())
         if (!f.path.contains('index.sqlite'))
           f.path: base64.encode(f.readAsBytesSync()),
     };
     final before = snapshot();
-    await checkOf(project);
+    expect(refusedBlocks(await checkOf(project)), 1);
     expect(snapshot(), before);
   });
 
