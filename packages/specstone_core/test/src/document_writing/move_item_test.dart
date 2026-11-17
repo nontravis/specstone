@@ -740,6 +740,33 @@ void main() {
       );
     });
 
+    test('a quoted heading item moves alone, and the quoted heading item after it stays with its ID', () async {
+      final root = await _project(
+        shop: [
+          '> ### INV-5 — Cart expiry',
+          '> A cart expires.',
+          '',
+          '> ### INV-6 — Other',
+          '> Stays.',
+        ],
+        cart: [_inv(1)],
+      );
+      move(root, ['domain:shop#INV-5']);
+      expect(
+        bodyOf(root, shopDomain),
+        _domain(['> ### INV-6 — Other', '> Stays.']),
+      );
+      expect(
+        bodyOf(root, cartDomain),
+        _domain([
+          _inv(1),
+          '',
+          '> ### INV-5 — Cart expiry',
+          '> A cart expires.',
+        ]),
+      );
+    });
+
     test('several items land in the order given', () async {
       final root = await _project(
         shop: [_inv(5), _inv(6), _inv(7)],

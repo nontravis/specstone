@@ -683,35 +683,45 @@ void main() {
       expect(_docs(root), before);
     });
 
-    test('a ###x line and a quoted ### line inside a scenario move with it, and its matched entry checks clean before and after', () async {
-      final odd = _scenario(2).replaceFirst(
-        '\n- **When**',
-        '\n\n###x is no heading\n\n> ### nor is a quoted one\n\n- **When**',
-      );
-      final root = await _project(
-        add: [_scenario(1), odd, _scenario(3)],
-        extra: {
-          'docs/$cartAddFr': _fr(
-            'check the stock',
-            ['S2'],
-            ['S2 ${fingerprintFor(odd)}'],
-          ),
-        },
-      );
-      expect(_suspects(root, cartAddFr), isEmpty);
-      _move(root, ['$_addItem#S2']);
-      expect(
-        _bodyOf(root, cartDrop),
-        _storyBody('Agent drops an item', [
-          ..._scenarios(2),
-          odd.replaceFirst('### Scenario 2', '### Scenario 3'),
-        ]),
-      );
-      expect(
-        _bodyOf(root, cartAdd),
-        _storyBody('Agent adds an item', [_scenario(1), _scenario(3)]),
-      );
-      expect(_suspects(root, cartAddFr), isEmpty);
+    test('check and move end a scenario at one line: a ###x line stays inside, a bare ### line and a quoted ### line end it', () async {
+      for (final (line, ends) in [
+        ('###x is no heading', false),
+        ('###', true),
+        ('> ### a quoted aside', true),
+      ]) {
+        final tail = '$line\n\n- **Note** after it';
+        final block = ends ? _scenario(2) : '${_scenario(2)}\n\n$tail';
+        final root = await _project(
+          add: [_scenario(1), '${_scenario(2)}\n\n$tail', _scenario(3)],
+          extra: {
+            'docs/$cartAddFr': _fr(
+              'check the stock',
+              ['S2'],
+              ['S2 ${fingerprintFor(block)}'],
+            ),
+          },
+        );
+        expect(_suspects(root, cartAddFr), isEmpty, reason: 'before: $line');
+        _move(root, ['$_addItem#S2']);
+        expect(
+          _bodyOf(root, cartDrop),
+          _storyBody('Agent drops an item', [
+            ..._scenarios(2),
+            block.replaceFirst('### Scenario 2', '### Scenario 3'),
+          ]),
+          reason: line,
+        );
+        expect(
+          _bodyOf(root, cartAdd),
+          _storyBody('Agent adds an item', [
+            _scenario(1),
+            if (ends) tail,
+            _scenario(3),
+          ]),
+          reason: line,
+        );
+        expect(_suspects(root, cartAddFr), isEmpty, reason: 'after: $line');
+      }
     });
 
     test(

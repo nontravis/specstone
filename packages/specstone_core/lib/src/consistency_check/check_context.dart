@@ -306,8 +306,8 @@ final class CheckContext {
   /// Returns the `### Scenario <N>` blocks of [story], keyed `S<N>`.
   ///
   /// Reads the `acceptance_criteria` section. A block runs from its heading
-  /// line to the next `###` line outside fenced code, or the section end. The
-  /// first block of a repeated number wins.
+  /// line to the next [opensHeadingItem] line outside fenced code, or the
+  /// section end. The first block of a repeated number wins.
   Map<String, String> scenarioBlocksOf(IndexedDoc story) =>
       _scenarioBlocks.putIfAbsent(story.docPath, () {
         final index = heldIndexOf(story, acceptanceSectionId);

@@ -314,9 +314,7 @@ OwnLine? ownOverrideOf(DocIndex index, LocatedItem located) {
       );
       return cite == null ? null : OwnLine(located, cite);
     }
-    final endsItem = isBlock
-        ? next.kind == SectionItemKind.heading
-        : !next.nested;
+    final endsItem = isBlock ? opensHeadingItem(next.firstLine) : !next.nested;
     if (endsItem) return null;
   }
   return null;

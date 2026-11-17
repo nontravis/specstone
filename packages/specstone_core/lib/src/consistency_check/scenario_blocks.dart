@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show opensHeadingItem;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -64,18 +66,11 @@ String nfrStatementOf(Iterable<BodyLine> block) =>
         .firstOrNull ??
     '';
 
-/// Whether [line] opens a `### ` heading, the line that ends a `###` block
-/// for `check` and for `move` alike.
-///
-/// A `###x` line, a bare `###`, and a quoted `> ### ` line open none, as the
-/// item reader opens no heading item there.
-bool isSubHeading(String line) => line.startsWith(_itemHeadingMarker);
-
 /// Splits [body] into the `###` blocks that [keyOf] names.
 ///
-/// A block runs from its heading line to the next [isSubHeading] line outside
-/// fenced code, or the end of [body]. [keyOf] names a block from its heading
-/// line; null opens no block and closes the one above.
+/// A block runs from its heading line to the next [opensHeadingItem] line
+/// outside fenced code, or the end of [body]. [keyOf] names a block from its
+/// heading line; null opens no block and closes the one above.
 List<({String key, List<BodyLine> lines})> headingBlocksOf(
   List<BodyLine> body,
   String? Function(String heading) keyOf,
@@ -88,7 +83,7 @@ List<({String key, List<BodyLine> lines})> headingBlocksOf(
   }
 
   for (final line in body) {
-    if (line.fenced || !isSubHeading(line.text)) {
+    if (line.fenced || !opensHeadingItem(line.text)) {
       lines.add(line);
       continue;
     }

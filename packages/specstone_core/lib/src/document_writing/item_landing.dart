@@ -1,5 +1,3 @@
-import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
-    show isSubHeading;
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
@@ -272,13 +270,13 @@ int _spanEnd(
 int _endOf(SectionItem item) => item.line + item.text.split('\n').length - 1;
 
 /// Returns the last non-blank file line of the block whose heading is file
-/// line [headLine]: up to the next unfenced [isSubHeading] line, as `check`
-/// reads a block, or the section's last.
+/// line [headLine]: up to the next unfenced [opensHeadingItem] line, as
+/// `check` reads a block, or the section's last.
 int _blockEnd(DocContent content, int sectionAt, int headLine) {
   final body = sectionBodyLines(content.sections, content.lineFacts, sectionAt);
   final next = body
       .where((line) => line.line > headLine)
-      .where((line) => !line.fenced && isSubHeading(line.text))
+      .where((line) => !line.fenced && opensHeadingItem(line.text))
       .firstOrNull;
   var end = next == null ? body.last.line : next.line - 1;
   while (end > headLine && _isBlank(body[end - body.first.line].text)) {

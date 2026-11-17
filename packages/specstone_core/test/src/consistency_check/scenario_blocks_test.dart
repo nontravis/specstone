@@ -49,18 +49,20 @@ void main() {
       expect(blocks, {'S1': '### Scenario 01 — one\n- a'});
     });
 
-    test('a ###x line, a ### line with no text, and a quoted ### line stay '
-        'inside the block, as no item heading opens there', () {
+    test('a ###x line stays inside the block, while a bare ### line and a '
+        'quoted ### line end it, as each opens a heading item', () {
       final blocks = scenarioBlocksIn(
         _body(
-          '### Scenario 1 — one\n###x\n###\n> ### quoted\n- a\n'
-          '### Scenario 2 — two\n- b',
+          '### Scenario 1 — one\n###x\n- a\n###\n- b\n'
+          '### Scenario 2 — two\n- c\n> ### quoted\n- d\n'
+          '### Scenario 3 — three\n- e',
         ),
       );
 
       expect(blocks, {
-        'S1': '### Scenario 1 — one\n###x\n###\n> ### quoted\n- a',
-        'S2': '### Scenario 2 — two\n- b',
+        'S1': '### Scenario 1 — one\n###x\n- a',
+        'S2': '### Scenario 2 — two\n- c',
+        'S3': '### Scenario 3 — three\n- e',
       });
     });
 
