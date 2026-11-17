@@ -1818,6 +1818,40 @@ void main() {
         ]);
       });
 
+      test('a rename lists a longer span naming a renamed doc after its rewrote lines and writes no byte of it', () async {
+        final root = await writeNestedProject(extra: {spanDocPath: note});
+        final answer = rename(root, cartAddAddress, 'add_one');
+        const mention = 'mentions $spanDocPath:3 shop/cart/add_item E05\n';
+        expect(readDoc(root, spanDoc), note);
+        expect(answer.text, contains('rewrote '));
+        expect(answer.text, endsWith(mention));
+        expect(
+          answer.text.lastIndexOf('rewrote '),
+          lessThan(answer.text.indexOf('mentions ')),
+        );
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+        ]);
+      });
+
+      test('a rename lists a longer span naming a descendant of the renamed feature', () async {
+        const text =
+            '# Ideas\n\nA span `shop/cart/add_item E05`, a span '
+            '`shop/cart/add_item/check_stock E05`, and a span '
+            '`shop/pay E05`.\n';
+        final root = await writeNestedProject(extra: {spanDocPath: text});
+        final answer = rename(root, 'feature:shop/cart', 'basket');
+        expect(readDoc(root, spanDoc), text);
+        expect(mentionsOf(answer), [
+          {'path': spanDocPath, 'line': 3, 'mention': 'shop/cart/add_item E05'},
+          {
+            'path': spanDocPath,
+            'line': 3,
+            'mention': 'shop/cart/add_item/check_stock E05',
+          },
+        ]);
+      });
+
       test('a dry run lists the longer span the apply would list', () async {
         final root = await writeNestedProject(extra: {spanDocPath: note});
         final answer = writeIn(

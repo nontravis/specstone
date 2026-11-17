@@ -686,6 +686,59 @@ void main() {
       expect(answer.json['rewritten'], isNot(contains('app/lib/cart.dart')));
     });
 
+    test(
+      'a feature move lists a longer span naming a doc under the feature',
+      () async {
+        const text =
+            '# Ideas\n\nA span `shop/cart/add_item E05`, a span '
+            '`shop/cart/add_item/check_stock E05`, and a span '
+            '`shop/pay E05`.\n';
+        final root = await project({'docs/notes.md': text});
+        final answer = moveAll(root, ['feature:shop/cart'], under: 'other');
+        expect(readDoc(root, 'notes.md'), text);
+        expect(mentionLines(answer), [
+          'mentions docs/notes.md:3 shop/cart/add_item E05',
+          'mentions docs/notes.md:3 shop/cart/add_item/check_stock E05',
+        ]);
+        expect(answer.json['mentions'], [
+          {
+            'path': 'docs/notes.md',
+            'line': 3,
+            'mention': 'shop/cart/add_item E05',
+          },
+          {
+            'path': 'docs/notes.md',
+            'line': 3,
+            'mention': 'shop/cart/add_item/check_stock E05',
+          },
+        ]);
+      },
+    );
+
+    test(
+      'a dry run of a feature move lists the longer span and changes no file',
+      () async {
+        const text = '# Ideas\n\nA span `shop/cart/add_item E05`.\n';
+        final root = await project({'docs/notes.md': text});
+        writeIn(root, (s) => s.target('feature:shop'));
+        final before = tree(root);
+        final answer = moveAll(
+          root,
+          ['feature:shop/cart'],
+          under: 'other',
+          dryRun: true,
+        );
+        expect(
+          answer.text,
+          endsWith(
+            'mentions docs/notes.md:3 shop/cart/add_item E05\n'
+            'dry run: nothing moved\n',
+          ),
+        );
+        expect(tree(root), before);
+      },
+    );
+
     test('a rewritten doc approved before gets its new hash, and no draft mark is written', () async {
       final root = await project();
       final approvedText =
