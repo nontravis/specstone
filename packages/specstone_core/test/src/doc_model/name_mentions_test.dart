@@ -399,6 +399,23 @@ void main() {
       expect([for (final m in mentions) m.line], [1]);
     });
 
+    test('a dart file yields a doc comment mention at its column, no string '
+        'line mention', () {
+      final mentions = nameMentionsInFile(
+        '/// Lays out `login/email_login`.\n'
+            'final a = `login/email_login`;\n'
+            '  // see `feature:login#goal`\n'
+            'x(); // `login/email_login`\n'
+            '// `login/\n'
+            '// email_login`\n',
+        '.dart',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [(1, 14, 'login/email_login'), (3, 10, 'feature:login#goal')],
+      );
+    });
+
     test('a file of an extension with no comment mark holds none', () {
       expect(nameMentionsInFile('// `login/email_login`\n', '.c'), isEmpty);
     });
