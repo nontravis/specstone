@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -804,5 +805,91 @@ void main() {
       expect(sessions, hasLength(1));
       expect(sessions, closed());
     });
+  });
+
+  group('ReadSession writeIndex', () {
+    const parserHash = 'parser-a';
+    const row = DiagramParse(
+      blockHash: 'block-1',
+      diagram: 'flowchart',
+      parses: false,
+      message: 'Parse error',
+      blockLine: 3,
+    );
+    void put(ReadSession s) => s.writeIndex(
+      (store) => store.putDiagramParses([row], parserHash: parserHash),
+    );
+    DiagramParse? readRow(ReadSession s) =>
+        s.store.diagramParsesOf({'block-1'}, parserHash: parserHash)['block-1'];
+
+    test('rows written inside an open session reach the next session, and close still succeeds', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      put(session);
+      expect(readRow(session)?.message, 'Parse error');
+      session.close();
+      final next = openSession(project);
+      addTearDown(next.close);
+      expect(readRow(next)?.blockLine, 3);
+    });
+    test(
+      'a lock held past the timeout throws indexBusy, and close still succeeds',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(
+          project,
+          busyTimeout: const Duration(milliseconds: 100),
+        );
+        final holder = sqlite3.open(inProject(project, indexFilePath).path)
+          ..execute('BEGIN IMMEDIATE');
+        addTearDown(() {
+          holder
+            ..execute('ROLLBACK')
+            ..close();
+        });
+        expect(
+          () => put(session),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.indexBusy,
+            ),
+          ),
+        );
+        expect(session.close, returnsNormally);
+      },
+    );
+    test(
+      'a body that throws rolls back its rows and leaves the session closable',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        expect(
+          () => session.writeIndex((store) {
+            store.putDiagramParses([row], parserHash: parserHash);
+            throw StateError('stop');
+          }),
+          throwsStateError,
+        );
+        expect(readRow(session), isNull);
+        expect(session.close, returnsNormally);
+      },
+    );
+    test(
+      'a peer reset between open and write still lets the write land',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        final peer = IndexStore.open(project);
+        peer.write(
+          () => peer.reset(const IndexStamp(binaryVersion: '1', docTypes: 'x')),
+        );
+        peer.close();
+        put(session);
+        expect(readRow(session)?.message, 'Parse error');
+        expect(session.close, returnsNormally);
+      },
+    );
   });
 }

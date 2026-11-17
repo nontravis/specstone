@@ -271,6 +271,22 @@ final class ReadSession {
     targetNames: project.targetNames,
   );
 
+  /// Runs [body] against the session's index in one write transaction.
+  ///
+  /// Ends the read snapshot first and begins a new one after, so [close] stays
+  /// valid and later reads see the written rows. Rolls back when [body] throws.
+  ///
+  /// Throws [IndexFault] when another call holds the write lock or the index
+  /// cannot be written.
+  void writeIndex(void Function(IndexStore store) body) {
+    store.endSnapshot();
+    try {
+      store.write(() => body(store));
+    } finally {
+      store.beginSnapshot();
+    }
+  }
+
   /// Ends the snapshot and closes the index.
   void close() {
     try {
