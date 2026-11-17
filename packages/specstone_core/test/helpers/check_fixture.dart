@@ -441,6 +441,14 @@ List<String> spots(CheckReport report, [FindingKind? kind]) => [
     if (kind == null || f.kind == kind) '${f.path}:${f.line}: ${f.kind.wire}',
 ];
 
+/// Returns the 1-based file line of the first line of [docPath] in [project]
+/// that holds [needle], 0 when none does.
+int lineOfFirst(Directory project, String docPath, String needle) =>
+    File('${project.path}/docs/$docPath')
+        .readAsLinesSync()
+        .indexWhere((line) => line.contains(needle)) +
+    1;
+
 /// Returns the fixture file of [docPath] with each change applied once.
 ///
 /// The key is `docs/<docPath>`, or the DocPath of a record. Throws an [ArgumentError] naming the anchor

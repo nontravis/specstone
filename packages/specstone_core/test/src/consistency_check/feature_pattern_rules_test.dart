@@ -75,13 +75,6 @@ Future<Directory> _project({
   },
 );
 
-/// The 1-based line of the first line of [path] in [project] holding [text].
-int _lineOf(Directory project, String path, String text) =>
-    File('${project.path}/docs/$path')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(text)) +
-    1;
-
 /// The findings of this rule's kinds.
 List<Finding> _found(CheckReport report) => [
   for (final finding in report.findings)
@@ -110,7 +103,7 @@ void main() {
         '- `other/x` — not listed',
       ],
     );
-    final first = _lineOf(project, loginFeature, 'crud/paged_list');
+    final first = lineOfFirst(project, loginFeature, 'crud/paged_list');
 
     expect(_skipsOf(project), {
       first: (
@@ -149,7 +142,7 @@ void main() {
         skips: ['- `crud/paged_list` — one page is enough'],
       );
       final skips = _skipsOf(project);
-      final line = _lineOf(project, loginFeature, 'crud/paged_list');
+      final line = lineOfFirst(project, loginFeature, 'crud/paged_list');
 
       expect(isSkipSpan(skips, line, 'crud/paged_list'), isTrue);
       expect(isSkipSpan(skips, line, 'crud/other'), isFalse);
@@ -180,7 +173,7 @@ void main() {
     expect(found.single.kind, FindingKind.featurePatternItemMissing);
     expect(found.single.path, loginFeature);
     expect(found.single.name, 'login');
-    expect(found.single.line, _lineOf(project, loginFeature, 'paged_lis'));
+    expect(found.single.line, lineOfFirst(project, loginFeature, 'paged_lis'));
     expect(found.single.waitsFor, WaitsFor.agent);
     expect(found.single.toJson(), containsPair('pattern', 'crud'));
     expect(found.single.toJson(), containsPair('item', 'paged_lis'));
@@ -196,7 +189,7 @@ void main() {
 
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.featurePatternMissing);
-    expect(found.single.line, _lineOf(project, loginFeature, '- cruds'));
+    expect(found.single.line, lineOfFirst(project, loginFeature, '- cruds'));
     expect(found.single.waitsFor, WaitsFor.agent);
     expect(found.single.toJson(), containsPair('pattern', 'cruds'));
     expect(found.single.toJson().containsKey('item'), isFalse);
@@ -220,7 +213,7 @@ void main() {
 
     expect(
       [for (final f in found) f.line],
-      [_lineOf(project, loginFeature, 'sign_in/verify')],
+      [lineOfFirst(project, loginFeature, 'sign_in/verify')],
     );
     expect(found.single.toJson(), containsPair('pattern', 'sign_in'));
     expect(found.single.toJson(), containsPair('item', 'verify'));
@@ -257,8 +250,8 @@ void main() {
     ]);
     expect(found.map((f) => f.toJson()['pattern']), ['crud', 'auth']);
     expect(found.map((f) => f.line), [
-      _lineOf(project, loginFeature, '- crud'),
-      _lineOf(project, loginFeature, '- auth'),
+      lineOfFirst(project, loginFeature, '- crud'),
+      lineOfFirst(project, loginFeature, '- auth'),
     ]);
   });
 

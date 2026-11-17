@@ -47,12 +47,6 @@ List<RepeatGroup> _groupsOf(
   }
 }
 
-int _lineOf(Directory project, String docPath, String needle) =>
-    File('${project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 void main() {
   test('a link, bold, backticks, an item ID, and punctuation normalize away, so two wordings of one rule read alike', () async {
     final project = await writeCheckProject(
@@ -74,8 +68,8 @@ void main() {
     expect(
       [for (final i in groups.single.items) (i.docPath, i.line, i.item)],
       [
-        (loginFr, _lineOf(project, loginFr, 'E01'), 'E01'),
-        (_domain, _lineOf(project, _domain, 'INV-6'), 'INV-6'),
+        (loginFr, lineOfFirst(project, loginFr, 'E01'), 'E01'),
+        (_domain, lineOfFirst(project, _domain, 'INV-6'), 'INV-6'),
       ],
     );
   });

@@ -30,14 +30,6 @@ Future<List<Finding>> _found(
   ];
 }
 
-// The file line of the first line of [docPath] holding [needle], in the
-// project the last _found call wrote.
-int _lineOf(String docPath, String needle) =>
-    File('${_project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 /// Returns a sentence of [count] words, ended by a full stop.
 String _sentenceOf(int count, [String word = 'word']) =>
     '${List.filled(count, word).join(' ')}.';
@@ -57,7 +49,7 @@ void main() {
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.wordsOverLimit);
     expect(found.single.path, loginFr);
-    expect(found.single.line, _lineOf(loginFr, 'E01'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     expect(found.single.waitsFor, WaitsFor.agent);
     expect(
       found.single.toJson(),
@@ -97,7 +89,7 @@ void main() {
     );
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.wordsOverLimit);
-    expect(found.single.line, _lineOf(loginFr, '| Form |'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
     expect(
       found.single.toJson(),
       allOf(containsPair('language', 'default'), containsPair('actual', 30)),
@@ -172,7 +164,7 @@ void main() {
     final found = await _found(_edgeCase('${'ก' * 120}.'));
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.sentenceCharsOverLimit);
-    expect(found.single.line, _lineOf(loginFr, 'E01'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     expect(
       found.single.toJson(),
       allOf(
@@ -247,7 +239,9 @@ void main() {
       found.map((f) => f.toJson()['language']),
       unorderedEquals(['th', 'default']),
     );
-    expect(found.map((f) => f.line).toSet(), {_lineOf(loginFr, 'E01')});
+    expect(found.map((f) => f.line).toSet(), {
+      lineOfFirst(_project, loginFr, 'E01'),
+    });
   });
 
   test('misplaced note gives trace_note_not_last with note', () async {
@@ -256,7 +250,7 @@ void main() {
     );
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.traceNoteNotLast);
-    expect(found.single.line, _lineOf(loginFr, 'E01'));
+    expect(found.single.line, lineOfFirst(_project, loginFr, 'E01'));
     expect(found.single.waitsFor, WaitsFor.agent);
     expect(
       found.single.toJson(),
@@ -331,7 +325,7 @@ void main() {
       );
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.traceNoteNotLast);
-      expect(found.single.line, _lineOf(loginFr, '| Form |'));
+      expect(found.single.line, lineOfFirst(_project, loginFr, '| Form |'));
       expect(
         found.single.toJson(),
         allOf(
@@ -361,7 +355,10 @@ void main() {
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.wordsOverLimit);
       expect(found.single.path, loginFeature);
-      expect(found.single.line, _lineOf(loginFeature, 'summary:'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
       expect(found.single.waitsFor, WaitsFor.agent);
       expect(
         found.single.toJson(),
@@ -381,7 +378,10 @@ void main() {
       final found = await _found(summary('One short one. Another short one.'));
       expect(found, hasLength(1));
       expect(found.single.kind, FindingKind.sentencesOverLimit);
-      expect(found.single.line, _lineOf(loginFeature, 'summary:'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
       expect(
         found.single.toJson(),
         allOf(

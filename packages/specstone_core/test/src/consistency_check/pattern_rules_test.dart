@@ -12,14 +12,6 @@ const _frLayer = '.specstone/templates/fr.yaml';
 
 late Directory _project;
 
-// The file line of the first line of [docPath] holding [needle], in the
-// project the last fieldFindings call wrote.
-int _lineOf(String docPath, String needle) =>
-    File('${_project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 String _banned(String entries) =>
     'lint:\n  banned_patterns:\n    add:\n$entries';
 
@@ -484,7 +476,10 @@ sections:
       final found = await fieldFindings('Applies the ruling to sign in.');
       expect(found, hasLength(1));
       expect(found.single.path, loginFeature);
-      expect(found.single.line, _lineOf(loginFeature, 'summary:'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
       expect(
         found.single.toJson(),
         allOf(

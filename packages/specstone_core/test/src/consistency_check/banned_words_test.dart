@@ -13,14 +13,6 @@ import '../../helpers/index_fixture.dart';
 
 late Directory _project;
 
-// The file line of the first line of [docPath] holding [needle], in the
-// project the last bannedOf call wrote.
-int _lineOf(String docPath, String needle) =>
-    File('${_project.path}/docs/$docPath')
-        .readAsLinesSync()
-        .indexWhere((line) => line.contains(needle)) +
-    1;
-
 void main() {
   test('f04/us01/s4, f04/us01/fr05/e01: fast counts in the Statement only, not in the Rationale', () async {
     final report = await checkOf(
@@ -259,7 +251,10 @@ void main() {
       final found = await bannedOf('Signs in fast.');
       expect(found, hasLength(1));
       expect(found.single.path, loginFeature);
-      expect(found.single.line, _lineOf(loginFeature, 'summary:'));
+      expect(
+        found.single.line,
+        lineOfFirst(_project, loginFeature, 'summary:'),
+      );
       expect(
         found.single.toJson(),
         allOf(
