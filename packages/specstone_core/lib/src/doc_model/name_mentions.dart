@@ -64,7 +64,12 @@ List<NameMention> _readLines(
   _MermaidLineReader onMermaidLine = _noMentions,
 }) {
   final scan = fenceScan(lines);
-  final mermaid = _mermaidLines(lines, scan.fenced, scan.opens, scan.closes);
+  final mermaid = _mermaidLines(
+    scan.contents,
+    scan.fenced,
+    scan.opens,
+    scan.closes,
+  );
   return [
     for (var i = 0; i < lines.length; i++)
       if (!scan.fenced[i])
@@ -88,7 +93,7 @@ const _sequenceHead = 'sequenceDiagram';
 /// Returns, per line, the kind of `mermaid` block it sits between the fences
 /// of, `none` outside one; fence lines are `none`.
 List<_Diagram> _mermaidLines(
-  List<String> lines,
+  List<String> contents,
   List<bool> fenced,
   List<String?> opens,
   List<bool> closes,
@@ -107,7 +112,7 @@ List<_Diagram> _mermaidLines(
     if (!fenced[i]) inMermaid = false;
     final inBlock = inMermaid && opened == null && !closes[i];
     if (inBlock && head != _BlockHead.done) {
-      (head, kind) = _afterHeadLine(head, lines[i].trim());
+      (head, kind) = _afterHeadLine(head, contents[i].trim());
     }
     kinds.add(inBlock ? kind : _Diagram.none);
   }

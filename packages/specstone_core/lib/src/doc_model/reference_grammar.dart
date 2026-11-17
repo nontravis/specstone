@@ -144,9 +144,9 @@ final _pathRun = RegExp(
 );
 
 /// A sequence-diagram message up to the `:` that opens its text: sender,
-/// arrow, receiver.
+/// arrow, receiver; the first on its line, after any container marks.
 final _sequenceMessage = RegExp(
-  r'^\s*\w+\s*(?:<<-->>|<<->>|-->>|--\)|--x|->>|-\)|-x|-->|->)[+-]?\s*\w+\s*:',
+  r'\w+\s*(?:<<-->>|<<->>|-->>|--\)|--x|->>|-\)|-x|-->|->)[+-]?\s*\w+\s*:',
 );
 
 String _blanked(Match match) => ' ' * match[0]!.length;

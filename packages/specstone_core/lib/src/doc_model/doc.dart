@@ -360,20 +360,28 @@ blockScan(List<String> lines) {
 ///
 /// `opens` holds the info word of the fence a line opens (empty without one),
 /// null on any other line; `closes` is whether a line is a closing delimiter.
-/// A fence a container ends has no closing line.
-({List<bool> fenced, List<String?> opens, List<bool> closes}) fenceScan(
-  List<String> lines,
-) {
+/// A fence a container ends has no closing line. `contents` holds, per line,
+/// the text of a fence's content line past its containers' marks (tabs
+/// expanded), and an empty string on any other line.
+({
+  List<bool> fenced,
+  List<String?> opens,
+  List<bool> closes,
+  List<String> contents,
+})
+fenceScan(List<String> lines) {
   final tracker = _BlockTracker();
   final fenced = List.filled(lines.length, false);
   final opens = List<String?>.filled(lines.length, null);
   final closes = List.filled(lines.length, false);
+  final contents = List.filled(lines.length, '');
   for (var i = 0; i < lines.length; i++) {
     fenced[i] = tracker.consume(lines[i]);
     opens[i] = tracker.openedInfo;
     closes[i] = tracker.closedFence;
+    contents[i] = tracker.fenceContent;
   }
-  return (fenced: fenced, opens: opens, closes: closes);
+  return (fenced: fenced, opens: opens, closes: closes, contents: contents);
 }
 
 const _tab = 0x09;
@@ -429,12 +437,17 @@ final class _BlockTracker {
   var _continues = false;
   String? _openedInfo;
   var _closedFence = false;
+  var _fenceContent = '';
 
   /// The info word of the fence the line fed last opened, else null.
   String? get openedInfo => _openedInfo;
 
   /// Whether the line fed last closed a fence.
   bool get closedFence => _closedFence;
+
+  /// The line fed last, past its containers' marks and tabs expanded, when it
+  /// is content of an open fence, else empty.
+  String get fenceContent => _fenceContent;
 
   /// The delimiter line of the open fence, or null outside a fence.
   String? get openingLine => _fence?.openingLine;
@@ -450,6 +463,7 @@ final class _BlockTracker {
     _continues = false;
     _openedInfo = null;
     _closedFence = false;
+    _fenceContent = '';
     final text = _expandTabs(line);
     var column = 0;
     var matched = 0;
@@ -462,6 +476,7 @@ final class _BlockTracker {
     final fence = _fence;
     if (fence != null) {
       if (matched == _containers.length) {
+        _fenceContent = column < text.length ? text.substring(column) : '';
         if (fence.closesOn(text, column)) {
           _fence = null;
           _closedFence = true;

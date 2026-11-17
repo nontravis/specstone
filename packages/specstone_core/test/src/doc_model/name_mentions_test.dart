@@ -270,6 +270,24 @@ void main() {
       }
     });
 
+    test('a sequence head inside a quote or a list item still marks a sequence '
+        'block', () {
+      const quoted =
+          '> ```mermaid\n> sequenceDiagram\n> a->>b:shop/cart/x\n> ```\n';
+      const listed =
+          '- item\n\n  ```mermaid\n  sequenceDiagram\n  a->>b:shop/cart/x\n'
+          '  ```\n';
+      const nested =
+          '> - ```mermaid\n>   %% c\n>   sequenceDiagram\n'
+          '>   a->>b:shop/cart/x\n>   ```\n';
+      for (final lf in [quoted, listed, nested]) {
+        final mention = nameMentionsInMarkdown(lf).single;
+        final line = lf.split('\n')[mention.line - 1];
+        expect(mention.text, 'shop/cart/x', reason: lf);
+        expect(mention.column, line.indexOf('shop/cart/x'), reason: lf);
+      }
+    });
+
     test('a typed name next to a slash keeps its type', () {
       const line = 'A[/fr:shop/cart/x/]';
       final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n').single;
