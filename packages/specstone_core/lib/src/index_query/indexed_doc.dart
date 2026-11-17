@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show withoutSection;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart'
     show numberLabelLinesInMarkdown;
@@ -407,30 +409,13 @@ ParsedDoc parseIndexedDoc({
 /// Returns the text of [doc] as the size counts read it: without the
 /// Verification matrix section when [recordType] has one and [doc] holds it.
 ///
-/// The cut runs from the section's header line to the next section's header
-/// line. A section that ends the doc takes the blank lines before it too, so
-/// the text equals that of the same doc without the section.
+/// The cut is [withoutSection].
 String _withoutMatrixSection(Doc doc, MergedDocType? recordType) {
   if (recordType == null || verificationMatrixOf(recordType) == null) {
     return doc.text;
   }
   final at = sectionIndexOf(doc, recordType, verificationMatrixKey);
-  if (at == null) return doc.text;
-  final lines = doc.text.split('\n');
-  final bodyStart = linesBeforeBodyOf(doc, doc.text);
-  var start = bodyStart + doc.sectionLineIndexes[at];
-  final isLast = at + 1 == doc.sectionLineIndexes.length;
-  if (!isLast) {
-    return [
-      ...lines.take(start),
-      ...lines.skip(bodyStart + doc.sectionLineIndexes[at + 1]),
-    ].join('\n');
-  }
-  while (start > 0 && lines[start - 1].trim().isEmpty) {
-    start--;
-  }
-  final holdsFinalBreak = lines.last.isEmpty;
-  return [...lines.take(start), if (holdsFinalBreak) ''].join('\n');
+  return at == null ? doc.text : withoutSection(doc.text, at);
 }
 
 /// Returns the content of [lfText], a doc of [docType], as far as a reader of

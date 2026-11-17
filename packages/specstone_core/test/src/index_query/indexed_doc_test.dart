@@ -679,6 +679,21 @@ void main() {
       expectCountsLeaveOut('$head$matrixBody', head);
     });
 
+    test('leave out its matrix section from the laid-out text', () {
+      const padded =
+          '\n## Notes\n\n| a   | b    |\n|-----|------|\n| 1   | 22   |\n';
+      const laidOut = '\n## Notes\n\n| a | b |\n|---|---|\n| 1 | 22 |\n';
+      final parsed = parseRecord('$head$padded$matrixBody$questionsBody');
+      expect(parsed.doc.formatted, isFalse);
+      const expected = '$head$laidOut$questionsBody';
+      final facts = parsed.content.lineFacts;
+      expect(facts.charCount, expected.length);
+      expect(
+        facts.lineCount,
+        nonBlankLinesOf('# Feedback implementation\n$laidOut$questionsBody'),
+      );
+    });
+
     test('leave out a matrix section with no rows', () {
       expectCountsLeaveOut(
         '$head$notesBody\n## Verification matrix\n$questionsBody',
