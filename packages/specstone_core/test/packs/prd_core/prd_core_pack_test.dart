@@ -14,7 +14,7 @@ void main() {
   final shipped = shippedPackVersions()['prd-core']!;
 
   group('prd-core manifest', () {
-    test('prd-core ships at 1.16.0 with no extends', () {
+    test('prd-core ships at 1.17.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
       expect(bytes, isNotNull);
       final manifest = PackManifest.parse(
@@ -22,7 +22,7 @@ void main() {
         file: 'packs/prd-core/pack.yaml',
       );
       expect(manifest.name, 'prd-core');
-      expect(manifest.version.toString(), '1.16.0');
+      expect(manifest.version.toString(), '1.17.0');
       expect(manifest.extendsPack, isNull);
     });
 

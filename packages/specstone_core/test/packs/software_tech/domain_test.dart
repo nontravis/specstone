@@ -85,6 +85,7 @@ void main() {
         '`known_limits`',
         'no trace tag',
         '`reference` field',
+        'a cite or ownership note may close',
       ],
     });
   });

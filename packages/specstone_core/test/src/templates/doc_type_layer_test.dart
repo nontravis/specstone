@@ -1055,6 +1055,111 @@ lint:
       );
     });
 
+    test('doc lint takes the readability keys', () {
+      final lint = _parse(
+        'lint: {max_sentence_words: {default: 30, ko: 20, ar: 18, he: 18, '
+        'hi: 22, el: 24}, max_sentence_chars: {default: 90, th: 80, lo: 80, '
+        'km: 80, my: 80, zh: 40, ja: 50}, trace_note_last: false}',
+      ).lint;
+
+      expect(lint?.maxSentenceWords, {
+        'default': 30,
+        'ko': 20,
+        'ar': 18,
+        'he': 18,
+        'hi': 22,
+        'el': 24,
+      });
+      expect(lint?.maxSentenceChars, {
+        'default': 90,
+        'th': 80,
+        'lo': 80,
+        'km': 80,
+        'my': 80,
+        'zh': 40,
+        'ja': 50,
+      });
+      expect(lint?.traceNoteLast, false);
+      final bare = _parse('lint: {max_chars: 3}').lint;
+      expect(bare?.maxSentenceWords, isNull);
+      expect(bare?.maxSentenceChars, isNull);
+      expect(bare?.traceNoteLast, isNull);
+    });
+
+    test('section lint refuses readability keys', () {
+      for (final key in [
+        'max_sentence_words',
+        'max_sentence_chars',
+        'trace_note_last',
+      ]) {
+        expect(
+          () => _parse(
+            'sections: [{id: goal, header: G, lint: {$key: {default: 9}}}]',
+          ),
+          throwsA(_fault(FaultCode.unknownKey, key: 'sections.goal.lint.$key')),
+          reason: key,
+        );
+      }
+    });
+
+    test('bad entry value is unknown_value', () {
+      for (final value in ['0', '-1', 'twenty', '2.5']) {
+        expect(
+          () => _parse('lint: {max_sentence_words: {default: $value}}'),
+          throwsA(
+            _fault(
+              FaultCode.unknownValue,
+              key: 'lint.max_sentence_words.default',
+            ),
+          ),
+          reason: value,
+        );
+        expect(
+          () => _parse('lint: {max_sentence_chars: {th: $value}}'),
+          throwsA(
+            _fault(FaultCode.unknownValue, key: 'lint.max_sentence_chars.th'),
+          ),
+          reason: value,
+        );
+      }
+      expect(
+        () => _parse('lint: {trace_note_last: yes}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.trace_note_last')),
+      );
+    });
+
+    test('language key outside its map is unknown_value', () {
+      expect(
+        () => _parse('lint: {max_sentence_words: {fr: 20}}'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'lint.max_sentence_words.fr'),
+        ),
+      );
+      expect(
+        () => _parse('lint: {max_sentence_words: {th: 20}}'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'lint.max_sentence_words.th'),
+        ),
+      );
+      expect(
+        () => _parse('lint: {max_sentence_chars: {ko: 20}}'),
+        throwsA(
+          _fault(FaultCode.unknownValue, key: 'lint.max_sentence_chars.ko'),
+        ),
+      );
+    });
+
+    test('scalar map value is unknown_value', () {
+      expect(
+        () => _parse('lint: {max_sentence_words: 30}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.max_sentence_words')),
+      );
+      expect(
+        () => _parse('lint: {max_sentence_chars: 100}'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'lint.max_sentence_chars')),
+      );
+    });
+
     test('a section guide-rule key in the doc-level lint is unknown_key', () {
       for (final key in ['catalog', 'min_lines', 'diagram']) {
         expect(

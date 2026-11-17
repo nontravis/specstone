@@ -22,7 +22,12 @@ const _templates = <String, String>{
       '  A[<step>] --> B{<decision>}\n'
       '  B -- <branch> --> C[<outcome>]\n'
       '```',
-  'edge_cases': '1. E01 — <trigger> → <response>',
+  'edge_cases':
+      '1. E01 — <trigger> → <response>\n'
+      '2. E02 — <lead> → <response>\n'
+      '   <more response, one sentence per line, with no blank line>\n'
+      '   - <trigger>\n'
+      '   - <trigger>',
   'rationale':
       '<reason, assumptions, related requirements, design constraints>',
   'verification':

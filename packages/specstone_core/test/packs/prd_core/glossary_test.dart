@@ -19,13 +19,13 @@ const _sentenceRule =
     'in a script with no spaces (Japanese 60, Chinese 45).';
 
 const _nestRule =
-    'Put several conditions in a nested list. A one-sentence paragraph '
-    'moves its detail to the section of the same doc that owns it, '
-    'never into a sub-list.';
+    'Keep one rule in each item, and put several conditions in a nested '
+    'list. A one-sentence paragraph with no ID moves its detail to the '
+    'section of the same doc that owns it, never into a sub-list.';
 
 const _exampleRule =
     'Give a non-obvious rule one example inside its item, as a `such as` '
-    'clause or one "For example," sentence.';
+    'clause or one "For example," sentence, within the sentence\'s cap.';
 
 const _orderRule =
     'State the condition first, then the rule, one clause chain per '

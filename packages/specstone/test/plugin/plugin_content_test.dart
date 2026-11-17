@@ -1367,6 +1367,43 @@ void _handOffTests() {
     expect(bullet('Repoint'), contains('specstone list --cites'));
   });
 
+  test('audit reference reads for example and clause order', () {
+    final compare = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/references/audit.md'),
+        '2. Compare',
+      ),
+    );
+    expect(
+      compare,
+      contains(
+        'Record one gap per line, `<type>:<name>#<section>: <gap>`, for each '
+        'of these:',
+      ),
+    );
+    expect(
+      compare,
+      contains(
+        'Read each draft item for two gaps `check` never names, each a '
+        '`Findings:` line naming its ID or first words: - **No example:**',
+      ),
+    );
+    expect(
+      compare,
+      contains(
+        'a non-obvious rule whose result on one concrete '
+        'input you cannot state after one read.',
+      ),
+    );
+    expect(
+      compare,
+      contains(
+        '**Clause order:** a condition after its rule, or clauses nested '
+        'inside one sentence.',
+      ),
+    );
+  });
+
   test('no plugin '
       'file tells an agent to cite a rule by doc name', () {
     final hits = <String>[];

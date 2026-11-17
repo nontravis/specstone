@@ -335,13 +335,6 @@ ParsedDoc parseIndexedDoc({
         : citeCandidatesOf(lfText, idPrefixes: idPrefixes),
     warnings: warnings,
   );
-  final itemFacts = itemFactsOf(
-    doc: doc,
-    lfText: lfText,
-    lineFacts: lineFacts,
-    laid: laid is Formatted ? laid : null,
-    type: docType,
-  );
   final content = DocContent(
     readText: () => text,
     frontmatterText: doc.frontmatter == null
@@ -352,7 +345,14 @@ ParsedDoc parseIndexedDoc({
     links: {for (final place in lineFacts.links) place.target}.toList(),
     lineFacts: lineFacts,
     readBannedMatches: () => bannedMatchesOf(sections, lineFacts, docType),
-    readItemFacts: () => itemFacts,
+    readItemFacts: () => itemFactsOf(
+      doc: doc,
+      lfText: lfText,
+      lineFacts: lineFacts,
+      laid: laid is Formatted ? laid : null,
+      type: docType,
+      idPrefixes: idPrefixes,
+    ),
     itemWords: docType == null
         ? const []
         : ruleItemWordsOf(

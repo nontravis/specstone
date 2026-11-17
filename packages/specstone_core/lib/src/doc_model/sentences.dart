@@ -4,7 +4,10 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf, isTableDelimiterRow, isThematicBreak, startsTable;
 
 const _space = 0x20;
-const _terminators = {0x2E, 0x3F, 0x21}; // . ? !
+
+/// The marks `.`, `?`, and `!`, which end a sentence before a space or the end
+/// of the text.
+const spacedTerminators = {0x2E, 0x3F, 0x21};
 
 /// The first heading level a sentence is read from; `#` and `##` are the title
 /// and the section headers.
@@ -65,7 +68,19 @@ String collapseWhitespace(String text) {
 /// They come from paragraphs, list items, table cells, and `###` or deeper
 /// headings, outside the frontmatter, the title, the `##` headers, and fenced
 /// code. Inline markup stays in each sentence.
-List<String> sentencesOf(String lfText) {
+List<String> sentencesOf(String lfText) => [
+  for (final block in textBlocksOf(lfText)) ..._cut(block.text),
+];
+
+/// A text block of a doc: its `text`, and whether a `###` or deeper heading
+/// is the block.
+typedef TextBlock = ({String text, bool isHeading});
+
+/// Returns the text blocks of [lfText], a doc's LF text, in doc order: its
+/// paragraphs, list items, table cells, and `###` or deeper headings, read past
+/// block quote and list markers, outside the frontmatter, the title, the `##`
+/// headers, and fenced code.
+List<TextBlock> textBlocksOf(String lfText) {
   final lines = _linesOf(Doc.parse(lfText).afterFrontmatter);
   final scan = blockScan(lines);
   final reader = _BlockReader();
@@ -89,7 +104,7 @@ List<String> sentencesOf(String lfText) {
     }
   }
   reader.close();
-  return [for (final block in reader.blocks) ..._cut(block)];
+  return reader.blocks;
 }
 
 List<String> _linesOf(String lfText) {
@@ -101,7 +116,7 @@ List<String> _linesOf(String lfText) {
 /// Collects the text blocks of a doc, line by line.
 final class _BlockReader {
   /// The blocks closed so far, in doc order.
-  final blocks = <String>[];
+  final blocks = <TextBlock>[];
 
   final _open = <String>[];
 
@@ -116,7 +131,7 @@ final class _BlockReader {
 
   void _closeBlock() {
     if (_open.isEmpty) return;
-    blocks.add(_open.join(' '));
+    blocks.add((text: _open.join(' '), isHeading: false));
     _open.clear();
   }
 
@@ -143,7 +158,9 @@ final class _BlockReader {
     final heading = atxHeadingOf(text);
     if (heading != null) {
       close();
-      if (heading.level >= _firstTextHeadingLevel) _add(heading.text);
+      if (heading.level >= _firstTextHeadingLevel) {
+        _add(heading.text, isHeading: true);
+      }
       return;
     }
     if (_inTable) {
@@ -168,8 +185,10 @@ final class _BlockReader {
     _open.add(text.trim());
   }
 
-  void _add(String block) {
-    if (block.trim().isNotEmpty) blocks.add(block.trim());
+  void _add(String block, {bool isHeading = false}) {
+    if (block.trim().isNotEmpty) {
+      blocks.add((text: block.trim(), isHeading: isHeading));
+    }
   }
 
   void _readTableRow(String row) {
@@ -240,7 +259,7 @@ List<String> _cut(String block) {
   final sentences = <String>[];
   var start = 0;
   for (var i = 0; i < cuttable.length; i++) {
-    if (!_terminators.contains(cuttable.codeUnitAt(i))) continue;
+    if (!spacedTerminators.contains(cuttable.codeUnitAt(i))) continue;
     final end = i + 1;
     if (end < cuttable.length && cuttable.codeUnitAt(end) != _space) continue;
     sentences.add(text.substring(start, end).trim());

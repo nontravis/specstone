@@ -9,6 +9,7 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/plain_items.dart';
 import '../../helpers/software_tech.dart';
 
 MergedDocType nestedType(
@@ -630,8 +631,8 @@ void main() {
       final facts = parse(frPath, drifted).content.itemFacts;
 
       expect(facts.lead, (lines: 1, chars: 5));
-      expect(facts.leadItems, [(id: null, line: 3, chars: 5)]);
-      expect(facts.sectionItems, [
+      expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 5)]);
+      expect(plainSections(facts), [
         [(id: 'E01', line: 11, chars: 35)],
         [(id: null, line: 7, chars: 26)],
       ]);
@@ -643,7 +644,7 @@ void main() {
       final facts = docStructureOf(drifted, type).itemFacts;
 
       expect(facts.lead, (lines: 1, chars: 5));
-      expect(facts.sectionItems, [
+      expect(plainSections(facts), [
         [(id: 'E01', line: 6, chars: 35)],
         [(id: null, line: 9, chars: 26)],
       ]);

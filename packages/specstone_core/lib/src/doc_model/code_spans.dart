@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/inline_holders.dart';
+
 /// One code span of a line: the offsets of its first and one past its last
 /// backtick, and the length of the backtick run that opens and closes it.
 typedef CodeSpan = ({int start, int end, int ticks});
@@ -12,7 +14,7 @@ List<CodeSpan> codeSpansOf(String line) {
   final spans = <CodeSpan>[];
   var open = line.indexOf('`');
   while (open >= 0) {
-    if (_isEscaped(line, open)) {
+    if (isEscaped(line, open)) {
       open = line.indexOf('`', open + 1);
       continue;
     }
@@ -47,13 +49,4 @@ int _runLengthAt(String line, int at) {
     end++;
   }
   return end - at;
-}
-
-/// Whether the character at [at] in [line] follows an odd run of backslashes.
-bool _isEscaped(String line, int at) {
-  var start = at;
-  while (start > 0 && line.codeUnitAt(start - 1) == 0x5C) {
-    start--;
-  }
-  return (at - start).isOdd;
 }

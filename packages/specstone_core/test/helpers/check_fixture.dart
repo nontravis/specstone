@@ -103,7 +103,10 @@ Map<String, String> checkProjectFiles() => {
   '.specstone/config.yaml': shippedPinsConfig(),
   'docs/$projectDoc':
       '---\nowner: Owner\n---\n\n# Login demo\n\n## Project name\n\nLogin demo\n\n'
-      '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n\n'
+      '## Project vision\n\n### PV-01 — One sign-in\n\n> en: One sign-in for every app.\n'
+      '- **Why:** One sign-in saves every user a password.\n'
+      '- **Problem:** Each app asks for its own password.\n'
+      '- **Audience:** The people who use the apps.\n\n'
       '## Role\n\n- `Agent` — the coding agent that writes the docs.\n- `Owner` — the person who approves them.\n\n'
       '## Out-of-scope\n\n- Billing — not planned\n',
   'docs/prds/GLOSSARY.md': '# Domain glossary\n\n## Terms\n\n- **Agent** — the coding agent that writes the docs.\n',
