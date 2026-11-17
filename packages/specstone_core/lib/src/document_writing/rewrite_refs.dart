@@ -13,6 +13,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart'
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
+import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
@@ -96,7 +97,7 @@ String? rewriteDocLinks(
 
 /// Returns [rewriteDocLinks]'s text with the number of link destinations it
 /// changed, or null when no link changes.
-({String lfText, int count})? rewriteDocLinksCounted(
+CountedRewrite? rewriteDocLinksCounted(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
@@ -116,7 +117,7 @@ String? rewriteDocLinks(
     ..._linkTextEdits(body, scan.sources, docPath, renamed, renamedDocs),
   ];
   if (edits.isEmpty) return null;
-  return (
+  return CountedRewrite(
     lfText:
         lfText.substring(0, lfText.length - body.length) +
         _withEdits(body, edits),
@@ -215,8 +216,8 @@ List<_TextEdit> _linkTextEdits(
   ];
 }
 
-/// Returns the key of the renamed doc that [href], written in the doc at
-/// [docPath], reaches, or null when it reaches none.
+/// Returns the [TypedName] of the renamed doc that [href], written in the doc
+/// at [docPath], reaches, or null when it reaches none.
 TypedName? _reachedDoc(String? href, String docPath, RenamedDocs renamedDocs) {
   if (href == null) return null;
   return switch (resolveDocLink(href, docPath)) {

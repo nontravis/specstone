@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
@@ -18,7 +19,7 @@ void main() {
   ];
   const story1 = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 
-  ({String lfText, int count})? rewrite(
+  CountedRewrite? rewrite(
     String text, {
     String docPath = story1,
     List<PathMove> moves = reorderMoves,

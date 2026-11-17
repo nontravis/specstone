@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show nameMentionsInFile;
+import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -37,7 +38,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// Only the text after the frontmatter is read. Fenced code and link
 /// destinations keep every byte, since the link rewrite owns the
 /// destinations; link text is prose.
-({String lfText, int count})? rewritePathMentions(
+CountedRewrite? rewritePathMentions(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
@@ -75,7 +76,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
   for (final edit in edits.reversed) {
     result = result.replaceRange(edit.start, edit.end, edit.text);
   }
-  return (
+  return CountedRewrite(
     lfText: lfText.substring(0, lfText.length - body.length) + result,
     count: edits.length,
   );
