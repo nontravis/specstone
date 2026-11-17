@@ -55,14 +55,20 @@ document holds no open question; approval of an approach is not approval of the 
 Write the one design document yourself, by `references/design.md`, once the Owner's answers are in: from step 1's saved
 files and the Owner's answers, at the brainstorm skill's own design path, else
 `docs/designs/<YYYY-MM-DD>-<topic>-design.md`. A refused path is an open question; write at the Owner's new path.
-Dispatch nothing for it.
+Dispatch nothing to write it.
+
+Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`
+and the document's path. Dispatch it again with `amend: <N>` after each amend that adds or changes behavior, before
+that amend's author pass; an append that only words or records a decision takes none. Fix each finding it reports in
+the document by `references/design.md`, with no second check. Then ask for the approval, or, once the Owner has
+approved, go on to the amend's author pass with no ask.
 
 Route each later Owner answer or change per `references/rounds.md`.
 
 ## 4. Write the drafts, then audit them
 
 After step 1's calls, take `<folder>` the path `specstone folder` prints, run once. Each dispatch of
-`specstone-sdd-engineer` in this step follows `../specstone-expert-sdd/references/dispatch.md` and passes
+`specstone-sdd-engineer` in steps 3 and 4 follows `../specstone-expert-sdd/references/dispatch.md` and passes
 `report:` `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`, `XXXXXX` six `a-z0-9` characters, picked again while that
 file exists; show the Owner each reply's `Report:` line, then its relay block word for word, before your own notes.
 Write no brief and run no `context` call again on a target already grounded before a dispatch; a claim your saved files
@@ -82,7 +88,8 @@ document's path.
 
 ## Without a dispatch
 
-A mode you run yourself follows its procedure: `references/author.md` or `references/audit.md`.
+A mode you run yourself follows its procedure: `references/author.md`, `references/audit.md`, or, for the design
+check, `references/design-check.md`; tell the Owner that check is no fresh reader's.
 
 ## Red flags
 
