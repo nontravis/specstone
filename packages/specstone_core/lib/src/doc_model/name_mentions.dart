@@ -26,8 +26,12 @@ List<NameMention> nameMentionsInMarkdown(String lf) {
   );
 }
 
-Iterable<NameMention> _tokenMentionsOnLine(String line, int number) => [
-  for (final token in mermaidTokensIn(line))
+Iterable<NameMention> _tokenMentionsOnLine(
+  String line,
+  int number, {
+  required bool isSequence,
+}) => [
+  for (final token in mermaidTokensIn(line, isSequence: isSequence))
     (
       line: number,
       column: token.column,
@@ -36,7 +40,19 @@ Iterable<NameMention> _tokenMentionsOnLine(String line, int number) => [
     ),
 ];
 
-Iterable<NameMention> _noMentions(String line, int number) => const [];
+Iterable<NameMention> _noMentions(
+  String line,
+  int number, {
+  required bool isSequence,
+}) => const [];
+
+/// Reads the tokens of one line of a `mermaid` block; `isSequence` tells a
+/// `sequenceDiagram` block.
+typedef _MermaidLineReader = Iterable<NameMention> Function(
+  String line,
+  int number, {
+  required bool isSequence,
+});
 
 /// The mentions [onLine] reads from the lines of [lines] outside fenced code
 /// and [onMermaidLine] from those between the fences of a `mermaid` block,
@@ -45,36 +61,72 @@ List<NameMention> _readLines(
   List<String> lines,
   int firstLine,
   Iterable<NameMention> Function(String line, int number) onLine, {
-  Iterable<NameMention> Function(String line, int number) onMermaidLine =
-      _noMentions,
+  _MermaidLineReader onMermaidLine = _noMentions,
 }) {
   final scan = fenceScan(lines);
-  final mermaid = _mermaidLines(scan.fenced, scan.opens, scan.closes);
+  final mermaid = _mermaidLines(lines, scan.fenced, scan.opens, scan.closes);
   return [
     for (var i = 0; i < lines.length; i++)
       if (!scan.fenced[i])
         ...onLine(lines[i], firstLine + i)
-      else if (mermaid[i])
-        ...onMermaidLine(lines[i], firstLine + i),
+      else if (mermaid[i] != _Diagram.none)
+        ...onMermaidLine(
+          lines[i],
+          firstLine + i,
+          isSequence: mermaid[i] == _Diagram.sequence,
+        ),
   ];
 }
 
-/// Returns, per line, whether it sits between the fences of a `mermaid`
-/// block, its fence lines excluded.
-List<bool> _mermaidLines(
+/// What a line is to the `mermaid` reader.
+enum _Diagram { none, flow, sequence }
+
+/// The `mermaid` line that names a sequence diagram, as the first line of
+/// the block after its frontmatter, blank lines, and `%%` comments.
+const _sequenceHead = 'sequenceDiagram';
+
+/// Returns, per line, the kind of `mermaid` block it sits between the fences
+/// of, `none` outside one; fence lines are `none`.
+List<_Diagram> _mermaidLines(
+  List<String> lines,
   List<bool> fenced,
   List<String?> opens,
   List<bool> closes,
 ) {
-  final inBlock = <bool>[];
+  final kinds = <_Diagram>[];
   var inMermaid = false;
+  var head = _BlockHead.start;
+  var kind = _Diagram.flow;
   for (var i = 0; i < fenced.length; i++) {
     final opened = opens[i];
-    if (opened != null) inMermaid = opened == _mermaidInfo;
+    if (opened != null) {
+      inMermaid = opened == _mermaidInfo;
+      head = _BlockHead.start;
+      kind = _Diagram.flow;
+    }
     if (!fenced[i]) inMermaid = false;
-    inBlock.add(inMermaid && opened == null && !closes[i]);
+    final inBlock = inMermaid && opened == null && !closes[i];
+    if (inBlock && head != _BlockHead.done) {
+      (head, kind) = _afterHeadLine(head, lines[i].trim());
+    }
+    kinds.add(inBlock ? kind : _Diagram.none);
   }
-  return inBlock;
+  return kinds;
+}
+
+/// Where a `mermaid` block stands before its first diagram line.
+enum _BlockHead { start, frontmatter, done }
+
+(_BlockHead, _Diagram) _afterHeadLine(_BlockHead head, String line) {
+  if (head == _BlockHead.frontmatter) {
+    return (line == '---' ? _BlockHead.start : head, _Diagram.flow);
+  }
+  if (line.isEmpty || line.startsWith('%%')) return (head, _Diagram.flow);
+  if (line == '---') return (_BlockHead.frontmatter, _Diagram.flow);
+  return (
+    _BlockHead.done,
+    line.startsWith(_sequenceHead) ? _Diagram.sequence : _Diagram.flow,
+  );
 }
 
 Iterable<NameMention> _mentionsOnLine(String line, int number) =>
@@ -261,8 +313,7 @@ List<NameMention> _readFile(
   String lf,
   String extension,
   Iterable<NameMention> Function(String line, int number) onLine, {
-  Iterable<NameMention> Function(String line, int number) onMermaidLine =
-      _noMentions,
+  _MermaidLineReader onMermaidLine = _noMentions,
 }) {
   if (extension != markdownExtension) {
     final lines = lf.split('\n');

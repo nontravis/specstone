@@ -183,14 +183,73 @@ void main() {
         'A[/shop/cart/x/]',
         r'C[/shop/cart/x\]',
         'A["shop/cart/x: add item"]',
+        r'B[\shop/cart/x\]',
+        r'D[\shop/cart/x/]',
         'A->>B:shop/cart/x',
-        'a->>b:shop/cart/x',
-        'a-->>b: shop/cart/x',
+        'A[shop/cart/x,http://a.b/c]',
       ]) {
         final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n')
             .single;
         expect(mention.text, 'shop/cart/x', reason: line);
         expect(mention.column, line.indexOf('shop/cart/x'), reason: line);
+      }
+    });
+
+    test('a path, a route, or a host in a label yields no token', () {
+      for (final line in [
+        'A -->|GET /shop/cart/items| B',
+        'N[./shop/cart/x.md]',
+        'N[example.com/a/b]',
+      ]) {
+        expect(
+          nameMentionsInMarkdown('```mermaid\n$line\n```\n'),
+          isEmpty,
+          reason: line,
+        );
+      }
+    });
+
+    test('a sequence message line gives its text, not its participant id, '
+        'whatever the arrow', () {
+      for (final message in [
+        'a->>b:',
+        'a->>+b:',
+        'a->>-b:',
+        'a-)b:',
+        'a-xb:',
+        'a--)b:',
+        'a--xb:',
+        'a->b:',
+        'a-->b:',
+        'a-->>b:',
+        'a <<->> b: ',
+        'a<<-->>b:',
+        '  A ->> B : ',
+      ]) {
+        final line = '${message}shop/cart/x';
+        for (final head in ['', '---\ntitle: t\n---\n\n%% c\n']) {
+          final lf = '```mermaid\n${head}sequenceDiagram\n$line\n```\n';
+          final mention = nameMentionsInMarkdown(lf).single;
+          expect(mention.text, 'shop/cart/x', reason: line);
+          expect(mention.column, line.indexOf('shop/cart/x'), reason: line);
+        }
+      }
+    });
+
+    test('a typed name keeps its type in a label, after a tag, after a flow '
+        'arrow, and in a sequence note', () {
+      for (final (head, line) in [
+        ('flowchart LR', 'A["line<br/>fr:shop/cart/x"]'),
+        ('flowchart LR', 'A["<b>fr:shop/cart/x</b>"]'),
+        ('flowchart LR', 'A-->fr:shop/cart/x'),
+        ('sequenceDiagram', 'Note right of b: fr:shop/cart/x'),
+        ('sequenceDiagram', 'a->>b: fr:shop/cart/x'),
+      ]) {
+        final mention = nameMentionsInMarkdown(
+          '```mermaid\n$head\n$line\n```\n',
+        ).single;
+        expect(mention.text, 'fr:shop/cart/x', reason: line);
+        expect(mention.column, line.indexOf('fr:'), reason: line);
       }
     });
 

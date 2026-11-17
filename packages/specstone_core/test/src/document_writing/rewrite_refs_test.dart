@@ -1280,12 +1280,24 @@ void main() {
       expect(
         rewriteNameMentions(
           '```mermaid\nA[/user_story:login/email_login/]\n'
-              'A["login/email_login: x"]\na->>b:login/email_login\n```\n',
+              'A["login/email_login: x"]\n```\n\n'
+              '```mermaid\nsequenceDiagram\na->>+b:login/email_login\n```\n',
           '.md',
           {('user_story', 'login/email_login'): 'signin/email_login'},
         ),
-        '```mermaid\nA[/user_story:signin/email_login/]\nA["signin/email_login: x"]\n'
-        'a->>b:signin/email_login\n```\n',
+        '```mermaid\nA[/user_story:signin/email_login/]\nA["signin/email_login: x"]\n```\n\n'
+        '```mermaid\nsequenceDiagram\na->>+b:signin/email_login\n```\n',
+      );
+    });
+
+    test('a rename leaves a route in a mermaid label as written', () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nA -->|GET /login/email_login| B\n```\n',
+          '.md',
+          {('user_story', 'login/email_login'): 'signin/email_login'},
+        ),
+        isNull,
       );
     });
 
