@@ -42,7 +42,8 @@ const _titleKey = 'title';
 /// `draft`, and `written` per block.
 ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
   final refusals = <_Refusal>[
-    for (final entry in parsed.lineFaults) (line: entry.line!, entry: entry),
+    for (final entry in parsed.lineFaults)
+      _Refusal(line: entry.line!, entry: entry),
   ];
   final planned = _planBlocks(session, parsed.blocks, refusals);
   if (planned.isEmpty) throw _refused(refusals);
@@ -60,7 +61,12 @@ ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
 // MARK: - Planning
 
 /// A refused block or line and the line of the batch file it stands on.
-typedef _Refusal = ({int line, BatchEntry entry});
+final class _Refusal {
+  const new({required this.line, required this.entry});
+
+  final int line;
+  final BatchEntry entry;
+}
 
 /// One block resolved to the doc and the part it writes.
 final class _Planned {
@@ -123,14 +129,16 @@ void _refuse(
   SpecstoneFault fault, {
   required String file,
   required String key,
-}) => refusals.add((
-  line: block.line,
-  entry: BatchEntry.fromFault(
-    fault,
-    file: file,
-    key: fault is WriteFault ? fault.key ?? key : key,
+}) => refusals.add(
+  _Refusal(
+    line: block.line,
+    entry: BatchEntry.fromFault(
+      fault,
+      file: file,
+      key: fault is WriteFault ? fault.key ?? key : key,
+    ),
   ),
-));
+);
 
 /// Resolves each block of [blocks] and checks its text and its overlap with
 /// the other blocks, as far as the text and the doc type decide, without the
@@ -291,7 +299,12 @@ void _refuseOverlaps(List<_Planned> resolved, List<_Refusal> refusals) {
 
 /// What one block's check found: its doc as spliced and laid out, whether it
 /// marks the doc a draft, and whether that differs from the doc on disk.
-typedef _Checked = ({String lfText, bool marksDraft, bool isChanged});
+final class _Checked {
+  const new(this.spliced, {required this.isChanged});
+
+  final SplicedDoc spliced;
+  final bool isChanged;
+}
 
 /// One doc's blocks, its text on disk, and each block's check.
 final class _DocCheck {
@@ -371,18 +384,16 @@ Map<_Planned, _Checked> _checkBlocks(
     // Unedited means what `get` prints now, decided before any check of the
     // part: an absent section's empty block is unchanged even when required.
     if (_isUneditedPart(block, disk)) {
-      results[block] = (
-        lfText: disk.lfText,
-        marksDraft: false,
+      results[block] = _Checked(
+        SplicedDoc(lfText: disk.lfText, marksDraft: false),
         isChanged: false,
       );
       continue;
     }
     try {
       final spliced = _splice(block, disk);
-      results[block] = (
-        lfText: spliced.lfText,
-        marksDraft: spliced.marksDraft,
+      results[block] = _Checked(
+        spliced,
         isChanged: layOutDoc(spliced.lfText, docType) != onDisk,
       );
     } on SpecstoneFault catch (fault) {
@@ -584,7 +595,12 @@ bool _marksDraft(
 // MARK: - Writing
 
 /// A doc's step and the text it writes.
-typedef _Write = ({WriteStep step, String lfText});
+final class _Write {
+  const new({required this.step, required this.lfText});
+
+  final WriteStep step;
+  final String lfText;
+}
 
 /// Returns the write of each doc a changed block reaches, by DocPath.
 ///
@@ -609,8 +625,8 @@ Map<String, _Write> _writesOf(
 _Write _writeOf(WriteSession session, _DocCheck check) {
   final [first, ...rest] = check.changed;
   final firstResult = check.results[first]!;
-  var lfText = firstResult.lfText;
-  var marksDraft = firstResult.marksDraft;
+  var lfText = firstResult.spliced.lfText;
+  var marksDraft = firstResult.spliced.marksDraft;
   for (final next in rest) {
     // The base of a block is its part's, which no other block of the doc
     // changes, so each block checks against the text spliced so far.
@@ -633,7 +649,7 @@ _Write _writeOf(WriteSession session, _DocCheck check) {
     marksDraft ? markDraft(lfText, check.docType) : lfText,
     session.docTypeAt(docPath),
   );
-  return (
+  return _Write(
     step: session.docWriteStep(docPath, laidOut, check.disk.bytes),
     lfText: laidOut,
   );
