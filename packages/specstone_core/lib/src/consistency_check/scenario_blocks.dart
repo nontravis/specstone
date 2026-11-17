@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show headingItemTextOf, opensHeadingItem;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -9,9 +11,6 @@ export 'package:specstone_core/src/doc_model/reference_grammar.dart'
 export 'package:specstone_core/src/index_query/held_sections.dart'
     show BodyLine;
 
-const _subHeadingMarker = '###';
-const _deeperHeadingMarker = '####';
-const _itemHeadingMarker = '### ';
 const _statementPrefix = '- **Statement:**';
 const _goalIdPrefix = 'PG-';
 
@@ -34,17 +33,13 @@ int? heldSectionIndexIn(List<MergedSection?> templates, String sectionId) {
 
 // MARK: - Blocks
 
-/// Returns the text after the `### ` of [line], or null for any other line.
-String? itemHeadingTextOf(String line) => line.startsWith(_itemHeadingMarker)
-    ? line.substring(_itemHeadingMarker.length)
-    : null;
-
-/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
-/// other heading, a lettered ID, and an unreadable ID.
+/// Returns the ID of [prefix] a `###` [heading] opens with, read from its
+/// [headingItemTextOf] text; null for any other heading, a lettered ID, and
+/// an unreadable ID.
 ///
 /// A null [prefix] reads the ID the grammar finds by its written prefix.
 String? itemHeadingKeyOf(String heading, String? prefix) {
-  final text = itemHeadingTextOf(heading);
+  final text = headingItemTextOf(heading);
   if (text == null) return null;
   final id = prefix == null
       ? readItemIdOfWrittenPrefix(text)
@@ -66,16 +61,11 @@ String nfrStatementOf(Iterable<BodyLine> block) =>
         .firstOrNull ??
     '';
 
-/// Whether [line] opens a `###` heading (not a deeper one).
-bool isSubHeading(String line) =>
-    line.startsWith(_subHeadingMarker) &&
-    !line.startsWith(_deeperHeadingMarker);
-
 /// Splits [body] into the `###` blocks that [keyOf] names.
 ///
-/// A block runs from its heading line to the next `###` line outside fenced
-/// code, or the end of [body]. [keyOf] names a block from its heading line;
-/// null opens no block and closes the one above.
+/// A block runs from its heading line to the next [opensHeadingItem] line
+/// outside fenced code, or the end of [body]. [keyOf] names a block from its
+/// heading line; null opens no block and closes the one above.
 List<({String key, List<BodyLine> lines})> headingBlocksOf(
   List<BodyLine> body,
   String? Function(String heading) keyOf,
@@ -88,7 +78,7 @@ List<({String key, List<BodyLine> lines})> headingBlocksOf(
   }
 
   for (final line in body) {
-    if (line.fenced || !isSubHeading(line.text)) {
+    if (line.fenced || !opensHeadingItem(line.text)) {
       lines.add(line);
       continue;
     }
@@ -123,13 +113,16 @@ Map<String, String> scenarioBlocksIn(List<BodyLine> body) {
 /// Returns the `### Scenario <N>` blocks of [story], keyed `S<N>`.
 ///
 /// Reads the `acceptance_criteria` section; empty when [story] holds none.
-Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) {
-  final content = index.contentOf(story);
-  final section = heldSectionIndex(
-    content,
-    index.typeOf(story),
-    acceptanceSectionId,
-  );
+Map<String, String> storyScenarioBlocks(DocIndex index, IndexedDoc story) =>
+    scenarioBlocksOfContent(index.contentOf(story), index.typeOf(story));
+
+/// Returns the `### Scenario <N>` blocks of [content], a doc of [type], keyed
+/// `S<N>`; empty when it holds no `acceptance_criteria` section.
+Map<String, String> scenarioBlocksOfContent(
+  DocContent content,
+  MergedDocType? type,
+) {
+  final section = heldSectionIndex(content, type, acceptanceSectionId);
   if (section == null) return const {};
   return scenarioBlocksIn(
     sectionBodyLines(content.sections, content.lineFacts, section),

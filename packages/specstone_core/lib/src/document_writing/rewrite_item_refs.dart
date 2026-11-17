@@ -1,3 +1,11 @@
+import 'package:specstone_core/src/consistency_check/fingerprint.dart'
+    show fingerprintOf;
+import 'package:specstone_core/src/consistency_check/scenario_blocks.dart'
+    show scenarioBlocksOfContent;
+import 'package:specstone_core/src/doc_model/doc_anchors.dart'
+    show anchorsOfBody;
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show SectionItemKind;
 import 'package:specstone_core/src/doc_model/doc_link.dart'
     show DocTarget, projectFilePathOf, relativeFilePathOf, resolveDocLink;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
@@ -8,34 +16,42 @@ import 'package:specstone_core/src/document_writing/item_ref_entries.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref, relativeHref;
+import 'package:specstone_core/src/document_writing/rewrite_labels.dart'
+    show MovedFingerprints, rewriteScenarioSteps, rewriteScenarioTraces;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show TextEdit;
+import 'package:specstone_core/src/document_writing/scenario_items.dart'
+    show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_facts.dart'
+    show itemKeyOfHead, sectionItemsAt;
 import 'package:specstone_core/src/index_query/item_links.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf, linkLabel;
 import 'package:specstone_core/src/index_query/link_places.dart' show LinkText;
+import 'package:specstone_core/src/index_query/link_scan.dart' show LinkSource;
 import 'package:specstone_core/src/index_query/override_chain.dart';
+import 'package:specstone_core/src/journeys/journey_steps.dart'
+    show journeyTypeId;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show MergedDocType;
+import 'package:specstone_core/src/templates/template_fault.dart';
 
 // MARK: - Edits
 
 const _separator = ', ';
 
 /// Returns, by DocPath, the edit of every doc an item move writes: the
-/// landing of [landings] and each reference that names a moved item.
+/// landing of [landings] and each reference that names a moved item, a
+/// scenario's traces and heading links included; each edit refuses a doc
+/// that changed since the plan.
 ///
-/// A reference follows its item to the target doc and the new ID: an item
-/// link, a range that holds the item, an `Overrides:` line and its `overrides`
-/// entry, and a task ref. A link or range inside a moved item is read as it
-/// sits in the target doc, so one that names an item of the source doc still
-/// reaches it. Every doc edit refuses a doc that changed since the plan.
-///
-/// Throws [RenderFault] `output_not_writable` for entries that are not valid
-/// YAML.
+/// Throws [RenderFault] `output_not_writable` for entries not valid YAML.
 Map<String, TextEdit> itemRefEdits(
   WriteSession session,
   List<ItemLanding> landings,
@@ -95,11 +111,14 @@ ItemRefs planItemRefs(WriteSession session, List<ItemLanding> landings) {
         if (value.removals.isNotEmpty) key.docPath: value.removals,
     },
   );
-  final entries = itemEntryEdits(index, moves);
+  final fingerprints = _fingerprintsOf(index, landings, landed);
+  final entries = itemEntryEdits(index, moves, fingerprints: fingerprints);
+  final traces = _scenarioTraceEdits(index, landings, fingerprints);
   final paths = {
     for (final doc in rewritten.keys) doc.docPath,
     ...landed.keys,
     ...entries.keys,
+    ...traces.keys,
   };
   return ItemRefs(
     edits: {
@@ -111,7 +130,7 @@ ItemRefs planItemRefs(WriteSession session, List<ItemLanding> landings) {
               if (key.docPath == path) value,
           ].firstOrNull,
           landed[path],
-          entries[path],
+          [?entries[path], ?traces[path]],
         ),
     },
     listed: {
@@ -122,12 +141,12 @@ ItemRefs planItemRefs(WriteSession session, List<ItemLanding> landings) {
 }
 
 /// Returns the edit that runs the landing, or the link rewrite when the doc
-/// has none, then runs the entry rewrite.
+/// has none, then runs each of [entries] in turn.
 TextEdit _composed(
   IndexedDoc? doc,
   _Rewritten? body,
   TextEdit? landing,
-  String Function(String lfText)? entries,
+  List<String Function(String lfText)> entries,
 ) => (lfText) {
   final String text;
   if (landing != null) {
@@ -138,9 +157,151 @@ TextEdit _composed(
   } else {
     text = lfText;
   }
-  final result = entries?.call(text) ?? text;
+  final result = entries.fold(text, (text, edit) => edit(text));
   return result == lfText ? null : result;
 };
+
+// MARK: - Fingerprints
+
+/// Returns the fingerprint of the block each landing's entries track, before
+/// the move and in the target doc as [landed] writes it.
+Map<ItemLanding, MovedFingerprints> _fingerprintsOf(
+  DocIndex index,
+  List<ItemLanding> landings,
+  Map<String, TextEdit> landed,
+) {
+  final target = landings.first.to;
+  final type = index.typeOf(target);
+  final lf = toLf(index.contentOf(target).text);
+  final after = docStructureOf(landed[target.docPath]?.call(lf) ?? lf, type);
+  final fingerprints = <ItemLanding, MovedFingerprints>{};
+  for (final landing in landings) {
+    final source = landing.from.doc;
+    final located = locateItem(index, landing.from);
+    final before = _trackedText(
+      index.contentOf(source),
+      index.typeOf(source),
+      located,
+      landing.from.id,
+    );
+    if (before == null) continue;
+    final landedText = _trackedText(after, type, located, landing.newId);
+    fingerprints[landing] = MovedFingerprints(
+      before: fingerprintOf(before),
+      after: landedText == null ? null : fingerprintOf(landedText),
+    );
+  }
+  return fingerprints;
+}
+
+/// Returns the text an entry tracks of the item [located], held as [id] in
+/// [content], a doc of [type]: a scenario's block, as an FR or a journey
+/// traces it, else the item's own lines, as an `Overrides:` line does; null
+/// when [content] holds no such item.
+String? _trackedText(
+  DocContent content,
+  MergedDocType? type,
+  LocatedItem located,
+  String id,
+) {
+  if (located.isScenario) return scenarioBlocksOfContent(content, type)[id];
+  for (final (at, section) in citedSectionsOf(content, type).indexed) {
+    if (!located.isTakenBy(section.key, section.prefixId)) continue;
+    for (final item in sectionItemsAt(content, at, type)) {
+      final key = itemKeyOfHead(
+        item.head,
+        isHeading: item.kind == SectionItemKind.heading,
+        prefixId: located.prefix,
+        isAcceptanceCriteria: false,
+      );
+      if (key == id) return item.text;
+    }
+  }
+  return null;
+}
+
+// MARK: - Scenario traces
+
+/// Returns, by DocPath, the edit of each FR and journey whose trace entries
+/// or steps name a moved scenario: each set to its landing, and a matched
+/// `confirmed` entry re-stamped from [fingerprints].
+Map<String, String Function(String lfText)> _scenarioTraceEdits(
+  DocIndex index,
+  List<ItemLanding> landings,
+  Map<ItemLanding, MovedFingerprints> fingerprints,
+) {
+  final scenarios = [
+    for (final landing in landings)
+      if (landing.isScenario) landing,
+  ];
+  if (scenarios.isEmpty) return const {};
+  final edits = <String, String Function(String lfText)>{};
+  for (final doc in index.docs) {
+    final edit = _scenarioTraceEditOf(index, doc, scenarios, fingerprints);
+    if (edit == null) continue;
+    final lf = toLf(index.contentOf(doc).text);
+    if (edit(lf) != lf) edits[doc.docPath] = edit;
+  }
+  return edits;
+}
+
+/// Returns the edit that sets the traces of [doc], an FR or a journey, for
+/// each of [scenarios] in turn; null for any other doc.
+///
+/// Each edit names its landing's target story, so no later one matches it.
+String Function(String lfText)? _scenarioTraceEditOf(
+  DocIndex index,
+  IndexedDoc doc,
+  List<ItemLanding> scenarios,
+  Map<ItemLanding, MovedFingerprints> fingerprints,
+) {
+  final type = index.typeOf(doc);
+  final story = index.parentOf(doc)?.docPath;
+  final traceOf = switch (doc.docTypeId) {
+    frType => (String text, ItemLanding landing) => rewriteScenarioTraces(
+      text,
+      fromNumber: _scenarioNumberOf(landing.from.id),
+      targetStory: landing.to.name,
+      toNumber: _scenarioNumberOf(landing.newId),
+      fingerprints: fingerprints[landing],
+      isSourceStory: (name) => _namesStory(index, name, landing.from.doc),
+      isInSourceStory: story == landing.from.doc.docPath,
+      isInTargetStory: story == landing.to.docPath,
+    ),
+    journeyTypeId when type != null =>
+      (String text, ItemLanding landing) => rewriteScenarioSteps(
+        text,
+        docType: type,
+        fromNumber: _scenarioNumberOf(landing.from.id),
+        targetStory: landing.to.name,
+        toNumber: _scenarioNumberOf(landing.newId),
+        fingerprints: fingerprints[landing],
+        isSourceStory: (name) => _namesStory(index, name, landing.from.doc),
+      ),
+    _ => null,
+  };
+  if (traceOf == null) return null;
+  return (lfText) =>
+      scenarios.fold(lfText, (text, landing) => traceOf(text, landing) ?? text);
+}
+
+/// Returns the number of the scenario ID [id], `S<N>` by its value.
+int _scenarioNumberOf(String id) =>
+    int.parse(id.substring(_scenarioRef.length));
+
+const _scenarioRef = 'S';
+
+/// Whether [storyName], in any name form, names [story] alone.
+bool _namesStory(DocIndex index, String storyName, IndexedDoc story) {
+  try {
+    final named = index.resolve('$storyType:$storyName');
+    return named.length == 1 && named.single.docPath == story.docPath;
+  } on IndexFault {
+    return false;
+  } on TemplateFault {
+    return false;
+  }
+}
 
 /// A doc text as the index holds it, and with its links set to their new
 /// place.
@@ -294,12 +455,18 @@ _LinkPlan _linkPlanOf(
       }
     }
   }
+  BodyScan? scanned;
+  BodyScan scanOf() => scanned ??= BodyScan(lf);
+  final headingLinks = _planHeadingLinks(plan, doc, moves, scanOf, lines);
   final isSource = moves.spans.containsKey(doc.docPath);
   if (users.isEmpty && !isSource) return plan;
-  final refs = _References(BodyScan(lf), lines, doc, moves);
+  final refs = _References(scanOf(), lines, doc, moves);
   _planReferences(plan, refs, users);
   if (isSource) {
-    _planRebased(plan, refs.scan, doc, moves, itemLinks);
+    _planRebased(plan, refs.scan, doc, moves, {
+      ...itemLinks.keys,
+      ...headingLinks,
+    });
     _planRebasedReferences(plan, refs, itemLinks);
   }
   return plan;
@@ -551,15 +718,15 @@ void _planDefinition(
   }
 }
 
-/// Plans the relative destinations inside moved items that no item link
-/// covers: each is set to reach from the target doc what it reaches from the
-/// source doc.
+/// Plans the relative destinations inside moved items that no link of
+/// [covered], by file line and column, holds: each is set to reach from the
+/// target doc what it reaches from the source doc.
 void _planRebased(
   _LinkPlan plan,
   BodyScan body,
   IndexedDoc doc,
   ItemMoves moves,
-  Map<(int, int), _ReadLink> itemLinks,
+  Set<(int, int)> covered,
 ) {
   for (final destination in body.scan.destinations) {
     final number = body.fileLineOf(destination.start);
@@ -567,7 +734,7 @@ void _planRebased(
     if (span == null || moves.isOwnLine(doc.docPath, number)) continue;
     if (destination.link case final at?) {
       final source = body.scan.sources[at];
-      if (itemLinks.containsKey((source.line, body.columnOf(source.offset)))) {
+      if (covered.contains((source.line, body.columnOf(source.offset)))) {
         continue;
       }
     }
@@ -619,7 +786,13 @@ void _planRebasedReferences(
     plan.add(
       link.line,
       item == null
-          ? _referenceInline(link, definition, refs.doc.docPath, place)
+          ? _referenceInline(
+              refs.moves,
+              link,
+              definition,
+              refs.doc.docPath,
+              place,
+            )
           : _itemLinkInline(refs, item, link, definition),
     );
     converted[link.label] = (converted[link.label] ?? 0) + 1;
@@ -635,14 +808,24 @@ void _planRebasedReferences(
 }
 
 /// Returns the edit that writes the reference-style [link] as an inline link
-/// to what [definition], written in the doc at [from], names from [place].
+/// to what [definition], written in the doc at [from], names from [place]:
+/// a moved scenario's heading at its landed heading.
 _Edit _referenceInline(
+  ItemMoves moves,
   _RefLink link,
   _Definition definition,
   String from,
   String place,
 ) {
-  final written = _destinationFrom(definition.destination, from, place);
+  final written =
+      _headingDestination(
+        moves,
+        definition.destination,
+        from,
+        place,
+        DestinationKind.definition,
+      ) ??
+      _destinationFrom(definition.destination, from, place);
   return _Edit(link.textEnd + 1, link.end, '(${_shownOf(written)})');
 }
 
@@ -706,6 +889,153 @@ String _destinationFrom(String destination, String from, String to) {
   return destination;
 }
 
+// MARK: - Heading links
+
+/// Plans each inline link and reference definition of [doc] that reaches the
+/// heading of a moved scenario: its path set to the target story and its
+/// anchor to the landed heading's, its text and query kept.
+///
+/// Returns the file line and column of each such inline link. [scanOf] reads
+/// the body only when a link of [doc] reaches such a heading.
+Set<(int, int)> _planHeadingLinks(
+  _LinkPlan plan,
+  IndexedDoc doc,
+  ItemMoves moves,
+  BodyScan Function() scanOf,
+  List<String> lines,
+) {
+  final facts = moves.index.contentOf(doc).lineFacts;
+  final isCited = [
+    ...facts.links,
+    ...facts.selfLinks,
+  ].any((place) => _movedHeadingAt(moves, place.target, place.anchor) != null);
+  if (!isCited) return const {};
+  final body = scanOf();
+  final covered = <(int, int)>{};
+  for (final source in body.scan.sources) {
+    final edit = _headingEdit(moves, doc, body, lines, source);
+    if (edit == null) continue;
+    plan.add(source.line, edit);
+    covered.add((source.line, body.columnOf(source.offset)));
+  }
+  for (final definition in _definitionsOf(body).values) {
+    if (definition == null) continue;
+    final written = _headingDestination(
+      moves,
+      definition.destination,
+      doc.docPath,
+      moves.placeOf(doc.docPath, definition.line),
+      DestinationKind.definition,
+    );
+    if (written == null) continue;
+    final start = definition.destStart;
+    plan.add(
+      definition.line,
+      _Edit(start, start + definition.destination.length, written),
+    );
+  }
+  return covered;
+}
+
+/// Returns the edit that sets the destination of the inline link [source],
+/// in angle brackets or not, when it reaches the heading of a moved scenario;
+/// null for any other link.
+_Edit? _headingEdit(
+  ItemMoves moves,
+  IndexedDoc doc,
+  BodyScan body,
+  List<String> lines,
+  LinkSource source,
+) {
+  final shown = source.shown;
+  final textEnd = source.textEnd;
+  if (shown == null ||
+      textEnd == null ||
+      body.fileLineOf(textEnd) != source.line) {
+    return null;
+  }
+  final close = body.columnOf(textEnd);
+  final line = lines[source.line - 1];
+  final start = line.startsWith('](<$shown>', close)
+      ? close + 3
+      : line.startsWith(']($shown', close)
+      ? close + 2
+      : null;
+  if (start == null) return null;
+  final written = _headingDestination(
+    moves,
+    shown,
+    doc.docPath,
+    moves.placeOf(doc.docPath, source.line),
+    DestinationKind.inline,
+  );
+  return written == null ? null : _Edit(start, start + shown.length, written);
+}
+
+/// Returns the [kind] [destination], written in the doc at [from] and read
+/// from the doc at [place] after the moves, set to the landed heading of the
+/// moved scenario it reaches, its query kept; null when it reaches none.
+String? _headingDestination(
+  ItemMoves moves,
+  String destination,
+  String from,
+  String place,
+  DestinationKind kind,
+) {
+  if (resolveDocLink(destination, from) case DocTarget(
+    :final docPath,
+    :final anchor,
+  )) {
+    final span = _movedHeadingAt(moves, docPath, anchor);
+    final slug = span == null ? null : _landedSlugOf(moves, span);
+    if (span == null || slug == null) return null;
+    final parts = destinationPartsOf(destination, kind);
+    final anchorStart = parts.anchorStart;
+    if (anchorStart == null) return null;
+    final landing = span.landing;
+    final path = _pathBetween(place, _Named(landing.to.docPath, landing.newId));
+    return '$path${destination.substring(parts.pathEnd, anchorStart)}$slug';
+  }
+  return null;
+}
+
+/// Returns the moved scenario whose heading [anchor] names in the doc at
+/// [docPath], or null.
+MovedSpan? _movedHeadingAt(ItemMoves moves, String docPath, String? anchor) {
+  final spans = moves.spans[docPath];
+  final doc = moves.index.at(docPath);
+  if (spans == null || doc == null || anchor == null || anchor.isEmpty) {
+    return null;
+  }
+  final facts = moves.index.contentOf(doc).lineFacts;
+  if (anchorTargetOf(facts, anchor) case HeadingBlockTarget(
+    :final headingLine,
+  )) {
+    return spans
+        .where((span) => span.landing.isScenario && span.first == headingLine)
+        .firstOrNull;
+  }
+  return null;
+}
+
+/// Returns the anchor of the heading the scenario of [span] lands with, or
+/// null when it reads none.
+String? _landedSlugOf(ItemMoves moves, MovedSpan span) {
+  final landing = span.landing;
+  final source = landing.from.doc;
+  final heading = toLf(moves.index.contentOf(source).text)
+      .split('\n')[span.first - 1];
+  final renamed = {
+    for (final other in moves.landings)
+      if (!other.isScenario &&
+          other.from.doc.docPath == source.docPath &&
+          other.newId != other.from.id)
+        other.from.id: other.newId,
+  };
+  final landed = landedScenarioHeading(heading, landing, renamed);
+  return anchorsOfBody(landed)?.headingSlugs.firstOrNull;
+}
+
 // MARK: - Item links and ranges
 
 /// Returns the edits of the links of one [line]: one per range and one per
@@ -743,12 +1073,20 @@ List<_Edit> _editsOn(_Line line, List<_ReadLink> links, List<_Listed> listed) {
 /// A link names a moved item at its landing. Any other link inside a moved
 /// item names the item it named, now from the target doc.
 _Named? _afterOf(_Line line, String target, String sectionKey, String id) {
-  if (line.moves.landingOf(target, id, sectionKey: sectionKey)
+  final written = _linkIdOf(id);
+  if (line.moves.landingOf(target, written, sectionKey: sectionKey)
       case final landing?) {
     return _Named(landing.to.docPath, landing.newId);
   }
-  return line.place == line.doc.docPath ? null : _Named(target, id);
+  return line.place == line.doc.docPath ? null : _Named(target, written);
 }
+
+/// Returns the ID a link writes for the item the index holds by [key]:
+/// `S<N>` for a scenario's `Scenario <N>`, else [key] itself.
+String _linkIdOf(String key) => switch (readItemId(key, scenarioIdPrefix)) {
+  ItemId(:final number) => '$_scenarioRef$number',
+  _ => key,
+};
 
 _Edit? _linkEdit(_Line line, _ReadLink read) {
   final link = read.link;
@@ -862,7 +1200,7 @@ _Edit? _rangeEdit(
   }
   final steps = [
     for (final (at, id) in ids.indexed)
-      _Step(afters[at] ?? _Named(target, id), id),
+      _Step(afters[at] ?? _Named(target, _linkIdOf(id)), id),
   ];
   final written = _writtenOf(firstLink.shown, DestinationKind.inline);
   final prefix = first.read.sections[_sectionAt(first.read)].prefixId;

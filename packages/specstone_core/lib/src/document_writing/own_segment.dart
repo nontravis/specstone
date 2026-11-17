@@ -4,8 +4,10 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show PathMove;
+import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart' show docNameOf;
 import 'package:specstone_core/src/rendering/docs_project.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -99,23 +101,28 @@ List<SiblingEntry> siblingsOnDisk(
 }
 
 /// Returns the spec folder moves that follow [docType]'s doc from
-/// [oldValues] to [newValues], each folder paired with the one the same child
-/// doc type holds after the move, sorted by old folder; a folder that does
-/// not change is left out. [depth] is the nesting depth of the doc.
+/// [oldValues] to [newValues], each folder paired with the one its child type
+/// holds after the move, sorted by old folder; an unchanged one is left out.
 ///
-/// A per-target child's folder moves once per name of [targetNames], as
-/// [specFoldersOf] reads it.
+/// A per-target child's folder moves once per name of [targetNames].
+///
+/// - [depth], [newDepth]: nesting depths before and after; null keeps [depth].
 List<PathMove> specFolderMovesOf(
   MergedSet set,
   MergedDocType docType,
   List<String> oldValues,
   List<String> newValues, {
   int depth = 0,
+  int? newDepth,
   List<String> targetNames = const [],
 }) {
-  final shape = DocPathShape.of(docType, set, depth: depth);
-  if (shape == null) return const [];
-  Map<(String, String?), String> foldersAt(List<String> values) => {
+  final oldShape = DocPathShape.of(docType, set, depth: depth);
+  final newShape = DocPathShape.of(docType, set, depth: newDepth ?? depth);
+  if (oldShape == null || newShape == null) return const [];
+  Map<(String, String?), String> foldersAt(
+    DocPathShape shape,
+    List<String> values,
+  ) => {
     for (final (child, folder, target) in specChildrenOf(
       set,
       docType,
@@ -125,12 +132,63 @@ List<PathMove> specFolderMovesOf(
     ))
       (child.id, target): folder,
   };
-  final newFolders = foldersAt(newValues);
+  final newFolders = foldersAt(newShape, newValues);
   final moves = <String, PathMove>{};
-  for (final MapEntry(:key, value: from) in foldersAt(oldValues).entries) {
+  for (final MapEntry(:key, value: from) in foldersAt(
+    oldShape,
+    oldValues,
+  ).entries) {
     final to = newFolders[key];
     if (to == null || to == from) continue;
     moves[from] = (from: from, to: to);
   }
   return [for (final key in moves.keys.toList()..sort()) moves[key]!];
 }
+
+/// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
+/// [slug], naming that doc, or a path on disk is where one of [moves] lands,
+/// naming [newDocPath] with that path as its `file`.
+void checkNoClash(
+  WriteSession session,
+  MergedDocType docType,
+  DocPathShape shape,
+  List<String> parentValues,
+  List<SiblingEntry> siblings, {
+  required String slug,
+  required String newDocPath,
+  required List<PathMove> moves,
+}) {
+  for (final sibling in siblings) {
+    if (sibling.slug != slug) continue;
+    final docPath = [
+      '${shape.containerOf(parentValues)}${sibling.name}',
+      ...shape.segments.skip(shape.ownIndex + 1),
+    ].join('/');
+    if (session.fileOf(docPath).existsSync()) {
+      throw existsFault(docType, docPath, docPath);
+    }
+  }
+  for (final move in moves) {
+    if (isOnDisk(session, move.to)) {
+      throw existsFault(docType, newDocPath, move.to);
+    }
+  }
+}
+
+/// Whether a file or folder sits at [docPath], a folder's ending in `/`.
+bool isOnDisk(WriteSession session, String docPath) {
+  final path = docPath.endsWith('/')
+      ? docPath.substring(0, docPath.length - 1)
+      : docPath;
+  final onDisk = session.fileOf(path).path;
+  return FileSystemEntity.typeSync(onDisk) != FileSystemEntityType.notFound;
+}
+
+/// Returns the `doc_exists` fault naming the [docType] doc at [named], its
+/// envelope `file` [file].
+WriteFault existsFault(MergedDocType docType, String named, String file) =>
+    WriteFault(
+      WriteFaultCode.docExists,
+      'a ${docType.id} named ${docNameOf(named, docType)} exists',
+      file: file,
+    );

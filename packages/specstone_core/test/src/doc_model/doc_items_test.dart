@@ -117,6 +117,15 @@ void main() {
       ]);
     });
 
+    test('a bare ### line opens a heading item with empty text, a ###x line '
+        'opens none', () {
+      expect(_items('###\n\n- a\n\n###x'), [
+        (line: 20, chars: 3, text: '', heading: true),
+        (line: 22, chars: 3, text: 'a', heading: false),
+        (line: 24, chars: 4, text: '###x', heading: false),
+      ]);
+    });
+
     test('E09: a ### heading inside a blockquote '
         'counts with a deeper quoted paragraph right under it', () {
       final items = _items(
@@ -303,6 +312,22 @@ void main() {
         (line: 24, chars: 2, text: 'c', heading: false),
         (line: 26, chars: 4, text: 'd', heading: false),
       ]);
+    });
+  });
+
+  group('opensHeadingItem', () {
+    test('holds for each line the item reader opens a heading item at', () {
+      for (final line in ['### A', '###', '> ### A', '  > > ### A', '### ']) {
+        expect(opensHeadingItem(line), isTrue, reason: line);
+        expect(_items(line).single.heading, isTrue, reason: line);
+      }
+    });
+
+    test('fails for a ###x line, a deeper or higher heading, and an '
+        'indented code line', () {
+      for (final line in ['###x', '#### A', '## A', '    ### A', 'text']) {
+        expect(opensHeadingItem(line), isFalse, reason: line);
+      }
     });
   });
 }

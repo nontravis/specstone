@@ -49,6 +49,35 @@ void main() {
       expect(blocks, {'S1': '### Scenario 01 — one\n- a'});
     });
 
+    test('a ###x line stays inside the block, while a bare ### line and a '
+        'quoted ### line end it, as each opens a heading item', () {
+      final blocks = scenarioBlocksIn(
+        _body(
+          '### Scenario 1 — one\n###x\n- a\n###\n- b\n'
+          '### Scenario 2 — two\n- c\n> ### quoted\n- d\n'
+          '### Scenario 3 — three\n- e',
+        ),
+      );
+
+      expect(blocks, {
+        'S1': '### Scenario 1 — one\n###x\n- a',
+        'S2': '### Scenario 2 — two\n- c',
+        'S3': '### Scenario 3 — three\n- e',
+      });
+    });
+
+    test('a quoted scenario heading keys its block as the item reader names '
+        'it, and an unquoted one is unchanged', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 1 — one\n- a\n> ### Scenario 3 — three\n- b'),
+      );
+
+      expect(blocks, {
+        'S1': '### Scenario 1 — one\n- a',
+        'S3': '> ### Scenario 3 — three\n- b',
+      });
+    });
+
     test('Scenario 1 does not match Scenario 10', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 10 — ten\n- a\n### Scenario 1 — one\n- b'),

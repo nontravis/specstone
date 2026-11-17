@@ -11,6 +11,8 @@ import 'package:specstone_core/src/doc_model/text_scan.dart';
 
 const _lineFeedChars = 1;
 
+/// A `###` with no text, which `atxHeadingOf` reads as an empty heading.
+const _bareHeading = '###';
 const _quoteMark = 0x3E;
 const _space = 0x20;
 const _maxMarkIndent = 3;
@@ -24,6 +26,22 @@ final _listMarker = RegExp(r'^\s*(?:[-*+]|\d+[.)])(?:\s+|$)');
 /// the first line after any `>` mark, list marker, or `### `. `heading` is
 /// true for a `###` item.
 typedef DocItem = ({int line, int chars, String text, bool heading});
+
+/// Whether [line], unfenced, opens a heading item as [sectionItemsOf] reads
+/// it: after any `>` marks, a `### ` heading or a bare `###`.
+///
+/// The one line that ends a heading item's `###` block, for every reader.
+bool opensHeadingItem(String line) => headingItemTextOf(line) != null;
+
+/// Returns the text of the heading item [line], unfenced, opens, as
+/// [sectionItemsOf] reads it after any `>` marks and the `### `; null when it
+/// opens none.
+///
+/// The one reader every caller names a heading item from.
+String? headingItemTextOf(String line) {
+  final read = _Line.of((text: line, line: 0, fenced: false));
+  return read.kind == _Kind.heading ? read.itemText : null;
+}
 
 /// What a [SectionItem] is.
 enum SectionItemKind { listItem, tableRow, paragraph, heading }
@@ -194,7 +212,9 @@ final class _Line {
   static _Kind _kindOf(String inner) {
     if (inner.trim().isEmpty) return _Kind.blank;
     if (isThematicBreak(inner)) return _Kind.rule;
-    if (inner.startsWith(itemHeadingMarker)) return _Kind.heading;
+    if (inner.startsWith(itemHeadingMarker) || inner == _bareHeading) {
+      return _Kind.heading;
+    }
     final marker = _listMarker.firstMatch(inner);
     if (marker == null) return _Kind.text;
     return isThematicBreak(inner.substring(marker.end))
@@ -214,7 +234,10 @@ final class _Line {
 
   /// The first line of an item that starts here, marker stripped.
   String get itemText => switch (kind) {
-    _Kind.heading => inner.substring(itemHeadingMarker.length),
+    _Kind.heading =>
+      inner.length < itemHeadingMarker.length
+          ? ''
+          : inner.substring(itemHeadingMarker.length),
     _Kind.list => inner.substring(_listMarker.firstMatch(inner)!.end),
     _ => inner.trimLeft(),
   };

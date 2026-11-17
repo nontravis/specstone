@@ -2,7 +2,7 @@ import 'package:specstone_core/src/doc_model/check_sentences.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show itemHeadingMarker, tableCellRanges;
+    show tableCellRanges;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/sentence_measure.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
@@ -458,7 +458,7 @@ _ItemIdRead? _idReadOfHead(
   required bool isAcceptanceCriteria,
 }) {
   if (isHeading && isAcceptanceCriteria) {
-    final scenario = readScenarioHeading('$itemHeadingMarker$head');
+    final scenario = readScenarioHead(head);
     if (scenario is ItemId) return (id: scenario, isScenario: true);
   }
   if (prefixId == null) return null;

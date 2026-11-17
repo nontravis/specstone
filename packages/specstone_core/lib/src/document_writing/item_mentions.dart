@@ -20,6 +20,8 @@ import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart'
     show ItemRefs, ListedRef, planItemRefs;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show TextEdit;
+import 'package:specstone_core/src/document_writing/scenario_items.dart'
+    show scenarioKeyOfId;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention;
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -149,9 +151,9 @@ List<MovedSpan> _landedSpans(
     if (at < 0) continue;
     final extent = itemExtentOf(
       sectionBodyLines(content.sections, content.lineFacts, at),
-      landing.newId,
+      landing.isScenario ? scenarioKeyOfId(landing.newId) : landing.newId,
       prefixId: sections[at].prefixId,
-      isAcceptanceCriteria: false,
+      isAcceptanceCriteria: landing.isScenario,
     );
     if (extent != null) {
       spans.add(

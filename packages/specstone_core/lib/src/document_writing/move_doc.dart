@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/item_mentions.dart';
+import 'package:specstone_core/src/document_writing/move_feature.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
@@ -175,7 +175,12 @@ ReadAnswer answerRename(
       renamed: renamed,
       docEdits: records.edits,
     );
-    final mentions = staleMentions(session, moves, namesChange: true);
+    final mentions = staleMentions(
+      session,
+      moves,
+      namesChange: true,
+      docWrites: rewrites,
+    );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
@@ -193,18 +198,18 @@ ReadAnswer answerRename(
   });
 }
 
-/// Moves the stories or FRs [addresses] name to be the last children of
-/// [under], slugs kept, rewriting every reference in one pass.
+/// Moves the docs or items [addresses] name under [under], rewriting every
+/// reference in one pass.
 ///
-/// An address with a `#` that names no doc whole is an item target, which
-/// goes to [answerItemMove] and alone takes [codeTarget].
+/// The flags are judged before any address resolves; only an item target
+/// takes [codeTarget], and only a feature takes [top].
 ///
-/// Throws [WriteFault], [IndexFault] for a bad call shape, and the faults of
-/// [answerItemMove].
+/// Throws [WriteFault], [IndexFault], and the faults of [answerItemMove].
 ReadAnswer answerMove(
   WriteSession session,
   List<String> addresses, {
   required String? under,
+  bool top = false,
   String? codeTarget,
   bool dryRun = false,
 }) {
@@ -216,34 +221,36 @@ ReadAnswer answerMove(
     );
   }
   final items = [for (final a in addresses) isItemAddress(session.index, a)];
+  _checkFlags(under: under, top: top, areItems: items.every((item) => item));
   if (items.any((isItem) => isItem)) {
     return _answerItemMove(
       session,
       addresses,
-      isMixed: !items.every((isItem) => isItem),
+      isItem: items,
       under: under,
+      top: top,
       codeTarget: codeTarget,
       dryRun: dryRun,
     );
   }
+  final targets = _distinct([for (final a in addresses) session.target(a)]);
+  final docType = _movableTypeOf(session, targets);
+  if (top && docType.id != featureType) throw _topFault();
   if (codeTarget != null) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'move takes --target only with item targets',
     );
   }
-  if (under == null) {
-    throw missingArgument(
-      'move',
-      'a feature or a story',
-      'specstone move user_story:login/reset_password --under account',
-    );
+  if (docType.id == featureType) {
+    return _answerFeatureMove(session, targets, under: under, dryRun: dryRun);
   }
-  final targets = _distinct([for (final a in addresses) session.target(a)]);
-  final docType = _movableTypeOf(session, targets);
   final parentTypeId =
       docType.parent ?? (throw StateError('${docType.id} has no parent type'));
-  final newParent = session.parentTarget(under, parentTypeId);
+  final newParent = session.parentTarget(
+    under ?? (throw StateError('${docType.id} move reached with no --under')),
+    parentTypeId,
+  );
   final moving = [
     for (final target in targets)
       if (session.index.parentOf(target)?.docPath != newParent.docPath) target,
@@ -271,7 +278,12 @@ ReadAnswer answerMove(
         if (docType.id == frType) ..._movedFrEdits(session, moving, newParent),
       },
     );
-    final mentions = staleMentions(session, moves, namesChange: true);
+    final mentions = staleMentions(
+      session,
+      moves,
+      namesChange: true,
+      docWrites: rewrites,
+    );
     if (!dryRun) {
       MoveJournal([
         for (final move in moves)
@@ -291,34 +303,125 @@ ReadAnswer answerMove(
   });
 }
 
-/// Moves the items [addresses] name once the call's shape is right.
+/// Moves the [features] under the feature [under] names, or among the top
+/// features when it is null, with their spec and record folders.
 ///
-/// Throws [IndexFault] `argument_invalid` for a call that also names a doc,
-/// `argument_missing` for no [under], and the faults of [answerItemMove].
+/// The moves are staged, since a folder may land where another move leaves.
+/// Throws the faults of [WriteSession.parentTarget] and [planFeatureMoves].
+ReadAnswer _answerFeatureMove(
+  WriteSession session,
+  List<IndexedDoc> features, {
+  required String? under,
+  required bool dryRun,
+}) {
+  final newParent = under == null
+      ? null
+      : session.parentTarget(under, featureType);
+  // Refuse before the lock; the numbers are taken again inside it, since a
+  // concurrent `new` can claim one in between.
+  if (planFeatureMoves(session, features, newParent: newParent).isEmpty) {
+    return _answerFor(session, const [], const [], dryRun: dryRun);
+  }
+  return session.locked(() {
+    final moves = planFeatureMoves(session, features, newParent: newParent);
+    session.journalTarget.requireTrusted();
+    final renamed = renamedNamesOf(session, moves);
+    final records = planRecordRewrites(session, renamed);
+    final rewrites = planRewrites(
+      session,
+      moves,
+      renamed: renamed,
+      docEdits: records.edits,
+    );
+    final mentions = staleMentions(
+      session,
+      moves,
+      namesChange: true,
+      docWrites: rewrites,
+    );
+    if (!dryRun) {
+      MoveJournal([
+        ..._stageSteps(session, moves),
+        ...rewrites,
+        ...records.creates,
+      ]).run(session.journalTarget);
+    }
+    return _answerFor(
+      session,
+      moves,
+      rewrites,
+      created: records.creates,
+      mentions: mentions,
+      dryRun: dryRun,
+    );
+  });
+}
+
+/// Throws [IndexFault] `argument_conflict` for both [under] and [top], and
+/// `argument_missing` for neither, naming item targets' own form when
+/// [areItems].
+void _checkFlags({
+  required String? under,
+  required bool top,
+  required bool areItems,
+}) {
+  if (under != null && top) {
+    throw IndexFault(
+      IndexFaultCode.argumentConflict,
+      'move takes --under or --top, not both',
+    );
+  }
+  if (under != null || top) return;
+  throw IndexFault(
+    IndexFaultCode.argumentMissing,
+    areItems
+        ? 'move needs --under <doc address> for item targets'
+        : 'move needs --under <doc address> or --top',
+  );
+}
+
+/// Returns the fault for `--top` beside a target that is no feature.
+IndexFault _topFault() => IndexFault(
+  IndexFaultCode.argumentInvalid,
+  'move takes --top only with feature targets',
+);
+
+/// Moves the items [addresses] name once every target resolves, [isItem]
+/// marking each address that is an item.
+///
+/// Throws [WriteFault] `doc_type_not_movable` for a doc target of another type,
+/// [IndexFault] `argument_invalid` for a doc target at all or [top], and the
+/// faults of [answerItemMove].
 ReadAnswer _answerItemMove(
   WriteSession session,
   List<String> addresses, {
-  required bool isMixed,
+  required List<bool> isItem,
   required String? under,
+  required bool top,
   required String? codeTarget,
   required bool dryRun,
 }) {
-  if (isMixed) {
+  final docs = <IndexedDoc>[];
+  for (var i = 0; i < addresses.length; i++) {
+    if (!isItem[i]) {
+      docs.add(session.target(addresses[i]));
+      continue;
+    }
+    final docPart = session.index.splitAddress(addresses[i]).docPart;
+    session.target(docPart, codeTarget: codeTarget);
+  }
+  _requireMovable(session, docs);
+  if (docs.isNotEmpty) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,
       'move takes item targets or doc targets, not both',
     );
   }
-  if (under == null) {
-    throw IndexFault(
-      IndexFaultCode.argumentMissing,
-      'move needs --under <doc address> for item targets',
-    );
-  }
+  if (top) throw _topFault();
   return answerItemMove(
     session,
     addresses,
-    under: under,
+    under: under ?? (throw StateError('an item move reached with no --under')),
     codeTarget: codeTarget,
     dryRun: dryRun,
   );
@@ -399,30 +502,47 @@ bool _namesStory(WriteSession session, String storyName, IndexedDoc story) {
   }
 }
 
-/// Returns the one doc type [targets] carry, a story or an FR.
+/// Returns the one doc type [targets] carry, a story, an FR, an nf, or a
+/// feature.
 ///
 /// Throws [WriteFault] `doc_type_not_movable` for the first target of any
-/// other type, then [IndexFault] `argument_invalid` for a call naming both.
+/// other type, then [IndexFault] `argument_invalid` naming the first two
+/// types that differ.
 MergedDocType _movableTypeOf(WriteSession session, List<IndexedDoc> targets) {
+  final types = _requireMovable(session, targets);
+  for (final type in types) {
+    if (type.id == types.first.id) continue;
+    throw IndexFault(
+      IndexFaultCode.argumentInvalid,
+      'move takes one doc type per call, not ${types.first.id} and ${type.id}',
+    );
+  }
+  return types.first;
+}
+
+/// Returns the doc type of each of [targets].
+///
+/// Throws [WriteFault] `doc_type_not_movable` for the first target whose type
+/// `move` takes none of.
+List<MergedDocType> _requireMovable(
+  WriteSession session,
+  List<IndexedDoc> targets,
+) {
+  const movable = {storyType, frType, nfType, featureType};
   final types = [
     for (final target in targets)
       session.index.typeOf(target) ??
           (throw StateError('${target.docPath} has no doc type')),
   ];
   for (final type in types) {
-    if (type.id == storyType || type.id == frType) continue;
+    if (movable.contains(type.id)) continue;
     throw WriteFault(
       WriteFaultCode.docTypeNotMovable,
-      '${type.id} docs cannot move; move takes a $storyType or an $frType',
+      '${type.id} docs cannot move; move takes a $storyType, an $frType, an '
+      '$nfType, or a $featureType',
     );
   }
-  if (types.any((type) => type.id != types.first.id)) {
-    throw IndexFault(
-      IndexFaultCode.argumentInvalid,
-      'move takes $storyType targets or $frType targets, not both',
-    );
-  }
-  return types.first;
+  return types;
 }
 
 /// Returns [targets] without a doc named twice, first mention first.
@@ -456,7 +576,7 @@ void _checkTakesStory(
 /// [newParent], in order, each slug kept.
 ///
 /// Throws [WriteFault] `doc_exists` when two targets carry one slug, naming
-/// the first of them, or as [_checkNoClash] does.
+/// the first of them, or as [checkNoClash] does.
 List<PathMove> _landingMoves(
   WriteSession session,
   List<IndexedDoc> targets,
@@ -501,7 +621,7 @@ List<PathMove> _landingMoves(
         (throw StateError('${target.docPath} carries no slug'));
     final first = firstOfSlug[slug];
     if (first != null) {
-      throw _existsFault(docType, first.docPath, first.docPath);
+      throw existsFault(docType, first.docPath, first.docPath);
     }
     firstOfSlug[slug] = target;
     final newDocPath = landedShape.build([
@@ -515,7 +635,7 @@ List<PathMove> _landingMoves(
       from: shape.ownPathOf(target.docPath),
       to: landedShape.ownPathOf(newDocPath),
     );
-    _checkNoClash(
+    checkNoClash(
       session,
       docType,
       landedShape,
@@ -608,9 +728,9 @@ List<PathMove> _renameMoves(
     depth: shape.depth,
     targetNames: session.index.twinNames,
   )) {
-    if (_folderExists(session, move.from)) moves.add(move);
+    if (isOnDisk(session, move.from)) moves.add(move);
   }
-  _checkNoClash(
+  checkNoClash(
     session,
     docType,
     shape,
@@ -622,48 +742,6 @@ List<PathMove> _renameMoves(
   );
   return moves;
 }
-
-/// Throws [WriteFault] `doc_exists` when a sibling doc of [docType] carries
-/// [slug], or a path on disk is where one of [moves] lands; the fault
-/// names [newDocPath].
-void _checkNoClash(
-  WriteSession session,
-  MergedDocType docType,
-  DocPathShape shape,
-  List<String> parentValues,
-  List<SiblingEntry> siblings, {
-  required String slug,
-  required String newDocPath,
-  required List<PathMove> moves,
-}) {
-  for (final sibling in siblings) {
-    if (sibling.slug != slug) continue;
-    final docPath = [
-      '${shape.containerOf(parentValues)}${sibling.name}',
-      ...shape.segments.skip(shape.ownIndex + 1),
-    ].join('/');
-    if (session.fileOf(docPath).existsSync()) {
-      throw _existsFault(docType, docPath, docPath);
-    }
-  }
-  for (final move in moves) {
-    final landing = session.fileOf(_withoutClosingSlash(move.to)).path;
-    if (FileSystemEntity.typeSync(landing) == FileSystemEntityType.notFound) {
-      continue;
-    }
-    throw _existsFault(docType, newDocPath, move.to);
-  }
-}
-
-String _withoutClosingSlash(String path) =>
-    path.endsWith('/') ? path.substring(0, path.length - 1) : path;
-
-WriteFault _existsFault(MergedDocType docType, String named, String file) =>
-    WriteFault(
-      WriteFaultCode.docExists,
-      'a ${docType.id} named ${docNameOf(named, docType)} exists',
-      file: file,
-    );
 
 /// Returns the entry of [siblings] named [ownName].
 ///
@@ -735,15 +813,11 @@ List<PathMove> _movesFor(
       depth: shape.depth,
       targetNames: session.index.twinNames,
     )) {
-      if (_folderExists(session, move.from)) moves.add(move);
+      if (isOnDisk(session, move.from)) moves.add(move);
     }
   }
   return moves;
 }
-
-bool _folderExists(WriteSession session, String folder) =>
-    Directory(session.fileOf(folder.substring(0, folder.length - 1)).path)
-        .existsSync();
 
 /// Returns every move twice, as a [MoveStep]: each path to its stage slot,
 /// then each stage slot to its target, so no move lands on a path another

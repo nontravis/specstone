@@ -8,6 +8,8 @@ import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref;
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show TextEdit;
+import 'package:specstone_core/src/document_writing/scenario_items.dart'
+    show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/set_doc.dart'
     show markDraft;
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -45,9 +47,16 @@ Map<String, TextEdit> itemLandingEdits(
   Map<String, Set<int>> droppedLines = const {},
 }) {
   final index = session.index;
+  final renamed = _renamedOf(landings);
   final cuts = [
     for (final landing in landings)
-      _cutOf(index, landing, bodies, droppedLines),
+      _cutOf(
+        index,
+        landing,
+        bodies,
+        droppedLines,
+        renamed[landing.from.doc.docPath] ?? const {},
+      ),
   ];
   final destination = landings.first.to;
   final entries = _entryMovesOf(index, destination, cuts);
@@ -72,6 +81,17 @@ Map<String, TextEdit> itemLandingEdits(
       bodies[destination.docPath],
     ),
   };
+}
+
+/// Returns, by a source doc's DocPath, the new ID of each item of it that
+/// [landings] renumber, by its old ID; scenarios left out.
+Map<String, Map<String, String>> _renamedOf(List<ItemLanding> landings) {
+  final renamed = <String, Map<String, String>>{};
+  for (final landing in landings) {
+    if (landing.isScenario || landing.newId == landing.from.id) continue;
+    (renamed[landing.from.doc.docPath] ??= {})[landing.from.id] = landing.newId;
+  }
+  return renamed;
 }
 
 /// The file lines an item spans in its source doc.
@@ -140,11 +160,14 @@ final class _Cut {
   final OverrideCite? own;
 }
 
+/// Cuts the item [landing] moves, its heading renumbered and, for a
+/// scenario, each item ID of [renamed] in its title set to the new one.
 _Cut _cutOf(
   DocIndex index,
   ItemLanding landing,
   Map<String, String> bodies,
   Map<String, Set<int>> droppedLines,
+  Map<String, String> renamed,
 ) {
   final span = itemSpanOf(index, landing);
   final located = span.located;
@@ -157,7 +180,9 @@ _Cut _cutOf(
     head.line - 1,
     last,
   );
-  if (landing.newId != landing.from.id) {
+  if (located.isScenario) {
+    lines[0] = landedScenarioHeading(lines[0], landing, renamed);
+  } else if (landing.newId != landing.from.id) {
     lines[0] = _withId(
       lines[0],
       at: _idAt(indexed[head.line - 1], head.head),
@@ -217,7 +242,7 @@ void _dropLine(List<String> lines, int at) {
 
 /// Returns the last file line of the item at [at] of [items], the nested items
 /// it spans and the `Overrides:` line right after it included; a heading item
-/// spans its block, up to the next heading item.
+/// spans its block (see [_blockEnd]).
 int _spanEnd(
   DocContent content,
   int sectionAt,
@@ -226,7 +251,7 @@ int _spanEnd(
 ) {
   final head = items[at];
   if (head.kind == SectionItemKind.heading) {
-    return _blockEnd(content, sectionAt, items, at);
+    return _blockEnd(content, sectionAt, head.line);
   }
   var last = at;
   var hasOwn = false;
@@ -244,21 +269,17 @@ int _spanEnd(
 
 int _endOf(SectionItem item) => item.line + item.text.split('\n').length - 1;
 
-/// Returns the last non-blank file line before the next heading item after the
-/// heading item at [at], or the section's last.
-int _blockEnd(
-  DocContent content,
-  int sectionAt,
-  List<SectionItem> items,
-  int at,
-) {
+/// Returns the last non-blank file line of the block whose heading is file
+/// line [headLine]: up to the next unfenced [opensHeadingItem] line, as
+/// `check` reads a block, or the section's last.
+int _blockEnd(DocContent content, int sectionAt, int headLine) {
   final body = sectionBodyLines(content.sections, content.lineFacts, sectionAt);
-  final next = items
-      .skip(at + 1)
-      .where((item) => item.kind == SectionItemKind.heading)
+  final next = body
+      .where((line) => line.line > headLine)
+      .where((line) => !line.fenced && opensHeadingItem(line.text))
       .firstOrNull;
   var end = next == null ? body.last.line : next.line - 1;
-  while (end > items[at].line && _isBlank(body[end - body.first.line].text)) {
+  while (end > headLine && _isBlank(body[end - body.first.line].text)) {
     end--;
   }
   return end;
@@ -550,9 +571,9 @@ _Insertion _insertionIn(
   String key,
   List<_Cut> cuts,
 ) {
-  final prefix = cuts.first.located.prefix;
+  final located = cuts.first.located;
   final at = held.indexWhere(
-    (section) => section.key == key && section.prefixId == prefix,
+    (section) => located.isTakenBy(section.key, section.prefixId),
   );
   if (at < 0) return _Insertion(key: key, lines: _stacked(cuts, null));
   final filled = sectionBodyLines(

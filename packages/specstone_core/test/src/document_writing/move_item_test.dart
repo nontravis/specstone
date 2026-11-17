@@ -338,6 +338,50 @@ void main() {
         expect(fault.message, contains('prds/notes'));
       },
     );
+
+    test(
+      'a rule moved alone while a staying title names it is refused',
+      () async {
+        String scenario(int n, String title) =>
+            '### Scenario $n — [edge] Case $n$title\n\n'
+            '- **Given** a cart\n- **When** the shopper acts\n'
+            '- **Then** the shopper sees it';
+        final story =
+            '---\ngoals:\n  - PG-01\n---\n\n# Agent adds an item\n\n'
+            '## Use Case\n\n- **As a** Agent who shops\n- **I want to** act\n'
+            '- **so that** I finish an order\n\n'
+            '## Rules\n\n- **BR-01** — Rule 1 holds.\n'
+            '- **BR-02** — Rule 2 holds.\n\n'
+            '## Acceptance Criteria\n\n${scenario(1, '')}\n\n'
+            '${scenario(2, '')}\n\n${scenario(3, ' (BR-02)')}\n';
+        for (final dryRun in [false, true]) {
+          final root = await _project(extra: {'docs/$cartAdd': story});
+          final before = _docs(root);
+          Object? fault;
+          try {
+            writeIn(
+              root,
+              (session) => answerMove(
+                session,
+                const ['user_story:shop/cart/add_item#BR-02'],
+                under: 'user_story:shop/cart/drop_item',
+                dryRun: dryRun,
+              ),
+            );
+          } on IndexFault catch (caught) {
+            fault = caught;
+          }
+          expect((fault! as IndexFault).code, IndexFaultCode.argumentInvalid);
+          expect((fault as IndexFault).exitStatus, 64);
+          expect(
+            fault.message,
+            'shop/cart/add_item#BR-02 is named by Scenario 3, which stays; '
+            'move both in one call',
+          );
+          expect(_docs(root), before, reason: 'a refused move writes no doc');
+        }
+      },
+    );
   });
 
   group('the override chain a move must keep', () {
@@ -468,14 +512,39 @@ void main() {
       },
     );
 
-    test('an item beside a doc of another type is argument_invalid', () async {
+    test('an item beside a spec doc is doc_type_not_movable, before the mixed test', () async {
       final fault = await refused([
         'domain:shop#INV-3',
-        'domain:shop/pay',
+        'domain:shop',
       ], under: 'domain:shop/cart');
-      expect((fault as IndexFault).code, IndexFaultCode.argumentInvalid);
-      expect(fault.message, 'move takes item targets or doc targets, not both');
+      expect((fault as WriteFault).code, WriteFaultCode.docTypeNotMovable);
+      expect(
+        fault.message,
+        'domain docs cannot move; move takes a user_story, an fr, an nf, '
+        'or a feature',
+      );
     });
+
+    test(
+      'an item target that names no doc is doc_not_found, even with --top',
+      () async {
+        final root = await _project(shop: [_inv(1)]);
+        expect(
+          () => writeIn(
+            root,
+            (s) =>
+                answerMove(s, const ['nowhere#INV-1'], under: null, top: true),
+          ),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.docNotFound,
+            ),
+          ),
+        );
+      },
+    );
 
     test(
       'item targets with no --under are argument_missing with the item message',
@@ -668,6 +737,33 @@ void main() {
         'moved $shopDomain#INV-3 to $cartDomain#INV-3\n'
         'rewrote $shopDomain\n'
         'rewrote $cartDomain\n',
+      );
+    });
+
+    test('a quoted heading item moves alone, and the quoted heading item after it stays with its ID', () async {
+      final root = await _project(
+        shop: [
+          '> ### INV-5 — Cart expiry',
+          '> A cart expires.',
+          '',
+          '> ### INV-6 — Other',
+          '> Stays.',
+        ],
+        cart: [_inv(1)],
+      );
+      move(root, ['domain:shop#INV-5']);
+      expect(
+        bodyOf(root, shopDomain),
+        _domain(['> ### INV-6 — Other', '> Stays.']),
+      );
+      expect(
+        bodyOf(root, cartDomain),
+        _domain([
+          _inv(1),
+          '',
+          '> ### INV-5 — Cart expiry',
+          '> A cart expires.',
+        ]),
       );
     });
 

@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/doc_model/doc_items.dart'
+    show headingItemTextOf;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
 import 'package:specstone_core/src/doc_model/whatwg_url.dart';
 
@@ -90,6 +92,21 @@ DocAddress readDocAddress(String text) {
     sectionKey: sectionKey,
   );
 }
+
+/// A run of the characters a Name or a doc type prefix is written in.
+final _addressRun = RegExp('[a-z0-9_/:]+');
+
+/// The `/` and `:` that open or close a run.
+final _runEdge = RegExp(r'^[/:]+|[/:]+$');
+
+/// Returns the no-lookup addresses [text] holds, each a run of slug
+/// characters, `/`, and `:` that any other text bounds, in order.
+List<DocAddress> referencesWithoutLookupIn(String text) => [
+  for (final run in _addressRun.allMatches(text))
+    if (readDocAddress(run[0]!.replaceAll(_runEdge, '')) case final address
+        when address.isReferenceWithoutLookup)
+      address,
+];
 
 /// A line suffix such as `:12` or `:12:5` after a path written in prose.
 final _lineSuffix = RegExp(r'(?::\d+)+$');
@@ -284,12 +301,19 @@ String itemKeyOf(IdRead id, {required bool isScenario}) => switch (id) {
   _ => id.written,
 };
 
-/// Reads the number of a `### Scenario <N>` heading [line]; null for any
-/// other line.
-IdRead? readScenarioHeading(String line) {
-  const open = '### $scenarioIdPrefix';
-  if (!line.startsWith(open)) return null;
-  return _readIdAt(line, scenarioIdPrefix, open.length);
+/// Reads the number of the `### Scenario <N>` heading item [line] opens, a
+/// quoted one included, as [headingItemTextOf] reads it; null for any other
+/// line.
+IdRead? readScenarioHeading(String line) => switch (headingItemTextOf(line)) {
+  final head? => readScenarioHead(head),
+  null => null,
+};
+
+/// Reads the number of a scenario heading item's text [head], `Scenario <N>`
+/// at its start; null for any other text.
+IdRead? readScenarioHead(String head) {
+  if (!head.startsWith(scenarioIdPrefix)) return null;
+  return _readIdAt(head, scenarioIdPrefix, scenarioIdPrefix.length);
 }
 
 /// Reads the digits at [start] and any letter run that follows; a

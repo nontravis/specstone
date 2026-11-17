@@ -83,36 +83,55 @@ void main() {
   });
 
   test('another doc type is doc_type_not_movable, exit 64', () async {
-    final (:runner, :out, :err) = writeRunner(
-      await writeNestedProject(
-        extra: {'docs/$addItemFolder/nf01_load_fast.md': '# Load\n'},
-      ),
-    );
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(
-      await runner.run([
-        'move',
-        'nf:shop/cart/add_item/load_fast',
-        '--under',
-        'shop/pay',
-      ]),
+      await runner.run(['move', 'architecture:shop', '--under', 'shop/pay']),
       64,
     );
     expect(out.toString(), isEmpty);
     expect(
       err.toString(),
-      'nf docs cannot move; move takes a user_story or an fr\n',
+      'architecture docs cannot move; move takes a user_story, an fr, an nf, '
+      'or a feature\n',
     );
   });
 
-  test('no --under is argument_missing, exit 64', () async {
+  test('neither --under nor --top is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(await runner.run(['move', addItem]), 64);
     expect(out.toString(), isEmpty);
+    expect(err.toString(), 'move needs --under <doc address> or --top\n');
+  });
+
+  test('--under with --top exits 64 with argument_conflict', () async {
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
     expect(
-      err.toString(),
-      'move needs a feature or a story, such as specstone move '
-      'user_story:login/reset_password --under account\n',
+      await runner.run([
+        'move',
+        addItem,
+        '--under',
+        'shop/pay',
+        '--top',
+        '--json',
+      ]),
+      64,
     );
+    expect(out.toString(), isEmpty);
+    expect(
+      ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
+      'argument_conflict',
+    );
+    expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
+  });
+
+  test('--top beside a story target exits 64 and moves nothing', () async {
+    final root = await writeNestedProject();
+    final (:runner, :out, :err) = writeRunner(root);
+    expect(await runner.run(['move', addItem, '--top']), 64);
+    expect(out.toString(), isEmpty);
+    expect(err.toString(), 'move takes --top only with feature targets\n');
+    expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
   });
 
   test('an --under nothing carries is doc_not_found, exit 64', () async {
@@ -144,6 +163,25 @@ void main() {
       }
     },
   );
+
+  test('move --help names --top and every target form', () async {
+    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
+    expect(await runner.run(['move', '--help']), 0);
+    expect(
+      out.toString(),
+      allOf(
+        contains('(--under <doc address> | --top)'),
+        contains(
+          'Move stories and features under a feature, FRs and nfs under a '
+          'story, features among the top features, items '
+          '(<doc address>#<item ID>) into another doc, or scenarios '
+          '(<story address>#S<N>) into another story, and rewrite every '
+          'reference to them.',
+        ),
+        contains('--top'),
+      ),
+    );
+  });
 
   test('move --help names the three forms of --under', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
@@ -177,13 +215,16 @@ void main() {
         out.toString(),
         allOf(
           contains(
-            'Move stories into a feature, FRs into a story, or items '
-            '(<doc address>#<item ID>) into another doc, and rewrite every '
+            'Move stories and features under a feature, FRs and nfs under a '
+            'story, features among the top features, items '
+            '(<doc address>#<item ID>) into another doc, or scenarios '
+            '(<story address>#S<N>) into another story, and rewrite every '
             'reference to them.',
           ),
           contains(
-            'The feature that takes user_story targets, the story that '
-            'takes fr targets, or the doc that takes item targets: ',
+            'The feature that takes user_story or feature targets, the story '
+            'that takes fr, nf, or scenario targets, or the doc that takes '
+            'item targets: ',
           ),
         ),
       );
@@ -293,7 +334,7 @@ void main() {
     expect(
       out.toString(),
       contains(
-        'specstone move <doc address> … --under <doc address> '
+        'specstone move <doc address> … (--under <doc address> | --top) '
         '[--dry-run] [--target <name>] [--json]',
       ),
     );
@@ -635,7 +676,7 @@ void main() {
         expect(out.toString(), isEmpty);
         expect(
           err.toString(),
-          'move takes user_story targets or fr targets, not both\n',
+          'move takes one doc type per call, not user_story and fr\n',
         );
         expect(
           docFile(root, '$addItemFolder/USER_STORY.md').existsSync(),
@@ -644,6 +685,97 @@ void main() {
         expect(docFile(root, checkStockFile).existsSync(), isTrue);
       },
     );
+  });
+
+  group('nf targets', () {
+    const cartFolder = 'prds/features/f02_shop/f01_cart';
+    const loadFastFile = '$addItemFolder/nf01_load_fast.md';
+    const keepLightFile = '$cartFolder/us02_drop_item/nf01_keep_light.md';
+    const movedFile = '$cartFolder/us02_drop_item/nf02_load_fast.md';
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test(
+      'an nf moves under a sibling story and the reply names the file paths',
+      () async {
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$loadFastFile': '# Load fast\n',
+            'docs/$keepLightFile': '# Keep light\n',
+          },
+        );
+        final result = await Process.run(
+          binary,
+          [
+            'move',
+            'nf:shop/cart/add_item/load_fast',
+            '--under',
+            'shop/cart/drop_item',
+          ],
+          workingDirectory: root.path,
+          environment: {
+            'HOME': testHome().path,
+            'USERPROFILE': testHome().path,
+          },
+        );
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(result.stderr, isEmpty);
+        expect(
+          result.stdout,
+          startsWith('moved $loadFastFile to $movedFile\n'),
+        );
+        expect(docFile(root, movedFile).existsSync(), isTrue);
+        expect(docFile(root, loadFastFile).existsSync(), isFalse);
+        expect(docFile(root, keepLightFile).existsSync(), isTrue);
+      },
+    );
+  });
+
+  group('feature targets', () {
+    const cartFolder = 'prds/features/f02_shop/f01_cart';
+    const other = 'prds/features/f03_other';
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test('a feature moves under another feature and the reply matches the '
+        'feature-target response example', () async {
+      final root = await writeNestedProject(
+        without: {'docs/$cartDomain', 'docs/$shopApi'},
+        extra: {
+          'docs/$other/FEATURE.md': '# Other\n',
+          'docs/$other/f01_ship/FEATURE.md': '# Ship\n',
+          'docs/$other/f02_track/FEATURE.md': '# Track\n',
+        },
+      );
+      docFile(root, shopFeature).writeAsStringSync(
+        '\nSee [Cart](f01_cart/FEATURE.md).\n',
+        mode: FileMode.append,
+      );
+      final result = await Process.run(
+        binary,
+        ['move', 'feature:shop/cart', '--under', 'other'],
+        workingDirectory: root.path,
+        environment: {'HOME': testHome().path, 'USERPROFILE': testHome().path},
+      );
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stderr, isEmpty);
+      expect(
+        result.stdout,
+        'moved $cartFolder/ to $other/f03_cart/\n'
+        'rewrote $shopFeature\n',
+      );
+      expect(
+        readDoc(root, shopFeature),
+        contains('[Cart](../f03_other/f03_cart/FEATURE.md)'),
+      );
+      expect(docFile(root, '$other/f03_cart/FEATURE.md').existsSync(), isTrue);
+    });
   });
 
   test('move takes a suffix parent', () async {
@@ -733,6 +865,55 @@ void main() {
         );
         expect(readDoc(root, shopDomain), shop);
         expect(readDoc(root, cartDomain), cart);
+      },
+    );
+
+    test(
+      "a scenario move prints the scenario-target response example's lines",
+      () async {
+        String scenario(int n) =>
+            '### Scenario $n — [edge] Case $n\n\n'
+            '- **Given** a cart in case $n\n- **When** the shopper acts\n'
+            '- **Then** the shopper sees case $n';
+        String story(String title, int count) =>
+            '---\ngoals:\n  - PG-01\n---\n\n# $title\n\n## Use Case\n\n'
+            '- **As a** Agent who shops\n- **I want to** act\n'
+            '- **so that** I finish an order\n\n## Acceptance Criteria\n\n'
+            '${[for (var n = 1; n <= count; n++) scenario(n)].join('\n\n')}\n';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/$cartAdd': story('Agent adds an item', 3),
+            'docs/$cartDrop': story('Agent drops an item', 2),
+            'docs/$cartAddFr':
+                '---\ntraced_from:\n  - S1\n  - S2\nverify_method: test\n'
+                '---\n\n# Check stock\n\n'
+                '## Statement\nThe system shall check.\n',
+          },
+        );
+        final result = await move(root, [
+          '$addItem#S2',
+          '--under',
+          'user_story:shop/cart/drop_item',
+        ]);
+        expect(result.exitCode, 0);
+        expect(result.stderr, isEmpty);
+        expect(
+          result.stdout,
+          'moved $cartAdd#S2 to $cartDrop#S3\n'
+          'renumbered $cartDrop S2 to S3\n'
+          'rewrote $cartAdd\n'
+          'rewrote $cartAddFr\n'
+          'rewrote $cartDrop\n',
+        );
+        expect(
+          readDoc(root, cartAddFr),
+          contains('traced_from:\n  - S1\n  - shop/cart/drop_item#S3\n'),
+        );
+        expect(
+          readDoc(root, cartDrop),
+          contains('### Scenario 3 — [edge] Case 2\n'),
+        );
+        expect(readDoc(root, cartAdd), isNot(contains('Case 2')));
       },
     );
 
