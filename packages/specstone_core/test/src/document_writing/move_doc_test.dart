@@ -4054,6 +4054,157 @@ void main() {
       },
     );
 
+    group('matrix rows', () {
+      const stockRow =
+          '- add_item/check_stock E01: `refuses an item out of stock` '
+          '5d1e0c4b7a92';
+      const stockSkip =
+          '- add_item/check_stock E02 skipped: needs a stock service '
+          '9a1c03be55d2';
+      const dropRow = '- drop_item/drop_line E01: `drops a line` 1b2c3d4e5f60';
+      const chargeRow = '- card/charge E01: `charges a card`';
+      const header = '\n## Verification matrix\n\n';
+
+      String withRows(String record, List<String> rows) =>
+          '$record$header${rows.join('\n')}\n';
+
+      test("move carries a moved FR's matrix rows to the new record", () async {
+        final root = await shopTwins(
+          extra: {
+            cartJaspr: withRows(
+              recordText(
+                statuses: ['add_item:implemented', 'drop_item:planned'],
+              ),
+              [stockRow, stockSkip, dropRow],
+            ),
+            payJaspr: withRows(jasprPay, [chargeRow]),
+          },
+        );
+        stampApproved(root, cartJaspr);
+        stampApproved(root, payJaspr);
+        moveAddItem(root);
+
+        final cart = readDoc(root, cartJaspr);
+        expect(cart, endsWith('$header$dropRow\n'));
+        expect(holdsApproval(root, cartJaspr), isTrue);
+        final pay = readDoc(root, payJaspr);
+        expect(pay, endsWith('$header$chargeRow\n$stockRow\n$stockSkip\n'));
+        expect(holdsApproval(root, payJaspr), isTrue);
+      });
+
+      test('a move stopped before its folder moves lands the rows when the '
+          'next write replays it', () async {
+        final root = await shopTwins(
+          extra: {
+            cartJaspr: withRows(
+              recordText(
+                statuses: ['add_item:implemented', 'drop_item:planned'],
+              ),
+              [stockRow, dropRow],
+            ),
+            payJaspr: withRows(jasprPay, [chargeRow]),
+          },
+        );
+        expect(
+          () => IOOverrides.runWithIOOverrides(
+            () => moveAddItem(root),
+            FailingRenameHook(
+              'docs/prds/features/f02_shop/f01_cart/us01_add_item',
+            ),
+          ),
+          throwsA(isA<RenderFault>()),
+        );
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isTrue,
+        );
+
+        writeIn(root, (_) {});
+
+        expect(readDoc(root, cartJaspr), endsWith('$header$dropRow\n'));
+        expect(
+          readDoc(root, payJaspr),
+          endsWith('$header$chargeRow\n$stockRow\n'),
+        );
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isFalse,
+        );
+      });
+
+      test('a move into a feature with no record creates one holding the '
+          'rows', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(flutterCart, [stockRow, dropRow]),
+          },
+        );
+        moveAddItem(root);
+
+        final created = readDoc(root, payFlutter);
+        expect(created, contains('draft: true'));
+        expect(created, contains('add_item/check_stock:implemented'));
+        expect(created, endsWith('$header$stockRow\n'));
+        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
+      });
+
+      test('an fr with matrix rows alone moves with its story', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(recordText(statuses: ['drop_item:planned']), [
+              stockRow,
+              dropRow,
+            ]),
+          },
+        );
+        moveAddItem(root);
+
+        expect(readDoc(root, payFlutter), endsWith('$header$stockRow\n'));
+        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
+      });
+
+      test('an fr moved to another feature carries its rows, named relative '
+          'to the story it lands in', () async {
+        final root = await shopTwins(
+          extra: {
+            cartFlutter: withRows(flutterCart, [stockRow, stockSkip, dropRow]),
+            payJaspr: jasprPay,
+            cartJaspr: withRows(
+              recordText(statuses: ['add_item/check_stock:implemented']),
+              [stockRow],
+            ),
+          },
+        );
+        writeIn(
+          root,
+          (s) => answerMove(s, [
+            'fr:shop/cart/add_item/check_stock',
+          ], under: 'shop/pay/card'),
+        );
+
+        final created = readDoc(root, payFlutter);
+        expect(
+          created,
+          endsWith(
+            '$header'
+            '- card/check_stock E01: `refuses an item out of stock` '
+            '5d1e0c4b7a92\n'
+            '- card/check_stock E02 skipped: needs a stock service '
+            '9a1c03be55d2\n',
+          ),
+        );
+        expect(readDoc(root, cartFlutter), endsWith('$header$dropRow\n'));
+        expect(
+          readDoc(root, payJaspr),
+          endsWith(
+            '$header- card/check_stock E01: `refuses an item out of stock` '
+            '5d1e0c4b7a92\n',
+          ),
+        );
+        expect(readDoc(root, cartJaspr), isNot(contains('check_stock')));
+      });
+    });
+
     test('a dry run lists the records it would rewrite and create, and writes none', () async {
       final root = await shopTwins();
       final answer = writeIn(

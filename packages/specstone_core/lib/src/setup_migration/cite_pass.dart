@@ -6,6 +6,8 @@ import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show namesakesByFileName;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show docNameOf, docStructureOf;
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show matrixLinesIn;
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show isSingularLayoutPath;
@@ -181,7 +183,11 @@ _DocResult _convertDoc(
   Set<String> idPrefixes,
   Set<String> layoutPaths,
 ) {
-  final forms = citeFormsOf(lf, idPrefixes: idPrefixes);
+  final forms = citeFormsOf(
+    lf,
+    idPrefixes: idPrefixes,
+    skipLines: testRowLinesOf(matrixLinesIn(lf, type)),
+  );
   if (forms.isEmpty) return (lf: lf, rewrites: 0, kept: const []);
   final lines = lf.split('\n');
   final seeTargets = seeTargetsIn(docStructureOf(lf, type), type);

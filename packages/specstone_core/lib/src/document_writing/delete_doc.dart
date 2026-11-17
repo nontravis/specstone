@@ -25,7 +25,7 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 typedef _UnitFiles = Map<String, List<int>>;
 
 /// What one delete removes and rewrites: the files of the unit, and each
-/// record outside it that loses entries, sorted by DocPath.
+/// record outside it that loses entries or rows, sorted by DocPath.
 final class _DeletePlan {
   const new({required this.files, required this.records});
 
@@ -56,10 +56,10 @@ final class _DeletePlan {
 /// mention of a removed doc in a code file or an agent file is listed after the
 /// removed paths, and no such file is written.
 ///
-/// Each record, in every code target, outside the unit that holds an entry of
-/// a story or FR of it loses that entry and becomes a draft, through the same
-/// journal as the file moves; no record's approval guards the delete. A
-/// feature's own records leave with its spec folder.
+/// Each record, in every code target, outside the unit that holds an entry or a
+/// matrix row of a story or FR of it loses that entry and row and becomes a
+/// draft, through the same journal as the file moves; no record's approval
+/// guards the delete. A feature's own records leave with its spec folder.
 ///
 /// [codeTarget] keeps a name to that code target's docs and the shared docs.
 ///
@@ -135,15 +135,17 @@ ReadAnswer answerDelete(
 ///
 /// The list is the one the terminal prompt shows before its `y`, and nothing
 /// is removed. The text is the files, each guarded one's line ended with
-/// ` (guarded)`, one `rewrites <DocPath>: <entry>, …` line per record, one
+/// ` (guarded)`, one `rewrites <DocPath>: <item>, …` line per record, naming
+/// each item whose entries or rows leave, one
 /// `mentions <path>:<line> <mention>` line per mention of a removed doc in a
 /// code file or an agent file, the `guarded: <n> docs` count line when any
 /// file is guarded, the `plan <hash>` line, and
 /// `dry run: nothing removed`; the JSON holds `files`, `guarded` (the guarded
-/// files' paths), `records` (each with its `path` and `entries`), `mentions`,
-/// and `plan`. The plan hash covers the paths and their content hashes alone,
-/// so the marks change no hash. Warns of each link left to dangle, and
-/// throws, as [answerDelete] does before its prompt.
+/// files' paths), `records` (each with its `path` and `entries`, the items
+/// whose entries or rows leave), `mentions`, and `plan`. The plan hash covers
+/// the paths and their content hashes alone, so the marks change no hash.
+/// Warns of each link left to dangle, and throws, as [answerDelete] does before
+/// its prompt.
 ReadAnswer answerDeleteDryRun(
   WriteSession session,
   List<String> targets, {
@@ -482,7 +484,8 @@ Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
   }
 }
 
-/// Reads the files of the unit and the records that lose entries with it.
+/// Reads the files of the unit and the records that lose entries or rows with
+/// it.
 _DeletePlan _planOf(WriteSession session, List<String> roots) {
   final files = _readUnit(session, roots);
   return _DeletePlan(
@@ -557,7 +560,7 @@ bool _sameFiles(_UnitFiles a, _UnitFiles b) {
 
 /// Returns the journal steps: each file to the trash, then the pruning of
 /// every folder the move may leave empty, the deepest first, then the write
-/// of each record that loses entries.
+/// of each record that loses entries or rows.
 List<JournalStep> _stepsFor(
   WriteSession session,
   List<String> roots,

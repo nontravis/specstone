@@ -21,6 +21,8 @@ import 'package:specstone_core/src/index_query/get_docs.dart'
     show basesOf, printedPart, sectionBaseOf;
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show withoutMatrixSection;
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -573,9 +575,9 @@ List<IndexedSection> _sectionsOf(_Planned block, String lfText) =>
     ).content.sections;
 
 /// Whether the write of [block] marks the doc a draft: false only when every
-/// change is a field outside the approval hash ([isOutsideApproval]) and that
-/// hash does not move, the one rule `approval_stale` judges a content change
-/// by.
+/// change is a field outside the approval hash ([isOutsideApproval]) or the
+/// matrix section ([withoutMatrixSection]) and that hash does not move, the
+/// one rule `approval_stale` judges a content change by.
 bool _marksDraft(
   _Planned block,
   String heldText,
@@ -591,7 +593,13 @@ bool _marksDraft(
   };
   final onlyOutsideFields =
       changedFields.isNotEmpty && changedFields.every(outsideFields.contains);
-  return !onlyOutsideFields || hashOf(heldText) != hashOf(proposedText);
+  String withoutMatrix(String text) =>
+      withoutMatrixSection(Doc.parse(text), block.docType);
+  final onlyMatrixChanged =
+      changedFields.isEmpty &&
+      withoutMatrix(heldText) == withoutMatrix(proposedText);
+  return !(onlyOutsideFields || onlyMatrixChanged) ||
+      hashOf(heldText) != hashOf(proposedText);
 }
 
 // MARK: - Writing

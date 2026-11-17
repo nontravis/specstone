@@ -26,6 +26,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart'
     show checkOf, loginRecord, spots, writeCheckProject;
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/matrix_record_fixture.dart' show writeMatrixRecordProject;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart'
@@ -1407,6 +1408,103 @@ void main() {
       final answer = below(
         (s) =>
             answerSetBatch(s, parseBatchFile('batch.md', edit(text, from, to))),
+      );
+
+      expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      expect(answer.json['blocks'], [containsPair('draft', true)]);
+    });
+  });
+
+  group('a batch block on a record', () {
+    const matrix = 'implementation:login#verification_matrix';
+    const notes = 'implementation:login#notes';
+    test(
+      'on the matrix section leaves the approved record as it was',
+      () async {
+        final root = await writeMatrixRecordProject();
+        final before = readDoc(root, loginRecord);
+
+        final answer = runBatch(
+          root,
+          edit(getText(root, [matrix]), 'a wrong password', 'a wrong email'),
+        );
+
+        expect(
+          readDoc(root, loginRecord),
+          before.replaceFirst('a wrong password', 'a wrong email'),
+        );
+        expect(answer.json['blocks'], [containsPair('draft', false)]);
+      },
+    );
+
+    test('on any other section marks the approved record draft', () async {
+      final root = await writeMatrixRecordProject();
+
+      final answer = runBatch(
+        root,
+        edit(getText(root, [notes]), 'See the rows.', 'See the table.'),
+      );
+
+      expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      expect(answer.json['blocks'], [containsPair('draft', true)]);
+    });
+
+    test('a whole-doc block that changes only the matrix section keeps the '
+        'approved record approved', () async {
+      final root = await writeMatrixRecordProject();
+      final before = readDoc(root, loginRecord);
+      final approved = RegExp('approved: "[0-9a-f]{12}"')
+          .firstMatch(before)![0]!;
+
+      final answer = runBatch(
+        root,
+        edit(getText(root, [loginRecord]), 'a wrong password', 'a wrong email'),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        before.replaceFirst('a wrong password', 'a wrong email'),
+      );
+      expect(readDoc(root, loginRecord), contains(approved));
+      expect(answer.json['blocks'], [containsPair('draft', false)]);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
+    });
+
+    test('a whole-doc block that changes only the layout writes nothing and '
+        'keeps the approved record approved', () async {
+      final root = await writeMatrixRecordProject();
+      final before = readDoc(root, loginRecord);
+
+      final answer = runBatch(
+        root,
+        edit(
+          getText(root, [loginRecord]),
+          '## Notes\n\nSee',
+          '## Notes\n\n\nSee',
+        ),
+      );
+
+      expect(readDoc(root, loginRecord), before);
+      expect(answer.json['blocks'], [
+        allOf(containsPair('written', false), containsPair('draft', false)),
+      ]);
+    });
+
+    test('a whole-doc block that changes the matrix and another section marks '
+        'the approved record draft', () async {
+      final root = await writeMatrixRecordProject();
+
+      final answer = runBatch(
+        root,
+        edit(
+          edit(
+            getText(root, [loginRecord]),
+            'a wrong password',
+            'a wrong email',
+          ),
+          'See the rows.',
+          'See the table.',
+        ),
       );
 
       expect(readDoc(root, loginRecord), contains('draft: true\n'));

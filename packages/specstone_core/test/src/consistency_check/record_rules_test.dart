@@ -20,6 +20,14 @@ const Set<FindingKind> _recordKinds = {
   FindingKind.featureStatusWritten,
 };
 
+const Set<FindingKind> _matrixKinds = {
+  FindingKind.matrixRowMalformed,
+  FindingKind.matrixRowUnresolved,
+  FindingKind.matrixTestUnresolved,
+  FindingKind.matrixRowRepeated,
+  FindingKind.matrixSkipConflict,
+};
+
 const _recordLayer =
     'id: implementation\n'
     'description: One feature record per target.\n'
@@ -494,6 +502,118 @@ void main() {
       expect(_found(report), isEmpty);
     },
   );
+
+  group('matrix rows', () {
+    const header = '## Verification matrix';
+
+    String withRows(String record, List<String> rows) =>
+        '$record\n$header\n\n${rows.join('\n')}\n';
+
+    /// The file line of row [i] of [record].
+    int rowLine(String record, int i) =>
+        record.split('\n').indexOf(header) + 3 + i;
+
+    /// Returns `<line> <kind>` per finding of either rule on the record.
+    List<String> bothRules(CheckReport report) => [
+      for (final f in report.findings)
+        if (f.path == _recordPath &&
+            (_recordKinds.contains(f.kind) || _matrixKinds.contains(f.kind)))
+          '${f.line} ${f.kind.wire}',
+    ];
+
+    test('a row naming no item of the feature is unresolved', () async {
+      final record = withRows(_record(), [
+        '- $_story/pin_toast E01: `shows a toast`',
+        '- signup/create E01 skipped: no signup here',
+      ]);
+
+      final report = await _check(record);
+
+      expect(_found(report), [
+        '${rowLine(record, 0)} record_entry_unresolved',
+        '${rowLine(record, 1)} record_entry_unresolved',
+      ]);
+      expect(
+        [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.recordEntryUnresolved) f.keys['entry'],
+        ],
+        ['$_story/pin_toast', 'signup/create'],
+      );
+    });
+
+    test('a row of a skipped item is skip_with_code, once per row', () async {
+      final record = withRows(
+        _record(statuses: ['$_fr:skipped:no toast host']),
+        ['- $_fr E01: `shows a toast`', '- $_fr E02 skipped: no host'],
+      );
+
+      final report = await _check(record);
+
+      expect(_found(report), [
+        '${rowLine(record, 0)} skip_with_code',
+        '${rowLine(record, 1)} skip_with_code',
+      ]);
+      expect(
+        [
+          for (final f in report.findings)
+            if (f.kind == FindingKind.skipWithCode) f.keys['entry'],
+        ],
+        [_fr, _fr],
+      );
+    });
+
+    test('a row under a skip is entry_under_skip', () async {
+      final record = withRows(_record(statuses: [':skipped:no web view']), [
+        '- $_fr E01: `shows a toast`',
+      ]);
+
+      final report = await _check(record);
+
+      expect(_found(report), ['${rowLine(record, 0)} entry_under_skip']);
+      expect(
+        _only(report, FindingKind.entryUnderSkip).toJson(),
+        allOf(containsPair('entry', _fr), containsPair('skip', 'login')),
+      );
+    });
+
+    test('a row of an item that holds no fault gives no finding, a row '
+        'naming a story included', () async {
+      final record = withRows(
+        _record(statuses: ['$_story:implemented', '$_fr:implemented']),
+        ['- $_fr E01: `shows a toast`', '- $_story E01: `shows a toast`'],
+      );
+
+      final report = await _check(record);
+
+      expect(_found(report), isEmpty);
+    });
+
+    test('a row naming an item outside the feature gives one finding in '
+        'the whole check', () async {
+      final record = withRows(_record(), ['- signup/create E01: `signs up`']);
+
+      final report = await _check(record);
+
+      expect(bothRules(report), [
+        '${rowLine(record, 0)} record_entry_unresolved',
+      ]);
+    });
+
+    test('a row naming a skipped story gives one finding in the whole '
+        'check', () async {
+      final record = withRows(
+        _record(statuses: ['$_story:skipped:no toast host']),
+        ['- $_story E01: `shows a toast`'],
+      );
+
+      final report = await _check(record);
+
+      expect(bothRules(report), [
+        '${rowLine(record, 0)} matrix_row_unresolved',
+      ]);
+    });
+  });
 
   test('a line that names no item is unresolved, once, even '
       'when it holds the only fault', () async {

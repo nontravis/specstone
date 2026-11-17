@@ -4,7 +4,7 @@ import 'package:specstone_core/src/consistency_check/move_hints.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
-    show WhenField;
+    show WhenField, verificationMatrixOf;
 
 const _projectType = 'project';
 const _visionSection = 'vision';
@@ -70,6 +70,8 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
   }
   final itemFacts = context.contentOf(doc).itemFacts;
   final itemLimit = type.lint.itemCharLimit;
+  // The matrix section answers to its own limits, never to the doc's.
+  final matrixId = verificationMatrixOf(type)?.id;
   yield* _itemFindings(context, doc, leadKey, itemFacts.leadItems, itemLimit);
   for (var i = 0; i < held.length; i++) {
     final section = held[i];
@@ -98,8 +100,14 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         keys: {'section': sectionKey},
       );
     }
-    final maxLines = template?.maxLines ?? docMaxLines;
-    final maxChars = template?.maxChars ?? docMaxChars;
+    final (
+      fallbackLines,
+      fallbackChars,
+    ) = matrixId != null && template?.id == matrixId
+        ? (null, null)
+        : (docMaxLines, docMaxChars);
+    final maxLines = template?.maxLines ?? fallbackLines;
+    final maxChars = template?.maxChars ?? fallbackChars;
     final (lines: actualLines, chars: actualChars) = lines.sectionCounts[i];
     if (maxLines != null && actualLines > maxLines) {
       yield context.finding(

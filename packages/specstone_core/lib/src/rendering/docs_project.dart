@@ -47,6 +47,7 @@ final class DocsProject {
     required Map<CodeTarget, List<String>> nestedRoots,
     required this.stampsHaveRun,
     required this.statusesOutsideApproval,
+    required this.verificationCoverage,
     required this.matcher,
     required this.set,
   }) : _codeRoots = codeRoots,
@@ -86,6 +87,7 @@ final class DocsProject {
       ),
       stampsHaveRun: approval.stampsHaveRun(config.pins),
       statusesOutsideApproval: approval.statusesOutsideApproval(config.pins),
+      verificationCoverage: config.verificationCoverage,
       matcher: DocTypeMatcher(set, targetNames: config.targetNames),
       set: set,
     );
@@ -103,6 +105,10 @@ final class DocsProject {
   /// refuse any pin but the version this binary carries, so the binary
   /// version the stamp holds fixes it.
   final bool statusesOutsideApproval;
+
+  /// Whether the config turns on `check`'s coverage finding; read once at
+  /// open.
+  final bool verificationCoverage;
 
   /// The roots and whether this machine's Owner trusts them for writes.
   final RootTrust trust;

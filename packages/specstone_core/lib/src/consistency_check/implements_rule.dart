@@ -6,7 +6,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 
 const _segmentMark = '.';
 const _edge = r'[\p{L}\p{N}_]';
@@ -32,7 +31,9 @@ Iterable<Finding> checkImplements(CheckContext context, IndexedDoc doc) sync* {
     final parsed = recordCodeLineOf(value);
     final item = items[parsed?.item];
     if (parsed == null || item == null) continue;
-    if (!_isResolved(context, item, doc.target)) continue;
+    if (!context.index.itemStatus(item, codeTarget: doc.target).isBuilt) {
+      continue;
+    }
     yield* _resolve(
       context,
       doc,
@@ -78,14 +79,6 @@ Iterable<Finding> _resolve(
     return;
   }
 }
-
-/// Whether [item]'s paths are resolved: its status in [codeTarget] is
-/// `implemented` or `deprecated`.
-bool _isResolved(CheckContext context, IndexedDoc item, String? codeTarget) =>
-    switch (context.index.itemStatus(item, codeTarget: codeTarget)) {
-      RecordStatus.implemented || RecordStatus.deprecated => true,
-      RecordStatus.planned || RecordStatus.skipped => false,
-    };
 
 RegExp _wordPattern(String word) =>
     RegExp('(?<!$_edge)${RegExp.escape(word)}(?!$_edge)', unicode: true);

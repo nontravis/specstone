@@ -11,6 +11,8 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
     show recordsRootTemplates;
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedPinsConfig;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
     show getDoc, testHome;
@@ -1020,6 +1022,219 @@ void main() {
           '.specstone/records/f01_login/IMPLEMENTATION.md:1: untyped_doc',
         ),
       );
+    });
+  });
+
+  group('verification matrix rows', () {
+    const item = 'email_login/check_password';
+    const testFile = 'app/test/login_test.dart';
+    // The first row sits on file line 12, under the matrix header on line 10.
+    const rows = [
+      '- $item E01: `refuses a blank password`',
+      '- $item E01 skipped: no clock on CI',
+      'A paragraph in the section.',
+    ];
+
+    Future<Directory> matrixProject() => writeCheckProject(
+      extra: {
+        loginRecord:
+            "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
+            '# Login implementation\n\n## Verification matrix\n\n${rows.join('\n')}\n',
+        testFile:
+            "void main() {\n  test('refuses an empty password', () {});\n}\n",
+      },
+      // A stamp would add an `approved:` line and move every line below it.
+      unstamped: {loginRecord},
+    );
+
+    test('check prints matrix findings on the record, each waiting for the Agent', () async {
+      final project = await matrixProject();
+
+      final text = readRunner(project);
+      expect(await text.runner.run(['check']), 1);
+      expect(text.out.toString().split('\n').where((l) => l.contains(': matrix_')), [
+        '$loginRecord:12: matrix_test_unresolved: refuses a blank password occurs in no test file of $item',
+        '$loginRecord:13: matrix_skip_conflict: $item#E01 has a skip row beside another row; line 12 holds the other',
+        '$loginRecord:14: matrix_row_malformed: ${rows[2]} is no matrix row; write "- <item> <edge case>: `<test name>`" or "- <item> <edge case> skipped: <reason>"',
+      ]);
+
+      final json = readRunner(project);
+      expect(await json.runner.run(['check', '--json']), 1);
+      final all =
+          (jsonDecode(json.out.toString()) as Map<String, Object?>)['findings']!
+              as List;
+      final findings = [
+        for (final f in all.cast<Map<String, Object?>>())
+          if ((f['kind']! as String).startsWith('matrix_')) f,
+      ];
+      expect(
+        [
+          for (final f in findings) [f['kind'], f['line'], f['waitsFor']],
+        ],
+        [
+          ['matrix_test_unresolved', 12, 'agent'],
+          ['matrix_skip_conflict', 13, 'agent'],
+          ['matrix_row_malformed', 14, 'agent'],
+        ],
+      );
+      expect(
+        [
+          for (final f in findings)
+            {
+              for (final MapEntry(:key, :value) in f.entries)
+                if (!const [
+                  'kind',
+                  'docPath',
+                  'line',
+                  'message',
+                  'waitsFor',
+                ].contains(key))
+                  key: value,
+            },
+        ],
+        [
+          // The `name` key of this kind replaces the doc's name, as it does for `tests_unresolved`.
+          {'name': 'refuses a blank password', 'item': item},
+          {'name': 'login', 'first': 12},
+          {'name': 'login', 'row': rows[2]},
+        ],
+      );
+      expect({for (final f in findings) f['docPath']}, {loginRecord});
+    });
+
+    test('check on the requirement alone prints none of them', () async {
+      final (:runner, :out, :err) = readRunner(await matrixProject());
+
+      expect(await runner.run(['check', loginFr]), 0, reason: out.toString());
+      expect(out.toString(), '0 findings\n');
+    });
+
+    test('the config key turns on the edge case coverage finding', () async {
+      Future<Directory> coverageProject(String config) => writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': config,
+          loginRecord:
+              "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
+              '# Login implementation\n\n## Verification matrix\n',
+          testFile:
+              "void main() {\n  test('refuses an empty password', () {});\n}\n",
+        },
+        unstamped: {loginRecord},
+      );
+      List<String> missing(String out) => [
+        for (final line in out.split('\n'))
+          if (line.contains(': matrix_row_missing')) line,
+      ];
+
+      final on = readRunner(
+        await coverageProject(
+          '${shippedPinsConfig()}verification_coverage: true\n',
+        ),
+      );
+      expect(await on.runner.run(['check']), 1, reason: on.out.toString());
+      expect(missing(on.out.toString()), [
+        '$loginRecord:3: matrix_row_missing: $item#E01 is implemented and no matrix row names it',
+      ]);
+
+      final off = readRunner(await coverageProject(shippedPinsConfig()));
+      // The record holds other findings, so the run read the project.
+      expect(await off.runner.run(['check']), 1, reason: off.out.toString());
+      expect(off.out.toString(), contains(': implements_missing'));
+      expect(off.out.toString(), isNot(contains('matrix_row_missing')));
+    });
+
+    group('a row tracked against its edge case', () {
+      const edgeCase = '1. E01 — An empty password → refused.';
+      const older = '3f9a1c0b7e2d';
+      const draftFr = (
+        'verify_method: test',
+        'verify_method: test\ndraft: true',
+      );
+      final current = fingerprintFor(edgeCase);
+
+      Future<Directory> stampedProject({
+        String fingerprint = ' $older',
+        Map<String, String> extra = const {},
+      }) => writeCheckProject(
+        extra: {
+          loginRecord:
+              "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
+              '# Login implementation\n\n## Verification matrix\n\n'
+              '- $item E01: `refuses an empty password`$fingerprint\n',
+          testFile:
+              "void main() {\n  test('refuses an empty password', () {});\n}\n",
+          ...extra,
+        },
+        unstamped: {loginRecord},
+      );
+
+      // The record's suspect and unconfirmed lines, each with the block lines
+      // that follow it.
+      List<String> suspectLines(String out) {
+        final lines = <String>[];
+        var isRecordFinding = false;
+        for (final line in out.split('\n')) {
+          if (!line.startsWith('    ')) {
+            isRecordFinding =
+                line.startsWith('$loginRecord:') &&
+                (line.contains(': suspect: ') ||
+                    line.contains(': unconfirmed: '));
+          }
+          if (isRecordFinding) lines.add(line);
+        }
+        return lines;
+      }
+
+      test('a suspect row prints its block before its fingerprint', () async {
+        final (:runner, :out, :err) = readRunner(await stampedProject());
+
+        expect(await runner.run(['check']), 1, reason: out.toString());
+
+        const message =
+            '$item#E01 changed after it was confirmed, recorded $older; '
+            'read E01 of $loginFr below, then record $item#E01 with the fingerprint after it';
+        expect(suspectLines(out.toString()), [
+          '$loginRecord:12: suspect: $message',
+          '    $edgeCase',
+          '    fingerprint $current',
+        ]);
+        expect(suspectLines(out.toString()).first, isNot(endsWith('Owner)')));
+      });
+
+      test('a row of a draft FR ends with the Owner tag', () async {
+        final (:runner, :out, :err) = readRunner(
+          await stampedProject(extra: fr(draftFr.$1, draftFr.$2)),
+        );
+
+        expect(await runner.run(['check']), 1, reason: out.toString());
+
+        const message =
+            '$item#E01 changed after it was confirmed, recorded $older; '
+            "it waits for the Owner's approve of $loginFr (waits for the Owner)";
+        expect(suspectLines(out.toString()), [
+          '$loginRecord:12: suspect: $message',
+          '    $edgeCase',
+          '    fingerprint $current',
+        ]);
+      });
+
+      test('an unstamped row of a draft FR ends with the Owner tag and prints '
+          'no block', () async {
+        final (:runner, :out, :err) = readRunner(
+          await stampedProject(
+            fingerprint: '',
+            extra: fr(draftFr.$1, draftFr.$2),
+          ),
+        );
+
+        expect(await runner.run(['check']), 1, reason: out.toString());
+
+        const message =
+            "$item#E01 waits for the Owner's approve of $loginFr (waits for the Owner)";
+        expect(suspectLines(out.toString()), [
+          '$loginRecord:12: unconfirmed: $message',
+        ]);
+      });
     });
   });
 

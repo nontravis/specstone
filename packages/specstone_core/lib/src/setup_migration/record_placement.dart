@@ -313,7 +313,7 @@ _Landed _land(
       codeOnly: true,
     );
   }
-  final lines = (statuses: statuses, code: code, tests: const <String>[]);
+  final lines = RecordLines(statuses: statuses, code: code);
   if (held != null) {
     final String? added;
     try {

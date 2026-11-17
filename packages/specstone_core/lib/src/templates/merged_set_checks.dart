@@ -66,7 +66,9 @@ bool wroteExtends(DocTypeLayer layer) => layer.extendsId != null;
 /// through `extends` when no own layer wrote it. A fault that names several
 /// files ranks them by [loadIndex]. [targetNames] holds the config's target
 /// names, empty when the config reads no `targets:` key; a named-target
-/// config needs the record doc type. Runs after every merge:
+/// config needs the record doc type. [verificationCoverage] is the config's
+/// `verification_coverage:`; `true` needs the record doc type with an enabled
+/// matrix section. Runs after every merge:
 /// two doc types may not share one `path`
 /// (`doc_type_path_conflict`), a `parent` names a doc type id of the set
 /// (`unknown_value`) and its links form no cycle (`parent_cycle`), every
@@ -85,6 +87,7 @@ void checkMergedSet(
   Map<String, DocTypeLayers> layerLists, {
   required LoadIndex loadIndex,
   List<String> targetNames = const [],
+  bool verificationCoverage = false,
 }) {
   final byId = {for (final docType in docTypes) docType.id: docType};
   final sorted = [...docTypes]..sort((a, b) => compareCodePoints(a.id, b.id));
@@ -97,7 +100,13 @@ void checkMergedSet(
   _checkFieldGroups(sorted, layerLists);
   _checkRequiredWhen(sorted, layerLists);
   _checkWhenField(sorted, layerLists);
-  _checkRecords(sorted, layerLists, loadIndex, targetNames);
+  _checkRecords(
+    sorted,
+    layerLists,
+    loadIndex,
+    targetNames,
+    verificationCoverage,
+  );
   _checkPatternCarriers(sorted, layerLists);
 }
 
@@ -225,10 +234,7 @@ void _checkRecordPaths(
   for (final docType in docTypes) {
     final path = docType.path;
     if (path == null || !path.startsWith(_specstoneFolder)) continue;
-    final isRecord = docType.fields.any(
-      (f) => f.type == FieldType.recordStatus,
-    );
-    if (isRecord && isRecordsDocPath(path)) continue;
+    if (docType.isRecordType && isRecordsDocPath(path)) continue;
     throw TemplateFault(
       FaultCode.unknownValue,
       'the path $path of ${docType.id} lies under $_specstoneFolder; only the '
@@ -440,18 +446,22 @@ void _checkWhenField(
 
 /// Throws `unknown_value` for the record doc type rules:
 /// a second `record_status` holder, a record doc type whose merged
-/// `per_target` is not `true`, and a named-target config with no record doc
-/// type.
+/// `per_target` is not `true`, a record matrix section whose merged
+/// `output_ref` is not `true`, an `output_ref: true` on any other section, a
+/// named-target config with no record doc type, and `verification_coverage:
+/// true` with no record doc type or no enabled matrix section on it.
 void _checkRecords(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
   LoadIndex loadIndex,
   List<String> targetNames,
+  bool verificationCoverage,
 ) {
   final holders = [
     for (final docType in docTypes)
-      if (docType.fields.any((f) => f.type == FieldType.recordStatus)) docType,
+      if (docType.isRecordType) docType,
   ];
+  _checkOutputRefSections(docTypes, layerLists);
   if (holders.length > 1) {
     _throwSecondRecordHolder(holders, layerLists, loadIndex);
   }
@@ -467,6 +477,18 @@ void _checkRecords(
         key: 'per_target',
       );
     }
+    _checkMatrixOutputRef(holder, layerLists);
+    if (verificationCoverage && verificationMatrixOf(holder) == null) {
+      throw TemplateFault(
+        FaultCode.unknownValue,
+        'verification_coverage needs an enabled $verificationMatrixKey '
+        'section on the record doc type ${holder.id}; a layer disabled it or '
+        'the doc type lacks it, and software-tech '
+        '$verificationMatrixPackVersion adds it',
+        file: projectConfigPath,
+        key: verificationCoverageKey,
+      );
+    }
   }
   if (holders.isEmpty && targetNames.isNotEmpty) {
     throw TemplateFault(
@@ -477,7 +499,83 @@ void _checkRecords(
       key: 'targets',
     );
   }
+  if (holders.isEmpty && verificationCoverage) {
+    throw TemplateFault(
+      FaultCode.unknownValue,
+      'verification coverage reads a record, and this merged set holds no '
+      'record doc type, no doc type with a field of type record_status',
+      file: projectConfigPath,
+      key: verificationCoverageKey,
+    );
+  }
 }
+
+/// Throws `unknown_value` for a layer section of any doc type that sets
+/// `output_ref: true` and whose id is not [verificationMatrixKey].
+///
+/// A matrix section on a doc type with no `record_status` field is accepted
+/// and inert, since no reader finds it. `key` names the section at its own
+/// index in the offending layer's file.
+void _checkOutputRefSections(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  for (final docType in docTypes) {
+    final layers = layerLists[docType.id];
+    if (layers == null) continue;
+    for (final (:layer, pack: _) in layers) {
+      for (final (index, entry) in layer.sections.indexed) {
+        if (entry.outputRef != true || entry.disabled) continue;
+        if (entry.id == verificationMatrixKey) continue;
+        throw TemplateFault(
+          FaultCode.unknownValue,
+          'output_ref is valid only on the $verificationMatrixKey section, '
+          'not on the section ${entry.id} of ${docType.id}',
+          file: layer.file,
+          key: 'sections[$index].output_ref',
+        );
+      }
+    }
+  }
+}
+
+/// Throws `unknown_value` for a merged matrix section of [holder] whose
+/// `output_ref` is not `true`.
+///
+/// `file` holds the top-most layer that wrote `output_ref` on the section,
+/// else the top-most layer that wrote the section.
+void _checkMatrixOutputRef(
+  MergedDocType holder,
+  Map<String, DocTypeLayers> layerLists,
+) {
+  final matrix = verificationMatrixOf(holder);
+  if (matrix == null || matrix.isOutputRef) return;
+  final writer =
+      _writingLayerOf(holder.id, _wroteMatrixOutputRef, layerLists) ??
+      _writingLayerOf(holder.id, _wroteMatrix, layerLists);
+  // An enabled merged section traces to a layer that added it,
+  // `_writingLayerOf` climbing the extends chain, so the writer is always
+  // found.
+  if (writer == null) {
+    throw StateError('no layer of ${holder.id} writes $verificationMatrixKey');
+  }
+  throw TemplateFault(
+    FaultCode.unknownValue,
+    'the $verificationMatrixKey section of the record doc type ${holder.id} '
+    'must set output_ref: true',
+    file: writer.file,
+    key: 'sections[${writer.sections.indexWhere(_isEnabledMatrix)}].output_ref',
+  );
+}
+
+bool _isEnabledMatrix(SectionEntry entry) =>
+    entry.id == verificationMatrixKey && !entry.disabled;
+
+bool _wroteMatrix(DocTypeLayer layer) => layer.sections.any(_isEnabledMatrix);
+
+bool _wroteMatrixOutputRef(DocTypeLayer layer) => layer.sections.any(
+  (entry) => _isEnabledMatrix(entry) && entry.outputRef != null,
+);
 
 Never _throwSecondRecordHolder(
   List<MergedDocType> holders,
@@ -572,6 +670,14 @@ String? _writerOf(
   String startId,
   bool Function(DocTypeLayer layer) wrote,
   Map<String, DocTypeLayers> layerLists,
+) => _writingLayerOf(startId, wrote, layerLists)?.file;
+
+/// The top-most layer of [startId] that [wrote] the key, or null, found as
+/// [_writerOf] finds its file.
+DocTypeLayer? _writingLayerOf(
+  String startId,
+  bool Function(DocTypeLayer layer) wrote,
+  Map<String, DocTypeLayers> layerLists,
 ) {
   var id = startId;
   final visited = <String>{};
@@ -579,7 +685,7 @@ String? _writerOf(
     final layers = layerLists[id];
     if (layers == null) return null;
     final own = topMostWriter(layers, wrote);
-    if (own != null) return own.file;
+    if (own != null) return own;
     final target = topMostWriter(layers, wroteExtends)?.extendsId;
     if (target == null) return null;
     id = target;

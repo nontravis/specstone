@@ -1,5 +1,6 @@
-/// A record that loses or changes entries: its DocPath, its bytes as read, the
-/// items whose entries change, and its text after the change.
+/// A record that loses or changes entries or matrix rows: its DocPath, its
+/// bytes as read, the items whose entries or rows change, and its text after
+/// the change.
 final class RecordEdit {
   const new({
     required this.docPath,

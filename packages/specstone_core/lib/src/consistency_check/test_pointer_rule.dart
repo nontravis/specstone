@@ -7,7 +7,6 @@ import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 
 /// Returns the test pointer findings of a record [doc]; any other doc has
 /// none.
@@ -34,7 +33,9 @@ Iterable<Finding> checkTestPointers(
     final parsed = recordCodeLineOf(value);
     final item = items[parsed?.item];
     if (parsed == null || item == null) continue;
-    if (!_isResolved(context, item, doc.target)) continue;
+    if (!context.index.itemStatus(item, codeTarget: doc.target).isBuilt) {
+      continue;
+    }
     yield* _resolve(context, doc, target, parsed.code, line);
   }
 }
@@ -60,8 +61,7 @@ Iterable<Finding> _resolve(
   }
   final name = entry.testName;
   if (name == null || name.isEmpty) return;
-  final texts = _textsByContext[context] ??= _TestTexts();
-  final text = texts.textOf(context, target, path);
+  final text = testFileTextOf(context, target, path);
   if (text == null || text.contains(name)) return;
   yield context.finding(
     doc,
@@ -72,13 +72,13 @@ Iterable<Finding> _resolve(
   );
 }
 
-/// Whether [item]'s lines are resolved: its status in [codeTarget] is
-/// `implemented` or `deprecated`.
-bool _isResolved(CheckContext context, IndexedDoc item, String? codeTarget) =>
-    switch (context.index.itemStatus(item, codeTarget: codeTarget)) {
-      RecordStatus.implemented || RecordStatus.deprecated => true,
-      RecordStatus.planned || RecordStatus.skipped => false,
-    };
+/// Returns the text of the test file at [path] under [target]'s code root, or
+/// null when it cannot be read.
+///
+/// A run reads each file once whichever rule asks first, and an unreadable
+/// file adds one warning.
+String? testFileTextOf(CheckContext context, CodeTarget target, String path) =>
+    (_textsByContext[context] ??= _TestTexts()).textOf(context, target, path);
 
 /// The test files each run has read, held for the run's lifetime.
 final Expando<_TestTexts> _textsByContext = Expando('test files read');

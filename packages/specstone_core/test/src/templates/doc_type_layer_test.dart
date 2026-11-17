@@ -632,6 +632,21 @@ lint:
       );
     });
 
+    test('a section output_ref is read as written', () {
+      final sections = _parse(
+        'sections: [{id: matrix, output_ref: true}, {id: goal}]\n',
+      ).sections;
+      expect(sections.first.outputRef, isTrue);
+      expect(sections.last.outputRef, isNull);
+    });
+
+    test('an output_ref section key that is not a boolean is refused', () {
+      expect(
+        () => _parse('sections: [{id: why}, {id: matrix, output_ref: rows}]\n'),
+        throwsA(_fault(FaultCode.unknownValue, key: 'sections[1].output_ref')),
+      );
+    });
+
     test('f03/us03/fr01/e19, tpl-s03/inv23: a section query that is not a boolean is unknown_value', () {
       expect(
         () => _parse('sections: [{id: goal, query: yes please}]\n'),
@@ -1245,5 +1260,17 @@ lint:
     test('a nested file is not a doc type', () {
       expect(isDocTypeFileName('refs/x.yaml'), isFalse);
     });
+  });
+
+  test('only an implemented or deprecated status is built', () {
+    expect(
+      {for (final status in RecordStatus.values) status: status.isBuilt},
+      {
+        RecordStatus.planned: false,
+        RecordStatus.implemented: true,
+        RecordStatus.deprecated: true,
+        RecordStatus.skipped: false,
+      },
+    );
   });
 }

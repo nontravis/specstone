@@ -36,6 +36,8 @@ const _agentNames = ['plan-engineer', 'sdd-engineer', 'sdd-reader'];
 const _procedures = <String>[
   'specstone-sync-sdd/references/procedure.md',
   'specstone-sync-sdd/references/task-refs.md',
+  'specstone-sync-sdd/references/matrix-rows.md',
+  'specstone-sync-sdd/references/spec-drafts.md',
   'specstone-bootstrap-prd/references/procedure.md',
   'specstone-bootstrap-spec/references/procedure.md',
   _goalMove,

@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show withSectionAdded;
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
@@ -116,6 +118,33 @@ int? sectionIndexOf(Doc doc, MergedDocType docType, String sectionId) {
     (section) => headerKey(section.headerText) == key,
   );
   return index < 0 ? null : index;
+}
+
+/// Returns [lfText], a doc of [docType], with the template section [sectionId]
+/// added holding [body]: before the first section the doc holds that follows it
+/// in [docType], else at the end.
+///
+/// Throws a [StateError] when [docType] has no section [sectionId].
+String withTemplateSection(
+  String lfText,
+  MergedDocType docType,
+  String sectionId,
+  String body,
+) {
+  final template = docType.sections.firstWhere((s) => s.id == sectionId);
+  final doc = Doc.parse(lfText);
+  int? before;
+  for (final later
+      in docType.sections.skipWhile((s) => s.id != sectionId).skip(1)) {
+    before = sectionIndexOf(doc, docType, later.id);
+    if (before != null) break;
+  }
+  return withSectionAdded(
+    lfText,
+    headerLine: '## ${template.header}',
+    body: body,
+    before: before,
+  );
 }
 
 /// Returns, per line of [lines], whether it is a marker line or inner line of

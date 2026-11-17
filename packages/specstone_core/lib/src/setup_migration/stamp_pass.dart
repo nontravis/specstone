@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show isFingerprint;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
@@ -13,7 +15,6 @@ import 'package:specstone_core/src/templates/pack_version.dart';
 // MARK: - Constants
 
 const _confirmedKey = 'confirmed';
-final _fingerprintShape = RegExp(r'^[0-9a-f]{12}$');
 
 // MARK: - Types
 
@@ -302,7 +303,7 @@ final class _EntryWalk {
       return stamped == null ? null : '$label $stamped';
     }
     final label = _label;
-    if (label == null || !_fingerprintShape.hasMatch(value)) {
+    if (label == null || !isFingerprint(value)) {
       _flush();
       _label = value;
       return null;

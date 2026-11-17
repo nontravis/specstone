@@ -25,9 +25,11 @@ costs a call the gate already makes.
 ## 2. Work list, then hand off
 
 The work list is the gate's `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
-`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, and `tests_unresolved` findings, never a
-`tests_missing` one. When the Owner names a feature, it is every code link of that feature that takes a state, findings
-or not. Take nothing from the task: code changed outside a task is in the list too.
+`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row findings,
+never a `tests_missing` one. A matrix-row finding is a `matrix_test_unresolved` one, or a `suspect` or `unconfirmed` one
+whose `waitsFor` is `agent`, on a Verification matrix row; one whose `waitsFor` is `owner` stays out. When the Owner
+names a feature, it is every code link of that feature that takes a state, findings or not. Take nothing from the task:
+code changed outside a task is in the list too.
 
 With an empty list, tell the Owner no code changed since its docs were compared, and stop with no dispatch and no
 further call.
@@ -35,7 +37,8 @@ further call.
 Else sort the list into groups. With a feature named, it is one group. With none, each finding goes to the group of the
 top-level feature whose doc holds its code link, a sub-feature's finding to its top-level feature; a finding on a doc
 under no feature, such as a topic, goes to that doc's own group; a `code_uncovered` finding goes to one `uncovered`
-group. A finding with no code link, such as a `tests_unresolved` line, goes by the doc that holds the finding.
+group. A finding with no code link, such as a `tests_unresolved` line or a matrix-row finding, goes by the doc that
+holds the finding.
 
 Then dispatch `specstone-sdd-engineer` for each group in turn, one at a time, as
 `../specstone-expert-sdd/references/dispatch.md` gives, with `mode: sync`, `report:`

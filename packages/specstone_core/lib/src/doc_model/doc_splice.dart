@@ -16,6 +16,12 @@ const emptyBaseHash = 'e3b0c44298fc';
 String baseHashOf(String text) =>
     sha256.convert(utf8.encode(text)).toString().substring(0, 12);
 
+final _hashShape = RegExp(r'^[0-9a-f]{12}$');
+
+/// Whether [text] has the shape [baseHashOf] gives: 12 lowercase hex
+/// characters, which a fingerprint and a base both take.
+bool isFingerprint(String text) => _hashShape.hasMatch(text);
+
 /// Returns [lf] without its trailing blank lines: the first newline of the
 /// all-whitespace tail, and everything after it.
 ///
