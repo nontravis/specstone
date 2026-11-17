@@ -12,6 +12,8 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show CommitStep, CreateStep, MoveStep;
+import 'package:specstone_core/src/document_writing/stale_mentions.dart'
+    show StaleMention;
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show frontmatterValuesOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -1035,12 +1037,12 @@ sections:
         endsWith('  mentions: 2\n  .specstone/config.yaml: acme 1.2.0\n'),
       );
       expect(plan.lists.mentions, [
-        (
+        const StaleMention(
           path: 'CLAUDE.md',
           line: 1,
           mention: 'prds/runbooks/deploy/RUNBOOK.md',
         ),
-        (
+        const StaleMention(
           path: 'lib/a.dart',
           line: 2,
           mention: 'prds/runbooks/deploy/RUNBOOK.md',
@@ -1086,7 +1088,7 @@ sections:
         final plan = _plan(fixture);
 
         expect(plan.lists.mentions, [
-          (
+          const StaleMention(
             path: 'lib/a.dart',
             line: 1,
             mention: 'prds/runbooks/deploy/RUNBOOK.md',

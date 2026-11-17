@@ -27,7 +27,7 @@ void main() {
   );
 
   StaleMention at(String path, int line, String mention) =>
-      (path: path, line: line, mention: mention);
+      StaleMention(path: path, line: line, mention: mention);
 
   group('a name mention', () {
     test(
