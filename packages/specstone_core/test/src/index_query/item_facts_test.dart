@@ -95,11 +95,11 @@ void main() {
 
       expect(parsed.doc.formatted, isFalse);
       expect(laid[row.line - 1], startsWith('| a'));
-      expect(row.chars, laid[row.line - 1].length);
-      expect(row.chars, lessThan('| a      | text   |'.length));
+      expect(row.visibleChars, laid[row.line - 1].length);
+      expect(row.visibleChars, lessThan('| a      | text   |'.length));
       expect(laid[heading.line - 1], '### Heading');
       expect(
-        heading.chars,
+        heading.visibleChars,
         '### Heading'.length + 1 + 0 + 1 + 'Body text.'.length,
       );
     });
@@ -145,7 +145,7 @@ void main() {
 
       expect(parsed.doc.formatted, isFalse);
       expect(laid[row.line - 1], '| x | y |');
-      expect(row.chars, '| x | y |'.length);
+      expect(row.visibleChars, '| x | y |'.length);
       expect(facts.lead, (lines: 3, chars: 9 + 1 + 9 + 1 + 9));
     });
 
@@ -601,7 +601,140 @@ void main() {
     });
   });
 
+  group('visible counts', () {
+    const rule = '- See [the rule](a/b.md#rules).';
+
+    List<int> visibleOf(List<ItemFact> items) => [
+      for (final item in items) item.visibleChars,
+    ];
+
+    int sectionCharsOf(ParsedDoc parsed) =>
+        parsed.content.lineFacts.sectionCounts.single.chars;
+
+    test('link item stores its visible count while its section stays raw', () {
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$rule\n');
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [15]);
+      expect(sectionCharsOf(parsed), '## Statement\n\n$rule'.length);
+    });
+
+    test('definition line adds nothing to its paragraph', () {
+      const paragraph = '[r]: a/b.md\nSee [the rule][r].';
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [13]);
+      expect(sectionCharsOf(parsed), '## Statement\n\n$paragraph'.length);
+    });
+
+    test('code span link counts whole', () {
+      const item = '- Run `[a](b.md)` once.';
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$item\n');
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [23]);
+      expect(sectionCharsOf(parsed), '## Statement\n\n$item'.length);
+    });
+
+    test('failed parse stores raw item counts', () {
+      const item = '- See [a](b.md).';
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$item\n\n[a]:<b\\');
+
+      expect(parsed.doc.warnings, [markdownUnparsedWarning(_frPath)]);
+      expect(
+        visibleOf(parsed.content.itemFacts.sectionItems.single).first,
+        item.length,
+      );
+    });
+
+    // No body makes `readersAgree` false, so the link the scan alone lists is
+    // one in a footnote definition, which the parser drops.
+    test('disagreeing readers drop parser links only: a link the scan alone '
+        'lists counts whole', () {
+      const read = 'See [y](y.md).';
+      const scanOnly = '[^1]: Also [b](b.md).';
+      final parsed = parse(
+        _frPath,
+        '# V\n\n## Statement\n\n$read\n\n$scanOnly\n',
+      );
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [
+        'See y.'.length,
+        scanOnly.length,
+      ]);
+    });
+
+    test('shortcut reference stores its label', () {
+      const paragraph = '[r]: a/b.md\nSee [r].';
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [6]);
+      expect(sectionCharsOf(parsed), '## Statement\n\n$paragraph'.length);
+    });
+
+    test('undefined shortcut stores every character', () {
+      const item = '- See [x].';
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$item\n');
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [10]);
+    });
+
+    test('definition after paragraph text counts', () {
+      const paragraph = 'See this.\n[r]: a/b.md';
+      final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');
+
+      expect(visibleOf(parsed.content.itemFacts.sectionItems.single), [
+        paragraph.length,
+      ]);
+    });
+
+    test('lead item drops its link markup', () {
+      const lead = 'See [the rule](a/b.md#rules).';
+      final parsed = parse(_frPath, '# V\n\n$lead\n\n## Statement\n\nShall.\n');
+      final facts = parsed.content.itemFacts;
+
+      expect(visibleOf(facts.leadItems), ['See the rule.'.length]);
+      expect(facts.lead, (lines: 1, chars: lead.length));
+    });
+
+    test('crlf doc stores the same visible counts', () {
+      const text =
+          '# V\n\n$rule\n\n## Statement\n\n[r]: a/b.md\nSee [the rule][r].\n'
+          '\n## Edge cases\n\n1. E01 — A [link](x.md) here.\n';
+
+      final lf = parse(_frPath, text);
+      final crlf = parse(
+        _frPath,
+        text,
+        bytes: utf8.encode(text.replaceAll('\n', '\r\n')),
+      );
+
+      expect(
+        jsonEncode(crlf.content.itemFacts.toJson()),
+        jsonEncode(lf.content.itemFacts.toJson()),
+      );
+      expect(visibleOf(crlf.content.itemFacts.leadItems), [15]);
+      expect(visibleOf(crlf.content.itemFacts.sectionItems.first), [13]);
+      expect(visibleOf(crlf.content.itemFacts.sectionItems.last), [
+        '1. E01 — A link here.'.length,
+      ]);
+    });
+  });
+
   group('ItemFacts JSON', () {
+    test('a round trip keeps the visible count of a link item', () {
+      final facts = factsOf(
+        _frPath,
+        '# V\n\nLead [a](b.md).\n\n## Statement\n\n'
+        '- See [the rule](a/b.md#rules).\n',
+      );
+      final back = ItemFacts.fromJson(jsonDecode(jsonEncode(facts.toJson())));
+
+      expect(plainItems(back.leadItems), [(id: null, line: 3, chars: 7)]);
+      expect(plainSections(back), [
+        [(id: null, line: 7, chars: 15)],
+      ]);
+      expect(jsonEncode(back.toJson()), jsonEncode(facts.toJson()));
+    });
+
     test('a round trip through JSON text gives the same facts', () {
       final facts = factsOf(
         _frPath,

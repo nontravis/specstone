@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 
+import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -366,5 +367,35 @@ void main() {
       'message': 'the index is busy; run the command again once the other call finishes',
     });
     expect(out.toString(), isEmpty);
+  });
+
+  group('built binary', () {
+    late String binary;
+
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test('structure prints a linked item at its visible count', () async {
+      const item = '- See [the rule](a/b.md#rules).';
+      final project = await writeReadProject(
+        extra: {
+          frKey: frWithSizes().replaceFirst(
+            RegExp(r'The system shall check[^\n]*\n'),
+            '$item\n',
+          ),
+        },
+      );
+      final run = await Process.run(binary, [
+        'structure',
+        frTarget,
+      ], workingDirectory: project.path);
+
+      expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+      expect((run.stdout as String).split('\n').skip(1).take(2), [
+        '  statement · ${'## Statement\n\n$item'.length} chars',
+        '    line 14 · 15 chars',
+      ]);
+    });
   });
 }

@@ -248,6 +248,36 @@ void main() {
       },
     );
 
+    test(
+      'item line prints the visible count and the section line the raw one',
+      () async {
+        const item = '- See [the rule](a/b.md#rules).';
+        final index = await indexWith({
+          ...loginRecords,
+          _frKey: _e09Fr.replaceFirst(
+            RegExp(r'The system shall check[^\n]*\n'),
+            '$item\n',
+          ),
+        });
+        final lines = answerStructure(
+          index,
+          target: _frTarget,
+        ).text.split('\n');
+
+        expect(lines.skip(1).take(2), [
+          '  statement · ${'## Statement\n\n$item'.length} chars',
+          '    line 11 · 15 chars',
+        ]);
+        expect(_jsonSections(index, _frTarget).first, {
+          'key': 'statement',
+          'chars': '## Statement\n\n$item'.length,
+          'items': [
+            {'line': 11, 'chars': 15},
+          ],
+        });
+      },
+    );
+
     test('E11: a lead prints first as _lead with its items, as text', () async {
       final index = await indexWith({...loginRecords, _frKey: _leadFr});
       expect(

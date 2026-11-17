@@ -492,6 +492,41 @@ void main() {
       },
     );
 
+    test('item over the cap only through its links gives no finding', () async {
+      final links = [
+        for (var i = 0; i < 8; i++) '[link](${'a' * 17}.md)',
+        '[link](${'b' * 7}.md)',
+      ];
+      final head = '1. E01 — ${links.join(' ')} ';
+      final item = '$head${'x' * (625 - head.length)}';
+      final project = await writeCheckProject(extra: fr(edgeFrom, '$item\n'));
+      final disk = File('${project.path}/docs/$loginFr').readAsStringSync();
+      final docChars = layOutDoc(disk, fixtureDocTypeOf(loginFr)).runes.length;
+      File('${project.path}/$itemLimitTemplate')
+        ..createSync(recursive: true)
+        ..writeAsStringSync(
+          'lint:\n  max_chars: ${docChars - 1}\n'
+          'sections:\n  - id: edge_cases\n    lint:\n      max_chars: 600\n',
+        );
+      final sizeFindings = checkOf(project).findings
+          .where((f) => f.kind == FindingKind.charsOverLimit)
+          .map((f) => f.toJson())
+          .toList();
+
+      expect(item.length, 625);
+      expect(itemFindings(project), isEmpty);
+      expect(
+        sizeFindings,
+        unorderedEquals([
+          allOf(
+            containsPair('section', 'edge_cases'),
+            containsPair('actual', '## Edge cases\n\n$item'.length),
+          ),
+          allOf(isNot(contains('section')), containsPair('actual', docChars)),
+        ]),
+      );
+    });
+
     test('E12: a fenced code block is no item', () async {
       final project = await writeCheckProject(
         extra: {
