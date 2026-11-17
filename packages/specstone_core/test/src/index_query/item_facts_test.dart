@@ -662,6 +662,29 @@ void main() {
       ]);
     });
 
+    test('unformatted doc with frontmatter counts links on the lines its '
+        'layout moves them to', () {
+      const lead = 'Lead [x](lead/l.md) here.';
+      const edge = '1. E01 — See [a](b.md).';
+      const statement = 'The [rule](rules/r.md) shall hold.';
+      const text =
+          '---\nstatus: planned\n---\n\n# V\n\n$lead\n\n'
+          '## Edge cases\n$edge\n\n## Statement\n$statement\n';
+      final parsed = parse(_frPath, text);
+      final laid = layOutDoc(text, typeOf(_frPath)).split('\n');
+      final facts = parsed.content.itemFacts;
+      final edgeItem = facts.sectionItems.first.single;
+      final statementItem = facts.sectionItems.last.single;
+
+      expect(parsed.doc.formatted, isFalse);
+      expect(laid[edgeItem.line - 1], edge);
+      expect(laid[statementItem.line - 1], statement);
+      expect(edgeItem.line, isNot(text.split('\n').indexOf(edge) + 1));
+      expect(edgeItem.visibleChars, '1. E01 — See a.'.length);
+      expect(statementItem.visibleChars, 'The rule shall hold.'.length);
+      expect(visibleOf(facts.leadItems), ['Lead x here.'.length]);
+    });
+
     test('shortcut reference stores its label', () {
       const paragraph = '[r]: a/b.md\nSee [r].';
       final parsed = parse(_frPath, '# V\n\n## Statement\n\n$paragraph\n');

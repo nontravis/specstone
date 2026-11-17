@@ -37,7 +37,8 @@ import 'package:specstone_core/src/index_query/case_folding.g.dart';
 /// `footnoteLabels` holds each footnote definition's label, lowercased;
 /// `definitionSpans` holds the body range of each definition read, from its
 /// label's `[` to the end of its last line, the line feed after it included
-/// when one follows.
+/// when one follows, cut around the container markers and indents of its
+/// continuation lines, so a definition may hold several ranges.
 typedef LeafText = ({
   String text,
   List<({int start, int end})> leaves,
@@ -178,11 +179,44 @@ LeafText leafTextOf(String lfBody) {
     footnoteLabels: sink.footnoteLabels,
     definitionLabels: sink.definitionLabels,
     definitionDestinations: sink.definitionDestinations,
-    definitionSpans: [
+    definitionSpans: _cutAround(sink.prefixes, [
       for (final (:start, :end) in sink.definitionSpans)
         (start: start, end: end < body.length ? end + 1 : end),
-    ],
+    ]),
   );
+}
+
+/// Returns [spans] with the [cuts] that fall inside them taken out, so a span
+/// holds no container marker or indent.
+///
+/// The cuts are disjoint, so sorted by start they are sorted by end too.
+List<({int start, int end})> _cutAround(
+  List<({int start, int end})> cuts,
+  List<({int start, int end})> spans,
+) {
+  final sorted = [...cuts]..sort((a, b) => a.start - b.start);
+  final pieces = <({int start, int end})>[];
+  for (final (:start, :end) in spans) {
+    var from = start;
+    var low = 0;
+    var high = sorted.length;
+    while (low < high) {
+      final middle = (low + high) ~/ 2;
+      if (sorted[middle].end > start) {
+        high = middle;
+      } else {
+        low = middle + 1;
+      }
+    }
+    for (var i = low; i < sorted.length && sorted[i].start < end; i++) {
+      if (sorted[i].start > from) {
+        pieces.add((start: from, end: sorted[i].start));
+      }
+      from = sorted[i].end;
+    }
+    if (from < end) pieces.add((start: from, end: end));
+  }
+  return pieces;
 }
 
 /// Blanks [units] from [from] to [to], line ends kept.

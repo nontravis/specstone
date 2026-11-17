@@ -63,6 +63,45 @@ void main() {
       expect(visibleCodePoints(body, 1, 2), 10);
     });
 
+    test('multi-line definition inside a blockquote keeps every marker', () {
+      const body = '> [r]:\n> a/b.md\n> See [r].';
+
+      expect(rawCodePoints(body, 1, 3), 26);
+      expect(visibleCodePoints(body, 2, 2), 2);
+      expect(visibleCodePoints(body, 1, 3), 12);
+    });
+
+    test('multi-line definition inside a list item keeps every indent', () {
+      const body = '- x\n\n  [r]:\n  a.md';
+
+      expect(visibleCodePoints(body, 3, 4), 4);
+      expect(visibleCodePoints(body, 1, 4), 9);
+    });
+
+    test(
+      'multi-line definition inside nested containers keeps each marker',
+      () {
+        const body = '> - [r]:\n>   a.md\n>\n> See [r].';
+
+        expect(visibleCodePoints(body, 2, 2), 4);
+        expect(visibleCodePoints(body, 1, 4), 18);
+      },
+    );
+
+    test('definition with its title on the next line hides both lines', () {
+      const body = '[r]: a.md\n"Title"\nSee [r].\n';
+
+      expect(visibleCodePoints(body, 1, 3), 6);
+      expect(visibleCodePoints(body, 2, 2), 0);
+    });
+
+    test('definition with a label across a line feed hides both lines', () {
+      const body = '[a\nb]: x.md\nSee [a b].\n';
+
+      expect(visibleCodePoints(body, 1, 3), 8);
+      expect(visibleCodePoints(body, 1, 2), 0);
+    });
+
     test('code span keeps link-shaped text', () {
       expect(visibleCodePoints('- Run `[a](b.md)` once.\n', 1, 1), 23);
     });
