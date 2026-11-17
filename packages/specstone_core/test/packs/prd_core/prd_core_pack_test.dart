@@ -1,11 +1,13 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
@@ -61,11 +63,59 @@ void main() {
   });
 
   group('prd-core doc types', () {
+    test('only project, glossary, gnfr, and goal set bundle_refs', () async {
+      final set = await resolvePrdCore();
+      expect(
+        {
+          for (final d in set.docTypes)
+            if (d.bundleRefs == true) d.id,
+        },
+        {'project', 'glossary', 'gnfr', 'goal'},
+      );
+    });
+
     test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
         'holds exactly the fourteen doc types', () async {
       final set = await resolvePrdCore();
       expect(set.docTypes.map((d) => d.id), prdCoreIds);
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
+    });
+
+    test('each doc type flags a doc over its own line and character '
+        'caps', () async {
+      final set = await resolvePrdCore();
+      // A draft takes no approval stamp, so the counts stay exact.
+      const draft = '---\ndraft: true\n---\n\n# Probe\n\n';
+      for (final docType in set.docTypes) {
+        final path = docType.path!
+            .replaceAll('{nn}', '07')
+            .replaceAll('{slug}', 'probe');
+        Future<Set<FindingKind>> kindsOf(String body) async {
+          final report = await checkOf(
+            await writeCheckProject(
+              extra: {'docs/$path': '$draft$body\n'},
+              unstamped: {'docs/$path'},
+            ),
+          );
+          return {
+            for (final f in report.findings)
+              if (f.path == path) f.kind,
+          };
+        }
+
+        final lines = List.filled(docType.lint.maxLines! + 1, 'x').join('\n');
+        final chars = 'x' * (docType.lint.maxChars! + 1);
+        expect(
+          await kindsOf(lines),
+          contains(FindingKind.linesOverLimit),
+          reason: '${docType.id} lines',
+        );
+        expect(
+          await kindsOf(chars),
+          contains(FindingKind.charsOverLimit),
+          reason: '${docType.id} chars',
+        );
+      }
     });
 
     test('a project that groups features overrides the '

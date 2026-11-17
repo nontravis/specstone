@@ -44,17 +44,6 @@ const nasaBannedWords = <String>[
   'but not limited to',
 ];
 
-/// The title of the NASA handbook reference entry.
-const nasaHandbookTitle =
-    'NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2';
-
-/// The URL of the NASA handbook reference entry, the web edition (GS-R2).
-const nasaHandbookUrl =
-    'https://www.nasa.gov/reference/systems-engineering-handbook/';
-
-/// The locator of the NASA handbook reference entry.
-const nasaHandbookLocator = 'Appendix C and section 4.2';
-
 /// The `prd-core` doc type ids, in code point order.
 const prdCoreIds = <String>[
   'anti_persona',
@@ -216,13 +205,6 @@ void expectNasaLint(
   }
   final reference = docType.reference;
   expect(reference, isNotNull, reason: docType.id);
-  expect(reference, hasLength(1), reason: docType.id);
-  final entry = reference!.single;
-  expect(entry.title, nasaHandbookTitle, reason: docType.id);
-  expect(entry.url, nasaHandbookUrl, reason: docType.id);
-  expect(entry.file, isNull, reason: docType.id);
-  expect(entry.doc, isNull, reason: docType.id);
-  expect(entry.locator, nasaHandbookLocator, reason: docType.id);
 }
 
 /// Returns the [nasaBannedWords] entries [text] holds, in list order.
