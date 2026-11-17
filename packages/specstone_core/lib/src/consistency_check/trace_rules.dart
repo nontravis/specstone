@@ -394,7 +394,7 @@ Iterable<Finding> _missingArchitecture(
               work.targetOf(doc) == target,
         );
     if (hasArchitecture) continue;
-    final shown = _shownTargetName(context, target.name);
+    final shown = shownTargetName(context, target.name);
     yield context.finding(
       feature,
       FindingKind.architectureMissing,
@@ -442,7 +442,7 @@ bool _isLeftOut(DocIndex index, IndexedDoc? item, IndexedDoc record) =>
 
 /// Returns the name of a target a finding names, or null when the project
 /// holds one code target, so its output stays as it was.
-String? _shownTargetName(CheckContext context, String? name) =>
+String? shownTargetName(CheckContext context, String? name) =>
     context.index.hasTwins ? name : null;
 
 /// Returns the file line of each item's `statuses` line; an item with a second
@@ -450,12 +450,11 @@ String? _shownTargetName(CheckContext context, String? name) =>
 Map<String, int> _singleStatusLines(DocLines lines, String statusFieldId) {
   final found = <String, int>{};
   final repeated = <String>{};
-  for (final (:value, :line, text: _) in lines.entriesOf(statusFieldId)) {
-    if (value is! String) continue;
-    final item = recordStatusLineOf(value)?.item;
+  for (final status in statusLinesOf(lines, statusFieldId)) {
+    final item = status.item;
     if (item == null) continue;
     if (found.containsKey(item)) repeated.add(item);
-    found[item] = line;
+    found[item] = status.line;
   }
   return found..removeWhere((item, _) => repeated.contains(item));
 }
@@ -480,7 +479,7 @@ Iterable<Finding> checkImplementedStatus(
   final items = recordItemsOf(feature, index.childrenOf);
   final statusLines = _singleStatusLines(lines, statusField.id);
   final holdsTests = recordTestFieldOf(type) != null;
-  final inTarget = switch (_shownTargetName(context, doc.target)) {
+  final inTarget = switch (shownTargetName(context, doc.target)) {
     final name? => ' in target $name',
     null => '',
   };

@@ -76,10 +76,10 @@ final class _RecordWalk {
     final fieldId = _statusFieldId;
     if (fieldId == null) return;
     final seen = <String>{};
-    for (final (:value, :line, text: _) in _lines.entriesOf(fieldId)) {
-      if (value is! String) continue;
-      final parsed = recordStatusLineOf(value);
-      final item = parsed?.item ?? value;
+    for (final status in statusLinesOf(_lines, fieldId)) {
+      final line = status.line;
+      final parsed = status.parsed;
+      final item = status.item ?? status.text;
       if (parsed == null || !_docs.containsKey(item)) {
         yield _unresolved(item, line);
       } else if (!seen.add(item)) {

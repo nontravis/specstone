@@ -457,7 +457,7 @@ void main() {
       ),
       (
         'under the skip of its story',
-        const ['$_story:skipped:not in this client'],
+        const ['$_story:skipped:not in this client', '$_fr:implemented'],
         'test',
       ),
       ('verified by inspection', const ['$_fr:implemented'], 'inspection'),

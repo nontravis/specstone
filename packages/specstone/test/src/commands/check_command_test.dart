@@ -1137,8 +1137,10 @@ void main() {
       ]);
 
       final off = readRunner(await coverageProject(shippedPinsConfig()));
-      await off.runner.run(['check']);
-      expect(missing(off.out.toString()), isEmpty);
+      // The record holds other findings, so the run read the project.
+      expect(await off.runner.run(['check']), 1, reason: off.out.toString());
+      expect(off.out.toString(), contains(': implements_missing'));
+      expect(off.out.toString(), isNot(contains('matrix_row_missing')));
     });
 
     group('a row tracked against its edge case', () {
