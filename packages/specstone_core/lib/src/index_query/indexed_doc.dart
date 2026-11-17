@@ -331,6 +331,9 @@ ParsedDoc parseIndexedDoc({
     for (final section in doc.sections) _sectionOf(section, templates),
   ];
   final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
+  final matrixLines = docType == null
+      ? const <MatrixLine>[]
+      : matrixLinesOfDoc(doc, lfText, docType);
   final lineFacts = LineFacts.of(
     lfText: lfText,
     countedText: _withoutMatrixSection(
@@ -345,7 +348,11 @@ ParsedDoc parseIndexedDoc({
     bodyTbrMarkers: tbrMarkerLinesIn(doc.afterFrontmatter),
     citeCandidates: docType == null
         ? const []
-        : citeCandidatesOf(lfText, idPrefixes: idPrefixes),
+        : citeCandidatesOf(
+            lfText,
+            idPrefixes: idPrefixes,
+            skipLines: testRowLinesOf(matrixLines),
+          ),
     mermaidBlocks: docType == null
         ? const []
         : [for (final s in mermaidSourcesOf(doc, lfText)) s.block],
@@ -399,9 +406,7 @@ ParsedDoc parseIndexedDoc({
             statusesOutside: statusesOutside,
           ),
     warnings: warnings,
-    matrixLines: docType == null
-        ? const []
-        : matrixLinesOfDoc(doc, lfText, docType),
+    matrixLines: matrixLines,
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }

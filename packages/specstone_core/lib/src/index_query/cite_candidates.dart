@@ -11,6 +11,8 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;
 import 'package:specstone_core/src/index_query/link_scan.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show MatrixLine, TestRow;
 
 /// A cite candidate of a typed doc's body: the doc name or
 /// path as written, less its `#<section key>`, at its 1-based file `line`,
@@ -57,17 +59,37 @@ typedef CiteForm = ({
 /// reads right after the candidate on its line (`itemIdRunAt`): an ID outside
 /// the run is no item of the candidate. An item ID is a token of one of
 /// [idPrefixes], the merged set's item ID prefixes (`itemIdPrefixesOf`).
+///
+/// A mention on a 1-based file line of [skipLines] is no candidate.
 List<CiteCandidate> citeCandidatesOf(
   String lfText, {
   required Set<String> idPrefixes,
+  Set<int> skipLines = const {},
 }) => [
-  for (final form in citeFormsOf(lfText, idPrefixes: idPrefixes))
+  for (final form in citeFormsOf(
+    lfText,
+    idPrefixes: idPrefixes,
+    skipLines: skipLines,
+  ))
     form.candidate,
 ];
 
+/// Returns the file lines of the test rows of [lines], the matrix lines of a
+/// record: the lines whose code span holds a test literal, no cite candidate.
+///
+/// A skip row and a line that is no row stay out: their text can cite.
+Set<int> testRowLinesOf(List<MatrixLine> lines) => {
+  for (final line in lines)
+    if (line is TestRow) line.line,
+};
+
 /// Returns the cite candidates of [lfText] as [citeCandidatesOf] reads them,
 /// each with its place on its line.
-List<CiteForm> citeFormsOf(String lfText, {required Set<String> idPrefixes}) {
+List<CiteForm> citeFormsOf(
+  String lfText, {
+  required Set<String> idPrefixes,
+  Set<int> skipLines = const {},
+}) {
   final mentions = nameMentionsInFile(lfText, markdownExtension);
   if (mentions.isEmpty) return const [];
   final body = Doc.parse(lfText).afterFrontmatter;
@@ -76,6 +98,7 @@ List<CiteForm> citeFormsOf(String lfText, {required Set<String> idPrefixes}) {
   final ranges = _linkRangesOf(body, firstLine);
   final kept = <_Kept>[];
   for (final mention in mentions) {
+    if (skipLines.contains(mention.line)) continue;
     final offset = lines.offsetOf(mention.line - firstLine, mention.column);
     if (offset == null || ranges.covers(offset)) continue;
     final line = lines.lineOf(mention.line - firstLine);

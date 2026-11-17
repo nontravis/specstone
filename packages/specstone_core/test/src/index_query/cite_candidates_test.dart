@@ -1,6 +1,13 @@
+import 'dart:convert';
+
+import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
+import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
+import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
+import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
 
@@ -23,6 +30,48 @@ List<(int, String, String?, String)> _readAll(String lf) => [
 
 /// A doc whose body starts at file line 6, after a 3-line frontmatter.
 String _doc(String body) => '---\nstatus: planned\n---\n\n# T\n$body';
+
+const _recordPath = 'specs/f01_feedback/IMPLEMENTATION.md';
+
+/// A record doc type with no matrix section.
+const MergedDocType _plainRecordType = MergedDocType(
+  id: 'implementation',
+  path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
+  isPerTarget: false,
+  fields: [
+    MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
+  ],
+  sections: [],
+  lint: MergedLint(),
+  files: [],
+);
+
+/// [_plainRecordType] with the matrix section a record doc type may carry.
+final MergedDocType _matrixRecordType = _plainRecordType.copyWith(
+  sections: const [
+    MergedSection(
+      id: verificationMatrixKey,
+      header: 'Verification matrix',
+      isOutputRef: true,
+    ),
+  ],
+);
+
+/// A record text whose matrix section holds [rows], the first on file line 5.
+String _matrixRecord(String rows) =>
+    '# Feedback implementation\n\n## Verification matrix\n\n$rows';
+
+/// Parses the record [lf] as a doc of [type].
+ParsedDoc _record(String lf, {MergedDocType? type}) => parseIndexedDoc(
+  docPath: _recordPath,
+  bytes: utf8.encode(lf),
+  match: DocTypeMatcher(
+    MergedSet(docTypes: [type ?? _matrixRecordType]),
+    targetNames: const [],
+  ).match(_recordPath),
+  statusesOutside: true,
+  idPrefixes: _idPrefixes,
+);
 
 void main() {
   group('citeCandidatesOf', () {
@@ -192,6 +241,67 @@ void main() {
     test('a doc without a backtick or a .md '
         'path gives none', () {
       expect(_readAll('# T\n\nPlain text, INV-1.\n'), isEmpty);
+    });
+
+    test('a line in skipLines gives no candidate, any other line does', () {
+      final lf = _doc('`domain:login`\n`topic:doc_model`\n`feature:login`\n');
+      final read = citeCandidatesOf(
+        lf,
+        idPrefixes: _idPrefixes,
+        skipLines: const {6, 8},
+      );
+      expect([for (final c in read) c.written], ['topic:doc_model']);
+    });
+  });
+
+  group('a record matrix', () {
+    /// The candidates `check` reads from the record [lf]: the ones the index
+    /// stores for its doc.
+    List<(int, String)> candidatesOf(String lf) => [
+      for (final c in _record(lf).content.lineFacts.citeCandidates)
+        (c.line, c.written),
+    ];
+
+    test("a test row's span in the record matrix is no cite candidate", () {
+      final read = candidatesOf(
+        _matrixRecord(
+          '- show_toast E01: `login/email_login`\n'
+          '- show_toast E02: `domain:login`\n',
+        ),
+      );
+      expect(read, isEmpty);
+    });
+
+    test('a span outside the matrix, a skip row, and a line that is no row '
+        'still give their candidates', () {
+      final read = candidatesOf(
+        _matrixRecord(
+          '- show_toast E01: `domain:login`\n'
+          '- show_toast E02 skipped: it needs `topic:doc_model`\n'
+          '- see `feature:login` here\n'
+          '\n'
+          '## Notes\n'
+          '\n'
+          'See `domain:login`.\n',
+        ),
+      );
+      expect(read, [
+        (6, 'topic:doc_model'),
+        (7, 'feature:login'),
+        (11, 'domain:login'),
+      ]);
+    });
+
+    test('a doc type without a matrix section keeps the span of a row-shaped '
+        'line', () {
+      final read = [
+        for (final c in _record(
+          _matrixRecord('- show_toast E01: `domain:login`\n'),
+          type: _plainRecordType,
+        ).content.lineFacts.citeCandidates)
+          (c.line, c.written),
+      ];
+      expect(read, [(5, 'domain:login')]);
     });
   });
 }
