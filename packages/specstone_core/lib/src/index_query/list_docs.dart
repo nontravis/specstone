@@ -4,6 +4,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
+const _summaryKey = 'summary';
+
 /// The filters `specstone list` applies; a doc must pass every one given.
 final class ListFilters {
   const new({
@@ -41,6 +43,9 @@ final class ListFilters {
 
 /// Returns the docs of [docTypeId] that pass [filters], in tree order.
 ///
+/// A doc holding a string `summary` ends its line with ` — <summary>` and
+/// carries a `summary` key in JSON.
+///
 /// Throws a [TemplateFault] for a doc type id the set lacks, an
 /// `IndexFault` `argument_missing` when [ListFilters.status] or
 /// [ListFilters.noImplements] judges two or more code targets at once, and
@@ -69,17 +74,29 @@ ReadAnswer answerList(DocIndex index, String docTypeId, ListFilters filters) {
         doc,
   ];
   return ReadAnswer(
-    text: [
-      for (final doc in docs)
-        '${docLineWithStatus(doc, statusPartOf(index, doc, codeTarget))}\n',
-    ].join(),
+    text: [for (final doc in docs) _listLine(index, doc, codeTarget)].join(),
     json: {
-      'docs': [
-        for (final doc in docs) docJsonWithStatuses(index, doc, codeTarget),
-      ],
+      'docs': [for (final doc in docs) _listJson(index, doc, codeTarget)],
     },
   );
 }
+
+/// Returns [doc]'s `structure` line, ` — <summary>` and a line end after it.
+String _listLine(DocIndex index, IndexedDoc doc, String? codeTarget) {
+  final line = docLineWithStatus(doc, statusPartOf(index, doc, codeTarget));
+  final summary = doc.stringValueOf(_summaryKey);
+  return summary == null ? '$line\n' : '$line — $summary\n';
+}
+
+/// Returns [doc]'s JSON object with a `summary` key when it holds a string.
+Map<String, Object> _listJson(
+  DocIndex index,
+  IndexedDoc doc,
+  String? codeTarget,
+) => {
+  ...docJsonWithStatuses(index, doc, codeTarget),
+  'summary': ?doc.stringValueOf(_summaryKey),
+};
 
 /// Throws `argument_missing` when a per-target filter would judge two or
 /// more code targets at once with no target picked.

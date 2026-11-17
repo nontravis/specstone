@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/shipped_pins.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -50,6 +51,47 @@ void main() {
       'docs',
       'warnings',
     ]);
+  });
+  group('through the built CLI', () {
+    late String binary;
+    setUpAll(() async => binary = await buildSpecstone());
+
+    Future<ProcessResult> listFeature(List<String> extraArgs) async {
+      final root = await writeReadProject(
+        extra: {
+          'docs/prds/features/f01_login/FEATURE.md':
+              '---\nsummary: Grounds a task in one call.\n---\n\n# Login\n',
+        },
+      );
+      return Process.run(binary, [
+        'list',
+        'feature',
+        ...extraArgs,
+      ], workingDirectory: root.path);
+    }
+
+    test('f01/us03/s5, f01/us03/fr01/e07: list ends a feature line with its summary', () async {
+      final result = await listFeature([]);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        (result.stdout as String).trimRight(),
+        allOf(
+          startsWith('login (feature) — Login · '),
+          endsWith(' — Grounds a task in one call.'),
+        ),
+      );
+    });
+
+    test('f01/us03/fr01/e09: --json gives the summary key', () async {
+      final result = await listFeature(['--json']);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final docs =
+          (jsonDecode(result.stdout as String) as Map)['docs']! as List;
+      expect(
+        docs.single,
+        containsPair('summary', 'Grounds a task in one call.'),
+      );
+    });
   });
   test('f01/us03/fr01/e04: no doc type is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());

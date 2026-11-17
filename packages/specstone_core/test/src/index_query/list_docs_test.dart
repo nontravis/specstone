@@ -25,6 +25,66 @@ void main() {
       docLine(index, index.at('prds/features/f01_login/FEATURE.md')!),
     );
   });
+  group('summary', () {
+    const loginFeature = 'docs/prds/features/f01_login/FEATURE.md';
+
+    Future<DocIndex> withSummaries(String loginValue) => indexWith({
+      loginFeature: '---\nsummary: $loginValue\n---\n\n# Login\n',
+    });
+
+    test('list appends the summary of a feature that holds one', () async {
+      final answer = answerList(
+        await withSummaries('Grounds a task in one call.'),
+        'feature',
+        const ListFilters(),
+      );
+      final lines = answer.text.trimRight().split('\n');
+      expect(lines.first, endsWith(' — Grounds a task in one call.'));
+      expect(lines.first, contains(' · '));
+    });
+
+    test(
+      'list keeps the structure line of a feature with no summary',
+      () async {
+        final answer = answerList(index, 'feature', const ListFilters());
+        expect(
+          answer.text.split('\n').first,
+          docLine(index, index.at('prds/features/f01_login/FEATURE.md')!),
+        );
+      },
+    );
+
+    test('structure prints no summary', () async {
+      final withSummary = await withSummaries('Grounds a task in one call.');
+      final doc = withSummary.at('prds/features/f01_login/FEATURE.md')!;
+      expect(docLine(withSummary, doc), isNot(contains('Grounds a task')));
+    });
+
+    test('json adds a summary key to the doc that holds one alone', () async {
+      final answer = answerList(
+        await withSummaries('Grounds a task in one call.'),
+        'feature',
+        const ListFilters(),
+      );
+      final docs = (answer.json['docs']! as List).cast<Map<String, Object?>>();
+      expect(
+        docs.first,
+        containsPair('summary', 'Grounds a task in one call.'),
+      );
+      expect(docs.last.containsKey('summary'), isFalse);
+    });
+
+    test('a number summary adds no suffix and no json key', () async {
+      final numbered = await withSummaries('42');
+      final answer = answerList(numbered, 'feature', const ListFilters());
+      expect(
+        answer.text.split('\n').first,
+        docLine(numbered, numbered.at('prds/features/f01_login/FEATURE.md')!),
+      );
+      final docs = (answer.json['docs']! as List).cast<Map<String, Object?>>();
+      expect(docs.first.containsKey('summary'), isFalse);
+    });
+  });
   test('f01/us03/s2, f01/us03/fr02/e01: --under a story keeps only its FRs; --under a feature its stories', () async {
     expect(
       names(
