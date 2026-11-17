@@ -1,3 +1,5 @@
+import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart';
 import 'package:test/test.dart';
@@ -6,18 +8,18 @@ bool everything(String path) => true;
 
 void main() {
   const reorderMoves = <PathMove>[
-    (
+    PathMove(
       from: 'prds/features/f01_login/us02_sign_out/',
       to: 'prds/features/f01_login/us03_sign_out/',
     ),
-    (
+    PathMove(
       from: 'prds/features/f01_login/us03_reset_password/',
       to: 'prds/features/f01_login/us01_reset_password/',
     ),
   ];
   const story1 = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
 
-  ({String lfText, int count})? rewrite(
+  CountedRewrite? rewrite(
     String text, {
     String docPath = story1,
     List<PathMove> moves = reorderMoves,
@@ -43,14 +45,14 @@ void main() {
   test(
     'a link to the project root keeps its text through a change of depth',
     () {
-      const moves = <PathMove>[(from: 'a/b.md', to: 'x/y/z/b.md')];
+      const moves = <PathMove>[PathMove(from: 'a/b.md', to: 'x/y/z/b.md')];
       expect(movedRelativePath('../..', 'a/b.md', moves), '../../../..');
     },
   );
 
   test('f02/us05/fr02/e10, M1: a link out of the docs root and back in by '
       'name follows the moved file', () {
-    const moves = <PathMove>[(from: 'prds/x.md', to: 'prds/y.md')];
+    const moves = <PathMove>[PathMove(from: 'prds/x.md', to: 'prds/y.md')];
     expect(
       movedRelativePath('../../../docs/prds/x.md', 'prds/f/a.md', moves),
       '../y.md',
@@ -64,7 +66,9 @@ void main() {
         rewrite(
           'See $mention now\n',
           docPath: 'prds/f/us01/a.md',
-          moves: [(from: 'prds/f/us01/a.md', to: 'prds/g/h/a.md')],
+          moves: [
+            const PathMove(from: 'prds/f/us01/a.md', to: 'prds/g/h/a.md'),
+          ],
         ),
         isNull,
         reason: mention,
@@ -151,7 +155,7 @@ void main() {
       rewrite(
         '...\n../..\n',
         docPath: story1,
-        moves: [(from: story1, to: 'prds/other/USER_STORY.md')],
+        moves: [const PathMove(from: story1, to: 'prds/other/USER_STORY.md')],
       ),
       isNull,
     );
@@ -161,7 +165,7 @@ void main() {
     final result = rewrite(
       'See ../z.md and `FEATURE.md`.\n',
       docPath: 'a/b/x.md',
-      moves: [(from: 'a/b/', to: 'a/b/c/')],
+      moves: [const PathMove(from: 'a/b/', to: 'a/b/c/')],
     );
 
     expect(result?.lfText, 'See ../../z.md and `FEATURE.md`.\n');
@@ -172,7 +176,7 @@ void main() {
     final result = rewrite(
       'Read x.md first.\n',
       docPath: 'a/y.md',
-      moves: [(from: 'a/x.md', to: 'a/z.md')],
+      moves: [const PathMove(from: 'a/x.md', to: 'a/z.md')],
     );
 
     expect(result?.lfText, 'Read z.md first.\n');
@@ -270,7 +274,7 @@ void main() {
   test(
     'f02/us05/fr02/e11, review 1: a plain word equal to a sibling name stays',
     () {
-      const moves = <PathMove>[(from: 'a/b/x.md', to: 'a/y/x.md')];
+      const moves = <PathMove>[PathMove(from: 'a/b/x.md', to: 'a/y/x.md')];
 
       expect(
         rewrite(
@@ -288,7 +292,7 @@ void main() {
     final result = rewrite(
       'See reports/ and archive.md\n',
       docPath: 'a/b/x.md',
-      moves: [(from: 'a/b/x.md', to: 'a/y/x.md')],
+      moves: [const PathMove(from: 'a/b/x.md', to: 'a/y/x.md')],
     );
 
     expect(result?.lfText, 'See ../b/reports/ and ../b/archive.md\n');
@@ -311,7 +315,7 @@ void main() {
     final result = rewrite(
       'See ./b.md and ./c.md\n',
       docPath: 'a/x.md',
-      moves: [(from: 'a/b.md', to: 'a/d.md')],
+      moves: [const PathMove(from: 'a/b.md', to: 'a/d.md')],
     );
 
     expect(result?.lfText, 'See ./d.md and ./c.md\n');
@@ -321,7 +325,7 @@ void main() {
     final result = rewrite(
       'See ./b.md\n',
       docPath: 'a/x.md',
-      moves: [(from: 'a/b.md', to: 'c/b.md')],
+      moves: [const PathMove(from: 'a/b.md', to: 'c/b.md')],
     );
 
     expect(result?.lfText, 'See ../c/b.md\n');

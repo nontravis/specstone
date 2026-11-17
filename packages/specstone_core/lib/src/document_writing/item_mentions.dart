@@ -14,12 +14,11 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/body_scan.dart';
 import 'package:specstone_core/src/document_writing/item_moves.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart'
     show ItemLanding;
 import 'package:specstone_core/src/document_writing/rewrite_item_refs.dart'
     show ItemRefs, ListedRef, planItemRefs;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show TextEdit;
 import 'package:specstone_core/src/document_writing/scenario_items.dart'
     show scenarioKeyOfId;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'

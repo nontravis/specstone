@@ -10,12 +10,11 @@ import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show statusesOutsideApproval, withApprovalHash;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show MentionScope, StaleMention, staleMentionsIn;
 import 'package:specstone_core/src/index_query/index_store.dart'
@@ -1013,7 +1012,7 @@ Map<String, String> _featureFrsOf(
   final placedAt = {for (final move in placed.moves) move.to};
   final moves = [
     for (final move in placed.moves)
-      (from: move.from, to: landing[move.to] ?? move.to),
+      PathMove(from: move.from, to: landing[move.to] ?? move.to),
     for (final move in treeMoves)
       if (!placedAt.contains(move.from)) move,
   ];

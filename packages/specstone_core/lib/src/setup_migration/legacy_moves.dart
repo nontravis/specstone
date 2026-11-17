@@ -1,7 +1,6 @@
 import 'dart:math';
 
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
 import 'package:specstone_core/src/setup_migration/upgrade_plan.dart'
@@ -139,7 +138,7 @@ LegacyMoves planLegacyMoves(
   final moves = [
     for (final path in sorted)
       if (placed[path] case final placement? when placement.to != path)
-        (from: path, to: placement.to),
+        PathMove(from: path, to: placement.to),
   ];
   refuseCollisions(sorted, moves);
 

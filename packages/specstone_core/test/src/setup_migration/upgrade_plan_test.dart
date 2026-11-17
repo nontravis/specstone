@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart'
     show projectPathOfDocPath;
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, withApprovalHash;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show CommitStep, CreateStep, MoveStep;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
@@ -453,7 +454,7 @@ sections:
     );
 
     expect(plan.moves, [
-      (
+      const PathMove(
         from: 'prds/runbooks/deploy/RUNBOOK.md',
         to: 'ops/runbooks/deploy/RUNBOOK.md',
       ),
@@ -962,7 +963,7 @@ sections:
     );
 
     expect(plan.moves, [
-      (
+      const PathMove(
         from: 'prds/runbooks/deploy/RUNBOOK.md',
         to: 'ops/runbooks/deploy/RUNBOOK.md',
       ),
@@ -3558,12 +3559,15 @@ void _treeMoveTests() {
       );
 
       expect(plan.moves, [
-        (from: 'specs/TECH_STACK.md', to: 'specs/flutter/TECH_STACK.md'),
-        (
+        const PathMove(
+          from: 'specs/TECH_STACK.md',
+          to: 'specs/flutter/TECH_STACK.md',
+        ),
+        const PathMove(
           from: 'specs/f02_feedback/ARCHITECTURE.md',
           to: 'specs/flutter/f02_feedback/ARCHITECTURE.md',
         ),
-        (
+        const PathMove(
           from: 'specs/topics/doc_model.md',
           to: 'specs/flutter/topics/doc_model.md',
         ),
@@ -3596,7 +3600,10 @@ void _treeMoveTests() {
       );
 
       expect(plan.moves, [
-        (from: 'specs/TECH_STACK.md', to: 'specs/flutter/TECH_STACK.md'),
+        const PathMove(
+          from: 'specs/TECH_STACK.md',
+          to: 'specs/flutter/TECH_STACK.md',
+        ),
       ]);
       expect(plan.agentFiles!.topWrites.map((write) => write.path), [
         'flutter_ws/packages/sub/AGENTS.md',
@@ -3618,7 +3625,7 @@ void _treeMoveTests() {
       );
 
       expect(plan.moves, [
-        (
+        const PathMove(
           from: 'specs/payments/f01_checkout/ARCHITECTURE.md',
           to: 'specs/flutter/payments/f01_checkout/ARCHITECTURE.md',
         ),
@@ -3687,7 +3694,7 @@ void _treeMoveTests() {
       );
 
       expect(plan.moves, [
-        (
+        const PathMove(
           from: 'specs/f02_feedback/DOMAIN.md',
           to: 'specs/flutter/f02_feedback/DOMAIN.md',
         ),
@@ -3827,7 +3834,7 @@ sections:
       );
 
       expect(plan.moves, [
-        (
+        const PathMove(
           from: 'prds/runbooks/deploy/RUNBOOK.md',
           to: 'ops/flutter/runbooks/deploy/RUNBOOK.md',
         ),
@@ -3854,7 +3861,7 @@ sections:
         final plan = _planAt(await project());
 
         expect(plan.moves, [
-          (
+          const PathMove(
             from: architecturePath,
             to: 'specs/flutter/f01_login/ARCHITECTURE.md',
           ),

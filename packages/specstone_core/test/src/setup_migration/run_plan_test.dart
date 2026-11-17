@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
 import 'package:specstone_core/src/plan_hash.dart';
 import 'package:specstone_core/src/setup_migration/agent_targets.dart';
 import 'package:specstone_core/src/setup_migration/run_plan.dart';
@@ -19,8 +18,8 @@ const _notes = 'prds/runbooks/deploy/NOTES.md';
 
 /// Two docs trading places: each target is the other's source.
 const _cycle = <PathMove>[
-  (from: _runbook, to: _notes),
-  (from: _notes, to: _runbook),
+  PathMove(from: _runbook, to: _notes),
+  PathMove(from: _notes, to: _runbook),
 ];
 
 RunPlan _planOf(List<PathMove> moves) => RunPlan(
@@ -140,9 +139,9 @@ void main() {
 
   test('f06/us02/fr02/e08, F6-D34: a three-doc cycle parks one doc', () {
     final plan = _planOf(const [
-      (from: 'c.md', to: 'a.md'),
-      (from: 'b.md', to: 'c.md'),
-      (from: 'a.md', to: 'b.md'),
+      PathMove(from: 'c.md', to: 'a.md'),
+      PathMove(from: 'b.md', to: 'c.md'),
+      PathMove(from: 'a.md', to: 'b.md'),
     ]);
 
     expect(_moveLines(plan), [
@@ -156,8 +155,8 @@ void main() {
   test('moves ordered so each target is free run straight, '
       'with no stage', () {
     final plan = _planOf(const [
-      (from: 'b.md', to: 'c.md'),
-      (from: 'a.md', to: 'b.md'),
+      PathMove(from: 'b.md', to: 'c.md'),
+      PathMove(from: 'a.md', to: 'b.md'),
     ]);
 
     expect(_moveLines(plan), [
@@ -198,8 +197,8 @@ void main() {
         .toList();
 
     expect(commits.first.moves, [
-      (from: 'docs/$_runbook', to: 'docs/$_notes'),
-      (from: 'docs/$_notes', to: 'docs/$_runbook'),
+      const PathMove(from: 'docs/$_runbook', to: 'docs/$_notes'),
+      const PathMove(from: 'docs/$_notes', to: 'docs/$_runbook'),
     ]);
     expect(commits.last.moves, isEmpty);
   });

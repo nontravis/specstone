@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/document_writing/models/record_edit.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     show readRecord;
@@ -9,15 +10,6 @@ import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-/// A record that loses or changes entries: its DocPath, its bytes as read, the
-/// items whose entries change, and its text after the change.
-typedef RecordEdit = ({
-  String docPath,
-  List<int> bytes,
-  List<String> entries,
-  String lfText,
-});
 
 /// Returns an edit for each record outside [inUnit], the DocPaths of the
 /// unit's files, that holds an entry of a story or FR of the unit, sorted by
@@ -83,7 +75,7 @@ RecordEdit? recordEditOf(
   );
   if (lfText == null) return null;
   session.requireWritable(docPath);
-  return (
+  return RecordEdit(
     docPath: docPath,
     bytes: bytes,
     entries: changed.toList(),
