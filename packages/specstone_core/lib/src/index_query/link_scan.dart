@@ -9,6 +9,7 @@ import 'package:markdown/markdown.dart'
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
+import 'package:specstone_core/src/index_query/models/written_destination.dart';
 
 /// A source of an `a` or `img` element markdown makes: the body offsets of its
 /// first character and after its last, its file line, and, for an inline or

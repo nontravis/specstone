@@ -27,6 +27,7 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
         tableColumnCount,
         tableHeadCells;
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
+import 'package:specstone_core/src/index_query/models/written_destination.dart';
 
 /// The inline text of a body and the definitions its links resolve against.
 ///
@@ -43,10 +44,6 @@ typedef LeafText = ({
   List<({int start, int end})> definitionLabels,
   List<({int start, int end})> definitionDestinations,
 });
-
-/// A link destination as written, angle brackets dropped, and whether angle
-/// brackets enclose it.
-typedef WrittenDestination = ({String shown, bool angle});
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
 // upgrade that changes one changes the scan with it.
@@ -914,7 +911,7 @@ final class _BlockPass {
     if (next <= first) return null;
     definitions.putIfAbsent(
       linkLabel(label),
-      () => (shown: destination, angle: angle),
+      () => WrittenDestination(shown: destination, angle: angle),
     );
     _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
     _sink.definitionDestinations.add(
