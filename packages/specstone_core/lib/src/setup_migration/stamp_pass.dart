@@ -1,5 +1,7 @@
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
+import 'package:specstone_core/src/doc_model/doc_splice.dart'
+    show isFingerprint;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/setup_migration/renumber_doc.dart';
 import 'package:specstone_core/src/setup_migration/renumber_entries.dart'
