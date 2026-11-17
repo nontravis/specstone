@@ -29,8 +29,9 @@ Walk each lens, a bold-labeled bullet, over every decision step 1.2 kept, in lis
 - **Two builders:** a decision two builders would build differently.
 - **Design contradicts:** a decision that contradicts another decision, an Owner answer the design records, a
   constraint, or an owner item.
-- For each gap any lens finds, search the saved files for its siblings as the last bullet of `audit.md`'s compare
-  step does. Each sibling is its own `D<n>:` line.
+- For each gap any lens finds, search the saved files for its wording and the rule or term it breaks, as the last
+  bullet of `audit.md`'s compare step does. Each hit in another doc or section is a sibling: its own `D<n>:` line
+  under `Findings:`, never under `Outside the drafts:`.
 
 ## 3. Report
 
