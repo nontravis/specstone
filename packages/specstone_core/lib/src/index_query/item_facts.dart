@@ -358,8 +358,9 @@ int _visibleCharsOf(SectionItem item, HiddenText hidden) {
 
 /// Returns the sentences and trace notes of [item].
 ///
-/// Its leading ID [read] and its closing trace notes count in no sentence; a
-/// table row is cut into its cells first, so each cell's end ends a sentence.
+/// Its leading ID [read], the `> <lang>:` marker of a quote line, and its
+/// closing trace notes count in no sentence; a table row is cut into its cells
+/// first, so each cell's end ends a sentence.
 ReadabilityFacts _readabilityOf(
   SectionItem item,
   _ItemIdRead? read,
@@ -373,7 +374,13 @@ ReadabilityFacts _readabilityOf(
   return (
     cells: isRow
         ? _rowCells(counted, id)
-        : [_sentencesIn(_withoutIdAt(counted, _idStartOf(own, item.head), id))],
+        : [
+            _sentencesIn(
+              _withoutLanguageMarkers(
+                _withoutIdAt(counted, _idStartOf(own, item.head), id),
+              ),
+            ),
+          ],
     notes: [
       for (final note in notes)
         (text: note.closes ? '' : note.text, closes: note.closes),
@@ -417,6 +424,29 @@ String _withoutIdAt(String counted, int start, String? id) {
 }
 
 const _boldMark = '**';
+
+/// The `<lang>:` a quote line opens with, after its `>` marks.
+final _languageMarker = RegExp(r'^([ \t]*(?:>[ \t]?)+)[a-z]{2}:[ \t]*');
+
+/// Returns [text] without the language marker its quote lines open with, the
+/// `>` marks kept.
+///
+/// A marker leads when its line is the first quote line or sits right under a
+/// line that carried one; a later `<xx>:` is text.
+String _withoutLanguageMarkers(String text) {
+  var seenQuote = false;
+  var previousMarked = false;
+  final lines = <String>[];
+  for (final line in text.split('\n')) {
+    final marker = _languageMarker.firstMatch(line);
+    final isQuote = line.trimLeft().startsWith('>');
+    final leads = marker != null && (!seenQuote || previousMarked);
+    lines.add(leads ? line.replaceFirst(_languageMarker, marker[1]!) : line);
+    previousMarked = leads;
+    seenQuote = seenQuote || isQuote;
+  }
+  return lines.join('\n');
+}
 
 List<SentenceFact> _sentencesIn(String text) => [
   for (final sentence in checkSentencesOf(text))

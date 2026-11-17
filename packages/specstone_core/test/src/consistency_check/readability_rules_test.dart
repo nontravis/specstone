@@ -212,6 +212,27 @@ void main() {
     );
   });
 
+  test('en marker line of 25 words passes and 26 words fails', () async {
+    String vision(int count) =>
+        '### PV-01 — One sign-in\n\n> en: ${_sentenceOf(count)}';
+    final project = doc(
+      projectDoc,
+      '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
+      vision(25),
+    );
+    expect(await _found(project), isEmpty);
+
+    final found = await _found(
+      doc(
+        projectDoc,
+        '### PV-01 — One sign-in\n\n> en: One sign-in for every app.',
+        vision(26),
+      ),
+    );
+    expect(found, hasLength(1));
+    expect(found.single.toJson(), containsPair('actual', 26));
+  });
+
   test('two languages give two findings', () async {
     final found = await _found(_edgeCase('${'ก' * 110}. ${_sentenceOf(26)}'));
     expect(
