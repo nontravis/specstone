@@ -44,7 +44,13 @@ export 'package:specstone_core/src/document_writing/moved_paths.dart'
 typedef RenamedDocs = Map<String, TypedName>;
 
 /// One replacement in a text: the units from `start` up to `end` take `text`.
-typedef _TextEdit = ({int start, int end, String text});
+final class _TextEdit {
+  const new({required this.start, required this.end, required this.text});
+
+  final int start;
+  final int end;
+  final String text;
+}
 
 const _backslash = 0x5C;
 const _openParen = 0x28;
@@ -168,7 +174,7 @@ List<_TextEdit> _pathEdits(
   return [
     for (final (:start, :end, :href, :kind) in destinations)
       if (newPathOf(href) case final newPath?)
-        (
+        _TextEdit(
           start: start,
           end: end,
           text: _withPath(
@@ -255,7 +261,7 @@ _TextEdit? _namedLinkText(
   }
   if (name == null) return null;
   final prefix = typeId == null ? '' : '$typeId:';
-  return (start: start, end: textEnd, text: '$prefix$name');
+  return _TextEdit(start: start, end: textEnd, text: '$prefix$name');
 }
 
 /// Whether [source], whose text ends at [textEnd], is an inline or full

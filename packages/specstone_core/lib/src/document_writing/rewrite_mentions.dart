@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show nameMentionsInFile;
 import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
@@ -55,7 +56,7 @@ CountedRewrite? rewritePathMentions(
   var lineStart = 0;
   for (final (i, line) in lines.indexed) {
     if (!fenced[i]) {
-      for (final (:start, :end) in _tokensOf(line)) {
+      for (final TextRange(:start, :end) in _tokensOf(line)) {
         final edit = _editFor(
           line.substring(start, end),
           docPath,
@@ -97,7 +98,7 @@ List<bool> _destinationMask(String body) {
 }
 
 /// Returns the runs of [line] that no path-break character splits.
-Iterable<({int start, int end})> _tokensOf(String line) sync* {
+Iterable<TextRange> _tokensOf(String line) sync* {
   var i = 0;
   while (i < line.length) {
     if (pathBreak.hasMatch(line[i])) {
@@ -108,13 +109,21 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
     while (i < line.length && !pathBreak.hasMatch(line[i])) {
       i++;
     }
-    yield (start: start, end: i);
+    yield TextRange(start: start, end: i);
   }
+}
+
+/// A path mention as written and the text that replaces it.
+final class _PathEdit {
+  const new({required this.path, required this.text});
+
+  final String path;
+  final String text;
 }
 
 /// Returns the written path of [token] and the text that replaces it, or
 /// null when [token] is no mention that changes.
-({String path, String text})? _editFor(
+_PathEdit? _editFor(
   String token,
   String docPath,
   List<PathMove> moves,
@@ -131,7 +140,7 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
     return null;
   }
   final text = path.endsWith('/') ? '$after/' : after;
-  return text == path ? null : (path: path, text: text);
+  return text == path ? null : _PathEdit(path: path, text: text);
 }
 
 /// Returns the path part of [token], or null when it holds none a prose
