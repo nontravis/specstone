@@ -14,7 +14,6 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
-import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart'
     show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -139,7 +138,7 @@ _Removal? _removalIn(
   ];
   if (fields.isEmpty) return null;
   final read = readLocked(session, doc, MatchedDocType(docType));
-  final held = toLf(read.parsed.content.text);
+  final held = read.lfText;
   final blocks = <String, KeyBlock>{};
   for (final block in Doc.parse(held).frontmatter ?? const <KeyBlock>[]) {
     blocks.putIfAbsent(block.name, () => block);

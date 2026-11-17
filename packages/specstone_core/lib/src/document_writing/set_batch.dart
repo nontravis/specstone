@@ -7,6 +7,7 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
+import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -18,7 +19,6 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
-import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The `key` a whole-doc block carries in its result and its fault line.
@@ -285,19 +285,6 @@ void _refuseOverlaps(List<_Planned> resolved, List<_Refusal> refusals) {
 
 // MARK: - Checking
 
-/// A doc as it stands on disk under the lock.
-final class _Disk {
-  new(this.bytes, this.parsed) : lfText = toLf(parsed.content.text);
-
-  final List<int> bytes;
-  final ParsedDoc parsed;
-
-  /// The doc's text with LF line ends and no BOM.
-  final String lfText;
-
-  List<IndexedSection> get sections => parsed.content.sections;
-}
-
 /// What one block's check found: its doc as spliced and laid out, whether it
 /// marks the doc a draft, and whether that differs from the doc on disk.
 typedef _Checked = ({String lfText, bool marksDraft, bool isChanged});
@@ -307,7 +294,7 @@ final class _DocCheck {
   const new(this.blocks, this.disk, this.results);
 
   final List<_Planned> blocks;
-  final _Disk disk;
+  final LockedDoc disk;
   final Map<_Planned, _Checked> results;
 
   IndexedDoc get doc => blocks.first.doc;
@@ -342,7 +329,7 @@ Map<String, _DocCheck> _checkDocs(
 
 /// Reads the doc of [blocks] as it is now; null, with a refusal per block,
 /// when its file is gone.
-_Disk? _readDisk(
+LockedDoc? _readDisk(
   WriteSession session,
   List<_Planned> blocks,
   List<_Refusal> refusals,
@@ -350,8 +337,7 @@ _Disk? _readDisk(
   final first = blocks.first;
   final IndexFault gone;
   try {
-    final read = readLocked(session, first.doc, MatchedDocType(first.docType));
-    return _Disk(read.bytes, read.parsed);
+    return readLocked(session, first.doc, MatchedDocType(first.docType));
   } on IndexFault catch (fault) {
     if (fault.code != IndexFaultCode.docNotFound) rethrow;
     gone = fault;
@@ -371,7 +357,7 @@ _Disk? _readDisk(
 Map<_Planned, _Checked> _checkBlocks(
   WriteSession session,
   List<_Planned> blocks,
-  _Disk disk,
+  LockedDoc disk,
   List<_Refusal> refusals,
 ) {
   final docType = session.docTypeAt(blocks.first.doc.docPath);
@@ -410,7 +396,7 @@ Map<_Planned, _Checked> _checkBlocks(
 
 /// Whether [block] names a section or the lead with the base and the text
 /// `get` prints for it now.
-bool _isUneditedPart(_Planned block, _Disk disk) {
+bool _isUneditedPart(_Planned block, LockedDoc disk) {
   if (block.target is! SectionTarget && block.target is! LeadTarget) {
     return false;
   }
@@ -425,7 +411,7 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
       printed.text == block.block.text;
 }
 
-({String lfText, bool marksDraft}) _splice(_Planned block, _Disk disk) =>
+({String lfText, bool marksDraft}) _splice(_Planned block, LockedDoc disk) =>
     switch (block.target) {
       null => _spliceWholeDoc(block, disk),
       final target => splicePart(
@@ -447,7 +433,10 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
 /// The block's base is `bases.doc`, the hash of the doc's LF text. Each field
 /// block it adds, changes, or removes takes [checkFieldWrite]; each section it
 /// removes takes the removal of a single `set`, which refuses a required one.
-({String lfText, bool marksDraft}) _spliceWholeDoc(_Planned block, _Disk disk) {
+({String lfText, bool marksDraft}) _spliceWholeDoc(
+  _Planned block,
+  LockedDoc disk,
+) {
   final currentBase = baseHashOf(disk.lfText);
   if (currentBase != block.base) {
     throw _staleDoc(block.doc, block.base, currentBase, disk.lfText);
@@ -543,7 +532,7 @@ Map<String, KeyBlock> _fieldBlocks(Doc doc) {
 
 /// Runs the removal of each section of [disk] that [lfText] lacks through
 /// [splicePart], which refuses a required one as a single `set` does.
-void _checkRemovedSections(_Planned block, _Disk disk, String lfText) {
+void _checkRemovedSections(_Planned block, LockedDoc disk, String lfText) {
   final kept = {for (final s in _sectionsOf(block, lfText)) s.key};
   final removed = <String>{};
   for (final section in disk.sections) {

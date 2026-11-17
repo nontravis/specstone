@@ -9,6 +9,7 @@ import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isOutsideApproval;
+import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
 import 'package:specstone_core/src/document_writing/replace_passage.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -217,12 +218,12 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 
   final statusesOutside = session.project.statusesOutsideApproval;
   return session.locked(() {
-    final read = readLocked(session, doc, match).parsed;
+    final locked = readLocked(session, doc, match);
     final part = splicePart(
       doc: doc,
       docType: docType,
-      lfText: toLf(read.content.text),
-      sections: read.content.sections,
+      lfText: locked.lfText,
+      sections: locked.sections,
       target: request.target,
       base: request.base,
       text: text,
@@ -231,7 +232,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
     final written = session.writeDoc(
       doc.docPath,
       part.marksDraft ? markDraft(part.lfText, docType) : part.lfText,
-      LineEnding.of(read.content.text),
+      LineEnding.of(locked.parsed.content.text),
     );
 
     final after = parseIndexedDoc(
@@ -881,17 +882,12 @@ void _refuseHeaderLine(String body) {
 /// when [lf] is blank.
 String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
 
-/// Reads [doc] from disk as it is now, not as the session's index saw it, and
-/// returns its bytes and what they parse to.
+/// Reads [doc] from disk as it is now, not as the session's index saw it.
 ///
 /// Call it under the write lock. Throws [IndexFault] `doc_not_found` when the
 /// file is gone, and `RenderFault` `output_not_writable` for one that cannot be
 /// read or is not UTF-8.
-({List<int> bytes, ParsedDoc parsed}) readLocked(
-  WriteSession session,
-  IndexedDoc doc,
-  DocTypeMatch match,
-) {
+LockedDoc readLocked(WriteSession session, IndexedDoc doc, DocTypeMatch match) {
   final bytes = session.readDocBytes(doc.docPath);
   if (bytes == null) {
     throw IndexFault(
@@ -905,7 +901,7 @@ String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
     match: match,
     statusesOutside: session.project.statusesOutsideApproval,
   );
-  return (bytes: bytes, parsed: parsed);
+  return LockedDoc(bytes: bytes, parsed: parsed);
 }
 
 /// Returns [lfText] with the template section [key] added before the first
