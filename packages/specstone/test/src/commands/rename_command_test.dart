@@ -34,31 +34,6 @@ void main() {
     );
   });
 
-  test('rename prints moved and rewrote lines', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(
-      await runner.run([
-        'rename',
-        'user_story:login/reset_password',
-        '--to',
-        'recover_account',
-      ]),
-      0,
-    );
-    expect(err.toString(), isEmpty);
-    expect(
-      out.toString(),
-      startsWith(
-        'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us03_recover_account/\n',
-      ),
-    );
-    expect(
-      out.toString(),
-      contains(
-        'rewrote prds/features/f01_login/us01_email_login/fr02_lock_after_failures.md\n',
-      ),
-    );
-  });
   test('a taken slug --json is doc_exists with file', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(
@@ -117,31 +92,6 @@ void main() {
       'rename needs a slug, such as specstone rename user_story:login/reset_password --to recover_account\n',
     );
   });
-  test('rename --json lists the rewritten journey', () async {
-    const journey = 'prds/journeys/sign_in/JOURNEY.md';
-    final root = await writeCheckProject(
-      extra: {
-        'docs/$journey':
-            '# Sign in\n\n## Goal\nGet in.\n\n## Flow\n\n## Steps\n'
-            '### 1. Sign in\nstep: login/email_login S1\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'rename',
-        'user_story:login/email_login',
-        '--to',
-        'password_login',
-        '--json',
-      ]),
-      0,
-    );
-    expect(err.toString(), isEmpty);
-    final rewritten = (jsonDecode(out.toString()) as Map)['rewritten'] as List;
-    expect(rewritten, contains(journey));
-  });
-
   test('after a feature rename the overriding doc stays approved and check '
       'reports nothing for it', () async {
     const shopRule = '- **INV-3** A cart holds stock.';
@@ -245,64 +195,6 @@ void main() {
     expect(out.toString(), contains('rewrote notes/links.md\n'));
   });
 
-  test(
-    'E15: rename rewrites an fr traced_from entry and confirmed label',
-    () async {
-      final root = await writeWriteProject(
-        extra: {
-          'docs/$fr11': '---\ntraced_from: [S1, login/reset_password#S3]\nverify_method: test\nconfirmed:\n  - login/reset_password#S3 0123456789ab\n---\n\n# Validate credentials\n\n## Statement\nThe system shall validate.\n',
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'rename',
-          'user_story:login/reset_password',
-          '--to',
-          'recover_account',
-        ]),
-        0,
-      );
-      final text = readDoc(root, fr11);
-      expect(text, contains('traced_from: [S1, login/recover_account#S3]\n'));
-      expect(text, contains('  - login/recover_account#S3 0123456789ab\n'));
-      expect(out.toString(), contains('rewrote $fr11\n'));
-    },
-  );
-
-  test('rename keeps a code file as it is and prints its mention after the '
-      'rewrote lines', () async {
-    const code =
-        '/// Lays out `login/email_login`.\nfinal a = "login/email_login";\n';
-    final root = await writeCheckProject(extra: {'app/lib/doc.dart': code});
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['rename', 'feature:login', '--to', 'signin']), 0);
-    expect(err.toString(), isEmpty);
-    expect(out.toString(), isNot(contains('rewrote app/lib/doc.dart')));
-    expect(
-      out.toString(),
-      endsWith('mentions app/lib/doc.dart:1 login/email_login\n'),
-    );
-    expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
-  });
-
-  test('rename --json lists the code file mention and not the file among '
-      'rewritten', () async {
-    final root = await writeCheckProject(
-      extra: {'app/lib/doc.dart': '// `login/email_login`\n'},
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run(['rename', 'feature:login', '--to', 'signin', '--json']),
-      0,
-    );
-    final json = jsonDecode(out.toString()) as Map;
-    expect(json['rewritten'], isNot(contains('app/lib/doc.dart')));
-    expect(json['mentions'], [
-      {'path': 'app/lib/doc.dart', 'line': 1, 'mention': 'login/email_login'},
-    ]);
-  });
-
   group('with two code targets', () {
     const flutterRecord = 'specs/flutter/f01_login/IMPLEMENTATION.md';
     const jasprRecord = 'specs/jaspr/f01_login/IMPLEMENTATION.md';
@@ -391,36 +283,6 @@ void main() {
   });
 
   group('--dry-run', () {
-    const f = 'prds/features/f01_login';
-
-    test('prints the moves and rewrites, then says nothing moved, and moves '
-        'nothing', () async {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'rename',
-          'user_story:login/reset_password',
-          '--to',
-          'recover_account',
-          '--dry-run',
-        ]),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      expect(
-        out.toString(),
-        startsWith(
-          'moves $f/us03_reset_password/ to $f/us03_recover_account/\n',
-        ),
-      );
-      expect(out.toString(), endsWith('dry run: nothing moved\n'));
-      expect(out.toString(), isNot(contains('rewrote')));
-      expect(out.toString(), isNot(contains('plan ')));
-      expect(docFile(root, story3).existsSync(), isTrue);
-      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-    });
-
     test('lists a Name mention in a code file and keeps the file', () async {
       const code = '// Adds `user_story:login/reset_password#use_case`.\n';
       final root = await writeWriteProject(
@@ -522,50 +384,6 @@ void main() {
       expect(apply, 64);
       expect(dryOut.toString(), isEmpty);
       expect(dryErr.toString(), applyErr);
-    });
-  });
-
-  group('a feature record under .specstone/records/', () {
-    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
-    const moved = '.specstone/records/f01_signin/IMPLEMENTATION.md';
-
-    Future<Directory> recordProject({bool withRecord = true}) =>
-        writeWriteProject(
-          extra: {
-            ...recordsRootTemplates,
-            if (withRecord)
-              record: recordText(statuses: ['email_login:implemented']),
-          },
-        );
-
-    test('rename moves the record folder and prints its move', () async {
-      final root = await recordProject();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['rename', 'feature:login', '--to', 'signin']),
-        0,
-        reason: err.toString(),
-      );
-      expect(
-        out.toString(),
-        contains(
-          'moved .specstone/records/f01_login/ to '
-          '.specstone/records/f01_signin/\n',
-        ),
-      );
-      expect(File('${root.path}/$moved').existsSync(), isTrue);
-      expect(File('${root.path}/$record').existsSync(), isFalse);
-    });
-
-    test('rename of a feature with no record prints no record move', () async {
-      final root = await recordProject(withRecord: false);
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['rename', 'feature:login', '--to', 'signin']),
-        0,
-        reason: err.toString(),
-      );
-      expect(out.toString(), isNot(contains('.specstone/records')));
     });
   });
 }

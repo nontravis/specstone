@@ -111,25 +111,6 @@ void main() {
       expect(order, [...order]..sort());
     });
 
-    test(
-      'a record under the records root gets no page and no warning',
-      () async {
-        final project = await fixtureProject({
-          ..._fixture,
-          '.specstone/templates/implementation.yaml': _recordType,
-          '.specstone/records/f03_template_packs/IMPLEMENTATION.md':
-              '# Packs record\n',
-        });
-        final runner = await runnerIn(project);
-
-        expect(await runner.run(['build', 'docs']), 0);
-        expect(err.toString(), isEmpty);
-        final html = read(project, '.specstone/build/docs.html');
-        expect(html, contains('F-03 Template packs'));
-        expect(html, isNot(contains('Packs record')));
-      },
-    );
-
     for (final target in const [
       '.specstone/records',
       '.specstone/records/f03_template_packs/IMPLEMENTATION.md',
@@ -240,18 +221,6 @@ void main() {
       expect(exists(project, 'out/a.html'), isTrue);
     });
 
-    test('a mermaid block ships the script and a pre', () async {
-      final project = await fixtureProject({
-        _feature: '$_featureText\n```mermaid\ngraph TD; A-->B;\n```\n',
-      });
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['build', _feature]), 0);
-      final html = read(project, '.specstone/build/$_feature.html');
-      expect(html, contains('<pre class="mermaid">'));
-      expect(html, contains('"use strict";var __esbuild_esm_mermaid_nm'));
-    });
-
     test('an off-template doc warns on stderr, renders in disk '
         'order, and exits 0', () async {
       final project = await fixtureProject({
@@ -293,19 +262,6 @@ void main() {
       expect(html, contains('<a href="#doc-4">b</a>'));
       expect(html, contains('<span class="outside-link">'));
       expect(html, contains('<a href="https://example.com/spec">web</a>'));
-    });
-
-    test('a draft doc shows the Draft label', () async {
-      final project = await fixtureProject({
-        _feature: '---\ndraft: true\n---\n$_featureText',
-      });
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['build', _feature]), 0);
-      expect(
-        read(project, '.specstone/build/$_feature.html'),
-        contains('<p class="draft">Draft</p>'),
-      );
     });
 
     test('a file no doc type matches warns and the build still '

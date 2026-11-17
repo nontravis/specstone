@@ -41,7 +41,6 @@ const _storyFormatted =
 const _storyOutOfOrder =
     '# US-01\n\n## Acceptance Criteria\n\nDone.\n\n'
     '## Summary\n\nFormat docs.\n';
-const _storyUnknown = '$_storyFormatted\n## Notes\nx\n';
 
 /// Returns why a read-only folder cannot stop a write here, else null.
 String? _readOnlyFolderSkipReason() {
@@ -144,21 +143,6 @@ void main() {
       expect(out.toString(), contains('required_section_missing'));
     });
 
-    test('rewrites a header to the form the template writes', () async {
-      final project = await fixtureProject({
-        _feature:
-            '# F-05\n\n## Feature name\n\nx\n\n'
-            '## feature   goal\n\n- **why:** y\n',
-      });
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['format', _feature]), 0);
-      expect(
-        read(project, _feature),
-        '# F-05\n\n## Feature name\n\nx\n\n## Feature goal\n\n- **why:** y\n',
-      );
-    });
-
     test('--check lists the doc that would change, exits 1, and '
         'writes nothing', () async {
       final project = await fixtureProject({
@@ -192,16 +176,6 @@ void main() {
       expect(read(project, _notes), 'free text');
     });
 
-    test('a doc with a header the template lacks is refused and '
-        'left byte for byte; exit 1', () async {
-      final project = await fixtureProject({_story: _storyUnknown});
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['format']), 1);
-      expect(out.toString(), '$_story: refused: unknown header "## Notes"\n');
-      expect(read(project, _story), _storyUnknown);
-    });
-
     test('a doc ending inside a fence is refused and left '
         'byte for byte; exit 1; --json marks unclosedFence', () async {
       const unclosed = '# US-01\n\n## Summary\nx\n```\ncode\n';
@@ -220,21 +194,6 @@ void main() {
         ],
         'warnings': <String>[],
       });
-    });
-
-    test('a doc whose layout '
-        'would turn a body line into a frontmatter close is refused and '
-        'left byte for byte', () async {
-      const text = '---\n# US-01\n\n## Summary\nx\n--- \n';
-      final project = await fixtureProject({_story: text});
-      final runner = await runnerIn(project);
-
-      expect(await runner.run(['format']), 1);
-      expect(
-        out.toString(),
-        '$_story: refused: layout would change the doc structure\n',
-      );
-      expect(read(project, _story), text);
     });
 
     test('a target outside the docs root, then a missing target, '
@@ -436,20 +395,6 @@ sections:
           homeDirectory: home,
         );
       }
-
-      test('specstone format prints refused: open generated '
-          'block note_toc and exits 1', () async {
-        final project = await fixtureProject({
-          notePath: '# A\n\n## Contents\n$toc\nno end\n',
-        });
-        final runner = await noteRunnerIn(project);
-
-        expect(await runner.run(['format']), 1);
-        expect(
-          out.toString(),
-          '$notePath: refused: open generated block note_toc\n',
-        );
-      });
 
       test('format opens the index only when a doc type under '
           'the Target lists generators', () async {

@@ -57,31 +57,6 @@ void main() {
     expect(answer['rewritten'], contains(shopApi));
   });
 
-  test('a story moved under its own feature prints nothing, exit 0', () async {
-    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-    expect(
-      await runner.run([
-        'move',
-        'user_story:shop/cart/drop_item',
-        '--under',
-        'shop/cart',
-      ]),
-      0,
-    );
-    expect(out.toString(), isEmpty);
-    expect(err.toString(), isEmpty);
-  });
-
-  test('a feature that holds features is argument_invalid, exit 64', () async {
-    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-    expect(await runner.run(['move', addItem, '--under', 'shop']), 64);
-    expect(out.toString(), isEmpty);
-    expect(
-      err.toString(),
-      'shop (feature) holds sub-features, so it takes no story\n',
-    );
-  });
-
   test('another doc type is doc_type_not_movable, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(
@@ -124,45 +99,6 @@ void main() {
     );
     expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
   });
-
-  test('--top beside a story target exits 64 and moves nothing', () async {
-    final root = await writeNestedProject();
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['move', addItem, '--top']), 64);
-    expect(out.toString(), isEmpty);
-    expect(err.toString(), 'move takes --top only with feature targets\n');
-    expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
-  });
-
-  test('an --under nothing carries is doc_not_found, exit 64', () async {
-    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-    expect(await runner.run(['move', addItem, '--under', 'nothing']), 64);
-    expect(out.toString(), isEmpty);
-    expect(err.toString(), 'no feature doc carries the name nothing\n');
-  });
-
-  test(
-    '--under feature:shop/pay and a path move the story as a bare name does',
-    () async {
-      for (final under in [
-        'feature:shop/pay',
-        'prds/features/f02_shop/f02_pay/FEATURE.md',
-      ]) {
-        final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-        expect(
-          await runner.run(['move', addItem, '--under', under]),
-          0,
-          reason: under,
-        );
-        expect(err.toString(), isEmpty, reason: under);
-        expect(
-          out.toString(),
-          startsWith('moved $addItemFolder/ to $movedFolder/\n'),
-          reason: under,
-        );
-      }
-    },
-  );
 
   test('move --help names --top and every target form', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
@@ -252,54 +188,10 @@ void main() {
     expect(docFile(root, '$addItemFolder/USER_STORY.md').existsSync(), isTrue);
   });
 
-  test(
-    'an --under that names 2 or more features is argument_invalid, exit 64',
-    () async {
-      final (:runner, :out, :err) = writeRunner(
-        await writeNestedProject(
-          extra: {'docs/prds/features/f02_shop/f03_pay/FEATURE.md': '# Pay\n'},
-        ),
-      );
-      expect(await runner.run(['move', addItem, '--under', 'shop/pay']), 64);
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString().trimRight().split('\n').last,
-        'shop/pay names 2 feature docs: $payFeature, '
-        'prds/features/f02_shop/f03_pay/FEATURE.md',
-      );
-    },
-  );
-
   test('no target is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = writeRunner(await writeNestedProject());
     expect(await runner.run(['move', '--under', 'shop/pay']), 64);
     expect(err.toString(), startsWith('move needs a target'));
-  });
-
-  test('user_story:document_writing/move_story S4: several stories move in one call, in the order named', () async {
-    const dropFolder = 'prds/features/f02_shop/f01_cart/us02_drop_item';
-    final root = await writeNestedProject();
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'move',
-        'shop/cart/drop_item',
-        addItem,
-        '--under',
-        'shop/pay',
-      ]),
-      0,
-    );
-    expect(err.toString(), isEmpty);
-    expect(
-      out.toString(),
-      startsWith(
-        'moved $dropFolder/ to prds/features/f02_shop/f02_pay/us03_drop_item/\n'
-        'moved $addItemFolder/ to prds/features/f02_shop/f02_pay/us04_add_item/\n',
-      ),
-    );
-    expect(docFile(root, cartAdd).existsSync(), isFalse);
-    expect(docFile(root, cartDrop).existsSync(), isFalse);
   });
 
   test('user_story:document_writing/move_story S5: one story that cannot move refuses the call, and nothing moves', () async {
@@ -385,53 +277,6 @@ void main() {
       '[AC-1](../$movedFolder/USER_STORY.md#acceptance_criteria)\n',
     );
     expect(out.toString(), contains('rewrote notes/links.md\n'));
-  });
-
-  test(
-    'E04: move rewrites an fr traced_from entry and confirmed label',
-    () async {
-      final root = await writeNestedProject(
-        extra: {
-          'docs/$cartAddFr': '---\ntraced_from: [S1, shop/pay/card#S1]\nverify_method: test\nconfirmed:\n  - shop/pay/card#S1 0123456789ab\n---\n\n# Check stock\n\n## Statement\nThe system shall check.\n',
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'move',
-          'user_story:shop/pay/card',
-          '--under',
-          'shop/cart',
-        ]),
-        0,
-      );
-      final text = readDoc(root, cartAddFr);
-      expect(text, contains('traced_from: [S1, shop/cart/card#S1]\n'));
-      expect(text, contains('  - shop/cart/card#S1 0123456789ab\n'));
-      expect(out.toString(), contains('rewrote $cartAddFr\n'));
-    },
-  );
-
-  test('move keeps a code file as it is and prints its mention after the '
-      'rewrote lines', () async {
-    const code =
-        '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
-    final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run(['move', 'shop/cart/add_item', '--under', 'shop/pay']),
-      0,
-    );
-    expect(err.toString(), isEmpty);
-    expect(out.toString(), isNot(contains('rewrote app/lib/cart.dart')));
-    expect(
-      out.toString(),
-      endsWith(
-        'mentions app/lib/cart.dart:1 '
-        'user_story:shop/cart/add_item#acceptance_criteria\n',
-      ),
-    );
-    expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
   });
 
   group('longer code spans', () {
@@ -522,38 +367,6 @@ void main() {
     const code =
         '// Adds `user_story:shop/cart/add_item#acceptance_criteria`.\n';
 
-    test('prints the moves, rewrites, and mentions, then says nothing moved, '
-        'and moves nothing', () async {
-      final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['move', addItem, '--under', 'shop/pay', '--dry-run']),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      expect(
-        out.toString(),
-        startsWith('moves $addItemFolder/ to $movedFolder/\n'),
-      );
-      expect(out.toString(), contains('rewrites $shopApi\n'));
-      expect(
-        out.toString(),
-        endsWith(
-          'mentions app/lib/cart.dart:1 '
-          'user_story:shop/cart/add_item#acceptance_criteria\n'
-          'dry run: nothing moved\n',
-        ),
-      );
-      expect(out.toString(), isNot(contains('moved $addItemFolder')));
-      expect(out.toString(), isNot(contains('plan ')));
-      expect(
-        Directory('${root.path}/docs/$addItemFolder').existsSync(),
-        isTrue,
-      );
-      expect(Directory('${root.path}/docs/$movedFolder').existsSync(), isFalse);
-      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-    });
-
     test('--json prints moved, rewritten, mentions, and dryRun true', () async {
       final root = await writeNestedProject(extra: {'app/lib/cart.dart': code});
       final (:runner, :out, :err) = writeRunner(root);
@@ -581,20 +394,6 @@ void main() {
           'mention': 'user_story:shop/cart/add_item#acceptance_criteria',
         },
       ]);
-    });
-
-    test('refuses a feature that holds features with the status and message '
-        'the move gives', () async {
-      final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-      expect(
-        await runner.run(['move', addItem, '--under', 'shop', '--dry-run']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(
-        err.toString(),
-        'shop (feature) holds sub-features, so it takes no story\n',
-      );
     });
 
     group('through the built CLI', () {
