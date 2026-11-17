@@ -487,6 +487,10 @@ final class MergedSection {
 /// lines are pointers.
 const verificationMatrixKey = 'verification_matrix';
 
+/// The `software-tech` version that adds the matrix section to the record doc
+/// type.
+const verificationMatrixPackVersion = '1.13.0';
+
 /// The enabled matrix section of [recordType], or null.
 ///
 /// Null when [recordType] holds no `record_status` field, so only the record

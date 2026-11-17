@@ -483,7 +483,8 @@ void _checkRecords(
         FaultCode.unknownValue,
         'verification_coverage needs an enabled $verificationMatrixKey '
         'section on the record doc type ${holder.id}; a layer disabled it or '
-        'the doc type lacks it, and software-tech 1.13.0 adds it',
+        'the doc type lacks it, and software-tech '
+        '$verificationMatrixPackVersion adds it',
         file: projectConfigPath,
         key: verificationCoverageKey,
       );

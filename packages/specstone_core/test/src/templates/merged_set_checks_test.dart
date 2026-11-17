@@ -688,7 +688,8 @@ void main() {
 
     test('output_ref on a matrix section of a doc type that holds no '
         'record_status field is accepted and inert', () {
-      final playbook = builtIn('playbook');
+      final playbook = builtIn('playbook')
+          .copyWith(sections: [matrix(outputRef: true)]);
       expect(
         () => check(
           [record(), playbook],
