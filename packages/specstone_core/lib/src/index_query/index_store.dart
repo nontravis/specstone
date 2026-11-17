@@ -67,7 +67,9 @@ const _notWritableMessage =
 /// character for a leading language marker, so an index of layout 23, whose
 /// sentence facts count it, is rebuilt. Layout 25 adds the tokens of a
 /// `mermaid` block to each line's name mentions, so an older index is rebuilt.
-const indexLayoutVersion = 25;
+/// Layout 26 stores each typed doc's `mermaid` blocks in its line facts, so an
+/// index of layout 25, whose line facts hold none, is rebuilt.
+const indexLayoutVersion = 26;
 
 const _schema = '''
 CREATE TABLE meta (
