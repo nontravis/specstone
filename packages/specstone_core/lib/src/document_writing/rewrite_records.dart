@@ -21,7 +21,39 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 
 /// Where a story or FR entry goes: the feature whose record takes it, and its
 /// name relative to that feature.
-typedef _Landing = ({IndexedDoc feature, String name});
+final class _Landing {
+  const new({required this.feature, required this.name});
+
+  final IndexedDoc feature;
+  final String name;
+}
+
+/// The items of a record that stay under a new name, and those that leave.
+final class _RecordItemMoves {
+  const new({required this.inPlace, required this.leaving});
+
+  final Map<String, String> inPlace;
+  final Map<String, _Landing> leaving;
+}
+
+/// The feature a record's arrivals land in, by DocPath, and their code target.
+final class _ArrivalKey {
+  const new({required this.featurePath, required this.target});
+
+  final String featurePath;
+  final String? target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is _ArrivalKey &&
+      other.featurePath == featurePath &&
+      other.target == target;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(featurePath, target);
+}
 
 /// The entries bound for one feature's record in one target.
 final class _Arrival {
@@ -71,7 +103,7 @@ final class _Planner {
   final MergedDocType recordType;
   final RenamedNames renamed;
   final _edits = <String, TextEdit>{};
-  final _arrivals = <(String, String?), _Arrival>{};
+  final _arrivals = <_ArrivalKey, _Arrival>{};
 
   DocIndex get _index => session.index;
 
@@ -91,7 +123,11 @@ final class _Planner {
   /// Plans the in-place renames and the departures of [record], the record of
   /// [feature], and notes the lines that arrive elsewhere.
   void _planSource(IndexedDoc record, IndexedDoc feature) {
-    final (:inPlace, :leaving) = _itemMovesOf(_index, feature, renamed);
+    final _RecordItemMoves(:inPlace, :leaving) = _itemMovesOf(
+      _index,
+      feature,
+      renamed,
+    );
     if (inPlace.isEmpty && leaving.isEmpty) return;
     _edits[record.docPath] = (text) => readRecord(
       record.docPath,
@@ -120,7 +156,7 @@ final class _Planner {
       if (lines.statuses.isEmpty && lines.code.isEmpty && lines.tests.isEmpty) {
         continue;
       }
-      final key = (path, record.target);
+      final key = _ArrivalKey(featurePath: path, target: record.target);
       _arrivals
           .putIfAbsent(key, () => _Arrival(landing, record.target))
           .take(lines);
@@ -203,7 +239,7 @@ T readRecord<T>(String docPath, T Function() read) {
 ///
 /// An item stays when its new name puts it in [feature] itself, so one that
 /// moves into a sub-feature of [feature] leaves.
-({Map<String, String> inPlace, Map<String, _Landing> leaving}) _itemMovesOf(
+_RecordItemMoves _itemMovesOf(
   DocIndex index,
   IndexedDoc feature,
   RenamedNames renamed,
@@ -223,7 +259,7 @@ T readRecord<T>(String docPath, T Function() read) {
       leaving[item] = landing;
     }
   }
-  return (inPlace: inPlace, leaving: leaving);
+  return _RecordItemMoves(inPlace: inPlace, leaving: leaving);
 }
 
 String _nameAfter(IndexedDoc doc, RenamedNames renamed) =>
@@ -241,7 +277,10 @@ _Landing? _landingOf(DocIndex index, IndexedDoc item, RenamedNames renamed) {
   final feature = index.ofTypeNamed(featureType, featureName).firstOrNull;
   if (feature == null) return null;
   final name = _nameAfter(item, renamed);
-  return (feature: feature, name: name.substring(featureName.length + 1));
+  return _Landing(
+    feature: feature,
+    name: name.substring(featureName.length + 1),
+  );
 }
 
 /// Returns the name of the feature [item]'s new name puts it in; null when the
