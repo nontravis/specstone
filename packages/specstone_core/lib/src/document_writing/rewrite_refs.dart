@@ -14,6 +14,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
@@ -38,9 +39,9 @@ export 'package:specstone_core/src/document_writing/moved_paths.dart'
 /// Rewrites the LF text of a doc; null when nothing changes.
 typedef TextEdit = String? Function(String lfText);
 
-/// The `(doc type id, old name)` key in a `renamed` map of each doc whose Name
-/// changes, by the DocPath the doc has before the moves.
-typedef RenamedDocs = Map<String, (String, String)>;
+/// The [TypedName] of each doc whose Name changes, by the DocPath the doc has
+/// before the moves.
+typedef RenamedDocs = Map<String, TypedName>;
 
 /// One replacement in a text: the units from `start` up to `end` take `text`.
 typedef _TextEdit = ({int start, int end, String text});
@@ -215,11 +216,7 @@ List<_TextEdit> _linkTextEdits(
 
 /// Returns the key of the renamed doc that [href], written in the doc at
 /// [docPath], reaches, or null when it reaches none.
-(String, String)? _reachedDoc(
-  String? href,
-  String docPath,
-  RenamedDocs renamedDocs,
-) {
+TypedName? _reachedDoc(String? href, String docPath, RenamedDocs renamedDocs) {
   if (href == null) return null;
   return switch (resolveDocLink(href, docPath)) {
     DocTarget(:final docPath) => renamedDocs[docPath],
@@ -236,7 +233,7 @@ _TextEdit? _namedLinkText(
   String body,
   LinkSource source,
   Map<(String, String), String> renamed,
-  (String, String)? Function() reached,
+  TypedName? Function() reached,
 ) {
   final textEnd = source.textEnd;
   if (textEnd == null || body.codeUnitAt(source.offset) != _openBracket) {
@@ -252,7 +249,9 @@ _TextEdit? _namedLinkText(
     name = renamedNameOf(address, renamed);
   } else {
     final key = reached();
-    name = key != null && key.$2 == address.body ? renamed[key] : null;
+    name = key != null && key.name == address.body
+        ? renamed[(key.typeId, key.name)]
+        : null;
   }
   if (name == null) return null;
   final prefix = typeId == null ? '' : '$typeId:';
@@ -447,7 +446,7 @@ RenamedDocs _renamedDocsOf(
     if (doc.docTypeId case final typeId?)
       if (movedPath(doc.docPath, moves) != doc.docPath &&
           renamed.containsKey((typeId, doc.name)))
-        doc.docPath: (typeId, doc.name),
+        doc.docPath: TypedName(typeId: typeId, name: doc.name),
 };
 
 /// Whether [doc] holds a file link, a link that is no doc link, to a path

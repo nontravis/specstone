@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
@@ -114,11 +115,14 @@ void main() {
       ('feature', 'login'): 'signin',
       ('user_story', 'login/email_login'): 'signin/email_login',
     };
-    const renamedDocs = <String, (String, String)>{
-      'prds/features/f01_login/FEATURE.md': ('feature', 'login'),
-      'prds/features/f01_login/us01_email_login/USER_STORY.md': (
-        'user_story',
-        'login/email_login',
+    const renamedDocs = <String, TypedName>{
+      'prds/features/f01_login/FEATURE.md': TypedName(
+        typeId: 'feature',
+        name: 'login',
+      ),
+      'prds/features/f01_login/us01_email_login/USER_STORY.md': TypedName(
+        typeId: 'user_story',
+        name: 'login/email_login',
       ),
     };
     const docPath = 'prds/features/f03_other/FEATURE.md';
@@ -237,9 +241,15 @@ void main() {
         ('feature', 'login'): 'signin',
         ('persona', 'login'): 'access',
       };
-      const twinDocs = <String, (String, String)>{
-        'prds/features/f01_login/FEATURE.md': ('feature', 'login'),
-        'personas/p01_login/PERSONA.md': ('persona', 'login'),
+      const twinDocs = <String, TypedName>{
+        'prds/features/f01_login/FEATURE.md': TypedName(
+          typeId: 'feature',
+          name: 'login',
+        ),
+        'personas/p01_login/PERSONA.md': TypedName(
+          typeId: 'persona',
+          name: 'login',
+        ),
       };
       String? twin(String text) => rewriteDocLinks(
         text,
@@ -319,10 +329,8 @@ void main() {
             ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
           },
           renamedDocs: const {
-            'prds/features/f02_shop/f01_cart/us01_add_item/USER_STORY.md': (
-              'user_story',
-              'shop/cart/add_item',
-            ),
+            'prds/features/f02_shop/f01_cart/us01_add_item/USER_STORY.md':
+                TypedName(typeId: 'user_story', name: 'shop/cart/add_item'),
           },
         ),
         '[shop/pay/add_item](us03_add_item/USER_STORY.md) '

@@ -11,6 +11,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show WriteStep;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -328,18 +329,20 @@ bool Function(NameMention mention) _stopsResolvingTest(
 
 /// The Names of docs, by doc type id and bare.
 final class _NameSet {
-  final _typed = <(String, String)>{};
+  final _typed = <TypedName>{};
   final _bare = <String>{};
 
   void add(String typeId, String name) {
-    _typed.add((typeId, name));
+    _typed.add(TypedName(typeId: typeId, name: name));
     _bare.add(name);
   }
 
   /// Whether a doc carries the Name [address] names, of its doc type when the
   /// address gives one.
   bool holds(DocAddress address) => switch (address.typeId) {
-    final typeId? => _typed.contains((typeId, address.body)),
+    final typeId? => _typed.contains(
+      TypedName(typeId: typeId, name: address.body),
+    ),
     null => _bare.contains(address.body),
   };
 }
