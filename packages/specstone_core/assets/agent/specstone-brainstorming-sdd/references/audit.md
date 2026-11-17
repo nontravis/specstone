@@ -33,8 +33,8 @@ Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
 - **PRD and spec apart:** a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for.
 - **Docs contradict:** two docs that state different values or behavior for one thing; name both.
 - **Statement untested:** an FR statement or clause no scenario or edge case covers.
-- **Rule restated:** a draft stating a rule another doc owns instead of citing it; name
-  the owner doc and the item; its fix is an item link in the draft.
+- **Rule restated:** a draft stating in any words a rule another doc owns instead of citing it, a story rule
+  included; name the owner doc and the item; its fix is an item link in the draft.
 - Without a design document, skip the first two lenses; the rest still run.
 - **Feature pattern:** for each item of a bundle's pattern part, search the doc listing the pattern, its subtree, and
   its feature's spec folder, if any, for covering text or a skip line in that doc's `out_of_scope`; else report
@@ -78,8 +78,8 @@ Outside the drafts:
   design does not state; a line whose fix only corrects text against the design stays untagged.
 - **`Waits on the Owner:`**: each `check` finding whose `waitsFor` is `owner`, its line ending
   `(waits for the Owner)`.
-- **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft, such as a baseline finding on
-  an approved doc under a target; each target that is no draft, and each name dropped from the `get` call; and each
-  whole draft story or FR that is invented, marked as a deletion for the Owner.
+- **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft; each target
+  that is no draft, and each name dropped from the `get` call; and each whole draft story or FR that is invented,
+  marked as a deletion for the Owner.
 - **An empty heading:** write `none` under it. A `[behavior]` line goes to the runner's design amend, never a fix
   round.
