@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show nameMentionsInFile;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;

@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/owner_confirmation.dart';
 import 'package:specstone_core/src/document_writing/record_edit.dart';
@@ -214,7 +215,8 @@ String _rewritesOf(_DeletePlan plan) => [
 /// removes.
 List<StaleMention> _mentionsOf(WriteSession session, _DeletePlan plan) =>
     staleMentions(session, [
-      for (final docPath in plan.files.keys) (from: docPath, to: removedPath),
+      for (final docPath in plan.files.keys)
+        PathMove(from: docPath, to: removedPath),
     ], namesChange: true);
 
 String _mentionLinesOf(List<StaleMention> mentions) =>

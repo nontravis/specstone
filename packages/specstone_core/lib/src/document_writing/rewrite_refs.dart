@@ -13,6 +13,7 @@ import 'package:specstone_core/src/doc_model/records_root.dart'
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_labels.dart';
@@ -32,7 +33,7 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/document_writing/moved_paths.dart'
-    show PathMove, movedPath, relativeHref;
+    show movedPath, relativeHref;
 
 /// Rewrites the LF text of a doc; null when nothing changes.
 typedef TextEdit = String? Function(String lfText);

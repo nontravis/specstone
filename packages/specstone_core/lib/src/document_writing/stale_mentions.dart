@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/name_mentions.dart'
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show WriteStep;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';

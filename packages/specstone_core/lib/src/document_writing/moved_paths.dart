@@ -3,11 +3,7 @@ import 'package:specstone_core/src/doc_model/percent_decode.dart'
     show percentDecoded;
 import 'package:specstone_core/src/doc_model/records_root.dart'
     show projectPathOfDocPath;
-
-/// One move of a doc or a folder, as DocPaths.
-///
-/// A folder ends in `/`, a file does not.
-typedef PathMove = ({String from, String to});
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 
 /// Returns [docPath] after the first of [moves] whose `from` is the path
 /// itself or a folder holding it.
@@ -24,7 +20,10 @@ String movedPath(String docPath, List<PathMove> moves) {
 /// Returns [moves] with each path as a path from the project root.
 List<PathMove> projectMovesOf(List<PathMove> moves) => [
   for (final move in moves)
-    (from: projectPathOfDocPath(move.from), to: projectPathOfDocPath(move.to)),
+    PathMove(
+      from: projectPathOfDocPath(move.from),
+      to: projectPathOfDocPath(move.to),
+    ),
 ];
 
 /// Returns the `/`-separated path from the folder of [fromDocPath] to

@@ -6,6 +6,7 @@ import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart';
 import 'package:specstone_core/src/document_writing/journal_records.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/root_trust.dart';
 import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -184,12 +185,12 @@ sealed class JournalStep {
 ///
 /// Throws [FormatException] when [json] is not a list of `{from, to}` string
 /// pairs.
-List<({String from, String to})> _movesOf(Object? json) => switch (json) {
+List<PathMove> _movesOf(Object? json) => switch (json) {
   null => const [],
   List<Object?>() => [
     for (final move in json)
       switch (move) {
-        {'from': final String from, 'to': final String to} => (
+        {'from': final String from, 'to': final String to} => PathMove(
           from: from,
           to: to,
         ),
@@ -528,7 +529,7 @@ final class CommitStep extends JournalStep {
 
   /// The moves this commit records, each once, by the original and final
   /// path of [paths]; an ignored final path is staged only through its pair.
-  final List<({String from, String to})> moves;
+  final List<PathMove> moves;
 
   @override
   Map<String, Object> toJson() => {

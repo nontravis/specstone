@@ -3,9 +3,9 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show WriteStep;
-import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show planRewrites;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart';
@@ -17,8 +17,8 @@ import '../../helpers/write_fixture.dart';
 
 void main() {
   const renameLogin = <PathMove>[
-    (from: 'prds/features/f01_login/', to: 'prds/features/f01_signin/'),
-    (from: 'specs/f01_login/', to: 'specs/f01_signin/'),
+    PathMove(from: 'prds/features/f01_login/', to: 'prds/features/f01_signin/'),
+    PathMove(from: 'specs/f01_login/', to: 'specs/f01_signin/'),
   ];
 
   List<StaleMention> staleAfter(
@@ -94,7 +94,7 @@ void main() {
         extra: {'app/lib/doc.dart': '// `login/email_login` stays\n'},
       );
       const moveNf = <PathMove>[
-        (
+        PathMove(
           from: 'prds/features/f01_login/us01_email_login/nf01_sign_in_time.md',
           to: 'prds/features/f01_login/us01_email_login/nf01_speed.md',
         ),
@@ -110,9 +110,9 @@ void main() {
         },
       );
       const removedFeature = <PathMove>[
-        (from: 'prds/features/f01_login/', to: ''),
-        (from: '.specstone/records/f01_login/', to: ''),
-        (from: 'specs/f01_login/', to: ''),
+        PathMove(from: 'prds/features/f01_login/', to: ''),
+        PathMove(from: '.specstone/records/f01_login/', to: ''),
+        PathMove(from: 'specs/f01_login/', to: ''),
       ];
 
       expect(staleAfter(root, removedFeature), [
@@ -139,7 +139,7 @@ void main() {
                 '// `login/email_login/check_password`\n',
           },
         );
-        const removed = <PathMove>[(from: loginFr, to: '')];
+        const removed = <PathMove>[PathMove(from: loginFr, to: '')];
 
         expect(staleAfter(root, removed), [
           at('app/lib/doc.dart', 3, 'login/email_login/check_password'),
@@ -170,7 +170,10 @@ void main() {
 
     test('is listed when the names do not change', () async {
       const reorderLogin = <PathMove>[
-        (from: 'prds/features/f01_login/', to: 'prds/features/f02_login/'),
+        PathMove(
+          from: 'prds/features/f01_login/',
+          to: 'prds/features/f02_login/',
+        ),
       ];
       final root = await writeCheckProject(
         extra: {

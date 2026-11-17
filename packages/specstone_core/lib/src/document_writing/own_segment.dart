@@ -2,8 +2,7 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -140,7 +139,7 @@ List<PathMove> specFolderMovesOf(
   ).entries) {
     final to = newFolders[key];
     if (to == null || to == from) continue;
-    moves[from] = (from: from, to: to);
+    moves[from] = PathMove(from: from, to: to);
   }
   return [for (final key in moves.keys.toList()..sort()) moves[key]!];
 }

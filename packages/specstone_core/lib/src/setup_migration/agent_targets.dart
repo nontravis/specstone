@@ -5,10 +5,9 @@ import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show skippedLineOf, writeRefusalOf;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show textHashOf;
-import 'package:specstone_core/src/document_writing/moved_paths.dart'
-    show PathMove;
 import 'package:specstone_core/src/index_query/code_root_files.dart'
     show mentionScanFiles;
 import 'package:specstone_core/src/plan_hash.dart';

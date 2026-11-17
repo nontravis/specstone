@@ -4,6 +4,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
@@ -23,18 +24,21 @@ import '../../helpers/write_fixture.dart';
 
 void main() {
   const reorderMoves = <PathMove>[
-    (
+    PathMove(
       from: 'prds/features/f01_login/us02_sign_out/',
       to: 'prds/features/f01_login/us03_sign_out/',
     ),
-    (
+    PathMove(
       from: 'prds/features/f01_login/us03_reset_password/',
       to: 'prds/features/f01_login/us01_reset_password/',
     ),
   ];
   const featureSwap = <PathMove>[
-    (from: 'prds/features/f01_login/', to: 'prds/features/f02_login/'),
-    (from: 'prds/features/f02_signup/', to: 'prds/features/f01_signup/'),
+    PathMove(from: 'prds/features/f01_login/', to: 'prds/features/f02_login/'),
+    PathMove(
+      from: 'prds/features/f02_signup/',
+      to: 'prds/features/f01_signup/',
+    ),
   ];
   late Directory root;
 
@@ -53,7 +57,10 @@ void main() {
       'prds/features/f01_login/us01_reset_password/USER_STORY.md',
     );
     expect(movedPath(story1, reorderMoves), story1);
-    expect(movedPath('a/b.md', [(from: 'a/b.md', to: 'a/c.md')]), 'a/c.md');
+    expect(
+      movedPath('a/b.md', [const PathMove(from: 'a/b.md', to: 'a/c.md')]),
+      'a/c.md',
+    );
     expect(relativeHref(fr12, story2), '../us02_sign_out/USER_STORY.md');
     expect(
       relativeHref('prds/FEATURES.md', loginFeature),
@@ -98,7 +105,10 @@ void main() {
 
   group('link texts', () {
     const renameMoves = <PathMove>[
-      (from: 'prds/features/f01_login/', to: 'prds/features/f01_signin/'),
+      PathMove(
+        from: 'prds/features/f01_login/',
+        to: 'prds/features/f01_signin/',
+      ),
     ];
     const renamed = <(String, String), String>{
       ('feature', 'login'): 'signin',
@@ -278,7 +288,7 @@ void main() {
             '[AC-1](../f01_cart/us01_add_item/USER_STORY.md#acceptance_criteria)\n',
             docPath: 'prds/features/f02_shop/f02_pay/FEATURE.md',
             moves: const [
-              (
+              PathMove(
                 from: 'prds/features/f02_shop/f01_cart/us01_add_item/',
                 to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
               ),
@@ -300,7 +310,7 @@ void main() {
           '[shop/cart/add_item](notes.md)\n',
           docPath: 'prds/features/f02_shop/f02_pay/FEATURE.md',
           moves: const [
-            (
+            PathMove(
               from: 'prds/features/f02_shop/f01_cart/us01_add_item/',
               to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
             ),
@@ -343,7 +353,9 @@ void main() {
   });
 
   test('f02/us05/fr02, R74: a move replaces only the path a destination is written with and keeps its ? or # part as written', () {
-    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const moves = <PathMove>[
+      PathMove(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md'),
+    ];
     const before =
         '[a](../t_doc.md#a\\)b) [b](../t_doc.md#f\\(x) [c](../t_doc.md#a&amp;copy;)\n'
         '[d](../t_doc.md&#35;s) [e](<../t_doc.md?q=a b#x>) [f](../t\\_doc.md\\#y)\n';
@@ -356,8 +368,8 @@ void main() {
   });
 
   test('f02/us05/fr02, R74: a move to or from a path with a paren keeps a bare inline link one link to the same file, its fragment kept', () {
-    const into = <PathMove>[(from: 'specs/t.md', to: 'specs/x(y/t.md')];
-    const back = <PathMove>[(from: 'specs/x(y/t.md', to: 'specs/t.md')];
+    const into = <PathMove>[PathMove(from: 'specs/t.md', to: 'specs/x(y/t.md')];
+    const back = <PathMove>[PathMove(from: 'specs/x(y/t.md', to: 'specs/t.md')];
     String? moved(String text, List<PathMove> moves) =>
         rewriteDocLinks(text, docPath: 'specs/d.md', moves: moves);
     List<(String, String?)>? read(String? text) => linkPlacesOf(
@@ -383,8 +395,8 @@ void main() {
   });
 
   test('f02/us05/fr02, R74: a move to or from a path with a paren keeps the parens of an angle-bracketed definition as written', () {
-    const into = <PathMove>[(from: 'specs/t.md', to: 'specs/x(y/t.md')];
-    const back = <PathMove>[(from: 'specs/x(y/t.md', to: 'specs/t.md')];
+    const into = <PathMove>[PathMove(from: 'specs/t.md', to: 'specs/x(y/t.md')];
+    const back = <PathMove>[PathMove(from: 'specs/x(y/t.md', to: 'specs/t.md')];
     List<(String, String?)>? read(String? text) => linkPlacesOf(
       text!,
       docPath: 'specs/d.md',
@@ -413,7 +425,7 @@ void main() {
     String? moved(String text, String from, String to) => rewriteDocLinks(
       text,
       docPath: doc,
-      moves: [(from: 'specs/$from/', to: 'specs/$to/')],
+      moves: [PathMove(from: 'specs/$from/', to: 'specs/$to/')],
     );
 
     final there = moved(
@@ -430,7 +442,9 @@ void main() {
   });
 
   test('rewrite_links_to_moved_docs E15: a destination inside an unreferenced footnote stays as written on a move, and one inside a referenced footnote moves', () {
-    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const moves = <PathMove>[
+      PathMove(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md'),
+    ];
     const doc = 'specs/f01_a/DOMAIN.md';
 
     final unreferenced = rewriteDocLinks(
@@ -449,7 +463,9 @@ void main() {
   });
 
   test('f02/us05/fr02, R74: a destination inside an image description is no link, so a move leaves it and moves the definition written alike', () {
-    const moves = <PathMove>[(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md')];
+    const moves = <PathMove>[
+      PathMove(from: 'specs/t_doc.md', to: 'specs/m/t_doc.md'),
+    ];
 
     final result = rewriteDocLinksCounted(
       '![see [x](../t_doc.md)](pic.png)\n\n[d1]: ../t_doc.md\n',
@@ -482,7 +498,7 @@ void main() {
         rewriteDocLinks(
           '# T\n\n[x](%DB.md) [s](../us02/USER_STORY.md)\n',
           docPath: 'prds/f/us01/fr01.md',
-          moves: [(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+          moves: [const PathMove(from: 'prds/f/us02/', to: 'prds/f/us03/')],
         ),
         '# T\n\n[x](%DB.md) [s](../us03/USER_STORY.md)\n',
       );
@@ -494,7 +510,7 @@ void main() {
       rewriteDocLinks(
         '# T\n\n[x](../other/%DB.md)\n',
         docPath: 'prds/f/us01/fr01.md',
-        moves: [(from: 'prds/f/us01/', to: 'prds/g/us01/')],
+        moves: [const PathMove(from: 'prds/f/us01/', to: 'prds/g/us01/')],
       ),
       isNull,
       reason: 'the holder moves',
@@ -504,8 +520,8 @@ void main() {
         '# T\n\n[x](us01/%DB.md) [s](us02/USER_STORY.md)\n',
         docPath: 'prds/f/fr.md',
         moves: [
-          (from: 'prds/f/us01/', to: 'prds/f/us03/'),
-          (from: 'prds/f/us02/', to: 'prds/f/us04/'),
+          const PathMove(from: 'prds/f/us01/', to: 'prds/f/us03/'),
+          const PathMove(from: 'prds/f/us02/', to: 'prds/f/us04/'),
         ],
       ),
       '# T\n\n[x](us01/%DB.md) [s](us04/USER_STORY.md)\n',
@@ -518,7 +534,7 @@ void main() {
       rewriteDocLinks(
         '# T\n\n[x](us01/caf%C3%A9.md)\n',
         docPath: 'prds/f/fr.md',
-        moves: [(from: 'prds/f/us01/', to: 'prds/f/us03/')],
+        moves: [const PathMove(from: 'prds/f/us01/', to: 'prds/f/us03/')],
       ),
       '# T\n\n[x](us03/caf%C3%A9.md)\n',
     );
@@ -573,7 +589,12 @@ void main() {
       rewriteDocLinks(
         '[code](../../../../lib/a.dart)\n',
         docPath: 'prds/f/FEATURE.md',
-        moves: [(from: 'prds/f/FEATURE.md', to: 'prds/f/sub/FEATURE.md')],
+        moves: [
+          const PathMove(
+            from: 'prds/f/FEATURE.md',
+            to: 'prds/f/sub/FEATURE.md',
+          ),
+        ],
       ),
       '[code](../../../../../lib/a.dart)\n',
     );
@@ -584,7 +605,12 @@ void main() {
       rewriteDocLinks(
         '[a](../) [b](..) [c](../#top)\n',
         docPath: 'prds/features/f01_x/us01/USER_STORY.md',
-        moves: [(from: 'prds/features/f01_x/', to: 'prds/features/f02_x/')],
+        moves: [
+          const PathMove(
+            from: 'prds/features/f01_x/',
+            to: 'prds/features/f02_x/',
+          ),
+        ],
       ),
       isNull,
     );
@@ -595,7 +621,12 @@ void main() {
       rewriteDocLinks(
         '[a](../../f01_x/) [b](../../f01_x/FEATURE.md#top) [c](../../f01_x)\n',
         docPath: 'prds/features/f01_x/us01/USER_STORY.md',
-        moves: [(from: 'prds/features/f01_x/', to: 'prds/features/f02_x/')],
+        moves: [
+          const PathMove(
+            from: 'prds/features/f01_x/',
+            to: 'prds/features/f02_x/',
+          ),
+        ],
       ),
       '[a](../../f02_x/) [b](../FEATURE.md#top) [c](../../f02_x)\n',
     );
@@ -603,8 +634,8 @@ void main() {
 
   test('PD13: a swap is rewritten in one pass, and a reference definition follows too', () {
     const swap = <PathMove>[
-      (from: 'a/f01_x/', to: 'a/f02_x/'),
-      (from: 'a/f02_y/', to: 'a/f01_y/'),
+      PathMove(from: 'a/f01_x/', to: 'a/f02_x/'),
+      PathMove(from: 'a/f02_y/', to: 'a/f01_y/'),
     ];
     expect(
       rewriteDocLinks(
@@ -617,7 +648,7 @@ void main() {
   });
 
   test('PD13, R73: a definition destination follows its moved target by the href markdown reads, an unbalanced paren included', () {
-    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
       rewriteDocLinks(
         '[x][m] [y][n]\n\n[m]: a/f01_x/a(b.md\n[n]: a/f01\\_x/F.md\n',
@@ -629,7 +660,7 @@ void main() {
   });
 
   test('f02/us05/fr02, PD13: a link-shaped href in a fenced block or a code span keeps every byte', () {
-    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
       rewriteDocLinks(
         '[x](a/f01_x/F.md)\n\n```\n[x](a/f01_x/F.md)\n```\n\nUse `[x](a/f01_x/F.md)` here.\n',
@@ -649,7 +680,7 @@ void main() {
   });
 
   test('an angle-bracket href and an href with a query are rewritten, a folder sharing the prefix of a moved one is not', () {
-    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
       rewriteDocLinks(
         '[x](<a/f01_x/F.md>) [q](a/f01_x/F.md?v=1) [l](a/f01_xy/F.md)\n',
@@ -661,7 +692,7 @@ void main() {
   });
 
   test('a query and a fragment stay as written; a scheme href and a bare fragment are left alone', () {
-    const moves = <PathMove>[(from: 'a/f01_x/', to: 'a/f02_x/')];
+    const moves = <PathMove>[PathMove(from: 'a/f01_x/', to: 'a/f02_x/')];
     expect(
       rewriteDocLinks(
         '[a](a/f01_x/F.md?v=1#top) [b](a/f01_x/F.md#a?b) [c](mailto:a/f01_x/F.md#x) [d](#a/f01_x/F.md)\n',
@@ -825,7 +856,7 @@ void main() {
       rewriteDocLinks(
         '# T\n\n[s](../us02/USER_STORY.md)\n\n[a]:<b\\',
         docPath: 'prds/f/us01/fr01.md',
-        moves: [(from: 'prds/f/us02/', to: 'prds/f/us03/')],
+        moves: [const PathMove(from: 'prds/f/us02/', to: 'prds/f/us03/')],
       ),
       isNull,
     );
@@ -1013,7 +1044,10 @@ void main() {
   test('a rename reaches doc_ref values naming every moved doc', () {
     final steps = plan(
       const [
-        (from: 'prds/features/f01_login/', to: 'prds/features/f01_signin/'),
+        PathMove(
+          from: 'prds/features/f01_login/',
+          to: 'prds/features/f01_signin/',
+        ),
       ],
       renamed: {('user_story', 'login/email_login'): 'signin/email_login'},
     );
@@ -1069,7 +1103,7 @@ void main() {
       rewriteDocLinks(
         '[b](./b.md#x) [c](./c.md)\n',
         docPath: 'a/x.md',
-        moves: [(from: 'a/b.md', to: 'a/d.md')],
+        moves: [const PathMove(from: 'a/b.md', to: 'a/d.md')],
       ),
       '[b](./d.md#x) [c](./c.md)\n',
     );
@@ -1162,7 +1196,9 @@ void main() {
         );
         final steps = writeIn(
           project,
-          (s) => planRewrites(s, [(from: 'prds/d01_context.md', to: to)]),
+          (s) => planRewrites(s, [
+            const PathMove(from: 'prds/d01_context.md', to: to),
+          ]),
         );
         final step = steps.singleWhere((step) => step.path == 'docs/$to');
         expect(step.text, contains('../../f02_signup/FEATURE.md'));
@@ -1482,8 +1518,9 @@ void main() {
 
       final steps = writeIn(
         mentioning,
-        (s) =>
-            planRewrites(s, [(from: 'prds/NOTES.md', to: 'prds/sub/NOTES.md')]),
+        (s) => planRewrites(s, [
+          const PathMove(from: 'prds/NOTES.md', to: 'prds/sub/NOTES.md'),
+        ]),
       );
       final notes = steps.singleWhere((step) => step.path.endsWith('NOTES.md'));
 

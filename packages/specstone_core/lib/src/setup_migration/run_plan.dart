@@ -1,9 +1,8 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show StaleMention, mentionsJsonOf;
 import 'package:specstone_core/src/plan_hash.dart';
@@ -390,7 +389,7 @@ final class RunPlan {
           base: base,
           moves: [
             for (final move in moves)
-              (
+              PathMove(
                 from: projectPathOfDocPath(move.from),
                 to: projectPathOfDocPath(move.to),
               ),
