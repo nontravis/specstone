@@ -36,6 +36,11 @@ final _allowed = <_Allowed>[
     'Blockquote label such as `> Note:`, no reference.',
   ),
   _core(
+    'index_query/item_facts.dart',
+    r"""RegExp( r'^([ \t]*(?:>[ \t]?)+)[a-z]{2}:[ \t]*'""",
+    'Quote line language marker such as `> en:`, no reference.',
+  ),
+  _core(
     'consistency_check/item_field_rules.dart',
     r"""RegExp(r'^\*\*(.+?)\:\*\*\s*(.*)$'""",
     'Matches a `- **<field>:** <text>` label, no reference.',

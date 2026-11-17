@@ -63,8 +63,10 @@ const _notWritableMessage =
 /// so an index of layout 20 is rebuilt. Layout 22 adds each item's readability
 /// facts to the item facts, so an index of layout 21, whose items hold none, is
 /// rebuilt. Layout 23 stores each item's visible count in place of its raw
-/// count, so an index of layout 22 is rebuilt.
-const indexLayoutVersion = 23;
+/// count, so an index of layout 22 is rebuilt. Layout 24 counts no word or
+/// character for a leading language marker, so an index of layout 23, whose
+/// sentence facts count it, is rebuilt.
+const indexLayoutVersion = 24;
 
 const _schema = '''
 CREATE TABLE meta (
