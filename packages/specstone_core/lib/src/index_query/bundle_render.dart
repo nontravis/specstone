@@ -146,6 +146,7 @@ ContextAnswer answerContext(
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
   bool inSummary(IndexedDoc doc) => summaryOnly.contains(doc.docPath);
+  final wholePaths = _wholePathsOf(ordered, summaryOnly);
   final citedBy = bundle.mode == BundleMode.design
       ? citedByIndex(index, inline: !splits)
       : null;
@@ -158,6 +159,7 @@ ContextAnswer answerContext(
         summary: inSummary(doc),
         citedBy: citedBy,
         isTarget: bundle.targetPaths.contains(doc.docPath),
+        wholePaths: wholePaths,
       ),
   ];
   final docBlocks = [for (final print in docPrints) print.text];
@@ -294,6 +296,7 @@ final _readFirstBlocksOf =
 int readFirstTokensOf(DocIndex index, Bundle bundle) {
   final ordered = bundle.printOrder(index);
   final summaryOnly = bundle.summaryOnly;
+  final wholePaths = _wholePathsOf(ordered, summaryOnly);
   final blocks = _readFirstBlocksOf[index] ??= {};
   final patternParts = featurePatternParts(index, bundle, ordered);
   final pieces = [
@@ -323,6 +326,7 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
               summary: summary,
               citedBy: null,
               isTarget: isTarget,
+              wholePaths: wholePaths,
             ).text;
         return DocPrint(text: block, cited: const [], sections: const []);
       },
@@ -659,6 +663,8 @@ ContextAnswer _overBudget(
 /// the line each kept section starts on in the block.
 ///
 /// In `query` only a [isTarget] doc prints its head and every kept section.
+/// Outside `query`, a record prints the Verification matrix rows of the FRs
+/// [wholePaths] holds, and every row that names no FR.
 DocPrint _docBlock(
   DocIndex index,
   IndexedDoc doc,
@@ -666,6 +672,7 @@ DocPrint _docBlock(
   required bool summary,
   required CitedByIndex? citedBy,
   required bool isTarget,
+  required Set<String> wholePaths,
 }) {
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
@@ -694,6 +701,9 @@ DocPrint _docBlock(
   final cited = <CitedItem>[?docEntry];
   final sections = <SectionLine>[];
   final held = citedSectionsOf(content, docType);
+  final matrixCut = mode == BundleMode.query
+      ? const <int>{}
+      : matrixLinesOutOfScope(index, doc, wholePaths);
   // The naming line is the block's line 0.
   var line = 1 + docLines.length + lineAfterBlocks(parts);
   for (final section in keptSectionsOf(
@@ -702,7 +712,14 @@ DocPrint _docBlock(
     mode,
     isTarget: isTarget,
   )) {
-    final print = sectionPrintOf(doc, content, held, section, citedBy);
+    final print = sectionPrintOf(
+      doc,
+      content,
+      held,
+      section,
+      citedBy,
+      matrixCut: matrixCut,
+    );
     cited.addAll(print.cited);
     sections.add(SectionLine(key: section.key, line: line));
     line += lineAfterBlocks([print.block]);
@@ -711,6 +728,14 @@ DocPrint _docBlock(
   final block = [namingLine(doc), ...docLines, parts.join('\n\n')].join('\n');
   return DocPrint(text: block, cited: cited, sections: sections);
 }
+
+/// Returns the DocPaths of the docs of [ordered] a bundle prints whole: all
+/// but the ones in [summaryOnly].
+Set<String> _wholePathsOf(List<IndexedDoc> ordered, Set<String> summaryOnly) =>
+    {
+      for (final doc in ordered)
+        if (!summaryOnly.contains(doc.docPath)) doc.docPath,
+    };
 
 /// Returns the map block of [top]: its subtree, one line per doc with its
 /// name, doc type, and token size, indented two spaces per depth below [top];

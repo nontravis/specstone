@@ -2219,4 +2219,107 @@ void main() {
       expect(a.readFirst.tokens, a.tokens);
     });
   });
+
+  group('the verification matrix of a record', () {
+    const recordFile = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const validateRow =
+        '- email_login/validate_credentials E01: `a wrong password`\n';
+    const lockRow =
+        '- email_login/lock_after_failures E01: `five failures lock`\n';
+    const resetRow =
+        '- reset_password/send_reset_link E01: `a link is mailed`\n';
+    const matrixHeader = '## Verification matrix';
+
+    String record(String rows) =>
+        "---\nstatuses:\n  - 'email_login:planned'\n---\n\n"
+        '# Login implementation\n\n$matrixHeader\n\n$rows';
+
+    Future<ReadAnswer> bundleOf(
+      String rows,
+      String target,
+      BundleMode mode,
+    ) async => ctxIn(await indexWith({recordFile: record(rows)}), target, mode);
+
+    test(
+      "a story's implement bundle keeps its FRs' matrix rows alone",
+      () async {
+        final a = await bundleOf(
+          '$validateRow$lockRow$resetRow',
+          'login/email_login',
+          BundleMode.implement,
+        );
+
+        expect(a.text, contains(matrixHeader));
+        expect(a.text, contains(validateRow.trimRight()));
+        expect(a.text, contains(lockRow.trimRight()));
+        expect(a.text, isNot(contains('send_reset_link E01')));
+      },
+    );
+    test("a feature's design bundle keeps every matrix row", () async {
+      final a = await bundleOf(
+        '$validateRow$lockRow$resetRow',
+        'login',
+        BundleMode.design,
+      );
+
+      for (final row in [validateRow, lockRow, resetRow]) {
+        expect(a.text, contains(row.trimRight()));
+      }
+    });
+    test("a design bundle drops the rows of a summary story's FRs", () async {
+      final a = await bundleOf(
+        '$validateRow$resetRow$lockRow',
+        'login/email_login',
+        BundleMode.design,
+      );
+
+      expect(a.text, contains(validateRow.trimRight()));
+      expect(a.text, contains(lockRow.trimRight()));
+      expect(a.text, isNot(contains('send_reset_link E01')));
+    });
+    test("a malformed line and a story's row stay in the matrix", () async {
+      const stray = '- a stray note\n';
+      const storyRow = '- email_login E01: `a story row`\n';
+      const unknownRow = '- ghost/missing E01: `an unknown item`\n';
+      final a = await bundleOf(
+        '$validateRow$stray$resetRow$storyRow$unknownRow',
+        'login/email_login',
+        BundleMode.implement,
+      );
+
+      expect(
+        a.text,
+        contains(
+          '$matrixHeader\n\n$validateRow$stray$storyRow$unknownRow'.trimRight(),
+        ),
+      );
+      expect(a.text, isNot(contains('send_reset_link E01')));
+    });
+    test('a record without the section prints as before', () async {
+      final a = ctxIn(
+        await indexWith(loginRecords),
+        'login/email_login',
+        BundleMode.implement,
+      );
+
+      expect(a.text, contains('# Login implementation'));
+      expect(a.text, isNot(contains(matrixHeader)));
+    });
+    test('the token size counts the trimmed matrix', () async {
+      final kept = await bundleOf(
+        '$validateRow$lockRow',
+        'login/email_login',
+        BundleMode.implement,
+      );
+      final trimmed = await bundleOf(
+        '$validateRow$lockRow$resetRow',
+        'login/email_login',
+        BundleMode.implement,
+      );
+
+      expect(shown(trimmed), shown(kept));
+      expect(trimmed.json['tokens'], kept.json['tokens']);
+      expect(trimmed.json['tokens'], tokenSizeOf(shown(trimmed)));
+    });
+  });
 }

@@ -414,6 +414,7 @@ final class _Walk {
           view.content.sections[at],
           bodyLine: view.facts.sectionLines[at] + 1,
           after: citedLinesAfter(citedBy, cited),
+          matrixCut: matrixLinesOutOfScope(index, view.doc, _whole),
         ),
       ),
       view,
