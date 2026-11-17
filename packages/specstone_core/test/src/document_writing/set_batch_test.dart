@@ -1414,7 +1414,7 @@ void main() {
     });
   });
 
-  group('a batch section block on a record', () {
+  group('a batch block on a record', () {
     const matrix = 'implementation:login#verification_matrix';
     const notes = 'implementation:login#notes';
     const record =
@@ -1456,6 +1456,48 @@ void main() {
       final answer = runBatch(
         root,
         edit(getText(root, [notes]), 'See the rows.', 'See the table.'),
+      );
+
+      expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      expect(answer.json['blocks'], [containsPair('draft', true)]);
+    });
+
+    test('a whole-doc block that changes only the matrix section keeps the '
+        'approved record approved', () async {
+      final root = await recordProject();
+      final before = readDoc(root, loginRecord);
+      final approved = RegExp('approved: "[0-9a-f]{12}"')
+          .firstMatch(before)![0]!;
+
+      final answer = runBatch(
+        root,
+        edit(getText(root, [loginRecord]), 'a wrong password', 'a wrong email'),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        before.replaceFirst('a wrong password', 'a wrong email'),
+      );
+      expect(readDoc(root, loginRecord), contains(approved));
+      expect(answer.json['blocks'], [containsPair('draft', false)]);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
+    });
+
+    test('a whole-doc block that changes the matrix and another section marks '
+        'the approved record draft', () async {
+      final root = await recordProject();
+
+      final answer = runBatch(
+        root,
+        edit(
+          edit(
+            getText(root, [loginRecord]),
+            'a wrong password',
+            'a wrong email',
+          ),
+          'See the rows.',
+          'See the table.',
+        ),
       );
 
       expect(readDoc(root, loginRecord), contains('draft: true\n'));

@@ -65,9 +65,22 @@ bool isOutsideApproval(MergedField field, {required bool statusesOutside}) =>
 bool isMatrixSection(MergedDocType docType, String sectionKey) =>
     verificationMatrixOf(docType)?.id == sectionKey;
 
+/// Returns [lfText] less its first section that [isMatrixSection] names.
+///
+/// [lfText] as given when [docType] has no matrix section or the doc lacks it.
+String withoutMatrixSection(String lfText, MergedDocType docType) {
+  if (verificationMatrixOf(docType) == null) return lfText;
+  final at = indexedSectionsOf(
+    Doc.parse(lfText),
+    docType,
+  ).indexWhere((section) => isMatrixSection(docType, section.key));
+  return at < 0 ? lfText : withoutSection(lfText, at);
+}
+
 /// Returns the ApprovalHash of [lfText] laid out as [docType] lays it out,
 /// less its `approved:` and `draft:` key blocks, those of its fields
-/// [isOutsideApproval], and the text of its generated blocks.
+/// [isOutsideApproval], its [withoutMatrixSection], and the text of its
+/// generated blocks.
 ///
 /// A frontmatter left empty hashes as an absent one, so the doc hashes the
 /// same before and after [withApprovalHash] adds a fence.
@@ -79,7 +92,7 @@ String approvalHashOf(
   required bool statusesOutside,
 }) {
   final stripped = _withoutGeneratedBlocks(
-    lfText,
+    docType == null ? lfText : withoutMatrixSection(lfText, docType),
     docType?.listedGenerators.toSet() ?? const {},
   );
   final _Stripped(:text, :doc) = _withoutKeys(stripped, {
