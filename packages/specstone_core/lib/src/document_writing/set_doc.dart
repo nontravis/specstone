@@ -20,6 +20,8 @@ import 'package:specstone_core/src/index_query/get_docs.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show withTemplateSection;
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -738,7 +740,7 @@ SplicedDoc _spliceSection({
   } else if (held >= 0) {
     spliced = withSectionBody(lfText, held, body);
   } else {
-    spliced = _withTemplateSection(lfText, docType, key, sections, body);
+    spliced = withTemplateSection(lfText, docType, key, body);
   }
   return SplicedDoc(
     lfText: spliced,
@@ -919,32 +921,6 @@ LockedDoc readLocked(WriteSession session, IndexedDoc doc, DocTypeMatch match) {
     statusesOutside: session.project.statusesOutsideApproval,
   );
   return LockedDoc(bytes: bytes, parsed: parsed);
-}
-
-/// Returns [lfText] with the template section [key] added before the first
-/// held section that follows it in the template, else at the end.
-String _withTemplateSection(
-  String lfText,
-  MergedDocType docType,
-  String key,
-  List<IndexedSection> held,
-  String body,
-) {
-  final template = docType.sections.firstWhere((s) => s.id == key);
-  int? before;
-  for (final later in docType.sections.skipWhile((s) => s.id != key).skip(1)) {
-    final at = held.indexWhere((section) => section.key == later.id);
-    if (at >= 0) {
-      before = at;
-      break;
-    }
-  }
-  return withSectionAdded(
-    lfText,
-    headerLine: '## ${template.header}',
-    body: body,
-    before: before,
-  );
 }
 
 /// Returns the `field_unknown` fault for [fieldId] against [doc]'s doc type.

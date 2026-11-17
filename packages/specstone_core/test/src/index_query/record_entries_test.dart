@@ -1135,6 +1135,28 @@ void main() {
         );
       });
 
+      test('a record with no section gains it before a later section it '
+          'holds', () {
+        final type = _recordType.copyWith(
+          sections: const [
+            matrixSection,
+            MergedSection(id: 'notes', header: 'Notes'),
+          ],
+        );
+        final text = addRecordLines(
+          '---\ndraft: true\n---\n\n# R\n\n## Notes\n\nSee rows.\n',
+          type,
+          const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+        );
+
+        expect(
+          text,
+          '---\ndraft: true\n---\n\n# R\n\n'
+          '## Verification matrix\n\n- k/a/x E01: `shows a toast`\n\n'
+          '## Notes\n\nSee rows.\n',
+        );
+      });
+
       test('rows with no matrix section on the doc type add nothing', () {
         expect(
           addRecordLines(

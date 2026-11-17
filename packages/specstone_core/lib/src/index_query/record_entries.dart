@@ -5,7 +5,7 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
-    show sectionIndexOf;
+    show sectionIndexOf, withTemplateSection;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -435,8 +435,7 @@ String _withRowsAdded(
   MergedDocType recordType,
   List<String> rows,
 ) {
-  final matrix = verificationMatrixOf(recordType);
-  if (matrix == null || rows.isEmpty) return lfText;
+  if (verificationMatrixOf(recordType) == null || rows.isEmpty) return lfText;
   final doc = Doc.parse(lfText);
   final held = sectionIndexOf(doc, recordType, verificationMatrixKey);
   final added = rows.join('\n');
@@ -448,19 +447,11 @@ String _withRowsAdded(
       kept.isEmpty ? '\n$added' : '$kept$added',
     );
   }
-  int? before;
-  final following = recordType.sections
-      .skipWhile((s) => s.id != verificationMatrixKey)
-      .skip(1);
-  for (final later in following) {
-    before = sectionIndexOf(doc, recordType, later.id);
-    if (before != null) break;
-  }
-  return withSectionAdded(
+  return withTemplateSection(
     lfText,
-    headerLine: '## ${matrix.header}',
-    body: '\n$added',
-    before: before,
+    recordType,
+    verificationMatrixKey,
+    '\n$added',
   );
 }
 

@@ -4092,6 +4092,46 @@ void main() {
         expect(holdsApproval(root, payJaspr), isTrue);
       });
 
+      test('a move stopped before its folder moves lands the rows when the '
+          'next write replays it', () async {
+        final root = await shopTwins(
+          extra: {
+            cartJaspr: withRows(
+              recordText(
+                statuses: ['add_item:implemented', 'drop_item:planned'],
+              ),
+              [stockRow, dropRow],
+            ),
+            payJaspr: withRows(jasprPay, [chargeRow]),
+          },
+        );
+        expect(
+          () => IOOverrides.runWithIOOverrides(
+            () => moveAddItem(root),
+            FailingRenameHook(
+              'docs/prds/features/f02_shop/f01_cart/us01_add_item',
+            ),
+          ),
+          throwsA(isA<RenderFault>()),
+        );
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isTrue,
+        );
+
+        writeIn(root, (_) {});
+
+        expect(readDoc(root, cartJaspr), endsWith('$header$dropRow\n'));
+        expect(
+          readDoc(root, payJaspr),
+          endsWith('$header$chargeRow\n$stockRow\n'),
+        );
+        expect(
+          File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+          isFalse,
+        );
+      });
+
       test('a move into a feature with no record creates one holding the '
           'rows', () async {
         final root = await shopTwins(
