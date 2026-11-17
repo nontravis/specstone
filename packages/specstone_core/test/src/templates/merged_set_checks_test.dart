@@ -45,6 +45,15 @@ MergedDocType builtIn(String id) => MergedDocType(
   files: const [],
 );
 
+/// [base] with each of [layers] applied through the merger, lowest first.
+MergedDocType mergeLayers(MergedDocType base, DocTypeLayers layers) {
+  var type = base;
+  for (final entry in layers) {
+    type = const DocTypeMerger().apply(type, entry.layer);
+  }
+  return type;
+}
+
 /// [checkMergedSet] over [docTypes], loading [layers] in map order.
 void check(
   List<MergedDocType> docTypes,
@@ -830,13 +839,8 @@ void main() {
     });
 
     /// The runbook merged over [layers], as the resolver folds them.
-    MergedDocType mergedRunbook(DocTypeLayers layers) {
-      var type = const DocTypeMerger().builtInBase('runbook');
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
-      return type;
-    }
+    MergedDocType mergedRunbook(DocTypeLayers layers) =>
+        mergeLayers(const DocTypeMerger().builtInBase('runbook'), layers);
 
     test('coverage on after a layer disables the matrix section is refused '
         'naming the pack version', () {
@@ -1014,10 +1018,10 @@ void main() {
         for (final (i, text) in texts.indexed)
           layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
       ];
-      var type = const DocTypeMerger().builtInBase('runbook');
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
+      final type = mergeLayers(
+        const DocTypeMerger().builtInBase('runbook'),
+        layers,
+      );
       return (type: type, layers: layers);
     }
 
@@ -1080,10 +1084,10 @@ void main() {
         for (final (i, text) in texts.indexed)
           layerOf('runbook', text, file: i == 0 ? lowerFile : upperFile),
       ];
-      var type = const DocTypeMerger().builtInBase('runbook');
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
+      final type = mergeLayers(
+        const DocTypeMerger().builtInBase('runbook'),
+        layers,
+      );
       check([type], {'runbook': layers});
     }
 
@@ -1142,19 +1146,13 @@ void main() {
         layerOf(id, text, file: layerFile(id, i)),
     ];
 
-    /// [base] with each of [layers] applied through the merger.
-    MergedDocType merged(MergedDocType base, DocTypeLayers layers) {
-      var type = base;
-      for (final entry in layers) {
-        type = const DocTypeMerger().apply(type, entry.layer);
-      }
-      return type;
-    }
-
     /// The runbook merged over [texts], one layer each, lowest first.
     void checkRunbook(List<String> texts) {
       final layers = layersOf('runbook', texts);
-      final type = merged(const DocTypeMerger().builtInBase('runbook'), layers);
+      final type = mergeLayers(
+        const DocTypeMerger().builtInBase('runbook'),
+        layers,
+      );
       check([type], {'runbook': layers});
     }
 
@@ -1166,12 +1164,12 @@ void main() {
       List<String> epicTexts = const [],
     ]) {
       final featureLayers = layersOf('feature', featureTexts);
-      final feature = merged(
+      final feature = mergeLayers(
         const DocTypeMerger().builtInBase('feature'),
         featureLayers,
       );
       final epicLayers = layersOf('epic', ['extends: feature\n', ...epicTexts]);
-      final epic = merged(
+      final epic = mergeLayers(
         MergedDocType(
           id: 'epic',
           extendsId: 'feature',
