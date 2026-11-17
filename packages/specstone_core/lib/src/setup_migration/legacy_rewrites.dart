@@ -35,7 +35,7 @@ const _indexHeaders = {
 
 const _fixedTitles = <LegacyKind, String>{
   LegacyKind.project: 'Project context',
-  LegacyKind.features: 'System map',
+  LegacyKind.features: 'Feature map',
   LegacyKind.gnfr: 'Project-wide non-functional requirements',
 };
 

@@ -118,7 +118,7 @@ Body.
       );
 
       expect(project.lf, contains('\n# Project context\n'));
-      expect(features.lf, '---\n---\n\n# System map\n');
+      expect(features.lf, '---\n---\n\n# Feature map\n');
       expect(
         gnfr.lf,
         contains('\n# Project-wide non-functional requirements\n'),
