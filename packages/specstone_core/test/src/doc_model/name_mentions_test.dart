@@ -195,6 +195,23 @@ void main() {
       }
     });
 
+    test('a name after dots that follow no letter or digit is read, and one '
+        'after a host dot is not', () {
+      for (final (line, text) in [
+        ('A["loading...fr:shop/cart/x"]', 'fr:shop/cart/x'),
+        ('A[see shop/cart/x.https://a.b/c]', 'shop/cart/x'),
+      ]) {
+        final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n')
+            .single;
+        expect(mention.text, text, reason: line);
+        expect(mention.column, line.indexOf(text), reason: line);
+      }
+      expect(
+        nameMentionsInMarkdown('```mermaid\nA["Done.shop/cart/x"]\n```\n'),
+        isEmpty,
+      );
+    });
+
     test('a path, a route, or a host in a label yields no token', () {
       for (final line in [
         'A -->|GET /shop/cart/items| B',

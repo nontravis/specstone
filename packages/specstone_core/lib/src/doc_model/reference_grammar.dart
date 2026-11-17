@@ -131,14 +131,17 @@ AddressToken? _tokenOf(Match run) {
 /// A web address: a scheme, `://`, and the text to the next whitespace,
 /// bracket, quote, `|`, or `<`.
 final _webAddress = RegExp(
-  '(?<![A-Za-z0-9])[A-Za-z][A-Za-z0-9+.\\-]*://[^\\s\\])"\'|<]*',
+  '(?<![A-Za-z0-9.])[A-Za-z][A-Za-z0-9+\\-]*://[^\\s\\])"\'|<]*',
 );
 
 /// A Mermaid node-shape delimiter that holds a slash or a backslash.
 final _nodeShape = RegExp(r'\[[/\\]|[/\\]\]');
 
-/// A run that starts with `/` or follows a `.`: part of a path or a host.
-final _pathRun = RegExp(r'(?<![a-z0-9_/:])/[a-z0-9_/:]*|(?<=\.)[a-z0-9_/:]+');
+/// A run that starts with `/` or follows a `.` after a letter or digit: part
+/// of a path or a host.
+final _pathRun = RegExp(
+  r'(?<![a-z0-9_/:])/[a-z0-9_/:]*|(?<=[A-Za-z0-9]\.)[a-z0-9_/:]+',
+);
 
 /// A sequence-diagram message up to the `:` that opens its text: sender,
 /// arrow, receiver.
