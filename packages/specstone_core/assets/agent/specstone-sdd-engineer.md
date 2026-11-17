@@ -106,8 +106,8 @@ from one `specstone approve --dry-run --json` after your last write, never your 
 your own list names; name each other draft it lists, never counted; a doc of your list it shows as no draft is a
 finding.
 
-- **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Counts:` line, the
-  `Findings:` line.
+- **Author**: first the `Design: <path>, amend <N>` line, then the `Not landed:` lines, the `Drafts for the Owner's
+  specstone approve` line, the `Counts:` line, the `Findings:` line.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
   `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and

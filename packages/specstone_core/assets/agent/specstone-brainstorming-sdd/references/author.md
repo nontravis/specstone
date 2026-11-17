@@ -7,7 +7,7 @@ Ask the Owner nothing: list each gap in the report.
 - **Drafts** (each pass after the first): the drafts list, the first author report's drafts plus each doc a later
   pass added; in a fix round, the audit's `Findings:` lines too.
   Before your first write, re-read the drafts in one `specstone get <drafts list>` call. When it refuses with
-  `doc_not_found`, drop each name it names and run it again on the rest; list each dropped name under `Findings:`, or
+  `doc_not_found`, drop each name it names, rerun on the rest; list each dropped name under `Findings:`, or
   as `Not landed:` when listed and never created. After an amend, write the amended design into the drafts through
   steps 2 and 3. Fix those findings in those drafts as step 2 writes, then sweep each one's terms as step 3 says; go
   to step 4. List each finding outside those drafts under `Findings:`, unfixed.
@@ -19,20 +19,20 @@ reason (Rationale, "since", "so") only in the design's words; list one it lacks 
 
 - **Guide**: before your first write, run `specstone guide <type> … --out` once for every type you write.
 - **Code target** (two or more `targets:`): pass a per-target spec doc's `new`, `get`, and `set` the
-  `--target <name>` its design row names, or use its DocPath.
+  `--target <name>` its design row names, or use an existing doc's DocPath.
 - **New doc**: pipe it to `specstone new <type>` (`--parent`, `--slug` as it takes them), parents first.
-- **Section or field**: pipe it to `specstone set <type>:<name>#<key> --base <hash>` (a field: `--field <id>`;
-  a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, its replacement), its hash in `bases`
-  of `specstone get <type>:<name> --json`.
+- **Section or field**: pipe it to `specstone set <type>:<name>#<key> --base <hash>` (a field: `--field <id>` for
+  `#<key>`; a passage: `--replace` with `==> old <==`, the passage, `==> new <==`, its replacement), its hash in
+  `bases` of `specstone get <type>:<name> --json`.
 - **Several docs**: edit the blocks of `specstone get <names> --out "<file>"`, `<file>`
   `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`, naming lines kept, one write per block; run
   `specstone set --batch "<file>"`. A ` · unchanged` block adds no draft.
-- **A refused batch**: after exit 73, first run a write or `get` to end the half-written docs' journal. Fix each
-  fault; rerun:
+- **A refused batch**: after exit 73, first run a write or `get` to end its journal. Fix each fault; rerun:
   - Stale block: merge your edit into the reply's block; run no `get`.
   - Gone block: re-read its doc by name, a moved doc's new block taking the edit. Drop a block naming no doc or
     typeless, its doc under `Findings:`.
-  - Part twice, or a whole-doc block beside another of its doc: join them, a field or title block into the latter.
+  - Part twice, or a whole-doc block beside another of its doc: join them, a field or title block in the whole-doc
+    block.
   - Removed required section, or a field only the Owner or Specstone sets: restore it; open fence: close it.
   - Any other refusal: fix the part it names, as it says.
   - Refused path or line: rebuild the file from `get` text output alone.
@@ -51,11 +51,11 @@ doc; list any other under `Findings:`.
 
 ## 4. Check
 
-Run a bare `specstone check` before your first write and again after your last. Before the second, walk each item
-you wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not banned-word,
-section-status, or template lines; list a line you cannot meet under `Findings:`. Then run
-`specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating another doc's item
-links it instead.
+Run a bare `specstone check` before your first write and again after your last, long output saved by `--out`, never
+a redirect. Before the second, walk each item you wrote against your saved guide's description lines (doc part, held
+sections, `Fields:`), not banned-word, section-status, or template lines; list a line you cannot meet under
+`Findings:`. Then run `specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating
+another doc's item links it instead.
 
 Fix each second-run finding, even one the first run had, in a section your writes touched. List each in an untouched
 section, such as a doc you only confirmed again, under `Findings:`, unfixed. Two kinds differ:
@@ -87,8 +87,8 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less each name dropped, plus each
   doc added; names only, no `--target`. A moved doc and its children go by their new name.
 - **Counts**: take every count from one `specstone approve --dry-run --json` after your last write, never your own
-  tally. Your drafts are the docs your own list names; the output names a moved one by its name before the move while
-  its `Move:` line is unrun, by its name after the runner runs it. Name each other draft it lists under
-  `Other drafts:`, never counted; one of yours it shows as no draft goes under `Findings:`.
+  tally. Your drafts are the docs your own list names; the output names a moved one by its old name until its
+  `Move:` line runs. Name each other draft it lists under `Other drafts:`, never counted; one of yours it shows as no
+  draft goes under `Findings:`.
 - **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`; copy each
   into the relay block. Run no `move`.
