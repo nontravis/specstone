@@ -95,9 +95,6 @@ sealed class MatrixRow extends MatrixLine {
   /// The row as the file writes it: its text less the leading `- `, and less
   /// its fingerprint with the spaces before it. A row built with no value takes
   /// the form with one space and one backtick around [TestRow.literal].
-  ///
-  /// Two rows with the same facts are equal whatever form the file gave them,
-  /// so `==` leaves this out.
   final String written;
 
   /// The row's link label: the item, `#`, and the edge case.
@@ -126,11 +123,13 @@ final class TestRow extends MatrixRow {
       other.edgeCase == edgeCase &&
       other.literal == literal &&
       other.fingerprint == fingerprint &&
+      other.written == written &&
       other.line == line;
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
-  int get hashCode => Object.hash(item, edgeCase, literal, fingerprint, line);
+  int get hashCode =>
+      Object.hash(item, edgeCase, literal, fingerprint, written, line);
 
   @override
   Map<String, Object?> toJson() => {
@@ -171,11 +170,13 @@ final class SkipRow extends MatrixRow {
       other.edgeCase == edgeCase &&
       other.reason == reason &&
       other.fingerprint == fingerprint &&
+      other.written == written &&
       other.line == line;
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
-  int get hashCode => Object.hash(item, edgeCase, reason, fingerprint, line);
+  int get hashCode =>
+      Object.hash(item, edgeCase, reason, fingerprint, written, line);
 
   @override
   Map<String, Object?> toJson() => {

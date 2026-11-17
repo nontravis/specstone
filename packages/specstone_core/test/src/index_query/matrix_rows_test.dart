@@ -52,5 +52,13 @@ void main() {
       expect(read, row);
       expect((read as MatrixRow).written, 'show_toast E01: `` a `x` ``');
     });
+
+    test('tells two rows of one literal apart by the form written', () {
+      final wide = parseMatrixLine('- show_toast E01: ``queues``', 10);
+      final narrow = parseMatrixLine('- show_toast E01: `queues`', 10);
+
+      expect(wide, isNot(narrow));
+      expect(wide.hashCode, isNot(narrow.hashCode));
+    });
   });
 }

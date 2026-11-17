@@ -487,6 +487,7 @@ void main() {
             literal: literal,
             fingerprint: '3f9a1c0b7e2d',
             line: firstRowLine,
+            written: 'show_toast E01: $written',
           ),
         ]);
       });
