@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isOutsideApproval;
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
+import 'package:specstone_core/src/document_writing/models/replace_stdin.dart';
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/replace_passage.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -104,7 +105,8 @@ final class SetRequest {
     String? codeTarget,
     bool replace = false,
   }) {
-    final (target: written, base: checkedBase) = requireShape(target, base);
+    requireShape(target, base);
+    final written = target!;
     final DocAddress(:docPart, sectionKey: key) = index == null
         ? readDocAddress(written)
         : index.splitAddress(written);
@@ -142,24 +144,20 @@ final class SetRequest {
     return SetRequest(
       address: docPart,
       target: chosen,
-      base: checkedBase,
+      base: base!,
       codeTarget: codeTarget,
     );
   }
 
-  /// Returns [target] and [base] when both are given; throws [IndexFault]
-  /// `argument_missing` otherwise.
+  /// Throws [IndexFault] `argument_missing` unless [target] and [base] are both
+  /// given.
   ///
   /// Needs no index, so a command calls it before it reads stdin.
-  static ({String target, String base}) requireShape(
-    String? target,
-    String? base,
-  ) {
+  static void requireShape(String? target, String? base) {
     if (target == null) {
       throw missingArgument('set', 'a target', _targetExample);
     }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
-    return (target: target, base: base);
   }
 
   /// The doc as `<type>:<name>`.
@@ -800,7 +798,7 @@ SplicedDoc _spliceReplace({
   required String base,
   required String stdin,
 }) {
-  final (:oldPassage, :newPassage) = parseReplaceStdin(stdin);
+  final ReplaceStdin(:oldPassage, :newPassage) = parseReplaceStdin(stdin);
   final held = _heldSectionIndex(doc, docType, sections, key);
   _requireSectionBase(doc, docType, sections, held, key, base);
   final currentBase = _sectionBaseOnDisk(docType, sections, held);
