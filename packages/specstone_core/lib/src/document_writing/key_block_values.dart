@@ -70,9 +70,14 @@ int _skipFiller(String text, int from) {
   return isMarker ? from + 1 : from;
 }
 
-typedef _Token = ({String value, int end, String quote});
+/// A value token of a key line: its text, the offset after it, and its quote.
+final class _Token {
+  const new({required this.value, required this.end, required this.quote});
 
-extension on _Token {
+  final String value;
+  final int end;
+  final String quote;
+
   String quoted(String renamed) => '$quote$renamed$quote';
 }
 
@@ -83,7 +88,7 @@ _Token _tokenAt(String text, int from) {
   if (first == '"' || first == "'") {
     final close = text.indexOf(first, from + 1);
     if (close >= 0) {
-      return (
+      return _Token(
         value: text.substring(from + 1, close),
         end: close + 1,
         quote: first,
@@ -94,5 +99,5 @@ _Token _tokenAt(String text, int from) {
   while (end < text.length && !_filler.contains(text[end])) {
     end++;
   }
-  return (value: text.substring(from, end), end: end, quote: '');
+  return _Token(value: text.substring(from, end), end: end, quote: '');
 }

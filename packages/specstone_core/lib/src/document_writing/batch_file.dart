@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
+import 'package:specstone_core/src/document_writing/models/batch_block.dart';
+import 'package:specstone_core/src/document_writing/models/parsed_batch.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 
@@ -31,32 +33,6 @@ String readBatchFile(String path, {required Directory workingDirectory}) {
     throw BatchFault.fileLevel(path, 'cannot read $path');
   }
 }
-
-/// One block of a batch file: a naming line and the text under it.
-final class BatchBlock {
-  const new({
-    required this.line,
-    required this.naming,
-    required this.text,
-    required this.leavesFenceOpen,
-  });
-
-  /// The 1-based line number of the naming line in the file.
-  final int line;
-
-  /// What the naming line names, its base set.
-  final NamingLine naming;
-
-  /// The lines under the naming line, each with its LF end, less the trailing
-  /// blank lines.
-  final String text;
-
-  /// Whether a fence opens in the block and stays open to the file's end.
-  final bool leavesFenceOpen;
-}
-
-/// A batch file's blocks, and the refusals of the lines no block owns.
-typedef ParsedBatch = ({List<BatchBlock> blocks, List<BatchEntry> lineFaults});
 
 /// Splits [text], a batch file read from [path], into its blocks.
 ///
@@ -117,7 +93,7 @@ ParsedBatch parseBatchFile(String path, String text) {
     }
   }
   lineFaults.sort((a, b) => a.line!.compareTo(b.line!));
-  return (blocks: blocks, lineFaults: lineFaults);
+  return ParsedBatch(blocks: blocks, lineFaults: lineFaults);
 }
 
 /// Returns the lines of [text] with LF line ends, its BOM and the empty line

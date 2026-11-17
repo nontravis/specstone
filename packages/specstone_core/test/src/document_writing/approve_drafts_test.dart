@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approve_drafts.dart';
+import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -630,7 +631,7 @@ void main() {
 
   group('approveNamed', () {
     /// The draft at [address] with the hash `get --json` prints as bases.doc.
-    SeenDraft seen(Directory root, String address) => (
+    SeenDraft seen(Directory root, String address) => SeenDraft(
       name: address,
       hash: (getDoc(root, address)['bases']! as Map)['doc']! as String,
     );
@@ -788,7 +789,7 @@ void main() {
             root,
             (s) => approveNamed(s, [
               seen(root, 'feature:signup'),
-              (name: 'feature:nosuch', hash: '000000000000'),
+              const SeenDraft(name: 'feature:nosuch', hash: '000000000000'),
             ]),
           ),
           throwsA(
@@ -808,7 +809,9 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => approveNamed(s, [(name: 'signup', hash: '000000000000')]),
+          (s) => approveNamed(s, [
+            const SeenDraft(name: 'signup', hash: '000000000000'),
+          ]),
         ),
         throwsA(
           isA<IndexFault>().having(
@@ -825,7 +828,8 @@ void main() {
       final hash = seen(root, 'user_story:login/email_login').hash;
       writeIn(
         root,
-        (s) => approveNamed(s, [(name: 'login/email_login', hash: hash)]),
+        (s) =>
+            approveNamed(s, [SeenDraft(name: 'login/email_login', hash: hash)]),
       );
       expect(readDoc(root, story1), contains(approvedMark(root, story1)));
     });
@@ -1435,7 +1439,7 @@ void main() {
     });
 
     group('approveNamed (approve_named_drafts E05)', () {
-      SeenDraft seen(Directory root, String address) => (
+      SeenDraft seen(Directory root, String address) => SeenDraft(
         name: address,
         hash: (getDoc(root, address)['bases']! as Map)['doc']! as String,
       );
@@ -1482,7 +1486,7 @@ void main() {
             expect(
               () => runIn(
                 root,
-                (s) => approveNamed(s, [(name: address, hash: hash)]),
+                (s) => approveNamed(s, [SeenDraft(name: address, hash: hash)]),
                 below: true,
               ),
               notADraft(address),
@@ -2066,7 +2070,7 @@ void main() {
         final answer = writeIn(
           root,
           (s) => approveNamed(s, [
-            (name: 'architecture:login', hash: hash),
+            SeenDraft(name: 'architecture:login', hash: hash),
           ], codeTarget: 'jaspr'),
         );
         expect(answer.text, 'approved architecture:login\n');
@@ -2087,7 +2091,9 @@ void main() {
       expect(
         () => writeIn(
           root,
-          (s) => approveNamed(s, [(name: 'architecture:login', hash: 'x')]),
+          (s) => approveNamed(s, [
+            const SeenDraft(name: 'architecture:login', hash: 'x'),
+          ]),
         ),
         throwsA(
           isA<IndexFault>()

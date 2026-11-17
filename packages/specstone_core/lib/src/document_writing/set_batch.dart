@@ -8,7 +8,9 @@ import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
+import 'package:specstone_core/src/document_writing/models/batch_block.dart';
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
+import 'package:specstone_core/src/document_writing/models/parsed_batch.dart';
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';

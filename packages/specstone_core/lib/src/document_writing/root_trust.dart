@@ -5,6 +5,7 @@ import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/canonical_path.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/document_writing/home_record.dart';
+import 'package:specstone_core/src/document_writing/models/read_roots.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/project_config.dart';
 
@@ -217,14 +218,12 @@ final class RootTrust {
   );
 }
 
-/// Returns the project root and docs root of the project holding
-/// [workingDirectory], or null outside a project.
+/// Returns the [ReadRoots] of the project holding [workingDirectory], or null
+/// outside a project.
 ///
 /// A read that writes a file, as `--out` does, needs the roots but no trust
 /// record.
-({Directory projectRoot, Directory docsRoot})? locateReadRoots(
-  Directory workingDirectory,
-) {
+ReadRoots? locateReadRoots(Directory workingDirectory) {
   final match = matchProjectRoot(workingDirectory);
   if (match == null) return null;
   final roots = RootTrust.at(
@@ -232,5 +231,5 @@ final class RootTrust {
     root: match.root,
     homeDirectory: null,
   );
-  return (projectRoot: roots.projectRoot, docsRoot: roots.docsRoot);
+  return ReadRoots(projectRoot: roots.projectRoot, docsRoot: roots.docsRoot);
 }
