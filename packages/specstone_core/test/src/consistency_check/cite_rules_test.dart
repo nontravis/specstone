@@ -153,6 +153,46 @@ void main() {
     expect(findings.single.message, contains('INV-99'));
   });
 
+  test('an ID beyond the run of a cite is no item of the cite', () async {
+    final findings = await _citesInFeature(
+      'Users forget (`domain:login`); with two targets it needs it (INV-6).',
+    );
+    expect(findings, hasLength(1));
+    expect(findings.single.keys, {'cite': 'domain:login'});
+    expect(
+      findings.single.message,
+      contains('write it as [domain:login]($_fromFeature)'),
+    );
+    expect(findings.single.message, isNot(contains('[INV-6]')));
+  });
+
+  test(
+    'a run of IDs and a range give one finding with one item link per ID',
+    () async {
+      final findings = await _citeFindings({
+        'docs/$_domain':
+            '# Login domain\n\n## Entities\n\n- Account\n\n'
+            '## Invariants\n\n- **INV-6** An account holds one email.\n'
+            '- **INV-7** A login is rate limited.\n'
+            '- **INV-8** A session expires.\n',
+        ...doc(
+          loginFeature,
+          _line,
+          'Users forget; `domain:login` INV-6 and INV-7 to INV-8.',
+        ),
+      });
+      expect(findings, hasLength(1));
+      expect(
+        findings.single.message,
+        contains(
+          '[INV-6]($_fromFeature#invariants), '
+          '[INV-7]($_fromFeature#invariants), '
+          '[INV-8]($_fromFeature#invariants)',
+        ),
+      );
+    },
+  );
+
   test("a prefixed one-word Name links that type's one doc", () async {
     final findings = await _citesInFeature('Users forget; see `gnfr:gnfr`.');
     expect(findings, hasLength(1));

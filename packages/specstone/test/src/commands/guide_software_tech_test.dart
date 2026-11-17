@@ -30,6 +30,34 @@ const _citeProjectAndAncestor =
 const _domainCitesArchitecture =
     'A DOMAIN cites its own ARCHITECTURE by a section link, such as '
     '`[architecture:rendering](ARCHITECTURE.md#components)`.';
+const _capLine =
+    'Each sentence holds 25 words or fewer (Korean 17), or 100 characters in '
+    'a script with no spaces (Japanese 60, Chinese 45).';
+
+const _nestLine =
+    'Keep one rule in each item, and put several conditions in a nested '
+    'list. A one-sentence paragraph with no ID moves its detail to the '
+    'section of the same doc that owns it, never into a sub-list.';
+
+const _endLine = "Put a cite or an ownership note at the item's end.";
+
+const _exampleLine =
+    'Give a non-obvious rule one example inside its item, as a `such as` '
+    'clause or one "For example," sentence, within the sentence\'s cap.';
+
+const _orderLine =
+    'State the condition first, then the rule, one clause chain per '
+    'sentence; split a sentence whose clauses nest.';
+
+/// The five readability lines every software-tech description carries.
+const _readabilityLines = <String>[
+  _capLine,
+  _nestLine,
+  _endLine,
+  _exampleLine,
+  _orderLine,
+];
+
 const _softwareTechIds = <String>[
   'api',
   'architecture',
@@ -729,6 +757,31 @@ void main() {
         expect(out.toString(), contains(_citeProjectAndAncestor), reason: id);
       }
     });
+
+    test(
+      'every software-tech description carries the five readability lines',
+      () async {
+        final runner = await runnerFor(_bothPacks);
+        for (final id in _softwareTechIds) {
+          out.clear();
+          expect(await runner.run(['guide', id, '--json']), 0, reason: id);
+          final json = jsonDecode(out.toString()) as Map<String, Object?>;
+          final description = json['description']! as String;
+          expect(
+            description.split('\n'),
+            containsAll(_readabilityLines),
+            reason: id,
+          );
+          for (final section
+              in (json['sections']! as List).cast<Map<String, Object?>>()) {
+            final text = section['description'] as String? ?? '';
+            for (final line in _readabilityLines) {
+              expect(text, isNot(contains(line)), reason: id);
+            }
+          }
+        }
+      },
+    );
 
     test('the domain and architecture guides '
         'say a DOMAIN cites its own ARCHITECTURE by a section link', () async {

@@ -1,7 +1,9 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
@@ -10,6 +12,7 @@ import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/plain_items.dart';
 import '../../helpers/software_tech.dart';
 
 const _frPath =
@@ -27,13 +30,18 @@ void main() {
     );
   });
 
-  ParsedDoc parse(String path, String text, {List<int>? bytes}) =>
-      parseIndexedDoc(
-        docPath: path,
-        bytes: bytes ?? utf8.encode(text),
-        match: matcher.match(path),
-        statusesOutside: true,
-      );
+  ParsedDoc parse(
+    String path,
+    String text, {
+    List<int>? bytes,
+    Set<String> idPrefixes = const {},
+  }) => parseIndexedDoc(
+    docPath: path,
+    bytes: bytes ?? utf8.encode(text),
+    match: matcher.match(path),
+    statusesOutside: true,
+    idPrefixes: idPrefixes,
+  );
   ItemFacts factsOf(String path, String text) =>
       parse(path, text).content.itemFacts;
   MergedDocType typeOf(String path) =>
@@ -53,8 +61,8 @@ void main() {
 
       expect(parsed.doc.formatted, isTrue);
       expect(facts.lead, (lines: 1, chars: 15));
-      expect(facts.leadItems, [(id: null, line: 7, chars: 15)]);
-      expect(facts.sectionItems, [
+      expect(plainItems(facts.leadItems), [(id: null, line: 7, chars: 15)]);
+      expect(plainSections(facts), [
         [(id: null, line: 11, chars: lines[10].length)],
         [
           (id: 'E01', line: 15, chars: lines[14].length),
@@ -68,8 +76,8 @@ void main() {
       final facts = factsOf('README.md', '# T\n\nLead text.\n\n## Notes\nx\n');
 
       expect(facts.lead, (lines: 1, chars: 10));
-      expect(facts.leadItems, [(id: null, line: 3, chars: 10)]);
-      expect(facts.sectionItems, [
+      expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 10)]);
+      expect(plainSections(facts), [
         [(id: null, line: 6, chars: 1)],
       ]);
     });
@@ -111,7 +119,7 @@ void main() {
         'edge_cases',
         'statement',
       ]);
-      expect(facts.sectionItems, [
+      expect(plainSections(facts), [
         [
           (
             id: 'E01',
@@ -155,7 +163,7 @@ void main() {
         'edge_cases',
         'statement',
       ]);
-      expect(facts.sectionItems, [
+      expect(plainSections(facts), [
         [(id: 'E01', line: 9, chars: '1. E01 — a'.length)],
         [(id: null, line: 5, chars: 'Shall.'.length)],
       ]);
@@ -171,7 +179,7 @@ void main() {
       final parsed = parse(_frPath, text);
 
       expect(parsed.doc.formatted, isNull);
-      expect(parsed.content.itemFacts.sectionItems, [
+      expect(plainSections(parsed.content.itemFacts), [
         [(id: null, line: 4, chars: 'first one'.length)],
         [(id: null, line: 7, chars: 'second one is longer'.length)],
       ]);
@@ -191,8 +199,10 @@ void main() {
         'mystery',
         'edge_cases',
       ]);
-      expect(facts.sectionItems[1], [(id: null, line: 7, chars: 3)]);
-      expect(facts.sectionItems[2], [
+      expect(plainItems(facts.sectionItems[1]), [
+        (id: null, line: 7, chars: 3),
+      ]);
+      expect(plainItems(facts.sectionItems[2]), [
         (id: 'E01', line: 10, chars: '1. E01 — a'.length),
       ]);
     });
@@ -207,7 +217,7 @@ void main() {
       final parsed = parse(_frPath, '', bytes: bytes);
 
       expect(parsed.doc.formatted, isNull);
-      expect(parsed.content.itemFacts.sectionItems, [
+      expect(plainSections(parsed.content.itemFacts), [
         [(id: null, line: 4, chars: 5)],
       ]);
     });
@@ -245,7 +255,7 @@ void main() {
       );
 
       expect(facts.lead, (lines: 4, chars: 19));
-      expect(facts.leadItems, [
+      expect(plainItems(facts.leadItems), [
         (id: null, line: 1, chars: 10),
         (id: null, line: 3, chars: 3),
         (id: null, line: 4, chars: 3),
@@ -259,7 +269,7 @@ void main() {
       );
 
       expect(facts.lead, (lines: 1, chars: 9));
-      expect(facts.leadItems, [(id: null, line: 3, chars: 9)]);
+      expect(plainItems(facts.leadItems), [(id: null, line: 3, chars: 9)]);
     });
 
     test('print_docs_tree E12: a lead of blank lines only holds no count '
@@ -267,8 +277,8 @@ void main() {
       final facts = factsOf('README.md', '# T\n\n\n## Notes\nx\n');
 
       expect(facts.lead, isNull);
-      expect(facts.leadItems, isEmpty);
-      expect(facts.sectionItems, [
+      expect(plainItems(facts.leadItems), isEmpty);
+      expect(plainSections(facts), [
         [(id: null, line: 5, chars: 1)],
       ]);
     });
@@ -289,7 +299,7 @@ void main() {
         );
 
         expect(facts.lead, (lines: 5, chars: 27));
-        expect(facts.leadItems, [(id: null, line: 7, chars: 4)]);
+        expect(plainItems(facts.leadItems), [(id: null, line: 7, chars: 4)]);
       },
     );
 
@@ -309,7 +319,7 @@ void main() {
       () {
         final facts = factsOf('README.md', '---\na: b\n---\n# T\nlead\n');
 
-        expect(facts.leadItems, [(id: null, line: 5, chars: 4)]);
+        expect(plainItems(facts.leadItems), [(id: null, line: 5, chars: 4)]);
       },
     );
   });
@@ -323,7 +333,7 @@ void main() {
 
       expect(parsed.doc.formatted, isNull);
       expect(parsed.content.itemFacts.sectionItems, hasLength(1));
-      expect(parsed.content.itemFacts.sectionItems.single, [
+      expect(plainItems(parsed.content.itemFacts.sectionItems.single), [
         (id: null, line: 5, chars: 'The system shall.'.length),
       ]);
     });
@@ -383,7 +393,7 @@ void main() {
       );
 
       expect(facts.lead, (lines: 1, chars: 5));
-      expect(facts.sectionItems, [
+      expect(plainSections(facts), [
         [(id: null, line: 6, chars: 1)],
       ]);
     });
@@ -403,6 +413,194 @@ void main() {
     });
   });
 
+  group('readability facts', () {
+    const idPrefixes = {'E', 'RULE-'};
+    ItemFact only(ItemFacts facts, int section) =>
+        facts.sectionItems[section].single;
+
+    test('table row stores facts per cell', () {
+      const text =
+          '# V\n\n## Input / Output\n\n| Field | Type | Note |\n|---|---|---|\n'
+          '| a | one two | three four five |\n';
+
+      final row = only(factsOf(_frPath, text), 0);
+
+      expect(row.readability.cells.map((cell) => cell.single.words), [1, 2, 3]);
+      expect(row.readability.notes, isEmpty);
+    });
+
+    test('misplaced note text is stored', () {
+      const text =
+          '# V\n\n## Edge cases\n\n'
+          '1. E01 — Check the pair (RULE-10) before the second clause.\n';
+
+      final item = only(
+        parse(_frPath, text, idPrefixes: idPrefixes).content.itemFacts,
+        0,
+      );
+
+      expect(item.readability.notes, [(text: '(RULE-10)', closes: false)]);
+      expect(item.readability.cells.single.single.words, 8);
+    });
+
+    test('item and fact counts agree on an unformatted doc', () {
+      const bodies = [
+        'Para one\n1. ordered under para\n2. second\n\n\n\n### H\nright\n- b\n',
+        '> quote\n> - qi\n>\n> para\n\n| a | b |\n|---|---|\n| 1 | 2 |\n',
+        'a | b\n--|--\n1 | 2\n',
+        '* star\n+ plus\n\n   indented para\n\n```\ncode\n```\n- after\n',
+        '- after\n   - nested\n',
+        '### H\n> en: x\n> > deeper\n\n> ### QH\n> > deeper\n',
+        '- a\nlazy\n- b\n\n  cont\n\n10. ten\n11) eleven\n',
+      ];
+      for (final body in bodies) {
+        final content = parse(
+          _frPath,
+          '# V\n\n## Statement\n\n$body\n## Edge cases\n\n1. E01 — a\n',
+        ).content;
+        for (var i = 0; i < content.sections.length; i++) {
+          final items = sectionItemsOf(
+            sectionBodyLines(content.sections, content.lineFacts, i),
+          );
+          expect(
+            content.itemFacts.sectionItems[i],
+            hasLength(items.length),
+            reason: body,
+          );
+        }
+      }
+    });
+
+    test('closing note counts no sentence', () {
+      const text = '# V\n\n## Statement\n\nShall check it. (RULE-10).\n';
+
+      final item = only(
+        parse(_frPath, text, idPrefixes: idPrefixes).content.itemFacts,
+        0,
+      );
+
+      expect(item.readability.notes, [(text: '', closes: true)]);
+      expect(item.readability.cells.single, hasLength(1));
+    });
+
+    test('pipe-less row with an id first cell keeps one list per column', () {
+      const text =
+          '# V\n\n## Edge cases\n\nID | One | Two\n---|---|---\n'
+          'E01 | one word | two\n';
+
+      final item = only(factsOf(_frPath, text), 0);
+
+      expect(item.id, 'E01');
+      expect(item.readability.cells, hasLength(3));
+      expect(item.readability.cells[0], isEmpty);
+      expect(item.readability.cells[1].single.words, 2);
+      expect(item.readability.cells[2].single.words, 1);
+    });
+
+    test('scenario heading number stays in the text', () {
+      const text =
+          '# S\n\n## Acceptance criteria\n\n### Scenario 01\n\nGiven it.\n';
+
+      final sentences = only(
+        factsOf(_storyPath, text),
+        0,
+      ).readability.cells.single;
+
+      expect(sentences.first.isHeading, isTrue);
+      expect(sentences.first.words, 2);
+    });
+
+    test('bold id is stripped', () {
+      const text = '# V\n\n## Edge cases\n\n1. **E01** — one two three\n';
+
+      final item = only(factsOf(_frPath, text), 0);
+
+      expect(item.id, 'E01');
+      expect(item.readability.cells.single.single.words, 3);
+    });
+
+    test('note that took the id place leaves the text whole', () {
+      const text = '# V\n\n## Edge cases\n\n1. E01 owns the thing.\n';
+
+      final item = only(
+        parse(_frPath, text, idPrefixes: idPrefixes).content.itemFacts,
+        0,
+      );
+
+      expect(item.readability.notes, [(text: '', closes: true)]);
+      expect(item.readability.cells.single.every((s) => s.words == 0), isTrue);
+    });
+
+    test('thai sentence stores th chars and runs', () {
+      const text = '# V\n\n## Statement\n\nทุกครั้ง `check`\n';
+
+      final sentence = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single.single;
+
+      expect(sentence.language, 'th');
+      expect(sentence.countsChars, isTrue);
+      expect(sentence.chars, 5);
+      expect(sentence.runs, 1);
+      expect(sentence.isHeading, isFalse);
+    });
+
+    test('heading sentence is marked', () {
+      const text =
+          '# V\n\n## Statement\n\n### A heading\n\nThe paragraph here.\n';
+
+      final sentences = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single;
+
+      expect(sentences.map((sentence) => sentence.isHeading), [true, false]);
+      expect(sentences.map((sentence) => sentence.words), [2, 3]);
+    });
+
+    test('leading id is stripped', () {
+      const text = '# V\n\n## Edge cases\n\n1. E01 — one two three\n';
+
+      final item = only(factsOf(_frPath, text), 0);
+
+      expect(item.id, 'E01');
+      expect(item.readability.cells.single.single.words, 3);
+    });
+
+    test('untyped doc stores no readability facts', () {
+      final item = factsOf(
+        'README.md',
+        '# T\n\n## Notes\nsome words\n',
+      ).sectionItems.single.single;
+
+      expect(item.readability.cells, isEmpty);
+      expect(item.readability.notes, isEmpty);
+    });
+
+    test('crlf doc stores the same readability facts', () {
+      const text =
+          '# V\n\n## Input / Output\n\n| Field | Type |\n|---|---|\n'
+          '| a | one two |\n\n## Edge cases\n\n'
+          '1. E01 — Check the pair (RULE-10) before it.\n\n'
+          '## Statement\n\nทุกครั้ง `check`\n';
+
+      final lf = parse(_frPath, text, idPrefixes: idPrefixes);
+      final crlf = parse(
+        _frPath,
+        text,
+        bytes: utf8.encode(text.replaceAll('\n', '\r\n')),
+        idPrefixes: idPrefixes,
+      );
+
+      expect(
+        jsonEncode(crlf.content.itemFacts.toJson()),
+        jsonEncode(lf.content.itemFacts.toJson()),
+      );
+      expect(crlf.content.itemFacts.sectionItems.first, isNotEmpty);
+    });
+  });
+
   group('ItemFacts JSON', () {
     test('a round trip through JSON text gives the same facts', () {
       final facts = factsOf(
@@ -412,8 +610,8 @@ void main() {
       final back = ItemFacts.fromJson(jsonDecode(jsonEncode(facts.toJson())));
 
       expect(back.lead, facts.lead);
-      expect(back.leadItems, facts.leadItems);
-      expect(back.sectionItems, facts.sectionItems);
+      expect(plainItems(back.leadItems), plainItems(facts.leadItems));
+      expect(plainSections(back), plainSections(facts));
       expect(jsonEncode(back.toJson()), jsonEncode(facts.toJson()));
     });
 
@@ -430,10 +628,38 @@ void main() {
       expect(back.sectionItems, [isEmpty, isEmpty]);
     });
 
+    test('readability facts round-trip through JSON', () {
+      const text =
+          '# V\n\n## Input / Output\n\n| Field | Type |\n|---|---|\n'
+          '| a | one two (RULE-10) after |\n\n## Edge cases\n\n'
+          '1. E01 — Check (RULE-10) before it.\n\n'
+          '## Statement\n\n### Head\n\nทุกครั้ง `check` (RULE-10).\n';
+      final facts = parse(
+        _frPath,
+        text,
+        idPrefixes: const {'E', 'RULE-'},
+      ).content.itemFacts;
+      final back = ItemFacts.fromJson(jsonDecode(jsonEncode(facts.toJson())));
+
+      for (var i = 0; i < facts.sectionItems.length; i++) {
+        for (var k = 0; k < facts.sectionItems[i].length; k++) {
+          final was = facts.sectionItems[i][k].readability;
+          final now = back.sectionItems[i][k].readability;
+          expect(now.cells, was.cells);
+          expect(now.notes, was.notes);
+        }
+      }
+      expect(facts.sectionItems.expand((items) => items).length, 3);
+      expect(
+        facts.sectionItems.last.single.readability.cells.single.first.isHeading,
+        isTrue,
+      );
+    });
+
     test('toJson writes each item as one compact array', () {
       final facts = factsOf('README.md', '# T\n\nLead.\n\n## Notes\nx\n');
 
-      expect(jsonEncode(facts.toJson()), contains('[null,6,1]'));
+      expect(jsonEncode(facts.toJson()), contains('[null,6,1,'));
     });
   });
 }

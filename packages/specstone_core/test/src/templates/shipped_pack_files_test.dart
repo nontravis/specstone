@@ -45,8 +45,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.11.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.11.0');
+  test('the shipped software-tech pack is 1.12.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.12.0');
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -470,6 +470,24 @@ void main() {
       });
     });
 
+    test('no software-tech yaml writes a readability lint key', () {
+      final files = {
+        for (final MapEntry(:key, :value) in shippedPackFiles.entries)
+          if (key.startsWith('software-tech/') && key.endsWith('.yaml'))
+            key: utf8.decode(value),
+      };
+      expect(files, isNotEmpty);
+      for (final MapEntry(:key, :value) in files.entries) {
+        for (final lintKey in const [
+          'max_sentence_words',
+          'max_sentence_chars',
+          'trace_note_last',
+        ]) {
+          expect(value, isNot(contains(lintKey)), reason: '$key $lintKey');
+        }
+      }
+    });
+
     test('the record caps 400 lines and 60000 characters, and every other '
         'spec type 300 lines and 50000 characters', () {
       for (final docType in set.docTypes) {
@@ -596,10 +614,15 @@ void main() {
     );
   });
 
+  test('the shipped prd-core pack is 1.17.0, so the readability guide lines '
+      'ride it', () {
+    expect(shippedPackVersions()['prd-core'], '1.17.0');
+  });
+
   test(
-    'the shipped prd-core pack is 1.16.0, so the guide-rule keys ride it',
+    'the shipped prd-core pack is 1.17.0, so the guide-rule keys ride it',
     () {
-      expect(shippedPackVersions()['prd-core'], '1.16.0');
+      expect(shippedPackVersions()['prd-core'], '1.17.0');
     },
   );
 
@@ -719,6 +742,14 @@ void main() {
       for (final docType in ['persona', 'anti_persona']) {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
+      }
+    });
+
+    test('no prd-core yaml writes a readability lint key', () {
+      for (final docType in set.docTypes) {
+        expect(docType.lint.maxSentenceWords, isNull, reason: docType.id);
+        expect(docType.lint.maxSentenceChars, isNull, reason: docType.id);
+        expect(docType.lint.traceNoteLast, isNull, reason: docType.id);
       }
     });
 

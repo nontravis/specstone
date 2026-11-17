@@ -142,20 +142,158 @@ void main() {
     },
   );
 
-  test(
-    'a section with no item counts its text as one item at its header',
-    () async {
-      final edits = fr(checkPasswordStatement, 'Refuse it. Log it.');
-      final found = await _found(
-        _frLayer,
-        _sectionLint('statement', _oneSentence),
-        edits: edits,
-      );
-      expect(found, hasLength(1));
-      expect(found.single.line, _lineOf(loginFr, '## Statement'));
-      expect(found.single.toJson(), containsPair('actual', 2));
-    },
-  );
+  test('statement finding cites paragraph line', () async {
+    final edits = fr(checkPasswordStatement, 'Refuse it. Log it.');
+    final found = await _found(
+      _frLayer,
+      _sectionLint('statement', _oneSentence),
+      edits: edits,
+    );
+    expect(found, hasLength(1));
+    expect(found.single.line, _lineOf(loginFr, 'Refuse it.'));
+    expect(found.single.toJson(), containsPair('actual', 2));
+  });
+
+  test('semicolon rules give sentences_over_limit', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('edge_cases', _oneSentence),
+      edits: _frWith('1. E01 — Refuse it; log it.'),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
+    expect(found.single.line, _lineOf(loginFr, 'Refuse it;'));
+    expect(found.single.toJson(), containsPair('actual', 2));
+  });
+
+  test('closing note leaves count at one', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('edge_cases', _oneSentence),
+      edits: _frWith('1. E01 — Refuse it. (PV-01)'),
+    );
+    expect(found, isEmpty);
+  });
+
+  test('paragraph beside a sub-list counts', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('statement', _oneSentence),
+      edits: fr(checkPasswordStatement, '- A list item.\n\nRefuse it. Log it.'),
+    );
+    expect(
+      found.map((f) => f.kind),
+      unorderedEquals([
+        FindingKind.sentencesOverLimit,
+        FindingKind.itemCountOutOfRange,
+      ]),
+    );
+    final over = found.singleWhere(
+      (f) => f.kind == FindingKind.sentencesOverLimit,
+    );
+    expect(over.line, _lineOf(loginFr, 'Refuse it. Log it.'));
+  });
+
+  test('two statement paragraphs give item_count_out_of_range', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('statement', '''
+      max_sentences:
+        - count: 1
+      item_count:
+        max: 1
+'''),
+      edits: fr(checkPasswordStatement, 'Refuse it.\n\nLog it.'),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
+    expect(found.single.line, _lineOf(loginFr, '## Statement'));
+    expect(found.single.toJson(), containsPair('actual', 2));
+  });
+
+  test('split why bullet gives item_count_out_of_range', () async {
+    final found = await _found(
+      '.specstone/templates/project.yaml',
+      _sectionLint('vision', '''
+      item_count:
+        per_subsection: true
+        max: 3
+'''),
+      edits: doc(
+        projectDoc,
+        '> en: One sign-in for every app.\n'
+            '- **Why:** One sign-in saves every user a password.\n'
+            '- **Problem:** Each app asks for its own password.\n'
+            '- **Audience:** The people who use the apps.\n',
+        '> en: One sign-in for every app.\n\n- **Why:** a.\n- b.\n'
+            '- **Problem:** c.\n- **Audience:** d.\n',
+      ),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
+    expect(found.single.line, _lineOf(projectDoc, '### PV-01'));
+    expect(found.single.toJson(), containsPair('actual', 4));
+  });
+
+  test('error cases line counts as a step', () async {
+    final found = await _found(
+      _storyLayer,
+      _sectionLint('acceptance_criteria', '''
+      item_count:
+        max: 3
+        per_subsection: true
+'''),
+      edits: doc(
+        loginStory,
+        loginScenario2,
+        '$loginScenario2\n\nError cases: N/A',
+      ),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.itemCountOutOfRange]);
+    expect(found.single.line, _lineOf(loginStory, '### Scenario 2'));
+    expect(found.single.toJson(), containsPair('actual', 4));
+  });
+
+  test('table row with no column sums its cells', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', '''
+      max_sentences:
+        - count: 2
+'''),
+      edits: fr(
+        'A wrong password must not sign in.',
+        '| Part | Responsibility |\n|---|---|\n'
+            '| Form | Takes input. Sends it. |',
+      ),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
+    expect(found.single.line, _lineOf(loginFr, '| Form |'));
+    expect(found.single.toJson(), containsPair('actual', 3));
+  });
+
+  test('heading item over the limit cites the heading line', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', _oneSentence),
+      edits: fr(
+        'A wrong password must not sign in.',
+        '### Group\n\nRefuse it. Log it.',
+      ),
+    );
+    expect(found.map((f) => f.kind), [FindingKind.sentencesOverLimit]);
+    expect(found.single.line, _lineOf(loginFr, '### Group'));
+    expect(found.single.toJson(), containsPair('actual', 2));
+  });
+
+  test('heading sentence adds none', () async {
+    final found = await _found(
+      _frLayer,
+      _sectionLint('rationale', _oneSentence),
+      edits: fr(
+        'A wrong password must not sign in.',
+        '### Group\n\nRefuse it.',
+      ),
+    );
+    expect(found, isEmpty);
+  });
 
   test('a section of one sentence under a count of 1 has no finding', () async {
     final found = await _found(

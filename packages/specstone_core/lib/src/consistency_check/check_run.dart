@@ -26,6 +26,7 @@ import 'package:specstone_core/src/consistency_check/link_rules.dart';
 import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
 import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
+import 'package:specstone_core/src/consistency_check/readability_rules.dart';
 import 'package:specstone_core/src/consistency_check/record_rules.dart';
 import 'package:specstone_core/src/consistency_check/reference_rules.dart';
 import 'package:specstone_core/src/consistency_check/repeat_listing.dart';
@@ -97,6 +98,7 @@ CheckReport runCheck(
       ..addAll(checkNesting(context, doc))
       ..addAll(checkSections(context, doc))
       ..addAll(checkShapeCounts(context, doc))
+      ..addAll(checkReadability(context, doc))
       ..addAll(checkItemFields(context, doc))
       ..addAll(checkFormatDrift(context, doc))
       ..addAll(checkBannedWords(context, doc))

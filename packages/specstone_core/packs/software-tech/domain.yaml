@@ -10,6 +10,11 @@ description: |-
   This includes a rule of a project spec doc or of an ancestor feature's spec doc.
   This doc holds one feature's spec; a rule every feature uses goes to the project's DOMAIN doc.
   Write an `Overrides:` line right after an item that departs from a rule above, as `Overrides: [<ID>](<doc>#<section>) — <how it differs>, because <why>`, and record its `overrides` entry.
+  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
+  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
+  Put a cite or an ownership note at the item's end.
+  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
+  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: specs/f{nn}_{slug}/DOMAIN.md
 parent: feature
 per_target: true
@@ -55,7 +60,7 @@ sections:
       Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
       Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
       Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.
-      Write no trace tag; the DOMAIN's `reference` field holds its trace.
+      Write no trace tag, since the `reference` field holds the trace; a cite or ownership note may close an invariant.
     lint:
       max_sentences:
         - count: 1

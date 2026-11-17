@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart';
+import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:test/test.dart';
 
@@ -23,10 +24,20 @@ List<BodyLine> _body(String text) {
   ];
 }
 
-List<DocItem> _items(String text) => itemsOf(_body(text));
+List<DocItem> _items(String text) => _itemsOf(_body(text));
+
+List<DocItem> _itemsOf(List<BodyLine> body) => [
+  for (final item in sectionItemsOf(body))
+    (
+      line: item.line,
+      chars: item.text.length - scanText(item.text).pairs,
+      text: item.head,
+      heading: item.kind == SectionItemKind.heading,
+    ),
+];
 
 void main() {
-  group('doc_model/doc_items itemsOf', () {
+  group('doc_model/doc_items sectionItemsOf', () {
     test('E09: a list item '
         'counts without its nested items and a nested item alone', () {
       final items = _items(
@@ -115,6 +126,36 @@ void main() {
       ]);
     });
 
+    test('E09: a ### heading inside a blockquote '
+        'counts with a deeper quoted paragraph right under it', () {
+      final items = _items(
+        '> ### Quoted\n'
+        '>\n'
+        '> > deeper\n'
+        '- bullet',
+      );
+
+      expect(items, [
+        (line: 20, chars: 25, text: 'Quoted', heading: true),
+        (line: 23, chars: 8, text: 'bullet', heading: false),
+      ]);
+    });
+
+    test('E09: a ### heading '
+        'counts with the quoted paragraph right under it', () {
+      final items = _items(
+        '### PV-01\n'
+        '\n'
+        '> en: One line.\n'
+        '- bullet',
+      );
+
+      expect(items, [
+        (line: 20, chars: 26, text: 'PV-01', heading: true),
+        (line: 23, chars: 8, text: 'bullet', heading: false),
+      ]);
+    });
+
     test('E09: a blockquote '
         'paragraph and list item are items as anywhere else', () {
       final items = _items(
@@ -161,7 +202,7 @@ void main() {
     test('E09: a fence inside '
         'a list item ends the item and the text after it is its own '
         'item', () {
-      final items = itemsOf([
+      final items = _itemsOf([
         (text: '- item', line: 20, fenced: false),
         (text: '  ```', line: 21, fenced: true),
         (text: '  - code', line: 22, fenced: true),
@@ -177,7 +218,7 @@ void main() {
 
     test('E09: a fence inside '
         'a blockquote is no item', () {
-      final items = itemsOf([
+      final items = _itemsOf([
         (text: '> ```', line: 20, fenced: true),
         (text: '> - code', line: 21, fenced: true),
         (text: '> ```', line: 22, fenced: true),

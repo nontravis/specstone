@@ -11,6 +11,11 @@ description: |-
   An FR never records results: the verification matrix points to the evidence.
   State the present truth; history lives in git.
   Cite a rule another doc owns by a link to the item that holds it, never restate it.
+  Each sentence holds 25 words or fewer (Korean 17), or 100 characters in a script with no spaces (Japanese 60, Chinese 45).
+  Keep one rule in each item, and put several conditions in a nested list. A one-sentence paragraph with no ID moves its detail to the section of the same doc that owns it, never into a sub-list.
+  Put a cite or an ownership note at the item's end.
+  Give a non-obvious rule one example inside its item, as a `such as` clause or one "For example," sentence, within the sentence's cap.
+  State the condition first, then the rule, one clause chain per sentence; split a sentence whose clauses nest.
 path: prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md
 parent: user_story
 fields:
@@ -56,6 +61,8 @@ sections:
     lint:
       max_sentences:
         - count: 1
+      item_count:
+        max: 1
       banned_patterns:
         - id: second_shall
           pattern: '\bshall\b.*\bshall\b'
@@ -128,10 +135,15 @@ sections:
     description: |-
       Write each as `E01 — <trigger> → <response>`.
       For an error case (failure, bad input, low performance, operator error), state how the product will detect, report,
-      handle, and recover from it.
-      For a non-error edge case, state its outcome only.
+      handle, and recover from it. For a non-error edge case, state its outcome only.
+      For several triggers, keep the `→` in the lead and join the response as indented lines, with no blank line.
+      List the triggers as nested items.
     template: |-
       1. E01 — <trigger> → <response>
+      2. E02 — <lead> → <response>
+         <more response, one sentence per line, with no blank line>
+         - <trigger>
+         - <trigger>
     lint:
       names_codes: true
       banned_patterns:

@@ -3,6 +3,8 @@ import 'package:specstone_core/src/consistency_check/reference_rules.dart'
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
 import 'package:specstone_core/src/doc_model/number_label.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show ItemId, RunItem, itemIdRunAt;
 import 'package:specstone_core/src/setup_migration/api_heading_labels.dart';
 import 'package:specstone_core/src/setup_migration/models/label_conversion.dart';
 import 'package:specstone_core/src/setup_migration/models/label_doc.dart';
@@ -244,7 +246,11 @@ List<T> _sortedBy<T>(List<T> items, String Function(T item) key) =>
 /// and never converted.
 _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
   final step = tree.isApi(docPath)
-      ? dropHeadingLabels(lf, (cell) => tree.frNamedBy(docPath, cell))
+      ? dropHeadingLabels(
+          lf,
+          (cell) => tree.frNamedBy(docPath, cell),
+          itemPrefixes: tree.itemPrefixes,
+        )
       : noHeadingStep(lf);
   final bodyStart = step.lf.length - Doc.parse(step.lf).afterFrontmatter.length;
   bool isInKeptHeading(NumberLabel label) => step.kept.any(
@@ -256,7 +262,7 @@ _DocResult _convertDoc(LabelTree tree, String docPath, String lf) {
     if (isInKeptHeading(label)) return null;
     final target = tree.resolve(label, citingDocPath: docPath, before: before);
     return target == null ? null : tree.nameOf(target);
-  });
+  }, itemPrefixes: tree.itemPrefixes);
   return _DocResult(
     lf: converted.lf,
     headings: [
@@ -333,17 +339,25 @@ LabelConversion convertLabelsIn(
   String lf,
   String? Function(NumberLabel label, NumberLabel? before) resolve, {
   bool legacyIds = false,
-}) => _convertMarkdown(lf, resolve, legacyIds: legacyIds);
+  required Set<String> itemPrefixes,
+}) => _convertMarkdown(
+  lf,
+  resolve,
+  legacyIds: legacyIds,
+  itemPrefixes: itemPrefixes,
+);
 
 LabelConversion _convertMarkdown(
   String lf,
   _Resolve resolve, {
   bool legacyIds = false,
+  required Set<String> itemPrefixes,
 }) {
   final _Converted(:edits, :kept) = _markdownEdits(
     lf,
     resolve,
     legacyIds: legacyIds,
+    itemPrefixes: itemPrefixes,
   );
   return LabelConversion(
     lf: _applyLineEdits(lf, edits),
@@ -361,9 +375,14 @@ _Converted _markdownEdits(
   String lf,
   _Resolve resolve, {
   bool legacyIds = false,
+  required Set<String> itemPrefixes,
 }) {
   final body = Doc.parse(lf).afterFrontmatter;
-  final labels = numberLabelsInMarkdown(body, legacyIds: legacyIds);
+  final labels = numberLabelsInMarkdown(
+    body,
+    legacyIds: legacyIds,
+    itemPrefixes: itemPrefixes,
+  );
   if (labels.isEmpty) return const _Converted(edits: [], kept: []);
   final prefixLength = lf.length - body.length;
   final firstLine = '\n'.allMatches(lf.substring(0, prefixLength)).length;
@@ -382,7 +401,11 @@ _Converted _markdownEdits(
     }
     final isListed =
         previous != null &&
-        _isListGap(body.substring(previous.end, label.start), previous.itemId);
+        _isListGap(
+          body.substring(previous.end, label.start),
+          previous.itemId,
+          itemPrefixes,
+        );
     final before = isListed ? carried : null;
     final name = resolve(label, before);
     previous = label;
@@ -427,26 +450,31 @@ _Converted _markdownEdits(
 /// Whether [gap], the text between two labels, joins them in a list or a
 /// range: a joiner, with any item IDs and a joiner after each, once the
 /// [firstItemId] that follows the first label is set aside.
-bool _isListGap(String gap, String? firstItemId) {
+bool _isListGap(String gap, String? firstItemId, Set<String> prefixes) {
   var rest = gap;
-  if (firstItemId != null && rest.startsWith(' $firstItemId')) {
-    rest = rest.substring(firstItemId.length + 1);
+  final spaced = rest.trimLeft();
+  if (firstItemId != null && spaced.startsWith(firstItemId)) {
+    rest = spaced.substring(firstItemId.length);
   }
   while (true) {
     final joiner = _listJoiners.where(rest.startsWith).firstOrNull;
     if (joiner == null) return false;
     rest = rest.substring(joiner.length);
     if (rest.isEmpty) return true;
-    final itemId = _itemIdAtStart(rest);
-    if (itemId == null) return false;
-    rest = rest.substring(itemId.length);
+    final itemEnd = _itemIdEndAtStart(rest, prefixes);
+    if (itemEnd == null) return false;
+    rest = rest.substring(itemEnd);
   }
 }
 
-/// The item ID that [text] opens with, read as the label reader reads the ID
-/// after a label, or null.
-String? _itemIdAtStart(String text) =>
-    numberLabelsIn('FR-01 $text').first.itemId;
+/// The offset after the item ID that [text] opens with, read as the label
+/// reader reads the ID after a label, or null.
+int? _itemIdEndAtStart(String text, Set<String> prefixes) {
+  final run = itemIdRunAt(text, 0, prefixes: prefixes);
+  if (run.isEmpty) return null;
+  final RunItem(:at, :id) = run.first;
+  return id is ItemId ? at + id.written.length : null;
+}
 
 /// Returns [label] with a missing feature and story taken from [before].
 ///

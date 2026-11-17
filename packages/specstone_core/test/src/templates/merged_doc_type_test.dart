@@ -373,6 +373,70 @@ sections:
       expect((set['lint']! as Map<String, Object?>)['titleNoNumber'], isTrue);
     });
 
+    test('toJson prints no readability key when no layer writes one', () {
+      final lint =
+          _merge(_featureLayer).toJson()['lint']! as Map<String, Object?>;
+
+      expect(lint.containsKey('maxSentenceWords'), isFalse);
+      expect(lint.containsKey('maxSentenceChars'), isFalse);
+      expect(lint.containsKey('traceNoteLast'), isFalse);
+    });
+
+    test('toJson prints maxSentenceWords with built-in entries', () {
+      final lint =
+          _merge(
+                _featureLayer,
+                'lint: {max_sentence_words: {default: 30}}',
+              ).toJson()['lint']!
+              as Map<String, Object?>;
+
+      expect(lint['maxSentenceWords'], {'default': 30, 'ko': 17});
+      expect(lint.containsKey('maxSentenceChars'), isFalse);
+    });
+
+    test('toJson prints maxSentenceChars with built-in entries', () {
+      final lint =
+          _merge(
+                _featureLayer,
+                'lint: {max_sentence_chars: {th: 90}}',
+              ).toJson()['lint']!
+              as Map<String, Object?>;
+
+      expect(lint['maxSentenceChars'], {
+        'default': 100,
+        'th': 90,
+        'ja': 60,
+        'zh': 45,
+      });
+      expect(lint.containsKey('maxSentenceWords'), isFalse);
+    });
+
+    test('toJson prints traceNoteLast when written', () {
+      final lint =
+          _merge(
+                _featureLayer,
+                'lint: {trace_note_last: false}',
+              ).toJson()['lint']!
+              as Map<String, Object?>;
+
+      expect(lint['traceNoteLast'], isFalse);
+    });
+
+    test('section toJson prints no readability key', () {
+      final json = _merge(
+        _featureLayer,
+        'lint: {max_sentence_words: {default: 30}, trace_note_last: false}',
+      ).toJson();
+      final sections = (json['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+
+      for (final section in sections) {
+        final lint = section['lint'] as Map<String, Object?>? ?? const {};
+        expect(lint.keys.where((k) => k.startsWith('maxSentence')), isEmpty);
+        expect(lint.containsKey('traceNoteLast'), isFalse);
+      }
+    });
+
     test('the merged schema matches the s02 example', () {
       final json = _merge(
         _featureLayer,
