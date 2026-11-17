@@ -1,12 +1,15 @@
 **Matrix rows** (step 4.5). A row finding is a `matrix_test_unresolved` finding, or a `suspect` or `unconfirmed` one with
-`waitsFor` `agent`, on a line of a record's `verification_matrix` section; its keys name the `item`, the `edge_case`, and
-the literal. One with `waitsFor` `owner` is not in your list: its FR is a pending draft.
+`waitsFor` `agent`, on a line of a record's `verification_matrix` section. The finding's `line` is the row, and its text names the item,
+the edge case, and the literal; a `matrix_test_unresolved` finding also holds the `item` and `name` keys. One with
+`waitsFor` `owner` is not in your list: its FR is a pending draft.
 
-Compare no code and run no `context --code` read. Re-read the row's edge case (`specstone get <FR>#edge_cases`) and its
-test, in a file the item's `tests` lines name, then write the row through
+Compare no code and run no `context --code` read. Re-read the row's edge case
+(`specstone get <feature>/<item>#edge_cases`) and its test, in a file the item's `tests` lines name, then write the row
+through
 `specstone set implementation:<feature>#verification_matrix --target <name> --base <hash> --replace`, stdin holding
 `==> old <==`, the old row, `==> new <==`, then the new row; the hash is the `base` of
-`specstone get implementation:<feature>#verification_matrix`. That write marks no draft.
+`specstone get implementation:<feature>#verification_matrix`. That write marks no draft. To remove a row, send the row and
+a blank line as the old passage and nothing after `==> new <==`.
 
 - **`matrix_test_unresolved`, the test in the same file under a new name:** rewrite the literal to the test's current
   first literal; the row keeps its fingerprint.

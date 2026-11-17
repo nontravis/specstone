@@ -6,8 +6,8 @@ and fix only that target's record and `covers:` entries.
 ## 2. Take the work list
 
 Your gate `check` gives it: each `code_suspect`, `code_unconfirmed`, `implements_path_unresolved`,
-`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row finding, never a
-`tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
+`implements_symbol_unresolved`, `covers_path_missing`, `code_uncovered`, `tests_unresolved`, and matrix-row
+finding with `waitsFor` `agent` (step 4.5), never a `tests_missing` one. A feature named: every code link of it that takes a state instead, a waiting code target's left
 out, each keeping its state.
 
 ## 3. Find the covering docs
@@ -22,8 +22,8 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
 - **Warning `no doc covers or implements <path>`:** The new side of a rename pair goes to step 4.3. Else read the
   file and write nothing for it; report it under `Uncovered:`: its path, what it does that no spec states, and
   whether that needs a new story or FR.
-- **64, `code_path_not_found`:** the file moved or is gone. `check` lists the record entries that still name it; step
-  4.3 fixes them.
+- **64, `code_path_not_found`:** the file moved or is gone. `specstone check` lists the record entries that still name
+  it; step 4.3 fixes them.
 - **Any other exit:** report the CLI's error and stop.
 
 ## 4. Compare, then write
@@ -35,7 +35,7 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
    commit, or on a `code_unconfirmed` folder, every file under the prefix.
 2. Write by outcome through step 4.3's `set --field`, which leaves the draft flag as it was. A pending draft among the
    covering docs holds every write of a match and of a `planned` entry's fingerprint: list a match as a waiting
-   pointer, written whole once it is approved. Else a named
+   pointer, written whole once it is approved (fingerprint, and on a `planned` entry `implemented`). Else a named
    feature's `clean` link takes no fingerprint, only a `planned` entry's `implemented`:
    - **Match:** the finding's `fingerprint` ending the link's entry, any pointer fix, and for a `planned` entry
      `implemented` in its `statuses`; never `skipped` or `deprecated`. Then `task-refs.md` removes closed tasks' refs.
@@ -64,12 +64,7 @@ For each listed code path but a `tests_unresolved` line's or a matrix row's (ste
 
 ## 5. Spec drafts
 
-On the Owner's write-a-spec or fix-the-spec pick sent to you, a story or FR it needs goes to
-`specstone-brainstorming-sdd`. Else write the draft: `specstone new <type>` (`--target <name>`, the path's code
-target, as the type takes it) for a new doc, or `specstone set <doc>#<section key> --base <hash>`
-(hash: the `base` of `specstone get <doc>#<key>`) for a section;
-it waits for approval. Write no record code path or `covers:` entry that names this code
-until it is approved; then add it by step 4.3.
+Follow `spec-drafts.md` on the Owner's write-a-spec or fix-the-spec pick sent to you.
 
 ## Report to the Owner
 
