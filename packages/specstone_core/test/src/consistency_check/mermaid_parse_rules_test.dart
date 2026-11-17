@@ -16,6 +16,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
+import '../../helpers/posix_modes.dart';
 
 const _parsing = 'sequenceDiagram\n  A->>B: ok';
 const _refused = 'sequenceDiagram\n  A->>B: ok\n  A->>B: x;y';
@@ -274,6 +275,56 @@ void main() {
     ]);
   });
 
+  test('E10: a partial answer reports and stores the answered block, warns once, and leaves the other unstored', () async {
+    final project = await _project(architecture: _refused, feature: _parsing);
+    final node = _FakeNode(
+      {_refused: _refusedAnswer},
+      hangOn: {_parsing},
+      timeout: const Duration(seconds: 1),
+    );
+
+    final report = await _check(project, node.runner);
+
+    expect(_parseFindings(report), [
+      '$loginArchitecture:13 sequence | $_refusedLine',
+    ]);
+    expect(_mermaidWarnings(report), [
+      'Mermaid parse skipped: node timed out after 1 s',
+    ]);
+    final next = _FakeNode({});
+    final rerun = await _check(project, next.runner);
+    expect(next.sent, [
+      [_parsing],
+    ]);
+    expect(_parseFindings(rerun), [
+      '$loginArchitecture:13 sequence | $_refusedLine',
+    ]);
+  });
+
+  test(
+    'E21: a write refused as index_not_writable still returns the findings and warns with the code',
+    skip: unreadablePathSkipReason(),
+    () async {
+      final project = await _project(architecture: _refused);
+      openSession(project).close();
+      final index = File.fromUri(project.uri.resolve(indexFilePath));
+      Process.runSync('chmod', ['444', index.path]);
+      addTearDown(() => Process.runSync('chmod', ['644', index.path]));
+
+      final report = await _check(
+        project,
+        _FakeNode({_refused: _refusedAnswer}).runner,
+      );
+
+      expect(_parseFindings(report), [
+        '$loginArchitecture:13 sequence | $_refusedLine',
+      ]);
+      expect(_mermaidWarnings(report), [
+        'Mermaid parse results not stored: index_not_writable',
+      ]);
+    },
+  );
+
   test("a run on one doc sends only that doc's blocks", () async {
     final project = await _project(architecture: _refused, feature: _parsing);
     final node = _FakeNode({_refused: _refusedAnswer});
@@ -349,10 +400,15 @@ final class _Answer {
 
 /// A Node stand-in: counts starts, records the block texts each start got,
 /// and answers each text from its answers, else as a parsing sequence.
+///
+/// A text in [hangOn] gets no line, and the process then runs until the
+/// runner's [timeout] kills it.
 final class _FakeNode {
-  new(this._answers);
+  new(this._answers, {this.hangOn = const {}, this.timeout});
 
   final Map<String, _Answer> _answers;
+  final Set<String> hangOn;
+  final Duration? timeout;
 
   /// How many processes the runner started.
   int starts = 0;
@@ -360,7 +416,7 @@ final class _FakeNode {
   /// The block texts each start received, in input order.
   final List<List<String>> sent = [];
 
-  MermaidNodeRun get runner => MermaidNodeRun(start: _start);
+  MermaidNodeRun get runner => MermaidNodeRun(start: _start, timeout: timeout);
 
   Future<Process> _start(List<String> arguments) async {
     starts++;
@@ -368,7 +424,10 @@ final class _FakeNode {
     final output = StreamController<List<int>>();
     final exit = Completer<int>();
     unawaited(_answer(input.stream, output, exit));
-    return _FakeProcess(IOSink(input), output.stream, exit.future);
+    return _FakeProcess(IOSink(input), output.stream, exit.future, () {
+      if (!output.isClosed) unawaited(output.close());
+      if (!exit.isCompleted) exit.complete(_killedStatus);
+    });
   }
 
   Future<void> _answer(
@@ -382,27 +441,35 @@ final class _FakeNode {
     for (final block in blocks as List<Object?>) {
       if (block case {'i': final int i, 'text': final String body}) {
         texts.add(body);
-        final answer =
-            _answers[body] ?? const _Answer(diagram: 'sequence', parses: true);
-        final line = jsonEncode({
-          'i': i,
-          'diagram': answer.diagram,
-          'parses': answer.parses,
-          'message': ?answer.message,
-          'line': ?answer.line,
-        });
-        stdout.add(utf8.encode('$line\n'));
+        if (!hangOn.contains(body)) stdout.add(_resultLine(i, body));
       }
     }
     sent.add(texts);
+    if (texts.any(hangOn.contains)) return;
     await stdout.close();
     exit.complete(0);
   }
+
+  List<int> _resultLine(int i, String body) {
+    final answer =
+        _answers[body] ?? const _Answer(diagram: 'sequence', parses: true);
+    final line = jsonEncode({
+      'i': i,
+      'diagram': answer.diagram,
+      'parses': answer.parses,
+      'message': ?answer.message,
+      'line': ?answer.line,
+    });
+    return utf8.encode('$line\n');
+  }
 }
+
+/// The exit status the fake reports after a kill.
+const _killedStatus = -9;
 
 /// A child process whose pipes the fake Node drives.
 final class _FakeProcess implements Process {
-  new(this.stdin, this.stdout, this.exitCode);
+  new(this.stdin, this.stdout, this.exitCode, this._onKill);
 
   @override
   final IOSink stdin;
@@ -413,6 +480,8 @@ final class _FakeProcess implements Process {
   @override
   final Future<int> exitCode;
 
+  final void Function() _onKill;
+
   @override
   Stream<List<int>> get stderr => const Stream.empty();
 
@@ -420,5 +489,8 @@ final class _FakeProcess implements Process {
   int get pid => 0;
 
   @override
-  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) => true;
+  bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
+    _onKill();
+    return true;
+  }
 }
