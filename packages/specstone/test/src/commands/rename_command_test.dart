@@ -5,9 +5,12 @@ import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart'
     show fingerprintFor, writeCheckProject;
+import '../../../../specstone_core/test/helpers/nested_fixture.dart'
+    show writeNestedProject;
 import '../../../../specstone_core/test/helpers/override_link_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
+import '../../helpers/built_cli.dart';
 import '../../helpers/write_runner.dart';
 
 void main() {
@@ -451,6 +454,29 @@ void main() {
       );
       expect(File('${root.path}/app/lib/reset.dart').readAsStringSync(), code);
     });
+
+    test(
+      "a dry run of a rename prints the longer span's mentions line",
+      () async {
+        const note = 'docs/notes/ideas.md';
+        const span = 'shop/cart/add_item E05';
+        const text = '# Ideas\n\nA span `$span`.\n';
+        final root = await writeNestedProject(extra: {note: text});
+        final result = await Process.run(await buildSpecstone(), [
+          'rename',
+          'user_story:shop/cart/add_item',
+          '--to',
+          'add_one',
+          '--dry-run',
+        ], workingDirectory: root.path);
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(
+          result.stdout,
+          endsWith('mentions $note:3 $span\ndry run: nothing moved\n'),
+        );
+        expect(File('${root.path}/$note').readAsStringSync(), text);
+      },
+    );
 
     test('--json prints moved, rewritten, mentions, and dryRun true', () async {
       final (:runner, :out, :err) = writeRunner(await writeWriteProject());

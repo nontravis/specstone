@@ -434,6 +434,54 @@ void main() {
     expect(File('${root.path}/app/lib/cart.dart').readAsStringSync(), code);
   });
 
+  group('longer code spans', () {
+    const note = 'docs/notes/ideas.md';
+    const span = 'shop/cart/add_item E05';
+    const text = '# Ideas\n\nA span `$span`.\n';
+    late String binary;
+    setUpAll(() async {
+      binary = await buildSpecstone();
+    });
+
+    test('a story move prints the mentions line of a longer span after its '
+        'rewrote lines', () async {
+      final root = await writeNestedProject(extra: {note: text});
+      final result = await Process.run(binary, [
+        'move',
+        addItem,
+        '--under',
+        'shop/pay',
+      ], workingDirectory: root.path);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final lines = (result.stdout as String).split('\n');
+      expect(lines.last, isEmpty);
+      expect(lines[lines.length - 2], 'mentions $note:3 $span');
+      expect(
+        lines.lastIndexWhere((l) => l.startsWith('rewrote ')),
+        lessThan(lines.indexWhere((l) => l.startsWith('mentions '))),
+      );
+      expect(File('${root.path}/$note').readAsStringSync(), text);
+    });
+
+    test("a dry run prints the longer span's mentions line before its "
+        'closing line', () async {
+      final root = await writeNestedProject(extra: {note: text});
+      final result = await Process.run(binary, [
+        'move',
+        addItem,
+        '--under',
+        'shop/pay',
+        '--dry-run',
+      ], workingDirectory: root.path);
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        result.stdout,
+        endsWith('mentions $note:3 $span\ndry run: nothing moved\n'),
+      );
+      expect(File('${root.path}/$note').readAsStringSync(), text);
+    });
+  });
+
   group('with two code targets', () {
     const cartFlutter = 'specs/flutter/f02_shop/f01_cart/IMPLEMENTATION.md';
     const cartJaspr = 'specs/jaspr/f02_shop/f01_cart/IMPLEMENTATION.md';
