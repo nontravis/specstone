@@ -30,8 +30,8 @@ section 3 says.
 - **A fresh author**: every author pass after the first, each fix round and the pass that follows an amend, is a new
   `mode: author` dispatch, never the resumed one. It takes the document's path and the drafts list; a fix
   round adds the audit's `Findings:` lines that carry no `[behavior]` tag, those that only correct text against the
-  design. The author re-reads those drafts before its first write
-  and fixes only those findings, in those drafts.
+  design. The author re-reads those drafts before its first write, then fixes those findings and each same-class hit
+  as `author.md`'s Sweep each changed rule gives.
 - **A `[behavior]` line** never goes to a fix round: take it, with the decision that answers it, to an
   amend (section 1). The one fresh author pass after the amend takes the amended design and the drafts list. When the
   audit that raised it also holds untagged lines, that pass takes them too and counts as a fix round; a pass that
@@ -47,9 +47,14 @@ section 3 says.
 2. When it refuses with `doc_not_found`, update the drafts list for each name it names: a doc moved between rounds
    takes the new name `move` printed (`moved <from> to <to>`), and a doc deleted, or listed and never created,
    drops out. Run the call again on that list.
-3. Dispatch a fresh `mode: audit` with the document's path and, as its targets, the drafts whose `bases.doc`
-   differs from their last `Audited:` hash, plus each doc the round or pass added.
-   - A draft whose hash equals its last `Audited:` hash is not read again; its earlier finding stands.
-   - A doc of the list that is no draft, approved between rounds or listed and never written, is no target.
-   - Send every re-audit so, never as a follow-up message to the agent of an earlier audit.
-4. In your round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.
+3. For each draft whose `bases.doc` differs from its last `Audited:` hash, a changed draft, run
+   `specstone refs <changed draft>`. Its `Inbound` lines give its citers: a draft of the list that links to it or
+   names it in `traced_from`, one hop only.
+4. Send every re-audit as a fresh `mode: audit`, never as a follow-up message to the agent of an earlier audit, with
+   the document's path and these targets:
+   - A changed draft.
+   - Each doc the round or pass added.
+   - An unchanged draft that cites a changed draft.
+   - Not an unchanged draft that links to no changed draft: its earlier finding stands.
+   - Not a doc of the list that is no draft, approved between rounds or listed and never written.
+5. In your round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.
