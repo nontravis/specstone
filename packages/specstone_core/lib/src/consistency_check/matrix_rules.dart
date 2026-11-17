@@ -8,7 +8,8 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show MergedField;
 
 /// Returns the findings of the Verification matrix rows of a record [doc]; any
 /// other doc has none.
@@ -21,18 +22,27 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 Iterable<Finding> checkMatrixRows(CheckContext context, IndexedDoc doc) sync* {
   final read = recordDocOf(context, doc);
   if (read == null || doc.matrixLines.isEmpty) return;
-  final testField = recordTestFieldOf(read.type);
   yield* _MatrixWalk(
     context,
     doc,
     recordItemsOf(read.feature, context.index.childrenOf),
-    testField == null ? const [] : recordTestLinesOf(doc, testField),
+    _testPathsOf(doc, recordTestFieldOf(read.type)),
   ).findings();
+}
+
+/// Returns the test file paths of each item's `tests` lines in [record].
+Map<String, Set<String>> _testPathsOf(IndexedDoc record, MergedField? field) {
+  final paths = <String, Set<String>>{};
+  if (field == null) return paths;
+  for (final (:item, :path) in recordTestLinesOf(record, field)) {
+    paths.putIfAbsent(item, () => {}).add(path);
+  }
+  return paths;
 }
 
 /// One record's matrix lines read in file order.
 final class _MatrixWalk {
-  new(this._context, this._record, this._items, this._testLines)
+  new(this._context, this._record, this._items, this._testPaths)
     : _target = _context.targets
           .where((target) => target.name == _record.target)
           .firstOrNull;
@@ -40,7 +50,7 @@ final class _MatrixWalk {
   final CheckContext _context;
   final IndexedDoc _record;
   final Map<String, IndexedDoc> _items;
-  final List<({String item, String path})> _testLines;
+  final Map<String, Set<String>> _testPaths;
   final CodeTarget? _target;
 
   final Map<String, Map<String, String>> _edgeCases = {};
@@ -92,11 +102,9 @@ final class _MatrixWalk {
 
   Iterable<Finding> _literalOf(TestRow row, IndexedDoc fr) sync* {
     final target = _target;
-    if (target == null || !_isChecked(fr)) return;
-    final paths = {
-      for (final line in _testLines)
-        if (line.item == row.item) line.path,
-    };
+    final status = _context.index.itemStatus(fr, codeTarget: _record.target);
+    if (target == null || !status.isBuilt) return;
+    final paths = _testPaths[row.item] ?? const <String>{};
     var unreadable = false;
     for (final path in paths) {
       // A path naming no file is the `tests` line rule's.
@@ -120,14 +128,6 @@ final class _MatrixWalk {
       {'item': row.item, 'name': row.literal},
     );
   }
-
-  /// Whether [fr]'s literals are checked: its status in the record's target is
-  /// `implemented` or `deprecated`.
-  bool _isChecked(IndexedDoc fr) =>
-      switch (_context.index.itemStatus(fr, codeTarget: _record.target)) {
-        RecordStatus.implemented || RecordStatus.deprecated => true,
-        RecordStatus.planned || RecordStatus.skipped => false,
-      };
 
   Iterable<Finding> _related(MatrixRow row) sync* {
     final earlier = _earlierRows.putIfAbsent(row.label, () => []);

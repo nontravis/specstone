@@ -238,6 +238,18 @@ void main() {
     expect(findings.single.line, _rowLine(record, 1));
   });
 
+  test('a deprecated entry checks the literal of its rows', () async {
+    final record = _record(
+      statuses: const ['$_fr:deprecated'],
+      rows: ['- $_fr E01: `refuses a blank password`'],
+    );
+
+    final finding = _matrix(await _run(await _project(record))).single;
+
+    expect(finding.kind, FindingKind.matrixTestUnresolved);
+    expect(finding.line, _rowLine(record, 0));
+  });
+
   for (final (name, statuses) in [
     ('its own skip', const ['$_fr:skipped:not in this client']),
     ('the skip of its story', const ['$_story:skipped:not in this client']),

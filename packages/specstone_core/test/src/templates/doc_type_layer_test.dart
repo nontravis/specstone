@@ -1261,4 +1261,16 @@ lint:
       expect(isDocTypeFileName('refs/x.yaml'), isFalse);
     });
   });
+
+  test('only an implemented or deprecated status is built', () {
+    expect(
+      {for (final status in RecordStatus.values) status: status.isBuilt},
+      {
+        RecordStatus.planned: false,
+        RecordStatus.implemented: true,
+        RecordStatus.deprecated: true,
+        RecordStatus.skipped: false,
+      },
+    );
+  });
 }
