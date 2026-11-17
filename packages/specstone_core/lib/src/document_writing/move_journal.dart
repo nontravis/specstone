@@ -1042,16 +1042,23 @@ List<JournalStep>? _parsedSteps(Directory projectRoot) {
 ///
 /// Throws [RenderFault] `output_not_writable` when the journal is unrecorded,
 /// a path leaves those roots, or the journal cannot be read or parsed.
-({List<JournalStep> steps, Set<String> agentFiles})? _trustedSteps(
-  JournalTarget target,
-) {
+_TrustedJournal? _trustedSteps(JournalTarget target) {
   final recorded = _recorded(target.projectRoot, target._records);
   if (recorded == null) return null;
   final steps = _stepsIn(recorded.bytes);
   _requireInside(target, [
     for (final step in steps) ...step._paths,
   ], agentFiles: recorded.agentFiles);
-  return (steps: steps, agentFiles: recorded.agentFiles);
+  return _TrustedJournal(steps: steps, agentFiles: recorded.agentFiles);
+}
+
+/// The steps of a recorded journal whose paths all stay in bounds, and its
+/// agent files.
+final class _TrustedJournal {
+  const new({required this.steps, required this.agentFiles});
+
+  final List<JournalStep> steps;
+  final Set<String> agentFiles;
 }
 
 /// Throws [RenderFault] `output_not_writable` unless each of [paths], the step
@@ -1119,10 +1126,7 @@ String? _firstOutside(
 ///
 /// Throws [RenderFault] `output_not_writable` when [records] holds no digest
 /// of them, or the file cannot be read.
-({List<int> bytes, Set<String> agentFiles})? _recorded(
-  Directory projectRoot,
-  JournalRecords records,
-) {
+_RecordedJournal? _recorded(Directory projectRoot, JournalRecords records) {
   final journal = File(_join(projectRoot.path, MoveJournal.journalPath));
   if (!journal.existsSync()) return null;
   final List<int> bytes;
@@ -1135,7 +1139,15 @@ String? _firstOutside(
   if (agentFiles == null) {
     throw _untrusted('no Specstone run on this machine wrote it');
   }
-  return (bytes: bytes, agentFiles: agentFiles);
+  return _RecordedJournal(bytes: bytes, agentFiles: agentFiles);
+}
+
+/// The bytes of a journal and the agent files recorded with it.
+final class _RecordedJournal {
+  const new({required this.bytes, required this.agentFiles});
+
+  final List<int> bytes;
+  final Set<String> agentFiles;
 }
 
 /// Returns the steps of the journal [bytes].
