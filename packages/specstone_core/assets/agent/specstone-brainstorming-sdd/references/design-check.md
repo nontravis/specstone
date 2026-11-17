@@ -17,8 +17,10 @@ nothing but the agent's `report:` file; never edit the design document. Ask the 
 
 ## 2. Compare
 
-Walk each lens, a bold-labeled bullet, over every decision step 1.2 kept, in list order. Record one gap per line,
-`D<n>: <gap>`, `D<n>` the decision it names:
+Walk each lens, a bold-labeled bullet, over every decision step 1.2 kept, in list order. A gap is the decision's
+own: what it opens, changes, or leaves open in what it changes. Target text no decision changes or relies on is
+context: a gap it held before the design is no finding. Record one gap per line, `D<n>: <gap>`, `D<n>` the decision
+it names:
 
 - **Input left open:** a decision taking inputs or states with no input table, or with a table missing a form the
   targets already handle, such as a bare `#anchor` link beside a relative link.
@@ -30,8 +32,9 @@ Walk each lens, a bold-labeled bullet, over every decision step 1.2 kept, in lis
 - **Design contradicts:** a decision that contradicts another decision, an Owner answer the design records, a
   constraint, or an owner item.
 - For each gap any lens finds, search the saved files for its wording and the rule or term it breaks, as the last
-  bullet of `audit.md`'s compare step does. Each hit in another doc or section is a sibling: its own `D<n>:` line
-  under `Findings:`, never under `Outside the drafts:`.
+  bullet of `audit.md`'s compare step does. Each hit in another doc or section that carries the same gap is a
+  sibling: its own `D<n>:` line under `Findings:`, never under `Outside the drafts:`. A hit that stays true
+  whatever answers the gap is no sibling.
 
 ## 3. Report
 
