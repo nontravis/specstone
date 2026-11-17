@@ -32,48 +32,49 @@ name.
 
 ## 3. Write the document
 
-Sections, in this order:
+Sections, in order:
 
-1. **Intent**: the change and its why, goals and non-goals, the actors it serves, and the vision IDs (`PV-…`)
-   it advances, in a few lines.
+1. **Intent**: the change and its why, goals and non-goals, actors served, and vision IDs (`PV-…`) advanced.
 2. **Constraints**: what the docs fix that the change keeps, each cited by name.
-3. **Rulings**: each dated, in the Owner's words with the scope words (`only`, `not`, `never`, `after`)
-   verbatim, each naming the text it supersedes.
+3. **Rulings**: each dated, in the Owner's words, scope words (`only`, `not`, `never`, `after`)
+   verbatim, naming the text it supersedes.
 4. **Approaches**: the one picked, and why each other lost.
 5. **Decisions**: one per thing decided, with an ID (`D1`, `D2`, ...), as the Owner decided it, its rule's
-   owner doc (`none` for a decision with no rule, such as a pure ruling or an approach pick), and the terms you
-   searched for it. A decision that takes inputs or states (a rule with states, or one that adds a key, a flag, a link
-   form, a refusal, or a doc type target) also gets an input table: one row per input or state, the result it gives,
-   and each command or skill that reads it. A refusal's row quotes its message literal.
+   owner doc (`none` with no rule), and the terms you searched for it. A decision that takes inputs or states (a rule
+   with states, or one that adds a key, a flag, a link form, a refusal, or a doc type target) also gets an input
+   table: one row per input or state, the result it gives, and each command or skill reading it. A refusal's row
+   quotes its message literal.
 6. **Docs to change**: a table, one row per doc: its `<type>:<name>` (a new doc: its type and parent), the sections
-   it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. Each
-   feature the change reaches with an `architecture` doc gets a row for its `design_references` section, a link to this
-   document, kept or dropped as the `Design references` section of `specstone guide architecture` says. With two or
-   more `targets:`, a per-target spec doc's row also names its code target, a row with none an open question.
-7. **Open questions**: each gap that neither the Owner's answers nor the saved files bear on.
+   it changes, and the decision IDs it carries. Every decision has a row, or a line on why no doc takes it. Each
+   reached feature's `architecture` doc gets a `design_references` row linking this document, as
+   `specstone guide architecture` says. With two or more `targets:`, a per-target spec doc's row also names its code
+   target, a row with none an open question.
+7. **Open questions**: each gap neither the Owner's answers nor the saved files settle.
 
-Before the Docs to change table closes, find each decision's dependents in your saved files:
+Before the Docs to change table closes, find each decision's dependents:
 
-- Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7). The owner item's cited-by lines in the
-  saved files give the docs that link it.
-- Run `specstone check <feature> --repeats` for the repeat groups that hold the owner item.
-- Search the saved files' text for the decision's terms and for the wording it supersedes, each in every written form:
-  with and without a trailing `/`, in backticks or not, singular and plural, and a short form. Search every section
-  of each doc in a Docs to change row.
-- Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change links the
-  owner's item that holds the rule, or rewrites the doc when it owns a rule that reads the decision's rule.
-- With no cited-by line on the owner item, as in a tree that still cites by number labels, the repeat groups and the
-  text search carry the decision. Record the searched terms either way, so the audit sees them.
-- An amend for a decision that adds or changes behavior runs these steps on its terms and adds its rows and searched
-  terms before the author writes it.
+- Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7); its owner item's cited-by lines give the
+  docs that link it.
+- Run `specstone check <feature> --repeats` for the repeat groups holding the owner item.
+- Search the saved files for the decision's terms and the wording it supersedes, each in every written form: with
+  and without a trailing `/`, in backticks or not, singular and plural, and a short form. Search every section of
+  each doc in a row.
+- Each doc found restating the rule instead of citing its owner gets a row: its change links the owner's item, or
+  rewrites the doc when it owns a rule reading the decision's rule.
+- With no cited-by line, the repeat groups and the text search carry the decision; record the searched terms either
+  way.
+- An amend that adds or changes behavior runs these steps on its terms, adding its rows and searched terms before
+  the author writes it.
 
-Decide a point a PRD or spec doc must state, such as a refusal or a name rule, that the Owner's answers leave open,
-naming the one owner item its rule takes, or list it as an open question; a design holding such a point open goes to
-no author. Leave a code-level point, such as a class name, to the builder, with no decision and no open question.
+Decide each point the Owner's answers leave open that a PRD or spec doc must state, such as a refusal or a name rule,
+naming the one owner item its rule takes, or list it as an open question; a design holding one open goes to no
+author. Leave a code-level point, such as a class name, to the builder: no decision, no open question.
 
-On an amend, edit every place in the document that still states text a ruling supersedes.
+On an amend, edit every place still stating text a ruling supersedes. Number each amend (`Amend 1`, `Amend 2`,
+...); any edit of a decision an author pass has read opens a new one, however small. Each decision an amend adds or
+changes lists it in its heading, earlier amends kept, such as `(Amend 2, Amend 4)`.
 
-Write the file, or amend it when it exists, with your host's file write. Write no other file, and no PRD or spec doc.
+Write or amend the file with your host's file write; write no other file, and no PRD or spec doc.
 
 ## 4. Check before you ask
 
@@ -83,6 +84,10 @@ and each decision specific enough that two builders would build the same thing.
 Before the approval ask, check each saved file's sections outside the Docs to change rows for a wording a decision
 supersedes: each found gets a row. Ask only once none is left. This document is outside the check: it quotes that
 wording.
+
+Then the skill's step 3 runs the design check. Fix each finding in the document: an untagged one by an edit;
+a `[behavior]` one by deciding it, or asking the Owner if only they can, then section 3's dependents steps on its
+terms.
 
 ## 5. Tell the Owner
 

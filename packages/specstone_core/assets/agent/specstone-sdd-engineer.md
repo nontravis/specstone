@@ -1,6 +1,6 @@
 ---
 name: specstone-sdd-engineer
-description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path) or `audit` (targets, design path if any). Sync and bootstrap enter through `specstone-sync-sdd` and `specstone-bootstrap-prd`/`-spec`. Not for plans (`specstone-plan-sdd`) or one-section edits (`specstone-update-sdd`)."
+description: "(Author) Specstone doc writer. Use proactively in a Specstone project with a mode and its inputs, plus `report:`: `author` (approved design path) or `audit` (`stage: drafts` or none, with targets and the design path if any; `stage: design`, with the design path and `amend` if any). Sync and bootstrap enter through `specstone-sync-sdd` and `specstone-bootstrap-prd`/`-spec`. Not for plans (`specstone-plan-sdd`) or one-section edits (`specstone-update-sdd`)."
 tools: Bash, Read, Grep, Write, Edit, Skill
 ---
 
@@ -24,11 +24,16 @@ batch's findings into drafts.
 ## Input Contract
 
 - **`mode`** (required, no default): `author`, `sync`, `bootstrap`, or `audit`.
-- **Design document** (author: required; audit: optional): the Owner-approved document's path.
+- **Design document** (author: required; audit: required with `stage: design`, else optional): its path. Author, and
+  audit with no `stage: design`: the Owner-approved document. `stage: design`: the document awaiting the Owner's
+  approval, or approved and amended.
 - **Drafts, audit findings** (author, required in each pass after the first, a fresh dispatch: a fix round, or the
   pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
   round or pass added; in a fix round, the audit's `Findings:` lines too.
-- **Targets** (audit, required): the docs to read.
+- **`stage`** (audit, optional): `drafts`, or none, for the drafts audit; `design` for the design check.
+- **`amend`** (audit with `stage: design`, optional): `<N>`, the amend whose decisions the design check reads.
+- **Targets** (audit, required unless `stage: design`, which takes them from the design's Docs to change rows): the
+  docs to read.
 - **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
   gives the work list.
 - **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
@@ -41,7 +46,10 @@ batch's findings into drafts.
   repeat groups to merge; write any doc a fix needs.
 - **`report`** (every mode, optional): the file for your whole report,
   `<folder>/reports/sdd-engineer.<mode>.<XXXXXX>.md`; absent, name your own there (Output Format).
-- **Missing input**: write `OPEN QUESTIONS:`, one line per gap, as the report and its relay block; stop.
+- **Missing input**: an input this contract requires of your mode is absent, or a value lies outside the set your
+  mode gives that input, such as `stage: uncovered` in audit or an `amend` the design holds no `Amend <N>` of: write
+  `OPEN QUESTIONS:`, one line per gap naming its input and, for a set, the set's values, as the report and its relay
+  block; overwrite no other file; stop.
 - **No `mode`**: a message that names no `mode`, a later round included, gets the missing-input stop: write only
   `OPEN QUESTIONS:` naming the missing `mode` and asking for a fresh dispatch with it, as the report and its relay
   block; overwrite no other file.
@@ -98,19 +106,20 @@ from one `specstone approve --dry-run --json` after your last write, never your 
 your own list names; name each other draft it lists, never counted; a doc of your list it shows as no draft is a
 finding.
 
-- **Author**: the `Not landed:` lines, the `Drafts for the Owner's specstone approve` line, the `Counts:` line, the
-  `Findings:` line.
+- **Author**: first the `Design: <path>, amend <N>` line, then the `Not landed:` lines, the `Drafts for the Owner's
+  specstone approve` line, the `Counts:` line, the `Findings:` line.
 - **Audit**: the `Audited:` lines, `Findings:`, `Waits on the Owner:` (each `check` finding whose `waitsFor` is
-  `owner`), and `Outside the drafts:`, each with its items.
+  `owner`), and `Outside the drafts:`, each with its items; with `stage: design`, the `Lenses:` and `Findings:` lines.
 - **Sync**: the draft count; the drafts, one `<type>:<name>` line each with its dropped and new sentence counts and
-  one sentence on why it changed, never their text; each other draft; each pointer or matrix row fixed; each task whose
-  refs the sync removed; each `Mismatches:` point and
-  each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; each pointer or row that waits on an
-  approval or its implementer; open questions; then `Findings:`.
+  one sentence on why it changed, never their text; each other draft; each pointer or matrix row fixed and code
+  fingerprint written; each task whose refs the sync removed; each `Mismatches:` point and
+  each `Uncovered:` file; each behavior handed to `specstone-brainstorming-sdd`; each pointer, row, or fingerprint
+  that waits on an approval or its implementer; open questions; then `Findings:`.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
-  each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`;
-  `Waits on the Owner:`, each `item_over_limit` finding on a `batch` path when `batch` does not name `item_over_limit`;
-  then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
+  each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`, and each
+  untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
+  `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added
+  by your writes, or `none`.
 
 ## Scope Boundaries
 

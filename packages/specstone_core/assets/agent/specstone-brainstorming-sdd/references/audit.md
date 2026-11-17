@@ -1,11 +1,11 @@
-`specstone-sdd-engineer` runs this in `mode: audit`, its gate already made; so does the runner of
-`specstone-brainstorming-sdd`. Write nothing but the agent's `report:`
-file, no fix. Ask the Owner nothing.
+With `stage: design`, follow `design-check.md` instead. `specstone-sdd-engineer` runs this in `mode: audit` with no
+`stage` or `stage: drafts`, its gate made; so does the runner of `specstone-brainstorming-sdd`. Write nothing but the
+agent's `report:` file, no fix. Ask the Owner nothing.
 
 ## 1. Read
 
-1. **Targets**: the drafts the author reported, or the feature or doc the Owner named. A later audit takes the targets
-   its dispatch names, each read whole and audited again.
+1. **Targets**: the dispatch's `targets`: the drafts list, a later audit's targets, each read whole and audited
+   again, or the feature or doc the Owner named.
 2. **Hashes**: run one `specstone get <targets> --json` on every target. The drafts list's names need no
    `--target`. When it refuses with `doc_not_found`, for a target never created, or moved or deleted since the list
    was made, drop each name the refusal names and list it under `Outside the drafts:`, with no `Audited:` line. Any
@@ -81,5 +81,4 @@ Outside the drafts:
 - **`Outside the drafts:`**: each gap or `check` finding whose fix lies in no draft; each target
   that is no draft, and each name dropped from the `get` call; and each whole draft story or FR that is invented,
   marked as a deletion for the Owner.
-- **An empty heading:** write `none` under it. A `[behavior]` line goes to the runner's design amend, never a fix
-  round.
+- **An empty heading:** write `none` under it.
