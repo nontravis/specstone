@@ -36,8 +36,7 @@ final class HiddenText {
     );
     final ranges = [
       for (final source in sources) ..._markupOf(lfBody, source),
-      for (final TextRange(:start, :end) in leafTextOf(lfBody).definitionSpans)
-        _Range(start, end),
+      ...leafTextOf(lfBody).definitionSpans,
     ];
     return HiddenText._(
       lfBody,
@@ -57,7 +56,7 @@ final class HiddenText {
   final List<int> _lineStarts;
 
   /// The hidden ranges, sorted and disjoint.
-  final List<_Range> _ranges;
+  final List<TextRange> _ranges;
 
   /// Returns the code points that file lines [firstLine] to [lastLine], both
   /// included, hide, with the line feeds that join those lines.
@@ -100,26 +99,18 @@ final class HiddenText {
   }
 }
 
-/// A body range, start included, end excluded.
-final class _Range {
-  const new(this.start, this.end);
-
-  final int start;
-  final int end;
-}
-
 const _bang = 0x21;
 const _lineFeed = 0x0A;
 
 /// Returns the ranges [source] hides: its opener, and its text's closer to its
 /// end; an autolink and a bare URL have no bracketed text and hide none.
-List<_Range> _markupOf(String body, LinkSource source) {
+List<TextRange> _markupOf(String body, LinkSource source) {
   final textEnd = source.textEnd;
   if (textEnd == null) return const [];
   final opener = body.codeUnitAt(source.offset) == _bang ? 2 : 1;
   return [
-    _Range(source.offset, source.offset + opener),
-    _Range(textEnd, source.end),
+    TextRange(start: source.offset, end: source.offset + opener),
+    TextRange(start: textEnd, end: source.end),
   ];
 }
 
@@ -130,15 +121,15 @@ List<int> _lineStartsOf(String body) => [
 ];
 
 /// Returns [ranges] as sorted, disjoint ranges, an overlap joined.
-List<_Range> _merged(List<_Range> ranges) {
+List<TextRange> _merged(List<TextRange> ranges) {
   ranges.sort((a, b) => a.start - b.start);
-  final merged = <_Range>[];
+  final merged = <TextRange>[];
   for (final range in ranges) {
     final last = merged.isEmpty ? null : merged.last;
     if (last == null || range.start > last.end) {
       merged.add(range);
     } else if (range.end > last.end) {
-      merged.last = _Range(last.start, range.end);
+      merged.last = TextRange(start: last.start, end: range.end);
     }
   }
   return merged;
