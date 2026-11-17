@@ -6,6 +6,8 @@ import 'package:specstone_core/src/git_process.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart'
     show parseFrontmatterYaml;
+import 'package:specstone_core/src/index_query/matrix_rows.dart'
+    show withoutMatrixSection;
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -58,9 +60,17 @@ bool isOutsideApproval(MergedField field, {required bool statusesOutside}) =>
       _ => false,
     };
 
+/// Whether [sectionKey] names the record doc type's matrix section, whose write
+/// leaves the draft flag.
+///
+/// Decided by [verificationMatrixOf], never by a section's `output_ref` flag.
+bool isMatrixSection(MergedDocType docType, String sectionKey) =>
+    verificationMatrixOf(docType)?.id == sectionKey;
+
 /// Returns the ApprovalHash of [lfText] laid out as [docType] lays it out,
 /// less its `approved:` and `draft:` key blocks, those of its fields
-/// [isOutsideApproval], and the text of its generated blocks.
+/// [isOutsideApproval], its [withoutMatrixSection], and the text of its
+/// generated blocks.
 ///
 /// A frontmatter left empty hashes as an absent one, so the doc hashes the
 /// same before and after [withApprovalHash] adds a fence.
@@ -72,7 +82,9 @@ String approvalHashOf(
   required bool statusesOutside,
 }) {
   final stripped = _withoutGeneratedBlocks(
-    lfText,
+    docType == null || verificationMatrixOf(docType) == null
+        ? lfText
+        : withoutMatrixSection(Doc.parse(lfText), docType),
     docType?.listedGenerators.toSet() ?? const {},
   );
   final _Stripped(:text, :doc) = _withoutKeys(stripped, {

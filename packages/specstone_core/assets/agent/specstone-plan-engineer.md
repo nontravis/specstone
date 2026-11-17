@@ -126,7 +126,15 @@ adds `--target <code target>`, and the plan holds that target's tasks alone. Wit
      more than one way.
    - **Tests line**: a task that adds or moves a test for an FR writes out a step that sets that FR's `tests` line in
      its target's record: `specstone set implementation:<feature> --field tests`, with `--target <code target>` when
-     one is given. The sync writes no new `tests` line.
+     one is given. Right after it, in the same bullet, a step writes one Verification matrix row per edge case the test
+     proves, in that record's `verification_matrix` section (`specstone set implementation:<feature>#verification_matrix`,
+     with the same `--target`), as ``- <item> <edge case>: `<literal>` ``: the FR named relative to its feature, its
+     edge case ID, and the first literal of the test's name, with no fingerprint. A later step stamps each row with the
+     fingerprint `specstone check` prints for it once the test passes, never one you compute. A row whose edge case sits
+     in an FR carrying `draft: true` stays unstamped: the task names it as waiting on that FR's approval. A task that
+     writes a new test for a row the sync reported, because its test proves none of its edge case, also rewrites that
+     old row to the new test's literal and stamps it the same way, or removes it when a row of that literal already
+     stands. The sync writes no new `tests` line and no row for a new test.
 
    The plan's last task runs the `specstone-sync-sdd` skill with no path list; it builds no doc, so it carries no read
    line.

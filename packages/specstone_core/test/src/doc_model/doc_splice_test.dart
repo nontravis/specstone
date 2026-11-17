@@ -231,4 +231,19 @@ void main() {
       );
     },
   );
+
+  test('a fingerprint is 12 lowercase hex characters and nothing else', () {
+    expect(isFingerprint(baseHashOf('abc')), isTrue);
+    for (final text in [
+      '',
+      '3f9a1c0b7e2',
+      '3f9a1c0b7e2d9',
+      '3F9A1C0B7E2D',
+      '3f9a1c0b7e2g',
+      ' 3f9a1c0b7e2d',
+      '3f9a1c0b7e2d\n',
+    ]) {
+      expect(isFingerprint(text), isFalse, reason: text);
+    }
+  });
 }

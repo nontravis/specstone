@@ -8,6 +8,7 @@ import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show parseOverrides, singularLayoutPathsOf;
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -15,11 +16,16 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, writeCheckProject;
 import '../../helpers/index_fixture.dart';
+import '../../helpers/record_doc_type.dart';
 
 const _feature = 'prds/features/f01_login/FEATURE.md';
 const _domain = 'specs/f01_login/DOMAIN.md';
 const _topic = 'specs/topics/doc_model.md';
 const _citing = 'specs/f02_signup/ARCHITECTURE.md';
+const _record = 'specs/f03_feedback/IMPLEMENTATION.md';
+
+/// A record doc type that carries the matrix section.
+final MergedDocType _matrixRecordType = recordDocType();
 
 /// The docs every case resolves against: the login feature, its domain doc
 /// holding INV-6 and INV-7, and a topic holding RULE-14 and RULE-19.
@@ -45,20 +51,26 @@ final MergedSet _set = TemplateResolver().resolveCarried(
   homeDirectory: null,
 );
 
-/// The cite pass over [docs], each typed by its shipped doc type.
-CitePass _passOf(Map<String, String> docs) => CitePass.plan(
+/// The cite pass over [docs], each typed by its shipped doc type, or by its
+/// entry in [types] when it has one.
+CitePass _passOf(
+  Map<String, String> docs, {
+  Map<String, MergedDocType> types = const {},
+}) => CitePass.plan(
   [
     for (final MapEntry(key: docPath, value: lf) in docs.entries)
       (
         docPath: docPath,
         lf: lf,
-        type: switch (DocTypeMatcher(
-          _set,
-          targetNames: const [],
-        ).match(docPath)) {
-          MatchedDocType(:final docType) => docType,
-          _ => null,
-        },
+        type:
+            types[docPath] ??
+            switch (DocTypeMatcher(
+              _set,
+              targetNames: const [],
+            ).match(docPath)) {
+              MatchedDocType(:final docType) => docType,
+              _ => null,
+            },
         target: null,
       ),
   ],
@@ -263,6 +275,32 @@ void main() {
       expect(pass.apply(_citing, text), text);
       expect(pass.planLine, isNull);
       expect(pass.leftOn(const {}), isEmpty);
+    });
+
+    test("the cite pass leaves a test row's literal as written", () {
+      const text =
+          '# Feedback implementation\n\n## Verification matrix\n\n'
+          '- show_toast E01: `domain:login`\n'
+          '- show_toast E02 skipped: it needs `domain:login`\n\n'
+          '## Notes\n\nSee `domain:login`.\n';
+      final pass = _passOf(
+        {..._baseDocs, _record: text},
+        types: {_record: _matrixRecordType},
+      );
+
+      expect(
+        pass.apply(_record, text),
+        text
+            .replaceFirst(
+              'needs `domain:login`',
+              'needs [domain:login](../f01_login/DOMAIN.md)',
+            )
+            .replaceFirst(
+              'See `domain:login`',
+              'See [domain:login](../f01_login/DOMAIN.md)',
+            ),
+      );
+      expect(pass.planLine, 'cites: 2 rewrites in 1 docs; left: 0');
     });
 
     test('a Concerns header the merged type does not hold is no Concerns '

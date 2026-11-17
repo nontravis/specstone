@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/cited_by.dart';
+import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/html_comments.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_links.dart'
@@ -114,6 +115,8 @@ DocPrint summaryPrintOf(
 ///
 /// With [summaryRows], the section prints cut by [cutToRows], and only the
 /// items and blocks whole inside the printed lines get a cited-by line.
+/// [matrixCut] gives the file lines the Verification matrix section leaves out
+/// (see [sectionBlockOf]).
 SectionPrint sectionPrintOf(
   IndexedDoc doc,
   DocContent content,
@@ -121,6 +124,7 @@ SectionPrint sectionPrintOf(
   IndexedSection section,
   CitedByIndex? citedBy, {
   int? summaryRows,
+  Set<int> matrixCut = const {},
 }) {
   final at = content.sections.indexOf(section);
   final printed = summaryRows == null
@@ -149,6 +153,7 @@ SectionPrint sectionPrintOf(
     printed,
     bodyLine: content.lineFacts.sectionLines[at] + 1,
     after: citedLinesAfter(citedBy, items),
+    matrixCut: matrixCut,
   );
   return SectionPrint(block: block, cited: items);
 }
@@ -192,15 +197,19 @@ int? summaryRowCountOf(MergedDocType? docType, String key) {
 /// removed, trimmed at its end.
 ///
 /// [bodyLine] is the file line of the body's first line, and [after] gives
-/// the lines to print after a file line (see [printedBodyOf]).
+/// the lines to print after a file line (see [printedBodyOf]). The Verification
+/// matrix section leaves out the body lines on the file lines [matrixCut]
+/// holds; any other section ignores it.
 String sectionBlockOf(
   IndexedSection section, {
   int bodyLine = 1,
   Map<int, List<String>> after = const {},
+  Set<int> matrixCut = const {},
 }) {
   final headerLine = bodyLine - 1;
+  final cut = section.key == verificationMatrixKey ? matrixCut : const <int>{};
   final body = printedBodyOf(
-    section.body,
+    cut.isEmpty ? section.body : _withoutLines(section.body, bodyLine, cut),
     firstLine: bodyLine,
     after: {
       for (final MapEntry(:key, :value) in after.entries)
@@ -208,6 +217,43 @@ String sectionBlockOf(
     },
   );
   return [section.headerLine, ...?after[headerLine], body].join('\n');
+}
+
+/// Returns [body], whose first line is file line [firstLine], less the lines on
+/// [cutLines].
+String _withoutLines(String body, int firstLine, Set<int> cutLines) => [
+  for (final (i, text) in body.split('\n').indexed)
+    if (!cutLines.contains(firstLine + i)) text,
+].join('\n');
+
+/// Returns the file lines of the Verification matrix rows of [record] that a
+/// bundle printing [wholePaths] whole leaves out: each row whose item is an FR
+/// of the record's feature that [wholePaths] does not hold.
+///
+/// A malformed line, a story's row, and the row of an unknown item are no
+/// part of the answer. A doc that is no record has none.
+Set<int> matrixLinesOutOfScope(
+  DocIndex index,
+  IndexedDoc record,
+  Set<String> wholePaths,
+) => {
+  for (final entry in index.statusTree.recordEntriesAt(record.docPath))
+    for (final row in entry.matrixRows)
+      if (_frOfFeature(index, record.name, row.item) case final fr?)
+        if (!wholePaths.contains(fr.docPath)) row.line,
+};
+
+/// Returns the FR [item] names in the feature [feature], or null when it names
+/// none there.
+IndexedDoc? _frOfFeature(DocIndex index, String feature, String item) {
+  for (final fr in index.ofTypeNamed(frType, '$feature/$item')) {
+    var holder = index.parentOf(fr);
+    while (holder != null && holder.docTypeId != featureType) {
+      holder = index.parentOf(holder);
+    }
+    if (holder?.name == feature) return fr;
+  }
+  return null;
 }
 
 /// Returns the sections [content] keeps for [mode], in its doc type's section

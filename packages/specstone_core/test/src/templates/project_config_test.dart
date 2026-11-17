@@ -298,6 +298,54 @@ void main() {
       }
     });
 
+    group('verification_coverage', () {
+      test('verification coverage defaults to off', () async {
+        final root = await _withConfig('packs:\n  prd-core: 1.0.0\n');
+
+        expect(ProjectConfig.read(root).verificationCoverage, isFalse);
+      });
+
+      for (final (text, expected) in [
+        ('', false),
+        (' ~', false),
+        (' false', false),
+        (' true', true),
+      ]) {
+        test('`verification_coverage:$text` reads as $expected', () async {
+          final root = await _withConfig(
+            'packs:\n  prd-core: 1.0.0\nverification_coverage:$text\n',
+          );
+
+          expect(ProjectConfig.read(root).verificationCoverage, expected);
+        });
+      }
+
+      for (final (name, line) in [
+        ('a number', 'verification_coverage: 3'),
+        ('a quoted word', "verification_coverage: 'yes'"),
+        ('a list', 'verification_coverage: [true]'),
+      ]) {
+        test(
+          'a non-boolean verification coverage ($name) is refused',
+          () async {
+            final root = await _withConfig(
+              'packs:\n  prd-core: 1.0.0\n$line\n',
+            );
+
+            expect(
+              () => ProjectConfig.read(root),
+              throwsA(
+                _fault(
+                  FaultCode.unknownValue,
+                  key: 'verification_coverage',
+                ).having((f) => f.code.exitStatus, 'exitStatus', 78),
+              ),
+            );
+          },
+        );
+      }
+    });
+
     group('targets', () {
       test('E23: two '
           'targets read in file order, each with its own code root', () async {

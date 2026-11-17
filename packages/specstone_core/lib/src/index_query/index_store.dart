@@ -10,6 +10,7 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/version.dart';
 import 'package:sqlite3/sqlite3.dart';
@@ -71,8 +72,11 @@ const _notWritableMessage =
 /// Layout 26 stores each typed doc's `mermaid` blocks in its line facts and
 /// adds the `diagram_parses` table, so an index of layout 25, which holds
 /// neither, is rebuilt. Layout 27 holds no unreadable links in the line facts,
-/// so an index of layout 26 is rebuilt.
-const indexLayoutVersion = 27;
+/// so an index of layout 26 is rebuilt. Layout 28 adds the `matrix_lines`
+/// column and leaves a record's matrix section out of its size counts, so an
+/// index of layout 27, whose record rows hold no Verification matrix lines, is
+/// rebuilt.
+const indexLayoutVersion = 28;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -105,6 +109,7 @@ CREATE TABLE docs (
   line_facts TEXT NOT NULL,
   banned_matches TEXT NOT NULL,
   item_facts TEXT NOT NULL,
+  matrix_lines TEXT NOT NULL,
   stat_size INTEGER,
   stat_mtime INTEGER,
   stat_ctime INTEGER,
@@ -481,8 +486,8 @@ final class IndexStore {
       'INSERT INTO docs (doc_path, doc_type_id, name, target, title, '
       'frontmatter, tokens, formatted, approval_hash, ord, warnings, '
       'content_hash, text, frontmatter_text, head, line_facts, '
-      'banned_matches, item_facts) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'banned_matches, item_facts, matrix_lines) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         doc.docPath,
         doc.docTypeId,
@@ -505,6 +510,7 @@ final class IndexStore {
         jsonEncode(content.lineFacts.toJson()),
         jsonEncode(bannedMatchesToJson(content.bannedMatches)),
         jsonEncode(content.itemFacts.toJson()),
+        jsonEncode([for (final line in doc.matrixLines) line.toJson()]),
       ],
     );
     for (final (position, section) in content.sections.indexed) {
@@ -722,7 +728,7 @@ final class IndexStore {
     for (final row in _db.select(
       'SELECT doc_path, doc_type_id, name, target, parent_path, '
       'parent_warning, title, frontmatter, tokens, formatted, approval_hash, '
-      'ord, warnings FROM docs ORDER BY ord, doc_path',
+      'ord, warnings, matrix_lines FROM docs ORDER BY ord, doc_path',
     ))
       IndexedDoc(
         docPath: row['doc_path'] as String,
@@ -745,6 +751,11 @@ final class IndexStore {
           ...(jsonDecode(row['warnings'] as String) as List<Object?>)
               .cast<String>(),
           if (row['parent_warning'] case final String warning) warning,
+        ],
+        matrixLines: [
+          for (final line
+              in jsonDecode(row['matrix_lines'] as String) as List<Object?>)
+            MatrixLine.fromJson(line! as Map<String, Object?>),
         ],
       ),
   ];

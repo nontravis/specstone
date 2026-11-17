@@ -10,6 +10,7 @@ import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/plain_items.dart';
+import '../../helpers/record_doc_type.dart';
 import '../../helpers/software_tech.dart';
 
 MergedDocType nestedType(
@@ -614,6 +615,149 @@ void main() {
         (lines: nonBlankLinesOf(flow), chars: flow.length),
       ]);
     });
+  });
+
+  group("a record's size counts", () {
+    const recordPath = 'specs/f02_feedback/IMPLEMENTATION.md';
+    const notes = MergedSection(id: 'notes', header: 'Notes');
+    const questions = MergedSection(id: 'questions', header: 'Questions');
+    final withMatrix = recordDocType(
+      sections: [notes, matrixSection, questions],
+    );
+
+    ParsedDoc parseRecord(
+      String text, {
+      MergedDocType? type,
+      bool crlf = false,
+    }) => parseIndexedDoc(
+      docPath: recordPath,
+      bytes: utf8.encode(crlf ? text.replaceAll('\n', '\r\n') : text),
+      match: DocTypeMatcher(
+        MergedSet(docTypes: [type ?? withMatrix]),
+        targetNames: const [],
+      ).match(recordPath),
+      statusesOutside: true,
+    );
+
+    const head = '---\nkey: value\n---\n\n# Feedback implementation\n';
+    const notesBody = '\n## Notes\n\nfirst\n';
+    const questionsBody = '\n## Questions\n\nlast\n';
+    const rows =
+        '- a/b E01: `one`\n'
+        '- a/b E02: `emoji \u{1F600} case`\n'
+        '- a/b E03 skipped: no test can prove it\n';
+    const matrixBody = '\n## Verification matrix\n\n$rows';
+
+    void expectCountsLeaveOut(String withSection, String without) {
+      final facts = parseRecord(withSection).content.lineFacts;
+      final plain = parseRecord(without).content.lineFacts;
+      expect(facts.lineCount, plain.lineCount);
+      expect(facts.charCount, plain.charCount);
+    }
+
+    test('leave out its matrix section, whichever section follows it', () {
+      expectCountsLeaveOut(
+        '$head$notesBody$matrixBody$questionsBody',
+        '$head$notesBody$questionsBody',
+      );
+      expectCountsLeaveOut('$head$notesBody$matrixBody', '$head$notesBody');
+      expectCountsLeaveOut('$head$matrixBody', head);
+    });
+
+    test('leave out its matrix section from the laid-out text', () {
+      const padded =
+          '\n## Notes\n\n| a   | b    |\n|-----|------|\n| 1   | 22   |\n';
+      const laidOut = '\n## Notes\n\n| a | b |\n|---|---|\n| 1 | 22 |\n';
+      final parsed = parseRecord('$head$padded$matrixBody$questionsBody');
+      expect(parsed.doc.formatted, isFalse);
+      const expected = '$head$laidOut$questionsBody';
+      final facts = parsed.content.lineFacts;
+      expect(facts.charCount, expected.length);
+      expect(
+        facts.lineCount,
+        nonBlankLinesOf('# Feedback implementation\n$laidOut$questionsBody'),
+      );
+    });
+
+    test('leave out a matrix section with no rows', () {
+      expectCountsLeaveOut(
+        '$head$notesBody\n## Verification matrix\n$questionsBody',
+        '$head$notesBody$questionsBody',
+      );
+    });
+
+    test('count a record with no matrix section as laid out', () {
+      final facts = parseRecord('$head$notesBody').content.lineFacts;
+      expect(
+        facts.lineCount,
+        nonBlankLinesOf('# Feedback implementation\n$notesBody'),
+      );
+      expect(facts.charCount, '$head$notesBody'.length);
+    });
+
+    test('leave out its matrix section when the doc is not laid out', () {
+      const bogus = '\n## Bogus\n\nx  y\n';
+      final parsed = parseRecord('$head$bogus$matrixBody');
+      expect(parsed.doc.formatted, isNull);
+      final plain = parseRecord(
+        '$head$bogus',
+        type: withMatrix,
+      ).content.lineFacts;
+      expect(parsed.content.lineFacts.lineCount, plain.lineCount);
+      expect(parsed.content.lineFacts.charCount, plain.charCount);
+    });
+
+    test('leave out its matrix section when the doc has CRLF line ends', () {
+      const text = '$head$notesBody$matrixBody$questionsBody';
+      final crlf = parseRecord(text, crlf: true).content.lineFacts;
+      final lf = parseRecord(text).content.lineFacts;
+      expect(crlf.lineCount, lf.lineCount);
+      expect(crlf.charCount, lf.charCount);
+    });
+
+    test('name one section the matrix for its rows, counts, and approval hash '
+        'whatever its header spelling', () {
+      const spelled = '\n##  VERIFICATION   Matrix\n\n$rows';
+      final parsed = parseRecord('$head$notesBody$spelled$questionsBody');
+      final plain = parseRecord('$head$notesBody$questionsBody');
+      expect(parsed.doc.matrixLines, hasLength(3));
+      expect(parsed.doc.approvalHash, plain.doc.approvalHash);
+      expect(
+        parsed.content.lineFacts.lineCount,
+        plain.content.lineFacts.lineCount,
+      );
+      expect(
+        parsed.content.lineFacts.charCount,
+        plain.content.lineFacts.charCount,
+      );
+    });
+
+    test("keep the matrix section's own counts", () {
+      const section = '## Verification matrix\n\n$rows';
+      final facts = parseRecord('$head$notesBody$matrixBody$questionsBody')
+          .content
+          .lineFacts;
+      expect(facts.sectionCounts[1], (
+        lines: nonBlankLinesOf(section),
+        chars: section.trimRight().runes.length,
+      ));
+    });
+
+    test(
+      'count a section of that name in a doc type with no matrix section',
+      () {
+        final plain = recordDocType(sections: [notes, questions]);
+        const text = '$head$notesBody$matrixBody$questionsBody';
+        final facts = parseRecord(text, type: plain).content.lineFacts;
+        expect(facts.charCount, text.runes.length);
+        expect(
+          facts.lineCount,
+          nonBlankLinesOf(
+            '# Feedback implementation\n$notesBody$matrixBody$questionsBody',
+          ),
+        );
+      },
+    );
   });
 
   group('mermaid blocks', () {

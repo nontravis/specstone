@@ -70,6 +70,11 @@ final class StatusTree {
   /// Returns the doc at [docPath], or null when none is indexed there.
   IndexedDoc? at(String docPath) => _byPath[docPath];
 
+  /// Returns the record entries of the record doc at [docPath]; none for a doc
+  /// that is no record.
+  List<RecordEntry> recordEntriesAt(String docPath) =>
+      _recordEntries[docPath] ?? const [];
+
   /// Returns the docs of the doc type [typeId] named [name], in tree order.
   List<IndexedDoc> ofTypeNamed(String typeId, String name) =>
       _byTypeAndName['$typeId:$name'] ?? const [];
@@ -227,7 +232,7 @@ final class StatusTree {
         if (record.target != codeTarget) continue;
         records.add((
           feature: member.name,
-          entries: _recordEntries[record.docPath] ?? const [],
+          entries: recordEntriesAt(record.docPath),
         ));
       }
     }

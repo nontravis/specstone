@@ -1117,6 +1117,42 @@ items:
     });
   });
 
+  group('specstone guide --json in the built CLI with a record matrix', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    test('guide json prints outputRef on the record matrix section '
+        'only', () async {
+      final project = await writeTree({
+        _configPath: shippedPinsConfig(),
+        '.specstone/templates/implementation.yaml':
+            'sections:\n'
+            '  - {id: verification_matrix, header: Matrix, output_ref: true}\n',
+      });
+
+      final result = await Process.run(binary, [
+        'guide',
+        'implementation',
+        '--json',
+      ], workingDirectory: project.path);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      final sections = (json['sections']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final marked = [
+        for (final section in sections)
+          if (section.containsKey('outputRef')) section['id'],
+      ];
+      expect(marked, ['verification_matrix']);
+      final matrix = sections.firstWhere(
+        (section) => section['id'] == 'verification_matrix',
+      );
+      expect(matrix['outputRef'], isTrue);
+    });
+  });
+
   group('specstone guide --pattern in the built CLI', () {
     late String binary;
 

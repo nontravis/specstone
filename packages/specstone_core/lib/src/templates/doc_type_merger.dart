@@ -408,6 +408,7 @@ final class DocTypeMerger {
             itemCount: entry.lint?.itemCount,
             maxSubsections: entry.lint?.maxSubsections,
             whenField: entry.whenField,
+            isOutputRef: entry.outputRef ?? false,
           ),
         );
         continue;
@@ -473,6 +474,7 @@ final class DocTypeMerger {
         itemCount: entry.lint?.itemCount,
         maxSubsections: entry.lint?.maxSubsections,
         whenField: entry.whenField,
+        isOutputRef: entry.outputRef,
       );
       if (entry.after == null || entry.after == entry.id) {
         sections[index] = merged;

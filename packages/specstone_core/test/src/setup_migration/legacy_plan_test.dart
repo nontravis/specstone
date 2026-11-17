@@ -12,6 +12,8 @@ import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     show newRecordOf;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart'
     show StaleMention;
+import 'package:specstone_core/src/index_query/record_entries.dart'
+    show RecordLines;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
@@ -1873,13 +1875,12 @@ name: Login API
         featureType: set.lookup('feature')!,
         featureDocPath: 'prds/features/f01_login/FEATURE.md',
         featureName: 'login',
-        lines: (
+        lines: const RecordLines(
           statuses: [
             'email_login:implemented',
             'email_login/validate_credentials:planned',
           ],
           code: ['email_login:lib/a.dart:A'],
-          tests: const [],
         ),
       )!;
       expect(record.text, expected.text);

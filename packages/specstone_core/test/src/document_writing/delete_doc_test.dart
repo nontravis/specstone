@@ -2151,6 +2151,118 @@ void main() {
       expect(hasDoc(root, story2), isTrue);
       expect(readDoc(root, _loginRecord), '$unchanged\nMore.\n');
     });
+
+    group('matrix rows', () {
+      const sendRow =
+          '- reset_password/send_reset_link E01: `sends a link` 5d1e0c4b7a92';
+      const sendSkip =
+          '- reset_password/send_reset_link E02 skipped: needs a mail server  '
+          '9a1c03be55d2';
+      const expireRow =
+          '- reset_password/expire_reset_link E01: `expires a link` '
+          '1b2c3d4e5f60';
+      const validateRow =
+          '- email_login/validate_credentials E01: `checks the email` '
+          '7f6e5d4c3b2a';
+      const noRows = '\n## Verification matrix\n\n';
+
+      /// The `login` record with a matrix section holding [rows].
+      String recordWithRows(List<String> rows) =>
+          '$_loginRecordText$noRows${rows.join('\n')}\n';
+
+      Future<Directory> projectWithRows(List<String> rows) =>
+          writeWriteProject(extra: _withRecords(login: recordWithRows(rows)));
+
+      test("deleting an FR removes that FR's rows alone", () async {
+        final root = await projectWithRows([
+          sendRow,
+          validateRow,
+          sendSkip,
+          expireRow,
+        ]);
+        del(root, ['fr:login/reset_password/expire_reset_link']);
+
+        final record = readDoc(root, _loginRecord);
+        expect(record, isNot(contains('expire_reset_link')));
+        for (final kept in [sendRow, validateRow, sendSkip]) {
+          expect(record, contains('\n$kept\n'));
+        }
+        expect(record, contains("'reset_password/send_reset_link:planned'"));
+      });
+
+      test('a row of another item is left unchanged', () async {
+        final root = await projectWithRows([validateRow, sendRow]);
+        del(root, ['user_story:login/reset_password']);
+
+        expect(readDoc(root, _loginRecord), contains('$noRows$validateRow\n'));
+      });
+
+      test('a record without the section is untouched', () async {
+        final prose =
+            '${recordText(statuses: ['email_login:implemented'])}\n'
+            '## Notes\n\n$sendRow\n';
+        final root = await writeWriteProject(extra: _withRecords(login: prose));
+        del(root, ['user_story:login/reset_password']);
+
+        expect(readDoc(root, _loginRecord), prose);
+      });
+
+      test(
+        'a delete replayed from its journal ends with the rows gone',
+        () async {
+          final root = await projectWithRows([sendRow, validateRow, expireRow]);
+          final before = readDoc(root, _loginRecord);
+          expect(
+            () => IOOverrides.runWithIOOverrides(
+              () => del(root, ['user_story:login/reset_password']),
+              FailingRenameHook('docs/$fr31'),
+            ),
+            throwsA(isA<RenderFault>()),
+          );
+          expect(readDoc(root, _loginRecord), before);
+
+          writeIn(root, (s) => s.index.docs.length);
+
+          final record = readDoc(root, _loginRecord);
+          expect(record, contains('\n$validateRow\n'));
+          expect(record, isNot(contains('reset_password')));
+          expect(record, contains('draft: true'));
+          expect(
+            File('${root.path}/${MoveJournal.journalPath}').existsSync(),
+            isFalse,
+          );
+        },
+      );
+
+      test('a dry run lists an item whose rows alone leave', () async {
+        final root = await writeWriteProject(
+          extra: _withRecords(
+            login:
+                '${recordText(statuses: ['email_login:implemented'])}'
+                '$noRows$expireRow\n',
+          ),
+        );
+        final answer = writeIn(
+          root,
+          (s) => answerDeleteDryRun(s, [
+            'fr:login/reset_password/expire_reset_link',
+          ]),
+        );
+
+        expect(answer.json['records'], [
+          {
+            'path': _loginRecord,
+            'entries': ['reset_password/expire_reset_link'],
+          },
+        ]);
+        expect(
+          answer.text,
+          contains(
+            'rewrites $_loginRecord: reset_password/expire_reset_link\n',
+          ),
+        );
+      });
+    });
   });
 
   group('with two code targets', () {
@@ -2220,6 +2332,36 @@ void main() {
           if (f.kind == FindingKind.recordEntryUnresolved) f.path,
       ], isEmpty);
     });
+
+    test(
+      "deleting a story removes its FRs' matrix rows from each target's record",
+      () async {
+        const rows =
+            '\n## Verification matrix\n\n'
+            '- email_login/check_password E01: `refuses a blank password` '
+            '5d1e0c4b7a92\n'
+            '- email_login/check_password E02 skipped: no clock on CI  '
+            '9a1c03be55d2\n';
+        final root = await writeTwinProject(
+          extra: {
+            flutterRecord: '${recordText(statuses: twinStatuses)}$rows',
+            jasprRecord: '${recordText(statuses: twinStatuses)}$rows',
+            'docs/${check.loginApi}': '# Login API\n',
+          },
+        );
+        del(
+          root,
+          ['user_story:login/email_login'],
+          confirmation: OwnerConfirmation.prompt,
+          answers: ['y'],
+        );
+        for (final path in [flutterRecord, jasprRecord]) {
+          final record = readDoc(root, path);
+          expect(record, isNot(contains('check_password')), reason: path);
+          expect(record, contains('draft: true'), reason: path);
+        }
+      },
+    );
 
     test('--target names one twin of a per-target doc, and the delete takes that file alone', () async {
       final root = await twins();
