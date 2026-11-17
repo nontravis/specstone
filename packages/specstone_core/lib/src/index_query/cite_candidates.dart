@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax;
 import 'package:specstone_core/src/doc_model/markdown_lines.dart'
     show atxHeadingOf;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DestinationKind, ItemId, itemIdRunAt, proseTrimmedPath;
@@ -216,7 +217,7 @@ int? headerSpanEndAfter(String line, List<CodeSpan> spans, int end) =>
 
 /// The body ranges a link or a link reference's destination takes.
 final class _LinkRanges {
-  new(List<BodyRange> ranges)
+  new(List<TextRange> ranges)
     : _sorted = [...ranges]..sort((a, b) => a.start - b.start) {
     var furthest = 0;
     for (final range in _sorted) {
@@ -225,7 +226,7 @@ final class _LinkRanges {
     }
   }
 
-  final List<BodyRange> _sorted;
+  final List<TextRange> _sorted;
   final _furthestEnd = <int>[];
 
   /// Whether a range holds [offset].
@@ -248,9 +249,10 @@ _LinkRanges _linkRangesOf(String body, int firstLine) {
   if (!holdsLinkSyntax(body)) return _LinkRanges(const []);
   final scan = linkScanOf(body, firstLine: firstLine);
   return _LinkRanges([
-    for (final source in scan.sources) (start: source.offset, end: source.end),
+    for (final source in scan.sources)
+      TextRange(start: source.offset, end: source.end),
     for (final (:start, :end, link: _, :kind) in scan.destinations)
-      if (kind == DestinationKind.definition) (start: start, end: end),
+      if (kind == DestinationKind.definition) TextRange(start: start, end: end),
   ]);
 }
 

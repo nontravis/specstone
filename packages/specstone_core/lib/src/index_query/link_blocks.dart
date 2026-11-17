@@ -26,27 +26,10 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
         tableCellRanges,
         tableColumnCount,
         tableHeadCells;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
-
-/// The inline text of a body and the definitions its links resolve against.
-///
-/// `text` is the body with every code unit markdown never reads as inline text
-/// blanked to a space, line ends and length kept; `leaves` are the inline text
-/// ranges in source order; `definitions` maps `linkLabel(label)` to the
-/// destination as written, the first definition of a label winning;
-/// `footnoteLabels` holds each footnote definition's label, lowercased.
-typedef LeafText = ({
-  String text,
-  List<({int start, int end})> leaves,
-  Map<String, WrittenDestination> definitions,
-  Set<String> footnoteLabels,
-  List<({int start, int end})> definitionLabels,
-  List<({int start, int end})> definitionDestinations,
-});
-
-/// A link destination as written, angle brackets dropped, and whether angle
-/// brackets enclose it.
-typedef WrittenDestination = ({String shown, bool angle});
+import 'package:specstone_core/src/index_query/models/leaf_text.dart';
+import 'package:specstone_core/src/index_query/models/written_destination.dart';
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
 // upgrade that changes one changes the scan with it.
@@ -159,15 +142,15 @@ LeafText leafTextOf(String lfBody) {
   _BlockPass(lines, starts, sink).run();
   final units = Uint16List.fromList(body.codeUnits);
   var kept = 0;
-  for (final (:start, :end) in sink.leaves) {
+  for (final TextRange(:start, :end) in sink.leaves) {
     _blank(units, kept, start);
     kept = end;
   }
   _blank(units, kept, units.length);
-  for (final (:start, :end) in sink.prefixes) {
+  for (final TextRange(:start, :end) in sink.prefixes) {
     _blank(units, start, end);
   }
-  return (
+  return LeafText(
     text: String.fromCharCodes(units),
     leaves: sink.leaves,
     definitions: sink.definitions,
@@ -222,7 +205,7 @@ enum _Stop {
 
 /// What the block passes of one body produce together.
 final class _Sink {
-  final leaves = <({int start, int end})>[];
+  final leaves = <TextRange>[];
   final definitions = <String, WrittenDestination>{};
 
   /// The label of each footnote definition, lowercased.
@@ -230,18 +213,46 @@ final class _Sink {
 
   /// The body ranges of each definition's label, brackets left out, and of
   /// its destination as written, angle brackets left out.
-  final definitionLabels = <({int start, int end})>[];
-  final definitionDestinations = <({int start, int end})>[];
+  final definitionLabels = <TextRange>[];
+  final definitionDestinations = <TextRange>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
   /// reads the rest. A leaf that spans lines holds them, so they are blanked
   /// after the leaves are cut.
-  final prefixes = <({int start, int end})>[];
+  final prefixes = <TextRange>[];
 }
 
 /// A line a container hands to its child pass: the text and the body offset of
 /// its first code unit.
-typedef _ChildLine = ({String text, int start});
+final class _ChildLine {
+  const new({required this.text, required this.start});
+
+  final String text;
+  final int start;
+}
+
+/// The item marker a list line starts with, as `_itemStartOf` reads it.
+final class _ItemStart {
+  const new({
+    required this.marker,
+    required this.isBlank,
+    required this.contentAt,
+    required this.indent,
+  });
+
+  final String marker;
+  final bool isBlank;
+  final int? contentAt;
+  final int indent;
+}
+
+/// A fence line's marker run and its info string.
+final class _FenceMark {
+  const new({required this.marker, required this.info});
+
+  final String marker;
+  final String info;
+}
 
 /// The walk of the block pass over the lines of a body, or over the child
 /// lines of one blockquote or list item.
@@ -282,7 +293,7 @@ final class _BlockPass {
   /// Per line, whether it ends a block; null until asked.
   final List<bool?> _endsBlock;
 
-  final List<({int start, int end})> leaves;
+  final List<TextRange> leaves;
   final Map<String, WrittenDestination> definitions;
 
   /// The first line of the open paragraph, or -1.
@@ -322,16 +333,20 @@ final class _BlockPass {
 
   void _addLeaf(int line, int from, int to) {
     if (from < to) {
-      leaves.add((start: _starts[line] + from, end: _starts[line] + to));
+      leaves.add(
+        TextRange(start: _starts[line] + from, end: _starts[line] + to),
+      );
     }
   }
 
   void _closeParagraph(int end) {
     final last = end - 1;
-    leaves.add((
-      start: _starts[_paragraph],
-      end: _starts[last] + _lines[last].length,
-    ));
+    leaves.add(
+      TextRange(
+        start: _starts[_paragraph],
+        end: _starts[last] + _lines[last].length,
+      ),
+    );
     _paragraph = -1;
   }
 
@@ -430,8 +445,8 @@ final class _BlockPass {
   /// to be blanked.
   void _cut(List<_ChildLine> into, int i, int at) {
     final start = _starts[i];
-    _sink.prefixes.add((start: start, end: start + at));
-    into.add((text: _lines[i].substring(at), start: start + at));
+    _sink.prefixes.add(TextRange(start: start, end: start + at));
+    into.add(_ChildLine(text: _lines[i].substring(at), start: start + at));
   }
 
   /// Runs a pass over the child lines of a container, or none for a container
@@ -470,7 +485,7 @@ final class _BlockPass {
     for (; j < _lines.length; j++) {
       final line = _lines[j];
       if (line.trim().isEmpty) {
-        child.add((text: line, start: _starts[j]));
+        child.add(_ChildLine(text: line, start: _starts[j]));
         afterBlank = true;
       } else if (line.startsWith(_footnoteIndent)) {
         _cut(child, j, _footnoteIndent.length);
@@ -478,7 +493,7 @@ final class _BlockPass {
       } else if (afterBlank || _footnoteEnds.any((e) => e.hasMatch(line))) {
         break;
       } else {
-        child.add((text: line, start: _starts[j]));
+        child.add(_ChildLine(text: line, start: _starts[j]));
       }
     }
     _readChildren(child);
@@ -505,7 +520,7 @@ final class _BlockPass {
         _cut(child, j, end);
         lazy = false;
       } else if (_continuesQuote(j, child.last.text)) {
-        child.add((text: line, start: _starts[j]));
+        child.add(_ChildLine(text: line, start: _starts[j]));
         lazy = true;
       } else {
         break;
@@ -554,7 +569,7 @@ final class _BlockPass {
     while (j < _lines.length) {
       final line = _lines[j];
       if (_isBlankLine(line)) {
-        item.add((text: line, start: _starts[j]));
+        item.add(_ChildLine(text: line, start: _starts[j]));
         if (blankLines != null) blankLines++;
       } else if (indent != null && indent <= _indentationOf(line)) {
         if (blankLines != null && blankLines > 1) break;
@@ -564,7 +579,7 @@ final class _BlockPass {
         break;
       } else if (_listItem.hasMatch(line)) {
         blankLines = null;
-        final (:marker, :isBlank, contentAt: content, indent: width) =
+        final _ItemStart(:marker, :isBlank, contentAt: content, indent: width) =
             _itemStartOf(line);
         if (listMarker != null &&
             listMarker.codeUnitAt(listMarker.length - 1) !=
@@ -579,7 +594,7 @@ final class _BlockPass {
         indent = width;
         if (isBlank) {
           blankLines = 1;
-          item.add((text: '', start: _starts[j] + line.length));
+          item.add(_ChildLine(text: '', start: _starts[j] + line.length));
         } else {
           _cut(item, j, content!);
           _cutCheckbox(item);
@@ -588,7 +603,7 @@ final class _BlockPass {
         break;
       } else {
         if (item.isNotEmpty && _isBlankLine(item.last.text)) break;
-        item.add((text: line, start: _starts[j]));
+        item.add(_ChildLine(text: line, start: _starts[j]));
       }
       j++;
     }
@@ -602,21 +617,22 @@ final class _BlockPass {
   /// Cuts the checkbox (`[ ] `, `[x] `, or `[X] `) from the last line of
   /// [item], as `ListSyntax.parseTaskListItem` does.
   void _cutCheckbox(List<_ChildLine> item) {
-    final (:text, :start) = item.last;
+    final _ChildLine(:text, :start) = item.last;
     final match = _checkbox.firstMatch(text);
     if (match == null) return;
     final end = match[0]!.length;
-    _sink.prefixes.add((start: start, end: start + end));
-    item[item.length - 1] = (text: text.substring(end), start: start + end);
+    _sink.prefixes.add(TextRange(start: start, end: start + end));
+    item[item.length - 1] = _ChildLine(
+      text: text.substring(end),
+      start: start + end,
+    );
   }
 
   /// Returns what `ListSyntax.parse` reads of the item marker that [line]
   /// starts with: the marker, whether nothing but blanks follows it, the
   /// offset where its content starts, and the column the item's lines are
   /// indented to.
-  ({String marker, bool isBlank, int? contentAt, int indent}) _itemStartOf(
-    String line,
-  ) {
+  _ItemStart _itemStartOf(String line) {
     var pos = 0;
     while (pos < line.length && _isParserBlank(line.codeUnitAt(pos))) {
       pos++;
@@ -638,7 +654,7 @@ final class _BlockPass {
       isBlank = pos == line.length;
     }
     final width = preceding + digits.length + 2;
-    return (
+    return _ItemStart(
       marker: marker,
       isBlank: isBlank,
       contentAt: contentAt,
@@ -685,16 +701,16 @@ final class _BlockPass {
       unit == _carriageReturn ||
       unit == _formFeed;
 
-  ({String marker, String info})? _fenceMark(String line) {
+  _FenceMark? _fenceMark(String line) {
     final match = _fence.firstMatch(line);
     if (match == null) return null;
     final backtick = match.namedGroup('backtick');
     return backtick == null
-        ? (
+        ? _FenceMark(
             marker: match.namedGroup('tilde')!,
             info: match.namedGroup('tildeInfo')!,
           )
-        : (marker: backtick, info: match.namedGroup('backtickInfo')!);
+        : _FenceMark(marker: backtick, info: match.namedGroup('backtickInfo')!);
   }
 
   /// Returns the line after the fence that opens at line [i] with [marker]: a
@@ -844,8 +860,8 @@ final class _BlockPass {
       ..skipBlanks(lineFeeds: true);
     if (cursor.isDone) return null;
     final String destination;
-    final (int, int) destinationStart;
-    final (int, int) destinationEnd;
+    final _Mark destinationStart;
+    final _Mark destinationEnd;
     final angle = cursor.unit == _lessThan;
     if (angle) {
       cursor.advance();
@@ -914,7 +930,7 @@ final class _BlockPass {
     if (next <= first) return null;
     definitions.putIfAbsent(
       linkLabel(label),
-      () => (shown: destination, angle: angle),
+      () => WrittenDestination(shown: destination, angle: angle),
     );
     _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
     _sink.definitionDestinations.add(
@@ -924,8 +940,10 @@ final class _BlockPass {
   }
 
   /// The body range from the cursor mark [start] to the mark [end].
-  ({int start, int end}) _rangeOf((int, int) start, (int, int) end) =>
-      (start: _starts[start.$1] + start.$2, end: _starts[end.$1] + end.$2);
+  TextRange _rangeOf(_Mark start, _Mark end) => TextRange(
+    start: _starts[start.line] + start.col,
+    end: _starts[end.line] + end.col,
+  );
 
   /// Skips the title at the cursor and returns whether there is one
   /// (`LinkParser._parseTitle`).
@@ -958,6 +976,14 @@ final class _BlockPass {
     cursor.advance();
     return true;
   }
+}
+
+/// A cursor position: a line of the definition's lines and a column in it.
+final class _Mark {
+  const new({required this.line, required this.col});
+
+  final int line;
+  final int col;
 }
 
 /// A reading position in the lines of a definition, which are the lines from
@@ -1008,7 +1034,7 @@ final class _Cursor {
   /// Whether the rest of the cursor's line holds nothing but whitespace.
   bool get isRestBlank => _lines[line].substring(col).trim().isEmpty;
 
-  (int, int) get mark => (line, col);
+  _Mark get mark => _Mark(line: line, col: col);
 
   void advance() {
     if (col < _lines[line].length) {
@@ -1048,8 +1074,8 @@ final class _Cursor {
   }
 
   /// Returns the text from [start] to the cursor.
-  String textFrom((int, int) start) {
-    final (startLine, startCol) = start;
+  String textFrom(_Mark start) {
+    final _Mark(line: startLine, col: startCol) = start;
     if (startLine == line) return _lines[line].substring(startCol, col);
     final text = StringBuffer(_lines[startLine].substring(startCol));
     for (var i = startLine + 1; i < line; i++) {
