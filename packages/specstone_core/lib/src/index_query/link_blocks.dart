@@ -28,23 +28,8 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
         tableHeadCells;
 import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
+import 'package:specstone_core/src/index_query/models/leaf_text.dart';
 import 'package:specstone_core/src/index_query/models/written_destination.dart';
-
-/// The inline text of a body and the definitions its links resolve against.
-///
-/// `text` is the body with every code unit markdown never reads as inline text
-/// blanked to a space, line ends and length kept; `leaves` are the inline text
-/// ranges in source order; `definitions` maps `linkLabel(label)` to the
-/// destination as written, the first definition of a label winning;
-/// `footnoteLabels` holds each footnote definition's label, lowercased.
-typedef LeafText = ({
-  String text,
-  List<TextRange> leaves,
-  Map<String, WrittenDestination> definitions,
-  Set<String> footnoteLabels,
-  List<TextRange> definitionLabels,
-  List<TextRange> definitionDestinations,
-});
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
 // upgrade that changes one changes the scan with it.
@@ -165,7 +150,7 @@ LeafText leafTextOf(String lfBody) {
   for (final TextRange(:start, :end) in sink.prefixes) {
     _blank(units, start, end);
   }
-  return (
+  return LeafText(
     text: String.fromCharCodes(units),
     leaves: sink.leaves,
     definitions: sink.definitions,
