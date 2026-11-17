@@ -16,9 +16,10 @@ export 'src/document_writing/approve_drafts.dart'
     show approveDrafts, approveDryRun, approveNamed;
 export 'src/document_writing/batch_fault.dart' show BatchEntry, BatchFault;
 export 'src/document_writing/batch_file.dart'
-    show ParsedBatch, parseBatchFile, readBatchFile;
+    show parseBatchFile, readBatchFile;
 export 'src/document_writing/delete_doc.dart'
     show answerDelete, answerDeleteDryRun;
+export 'src/document_writing/models/parsed_batch.dart' show ParsedBatch;
 export 'src/document_writing/models/seen_draft.dart' show SeenDraft;
 export 'src/document_writing/move_doc.dart'
     show answerMove, answerRename, answerReorder;
