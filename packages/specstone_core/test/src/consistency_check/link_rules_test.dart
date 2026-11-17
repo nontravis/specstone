@@ -695,22 +695,22 @@ void main() {
       ]);
     });
 
-    test('E21: a link target the URL parser fails on is '
-        'reference_malformed; a lone % stays in the path', () async {
-      final findings = await pointersOf(
-        await writeCheckProject(
-          extra: featureLinking('[x](http://h:abc/x.md) and [y](a%zz.md).'),
-        ),
-      );
-      expect(textOf(findings), [
-        '$loginFeature:13: link_unresolved: link target a%zz.md is no doc',
-        '$loginFeature:13: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL parser fails on it',
-      ]);
-      expect(keysOf(findings), [
-        {'target': 'a%zz.md'},
-        {'form': 'link_target', 'text': 'http://h:abc/x.md'},
-      ]);
-    });
+    test(
+      'a malformed absolute URL gives no finding; a lone % stays in the path',
+      () async {
+        final findings = await pointersOf(
+          await writeCheckProject(
+            extra: featureLinking('[x](http://h:abc/x.md) and [y](a%zz.md).'),
+          ),
+        );
+        expect(textOf(findings), [
+          '$loginFeature:13: link_unresolved: link target a%zz.md is no doc',
+        ]);
+        expect(keysOf(findings), [
+          {'target': 'a%zz.md'},
+        ]);
+      },
+    );
 
     test("E22: an empty fragment names its doc's top, so "
         'it is neither link_self nor link_anchor_missing; a self link with no # is link_self', () async {

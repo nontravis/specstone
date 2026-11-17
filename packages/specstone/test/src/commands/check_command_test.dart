@@ -287,7 +287,7 @@ void main() {
   });
 
   test('S13, consistency_check/find_broken_pointers/resolve_doc_links: check '
-      'prints the anchor, self, malformed, and doc_ref findings with their keys', () async {
+      'prints the anchor, self, and doc_ref findings with their keys', () async {
     final project = await writeCheckProject(
       extra: edit(loginFeature, [
         ('  - PG-01\n---', '  - PG-01\ndepends_on:\n  - login\n  - login\n---'),
@@ -307,9 +307,7 @@ void main() {
       '$loginFeature:16: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
       '$gnfrDoc does not hold\n'
       '$loginFeature:16: link_self: link target FEATURE.md names the doc that holds it\n'
-      '$loginFeature:16: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
-      'parser fails on it\n'
-      '6 findings\n',
+      '5 findings\n',
     );
 
     final json = readRunner(project);
@@ -336,11 +334,6 @@ void main() {
           'anchor': 'speed',
         },
         {'kind': 'link_self', 'target': 'FEATURE.md'},
-        {
-          'kind': 'reference_malformed',
-          'form': 'link_target',
-          'text': 'http://h:abc/x.md',
-        },
       ],
     );
   });

@@ -75,27 +75,6 @@ final _allowed = <_Allowed>[
     """RegExp( '&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]{1,7}|#[xX][0-9a-fA-F]{1,6});'""",
     'HTML character reference such as `&#38;`, no reference.',
   ),
-  // The WHATWG URL parser mirrors the URL standard; the grammar calls it.
-  _core(
-    'doc_model/whatwg_url.dart',
-    r"""RegExp(r'[A-Za-z][A-Za-z0-9+.\-]*:'""",
-    'URL standard scheme step, called by the grammar.',
-  ),
-  _core(
-    'doc_model/whatwg_url.dart',
-    r"""RegExp(r'[/\\?#]'""",
-    'URL standard path delimiters, called by the grammar.',
-  ),
-  _core(
-    'doc_model/whatwg_url.dart',
-    """RegExp('[/?#]'""",
-    'URL standard path delimiters, called by the grammar.',
-  ),
-  _core(
-    'doc_model/whatwg_url.dart',
-    r"""RegExp(r'^[A-Za-z][:|]$'""",
-    'URL standard Windows drive letter, called by the grammar.',
-  ),
   // Frontmatter key block: the key line, not a reference.
   _core(
     'document_writing/key_block_values.dart',

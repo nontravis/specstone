@@ -79,12 +79,8 @@ void main() {
       expect(resolveDocLink('a%2Fb.md', from), isA<OutsideTarget>());
     });
 
-    test('a WHATWG-unreadable href is an '
-        'UnreadableTarget', () {
-      expect(
-        resolveDocLink('http://h:abc/x.md', from),
-        isA<UnreadableTarget>(),
-      );
+    test('a malformed http href is a WebTarget', () {
+      expect(resolveDocLink('http://h:abc/x.md', from), isA<WebTarget>());
     });
 
     test('a link to a doc carries its anchor', () {

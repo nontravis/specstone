@@ -75,7 +75,7 @@ Node _rewriteLink(
           ? '#$sectionAnchor-$rawAnchor'
           : '#$sectionAnchor';
       return link;
-    case OutsideTarget(:final shown) || UnreadableTarget(:final shown):
+    case OutsideTarget(:final shown):
       return _outsideSpan(link, shown);
   }
 }
