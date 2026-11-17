@@ -1176,23 +1176,20 @@ void main() {
       final store = await stored();
       expect(store.diagramParsesOf({}, parserHash: parserHash), isEmpty);
     });
-    test(
-      'a lookup of more hashes than one statement binds still answers',
-      () async {
-        final store = IndexStore.open(await root());
-        addTearDown(store.close);
-        final hashes = {for (var i = 0; i < 2000; i++) 'block-$i'};
-        store.write(
-          () => store.putDiagramParses([
-            for (final h in hashes) DiagramParse(blockHash: h, parses: true),
-          ], parserHash: parserHash),
-        );
-        expect(
-          store.diagramParsesOf(hashes, parserHash: parserHash),
-          hasLength(2000),
-        );
-      },
-    );
+    test('a lookup of 2000 hashes returns every row', () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      final hashes = {for (var i = 0; i < 2000; i++) 'block-$i'};
+      store.write(
+        () => store.putDiagramParses([
+          for (final h in hashes) DiagramParse(blockHash: h, parses: true),
+        ], parserHash: parserHash),
+      );
+      expect(
+        store.diagramParsesOf(hashes, parserHash: parserHash),
+        hasLength(2000),
+      );
+    });
     test(
       'a second put of the same block and parser replaces the row',
       () async {

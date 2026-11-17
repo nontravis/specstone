@@ -57,6 +57,25 @@ void main() {
       expect(sources.single.text, 'flowchart TD\n  A --> B');
     });
 
+    test('a fence its list ends stops at the end of the list', () {
+      final sources = _sourcesOf(
+        '# T\n\n- item\n\n  ```mermaid\n  pie\n\nafter the list\n',
+      );
+
+      expect(sources, hasLength(1));
+      expect(sources.single.fenceLine, 5);
+      expect(sources.single.text, 'pie\n');
+    });
+
+    test('a plain fence after a fence its list ended is not a source', () {
+      final sources = _sourcesOf(
+        '# T\n\n- item\n\n  ```mermaid\n  pie\n\nafter\n\n```\nplain\n```\n',
+      );
+
+      expect(sources, hasLength(1));
+      expect(sources.single.text, 'pie\n');
+    });
+
     test('each block of a doc is one source, in file order', () {
       final sources = _sourcesOf(
         '```mermaid\npie\n```\n\ntext\n\n```mermaid\npie\n```\n',

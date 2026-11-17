@@ -876,6 +876,26 @@ void main() {
         expect(session.close, returnsNormally);
       },
     );
+    test('a write that fails with an error of no fault of its own is index_not_writable', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      expect(
+        () => session.writeIndex((store) {
+          throw SqliteException(
+            extendedResultCode: SqlError.SQLITE_FULL,
+            message: 'database or disk is full',
+          );
+        }),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexNotWritable,
+          ),
+        ),
+      );
+      expect(session.close, returnsNormally);
+    });
     test(
       'a peer reset between open and write still lets the write land',
       () async {

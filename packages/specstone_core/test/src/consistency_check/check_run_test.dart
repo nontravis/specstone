@@ -314,10 +314,13 @@ void main() {
     int refusedBlocks(CheckReport report) => report.findings
         .where((f) => f.kind == FindingKind.diagramParseFailed)
         .length;
+    // The ignore file the Index makes beside its database.
+    final indexIgnore = File.fromUri(
+      project.uri.resolve('.specstone/.gitignore'),
+    ).path;
     Map<String, String> snapshot() => {
       for (final f in project.listSync(recursive: true).whereType<File>())
-        // The Index files: the database and the ignore file made beside it.
-        if (!f.path.contains('index.sqlite') && !f.path.endsWith('.gitignore'))
+        if (!f.path.contains('index.sqlite') && f.path != indexIgnore)
           f.path: base64.encode(f.readAsBytesSync()),
     };
     // No Index yet, so no stored parse row: the run below parses with Node.

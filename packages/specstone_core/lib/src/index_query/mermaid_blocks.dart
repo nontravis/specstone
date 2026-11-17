@@ -2,9 +2,8 @@ import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/index_query/line_facts.dart';
-
-const _mermaidInfo = 'mermaid';
+import 'package:specstone_core/src/index_query/line_facts.dart'
+    show lfLinesOf, linesBeforeBodyOf;
 
 /// A `mermaid` block as the line facts keep it: its opening fence's 1-based
 /// file line and the [hash] of its text.
@@ -44,7 +43,7 @@ final class MermaidSource {
 /// word `mermaid`. An unclosed fence runs to the end of the doc.
 List<MermaidSource> mermaidSourcesOf(Doc doc, String lfText) {
   final body = doc.afterFrontmatter;
-  if (!body.contains(_mermaidInfo)) return const [];
+  if (!body.contains(mermaidInfoWord)) return const [];
   final scan = fenceScan(lfLinesOf(body));
   final bodyStart = linesBeforeBodyOf(doc, lfText);
   final sources = <MermaidSource>[];
@@ -61,7 +60,7 @@ List<MermaidSource> mermaidSourcesOf(Doc doc, String lfText) {
     final info = scan.opens[i];
     if (info != null) {
       finish();
-      if (info == _mermaidInfo) fenceLine = bodyStart + i + 1;
+      if (info == mermaidInfoWord) fenceLine = bodyStart + i + 1;
     } else if (!scan.fenced[i] || scan.closes[i]) {
       finish();
     } else if (fenceLine != null) {

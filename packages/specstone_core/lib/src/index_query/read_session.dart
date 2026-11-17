@@ -282,6 +282,8 @@ final class ReadSession {
     store.endSnapshot();
     try {
       store.write(() => body(store));
+    } on SqliteException catch (e) {
+      throw IndexStore.faultOf(e);
     } finally {
       store.beginSnapshot();
     }
