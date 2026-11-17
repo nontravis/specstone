@@ -610,6 +610,168 @@ void main() {
     });
   });
 
+  group('checkMergedSet record matrix section', () {
+    const recordKeys =
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: entries\n'
+        '    type: record_status\n';
+    const matrixOn =
+        '$recordKeys'
+        'sections:\n'
+        '  - {id: verification_matrix, header: Matrix, output_ref: true}\n';
+    const matrixKey = 'verification_matrix';
+
+    MergedSection matrix({required bool outputRef}) =>
+        MergedSection(id: matrixKey, header: 'Matrix', isOutputRef: outputRef);
+
+    MergedDocType record({List<MergedSection> sections = const []}) =>
+        builtIn('runbook').copyWith(
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+          sections: sections,
+        );
+
+    TypeMatcher<TemplateFault> refusedAt(String file, String key) =>
+        isA<TemplateFault>()
+            .having((f) => f.code, 'code', FaultCode.unknownValue)
+            .having((f) => f.file, 'file', file)
+            .having((f) => f.key, 'key', key);
+
+    test('output_ref on the record matrix section is accepted', () {
+      final docType = record(sections: [matrix(outputRef: true)]);
+      expect(
+        () => check(
+          [docType],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+          },
+        ),
+        returnsNormally,
+      );
+      expect(verificationMatrixOf(docType)?.isOutputRef, isTrue);
+    });
+
+    test('output_ref on any other section is refused', () {
+      const otherSection =
+          'sections:\n'
+          '  - {id: goal, header: Goal}\n'
+          '  - {id: notes, header: Notes, output_ref: true}\n';
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [layerOf('runbook', '$recordKeys$otherSection')],
+          },
+        ),
+        throwsA(refusedAt(_runbookFile, 'sections[1].output_ref')),
+      );
+      expect(
+        () => check(
+          [record(), builtIn('playbook')],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+            'playbook': [
+              layerOf('playbook', otherSection, file: _playbookFile),
+            ],
+          },
+        ),
+        throwsA(refusedAt(_playbookFile, 'sections[1].output_ref')),
+      );
+    });
+
+    test('output_ref on a matrix section of a doc type that is not the '
+        'record doc type is refused', () {
+      expect(
+        () => check(
+          [record(), builtIn('playbook')],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+            'playbook': [
+              layerOf(
+                'playbook',
+                'sections:\n'
+                    '  - {id: verification_matrix, header: Matrix, '
+                    'output_ref: true}\n',
+                file: _playbookFile,
+              ),
+            ],
+          },
+        ),
+        throwsA(refusedAt(_playbookFile, 'sections[0].output_ref')),
+      );
+    });
+
+    test('a record matrix section without output_ref true is refused', () {
+      const absent =
+          '$recordKeys'
+          'sections:\n'
+          '  - {id: verification_matrix, header: Matrix}\n';
+      expect(
+        () => check(
+          [
+            record(sections: [matrix(outputRef: false)]),
+          ],
+          {
+            'runbook': [layerOf('runbook', absent)],
+          },
+        ),
+        throwsA(refusedAt(_runbookFile, 'sections[0].output_ref')),
+      );
+      const lowered =
+          'sections:\n'
+          '  - {id: goal, header: Goal}\n'
+          '  - {id: verification_matrix, output_ref: false}\n';
+      expect(
+        () => check(
+          [
+            record(sections: [matrix(outputRef: false)]),
+          ],
+          {
+            'runbook': [
+              layerOf('runbook', matrixOn, file: _epicFile),
+              layerOf('runbook', lowered),
+            ],
+          },
+        ),
+        throwsA(refusedAt(_runbookFile, 'sections[1].output_ref')),
+      );
+    });
+
+    test('a disabled record matrix section is accepted', () {
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [
+              layerOf('runbook', matrixOn, file: _epicFile),
+              layerOf(
+                'runbook',
+                'sections:\n  - {id: $matrixKey, disabled: true}\n',
+              ),
+            ],
+          },
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('the matrix is the enabled section of its key on the record doc '
+        'type, else null', () {
+      final docType = record(sections: [matrix(outputRef: true)]);
+      expect(verificationMatrixOf(docType)?.id, matrixKey);
+      expect(verificationMatrixOf(record()), isNull);
+      expect(
+        verificationMatrixOf(
+          builtIn('playbook').copyWith(sections: [matrix(outputRef: true)]),
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('checkMergedSet targets', () {
     test('E30, '
         'INV-29: a targets config in a merged set with no record doc type is '

@@ -266,6 +266,7 @@ final class SectionEntry {
     this.summaryRows,
     this.skeleton,
     this.whenField,
+    this.outputRef,
     required this.disabled,
   });
 
@@ -311,6 +312,9 @@ final class SectionEntry {
   /// The doc field and values that bind the section's `required`, when
   /// written.
   final WhenField? whenField;
+
+  /// Whether the section's lines are pointers the CLI checks, when written.
+  final bool? outputRef;
 
   /// Whether the section is turned off by this layer.
   final bool disabled;
@@ -726,6 +730,7 @@ const _sectionKeys = {
   'summary_rows',
   'skeleton',
   'when_field',
+  'output_ref',
 };
 
 const _docLintKeys = {
@@ -938,6 +943,12 @@ SectionEntry _parseSection(
       prefix: 'sections[$index].',
     ),
     whenField: _parseWhenField(entry, file: file, prefix: prefix),
+    outputRef: optionalValue<bool>(
+      entry,
+      'output_ref',
+      file: file,
+      prefix: 'sections[$index].',
+    ),
     disabled:
         optionalValue<bool>(entry, 'disabled', file: file, prefix: prefix) ??
         false,

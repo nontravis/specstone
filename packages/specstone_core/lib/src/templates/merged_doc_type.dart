@@ -273,6 +273,7 @@ final class MergedSection {
     this.itemCount,
     this.maxSubsections,
     this.whenField,
+    this.isOutputRef = false,
   });
 
   /// The section id.
@@ -375,6 +376,10 @@ final class MergedSection {
   /// it.
   final WhenField? whenField;
 
+  /// Whether the section's lines are pointers the CLI checks, outside the
+  /// approval hash and the draft mark.
+  final bool isOutputRef;
+
   /// Returns a copy with each non-null argument replacing its property.
   MergedSection copyWith({
     String? header,
@@ -403,6 +408,7 @@ final class MergedSection {
     ItemCountLint? itemCount,
     int? maxSubsections,
     WhenField? whenField,
+    bool? isOutputRef,
   }) => MergedSection(
     id: id,
     header: header ?? this.header,
@@ -431,6 +437,7 @@ final class MergedSection {
     itemCount: itemCount ?? this.itemCount,
     maxSubsections: maxSubsections ?? this.maxSubsections,
     whenField: whenField ?? this.whenField,
+    isOutputRef: isOutputRef ?? this.isOutputRef,
   );
 
   /// Returns the JSON object of this section with only the keys set.
@@ -473,6 +480,25 @@ final class MergedSection {
         'whenField': {'field': field, 'values': values},
     };
   }
+}
+
+/// The id of the record doc type's matrix section, the one section whose
+/// lines are pointers.
+const verificationMatrixKey = 'verification_matrix';
+
+/// The enabled matrix section of [recordType], or null.
+///
+/// Null when [recordType] holds no `record_status` field, so only the record
+/// doc type has a matrix. Finds the section by [verificationMatrixKey], never
+/// by [MergedSection.isOutputRef].
+MergedSection? verificationMatrixOf(MergedDocType recordType) {
+  if (!recordType.fields.any((f) => f.type == FieldType.recordStatus)) {
+    return null;
+  }
+  for (final section in recordType.sections) {
+    if (section.id == verificationMatrixKey) return section;
+  }
+  return null;
 }
 
 /// The most characters one item may hold when no layer sets `max_item_chars`.
