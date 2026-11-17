@@ -10,7 +10,7 @@ file, no fix. Ask the Owner nothing.
    `--target`. When it refuses with `doc_not_found`, for a target never created, or moved or deleted since the list
    was made, drop each name the refusal names and list it under `Outside the drafts:`, with no `Audited:` line. Any
    other refusal, such as `doc_type_unknown`, is a finding and drops its names too. Run the call again on the rest;
-   when no target is left, skip it and the steps below.
+   when no target is left, skip it and the steps below. A dropped name gets no bundle or `check`.
 3. **Bundles**: run `specstone context <target> --for design --out` once for each feature the targets fall under
    (the project doc for a project-level one). Pass no `--budget` and no `--target`:
    the bundle takes every code target's spec docs. Read the saved files per the `specstone-read-sdd` skill, the
@@ -18,14 +18,13 @@ file, no fix. Ask the Owner nothing.
    `get`. On any exit but 0, report the CLI's error as a finding; go on with the rest.
 4. **Design document**, when given: read it whole; list each decision and ruling by its ID or label. Then run
    `specstone list user_story --draft`, `specstone list fr --draft`, and `specstone list nf --draft`: the drafts
-   among the targets are what this change wrote.
-5. **Check**: run `specstone check <target>` once per target, and keep each finding as
-   printed. A finding whose `waitsFor` is `owner` is no gap.
+   among the targets are this change's.
+5. **Check**: run `specstone check <target>` once per target. A finding whose `waitsFor` is `owner` is no gap.
 
 ## 2. Compare
 
-Walk each bold-labeled lens over every target, in list order. Record one gap per line,
-`<type>:<name>#<section>: <gap>`, for each:
+Walk each lens, a bold-labeled bullet, over every target in list order; the other bullets are its steps.
+Record one gap per line, `<type>:<name>#<section>: <gap>`, for each lens:
 
 - **Decision dropped:** a decision, ruling, or Docs to change row of the design document no target doc carries, or a
   draft that departs from its decision. Report one gap in each doc it misses, naming the draft (or the design's owner
@@ -33,12 +32,12 @@ Walk each bold-labeled lens over every target, in list order. Record one gap per
 - **Requirement invented:** a draft story, FR, NFR, or section of one tracing to no decision.
 - **PRD and spec apart:** a PRD item (a story, FR, or edge case) the spec omits, or a spec item no PRD item asks for.
 - **Docs contradict:** two docs that state different values or behavior for one thing; name both.
-- **Statement untested:** an FR statement, or a clause of one, that no scenario or edge case covers.
-- **Rule restated:** a draft stating a rule another doc owns instead of citing it (`specstone-expert-sdd` rule 7); name
+- **Statement untested:** an FR statement or clause no scenario or edge case covers.
+- **Rule restated:** a draft stating a rule another doc owns instead of citing it; name
   the owner doc and the item; its fix is an item link in the draft.
 - Without a design document, skip the first two lenses; the rest still run.
 - **Feature pattern:** for each item of a bundle's pattern part, search the doc listing the pattern, its subtree, and
-  its feature's spec folder for covering text or a skip line in that doc's `out_of_scope`; else report
+  its feature's spec folder, if any, for covering text or a skip line in that doc's `out_of_scope`; else report
   `<type>:<name>#out_of_scope: <pattern>/<item> neither covered nor skipped`, `<type>:<name>` the listing doc, typed
   as the part's bundle line.
 - **Repoint:** a citer a size-fix move repointed or kept that still links the old item though it cites the moved part,
@@ -73,8 +72,8 @@ Outside the drafts:
 
 - **`Lenses:`**: the label of each lens the audit ran, in list order.
 - **`Audited:`**: one line per target that names a doc, its `docType` and `name` joined with `:`, then `@` and
-  the `bases.doc` of the `get` of step 1; each replaces an earlier audit's line for that draft.
-- **`Findings:`**: each gap or `check` finding a write inside a draft fixes, each sibling hit its own line. End a
+  the `bases.doc` of step 1's `get`; each replaces an earlier audit's line for that draft.
+- **`Findings:`**: each gap or `check` finding a draft write fixes, each sibling hit its own line. End a
   line with `[behavior]` when its fix brings a new state, input, output, edge case, error, or reader of a rule the
   design does not state; a line whose fix only corrects text against the design stays untagged.
 - **`Waits on the Owner:`**: each `check` finding whose `waitsFor` is `owner`, its line ending

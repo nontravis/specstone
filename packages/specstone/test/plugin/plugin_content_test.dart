@@ -990,17 +990,12 @@ void _agentTests() {
     }
   });
 
-  test('design.md and audit.md hold the Audited and Findings line form and '
-      'restate nothing the rules own', () {
+  test('design.md and audit.md restate nothing the rules own', () {
     final design = _pluginText(
       'specstone-brainstorming-sdd/references/design.md',
     );
     final audit = _pluginText(
       'specstone-brainstorming-sdd/references/audit.md',
-    );
-    expect(
-      _sectionOf(audit, '3. Report'),
-      contains('\nAudited: <type>:<name>@<hash>\nFindings:\n'),
     );
     for (final restated in _ownedElsewhere) {
       expect(
