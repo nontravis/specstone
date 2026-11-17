@@ -1,9 +1,29 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
+import '../../helpers/prd_core.dart';
+import '../../helpers/software_tech.dart';
 
 void main() {
+  test('the record carries the optional matrix section, with no template '
+      'text, that holds an output reference', () async {
+    final record = prdCoreDocType(
+      await resolveSoftwareTech(),
+      'implementation',
+    );
+
+    final matrix = verificationMatrixOf(record);
+
+    expect(matrix, isNotNull);
+    expect(matrix!.header, 'Verification matrix');
+    expect(matrix.required, isFalse);
+    expect(matrix.template, isNull);
+    expect(matrix.isOutputRef, isTrue);
+    expect(record.sections.map((s) => s.id), ['verification_matrix']);
+  });
+
   test(
     'template_packs/write_spec_docs_from_software_tech/'
     'set_spec_lint_and_sources E04: a record holding an entry for every '
