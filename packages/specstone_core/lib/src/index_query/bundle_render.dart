@@ -159,7 +159,7 @@ ContextAnswer answerContext(
         summary: inSummary(doc),
         citedBy: citedBy,
         isTarget: bundle.targetPaths.contains(doc.docPath),
-        wholePaths: wholePaths,
+        matrixCut: _matrixCutOf(index, doc, bundle.mode, wholePaths),
       ),
   ];
   final docBlocks = [for (final print in docPrints) print.text];
@@ -283,9 +283,10 @@ ContextAnswer answerContext(
 /// The read-first block of each doc by index, built on first use: an index is
 /// one read snapshot, so a feature or spec doc that many bundles of one run
 /// print renders once. It holds a block for each doc, summary, and mode a run
-/// asks for and is never trimmed; a `check` run ends with its index.
+/// asks for; a record's matrix cut is part of the key, since two bundles of one
+/// run print different rows of it. A `check` run ends with its index.
 final _readFirstBlocksOf =
-    Expando<Map<(String, BundleMode, bool, bool), String>>();
+    Expando<Map<(String, BundleMode, bool, bool, String), String>>();
 
 /// Returns the est. tokens of the read-first file `answerContext` gives
 /// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
@@ -313,12 +314,14 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
         final picked = ordered[doc];
         final summary = summaryOnly.contains(picked.docPath);
         final isTarget = bundle.targetPaths.contains(picked.docPath);
+        final matrixCut = _matrixCutOf(index, picked, bundle.mode, wholePaths);
         final block =
             blocks[(
               picked.docPath,
               bundle.mode,
               summary,
               isTarget,
+              (matrixCut.toList()..sort()).join(','),
             )] ??= _docBlock(
               index,
               picked,
@@ -326,7 +329,7 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
               summary: summary,
               citedBy: null,
               isTarget: isTarget,
-              wholePaths: wholePaths,
+              matrixCut: matrixCut,
             ).text;
         return DocPrint(text: block, cited: const [], sections: const []);
       },
@@ -663,8 +666,8 @@ ContextAnswer _overBudget(
 /// the line each kept section starts on in the block.
 ///
 /// In `query` only a [isTarget] doc prints its head and every kept section.
-/// Outside `query`, a record prints the Verification matrix rows of the FRs
-/// [wholePaths] holds, and every row that names no FR.
+/// A record leaves out the Verification matrix rows on the file lines
+/// [matrixCut] holds.
 DocPrint _docBlock(
   DocIndex index,
   IndexedDoc doc,
@@ -672,7 +675,7 @@ DocPrint _docBlock(
   required bool summary,
   required CitedByIndex? citedBy,
   required bool isTarget,
-  required Set<String> wholePaths,
+  required Set<int> matrixCut,
 }) {
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
@@ -701,9 +704,6 @@ DocPrint _docBlock(
   final cited = <CitedItem>[?docEntry];
   final sections = <SectionLine>[];
   final held = citedSectionsOf(content, docType);
-  final matrixCut = mode == BundleMode.query
-      ? const <int>{}
-      : matrixLinesOutOfScope(index, doc, wholePaths);
   // The naming line is the block's line 0.
   var line = 1 + docLines.length + lineAfterBlocks(parts);
   for (final section in keptSectionsOf(
@@ -728,6 +728,17 @@ DocPrint _docBlock(
   final block = [namingLine(doc), ...docLines, parts.join('\n\n')].join('\n');
   return DocPrint(text: block, cited: cited, sections: sections);
 }
+
+/// Returns the file lines of the matrix rows [doc] leaves out of a [mode]
+/// bundle that prints [wholePaths] whole; none in `query`.
+Set<int> _matrixCutOf(
+  DocIndex index,
+  IndexedDoc doc,
+  BundleMode mode,
+  Set<String> wholePaths,
+) => mode == BundleMode.query
+    ? const {}
+    : matrixLinesOutOfScope(index, doc, wholePaths);
 
 /// Returns the DocPaths of the docs of [ordered] a bundle prints whole: all
 /// but the ones in [summaryOnly].

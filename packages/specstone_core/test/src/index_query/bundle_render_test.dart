@@ -2305,6 +2305,44 @@ void main() {
       expect(a.text, contains('# Login implementation'));
       expect(a.text, isNot(contains(matrixHeader)));
     });
+    test('a matrix whose rows all drop keeps its header line', () async {
+      final a = await bundleOf(
+        resetRow,
+        'login/email_login',
+        BundleMode.implement,
+      );
+
+      expect(
+        a.text,
+        contains('# Login implementation\n\n$matrixHeader\n\n\n==> '),
+      );
+      expect(a.text, isNot(contains('send_reset_link E01')));
+    });
+    test("the read-first size of a feature then a story counts each bundle's own rows", () async {
+      final i = await indexWith({
+        recordFile: record('$validateRow$lockRow$resetRow'),
+      });
+      for (final (target, mode) in [
+        ('login', BundleMode.design),
+        ('login/email_login', BundleMode.design),
+        ('login/email_login', BundleMode.implement),
+      ]) {
+        final bundle = pickBundle(i, target, mode, noProject: false);
+        final fresh = answerContext(
+          i,
+          bundle,
+          label: target,
+          byCode: false,
+          split: true,
+        );
+
+        expect(
+          readFirstTokensOf(i, bundle),
+          fresh.readFirst.tokens,
+          reason: '$target ${mode.wire}',
+        );
+      }
+    });
     test('the token size counts the trimmed matrix', () async {
       final kept = await bundleOf(
         '$validateRow$lockRow',
