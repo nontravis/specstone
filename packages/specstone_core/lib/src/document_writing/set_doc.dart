@@ -8,7 +8,7 @@ import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
-    show isOutsideApproval;
+    show isMatrixSection, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
 import 'package:specstone_core/src/document_writing/models/replace_stdin.dart';
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
@@ -255,7 +255,8 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 /// [lfText] is the doc's text with LF line ends as read under the write lock,
 /// [sections] its sections, and [base] the hash of the part the caller read.
 /// The result's `marksDraft` is false only for a field outside the approval
-/// hash by the rule [statusesOutside] names ([isOutsideApproval]).
+/// hash by the rule [statusesOutside] names ([isOutsideApproval]), or for the
+/// record's matrix section ([isMatrixSection]).
 /// Touches no disk and takes no lock. Runs [checkPartText] first, except for
 /// a [ReplaceTarget], which reads its stdin itself, then throws
 /// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
@@ -739,7 +740,10 @@ SplicedDoc _spliceSection({
   } else {
     spliced = _withTemplateSection(lfText, docType, key, sections, body);
   }
-  return SplicedDoc(lfText: spliced, marksDraft: true);
+  return SplicedDoc(
+    lfText: spliced,
+    marksDraft: !isMatrixSection(docType, key),
+  );
 }
 
 /// Returns the index in [sections] of the section keyed [key], or -1 for a

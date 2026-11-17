@@ -26,7 +26,8 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart' show checkOf, spots;
+import '../../helpers/check_fixture.dart'
+    show checkOf, loginRecord, spots, writeCheckProject;
 import '../../helpers/check_fixture.dart' as check show edit, loginFeature;
 import '../../helpers/index_fixture.dart' show openSession;
 import '../../helpers/posix_modes.dart';
@@ -4077,5 +4078,110 @@ void main() {
       );
       expect(readDoc(root, story1), before);
     });
+  });
+
+  group('a record matrix section write', () {
+    const address = 'implementation:login';
+    const matrix = '$address#verification_matrix';
+    const notes = '$address#notes';
+    const head =
+        "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+        '# Login implementation\n\n';
+    const row = '- email_login/check_password E01: `a wrong password`\n';
+    const heldMatrix = '## Verification matrix\n\n$row';
+
+    Future<Directory> recordProject({required bool isDraft}) {
+      final text = isDraft
+          ? head.replaceFirst('---\n', '---\ndraft: true\n')
+          : head;
+      return writeCheckProject(
+        extra: {
+          loginRecord: '$text$heldMatrix\n## Notes\n\nSee the rows.\n',
+          '.specstone/templates/implementation.yaml':
+              'sections:\n  - id: notes\n    header: Notes\n',
+        },
+        unstamped: {if (isDraft) loginRecord},
+      );
+    }
+
+    SetRequest replaceOf(String target, String base) =>
+        SetRequest.parse(target, base: base, replace: true);
+
+    for (final isDraft in [false, true]) {
+      final state = isDraft ? 'a draft' : 'an approved';
+
+      test('a set leaves $state record as it was', () async {
+        final root = await recordProject(isDraft: isDraft);
+        final before = readDoc(root, loginRecord);
+
+        final answer = writeIn(
+          root,
+          (s) => answerSet(
+            s,
+            req(matrix, sectionBase(root, matrix)),
+            '$row- email_login/check_password E02: `an empty password`\n',
+          ),
+        );
+
+        expect(
+          readDoc(root, loginRecord),
+          before.replaceFirst(
+            row,
+            '$row- email_login/check_password E02: `an empty password`\n',
+          ),
+        );
+        expect(answer.json['draft'], isDraft);
+      });
+    }
+
+    test('a stale base is still refused and writes nothing', () async {
+      final root = await recordProject(isDraft: false);
+      final stale = sectionBase(root, matrix);
+      writeIn(root, (s) => answerSet(s, req(matrix, stale), '$row- a\n'));
+      final before = readDoc(root, loginRecord);
+
+      expect(
+        () =>
+            writeIn(root, (s) => answerSet(s, req(matrix, stale), '$row- b\n')),
+        throwsWriteFault(WriteFaultCode.baseMismatch),
+      );
+      expect(readDoc(root, loginRecord), before);
+    });
+
+    test('a replace leaves the approved record as it was', () async {
+      final root = await recordProject(isDraft: false);
+      final before = readDoc(root, loginRecord);
+
+      final answer = writeIn(
+        root,
+        (s) => answerSet(
+          s,
+          replaceOf(matrix, sectionBase(root, matrix)),
+          '==> old <==\na wrong password\n==> new <==\na wrong email\n',
+        ),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        before.replaceFirst('a wrong password', 'a wrong email'),
+      );
+      expect(answer.json['draft'], isFalse);
+    });
+
+    test(
+      'a set of any other section marks the approved record draft',
+      () async {
+        final root = await recordProject(isDraft: false);
+
+        final answer = writeIn(
+          root,
+          (s) =>
+              answerSet(s, req(notes, sectionBase(root, notes)), 'Changed.\n'),
+        );
+
+        expect(answer.json['draft'], isTrue);
+        expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      },
+    );
   });
 }

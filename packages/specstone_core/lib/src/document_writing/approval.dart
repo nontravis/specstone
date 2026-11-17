@@ -58,6 +58,13 @@ bool isOutsideApproval(MergedField field, {required bool statusesOutside}) =>
       _ => false,
     };
 
+/// Whether [sectionKey] names the record doc type's matrix section, whose write
+/// leaves the draft flag.
+///
+/// Decided by [verificationMatrixOf], never by a section's `output_ref` flag.
+bool isMatrixSection(MergedDocType docType, String sectionKey) =>
+    verificationMatrixOf(docType)?.id == sectionKey;
+
 /// Returns the ApprovalHash of [lfText] laid out as [docType] lays it out,
 /// less its `approved:` and `draft:` key blocks, those of its fields
 /// [isOutsideApproval], and the text of its generated blocks.

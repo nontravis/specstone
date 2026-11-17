@@ -1414,6 +1414,55 @@ void main() {
     });
   });
 
+  group('a batch section block on a record', () {
+    const matrix = 'implementation:login#verification_matrix';
+    const notes = 'implementation:login#notes';
+    const record =
+        "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+        '# Login implementation\n\n## Verification matrix\n\n'
+        '- email_login/check_password E01: `a wrong password`\n\n'
+        '## Notes\n\nSee the rows.\n';
+
+    Future<Directory> recordProject() => writeCheckProject(
+      extra: {
+        loginRecord: record,
+        '.specstone/templates/implementation.yaml':
+            'sections:\n  - id: notes\n    header: Notes\n',
+      },
+    );
+
+    test(
+      'on the matrix section leaves the approved record as it was',
+      () async {
+        final root = await recordProject();
+        final before = readDoc(root, loginRecord);
+
+        final answer = runBatch(
+          root,
+          edit(getText(root, [matrix]), 'a wrong password', 'a wrong email'),
+        );
+
+        expect(
+          readDoc(root, loginRecord),
+          before.replaceFirst('a wrong password', 'a wrong email'),
+        );
+        expect(answer.json['blocks'], [containsPair('draft', false)]);
+      },
+    );
+
+    test('on any other section marks the approved record draft', () async {
+      final root = await recordProject();
+
+      final answer = runBatch(
+        root,
+        edit(getText(root, [notes]), 'See the rows.', 'See the table.'),
+      );
+
+      expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      expect(answer.json['blocks'], [containsPair('draft', true)]);
+    });
+  });
+
   test(
     '$_serialize E05: a lock the batch cannot take propagates as index_busy, unwrapped',
     () async {
