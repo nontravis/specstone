@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -54,7 +55,6 @@ const _closingParts = [
 ];
 
 final _typedHead = RegExp(r'^\S+ \([^()\s]+\) · (.+)$');
-final _baseHash = RegExp(r'^[0-9a-f]{12}$');
 final _lineEndBlanks = RegExp(r'[ \t]+$');
 
 /// Returns the line that heads the text of [doc] in `get`, `set`, `refs`, and
@@ -168,9 +168,7 @@ NamingLine? readNamingLine(String line) {
   if (path.isEmpty) return null;
   return NamingLine(
     path: path,
-    base: !hasClosingPart && hash != null && _baseHash.hasMatch(hash)
-        ? hash
-        : null,
+    base: !hasClosingPart && hash != null && isFingerprint(hash) ? hash : null,
     fieldId: fieldId,
     isTitle: isTitle,
   );

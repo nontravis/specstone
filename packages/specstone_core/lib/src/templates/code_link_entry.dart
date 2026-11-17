@@ -1,7 +1,6 @@
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
-
-final _fingerprintToken = RegExp(r'^[0-9a-f]{12}$');
 
 /// One entry of a code-link field: a pointer, then optionally a fingerprint.
 ///
@@ -25,7 +24,7 @@ extension type const CodeLinkEntry(String text) {
   int? get _fingerprintSplit {
     final space = text.lastIndexOf(' ');
     if (space < 0) return null;
-    return _fingerprintToken.hasMatch(text.substring(space + 1)) ? space : null;
+    return isFingerprint(text.substring(space + 1)) ? space : null;
   }
 }
 

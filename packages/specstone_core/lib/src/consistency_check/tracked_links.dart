@@ -22,7 +22,6 @@ const _statementSection = 'statement';
 const _statementBlock = 'Statement';
 const _tighten = 'tighten';
 const _relax = 'relax';
-final _fingerprintShape = RegExp(r'^[0-9a-f]{12}$');
 
 /// Whether a tracked link is current, changed, or without a matching entry.
 enum LinkState { clean, suspect, unconfirmed }
@@ -250,7 +249,7 @@ typedef _Entry = ({String fingerprint, int line});
   if (space < 0) return null;
   final fingerprint = value.substring(space + 1);
   final label = readLinkLabel(value.substring(0, space));
-  if (label == null || !_fingerprintShape.hasMatch(fingerprint)) return null;
+  if (label == null || !isFingerprint(fingerprint)) return null;
   if (label is ScenarioLabel && label.ref.scenario == null) return null;
   if ((label is OverrideLabel) != (entryKey == _overrideEntriesKey)) {
     return null;
