@@ -609,14 +609,19 @@ String? _fieldValueOf(String lf) {
   return stripped.trim().isEmpty ? null : stripped;
 }
 
+/// What `_scanStdin` reads of a text outside any fence.
+final class _StdinScan {
+  const new({required this.refused, required this.openFence});
+
+  /// The first line outside fenced code the check refuses; null when none.
+  final String? refused;
+
+  /// The delimiter of a fence the text leaves open.
+  final String? openFence;
+}
+
 /// Reads [lf] as [Doc.parse] would, from outside any fence.
-///
-/// `refused` is the first line outside fenced code that [isRefused] accepts.
-/// `openFence` is the delimiter of a fence the text leaves open.
-({String? refused, String? openFence}) _scanStdin(
-  String lf,
-  bool Function(String line) isRefused,
-) {
+_StdinScan _scanStdin(String lf, bool Function(String line) isRefused) {
   final lines = lf.split('\n');
   final scan = blockScan(lines);
   String? refused;
@@ -626,7 +631,7 @@ String? _fieldValueOf(String lf) {
       break;
     }
   }
-  return (refused: refused, openFence: scan.openFence);
+  return _StdinScan(refused: refused, openFence: scan.openFence);
 }
 
 SplicedDoc _spliceLead(
@@ -674,18 +679,26 @@ void _checkLeadText(String lf) {
   refuseNamingLine(lf, 'the lead');
 }
 
+/// A stdin less the section's own header.
+final class _Unwrapped {
+  const new({required this.text, required this.dropped});
+
+  final String text;
+
+  /// Whether that header was there, so a header-only stdin is told from empty
+  /// stdin.
+  final bool dropped;
+}
+
 /// Returns [lf] less its first line after leading blank lines when that line
 /// is [headerLine], the section's own header.
-///
-/// `dropped` tells whether that line was there, so a header-only stdin is told
-/// from empty stdin.
-({String text, bool dropped}) _withoutOwnHeader(String lf, String headerLine) {
+_Unwrapped _withoutOwnHeader(String lf, String headerLine) {
   final lines = lf.split('\n');
   final first = lines.indexWhere((line) => line.trim().isNotEmpty);
   if (first < 0 || lines[first] != headerLine) {
-    return (text: lf, dropped: false);
+    return _Unwrapped(text: lf, dropped: false);
   }
-  return (text: (lines..removeAt(first)).join('\n'), dropped: true);
+  return _Unwrapped(text: (lines..removeAt(first)).join('\n'), dropped: true);
 }
 
 SplicedDoc _spliceSection({
