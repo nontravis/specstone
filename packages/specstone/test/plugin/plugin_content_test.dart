@@ -3666,6 +3666,28 @@ void _agentTests() {
     );
   });
 
+  test('write_design_document E10, E25, E27 to E30: design.md grounds a '
+      'dependency by a cited run, tables each new input, searches the E29 '
+      'forms, and holds the E28 check', () {
+    final design = _pluginText(
+      'specstone-brainstorming-sdd/references/design.md',
+    );
+    final ground = _oneLine(_sectionOf(design, '2. Ground each claim'));
+    expect(ground, contains('`Run:`'));
+    expect(ground, contains('read-only'));
+    for (final point in _dependencyRunPoints) {
+      expect(ground, contains(point), reason: point);
+    }
+    final write = _oneLine(_sectionOf(design, '3. Write the document'));
+    for (final point in [..._inputTablePoints, ..._writtenFormPoints]) {
+      expect(write, contains(point), reason: point);
+    }
+    final check = _oneLine(_sectionOf(design, '4. Check before you ask'));
+    for (final point in _approvalCheckPoints) {
+      expect(check, contains(point), reason: point);
+    }
+  });
+
   test('E05, E06, '
       "E07, E10, E12, E13: rounds.md holds the runner's dispatch, fix-round, "
       'amend, and re-audit rules, and steps 3 and 4.3 of brainstorming-sdd '
@@ -3902,31 +3924,66 @@ void _agentTests() {
   });
 }
 
-/// Each point of the design document's dependents and state-table clauses, as
-/// step 3 of design.md words it, cut at line width.
+/// Each point of the design document's dependents clauses, as step 3 of
+/// design.md words it, cut at line width.
 const _dependentsSearchPoints = [
   "its rule's owner doc (`none` for a decision with no rule, such as a pure",
   'ruling or an approach pick), and the terms you searched for it.',
-  'A decision whose rule has states, such as a refusal set or a set of name',
-  'forms, also gets a table of each state against each command or skill',
   "Before the Docs to change table closes, find each decision's dependents in",
-  'your saved files, with no `search` and no `refs` call:',
+  'your saved files:',
   "Name the owner doc of the decision's rule (`specstone-expert-sdd` rule 7).",
   "The owner item's cited-by lines in the saved files give the docs that link",
   'it.',
   'Run `specstone check <feature> --repeats` for the repeat groups that hold',
-  "the owner item, and search the saved files' text for the decision's terms",
-  'and for the wording it supersedes.',
-  'Each doc found that restates the rule instead of citing its owner gets a',
-  "Docs to change row: its change links the owner's item that holds the rule,",
-  'or rewrites the',
-  "doc when that doc owns a rule that reads the decision's rule.",
-  'When the owner item has no cited-by line, as in a tree that still cites by',
+  'the owner item.',
+  'Each doc found that restates the rule gets a Docs to change row: its',
+  "change links the owner's item that holds the rule, or rewrites the doc",
+  "when it owns a rule that reads the decision's rule.",
+  'With no cited-by line on the owner item, as in a tree that still cites by',
   'number labels, the repeat groups and the text search carry the decision.',
-  'Record the searched terms either way, so the audit sees what was searched.',
-  'An amend for an Owner decision that adds or changes behavior runs',
-  "the same steps on that decision's terms and adds its rows and",
-  'searched terms before the author writes it.',
+  'Record the searched terms either way, so the audit sees them.',
+  'An amend for a decision that adds or changes behavior runs these steps on',
+  'its terms and adds its rows and searched terms before the author writes it.',
+];
+
+/// Each point of `write_design_document` E25 and E27 as step 2 of design.md
+/// words it: a dependency's behavior grounded by a cited read-only run, cut at
+/// line width.
+const _dependencyRunPoints = [
+  'Ground a claim about how a library, parser, or tool the change calls',
+  'behaves only by a read-only run in a scratch folder outside the docs,',
+  'cited in one `Run:` line: the command and its output line.',
+  'With no run, the claim is an open question.',
+  'The saved files ground a claim about the Specstone CLI.',
+];
+
+/// Each point of `write_design_document` E10 and E30 as the Decisions item of
+/// step 3 words it, cut at line width.
+const _inputTablePoints = [
+  'A decision that takes inputs or states (a rule with states, or one that',
+  'adds a key, a flag, a link form, a refusal, or a doc type target)',
+  'also gets an input table:',
+  'one row per input or state, the result it gives, and each command or',
+  'skill that reads it.',
+  "A refusal's row quotes its message literal.",
+];
+
+/// Each point of `write_design_document` E29 as the dependents bullets of
+/// step 3 word it, cut at line width.
+const _writtenFormPoints = [
+  "Search the saved files' text for the decision's terms and for the wording",
+  'it supersedes, each in every written form: with and without a',
+  'trailing `/`, in backticks or not, singular and plural, and a short form.',
+  'Search every section of each doc in a Docs to change row.',
+];
+
+/// Each point of `write_design_document` E28 as step 4 of design.md words it,
+/// with the exemption of the design document itself, cut at line width.
+const _approvalCheckPoints = [
+  "Before the approval ask, check each saved file's sections outside the Docs",
+  'to change rows for a wording a decision supersedes: each found gets a row.',
+  'Ask only once none is left.',
+  'This document is outside the check: it quotes that wording.',
 ];
 
 /// Each point of `audit_drafts_by_reading`'s one `get` call, E11, and E12, as
