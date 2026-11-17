@@ -593,6 +593,28 @@ void main() {
       expect(sentence.runs, 0);
     });
 
+    test('a marker-like word on a later quote line still counts', () {
+      const text = '# V\n\n## Statement\n\n> see below\n> to: finish\n';
+
+      final sentence = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single.single;
+
+      expect(sentence.words, 4);
+    });
+
+    test('a marker on each of chained quote lines counts no word', () {
+      const text = '# V\n\n## Statement\n\n> en: one two.\n> th: three\n';
+
+      final sentences = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single;
+
+      expect(sentences.map((sentence) => sentence.words), [2, 1]);
+    });
+
     test('a colon after a longer word is no language marker', () {
       const text = '# V\n\n## Statement\n\n> note: one two\n';
 

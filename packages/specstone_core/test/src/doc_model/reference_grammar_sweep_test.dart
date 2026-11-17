@@ -37,7 +37,7 @@ final _allowed = <_Allowed>[
   ),
   _core(
     'index_query/item_facts.dart',
-    r"""RegExp( r'^([ \t]*(?:>[ \t]?)+)[a-z]{2}:[ \t]*'""",
+    r"""RegExp(r'^([ \t]*(?:>[ \t]?)+)[a-z]{2}:[ \t]*'""",
     'Quote line language marker such as `> en:`, no reference.',
   ),
   _core(
