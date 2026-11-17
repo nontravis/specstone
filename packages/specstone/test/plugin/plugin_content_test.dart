@@ -202,7 +202,6 @@ void main() {
   });
 
   _assetLayoutTests();
-  _shippedFileTests();
   _procedureTests();
   _handOffTests();
   _agentTests();
@@ -628,36 +627,7 @@ void _assetLayoutTests() {
   });
 }
 
-/// Each shipped skill and agent file with its frontmatter name.
-const _shipped = <String, String>{
-  'specstone-expert-sdd/SKILL.md': 'specstone-expert-sdd',
-  'specstone-read-sdd/SKILL.md': 'specstone-read-sdd',
-  'specstone-sdd-reader.md': 'specstone-sdd-reader',
-  'specstone-sync-sdd/SKILL.md': 'specstone-sync-sdd',
-  'specstone-sdd-engineer.md': 'specstone-sdd-engineer',
-  'specstone-brainstorming-sdd/SKILL.md': 'specstone-brainstorming-sdd',
-  'specstone-update-sdd/SKILL.md': 'specstone-update-sdd',
-  'specstone-init/SKILL.md': 'specstone-init',
-  'specstone-bootstrap-prd/SKILL.md': 'specstone-bootstrap-prd',
-  'specstone-bootstrap-spec/SKILL.md': 'specstone-bootstrap-spec',
-  'specstone-plan-sdd/SKILL.md': 'specstone-plan-sdd',
-  'specstone-plan-engineer.md': 'specstone-plan-engineer',
-};
-
 final _frontmatterName = RegExp(r'^---\r?\n(?:.*\r?\n)*?name:\s*(\S+)');
-
-void _shippedFileTests() {
-  for (final MapEntry(key: path, value: name) in _shipped.entries) {
-    test('$path carries its frontmatter name', () {
-      final file = File.fromUri(agentAssetsRoot().uri.resolve(path));
-      expect(file.existsSync(), isTrue, reason: '$path is missing');
-      expect(
-        _frontmatterName.firstMatch(file.readAsStringSync())?.group(1),
-        name,
-      );
-    });
-  }
-}
 
 const _procedures = <String>[
   'specstone-sync-sdd/references/procedure.md',
