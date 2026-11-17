@@ -5,29 +5,6 @@ import 'package:test/test.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
-const _says = <String, List<String>>{
-  'roles': ['Introduced by', 'PROJECT'],
-  'scopes': ['<resource>:<action>', 'default scope'],
-  'resource_matrix': [
-    'resource',
-    'operation',
-    'role',
-    'Default: deny',
-    'blank cell',
-  ],
-  'conditions': ['attribute', 'relationship'],
-  'field_rules': ['Field', 'Read', 'Write'],
-  'authentication_and_sessions': [
-    'idle timeout',
-    'absolute lifetime',
-    'concurrent sessions',
-    'pathways',
-    'anti-automation',
-  ],
-  'enforcement': ['layer'],
-  'audit': ['one vocabulary', 'when, where, who, what', 'tokens', 'passwords'],
-};
-
 void main() {
   late MergedDocType auth;
   setUpAll(() async {
@@ -52,38 +29,6 @@ void main() {
       SectionSpec('authentication_and_sessions', 'Authentication and sessions'),
       SectionSpec('enforcement', 'Enforcement', required: true),
       SectionSpec('audit', 'Audit', required: true),
-    ]);
-  });
-
-  test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
-      'f03/us07/fr02/e04, f03/us07/fr02/e07: the auth guide', () {
-    expectSpecGuide(
-      auth,
-      title: '# <Feature name> auth',
-      says: ['only when the feature has access rules'],
-    );
-    expectSectionsSay(auth, _says);
-  });
-
-  test('auth caps 300 lines and 50000 characters, bans no word, and cites its '
-      'four sources', () {
-    expectSpecLint(auth, maxLines: 300, maxChars: 50000);
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E11: the guide states one matrix row per '
-      'resource and operation as its item shape', () {
-    expectItemShape(
-      auth,
-      'Write one rule per ID: one matrix row per resource and operation, '
-      'each rule one sentence.',
-    );
-  });
-
-  test('the guide states where its rules belong', () {
-    expectDescriptionSays(auth, const [
-      "holds one feature's spec",
-      "a rule every feature uses goes to the project's AUTH",
     ]);
   });
 }

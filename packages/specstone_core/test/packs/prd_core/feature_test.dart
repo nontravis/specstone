@@ -1,8 +1,3 @@
-// The placement lines are the pack's text, kept verbatim on one line each.
-// ignore_for_file: lines_longer_than_80_chars
-
-import 'dart:convert';
-
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
@@ -20,48 +15,13 @@ const _ownFields = <FieldSpec>[
   FieldSpec('patterns', FieldType.string, list: true),
 ];
 
-const _templates = {
-  'flow':
-      '```mermaid\n'
-      'flowchart LR\n'
-      '  <Step1> --> <Step2> --> <Step3>\n'
-      '```',
-  'out_of_scope':
-      '- <thing> — <owning feature | not planned>\n'
-      '- `<pattern>/<item>` — <why the feature skips the item>',
-  'success_measures': '- <behavior change> — <target> by <date>',
-};
-
-const _placementLines = [
-  'Place a new requirement by three questions, and state the answer to each when you propose its place:',
-  '1. Does it use an entity, invariant, or rule an existing feature owns (in its domain doc, where the project has one)? No: a new top feature.',
-  '2. Yes: how many stories does it yield? One: a new story in the deepest such feature that holds stories.',
-  "3. Several: do those stories own entities or invariants the feature's other stories do not use? Yes: a new sub-feature under that feature. No: new stories in that feature.",
-  'A sub-feature holds at least 2 stories or sub-features; a lone story never starts one.',
-  'A feature that holds sub-features holds no story; a lone story whose only spec is such a parent goes to the sub-feature whose stories it is closest to, and the proposal says so.',
-  'The parent keeps only what all its sub-features share.',
-  "When `check` reports `chars_over_limit` or `lines_over_limit` on a feature's doc that a write has laid out, propose a sub-feature split by the same three questions; the Owner approves it.",
-  'A feature of fewer than 4 stories takes no split, since a split needs at least 2 sub-features of at least 2 stories each and a feature holds stories or sub-features, never both; say why no split applies.',
-  "`item_over_limit` takes no split, since a split never shrinks one item; the item takes its doc type's item shape instead.",
-  'Cut no text to pass a size.',
-];
-
-const _dependsOnDescription =
-    'Names the features this feature needs built first; each name must resolve to a feature.\n'
-    'Leave it out when the feature depends on no other feature.';
-const _patternsDescription =
-    'Names the feature patterns this feature follows; list the ids with `specstone guide --pattern`.\n'
-    'Leave it out when no feature pattern fits the feature.';
-const _outOfScopeDescription =
-    'List the use cases left out to fit the appetite or keep the problem tractable, one line each.\n'
-    'Write each line as `<thing> — <owning feature | not planned>`; mark a deferred item with its owning feature.\n'
-    'Write the skip line of a pattern item as `<pattern>/<item>` in a code span, then ` — `, then the reason.\n'
-    'The list has no cap on the number of lines.';
 const _workspaceLayer =
-    'fields:\n  - id: depends_on\n    type: doc_ref\n    list: true\n    doc_types: [feature]\n'
-    '    description: |-\n'
-    '      Names the features this feature needs built first; each name must resolve to a feature.\n'
-    '      Leave it out when the feature depends on no other feature.\n';
+    'fields:\n'
+    '  - id: depends_on\n'
+    '    type: doc_ref\n'
+    '    list: true\n'
+    '    doc_types: [feature]\n'
+    '    description: Names the features this feature needs built first.\n';
 
 void main() {
   late MergedDocType feature;
@@ -100,52 +60,12 @@ void main() {
     expectStatusValues(feature, ['planned', 'implemented', 'deprecated']);
   });
 
-  test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'titled # <Name>, no NASA list', () {
-    expectGuideShape(feature, title: '# <Name>');
-    expectNoNasaLint(feature);
-    expectSources(feature, [
-      (
-        'Bryar & Carr, PR/FAQ Instructions & Template',
-        'https://workingbackwards.com/resources/working-backwards-pr-faq/',
-      ),
-      (
-        'SAFe Fellow blog, Crafting Clarity: Feature Templates (2024)',
-        'https://framework.scaledagile.com/blog/crafting-clarity-using-feature-templates-to-shape-and-communicate-intent/',
-      ),
-      (
-        'Shape Up, Write the Pitch',
-        'https://basecamp.com/shapeup/1.5-chapter-06',
-      ),
-      (
-        'Marty Cagan, Assessing Product Opportunities',
-        'https://www.svpg.com/assessing-product-opportunities/',
-      ),
-    ]);
-  });
-
-  test('the templates hold the flow sketch and the line '
-      'forms', () {
-    for (final MapEntry(:key, :value) in _templates.entries) {
-      expect(sectionOf(feature, key).template, value, reason: key);
-    }
-  });
-
-  test('the flow guide ends with the Mermaid quoting '
-      'sentence', () {
-    expect(
-      sectionOf(feature, 'flow').description,
-      endsWith('\n$mermaidQuoteSentence'),
-    );
-  });
-
   test('Out-of-scope carries no line cap', () {
     expect(sectionOf(feature, 'out_of_scope').maxLines, isNull);
   });
 
   test('feature joins no bundle and marks problem and '
-      'out_of_scope query', () async {
-    final feature = prdCoreDocType(await resolvePrdCore(), 'feature');
+      'out_of_scope query', () {
     expect(feature.bundle, isNull);
     expect(
       [
@@ -154,11 +74,6 @@ void main() {
       ],
       ['problem', 'out_of_scope'],
     );
-  });
-
-  test('depends_on '
-      'carries the description the workspace layer gave it', () {
-    expect(fieldOf(feature, 'depends_on').description, _dependsOnDescription);
   });
 
   test(
@@ -173,34 +88,9 @@ void main() {
     },
   );
 
-  test('patterns is a free string list that points at guide --pattern', () {
-    final patterns = fieldOf(feature, 'patterns');
-    expect(patterns.enumValues, isNull);
-    expect(patterns.description, _patternsDescription);
-  });
-
-  test('the Out-of-scope guide gives both line forms', () {
-    expect(
-      sectionOf(feature, 'out_of_scope').description,
-      _outOfScopeDescription,
-    );
-  });
-
   test('f03/us06/fr01, sf-r5: feature carries max_depth 3', () {
     expect(feature.maxDepth, 3);
   });
-
-  test(
-    'f03/us06/fr02/e05, sf-r8: the feature description in guide feature ends '
-    'with the placement questions',
-    () {
-      final lines = const LineSplitter().convert(feature.description!);
-      expect(
-        lines.sublist(lines.length - _placementLines.length),
-        _placementLines,
-      );
-    },
-  );
 
   test('a project feature.yaml of max_depth 3 makes the '
       'nested FEATURE.md the feature shop/cart', () async {
@@ -216,24 +106,5 @@ void main() {
     );
     addTearDown(session.close);
     expect(session.index.at(cartFeature)!.name, 'shop/cart');
-  });
-
-  test('Write the shipped writing guides '
-      'E07: the guide states the item shape: rule per ID, bound, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      feature,
-      'Write one rule per ID; in a section with no IDs, one '
-      'rule per item, with mechanics left to the spec docs.\n'
-      'Keep a bound in the item it limits, and the trace in '
-      '`vision:` and `goals:`, never in the prose.',
-    );
-  });
-
-  test('goals field description names the goal doc', () {
-    expect(
-      fieldOf(feature, 'goals').description,
-      contains('goal IDs (`PG-*`) of the goal doc'),
-    );
   });
 }

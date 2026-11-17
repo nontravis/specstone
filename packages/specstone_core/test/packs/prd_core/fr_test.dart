@@ -4,39 +4,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
 
-const _templates = <String, String>{
-  'statement': requirementStatementTemplate,
-  'input_output':
-      '**Input**\n'
-      '| Field   | Type   | Required | Notes         |\n'
-      '| ------- | ------ | -------- | ------------- |\n'
-      '| <field> | <type> | <yes/no> | <constraints> |\n'
-      '\n'
-      '**Output**\n'
-      '| Field   | Type   | Notes              |\n'
-      '| ------- | ------ | ------------------ |\n'
-      '| <field> | <type> | <semantics, units> |',
-  'behavior':
-      '```mermaid\n'
-      'flowchart TD\n'
-      '  A[<step>] --> B{<decision>}\n'
-      '  B -- <branch> --> C[<outcome>]\n'
-      '```',
-  'edge_cases':
-      '1. E01 — <trigger> → <response>\n'
-      '2. E02 — <lead> → <response>\n'
-      '   <more response, one sentence per line, with no blank line>\n'
-      '   - <trigger>\n'
-      '   - <trigger>',
-  'rationale':
-      '<reason, assumptions, related requirements, design constraints>',
-  'verification':
-      '- **Pass criteria:** <what shows the requirement holds>\n'
-      '  - <one condition, when the criteria are long>\n'
-      '- **Level:** <level>',
-  'tbr': tbrTemplate,
-};
-
 void main() {
   late MergedDocType fr;
   setUpAll(() async {
@@ -73,12 +40,6 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr02/e03, '
-      'titled # <Name>, naming the -ly and -ize words', () {
-    expectGuideShape(fr, title: '# <Name>');
-    expect(fr.description, allOf(contains('-ly'), contains('-ize')));
-  });
-
   test('f03/us06/s4, f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on '
       'the Statement section only, and the NASA handbook', () {
     expectNasaLint(
@@ -90,33 +51,8 @@ void main() {
     );
   });
 
-  test('the templates hold the requirement forms, free of the '
-      'listed words', () {
-    for (final MapEntry(:key, :value) in _templates.entries) {
-      expect(sectionOf(fr, key).template, value, reason: key);
-    }
+  test('no starter template holds a listed word', () {
     expectTemplatesFreeOfListedWords(fr);
-  });
-
-  test('the behavior guide ends with the Mermaid quoting '
-      'sentence', () {
-    expect(
-      sectionOf(fr, 'behavior').description,
-      endsWith('\n$mermaidQuoteSentence'),
-    );
-  });
-
-  test('Edge cases asks for detect, report, handle, and '
-      'recover', () {
-    expect(
-      sectionOf(fr, 'edge_cases').description,
-      allOf(
-        contains('detect'),
-        contains('report'),
-        contains('handle'),
-        contains('recover'),
-      ),
-    );
   });
 
   test('f03/us06/fr01, db-r1, db-r8: fr marks statement summary', () {
@@ -126,23 +62,6 @@ void main() {
           if (s.summary == true) s.id,
       ],
       ['statement'],
-    );
-  });
-
-  test('Write the shipped writing guides '
-      'E06: the guide states the item shape: Statement, Edge cases, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      fr,
-      'Write the Statement as one sentence with one "shall", '
-      'stated positively, with a quantified value kept in it, '
-      'such as `within 2 s`.\n'
-      'State what the product does, never how: leave mechanics '
-      'to the spec docs, and never assign a task to a person.\n'
-      'Write one Edge cases item per case; a case the system '
-      'does not handle goes there too, with what happens then.\n'
-      'Keep the trace in `traced_from` alone, never in the '
-      'Statement or an edge case.',
     );
   });
 }

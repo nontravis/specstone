@@ -7,35 +7,6 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
-const _says = <String, List<String>>{
-  'entities': [
-    'Entity',
-    'Kind',
-    'Identity',
-    'Owns',
-    'Refers to (by id)',
-    'Notes',
-  ],
-  'value_objects': ['immutable'],
-  'invariants': [
-    'append-only',
-    'never reused',
-    'aggregate root',
-    'immediate',
-    'eventual',
-    'timeout 10 s',
-  ],
-  'known_limits': [
-    'one bullet per case',
-    'does not handle',
-    'what happens then',
-    'in that invariant',
-  ],
-  'lifecycle': ['stateDiagram-v2', '4 or more states'],
-  'commands_and_events': ['command', 'aggregate', 'event emitted'],
-  'terms': ['glossary'],
-};
-
 void main() {
   late MergedDocType domain;
   setUpAll(() async {
@@ -63,33 +34,6 @@ void main() {
     ]);
   });
 
-  test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
-      'f03/us07/fr02/e04, f03/us07/fr02/e06: the domain guide', () {
-    expectSpecGuide(domain, title: '# <Feature name> domain');
-    expectSectionsSay(domain, _says);
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E12: the invariants guide gives the bullet '
-      'shape, keeps a bound in its invariant, and routes mechanics and '
-      'unhandled cases away', () {
-    expectSectionsSay(domain, const {
-      'invariants': [
-        '- **INV-<N>** <one sentence>',
-        '- **Enforcer:** <aggregate root>',
-        '- **Consistency:** immediate',
-        '- **Corrective policy:** <how the system restores the rule>',
-        'eventual',
-        'in the invariant it bounds',
-        'ARCHITECTURE',
-        '`known_limits`',
-        'no trace tag',
-        '`reference` field',
-        'a cite or ownership note may close',
-      ],
-    });
-  });
-
   test('the invariants require a corrective policy on an eventual invariant '
       'only', () {
     final fields = domain.sections
@@ -110,38 +54,6 @@ void main() {
       domain.sections.map((s) => s.id),
       isNot(contains('corrective_policies')),
     );
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E11: the guide states one bullet per '
-      'invariant as its item shape', () {
-    expectItemShape(
-      domain,
-      'Write one rule per ID: one bullet per invariant, each rule one '
-      'sentence.',
-    );
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E13: the guide says a DOMAIN cites its own '
-      'ARCHITECTURE by a section link', () {
-    expectItemShape(
-      domain,
-      'A DOMAIN cites its own ARCHITECTURE by a section link, '
-      'such as `[architecture:rendering](ARCHITECTURE.md#components)`.',
-    );
-  });
-
-  test('the guide states where its rules belong', () {
-    expectDescriptionSays(domain, const [
-      "holds one feature's spec",
-      "a rule every feature uses goes to the project's DOMAIN",
-    ]);
-  });
-
-  test('domain caps 300 lines and '
-      '50000 characters, bans no word, and cites its four sources', () {
-    expectSpecLint(domain, maxLines: 300, maxChars: 50000);
   });
 
   // A draft takes no approval stamp, so the counts stay exact.

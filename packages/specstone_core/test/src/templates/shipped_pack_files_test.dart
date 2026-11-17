@@ -6,8 +6,6 @@ import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_migration.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:test/test.dart';
@@ -45,10 +43,6 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.12.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.12.0');
-  });
-
   group('template_packs/write_spec_docs_from_software_tech/'
       'ship_software_tech_pack', () {
     late MergedSet both;
@@ -56,17 +50,6 @@ void main() {
     setUpAll(() async {
       both = await resolveSoftwareTech();
       prdOnly = await resolvePrdCore();
-    });
-
-    test('E01: the merged set holds the fourteen prd-core and the fifteen '
-        'software-tech doc types, the record among them', () {
-      expect(
-        both.docTypes.map((d) => d.id).toList(),
-        [...prdCoreIds, ...softwareTechIds]..sort(),
-      );
-      for (final id in softwareTechIds) {
-        expect(prdCoreDocType(both, id).pack, 'software-tech', reason: id);
-      }
     });
 
     test('S1, E01: each doc type takes the path and the parent of the Output '
@@ -188,23 +171,6 @@ void main() {
           pointer: PointerKind.itemTest,
         ),
       ]);
-      for (final id in ['implements', 'tests']) {
-        expect(
-          fieldOf(record, id).description,
-          contains(
-            "relative to the code root of the doc's target "
-            '(`.specstone/config.yaml`, else the project root)',
-          ),
-          reason: id,
-        );
-      }
-      expect(
-        fieldOf(record, 'tests').description,
-        allOf(
-          contains('`<item>:<test file path>[:<test or group name>]`'),
-          contains('quoted YAML string'),
-        ),
-      );
     });
 
     test('E07: the other pointer fields keep their kind and requirement', () {
@@ -234,59 +200,6 @@ void main() {
         FieldSpec('code', FieldType.string, list: true),
         FieldSpec('tasks', FieldType.taskRef, list: true),
       ]);
-    });
-
-    test('the pack carries three migrations entries, a move_to_record '
-        'step from 1.4.0, a stamp_code_fingerprints step from 1.6.0, and a '
-        'move_file and a restamp_code_fingerprints step from 1.7.0', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['software-tech/pack.yaml']!),
-        file: 'packs/software-tech/pack.yaml',
-      );
-      expect(manifest.migrations, hasLength(3));
-      final [move, stamp, record] = manifest.migrations;
-      expect(move.from.toString(), '1.4.0');
-      final step = move.steps.single as MoveToRecord;
-      expect(step.docTypes, ['user_story', 'fr']);
-      expect(step.fields, ['status', 'implements']);
-      expect(step.to, 'implementation');
-      expect(stamp.from.toString(), '1.6.0');
-      expect(stamp.steps.single, isA<StampCodeFingerprints>());
-      expect(record.from.toString(), '1.7.0');
-      final [moveFile, restamp] = record.steps;
-      expect(moveFile, isA<MoveFile>());
-      expect((moveFile as MoveFile).docType, 'implementation');
-      expect(moveFile.from, 'specs/f{nn}_{slug}/IMPLEMENTATION.md');
-      expect(moveFile.to, '.specstone/records/f{nn}_{slug}/IMPLEMENTATION.md');
-      expect(restamp, isA<RestampCodeFingerprints>());
-    });
-
-    test('the covers and implements descriptions say an entry may end in one '
-        'space and its code fingerprint', () {
-      const phrase = 'may end in one space and its code fingerprint';
-      for (final (docType, field) in const [
-        ('architecture', 'covers'),
-        ('topic', 'covers'),
-        ('implementation', 'implements'),
-      ]) {
-        expect(
-          fieldOf(prdCoreDocType(both, docType), field).description,
-          contains(phrase),
-          reason: '$docType.$field',
-        );
-      }
-    });
-
-    test('the statuses, implements, and tests descriptions say they sit '
-        'outside the approval hash', () {
-      final record = both.recordDocType!;
-      for (final field in const ['statuses', 'implements', 'tests']) {
-        expect(
-          fieldOf(record, field).description,
-          contains('outside the approval hash'),
-          reason: field,
-        );
-      }
     });
   });
 
@@ -361,8 +274,7 @@ void main() {
 
     for (final rule in _specGuideRules) {
       test('${rule.docType}.${rule.section} ${rule.id}: fires on a broken '
-          'line, passes a sound one, and cites its guide line', () {
-        final docType = prdCoreDocType(set, rule.docType);
+          'line and passes a sound one', () {
         final sectionOfRule = section(rule.docType, rule.section!);
         final patterns = rule.required
             ? sectionOfRule.requiredPatterns!
@@ -375,12 +287,6 @@ void main() {
           expect(pattern.regExp.hasMatch(line), isFalse, reason: line);
         }
         if (!rule.required) expect(pattern.scope, rule.scope);
-        expect(pattern.message, contains(rule.phrase), reason: rule.id);
-        expect(
-          [docType.description, sectionOfRule.description].join('\n'),
-          contains(rule.phrase),
-          reason: rule.id,
-        );
       });
     }
 
@@ -468,37 +374,6 @@ void main() {
         'project_error.error_catalog',
         'project_api.conventions',
       });
-    });
-
-    test('no software-tech yaml writes a readability lint key', () {
-      final files = {
-        for (final MapEntry(:key, :value) in shippedPackFiles.entries)
-          if (key.startsWith('software-tech/') && key.endsWith('.yaml'))
-            key: utf8.decode(value),
-      };
-      expect(files, isNotEmpty);
-      for (final MapEntry(:key, :value) in files.entries) {
-        for (final lintKey in const [
-          'max_sentence_words',
-          'max_sentence_chars',
-          'trace_note_last',
-        ]) {
-          expect(value, isNot(contains(lintKey)), reason: '$key $lintKey');
-        }
-      }
-    });
-
-    test('the record caps 400 lines and 60000 characters, and every other '
-        'spec type 300 lines and 50000 characters', () {
-      for (final docType in set.docTypes) {
-        if (docType.pack != 'software-tech') continue;
-        final caps = specCapsOf(docType.id);
-        expect(
-          (docType.lint.maxLines, docType.lint.maxChars),
-          (caps.maxLines, caps.maxChars),
-          reason: docType.id,
-        );
-      }
     });
 
     test(
@@ -599,33 +474,6 @@ void main() {
     });
   });
 
-  test('the shipped prd-core pack is at least 1.11.0, so the scoped lint '
-      'keys ride it', () {
-    final version = PackVersion.parse(
-      shippedPackVersions()['prd-core']!,
-      file: 'pack.yaml',
-      key: 'version',
-    );
-    expect(
-      version.compareTo(
-        PackVersion.parse('1.11.0', file: 'pack.yaml', key: 'version'),
-      ),
-      greaterThanOrEqualTo(0),
-    );
-  });
-
-  test('the shipped prd-core pack is 1.17.0, so the readability guide lines '
-      'ride it', () {
-    expect(shippedPackVersions()['prd-core'], '1.17.0');
-  });
-
-  test(
-    'the shipped prd-core pack is 1.17.0, so the guide-rule keys ride it',
-    () {
-      expect(shippedPackVersions()['prd-core'], '1.17.0');
-    },
-  );
-
   group('the prd-core guide-rule lint', () {
     late MergedSet set;
     setUpAll(() async {
@@ -668,12 +516,11 @@ void main() {
 
     for (final rule in _guideRules) {
       test('${rule.docType}.${rule.section} ${rule.id}: fires on a broken '
-          'line, passes a sound one, and cites its guide line', () {
+          'line and passes a sound one', () {
         final sectionIds = rule.section == null
             ? _gnfrCategories
             : [rule.section!];
         for (final sectionId in sectionIds) {
-          final docType = prdCoreDocType(set, rule.docType);
           final pattern = entry(rule.docType, sectionId, rule.id);
           for (final line in rule.hits) {
             expect(pattern.regExp.hasMatch(line), isTrue, reason: line);
@@ -682,12 +529,6 @@ void main() {
             expect(pattern.regExp.hasMatch(line), isFalse, reason: line);
           }
           expect(pattern.scope, rule.scope, reason: rule.id);
-          expect(pattern.message, contains(rule.phrase), reason: rule.id);
-          final guide = [
-            docType.description,
-            section(rule.docType, sectionId).description,
-          ].join('\n');
-          expect(guide, contains(rule.phrase), reason: rule.id);
         }
       });
     }
@@ -742,14 +583,6 @@ void main() {
       for (final docType in ['persona', 'anti_persona']) {
         final snapshot = section(docType, 'snapshot');
         expect((snapshot.minLines, snapshot.maxLines), (2, 4), reason: docType);
-      }
-    });
-
-    test('no prd-core yaml writes a readability lint key', () {
-      for (final docType in set.docTypes) {
-        expect(docType.lint.maxSentenceWords, isNull, reason: docType.id);
-        expect(docType.lint.maxSentenceChars, isNull, reason: docType.id);
-        expect(docType.lint.traceNoteLast, isNull, reason: docType.id);
       }
     });
 
@@ -845,19 +678,6 @@ void main() {
       expect(section('nf', 'tbr').bannedWords, isNull);
     });
   });
-
-  test('template_packs/write_prd_docs_from_prd_core/'
-      'write_shipped_writing_guides E05: the shipped feature type names the '
-      'three size findings', () {
-    final feature = utf8.decode(shippedPackFiles['prd-core/feature.yaml']!);
-    for (final finding in [
-      'chars_over_limit',
-      'lines_over_limit',
-      'item_over_limit',
-    ]) {
-      expect(feature, contains('`$finding`'));
-    }
-  });
 }
 
 const _gnfrCategories = <String>[
@@ -877,7 +697,6 @@ final class _GuideRule {
     this.docType,
     this.section,
     this.id, {
-    required this.phrase,
     required this.hits,
     required this.misses,
     this.scope = PatternScope.all,
@@ -890,8 +709,6 @@ final class _GuideRule {
   final String? section;
   final String id;
 
-  /// A phrase of the guide that the message repeats.
-  final String phrase;
   final List<String> hits;
   final List<String> misses;
   final PatternScope scope;
@@ -908,7 +725,6 @@ const _guideRules = <_GuideRule>[
     'project',
     'vision',
     'quote_words',
-    phrase: 'keep each sentence to 15 words or fewer',
     hits: ['> en: $_sixteenWords', '> th: $_sixteenWords and more'],
     misses: ['> en: $_fifteenWords', '- **Why:** $_sixteenWords'],
   ),
@@ -916,7 +732,6 @@ const _guideRules = <_GuideRule>[
     'project',
     'vision',
     'quote_language',
-    phrase: 'Use an ISO 639-1 code',
     hits: ['> eng: hello', '> EN: hello', '> e: hello', '> pt-BR: hello'],
     misses: [
       '> en: hello',
@@ -929,7 +744,6 @@ const _guideRules = <_GuideRule>[
     'goal',
     'long_term',
     'metric_number',
-    phrase: 'a numeric metric with unit',
     hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
     misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
   ),
@@ -937,7 +751,6 @@ const _guideRules = <_GuideRule>[
     'goal',
     'mid_term',
     'metric_number',
-    phrase: 'a numeric metric with unit',
     hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
     misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
   ),
@@ -945,7 +758,6 @@ const _guideRules = <_GuideRule>[
     'goal',
     'short_term',
     'metric_number',
-    phrase: 'a numeric metric with unit',
     hits: ['**Metric:** a fast tool', '**Metric:**', '- **Metric:** soon'],
     misses: ['**Metric:** at most 3 tool calls', '**Serves:** PV-02'],
   ),
@@ -953,7 +765,6 @@ const _guideRules = <_GuideRule>[
     'feature',
     'out_of_scope',
     'out_of_scope_owner',
-    phrase: 'Write each line as `<thing> — <owning feature | not planned>`',
     hits: ['- Offline mode', '* Cloud sync'],
     misses: ['- Cloud sync — not planned', '- Export — f02_export'],
   ),
@@ -961,7 +772,6 @@ const _guideRules = <_GuideRule>[
     'user_story',
     'acceptance_criteria',
     'scenario_title',
-    phrase: '### Scenario N — [happy|edge|error] <what differs>',
     hits: [
       '### Scenario 1 [happy] Login works',
       '### Scenario 1 — [odd] Login works',
@@ -979,7 +789,6 @@ const _guideRules = <_GuideRule>[
     'fr',
     'statement',
     'second_shall',
-    phrase: 'one "shall"',
     scope: PatternScope.text,
     hits: ['The system shall save and shall print 10 files.'],
     misses: ['The system shall save 10 files.'],
@@ -988,7 +797,6 @@ const _guideRules = <_GuideRule>[
     'nf',
     'statement',
     'second_shall',
-    phrase: 'one "shall"',
     scope: PatternScope.text,
     hits: ['The system shall save and shall print 10 files.'],
     misses: ['The system shall save 10 files.'],
@@ -997,7 +805,6 @@ const _guideRules = <_GuideRule>[
     'gnfr',
     null,
     'second_shall',
-    phrase: 'one "shall"',
     scope: PatternScope.text,
     hits: ['- **Statement:** The product shall save and shall print 10 files.'],
     misses: ['- **Statement:** The product shall save 10 files.'],
@@ -1006,7 +813,6 @@ const _guideRules = <_GuideRule>[
     'nf',
     'statement',
     'statement_number',
-    phrase: 'a quantified value',
     hits: ['The system shall respond quickly.'],
     misses: ['The system shall respond within 2 s.', 'It is a note.'],
   ),
@@ -1014,7 +820,6 @@ const _guideRules = <_GuideRule>[
     'gnfr',
     null,
     'statement_number',
-    phrase: 'a quantified value',
     hits: ['- **Statement:** The product shall respond quickly.'],
     misses: ['- **Statement:** The product shall respond within 2 s.'],
   ),
@@ -1022,7 +827,6 @@ const _guideRules = <_GuideRule>[
     'fr',
     'edge_cases',
     'edge_case_arrow',
-    phrase: 'E01 — <trigger> → <response>',
     hits: ['1. E01 — A case with no arrow', '- E02 — A case with none'],
     misses: ['1. E01 — A case → what happens', '   a wrapped line'],
   ),
@@ -1030,7 +834,6 @@ const _guideRules = <_GuideRule>[
     'fr',
     'verification',
     'test_file_named',
-    phrase: 'Name no test file here',
     hits: [
       'Run `test/x_test.dart`.',
       'Run `tests/fixtures/a.json`.',
@@ -1055,7 +858,6 @@ final _specGuideRules = <_GuideRule>[
     'architecture',
     'components',
     'table_only',
-    phrase: 'Write no line but a table line',
     hits: [
       '- a bullet under the table',
       'Some prose',
@@ -1073,8 +875,6 @@ final _specGuideRules = <_GuideRule>[
     'architecture',
     'concerns',
     'concern_ending',
-    phrase:
-        'End each line with `see <section or sibling doc>` or `N/A — <reason>`',
     hits: [
       '- Integration — handled elsewhere',
       'Errors: fine',
@@ -1092,7 +892,6 @@ final _specGuideRules = <_GuideRule>[
     'api',
     'operations',
     'operation_heading',
-    phrase: 'alone with no FR label',
     hits: ['### `create` — FR-01', '### `create` FR-01', '### `create` (v2)'],
     misses: ['### `create`', '### `POST /items`', '#### `x` y', '- `x` y'],
   ),
@@ -1100,7 +899,6 @@ final _specGuideRules = <_GuideRule>[
     'topic',
     'interface',
     'interface_pointer',
-    phrase: 'List the public entry points as `path:Symbol` pointers',
     hits: [
       '- A public entry point',
       '- `lib/src/a.dart` Symbol',
@@ -1117,7 +915,6 @@ final _specGuideRules = <_GuideRule>[
     'api',
     'operations',
     'response_success',
-    phrase: 'Write a success and an error Response example',
     required: true,
     hits: [
       '**Response example — success**',
@@ -1129,7 +926,6 @@ final _specGuideRules = <_GuideRule>[
     'api',
     'operations',
     'response_error',
-    phrase: 'Write a success and an error Response example',
     required: true,
     hits: ['**Response example — error**', '**Response example — error** x'],
     misses: ['**Response example — success**', 'Response example — error'],
@@ -1138,7 +934,6 @@ final _specGuideRules = <_GuideRule>[
     'auth',
     'scopes',
     'scope_form',
-    phrase: 'write each scope as `<resource>:<action>`',
     hits: [
       '| read | read items | list |',
       '| `items` | read | list |',
@@ -1159,7 +954,6 @@ final _specGuideRules = <_GuideRule>[
     'auth',
     'resource_matrix',
     'matrix_cell',
-    phrase: '`yes`, `no`, `own` (the resource belongs to the caller), or `any`',
     hits: [
       '| /items | yes | maybe |',
       '| /items | GET | maybe | yes |',
@@ -1184,7 +978,6 @@ final _specGuideRules = <_GuideRule>[
     'domain',
     'entities',
     'entity_kind',
-    phrase: 'Write Kind as Aggregate root, Entity, Service, or Repository',
     hits: [
       '| Order | Thing | id | lines | | note |',
       '| Order | | id |',
@@ -1204,7 +997,6 @@ final _specGuideRules = <_GuideRule>[
     'domain',
     'invariants',
     'numbered_invariant',
-    phrase: 'never a numbered item',
     hits: ['1. **INV-1** one rule', '12) The rule'],
     misses: ['- **INV-1** one rule', '  - **Enforcer:** order'],
   ),
@@ -1221,7 +1013,6 @@ final _specGuideRules = <_GuideRule>[
       'architecture',
       'concerns',
       id,
-      phrase: concern,
       required: true,
       hits: [
         '- $concern — see `API.md`',

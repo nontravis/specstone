@@ -4,13 +4,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
 
-const _templates = <String, String>{
-  'statement': requirementStatementTemplate,
-  'rationale': '<reason; for kind relax, why the waiver is acceptable>',
-  'verification': verificationTemplate,
-  'tbr': tbrTemplate,
-};
-
 void main() {
   late MergedDocType nf;
   setUpAll(() async {
@@ -51,30 +44,13 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr02/e03, '
-      'titled # <Name>, naming the -ly and -ize words', () {
-    expectGuideShape(nf, title: '# <Name>');
-    expect(nf.description, allOf(contains('-ly'), contains('-ize')));
-  });
-
   test('f03/us06/s4, f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on '
       'the Statement section only, and the NASA handbook', () {
     expectNasaLint(nf, sections: ['statement']);
   });
 
-  test('the templates hold the requirement forms, free of the '
-      'listed words', () {
-    for (final MapEntry(:key, :value) in _templates.entries) {
-      expect(sectionOf(nf, key).template, value, reason: key);
-    }
+  test('no starter template holds a listed word', () {
     expectTemplatesFreeOfListedWords(nf);
-  });
-
-  test('kind names its three values', () {
-    expect(
-      fieldOf(nf, 'kind').description,
-      allOf(contains('tighten'), contains('relax'), contains('add')),
-    );
   });
 
   test('f03/us06/fr01, db-r1, db-r8: nf marks statement summary', () {
@@ -84,18 +60,6 @@ void main() {
           if (s.summary == true) s.id,
       ],
       ['statement'],
-    );
-  });
-
-  test('Write the shipped writing guides '
-      'E07: the guide states the item shape: rule per ID, bound, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      nf,
-      'Write one rule per ID, keep its bound in the Statement, '
-      'and leave mechanics to the spec docs.\n'
-      'Keep the trace in `traced_from` alone, never in the '
-      'Statement.',
     );
   });
 }

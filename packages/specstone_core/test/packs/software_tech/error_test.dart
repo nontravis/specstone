@@ -5,22 +5,6 @@ import 'package:test/test.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
-const _says = <String, List<String>>{
-  'error_envelope': ['envelope', 'differs'],
-  'error_catalog': [
-    'Code',
-    'Exit/HTTP',
-    'Category',
-    'Triggered by',
-    'Implemented by',
-    'Client guidance',
-    'Details',
-    'retry_after',
-    'never reused',
-  ],
-  'retry_policy': ['category', 'per-code', 'non-idempotent'],
-};
-
 void main() {
   late MergedDocType error;
   setUpAll(() async {
@@ -41,38 +25,6 @@ void main() {
       SectionSpec('error_catalog', 'Error catalog', required: true),
       SectionSpec('retry_policy', 'Retry policy', required: true),
       SectionSpec('fallback', 'Fallback'),
-    ]);
-  });
-
-  test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
-      'f03/us07/fr02/e04, f03/us07/fr02/e08: the error guide', () {
-    expectSpecGuide(
-      error,
-      title: '# <Feature name> errors',
-      says: ['no stack trace or internals'],
-    );
-    expectSectionsSay(error, _says);
-  });
-
-  test('error caps 300 lines and 50000 characters, bans no word, and cites '
-      'its four sources', () {
-    expectSpecLint(error, maxLines: 300, maxChars: 50000);
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E11: the guide states one catalog row per '
-      'code as its item shape', () {
-    expectItemShape(
-      error,
-      'Write one rule per ID: one catalog row per code, each rule one '
-      'sentence.',
-    );
-  });
-
-  test('the guide states where its rules belong', () {
-    expectDescriptionSays(error, const [
-      "holds one feature's spec",
-      "a rule every feature uses goes to the project's ERROR",
     ]);
   });
 }

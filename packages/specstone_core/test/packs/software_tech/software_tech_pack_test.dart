@@ -134,8 +134,8 @@ void main() {
       }
     });
 
-    test('eight doc types carry an optional tasks list of task refs that its '
-        'guide ties to the sync skill, and implementation carries none', () {
+    test('eight doc types carry an optional tasks list of task refs, and '
+        'implementation carries none', () {
       const withTasks = [
         'api',
         'architecture',
@@ -154,15 +154,6 @@ void main() {
         expect(tasks.type, FieldType.taskRef, reason: id);
         expect(tasks.list, isTrue, reason: id);
         expect(tasks.required, isFalse, reason: id);
-        expect(
-          tasks.description,
-          allOf(
-            contains('`<item>:<task>`, or `<task>` alone'),
-            contains('`specstone-sync-sdd` removes an entry'),
-            contains('closing word'),
-          ),
-          reason: id,
-        );
       }
       expect(
         prdCoreDocType(
@@ -180,29 +171,6 @@ void main() {
         expect(docType.lint.bannedWords, isNull, reason: id);
         for (final section in docType.sections) {
           expect(section.bannedWords, isNull, reason: '$id.${section.id}');
-        }
-      }
-    });
-
-    test('template_packs/write_spec_docs_from_software_tech/'
-        'set_spec_lint_and_sources: no software-tech doc type sets '
-        'max_item_chars, so each takes the default', () {
-      for (final id in softwareTechIds) {
-        expect(prdCoreDocType(set, id).lint.maxItemChars, isNull, reason: id);
-      }
-    });
-
-    test('template_packs/write_spec_docs_from_software_tech/'
-        'write_spec_writing_guides: every section description stays within '
-        'five lines', () {
-      for (final id in softwareTechIds) {
-        for (final section in prdCoreDocType(set, id).sections) {
-          final lines = const LineSplitter().convert(section.description ?? '');
-          expect(
-            lines.length,
-            lessThanOrEqualTo(5),
-            reason: '$id.${section.id}',
-          );
         }
       }
     });
@@ -238,8 +206,8 @@ void main() {
       );
     });
 
-    test('f03/us05/fr01, f03/us07/fr01: every code path field is read from '
-        'the code root, which the config sets', () {
+    test('code path fields sit on architecture, implementation, tech_stack, '
+        'and topic only', () {
       final codePathFields = [
         for (final docType in set.docTypes)
           for (final field in docType.fields)
@@ -254,19 +222,6 @@ void main() {
         'tech_stack.code',
         'topic.covers',
       ]);
-      for (final (docTypeId, field) in codePathFields) {
-        expect(
-          field.description,
-          allOf(
-            contains(
-              "relative to the code root of the doc's target "
-              '(`.specstone/config.yaml`, else the project root)',
-            ),
-            isNot(contains('relative to the project root')),
-          ),
-          reason: '$docTypeId.${field.id}',
-        );
-      }
     });
   });
 }

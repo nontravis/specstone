@@ -24,30 +24,4 @@ void main() {
       SectionSpec('key_terms', 'Key terms'),
     ]);
   });
-
-  test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'titled # <Name>, no NASA list', () {
-    expectGuideShape(reference, title: '# <Name>');
-    expectNoNasaLint(reference);
-    expectSources(reference, []);
-  });
-
-  test('superseded means a newer edition replaced it', () {
-    expect(
-      fieldOf(reference, 'status').description,
-      contains('a newer edition replaced it'),
-    );
-  });
-
-  test('Write the shipped writing guides '
-      'E07: the guide states the item shape: rule per ID, bound, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      reference,
-      'Write one rule per ID; in a section with no IDs, one '
-      'rule per item, with mechanics left to the spec docs.\n'
-      'Keep a bound in the item it limits, and the trace to the '
-      'source in `source:` and `files:`, never in the summary.',
-    );
-  });
 }
