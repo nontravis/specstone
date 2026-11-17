@@ -513,6 +513,14 @@ void main() {
     int rowLine(String record, int i) =>
         record.split('\n').indexOf(header) + 3 + i;
 
+    /// Returns `<line> <kind>` per finding of either rule on the record.
+    List<String> bothRules(CheckReport report) => [
+      for (final f in report.findings)
+        if (f.path == _recordPath &&
+            (_recordKinds.contains(f.kind) || _matrixKinds.contains(f.kind)))
+          '${f.line} ${f.kind.wire}',
+    ];
+
     test('a row naming no item of the feature is unresolved', () async {
       final record = withRows(_record(), [
         '- $_story/pin_toast E01: `shows a toast`',
@@ -587,16 +595,23 @@ void main() {
 
       final report = await _check(record);
 
-      expect(
-        [
-          for (final f in report.findings)
-            if (f.path == _recordPath &&
-                (_recordKinds.contains(f.kind) ||
-                    _matrixKinds.contains(f.kind)))
-              '${f.line} ${f.kind.wire}',
-        ],
-        ['${rowLine(record, 0)} record_entry_unresolved'],
+      expect(bothRules(report), [
+        '${rowLine(record, 0)} record_entry_unresolved',
+      ]);
+    });
+
+    test('a row naming a skipped story gives one finding in the whole '
+        'check', () async {
+      final record = withRows(
+        _record(statuses: ['$_story:skipped:no toast host']),
+        ['- $_story E01: `shows a toast`'],
       );
+
+      final report = await _check(record);
+
+      expect(bothRules(report), [
+        '${rowLine(record, 0)} matrix_row_unresolved',
+      ]);
     });
   });
 
