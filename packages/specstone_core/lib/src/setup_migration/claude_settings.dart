@@ -70,9 +70,6 @@ SettingsState settingsStateOf(List<int>? bytes) {
   );
 }
 
-/// The Specstone matcher group as compact JSON.
-String specstoneSettingsGroupJson() => jsonEncode(_group());
-
 /// Whether [handler] is one the CLI owns in `.claude/settings.json`.
 ///
 /// A `command` handler of this CLI whose `args` start with `hook`.

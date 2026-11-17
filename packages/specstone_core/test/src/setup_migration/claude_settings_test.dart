@@ -616,8 +616,4 @@ void main() {
       }
     });
   });
-
-  test('specstoneSettingsGroupJson is the one group', () {
-    expect(jsonDecode(specstoneSettingsGroupJson()), _group);
-  });
 }
