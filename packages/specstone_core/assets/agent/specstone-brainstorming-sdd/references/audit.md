@@ -4,8 +4,8 @@ file, no fix. Ask the Owner nothing.
 
 ## 1. Read
 
-1. **Targets**: the drafts the author reported, or the feature or doc the Owner named. A later audit takes the drafts
-   list, each read whole and audited again.
+1. **Targets**: the drafts the author reported, or the feature or doc the Owner named. A later audit takes the targets
+   its dispatch names, each read whole and audited again.
 2. **Hashes**: run one `specstone get <targets> --json` on every target. The drafts list's names need no
    `--target`. When it refuses with `doc_not_found`, for a target never created, or moved or deleted since the list
    was made, drop each name the refusal names and list it under `Outside the drafts:`, with no `Audited:` line. Any

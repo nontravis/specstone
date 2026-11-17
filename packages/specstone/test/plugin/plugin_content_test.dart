@@ -1034,8 +1034,9 @@ void _agentTests() {
 const _ownedElsewhere = [
   'A rule has one owner doc',
   'pins no hash',
-  'differs from their last',
+  'differs from its last',
   'each doc the round or pass added',
+  'cites a changed draft',
 ];
 
 /// The runner's fix-round and ruling procedure of `brainstorming-sdd`, under
@@ -1050,7 +1051,7 @@ final _bareStep = RegExp(r"(?<!skill's )\bsteps? \d");
 /// restates.
 const _roundsOwnedElsewhere = [
   'one line per target',
-  'End a `Findings:` line with `[behavior]`',
+  'End a line with `[behavior]`',
   'Run `specstone refs <owner>`',
 ];
 
