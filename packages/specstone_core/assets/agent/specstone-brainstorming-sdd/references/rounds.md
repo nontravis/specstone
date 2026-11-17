@@ -8,19 +8,20 @@ rule. Every other decision only words or records one.
 - **A refused design path**, an open question with no document written: append nothing; write the document at the
   Owner's new path in place of the refused one, by `design.md`.
 - **Only words or records**: append it to the design document's Rulings yourself, as `design.md` writes them, and
-  dispatch nothing; the author, or the fix round under way, goes on.
+  dispatch nothing, no design check either; the author, or the fix round under way, goes on.
 - **Adds or changes behavior**, or needs more PRD or spec grounding: ground a doc newly reached by its own
   `specstone context <doc> --for design --out`, never `get`, then amend the same file yourself. `design.md` finds the
-  decision's dependents before the author writes it.
-- **Before the author**: after an append or an amend, ask for the approval again. When the design document holds
-  open questions, gather the Owner's answers, append each that only words or records one, send the rest to one
-  amend, and ask for the approval only after it.
-- **During fix rounds**, a decision that adds or changes behavior takes an amend, then one fresh author pass and a
-  re-audit, as section 2 says.
+  decision's dependents before the author writes it. When the amend adds or changes behavior, dispatch the design
+  check with `amend: <N>`, `<N>` its number, per the skill's step 3; your fix of its findings takes no second check.
+- **Before the author**: after an append, or an amend and its check, ask for the approval again. When the design
+  document holds open questions, gather the Owner's answers, append each that only words or records one, send the
+  rest to one amend and its check, and ask for the approval only after it.
+- **During fix rounds**, a decision that adds or changes behavior takes an amend and its check, then one fresh author
+  pass and a re-audit, as section 2 says.
 - **After the second fix round**, a decision that adds or changes behavior, the Owner's decision on a finding past the
-  cap included, takes an amend, then one author pass that carries the amend alone and is no fix round, then a
-  re-audit (section 3) whose findings reach the Owner with the drafts, with no further round. Fix an Owner change
-  that only corrects text per the `specstone-expert-sdd` skill, with no amend.
+  cap included, takes an amend and its check, then one author pass that carries the amend alone and is no fix round,
+  then a re-audit (section 3) whose findings reach the Owner with the drafts, with no further round. Fix an Owner
+  change that only corrects text per the `specstone-expert-sdd` skill, with no amend.
 
 ## 2. Run the fix rounds
 
@@ -39,6 +40,12 @@ section 3 says.
 - **The cap**: run at most two fix rounds, counted across an amend. Lines left after the second get no third round:
   the Owner sees them with the drafts before approving any, and their decision on one takes section 1's route.
 - After each fix round, and after each pass that follows an amend, re-audit as section 3 says.
+- **Before every audit dispatch**, the skill's step 4 audit included, compare the design's last amend, the highest
+  `Amend <N>` its headings list or `0`, with the `amend <N>` of the last author relay block's first line,
+  `Design: <path>, amend <N>`:
+  - The two equal: dispatch the audit.
+  - The design's higher: run a fresh author pass with the amend first, as a pass after an amend above, then the audit.
+  - No `Design:` line: run a fresh author pass first.
 
 ## 3. Re-audit only what changed
 
