@@ -1027,7 +1027,7 @@ void main() {
       final text = addRecordLines(
         '---\nstatuses:\n  - c:planned\n---\n\n# R\n',
         _recordType,
-        (
+        const RecordLines(
           statuses: ['k/a:implemented'],
           code: ['k/a:lib/a.dart:A'],
           tests: ['k/a:test/a_test.dart:holds'],
@@ -1046,7 +1046,7 @@ void main() {
       final text = addRecordLines(
         '---\ndraft: true\nstatuses:\n---\n\n# R\n',
         _recordType,
-        (statuses: ['k/a:implemented'], code: const [], tests: const []),
+        const RecordLines(statuses: ['k/a:implemented']),
       );
 
       expect(
@@ -1056,14 +1056,95 @@ void main() {
     });
 
     test('E20: no line to add leaves the text and returns null', () {
-      expect(
-        addRecordLines(record, _recordType, (
-          statuses: const [],
-          code: const [],
-          tests: const [],
-        )),
-        isNull,
-      );
+      expect(addRecordLines(record, _recordType, const RecordLines()), isNull);
+    });
+
+    group('matrix rows', () {
+      const quoted = '- a/x E01: `shows a toast` 5d1e0c4b7a92';
+      const skipped = '- a/x E02 skipped: needs a device 9a1c03be55d2';
+
+      test('the rows of the carried items come back with the new item and '
+          'the rest of the row as written', () {
+        final lines = recordLinesCarried(
+          _matrixRecord([quoted, skipped, '- b E01: `stays`']),
+          _matrixRecordType,
+          (item) => item == 'a/x' ? 'k/a/x' : null,
+        );
+
+        expect(lines.rows, [
+          '- k/a/x E01: `shows a toast` 5d1e0c4b7a92',
+          '- k/a/x E02 skipped: needs a device 9a1c03be55d2',
+        ]);
+      });
+
+      test('a malformed line and a record without the section carry no '
+          'row', () {
+        final malformed = _matrixRecord(['- a/x', 'stray']);
+        expect(
+          recordLinesCarried(malformed, _matrixRecordType, (_) => 'k').rows,
+          isEmpty,
+        );
+        expect(
+          recordLinesCarried(
+            _matrixRecord([quoted]),
+            _recordType,
+            (_) => 'k',
+          ).rows,
+          isEmpty,
+        );
+      });
+
+      test('added rows follow the rows the section holds', () {
+        final text = addRecordLines(
+          _matrixRecord(['- k/b E01: `holds`']),
+          _matrixRecordType,
+          const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+        );
+
+        expect(
+          text,
+          _matrixRecord(['- k/b E01: `holds`', '- k/a/x E01: `shows a toast`']),
+        );
+      });
+
+      test('added rows keep the blank line before the next section', () {
+        const held = '- k/b E01: `holds`';
+        const added = '- k/a/x E01: `shows a toast`';
+        const notes = '\n## Notes\n\nSee rows.\n';
+        final text = addRecordLines(
+          '${_matrixRecord([held])}$notes',
+          _matrixRecordType,
+          const RecordLines(rows: [added]),
+        );
+
+        expect(text, '${_matrixRecord([held, added])}$notes');
+      });
+
+      test('a record with no section gains it at the end, holding the '
+          'rows', () {
+        final text = addRecordLines(
+          '---\ndraft: true\n---\n\n# R\n',
+          _matrixRecordType,
+          const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+        );
+
+        expect(
+          text,
+          '---\ndraft: true\n---\n\n# R\n\n'
+          '## Verification matrix\n\n- k/a/x E01: `shows a toast`\n',
+        );
+      });
+
+      test('rows with no matrix section on the doc type add nothing', () {
+        expect(
+          addRecordLines(
+            _matrixRecord(const []),
+            _recordType,
+            const RecordLines(rows: ['- k/a/x E01: `shows a toast`']),
+          ),
+          isNull,
+        );
+      });
     });
   });
 
@@ -1084,11 +1165,11 @@ void main() {
       'E19: addRecordLines refuses rather than drop the lines held there',
       () {
         expect(
-          () => addRecordLines(broken, _recordType, (
-            statuses: const [],
-            code: const ['k/a:lib/a.dart'],
-            tests: const [],
-          )),
+          () => addRecordLines(
+            broken,
+            _recordType,
+            const RecordLines(code: ['k/a:lib/a.dart']),
+          ),
           unreadable,
         );
       },
@@ -1096,11 +1177,11 @@ void main() {
 
     test('E19: addRecordLines adds to a readable field beside it', () {
       expect(
-        addRecordLines(broken, _recordType, (
-          statuses: const ['k/a:planned'],
-          code: const [],
-          tests: const [],
-        )),
+        addRecordLines(
+          broken,
+          _recordType,
+          const RecordLines(statuses: ['k/a:planned']),
+        ),
         contains('  - k/a:planned\n'),
       );
     });

@@ -361,6 +361,31 @@ void main() {
       expect(readDoc(root, payFlutter), contains('add_item:implemented'));
       expect(readDoc(root, payFlutter), contains('draft: true'));
     });
+
+    test('a story move carries the matrix rows of its FRs to the record it '
+        'creates', () async {
+      const row = '- add_item/check_stock E01: `refuses an item out of stock`';
+      const kept = '- drop_item/drop_line E01: `drops a line`';
+      const matrix = '\n## Verification matrix\n\n';
+      final cart = recordText(
+        statuses: ['add_item:implemented', 'drop_item:planned'],
+      );
+      final root = await writeNestedProject(
+        extra: {
+          '.specstone/config.yaml': twinConfig(),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$cartFlutter': '$cart$matrix$row\n$kept\n',
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['move', addItem, '--under', 'shop/pay']),
+        0,
+        reason: err.toString(),
+      );
+      expect(readDoc(root, payFlutter), endsWith('$matrix$row\n'));
+      expect(readDoc(root, cartFlutter), endsWith('$matrix$kept\n'));
+    });
   });
 
   group('--dry-run', () {
@@ -504,6 +529,38 @@ void main() {
         ]);
       },
     );
+
+    test('an fr move carries the matrix rows of the FR to the record of the '
+        'feature it lands in', () async {
+      const cartRecord = 'specs/f02_shop/f01_cart/IMPLEMENTATION.md';
+      const payRecord = 'specs/f02_shop/f02_pay/IMPLEMENTATION.md';
+      const matrix = '\n## Verification matrix\n\n';
+      final root = await writeNestedProject(
+        extra: {
+          ...extra,
+          '.specstone/config.yaml': oneTargetConfig(),
+          '.specstone/templates/implementation.yaml': recordLayer,
+          'docs/$cartRecord':
+              '${recordText(statuses: ['add_item/check_stock:implemented'])}'
+              '$matrix- add_item/check_stock E01: `refuses an item out of '
+              'stock` 5d1e0c4b7a92\n',
+        },
+      );
+      final (:runner, :out, :err) = writeRunner(root);
+      expect(
+        await runner.run(['move', checkStock, '--under', 'shop/pay/refund']),
+        0,
+        reason: err.toString(),
+      );
+      expect(
+        readDoc(root, payRecord),
+        endsWith(
+          '$matrix- refund/check_stock E01: `refuses an item out of stock` '
+          '5d1e0c4b7a92\n',
+        ),
+      );
+      expect(readDoc(root, cartRecord), isNot(contains('check_stock')));
+    });
 
     test(
       'a mixed call exits 64 with the message on stderr and nothing moves',

@@ -64,11 +64,13 @@ final class _Arrival {
   final statuses = <String>[];
   final code = <String>[];
   final tests = <String>[];
+  final rows = <String>[];
 
   void take(RecordLines lines) {
     statuses.addAll(lines.statuses);
     code.addAll(lines.code);
     tests.addAll(lines.tests);
+    rows.addAll(lines.rows);
   }
 }
 
@@ -77,11 +79,11 @@ final class _Arrival {
 ///
 /// An entry names its item relative to its record's feature, so it changes
 /// only when the item's name changes inside that feature: the entry is
-/// renamed in place. An item that left the feature moves its lines, as
-/// written but for the item, to the record of the feature it landed in, in
-/// the same target, and the line leaves the old record; a target whose old
+/// renamed in place. An item that left the feature moves its lines and matrix
+/// rows, as written but for the item, to the record of the feature it landed
+/// in, in the same target, and they leave the old record; a target whose old
 /// record holds no line of it changes nothing, and a landing feature with no
-/// record in that target gets one, as a draft, holding the lines. The feature
+/// record in that target gets one, as a draft, holding them. The feature
 /// itself keeps its own entry.
 ///
 /// Throws [RenderFault] `output_not_writable` before the journal for a record
@@ -153,9 +155,7 @@ final class _Planner {
               : null;
         }),
       );
-      if (lines.statuses.isEmpty && lines.code.isEmpty && lines.tests.isEmpty) {
-        continue;
-      }
+      if (lines.isEmpty) continue;
       final key = _ArrivalKey(featurePath: path, target: record.target);
       _arrivals
           .putIfAbsent(key, () => _Arrival(landing, record.target))
@@ -169,10 +169,11 @@ final class _Planner {
   /// The session's index is a snapshot, so a record path it lacks is read on
   /// disk: a record there takes the lines as an indexed one does.
   CreateStep? _land(_Arrival arrival) {
-    final lines = (
+    final lines = RecordLines(
       statuses: arrival.statuses,
       code: arrival.code,
       tests: arrival.tests,
+      rows: arrival.rows,
     );
     final held = _index
         .ofTypeNamed(recordType.id, arrival.feature.name)

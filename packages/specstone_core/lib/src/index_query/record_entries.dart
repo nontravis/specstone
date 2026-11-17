@@ -4,6 +4,8 @@ import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/path_tail.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart'
+    show sectionIndexOf;
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
@@ -265,12 +267,25 @@ Map<String, IndexedDoc> recordItemsOf(
 }
 
 /// The `record_status`, `item_exact`, and `item_test` lines of a record, each
-/// as written in its field.
-typedef RecordLines = ({
-  List<String> statuses,
-  List<String> code,
-  List<String> tests,
-});
+/// as written in its field, and the rows of its Verification matrix, each as
+/// written in the section.
+final class RecordLines {
+  const new({
+    this.statuses = const [],
+    this.code = const [],
+    this.tests = const [],
+    this.rows = const [],
+  });
+
+  final List<String> statuses;
+  final List<String> code;
+  final List<String> tests;
+  final List<String> rows;
+
+  /// Whether no field and no matrix section holds a line.
+  bool get isEmpty =>
+      statuses.isEmpty && code.isEmpty && tests.isEmpty && rows.isEmpty;
+}
 
 /// Thrown when a record field block a write reads is not valid YAML, so the
 /// write cannot tell which lines it holds and refuses rather than drop any.
@@ -335,12 +350,14 @@ String _rewriteMatrixRows(
 }
 
 /// Returns the lines of [lfText]'s `record_status`, `item_exact`, and
-/// `item_test` fields whose item [carry] gives a name, each with that name in
-/// place of its item and the rest of the line as written.
+/// `item_test` fields, and the rows of its Verification matrix, whose item
+/// [carry] gives a name, each with that name in place of its item and the rest
+/// of the line as written.
 ///
 /// [carry] takes a line's item and returns the name to carry it under, or null
-/// to leave the line out. A line that names no item is left out. Throws
-/// [RecordFieldUnreadable] when a field's block is not valid YAML.
+/// to leave the line out. A line that names no item is left out, and so is a
+/// matrix line that is no row. Throws [RecordFieldUnreadable] when a field's
+/// block is not valid YAML.
 RecordLines recordLinesCarried(
   String lfText,
   MergedDocType recordType,
@@ -359,21 +376,32 @@ RecordLines recordLinesCarried(
     return lines;
   }
 
-  return (
+  final textLines = lfText.split('\n');
+  return RecordLines(
     statuses: carried(recordStatusFieldOf(recordType)),
     code: carried(recordCodeFieldOf(recordType)),
     tests: carried(recordTestFieldOf(recordType)),
+    rows: [
+      for (final row in matrixLinesIn(
+        lfText,
+        recordType,
+      ).whereType<MatrixRow>())
+        if (carry(row.item) case final name?)
+          '- $name${textLines[row.line - 1].substring(2 + row.item.length)}',
+    ],
   );
 }
 
 /// Returns [lfText] with [lines] added at the end of its `record_status`,
 /// `item_exact`, and `item_test` fields, a field that holds none yet gaining
-/// its key; null when [lines] holds none.
+/// its key, and its rows at the end of its Verification matrix, a record that
+/// holds no such section gaining it; null when [lines] holds none.
 ///
 /// A field that gains lines is written back as a block list through the list
 /// writer, as [rewriteRecordItems] writes it. It marks no draft. Throws
 /// [RecordFieldUnreadable] when the block of a field that gains lines is not
-/// valid YAML, since writing it back would drop the lines it holds.
+/// valid YAML, since writing it back would drop the lines it holds. A row finds
+/// no home when [recordType] has no enabled matrix section, and is left out.
 String? addRecordLines(
   String lfText,
   MergedDocType recordType,
@@ -392,7 +420,48 @@ String? addRecordLines(
       ...added,
     ], onDisk: held?.block);
   }
+  text = _withRowsAdded(text, recordType, lines.rows);
   return text == lfText ? null : text;
+}
+
+/// Returns [lfText] with [rows] at the end of the Verification matrix section
+/// of [recordType], the section added when [lfText] holds none.
+///
+/// The section lands before the first section [lfText] holds that follows it
+/// in [recordType], else at the end. [lfText] stays as it is when [rows] is
+/// empty or [recordType] has no enabled matrix section.
+String _withRowsAdded(
+  String lfText,
+  MergedDocType recordType,
+  List<String> rows,
+) {
+  final matrix = verificationMatrixOf(recordType);
+  if (matrix == null || rows.isEmpty) return lfText;
+  final doc = Doc.parse(lfText);
+  final held = sectionIndexOf(doc, recordType, verificationMatrixKey);
+  final added = rows.join('\n');
+  if (held != null) {
+    final kept = sectionBodyOf(doc.sections[held].body);
+    return withSectionBody(
+      lfText,
+      held,
+      kept.isEmpty ? '\n$added' : '$kept$added',
+    );
+  }
+  int? before;
+  final following = recordType.sections
+      .skipWhile((s) => s.id != verificationMatrixKey)
+      .skip(1);
+  for (final later in following) {
+    before = sectionIndexOf(doc, recordType, later.id);
+    if (before != null) break;
+  }
+  return withSectionAdded(
+    lfText,
+    headerLine: '## ${matrix.header}',
+    body: '\n$added',
+    before: before,
+  );
 }
 
 List<MergedField> _recordFieldsOf(MergedDocType recordType) => [

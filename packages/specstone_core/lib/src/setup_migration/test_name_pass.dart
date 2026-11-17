@@ -19,7 +19,7 @@ import 'package:specstone_core/src/index_query/item_words.dart'
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/index_query/record_entries.dart'
-    show recordTestFieldOf, recordTestLineOf;
+    show RecordLines, recordTestFieldOf, recordTestLineOf;
 import 'package:specstone_core/src/plan_hash.dart' show readPlanInput;
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
@@ -763,7 +763,7 @@ final class _ItemTree {
       featureType: featureType,
       featureDocPath: feature.docPath,
       featureName: feature.name,
-      lines: (statuses: const [], code: const [], tests: const []),
+      lines: const RecordLines(),
       target: target,
     );
   }
