@@ -9,6 +9,8 @@ import 'package:specstone_core/src/index_query/override_chain.dart'
     show carriesOverrides;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show headerKey;
+import 'package:specstone_core/src/setup_migration/stamp_pass.dart'
+    show withEntriesRestamped;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 // MARK: - Constants
@@ -73,7 +75,13 @@ String? rewriteLinkLabels(
             _tracedFromKey,
             (block) => renameKeyBlockValues(block.text, block.key, newLabel),
           )
-        : _withRewrittenBody(result, doc, docType, newLabel, renamed);
+        : _withRewrittenBody(
+            result,
+            doc,
+            docType,
+            newLabel,
+            (value, target) => _renamedStep(value, target, renamed),
+          );
     result = _withRenamedBlock(
       result,
       doc,
@@ -104,21 +112,114 @@ String? rewriteMovedFrTraces(
   required String sourceStory,
   required bool Function(String storyName) isTargetStory,
 }) {
-  String? newLabel(String label) =>
-      _movedFrLabel(label, sourceStory, isTargetStory);
+  final result = _withScenarioEntries(
+    lfText,
+    (label) => _movedFrLabel(label, sourceStory, isTargetStory),
+  );
+  return result == lfText ? null : result;
+}
+
+/// Returns the FR [lfText] with each trace entry naming the moved Scenario
+/// [fromNumber] set to Scenario [toNumber] of [targetStory]; null when none.
+///
+/// A bare `S<N>` matches when [isInSourceStory], `<story>#S<N>` when
+/// [isSourceStory] does, by value; it turns bare when [isInTargetStory]. A
+/// matched `confirmed` entry is re-stamped by [fingerprints], null for none.
+String? rewriteScenarioTraces(
+  String lfText, {
+  required int fromNumber,
+  required String targetStory,
+  required int toNumber,
+  required MovedFingerprints? fingerprints,
+  required bool Function(String storyName) isSourceStory,
+  required bool isInSourceStory,
+  required bool isInTargetStory,
+}) {
+  final newRef = isInTargetStory ? 'S$toNumber' : '$targetStory#S$toNumber';
+  String? newLabel(String label) {
+    if (readLinkLabel(label) case ScenarioLabel(:final ref)
+        when ref.scenario == BigInt.from(fromNumber)) {
+      final story = ref.storyName;
+      final names = story == null ? isInSourceStory : isSourceStory(story);
+      return names ? newRef : null;
+    }
+    return null;
+  }
+
+  final stamped =
+      fingerprints?.restampIn(
+        lfText,
+        _confirmedKey,
+        (label) => newLabel(label) != null,
+      ) ??
+      lfText;
+  final result = _withScenarioEntries(stamped, newLabel);
+  return result == lfText ? null : result;
+}
+
+/// Returns [lfText] with each `traced_from` entry and `confirmed` label set
+/// to [newLabel], where it gives one; fingerprints and list shapes kept.
+String _withScenarioEntries(
+  String lfText,
+  String? Function(String label) newLabel,
+) {
   final doc = Doc.parse(lfText);
-  var result = _withRenamedBlock(
+  final result = _withRenamedBlock(
     lfText,
     doc,
     _tracedFromKey,
     (block) => renameKeyBlockValues(block.text, block.key, newLabel),
   );
-  result = _withRenamedBlock(
+  return _withRenamedBlock(
     result,
     doc,
     _confirmedKey,
     (block) => _renameEntries(block, newLabel),
   );
+}
+
+/// Returns the journey [lfText] with each `step:` line and `confirmed`
+/// entry that names Scenario [fromNumber] of a story [isSourceStory]
+/// accepts set to Scenario [toNumber] of [targetStory]; null when nothing
+/// changes. A matched entry is re-stamped as [rewriteScenarioTraces] does.
+String? rewriteScenarioSteps(
+  String lfText, {
+  required MergedDocType docType,
+  required int fromNumber,
+  required String targetStory,
+  required int toNumber,
+  required MovedFingerprints? fingerprints,
+  required bool Function(String storyName) isSourceStory,
+}) {
+  String? newStep(String value, StepTarget target) {
+    if (target.scenario != fromNumber || !isSourceStory(target.identity)) {
+      return null;
+    }
+    final written = value.trim();
+    final at = value.indexOf(written);
+    return '${value.substring(0, at)}$targetStory S$toNumber'
+        '${value.substring(at + written.length)}';
+  }
+
+  final stepped = _withRewrittenBody(
+    lfText,
+    Doc.parse(lfText),
+    docType,
+    (_) => null,
+    newStep,
+  );
+  final result =
+      rewriteScenarioTraces(
+        stepped,
+        fromNumber: fromNumber,
+        targetStory: targetStory,
+        toNumber: toNumber,
+        fingerprints: fingerprints,
+        isSourceStory: isSourceStory,
+        isInSourceStory: false,
+        isInTargetStory: false,
+      ) ??
+      stepped;
   return result == lfText ? null : result;
 }
 
@@ -137,19 +238,19 @@ String? _movedFrLabel(
   return null;
 }
 
-/// Returns [lfText] with the step and FR trace lines that name a renamed doc
-/// set to the new name.
+/// Returns [lfText] with each FR trace cell set to [newLabel] and each step
+/// value to [newStep], where it gives one.
 String _withRewrittenBody(
   String lfText,
   Doc doc,
   MergedDocType docType,
   String? Function(String label) newLabel,
-  Map<(String, String), String> renamed,
+  _StepRewrite newStep,
 ) {
   final lines = lfText.split('\n');
   final prefixLength = lfText.length - doc.afterFrontmatter.length;
   final firstLine = '\n'.allMatches(lfText.substring(0, prefixLength)).length;
-  _rewriteBody(lines, doc, firstLine, docType, newLabel, renamed);
+  _rewriteBody(lines, doc, firstLine, docType, newLabel, newStep);
   return lines.join('\n');
 }
 
@@ -169,9 +270,41 @@ String _withRenamedBlock(
   return renamed == block.text ? text : withKeyBlock(text, name, renamed);
 }
 
+// MARK: - Fingerprints
+
+/// The fingerprint of the block a moved item's entries track, before the move
+/// and once landed.
+final class MovedFingerprints {
+  const new({required this.before, required this.after});
+
+  final String before;
+
+  /// Null when the item lands as no block such an entry tracks.
+  final String? after;
+
+  /// Returns [lfText] with each entry of the frontmatter key [key] whose label
+  /// [names] accepts and whose fingerprint is [before] set to [after], by the
+  /// upgrade's re-stamp rule ([withEntriesRestamped]); a stale one is kept.
+  String restampIn(
+    String lfText,
+    String key,
+    bool Function(String label) names,
+  ) => withEntriesRestamped(
+    lfText,
+    key,
+    matched: (_, label, fingerprint) => fingerprint == before && names(label),
+    after: (_) => after,
+  ).lfText;
+}
+
 // MARK: - Body
 
-/// Sets the step and FR trace lines of [lines] that name a renamed doc.
+/// Returns the value after `step:` that the step value [value], naming
+/// [target], becomes, or null when it keeps its text.
+typedef _StepRewrite = String? Function(String value, StepTarget target);
+
+/// Sets the step and FR trace lines of [lines] that [newStep] or [newLabel]
+/// rewrite.
 ///
 /// [firstLine] is the index in [lines] of the first line after the
 /// frontmatter.
@@ -181,7 +314,7 @@ void _rewriteBody(
   int firstLine,
   MergedDocType docType,
   String? Function(String label) newLabel,
-  Map<(String, String), String> renamed,
+  _StepRewrite newStep,
 ) {
   final isJourney = docType.id == journeyTypeId;
   final sectionId = isJourney ? stepsSectionId : _frTraceSection;
@@ -196,7 +329,7 @@ void _rewriteBody(
   final start = firstLine + doc.sectionLineIndexes[index] + 1;
   final body = doc.sections[index].body;
   if (isJourney) {
-    _rewriteSteps(lines, start, body, docType, renamed);
+    _rewriteSteps(lines, start, body, docType, newStep);
   } else {
     _rewriteFrRows(lines, start, body, newLabel);
   }
@@ -207,7 +340,7 @@ void _rewriteSteps(
   int start,
   String body,
   MergedDocType docType,
-  Map<(String, String), String> renamed,
+  _StepRewrite newStep,
 ) {
   final steps = readJourneySteps(
     body,
@@ -216,13 +349,22 @@ void _rewriteSteps(
   for (final step in steps.steps) {
     final target = step.target;
     final stepIndex = step.stepIndex;
-    final name = target == null ? null : renamed[(_storyType, target.identity)];
-    if (target == null || stepIndex == null || name == null) continue;
+    if (target == null || stepIndex == null) continue;
     final line = lines[start + stepIndex];
-    final value = line.substring(_stepPrefix.length);
-    lines[start + stepIndex] =
-        '$_stepPrefix${value.replaceFirst(target.identity, name)}';
+    final value = newStep(line.substring(_stepPrefix.length), target);
+    if (value != null) lines[start + stepIndex] = '$_stepPrefix$value';
   }
+}
+
+/// Returns the step value [value] with [target]'s story set to its new name,
+/// or null when [renamed] holds none for it.
+String? _renamedStep(
+  String value,
+  StepTarget target,
+  Map<(String, String), String> renamed,
+) {
+  final name = renamed[(_storyType, target.identity)];
+  return name == null ? null : value.replaceFirst(target.identity, name);
 }
 
 void _rewriteFrRows(

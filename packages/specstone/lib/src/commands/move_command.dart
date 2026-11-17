@@ -1,8 +1,7 @@
 import 'package:specstone/src/commands/write_command.dart';
 import 'package:specstone_core/specstone_core.dart';
 
-/// Moves stories into another feature, FRs into another story, or items into
-/// another doc.
+/// Moves stories, FRs, nfs, features, items, or scenarios under a new parent.
 class MoveCommand extends WriteCommand {
   new() {
     addTargetOption();
@@ -10,9 +9,16 @@ class MoveCommand extends WriteCommand {
       ..addOption(
         'under',
         help:
-            'The feature that takes user_story targets, the story that '
-            'takes fr targets, or the doc that takes item targets: '
-            '<doc type>:<name>, a bare name, or a path.',
+            'The feature that takes user_story or feature targets, the story '
+            'that takes fr, nf, or scenario targets, or the doc that takes '
+            'item targets: <doc type>:<name>, a bare name, or a path.',
+      )
+      ..addFlag(
+        'top',
+        negatable: false,
+        help:
+            'Move feature targets among the top features, in place of '
+            '--under.',
       )
       ..addFlag(
         'dry-run',
@@ -28,13 +34,15 @@ class MoveCommand extends WriteCommand {
 
   @override
   String get description =>
-      'Move stories into a feature, FRs into a story, or items '
-      '(<doc address>#<item ID>) into another doc, '
+      'Move stories and features under a feature, FRs and nfs under a '
+      'story, features among the top features, items '
+      '(<doc address>#<item ID>) into another doc, or scenarios '
+      '(<story address>#S<N>) into another story, '
       'and rewrite every reference to them.';
 
   @override
   String get invocation =>
-      'specstone move <doc address> … --under <doc address> '
+      'specstone move <doc address> … (--under <doc address> | --top) '
       '[--dry-run] [--target <name>] [--json]';
 
   @override
@@ -58,6 +66,7 @@ class MoveCommand extends WriteCommand {
         session,
         args.rest,
         under: args.option('under'),
+        top: args.flag('top'),
         codeTarget: targetOf(args),
         dryRun: args.flag('dry-run'),
       ),

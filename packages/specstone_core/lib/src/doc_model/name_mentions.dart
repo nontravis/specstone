@@ -102,6 +102,27 @@ List<NameMention> nameMentionsInFile(String lf, String extension) {
   return _readFile(lf, extension, _namesAndPathsOnLine);
 }
 
+/// The addresses that sit inside longer code spans of [lf], a markdown doc,
+/// read after its frontmatter and outside fenced code.
+///
+/// Each entry is one no-lookup address found in a span whose whole text is no
+/// such address; `text` is the whole span and `address` the one it holds, so a
+/// span holding several addresses yields several entries at one `column`.
+List<NameMention> longerSpanMentionsInMarkdown(String lf) {
+  if (!lf.contains('`')) return const [];
+  return _readFile(lf, markdownExtension, _longerSpansOnLine);
+}
+
+Iterable<NameMention> _longerSpansOnLine(String line, int number) sync* {
+  for (final (:start, :end, :ticks) in codeSpansOf(line)) {
+    final text = line.substring(start + ticks, end - ticks);
+    if (readDocAddress(text).isReferenceWithoutLookup) continue;
+    for (final address in referencesWithoutLookupIn(text)) {
+      yield (line: number, column: start + ticks, text: text, address: address);
+    }
+  }
+}
+
 List<NameMention> _namesAndPathsOnLine(String line, int number) =>
     _ordered(_mentionsOnLine(line, number), _pathsOnLine(line, number));
 
