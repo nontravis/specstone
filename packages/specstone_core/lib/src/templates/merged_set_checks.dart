@@ -510,26 +510,26 @@ void _checkRecords(
 }
 
 /// Throws `unknown_value` for a layer section of any doc type that sets
-/// `output_ref: true` and is not the record doc type's matrix section.
+/// `output_ref: true` and whose id is not [verificationMatrixKey].
 ///
-/// `key` names the section at its own index in the offending layer's file.
+/// A matrix section on a doc type with no `record_status` field is accepted
+/// and inert, since no reader finds it. `key` names the section at its own
+/// index in the offending layer's file.
 void _checkOutputRefSections(
   List<MergedDocType> docTypes,
   Map<String, DocTypeLayers> layerLists,
 ) {
   for (final docType in docTypes) {
-    final isRecord = docType.isRecordType;
     final layers = layerLists[docType.id];
     if (layers == null) continue;
     for (final (:layer, pack: _) in layers) {
       for (final (index, entry) in layer.sections.indexed) {
         if (entry.outputRef != true || entry.disabled) continue;
-        if (isRecord && entry.id == verificationMatrixKey) continue;
+        if (entry.id == verificationMatrixKey) continue;
         throw TemplateFault(
           FaultCode.unknownValue,
-          'output_ref is valid only on the $verificationMatrixKey section of '
-          'the record doc type, not on the section ${entry.id} of '
-          '${docType.id}',
+          'output_ref is valid only on the $verificationMatrixKey section, '
+          'not on the section ${entry.id} of ${docType.id}',
           file: layer.file,
           key: 'sections[$index].output_ref',
         );

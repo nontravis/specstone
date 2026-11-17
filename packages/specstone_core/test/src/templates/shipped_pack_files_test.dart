@@ -151,11 +151,12 @@ void main() {
     });
 
     test('E07: the implementation record holds the status and the code '
-        'lines, each optional, and no section', () {
+        'lines, each optional, and the one optional matrix section', () {
       final record = both.recordDocType!;
       expect(record.id, 'implementation');
       expect(record.isPerTarget, isTrue);
-      expect(record.sections, isEmpty);
+      expect(record.sections.map((s) => s.id), ['verification_matrix']);
+      expect(record.sections.single.required, isFalse);
       expectOwnFields(record, const [
         FieldSpec('statuses', FieldType.recordStatus, list: true),
         FieldSpec(

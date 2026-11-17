@@ -686,11 +686,12 @@ void main() {
       );
     });
 
-    test('output_ref on a matrix section of a doc type that is not the '
-        'record doc type is refused', () {
+    test('output_ref on a matrix section of a doc type that holds no '
+        'record_status field is accepted and inert', () {
+      final playbook = builtIn('playbook');
       expect(
         () => check(
-          [record(), builtIn('playbook')],
+          [record(), playbook],
           {
             'runbook': [layerOf('runbook', matrixOn)],
             'playbook': [
@@ -704,8 +705,9 @@ void main() {
             ],
           },
         ),
-        throwsA(refusedAt(_playbookFile, 'sections[0].output_ref')),
+        returnsNormally,
       );
+      expect(verificationMatrixOf(playbook), isNull);
     });
 
     test('a record matrix section without output_ref true is refused', () {
