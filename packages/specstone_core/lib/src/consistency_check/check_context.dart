@@ -78,6 +78,9 @@ final class CheckContext {
   /// Whether the config pins a pack at or above the approval stamps.
   bool get stampsHaveRun => _session.project.stampsHaveRun;
 
+  /// Whether the config turns on `verification_coverage`.
+  bool get verificationCoverage => _session.project.verificationCoverage;
+
   /// The merged doc types of the project.
   MergedSet get set => _session.project.set;
 

@@ -116,6 +116,7 @@ Future<CheckReport> runCheck(
       ..addAll(checkImplements(context, doc))
       ..addAll(checkTestPointers(context, doc))
       ..addAll(checkMatrixRows(context, doc))
+      ..addAll(checkUnprovenEdgeCases(context, doc))
       ..addAll(checkCoversAndCodeRoots(context, work, doc))
       ..addAll(checkCodeLinks(context, work, doc))
       ..addAll(checkDocLinks(context, doc))

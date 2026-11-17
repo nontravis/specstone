@@ -112,6 +112,7 @@ void main() {
       'matrix_test_unresolved',
       'matrix_row_repeated',
       'matrix_skip_conflict',
+      'matrix_row_missing',
       'error_code_duplicate',
       'error_code_unraised',
       'error_code_uncataloged',

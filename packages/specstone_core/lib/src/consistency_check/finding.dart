@@ -129,6 +129,7 @@ enum FindingKind {
   matrixTestUnresolved('matrix_test_unresolved'),
   matrixRowRepeated('matrix_row_repeated'),
   matrixSkipConflict('matrix_skip_conflict'),
+  matrixRowMissing('matrix_row_missing'),
   errorCodeDuplicate('error_code_duplicate'),
   errorCodeUnraised('error_code_unraised'),
   errorCodeUncataloged('error_code_uncataloged'),

@@ -11,6 +11,8 @@ import 'package:test/test.dart';
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/record_fixture.dart'
     show recordsRootTemplates;
+import '../../../../specstone_core/test/helpers/shipped_pins.dart'
+    show shippedPinsConfig;
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart'
     show getDoc, testHome;
@@ -1105,6 +1107,38 @@ void main() {
 
       expect(await runner.run(['check', loginFr]), 0, reason: out.toString());
       expect(out.toString(), '0 findings\n');
+    });
+
+    test('the config key turns on the edge case coverage finding', () async {
+      Future<Directory> coverageProject(String config) => writeCheckProject(
+        extra: {
+          '.specstone/config.yaml': config,
+          loginRecord:
+              "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
+              '# Login implementation\n\n## Verification matrix\n',
+          testFile:
+              "void main() {\n  test('refuses an empty password', () {});\n}\n",
+        },
+        unstamped: {loginRecord},
+      );
+      List<String> missing(String out) => [
+        for (final line in out.split('\n'))
+          if (line.contains(': matrix_row_missing')) line,
+      ];
+
+      final on = readRunner(
+        await coverageProject(
+          '${shippedPinsConfig()}verification_coverage: true\n',
+        ),
+      );
+      expect(await on.runner.run(['check']), 1, reason: on.out.toString());
+      expect(missing(on.out.toString()), [
+        '$loginRecord:3: matrix_row_missing: $item#E01 is implemented and no matrix row names it',
+      ]);
+
+      final off = readRunner(await coverageProject(shippedPinsConfig()));
+      await off.runner.run(['check']);
+      expect(missing(off.out.toString()), isEmpty);
     });
 
     group('a row tracked against its edge case', () {

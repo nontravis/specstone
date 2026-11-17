@@ -12,6 +12,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/record_fixture.dart';
+import '../../helpers/shipped_pins.dart';
 import '../../helpers/target_fixture.dart';
 
 const _fr = 'email_login/check_password';
@@ -63,6 +64,28 @@ Future<Directory> _project(
   // A stamp would add an `approved:` line and move every line below it.
   unstamped: {loginRecord},
 );
+
+/// The config that turns coverage on, or sets the key to [value] when given.
+String _coverageConfig([bool value = true]) =>
+    '${shippedPinsConfig()}verification_coverage: $value\n';
+
+/// The requirement with edge cases E01 to E03.
+Map<String, String> _frWithThreeEdgeCases() => fr(
+  '1. E01 — An empty password → refused.',
+  '1. E01 — An empty password → refused.\n'
+      '2. E02 — A long password → accepted.\n'
+      '3. E03 — A padded password → accepted.',
+);
+
+List<Finding> _missing(CheckReport report) => [
+  for (final finding in report.findings)
+    if (finding.kind == FindingKind.matrixRowMissing) finding,
+];
+
+List<List<Object?>> _missingEdgeCases(CheckReport report) => [
+  for (final finding in _missing(report))
+    [finding.keys['edge_case'], finding.line],
+];
 
 Future<CheckReport> _run(
   Directory project, {
@@ -355,5 +378,153 @@ void main() {
 
     expect(lf, hasLength(2));
     expect(crlf, lf);
+  });
+
+  group('coverage', () {
+    // The statuses line of the fixture record: the first line under the key.
+    const statusesLine = 3;
+
+    test('an uncovered edge case is reported with coverage on', () async {
+      final project = await _project(
+        _record(rows: ['- $_fr E01: `refuses an empty password`']),
+        extra: {
+          ..._frWithTwoEdgeCases(),
+          '.specstone/config.yaml': _coverageConfig(),
+        },
+      );
+
+      final report = await _run(project);
+
+      final finding = _missing(report).single;
+      expect(finding.path, loginRecord);
+      expect(finding.line, statusesLine);
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(finding.keys, {'item': _fr, 'edge_case': 'E02'});
+      expect(
+        finding.message,
+        '$_fr#E02 is implemented and no matrix row names it',
+      );
+    });
+
+    for (final (name, config) in [
+      ('the key absent', shippedPinsConfig()),
+      ('the key false', _coverageConfig(false)),
+    ]) {
+      test('coverage off stays silent with $name', () async {
+        final project = await _project(
+          _record(rows: ['- $_fr E01: `refuses a blank password`']),
+          extra: {..._frWithTwoEdgeCases(), '.specstone/config.yaml': config},
+        );
+
+        final report = await _run(project);
+
+        expect(_missing(report), isEmpty);
+        expect(_matrix(report).single.kind, FindingKind.matrixTestUnresolved);
+      });
+    }
+
+    test('a skip row or an unresolved row covers its edge case', () async {
+      final record = _record(
+        rows: [
+          '- $_fr E01 skipped: no clock on CI',
+          '- $_fr E02: `refuses a blank password`',
+        ],
+      );
+      final project = await _project(
+        record,
+        extra: {
+          ..._frWithTwoEdgeCases(),
+          '.specstone/config.yaml': _coverageConfig(),
+        },
+      );
+
+      final report = await _run(project);
+
+      expect(_missing(report), isEmpty);
+      expect(
+        [for (final f in _matrix(report)) f.kind],
+        [FindingKind.matrixTestUnresolved],
+      );
+    });
+
+    for (final (name, statuses, verifyMethod) in [
+      ('planned in its target', const ['$_fr:planned'], 'test'),
+      ('deprecated in its target', const ['$_fr:deprecated'], 'test'),
+      (
+        'skipped in its target',
+        const ['$_fr:skipped:not in this client'],
+        'test',
+      ),
+      (
+        'under the skip of its story',
+        const ['$_story:skipped:not in this client'],
+        'test',
+      ),
+      ('verified by inspection', const ['$_fr:implemented'], 'inspection'),
+      ('verified by analysis', const ['$_fr:implemented'], 'analysis'),
+      (
+        'verified by demonstration',
+        const ['$_fr:implemented'],
+        'demonstration',
+      ),
+    ]) {
+      test('a requirement $name needs no row', () async {
+        final project = await _project(
+          _record(statuses: statuses),
+          extra: {
+            ...edit(loginFr, [
+              ('verify_method: test', 'verify_method: $verifyMethod'),
+            ]),
+            '.specstone/config.yaml': _coverageConfig(),
+          },
+        );
+
+        expect(_missing(await _run(project)), isEmpty);
+      });
+    }
+
+    test('a split reports each new edge case', () async {
+      final project = await _project(
+        _record(rows: ['- $_fr E01: `refuses an empty password`']),
+        extra: {
+          ..._frWithThreeEdgeCases(),
+          '.specstone/config.yaml': _coverageConfig(),
+        },
+      );
+
+      final report = await _run(project);
+
+      expect(_missingEdgeCases(report), [
+        ['E02', statusesLine],
+        ['E03', statusesLine],
+      ]);
+    });
+
+    test('each target reports its own record', () async {
+      final rows = ['- $_fr E01: `refuses an empty password`'];
+      final project = await writeTwinProject(
+        extra: {
+          ..._frWithTwoEdgeCases(),
+          '.specstone/config.yaml':
+              '${shippedPinsConfig()}verification_coverage: true\n'
+              'targets:\n  flutter:\n    code_root: flutter_ws\n'
+              '  jaspr:\n    code_root: jaspr_ws\n',
+          'flutter_ws/$_testFile': _testBody,
+          _flutterRecord: _record(rows: rows),
+          _jasprRecord: _record(statuses: const ['$_fr:planned'], rows: rows),
+        },
+      );
+
+      final report = await _run(project);
+
+      final finding = _missing(report).single;
+      expect(finding.path, _flutterRecord);
+      expect(finding.keys, {'item': _fr, 'edge_case': 'E02'});
+      expect(
+        finding.message,
+        '$_fr#E02 is implemented in target flutter and no matrix row names it',
+      );
+      expect(_missing(await _run(project, codeTarget: 'jaspr')), isEmpty);
+    });
   });
 }

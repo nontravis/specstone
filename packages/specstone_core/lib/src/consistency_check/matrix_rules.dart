@@ -4,10 +4,14 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/implements_entry.dart';
 import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/test_pointer_rule.dart';
+import 'package:specstone_core/src/consistency_check/trace_rules.dart'
+    show isVerifiedByTest;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/record_entries.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show RecordStatus;
 import 'package:specstone_core/src/templates/merged_doc_type.dart'
     show MergedField;
 
@@ -28,6 +32,53 @@ Iterable<Finding> checkMatrixRows(CheckContext context, IndexedDoc doc) sync* {
     recordItemsOf(read.feature, context.index.childrenOf),
     _testPathsOf(doc, recordTestFieldOf(read.type)),
   ).findings();
+}
+
+/// Returns `matrix_row_missing` for each edge case of a record [doc]'s
+/// `implemented` FR that no matrix row of [doc] names, when the config turns
+/// `verification_coverage` on; otherwise none.
+///
+/// Only an FR whose `verify_method` is `test` needs a row, and a row of
+/// either kind covers the edge case it names. The finding sits at the FR's
+/// `statuses` line and names the record's target.
+Iterable<Finding> checkUnprovenEdgeCases(
+  CheckContext context,
+  IndexedDoc doc,
+) sync* {
+  if (!context.verificationCoverage) return;
+  final read = recordDocOf(context, doc);
+  final statusField = read == null ? null : recordStatusFieldOf(read.type);
+  if (read == null || statusField == null) return;
+  final items = recordItemsOf(read.feature, context.index.childrenOf);
+  final covered = {
+    for (final row in doc.matrixLines.whereType<MatrixRow>()) row.label,
+  };
+  final inTarget = doc.target == null ? '' : ' in target ${doc.target}';
+  final statusLines = {
+    for (final (:value, :line, text: _) in read.lines.entriesOf(statusField.id))
+      if (value is String) ?recordStatusLineOf(value)?.item: line,
+  };
+  for (final MapEntry(key: name, value: line) in statusLines.entries) {
+    final fr = items[name];
+    if (fr == null ||
+        !isVerifiedByTest(fr) ||
+        context.index.itemStatus(fr, codeTarget: doc.target) !=
+            RecordStatus.implemented) {
+      continue;
+    }
+    for (final edgeCase in edgeCaseBlocksOf(context, fr).keys) {
+      if (covered.contains('$name#$edgeCase')) continue;
+      yield context.finding(
+        doc,
+        FindingKind.matrixRowMissing,
+        line: line,
+        message:
+            '$name#$edgeCase is implemented$inTarget and no matrix row '
+            'names it',
+        keys: {'item': name, 'edge_case': edgeCase},
+      );
+    }
+  }
 }
 
 /// Returns the test file paths of each item's `tests` lines in [record].

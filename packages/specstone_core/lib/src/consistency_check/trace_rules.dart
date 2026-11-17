@@ -502,7 +502,7 @@ Iterable<Finding> checkImplementedStatus(
         message: '${entry.item} is implemented$inTarget and names no code path',
       );
     }
-    if (holdsTests && entry.testPaths.isEmpty && _isVerifiedByTest(item)) {
+    if (holdsTests && entry.testPaths.isEmpty && isVerifiedByTest(item)) {
       yield context.finding(
         doc,
         FindingKind.testsMissing,
@@ -514,7 +514,7 @@ Iterable<Finding> checkImplementedStatus(
 }
 
 /// Whether [item]'s `verify_method` is `test`.
-bool _isVerifiedByTest(IndexedDoc item) =>
+bool isVerifiedByTest(IndexedDoc item) =>
     item.valuesOf(_verifyMethodKey).contains(_testMethod);
 
 const _verifyMethodKey = 'verify_method';
