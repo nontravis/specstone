@@ -33,22 +33,22 @@ decision too, as a `design_references` link, and give each a table row.
   blocks, each naming line kept, all of a block's edits in one file write; then run `specstone set --batch "<file>"`.
   A block printed ` · unchanged` wrote nothing and adds no draft.
 - **A refused batch** writes nothing, but exit 73 leaves docs half written until a write command ends its journal:
-  run one, or `get`, first. Fix each fault, then run it again:
+  run one, or `get`, first. Fix each fault; run it again:
   - Stale block: use the reply's block, your edit merged in; run no `get`.
-  - Gone block: re-read its doc by name, a moved doc's new block taking the edit. Drop a block that names no doc or
-    has no type, its doc under `Findings:`.
+  - Gone block: re-read its doc by name, a moved doc's new block taking the edit. Drop a block naming no doc or
+    typeless, its doc under `Findings:`.
   - One part twice, or a whole-doc block beside another of its doc: join them.
   - Field or title block: write it inside its doc's whole-doc block.
   - Removed required section, or a field only the Owner or Specstone sets: restore it; open fence: close it.
-  - Any other refusal: fix that part as it names.
+  - Any other refusal a single `set` of one part makes: fix that part as it names.
   - Refused path or line: rebuild the file from `get` text output alone.
 
 ## 3. Sweep each changed rule
 
-After step 2, run `specstone search "<term>"` with a `--limit` above its hit count for each term of the pass:
+After step 2, run `specstone search "<term>"` with `--limit` above its hit count for each term:
 
 - **First pass**: each added term, key, or literal; each ruling's superseded wording; each changed rule's existing
-  terms, its owner item's words and the sibling key or literal the new one joins.
+  terms: its owner item's words and the sibling key or literal the new one joins.
 - **Fix round**: each taken finding's rule and terms.
 - **Pass after an amend**: the amend's decisions' terms, as in a first pass.
 
@@ -86,9 +86,8 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less each name dropped, plus each
   doc added; names only, no `--target`. A moved doc and its children go by their new name.
 - **Counts**: take every count from one `specstone approve --dry-run --json` after your last write, never your own
-  tally. Your drafts are the docs your own
-  list names; the output names a moved one by its name before the move while its `Move:` line is unrun, by its name
-  after once the runner runs it. Name each other draft it lists under `Other drafts:`, never counted; one of
-  yours it shows as no draft goes under `Findings:`.
+  tally. Your drafts are the docs your own list names; the output names a moved one by its name before the move while
+  its `Move:` line is unrun, by its name after the runner runs it. Name each other draft it lists under
+  `Other drafts:`, never counted; one of yours it shows as no draft goes under `Findings:`.
 - **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`; copy each
   into the relay block. Run no `move`.

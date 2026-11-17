@@ -1111,9 +1111,7 @@ void _handOffTests() {
       _pluginText('specstone-brainstorming-sdd/references/author.md'),
       '5. Report',
     );
-    for (final line in ['Move: specstone move feature:<name> … --top\n']) {
-      expect(report, contains('\n$line'), reason: line);
-    }
+    expect(report, contains('\nMove: specstone move feature:<name> … --top\n'));
     final flatReport = report.replaceAll(RegExp(r'\s+'), ' ');
     expect(
       flatReport,
