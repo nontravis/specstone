@@ -1029,6 +1029,11 @@ void _agentTests() {
       _roundsOwnedElsewhere,
       _itemRewritePoints,
       _readabilityRewritePoints,
+      _repeatMergePoints,
+      _goalMoveSteps,
+      _glossaryMoveSteps,
+      _writeDetail,
+      _newFeatureCommand,
     ]) {
       for (final MapEntry(key: owner, value: phrases) in guard.entries) {
         final text = _oneLine(_pluginText(owner)).toLowerCase();
@@ -1099,6 +1104,11 @@ const _batchTableText = ['exit status', '`75`', 'argument_invalid'];
 /// The one home of the size-fix rule, under the plugin folder.
 const _sizeFix = 'specstone-expert-sdd/references/size-fix.md';
 
+/// The command only size-fix.md writes.
+const _GuardedPhrases _newFeatureCommand = {
+  _sizeFix: ['new feature --parent'],
+};
+
 /// Each point of `fill_check_findings` E13's item rewrite, held only by
 /// size-fix.md.
 const _GuardedPhrases _itemRewritePoints = {
@@ -1142,6 +1152,15 @@ const _GuardedPhrases _readabilityRewritePoints = {
 
 const _readabilityFix = 'specstone-expert-sdd/references/readability-fix.md';
 
+/// The write detail of the bootstrap batch, held only by writes.md.
+const _GuardedPhrases _writeDetail = {
+  'specstone-expert-sdd/references/writes.md': [
+    'base_mismatch',
+    '#quot;',
+    '#_lead',
+  ],
+};
+
 void _readabilityFixTests() {
   test('no bootstrap procedure restates the readability rewrite', () {
     for (final file in _bootstrapProcedures) {
@@ -1173,9 +1192,13 @@ void _readabilityFixTests() {
     ];
     expect(namers, unorderedEquals(_bootstrapProcedures));
     for (final file in _bootstrapProcedures) {
-      final text = _pluginText(file);
-      for (final held in ['base_mismatch', '#quot;', '#_lead']) {
-        expect(text, isNot(contains(held)), reason: '$file: $held');
+      final text = _oneLine(_pluginText(file)).toLowerCase();
+      for (final held in _phrasesOf(_writeDetail)) {
+        expect(
+          text,
+          isNot(contains(held.toLowerCase())),
+          reason: '$file: $held',
+        );
       }
     }
   });
@@ -1203,11 +1226,10 @@ void _sizeFixTests() {
   test('no file but size-fix.md restates its new feature --parent command', () {
     for (final file in agentSourceFiles(agentAssetsRoot())) {
       if (file.uri.path.endsWith(_sizeFix)) continue;
-      expect(
-        _oneLine(file.readAsStringSync()),
-        isNot(contains('new feature --parent')),
-        reason: file.path,
-      );
+      final text = _oneLine(file.readAsStringSync()).toLowerCase();
+      for (final command in _phrasesOf(_newFeatureCommand)) {
+        expect(text, isNot(contains(command.toLowerCase())), reason: file.path);
+      }
     }
   });
 }
@@ -1236,13 +1258,19 @@ void _batchGuideTests() {
 }
 
 /// How the repeats batch's agent merges one group or keeps it.
-const _repeatMergePoints = [
-  'Per group, judge whether its items state one rule.',
-  "keep the item in the doc that owns the rule's subject",
-  'replace each other copy in a doc your skill takes with a link to that item',
-  "name the owner in each draft's reason.",
-  'keep each item and report the group as kept.',
-];
+const _replaceCopies =
+    'replace each other copy in a doc your skill takes '
+    'with a link to that item';
+
+const _GuardedPhrases _repeatMergePoints = {
+  'specstone-expert-sdd/references/repeats.md': [
+    'Per group, judge whether its items state one rule.',
+    "keep the item in the doc that owns the rule's subject",
+    _replaceCopies,
+    "name the owner in each draft's reason.",
+    'keep each item and report the group as kept.',
+  ],
+};
 
 void _repeatsBatchTests() {
   for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
@@ -1250,8 +1278,12 @@ void _repeatsBatchTests() {
       final text = _oneLine(
         _pluginText('specstone-$skill/references/procedure.md'),
       );
-      for (final point in _repeatMergePoints) {
-        expect(text, isNot(contains(point)), reason: point);
+      for (final point in _phrasesOf(_repeatMergePoints)) {
+        expect(
+          text.toLowerCase(),
+          isNot(contains(point.toLowerCase())),
+          reason: point,
+        );
       }
     });
   }
@@ -1260,11 +1292,18 @@ void _repeatsBatchTests() {
 /// The goal-move reference of bootstrap-prd, under the plugin folder.
 const _goalMove = 'specstone-bootstrap-prd/references/goal-move.md';
 
+/// The steps of the goal move, held only by goal-move.md.
+const _GuardedPhrases _goalMoveSteps = {
+  _goalMove: ['new goal', 'set --batch', 'refs project'],
+};
+
 void _goalMoveTests() {
   test('the bootstrap-prd procedure copies no step of the goal move', () {
-    final text = _pluginText('specstone-bootstrap-prd/references/procedure.md');
-    for (final step in ['new goal', 'set --batch', 'refs project']) {
-      expect(text, isNot(contains(step)), reason: step);
+    final text = _oneLine(
+      _pluginText('specstone-bootstrap-prd/references/procedure.md'),
+    ).toLowerCase();
+    for (final step in _phrasesOf(_goalMoveSteps)) {
+      expect(text, isNot(contains(step.toLowerCase())), reason: step);
     }
   });
 
@@ -1278,11 +1317,18 @@ void _goalMoveTests() {
 /// The glossary-move reference of bootstrap-prd, under the plugin folder.
 const _glossaryMove = 'specstone-bootstrap-prd/references/glossary-move.md';
 
+/// The steps of the glossary move, held only by glossary-move.md.
+const _GuardedPhrases _glossaryMoveSteps = {
+  _glossaryMove: ['new glossary', 'glossary:glossary'],
+};
+
 void _glossaryMoveTests() {
   test('the bootstrap-prd procedure copies no step of the glossary move', () {
-    final text = _pluginText('specstone-bootstrap-prd/references/procedure.md');
-    for (final step in ['new glossary', 'glossary:glossary']) {
-      expect(text, isNot(contains(step)), reason: step);
+    final text = _oneLine(
+      _pluginText('specstone-bootstrap-prd/references/procedure.md'),
+    ).toLowerCase();
+    for (final step in _phrasesOf(_glossaryMoveSteps)) {
+      expect(text, isNot(contains(step.toLowerCase())), reason: step);
     }
   });
 
