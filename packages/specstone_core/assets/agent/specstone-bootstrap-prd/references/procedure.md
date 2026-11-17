@@ -15,14 +15,7 @@ Fix the first unhandled finding under `prds/` or `measurements/`, then run `spec
 finding left goes to `specstone-bootstrap-spec`, clears with no write, or is tagged `(waits for the Owner)`, except an
 unanswered size finding.
 
-Bases come from `specstone get <type>:<name> --json` (`bases.title`, `bases.sections.<key>`, `bases.fields.<id>`);
-each write prints the new one. Pipe the text to `specstone set <type>:<name>#<key> --base <hash>` (`--field <id>` or
-`--title` in place of `#<key>`); a section body leaves out its `## ` line, and empty text drops the section or key.
-The text between the title and the first `##` section is `#_lead`. Exit 75 `base_mismatch`: read again, merge,
-retry.
-
-Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in `A["Save (draft)"]`; write `"` in it as
-`#quot;`.
+Write each fix as `../../specstone-expert-sdd/references/writes.md` says.
 
 Move every old statement to a home; never drop one on judgement. Where the old text lacks a value the guide needs,
 write `TBR — <why>` in its field or sub-field, never a value you propose. Ask the Owner only when no text bears on a
@@ -40,6 +33,7 @@ whole section.
 | `untyped_doc` | step 4 |
 | `chars_over_limit`, `lines_over_limit`, `item_over_limit`, `bundle_over_limit` | `../../specstone-expert-sdd/references/size-fix.md` |
 | `cite_unlinked`, a repeats batch | `../../specstone-expert-sdd/references/repeats.md` |
+| `words_over_limit`, `sentence_chars_over_limit`, `trace_note_not_last`, `sentences_over_limit` | `../../specstone-expert-sdd/references/readability-fix.md` |
 | any other under `prds/` or `measurements/` | rewrite what it names per the guide you loaded; one that clears with no write goes to step 6 |
 
 ## 3. Move a feature's code pointers

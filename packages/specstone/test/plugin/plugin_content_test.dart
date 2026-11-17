@@ -208,6 +208,7 @@ void main() {
   _leadAndMermaidTests();
   _agentTests();
   _sizeFixTests();
+  _readabilityFixTests();
   _batchGuideTests();
   _repeatsBatchTests();
   _goalMoveTests();
@@ -833,9 +834,14 @@ const _leadSentence =
 void _leadAndMermaidTests() {
   for (final skill in ['bootstrap-prd', 'bootstrap-spec']) {
     final file = 'specstone-$skill/references/procedure.md';
-    test('d-ps2: $file holds the Mermaid quoting sentence and names the '
-        '`#_lead` target of `specstone set`', () {
-      final text = _oneLine(_pluginText(file));
+    test('d-ps2: $file points to writes.md, which holds the Mermaid quoting '
+        'sentence and names the `#_lead` target of `specstone set`', () {
+      expect(
+        _pluginText(file),
+        contains('`$_writesFromReference`'),
+        reason: file,
+      );
+      final text = _oneLine(_pluginText(_writes));
       expect(text, contains(_mermaidSentence));
       expect(text, contains(_leadSentence));
     });
@@ -3360,15 +3366,15 @@ void _agentTests() {
         );
       });
 
-      test('fill_check_findings E14, refuse_stale_base: $skill retries a '
-          'write a parallel batch made stale', () {
+      test('fill_check_findings E14, refuse_stale_base: $skill sends its '
+          'writes to writes.md, which retries a write a parallel batch made '
+          'stale', () {
         expect(
-          _oneLine(
-            _sectionOf(
-              _pluginText('specstone-$skill/references/procedure.md'),
-              '2. One finding at a time',
-            ),
-          ),
+          _pluginText('specstone-$skill/references/procedure.md'),
+          contains('`$_writesFromReference`'),
+        );
+        expect(
+          _oneLine(_pluginText(_writes)),
           contains('Exit 75 `base_mismatch`: read again, merge, retry.'),
         );
       });
@@ -4181,6 +4187,19 @@ const _sizeFixFromSkill = '../specstone-expert-sdd/references/size-fix.md';
 const _sizeFixFromReference =
     '../../specstone-expert-sdd/references/size-fix.md';
 
+/// The one home of the bootstrap write block, under the plugin folder.
+const _writes = 'specstone-expert-sdd/references/writes.md';
+
+/// [_writes] by the path a bootstrap procedure names it by.
+const _writesFromReference = '../../specstone-expert-sdd/references/writes.md';
+
+/// The one home of the readability-fix rewrite, under the plugin folder.
+const _readabilityFix = 'specstone-expert-sdd/references/readability-fix.md';
+
+/// [_readabilityFix] by the path a bootstrap procedure names it by.
+const _readabilityFixFromReference =
+    '../../specstone-expert-sdd/references/readability-fix.md';
+
 const _sizeFindings = [
   '`chars_over_limit`',
   '`lines_over_limit`',
@@ -4228,6 +4247,119 @@ const _droppedTextReasons = {
     'drop, as a step 6 proposal, what only describes the old index',
   ],
 };
+
+/// The four readability findings a bootstrap batch rewrites in place.
+const _readabilityFindings = [
+  '`words_over_limit`',
+  '`sentence_chars_over_limit`',
+  '`trace_note_not_last`',
+  '`sentences_over_limit`',
+];
+
+/// Each point of `fill_check_findings` E48, then E49, then E50, by the phrase
+/// readability-fix.md writes for it.
+const _readabilityRewritePoints = [
+  "in its doc type's item shape, as `specstone guide <type>` gives it",
+  'with no Owner naming',
+  'takes the next free ID of its section',
+  'each citation that means the moved rule is repointed',
+  'conditions go in a nested list',
+  "a trace group before the item's end moves to the end",
+  'merged with any other group there into one group',
+  'an ownership clause before the last clause moves to be the last clause',
+  'no statement is dropped',
+  'a paragraph with no ID and a count of 1',
+  "rewrite it in place into sentences within their language's cap",
+  'its detail moves to the section of the same doc that owns it',
+  'it never turns into a sub-list',
+  "Give a split proposal or the report's why, as `size-fix.md` gives it",
+  'no rewrite keeps the meaning or a size finding is left',
+  'The finding waits for the Owner.',
+];
+
+void _readabilityFixTests() {
+  test('E48-E50: each bootstrap procedure has one row sending the four '
+      'readability findings to readability-fix.md, above the catch-all row '
+      'and with no rewrite text', () {
+    for (final file in _droppedTextReasons.keys) {
+      final text = _pluginText(file);
+      final rows = _sectionOf(
+        text,
+        '2. One finding at a time',
+      ).split('\n').where((line) => line.startsWith('|')).toList();
+      final readability = [
+        for (final row in rows)
+          if ([
+            ..._readabilityFindings,
+            '`$_readabilityFixFromReference`',
+          ].every(row.contains))
+            row,
+      ];
+      expect(readability, hasLength(1), reason: file);
+      expect(
+        rows.indexOf(readability.single),
+        lessThan(rows.indexWhere((line) => line.startsWith('| any other'))),
+        reason: '$file: the catch-all row comes last',
+      );
+      for (final point in _readabilityRewritePoints) {
+        expect(_oneLine(text), isNot(contains(point)), reason: '$file: $point');
+      }
+    }
+  });
+
+  test('E48-E50: readability-fix.md names the four findings, holds the '
+      'points of E48, E49, and E50 in that order, and sends a size finding '
+      'to size-fix.md without its order or commands', () {
+    final raw = _pluginText(_readabilityFix);
+    final text = _oneLine(raw);
+    for (final finding in _readabilityFindings) {
+      expect(text, contains(finding), reason: finding);
+    }
+    var from = 0;
+    for (final point in _readabilityRewritePoints) {
+      final at = text.indexOf(point, from);
+      expect(at, isNonNegative, reason: 'after offset $from: $point');
+      from = at + point.length;
+    }
+    expect(text, contains('`size-fix.md`'));
+    expect(text, isNot(contains('new feature --parent')));
+    expect(text, isNot(contains('specstone move')));
+  });
+
+  test('only the two bootstrap procedures name readability-fix.md', () {
+    final namers = [
+      for (final file in agentSourceFiles(agentAssetsRoot()))
+        if (file.readAsStringSync().contains('readability-fix.md'))
+          shippedPathOf(file),
+    ];
+    expect(namers, unorderedEquals(_droppedTextReasons.keys));
+    for (final file in _droppedTextReasons.keys) {
+      expect(
+        _pluginText(file),
+        contains('`$_readabilityFixFromReference`'),
+        reason: file,
+      );
+    }
+  });
+
+  test('only the two bootstrap procedures name writes.md, each in one line '
+      'that replaces its write block', () {
+    final namers = [
+      for (final file in agentSourceFiles(agentAssetsRoot()))
+        if (file.readAsStringSync().contains('writes.md')) shippedPathOf(file),
+    ];
+    expect(namers, unorderedEquals(_droppedTextReasons.keys));
+    for (final file in _droppedTextReasons.keys) {
+      final text = _pluginText(file);
+      expect(text.split('\n').where((line) => line.contains('writes.md')), [
+        'Write each fix as `$_writesFromReference` says.',
+      ], reason: file);
+      for (final held in ['base_mismatch', '#quot;', '#_lead']) {
+        expect(text, isNot(contains(held)), reason: '$file: $held');
+      }
+    }
+  });
+}
 
 void _sizeFixTests() {
   test('E06, E07, '
@@ -4471,11 +4603,11 @@ void _sizeFixTests() {
   });
 }
 
-/// Each bootstrap procedure and its est. tokens at `e8262ba`, which its one
-/// guide call per batch leaves no higher.
+/// Each bootstrap procedure and its est. tokens once the write block moved to
+/// writes.md, which its one guide call per batch leaves no higher.
 const _bootstrapProcedureTokens = {
-  'specstone-bootstrap-prd/references/procedure.md': 1497,
-  'specstone-bootstrap-spec/references/procedure.md': 1499,
+  'specstone-bootstrap-prd/references/procedure.md': 1402,
+  'specstone-bootstrap-spec/references/procedure.md': 1416,
 };
 
 /// The one guide call of a bootstrap batch
