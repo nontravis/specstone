@@ -55,6 +55,6 @@ section 3 says.
    - A changed draft.
    - Each doc the round or pass added.
    - An unchanged draft that cites a changed draft.
-   - Not an unchanged draft that links to no changed draft: its earlier finding stands.
+   - Not an unchanged draft that cites no changed draft: its earlier finding stands.
    - Not a doc of the list that is no draft, approved between rounds or listed and never written.
 5. In your round note to the Owner, name each doc approved between rounds and each name item 2 renamed or dropped.
