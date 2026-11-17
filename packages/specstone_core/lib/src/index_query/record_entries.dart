@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/path_tail.dart';
 import 'package:specstone_core/src/templates/code_link_entry.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
@@ -17,6 +18,7 @@ final class RecordEntry {
     this.reason,
     this.codePaths = const [],
     this.testPaths = const [],
+    this.matrixRows = const [],
   });
 
   /// The item's name relative to the record's feature; empty for the feature
@@ -38,6 +40,11 @@ final class RecordEntry {
   /// line's test name stays out, since only `check` reads names.
   final List<String> testPaths;
 
+  /// The item's rows of the record's Verification matrix, in file order; a
+  /// malformed line names no item, so it holds none. Empty when the record's
+  /// text was not given to [recordEntriesOf].
+  final List<MatrixRow> matrixRows;
+
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
   bool operator ==(Object other) =>
@@ -45,20 +52,19 @@ final class RecordEntry {
       other.item == item &&
       other.status == status &&
       other.reason == reason &&
-      _samePaths(other);
+      _same(codePaths, other.codePaths) &&
+      _same(testPaths, other.testPaths) &&
+      _same(matrixRows, other.matrixRows);
 
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
-  int get hashCode => Object.hash(item, status, reason, codePaths.length);
+  int get hashCode =>
+      Object.hash(item, status, reason, codePaths.length, matrixRows.length);
 
-  bool _samePaths(RecordEntry other) {
-    if (codePaths.length != other.codePaths.length) return false;
-    for (final (i, path) in codePaths.indexed) {
-      if (other.codePaths[i] != path) return false;
-    }
-    if (testPaths.length != other.testPaths.length) return false;
-    for (final (i, path) in testPaths.indexed) {
-      if (other.testPaths[i] != path) return false;
+  static bool _same<T>(List<T> a, List<T> b) {
+    if (a.length != b.length) return false;
+    for (final (i, value) in a.indexed) {
+      if (b[i] != value) return false;
     }
     return true;
   }
@@ -66,19 +72,25 @@ final class RecordEntry {
   @override
   String toString() =>
       'RecordEntry(item: $item, status: $status, reason: $reason, '
-      'codePaths: $codePaths, testPaths: $testPaths)';
+      'codePaths: $codePaths, testPaths: $testPaths, '
+      'matrixRows: $matrixRows)';
 }
 
 /// Returns the entries of [record], its fields found on [recordType] by type:
 /// the `record_status` field's lines give each item, its status,
 /// and, for `skipped`, its reason; the `item_exact` `output_ref` field's lines
 /// give each item's code paths; the `tests` field's lines give each item's
-/// test paths, their path part alone.
+/// test paths, their path part alone. [lfText], the record's text in LF, gives
+/// each item's matrix rows ([matrixLinesIn]); without it no entry holds rows.
 ///
-/// An entry appears for every item either field names, in the `statuses`
+/// An entry appears for every item any field or row names, in the `statuses`
 /// order; a line that names no item yields none. Invalid YAML frontmatter
 /// holds no values, so it holds no entries.
-List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
+List<RecordEntry> recordEntriesOf(
+  IndexedDoc record,
+  MergedDocType recordType, {
+  String? lfText,
+}) {
   final statusField = recordStatusFieldOf(recordType);
   final codeField = recordCodeFieldOf(recordType);
   final testField = recordTestFieldOf(recordType);
@@ -119,6 +131,20 @@ List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
         reason: current.reason,
         codePaths: current.codePaths,
         testPaths: [...current.testPaths, path],
+      );
+    }
+  }
+  if (lfText != null) {
+    for (final row in matrixLinesIn(lfText, recordType)) {
+      if (row is! MatrixRow) continue;
+      final current = baseOf(row.item);
+      byItem[row.item] = RecordEntry(
+        item: row.item,
+        status: current.status,
+        reason: current.reason,
+        codePaths: current.codePaths,
+        testPaths: current.testPaths,
+        matrixRows: [...current.matrixRows, row],
       );
     }
   }
