@@ -12,6 +12,7 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/bundle.dart';
 import 'package:specstone_core/src/index_query/bundle_render.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
+import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/templates/code_target.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
@@ -313,15 +314,18 @@ void main() {
     int refusedBlocks(CheckReport report) => report.findings
         .where((f) => f.kind == FindingKind.diagramParseFailed)
         .length;
-    // The first open builds the index and parses the blocks.
-    expect(refusedBlocks(await checkOf(project)), 1);
     Map<String, String> snapshot() => {
       for (final f in project.listSync(recursive: true).whereType<File>())
-        if (!f.path.contains('index.sqlite'))
+        // The Index files: the database and the ignore file made beside it.
+        if (!f.path.contains('index.sqlite') && !f.path.endsWith('.gitignore'))
           f.path: base64.encode(f.readAsBytesSync()),
     };
+    // No Index yet, so no stored parse row: the run below parses with Node.
+    final index = File.fromUri(project.uri.resolve(indexFilePath));
+    expect(index.existsSync(), isFalse);
     final before = snapshot();
     expect(refusedBlocks(await checkOf(project)), 1);
+    expect(index.existsSync(), isTrue);
     expect(snapshot(), before);
   });
 
