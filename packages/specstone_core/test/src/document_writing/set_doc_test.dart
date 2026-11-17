@@ -30,10 +30,10 @@ import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:sqlite3/sqlite3.dart';
 import 'package:test/test.dart';
 
-import '../../helpers/check_fixture.dart'
-    show checkOf, loginRecord, spots, writeCheckProject;
+import '../../helpers/check_fixture.dart' show checkOf, loginRecord, spots;
 import '../../helpers/check_fixture.dart' as check show edit, loginFeature;
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/matrix_record_fixture.dart';
 import '../../helpers/posix_modes.dart';
 import '../../helpers/shipped_pins.dart'
     show pinStatusesBelow, statusesBelowResolver;
@@ -4088,28 +4088,6 @@ void main() {
     const address = 'implementation:login';
     const matrix = '$address#verification_matrix';
     const notes = '$address#notes';
-    const row = '- email_login/check_password E01: `a wrong password`\n';
-
-    Future<Directory> recordProject({
-      required bool isDraft,
-      bool hasMatrix = true,
-    }) {
-      final frontmatter =
-          "---\n${isDraft ? 'draft: true\n' : ''}"
-          "statuses:\n  - 'email_login:implemented'\n---\n\n";
-      final matrixSection = hasMatrix ? '## Verification matrix\n\n$row\n' : '';
-      return writeCheckProject(
-        extra: {
-          loginRecord:
-              '$frontmatter# Login implementation\n\n$matrixSection'
-              '## Notes\n\nSee the rows.\n',
-          '.specstone/templates/implementation.yaml':
-              'sections:\n  - id: notes\n    header: Notes\n',
-        },
-        unstamped: {if (isDraft) loginRecord},
-      );
-    }
-
     SetRequest replaceOf(String target, String base) =>
         SetRequest.parse(target, base: base, replace: true);
 
@@ -4117,7 +4095,7 @@ void main() {
       final state = isDraft ? 'a draft' : 'an approved';
 
       test('a set leaves $state record as it was', () async {
-        final root = await recordProject(isDraft: isDraft);
+        final root = await writeMatrixRecordProject(isDraft: isDraft);
         final before = readDoc(root, loginRecord);
 
         final answer = writeIn(
@@ -4125,15 +4103,15 @@ void main() {
           (s) => answerSet(
             s,
             req(matrix, sectionBase(root, matrix)),
-            '$row- email_login/check_password E02: `an empty password`\n',
+            '$matrixRow- email_login/check_password E02: `an empty password`\n',
           ),
         );
 
         expect(
           readDoc(root, loginRecord),
           before.replaceFirst(
-            row,
-            '$row- email_login/check_password E02: `an empty password`\n',
+            matrixRow,
+            '$matrixRow- email_login/check_password E02: `an empty password`\n',
           ),
         );
         expect(answer.json['draft'], isDraft);
@@ -4141,21 +4119,23 @@ void main() {
     }
 
     test('a stale base is still refused and writes nothing', () async {
-      final root = await recordProject(isDraft: false);
+      final root = await writeMatrixRecordProject(isDraft: false);
       final stale = sectionBase(root, matrix);
-      writeIn(root, (s) => answerSet(s, req(matrix, stale), '$row- a\n'));
+      writeIn(root, (s) => answerSet(s, req(matrix, stale), '$matrixRow- a\n'));
       final before = readDoc(root, loginRecord);
 
       expect(
-        () =>
-            writeIn(root, (s) => answerSet(s, req(matrix, stale), '$row- b\n')),
+        () => writeIn(
+          root,
+          (s) => answerSet(s, req(matrix, stale), '$matrixRow- b\n'),
+        ),
         throwsWriteFault(WriteFaultCode.baseMismatch),
       );
       expect(readDoc(root, loginRecord), before);
     });
 
     test('a replace leaves the approved record as it was', () async {
-      final root = await recordProject(isDraft: false);
+      final root = await writeMatrixRecordProject(isDraft: false);
       final before = readDoc(root, loginRecord);
 
       final answer = writeIn(
@@ -4177,7 +4157,7 @@ void main() {
     test(
       'a set of any other section marks the approved record draft',
       () async {
-        final root = await recordProject(isDraft: false);
+        final root = await writeMatrixRecordProject(isDraft: false);
 
         final answer = writeIn(
           root,
@@ -4193,7 +4173,10 @@ void main() {
     test(
       'empty text for a matrix section the record lacks leaves it approved',
       () async {
-        final root = await recordProject(isDraft: false, hasMatrix: false);
+        final root = await writeMatrixRecordProject(
+          isDraft: false,
+          hasMatrix: false,
+        );
         final before = readDoc(root, loginRecord);
 
         final answer = writeIn(
@@ -4207,7 +4190,7 @@ void main() {
     );
 
     test('empty text for a held matrix section removes it and leaves the record approved', () async {
-      final root = await recordProject(isDraft: false);
+      final root = await writeMatrixRecordProject(isDraft: false);
       final before = readDoc(root, loginRecord);
 
       final answer = writeIn(
@@ -4217,7 +4200,7 @@ void main() {
 
       expect(
         readDoc(root, loginRecord),
-        before.replaceFirst('## Verification matrix\n\n$row\n', ''),
+        before.replaceFirst('## Verification matrix\n\n$matrixRow\n', ''),
       );
       expect(answer.json['draft'], isFalse);
     });
@@ -4225,7 +4208,7 @@ void main() {
     test(
       'a batch writing the matrix and another section marks the record draft',
       () async {
-        final root = await recordProject(isDraft: false);
+        final root = await writeMatrixRecordProject(isDraft: false);
         final text =
             writeIn(root, (s) => answerGet(s.index, [matrix, notes]).text)
                 .replaceFirst('a wrong password', 'a wrong email')

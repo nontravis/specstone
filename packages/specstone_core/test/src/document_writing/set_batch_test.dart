@@ -26,6 +26,7 @@ import 'package:test/test.dart';
 import '../../helpers/check_fixture.dart'
     show checkOf, loginRecord, spots, writeCheckProject;
 import '../../helpers/index_fixture.dart' show openSession;
+import '../../helpers/matrix_record_fixture.dart' show writeMatrixRecordProject;
 import '../../helpers/posix_modes.dart';
 import '../../helpers/relative_link.dart';
 import '../../helpers/shipped_pins.dart'
@@ -1417,24 +1418,10 @@ void main() {
   group('a batch block on a record', () {
     const matrix = 'implementation:login#verification_matrix';
     const notes = 'implementation:login#notes';
-    const record =
-        "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
-        '# Login implementation\n\n## Verification matrix\n\n'
-        '- email_login/check_password E01: `a wrong password`\n\n'
-        '## Notes\n\nSee the rows.\n';
-
-    Future<Directory> recordProject() => writeCheckProject(
-      extra: {
-        loginRecord: record,
-        '.specstone/templates/implementation.yaml':
-            'sections:\n  - id: notes\n    header: Notes\n',
-      },
-    );
-
     test(
       'on the matrix section leaves the approved record as it was',
       () async {
-        final root = await recordProject();
+        final root = await writeMatrixRecordProject();
         final before = readDoc(root, loginRecord);
 
         final answer = runBatch(
@@ -1451,7 +1438,7 @@ void main() {
     );
 
     test('on any other section marks the approved record draft', () async {
-      final root = await recordProject();
+      final root = await writeMatrixRecordProject();
 
       final answer = runBatch(
         root,
@@ -1464,7 +1451,7 @@ void main() {
 
     test('a whole-doc block that changes only the matrix section keeps the '
         'approved record approved', () async {
-      final root = await recordProject();
+      final root = await writeMatrixRecordProject();
       final before = readDoc(root, loginRecord);
       final approved = RegExp('approved: "[0-9a-f]{12}"')
           .firstMatch(before)![0]!;
@@ -1485,7 +1472,7 @@ void main() {
 
     test('a whole-doc block that changes only the layout writes nothing and '
         'keeps the approved record approved', () async {
-      final root = await recordProject();
+      final root = await writeMatrixRecordProject();
       final before = readDoc(root, loginRecord);
 
       final answer = runBatch(
@@ -1505,7 +1492,7 @@ void main() {
 
     test('a whole-doc block that changes the matrix and another section marks '
         'the approved record draft', () async {
-      final root = await recordProject();
+      final root = await writeMatrixRecordProject();
 
       final answer = runBatch(
         root,
