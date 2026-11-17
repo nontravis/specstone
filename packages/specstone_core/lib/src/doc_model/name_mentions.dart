@@ -10,30 +10,8 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 /// of `text` in its line, after the opening backticks.
 typedef NameMention = ({int line, int column, String text, DocAddress address});
 
-/// A no-lookup address found in a line of text.
-final class AddressToken {
-  const new({required this.column, required this.text, required this.address});
-
-  /// The 0-based offset of the first character of [text] in its line.
-  final int column;
-  final String text;
-  final DocAddress address;
-}
-
 /// The info word that marks a fenced block as a Mermaid diagram.
 const _mermaidInfo = 'mermaid';
-
-/// A run of the characters a Name or a doc type prefix is written in.
-final _tokenRun = RegExp('[a-z0-9_/:]+');
-
-/// The no-lookup tokens of [text]: each maximal run of slug characters, `/`,
-/// and `:` that reads as a DocAddress of the no-lookup class.
-List<AddressToken> noLookupTokensIn(String text) => [
-  for (final run in _tokenRun.allMatches(text))
-    if (readDocAddress(run[0]!) case final address
-        when address.isReferenceWithoutLookup)
-      AddressToken(column: run.start, text: run[0]!, address: address),
-];
 
 /// The doc-name mentions of [lf], a doc body or a markdown file, read from its
 /// code spans outside fenced code and from the tokens of its `mermaid` blocks,
@@ -49,7 +27,7 @@ List<NameMention> nameMentionsInMarkdown(String lf) {
 }
 
 Iterable<NameMention> _tokenMentionsOnLine(String line, int number) => [
-  for (final token in noLookupTokensIn(line))
+  for (final token in mermaidTokensIn(line))
     (
       line: number,
       column: token.column,

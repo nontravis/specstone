@@ -1265,6 +1265,30 @@ void main() {
       );
     });
 
+    test('a rename leaves a web address in a mermaid label as written', () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nflowchart LR\n  N[https://my.app/x/y]\n```\n',
+          '.md',
+          {('user_story', 'app/x/y'): 'app/z/y'},
+        ),
+        isNull,
+      );
+    });
+
+    test('a rename reaches a mermaid name next to a slash or a colon', () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nA[/user_story:login/email_login/]\n'
+              'A["login/email_login: x"]\na->>b:login/email_login\n```\n',
+          '.md',
+          {('user_story', 'login/email_login'): 'signin/email_login'},
+        ),
+        '```mermaid\nA[/user_story:signin/email_login/]\nA["signin/email_login: x"]\n'
+        'a->>b:signin/email_login\n```\n',
+      );
+    });
+
     test('E03: a typed mention of another type, a one-slug bare name, and plain text stay', () {
       expect(
         rewriteNameMentions(

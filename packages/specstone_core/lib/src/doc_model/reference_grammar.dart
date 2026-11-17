@@ -99,13 +99,57 @@ final _addressRun = RegExp('[a-z0-9_/:]+');
 /// The `/` and `:` that open or close a run.
 final _runEdge = RegExp(r'^[/:]+|[/:]+$');
 
+/// A no-lookup address found in a line of text.
+final class AddressToken {
+  const new({required this.column, required this.text, required this.address});
+
+  /// The 0-based offset of the first character of [text] in its line.
+  final int column;
+  final String text;
+  final DocAddress address;
+}
+
 /// Returns the no-lookup addresses [text] holds, each a run of slug
-/// characters, `/`, and `:` that any other text bounds, in order.
-List<DocAddress> referencesWithoutLookupIn(String text) => [
+/// characters, `/`, and `:` that any other text bounds, less the `/` and `:`
+/// that open or close it, in order.
+List<AddressToken> addressTokensIn(String text) => [
   for (final run in _addressRun.allMatches(text))
-    if (readDocAddress(run[0]!.replaceAll(_runEdge, '')) case final address
-        when address.isReferenceWithoutLookup)
-      address,
+    ?_tokenOf(run),
+];
+
+AddressToken? _tokenOf(Match run) {
+  final written = run[0]!;
+  final text = written.replaceAll(_runEdge, '');
+  final address = readDocAddress(text);
+  if (!address.isReferenceWithoutLookup) return null;
+  return AddressToken(
+    column: run.start + written.indexOf(text),
+    text: text,
+    address: address,
+  );
+}
+
+/// A word that holds `://`, up to the next whitespace, bracket, quote, or `|`.
+final _webAddress = RegExp('[^\\s\\[\\](){}<>"\'|]*://[^\\s\\[\\](){}<>"\'|]*');
+
+/// The id of a sequence-diagram participant that an arrow head `>` opens,
+/// with the `:` that ends it (`a->>b:text`).
+final _participantId = RegExp('(?<=>)[a-z0-9_]+:');
+
+String _blanked(Match match) => ' ' * match[0]!.length;
+
+/// Returns the no-lookup tokens of [line], a line of a `mermaid` block: those
+/// of [addressTokensIn], less any in a web address and any `<id>:` that
+/// follows an arrow head, whose `:` is no type prefix.
+List<AddressToken> mermaidTokensIn(String line) => addressTokensIn(
+  line
+      .replaceAllMapped(_webAddress, _blanked)
+      .replaceAllMapped(_participantId, _blanked),
+);
+
+/// Returns the no-lookup addresses [text] holds, in order.
+List<DocAddress> referencesWithoutLookupIn(String text) => [
+  for (final token in addressTokensIn(text)) token.address,
 ];
 
 /// A line suffix such as `:12` or `:12:5` after a path written in prose.

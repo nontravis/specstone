@@ -1,4 +1,6 @@
 import 'package:specstone_core/src/doc_model/name_mentions.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart'
+    show mermaidTokensIn;
 import 'package:test/test.dart';
 
 void main() {
@@ -152,14 +154,52 @@ void main() {
       expect([for (final m in mentions) (m.line, m.text)], [(7, 'shop/cart')]);
     });
 
-    test('a web address in a label gives no token that starts at its '
-        'scheme', () {
+    test('a web address in a label gives no token', () {
+      for (final label in [
+        'https://example.com/a/b',
+        'https://my.app/x/y',
+        'https://x.shop/cart/add',
+      ]) {
+        expect(
+          nameMentionsInMarkdown(
+            '```mermaid\nflowchart LR\n  N[$label]\n```\n',
+          ),
+          isEmpty,
+          reason: label,
+        );
+      }
+    });
+
+    test('a name beside a web address is still read', () {
       final mentions = nameMentionsInMarkdown(
-        '```mermaid\nflowchart LR\n  N[https://example.com/a/b]\n```\n',
+        '```mermaid\nflowchart LR\n  N["shop/cart/x https://my.app/x/y"]\n```\n',
       );
-      expect([
-        for (final m in mentions) m.text,
-      ], everyElement(isNot(startsWith('https'))));
+      expect([for (final m in mentions) m.text], ['shop/cart/x']);
+    });
+
+    test('a name next to a slash, a colon, or an arrow is read at its true '
+        'column', () {
+      for (final line in [
+        'A[/shop/cart/x/]',
+        r'C[/shop/cart/x\]',
+        'A["shop/cart/x: add item"]',
+        'A->>B:shop/cart/x',
+        'a->>b:shop/cart/x',
+        'a-->>b: shop/cart/x',
+      ]) {
+        final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n')
+            .single;
+        expect(mention.text, 'shop/cart/x', reason: line);
+        expect(mention.column, line.indexOf('shop/cart/x'), reason: line);
+      }
+    });
+
+    test('a typed name next to a slash keeps its type', () {
+      const line = 'A[/fr:shop/cart/x/]';
+      final mention = nameMentionsInMarkdown('```mermaid\n$line\n```\n').single;
+      expect(mention.text, 'fr:shop/cart/x');
+      expect(mention.column, line.indexOf('fr:'));
+      expect(mention.address.typeId, 'fr');
     });
 
     test(
@@ -194,11 +234,11 @@ void main() {
     });
   });
 
-  group('noLookupTokensIn', () {
+  group('mermaidTokensIn', () {
     test('each run of slug characters, slash, and colon that reads as a '
         'no-lookup address is a token at its 0-based column', () {
       const text = 'N[shop/cart/add_item E06] --> fr:shop/cart/x, login';
-      final tokens = noLookupTokensIn(text);
+      final tokens = mermaidTokensIn(text);
       expect(
         [for (final t in tokens) (t.column, t.text)],
         [(2, 'shop/cart/add_item'), (text.indexOf('fr:'), 'fr:shop/cart/x')],
@@ -207,7 +247,7 @@ void main() {
     });
 
     test('a one-slug word, an edge word, and a lone prefix are no token', () {
-      expect(noLookupTokensIn('A -->|yes| B title: x login'), isEmpty);
+      expect(mermaidTokensIn('A -->|yes| B title: x login'), isEmpty);
     });
   });
 
