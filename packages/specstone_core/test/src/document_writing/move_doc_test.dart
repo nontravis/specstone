@@ -1838,6 +1838,35 @@ void main() {
         expect(hasDoc(root, cartAdd), isTrue);
       });
 
+      test('a dry run of an fr move lists the longer span', () async {
+        const text = '# Ideas\n\nIt is `shop/cart/add_item/check_stock E05`.\n';
+        final root = await writeNestedProject(extra: {spanDocPath: text});
+        final answer = writeIn(
+          root,
+          (s) => answerMove(
+            s,
+            ['fr:shop/cart/add_item/check_stock'],
+            under: 'shop/pay/refund',
+            dryRun: true,
+          ),
+        );
+        expect(mentionsOf(answer), [
+          {
+            'path': spanDocPath,
+            'line': 3,
+            'mention': 'shop/cart/add_item/check_stock E05',
+          },
+        ]);
+        expect(
+          answer.text,
+          endsWith(
+            'mentions $spanDocPath:3 shop/cart/add_item/check_stock E05\n'
+            'dry run: nothing moved\n',
+          ),
+        );
+        expect(readDoc(root, spanDoc), text);
+      });
+
       test('a reorder keeps every name, so it lists no longer span', () async {
         final root = await writeNestedProject(extra: {spanDocPath: note});
         final answer = reorder(root, 'user_story:shop/cart/drop_item', '1');
