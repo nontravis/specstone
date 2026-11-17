@@ -56,9 +56,7 @@ final _e05Context = RegExp(
   r'^prds/features/f01_login/us01_email_login/USER_STORY\.md:\d+: link_unresolved: link target \.\./us02_reset_password/USER_STORY\.md is no doc\n1 finding$',
 );
 
-/// The login architecture doc whose component diagram holds a block that
-/// parses, then one the bundled parser refuses on its third line, which sits on
-/// doc line 19.
+/// Returns the architecture doc with one parsing and one refused block.
 Map<String, String> _refusedArchitecture() => {
   'docs/$loginArchitecture':
       '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
@@ -73,7 +71,7 @@ Map<String, String> _refusedArchitecture() => {
       '- Rollout: N/A — one release\n- Observability: N/A — no telemetry\n',
 };
 
-/// Whether a `node` starts on this machine's `PATH`.
+/// Reports whether a `node` starts on this machine's `PATH`.
 bool _nodeStarts() {
   try {
     return Process.runSync('node', ['--version']).exitCode == 0;
@@ -82,14 +80,17 @@ bool _nodeStarts() {
   }
 }
 
-/// Returns an environment whose `PATH` holds an empty folder, and on Windows
-/// the system folder the binary needs to start, which holds no `node`.
+/// Returns an environment whose own `PATH` key holds no `node`.
 Future<Map<String, String>> _environmentWithoutNode() async {
   final empty = await Directory.systemTemp.createTemp('specstone_no_node_');
   addTearDown(() => empty.delete(recursive: true));
-  if (!Platform.isWindows) return {'PATH': empty.path};
+  final key = Platform.environment.keys.firstWhere(
+    (k) => k.toUpperCase() == 'PATH',
+    orElse: () => 'PATH',
+  );
+  if (!Platform.isWindows) return {key: empty.path};
   final system32 = '${Platform.environment['SystemRoot']}\\System32';
-  return {'PATH': '${empty.path};$system32'};
+  return {key: '${empty.path};$system32'};
 }
 
 void _expectE05(String out) {
@@ -440,7 +441,8 @@ void main() {
         specific['additionalContext'],
         matches(
           RegExp(
-            r'^specs/f01_login/ARCHITECTURE\.md:19: diagram_parse_failed: Parse error on line 3: .*\n1 finding$',
+            '^${RegExp.escape(loginArchitecture)}:19: diagram_parse_failed: '
+            r'Parse error on line 3: .*\n1 finding$',
           ),
         ),
       );
