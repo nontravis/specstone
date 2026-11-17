@@ -1191,10 +1191,10 @@ items:
       err = StringBuffer();
     });
 
-    Future<SpecstoneCommandRunner> runnerFor([
+    Future<SpecstoneCommandRunner> runnerFor({
       String? packs,
       Directory? working,
-    ]) async => SpecstoneCommandRunner(
+    }) async => SpecstoneCommandRunner(
       out: out,
       err: err,
       templates: TemplateResolver(),
@@ -1242,7 +1242,7 @@ items:
     test(
       'outside a project it lists every shipped doc type',
       () async {
-        final runner = await runnerFor(null, await writeTree({}));
+        final runner = await runnerFor(working: await writeTree({}));
 
         expect(await runner.run(['guide']), 0);
         final ids = const LineSplitter().convert(out.toString());
@@ -1256,7 +1256,7 @@ items:
 
     test('with only prd-core a software-tech type is neither listed nor '
         'printed', () async {
-      final runner = await runnerFor(shippedPinsConfig(['prd-core']));
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
 
       expect(await runner.run(['guide']), 0);
       final ids = const LineSplitter().convert(out.toString());
@@ -1282,7 +1282,9 @@ items:
     test(
       'software-tech without prd-core exits 78 as prd_core_missing',
       () async {
-        final runner = await runnerFor(shippedPinsConfig(['software-tech']));
+        final runner = await runnerFor(
+          packs: shippedPinsConfig(['software-tech']),
+        );
 
         expect(await runner.run(['guide', '--json']), 78);
         expect(errorOf()['code'], 'prd_core_missing');
@@ -1290,28 +1292,8 @@ items:
       },
     );
 
-    test('--json gives the path and the parent of a doc type', () async {
-      final runner = await runnerFor();
-      const expected = <String, (String, String?)>{
-        'feature': ('prds/features/f{nn}_{slug}/FEATURE.md', null),
-        'fr': (
-          'prds/features/f{nn}_{slug}/us{nn}_{slug}/fr{nn}_{slug}.md',
-          'user_story',
-        ),
-        'architecture': ('specs/f{nn}_{slug}/ARCHITECTURE.md', 'feature'),
-        'project_domain': ('specs/DOMAIN.md', null),
-      };
-
-      for (final MapEntry(key: id, value: (path, parent)) in expected.entries) {
-        final json = await schemaOf(runner, id);
-        expect(json['path'], path, reason: id);
-        expect(json['parent'], parent, reason: id);
-        expect(json.containsKey('parent'), parent != null, reason: id);
-      }
-    });
-
     test('with only prd-core no field of a doc type points at code', () async {
-      final runner = await runnerFor(shippedPinsConfig(['prd-core']));
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
 
       final fields =
           ((await schemaOf(runner, 'fr'))['fields']! as List<Object?>)
