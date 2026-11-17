@@ -997,20 +997,22 @@ void _agentTests() {
     final audit = _pluginText(
       'specstone-brainstorming-sdd/references/audit.md',
     );
-    for (final restated in _ownedElsewhere) {
-      expect(
-        _oneLine('$design\n$audit'),
-        isNot(contains(restated)),
-        reason: restated,
-      );
+    final text = _oneLine('$design\n$audit').toLowerCase();
+    for (final restated in _phrasesOf(_ownedElsewhere)) {
+      expect(text, isNot(contains(restated.toLowerCase())), reason: restated);
     }
   });
 
   test('rounds.md restates nothing audit.md or design.md owns and names no '
       'bare step', () {
     final rounds = _oneLine(_pluginText(_rounds));
-    for (final restated in _roundsOwnedElsewhere) {
-      expect(rounds, isNot(contains(restated)), reason: restated);
+    final lowerRounds = rounds.toLowerCase();
+    for (final restated in _phrasesOf(_roundsOwnedElsewhere)) {
+      expect(
+        lowerRounds,
+        isNot(contains(restated.toLowerCase())),
+        reason: restated,
+      );
     }
     expect(
       _bareStep.allMatches(rounds).map((match) => match[0]),
@@ -1021,6 +1023,26 @@ void _agentTests() {
     );
   });
 
+  test('each guarded phrase is held by the file that owns it', () {
+    for (final guard in [
+      _ownedElsewhere,
+      _roundsOwnedElsewhere,
+      _itemRewritePoints,
+      _readabilityRewritePoints,
+    ]) {
+      for (final MapEntry(key: owner, value: phrases) in guard.entries) {
+        final text = _oneLine(_pluginText(owner)).toLowerCase();
+        for (final phrase in phrases) {
+          expect(
+            text,
+            contains(phrase.toLowerCase()),
+            reason: '$owner no longer holds: $phrase',
+          );
+        }
+      }
+    }
+  });
+
   test('author.md restates no text of the batch fault table', () {
     final author = _pluginText(_author);
     for (final restated in _batchTableText) {
@@ -1029,15 +1051,24 @@ void _agentTests() {
   });
 }
 
+/// Guarded phrases by the plugin file that owns them.
+typedef _GuardedPhrases = Map<String, List<String>>;
+
+List<String> _phrasesOf(_GuardedPhrases guard) => [
+  for (final phrases in guard.values) ...phrases,
+];
+
 /// Text that `specstone-expert-sdd` rule 7 or `run_brainstorm_to_design` E13
 /// owns, which design.md and audit.md cite and never restate.
-const _ownedElsewhere = [
-  'A rule has one owner doc',
-  'pins no hash',
-  'differs from its last',
-  'each doc the round or pass added',
-  'cites a changed draft',
-];
+const _GuardedPhrases _ownedElsewhere = {
+  'specstone-expert-sdd/SKILL.md': ['A rule has one owner doc'],
+  'specstone-expert-sdd/references/confirm-links.md': ['pins no hash'],
+  _rounds: [
+    'differs from its last',
+    'each doc the round or pass added',
+    'cites a changed draft',
+  ],
+};
 
 /// The runner's fix-round and ruling procedure of `brainstorming-sdd`, under
 /// the plugin folder.
@@ -1049,11 +1080,13 @@ final _bareStep = RegExp(r"(?<!skill's )\bsteps? \d");
 
 /// Text that audit.md or design.md owns, which rounds.md cites and never
 /// restates.
-const _roundsOwnedElsewhere = [
-  'one line per target',
-  'End a line with `[behavior]`',
-  'Run `specstone refs <owner>`',
-];
+const _GuardedPhrases _roundsOwnedElsewhere = {
+  _audit: ['one line per target', 'End a line with `[behavior]`'],
+  _design: ['for the repeat groups that hold the owner item'],
+};
+
+const _audit = 'specstone-brainstorming-sdd/references/audit.md';
+const _design = 'specstone-brainstorming-sdd/references/design.md';
 
 /// The author's procedure for `sdd-engineer`'s author mode, under the plugin
 /// folder.
@@ -1068,14 +1101,16 @@ const _sizeFix = 'specstone-expert-sdd/references/size-fix.md';
 
 /// Each point of `fill_check_findings` E13's item rewrite, held only by
 /// size-fix.md.
-const _itemRewritePoints = [
-  "in its doc type's item shape, as `specstone guide <type>` gives it",
-  'one rule per ID',
-  'each rule split off takes the next free ID of its section',
-  'a bound stays in its rule',
-  'its mechanics, known limits, and trace move to the homes the guide names',
-  'no statement is dropped',
-];
+const _GuardedPhrases _itemRewritePoints = {
+  _sizeFix: [
+    "in its doc type's item shape, as `specstone guide <type>` gives it",
+    'one rule per ID',
+    'each rule split off takes the next free ID of its section',
+    'a bound stays in its rule',
+    'its mechanics, known limits, and trace move to the homes the guide names',
+    'no statement is dropped',
+  ],
+};
 
 const _bootstrapProcedures = [
   'specstone-bootstrap-prd/references/procedure.md',
@@ -1084,31 +1119,39 @@ const _bootstrapProcedures = [
 
 /// Each point of `fill_check_findings` E48, then E49, then E50, by the phrase
 /// readability-fix.md writes for it.
-const _readabilityRewritePoints = [
-  "in its doc type's item shape, as `specstone guide <type>` gives it",
-  'with no Owner naming',
-  'takes the next free ID of its section',
-  'each citation that means the moved rule is repointed',
-  'conditions go in a nested list',
-  "a trace group before the item's end moves to the end",
-  'merged with any other group there into one group',
-  'an ownership clause before the last clause moves to be the last clause',
-  'no statement is dropped',
-  'a paragraph with no ID and a count of 1',
-  "rewrite it in place into sentences within their language's cap",
-  'its detail moves to the section of the same doc that owns it',
-  'it never turns into a sub-list',
-  "Give a split proposal or the report's why, as `size-fix.md` gives it",
-  'no rewrite keeps the meaning or a size finding is left',
-  'The finding waits for the Owner.',
-];
+const _GuardedPhrases _readabilityRewritePoints = {
+  _readabilityFix: [
+    "in its doc type's item shape, as `specstone guide <type>` gives it",
+    'with no Owner naming',
+    'takes the next free ID of its section',
+    'each citation that means the moved rule is repointed',
+    'conditions go in a nested list',
+    "a trace group before the item's end moves to the end",
+    'merged with any other group there into one group',
+    'an ownership clause before the last clause moves to be the last clause',
+    'no statement is dropped',
+    'a paragraph with no ID and a count of 1',
+    "rewrite it in place into sentences within their language's cap",
+    'its detail moves to the section of the same doc that owns it',
+    'it never turns into a sub-list',
+    "Give a split proposal or the report's why, as `size-fix.md` gives it",
+    'no rewrite keeps the meaning or a size finding is left',
+    'The finding waits for the Owner.',
+  ],
+};
+
+const _readabilityFix = 'specstone-expert-sdd/references/readability-fix.md';
 
 void _readabilityFixTests() {
   test('no bootstrap procedure restates the readability rewrite', () {
     for (final file in _bootstrapProcedures) {
       final text = _oneLine(_pluginText(file));
-      for (final point in _readabilityRewritePoints) {
-        expect(text, isNot(contains(point)), reason: '$file: $point');
+      for (final point in _phrasesOf(_readabilityRewritePoints)) {
+        expect(
+          text.toLowerCase(),
+          isNot(contains(point.toLowerCase())),
+          reason: '$file: $point',
+        );
       }
     }
   });
@@ -1147,8 +1190,12 @@ void _sizeFixTests() {
       'specstone-sdd-engineer.md',
     ]) {
       final text = _oneLine(_pluginText(file));
-      for (final point in _itemRewritePoints) {
-        expect(text, isNot(contains(point)), reason: '$file: $point');
+      for (final point in _phrasesOf(_itemRewritePoints)) {
+        expect(
+          text.toLowerCase(),
+          isNot(contains(point.toLowerCase())),
+          reason: '$file: $point',
+        );
       }
     }
   });
