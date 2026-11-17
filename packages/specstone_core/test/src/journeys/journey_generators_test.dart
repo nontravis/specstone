@@ -388,9 +388,14 @@ void main() {
   });
 
   group('journeyGenerators', () {
-    test('registers exactly the kinds the template loader '
-        'accepts', () {
-      expect(journeyGenerators().kinds, shippedGeneratorKinds);
+    test('registers the shipped kinds the loader accepts but '
+        'feature_catalog', () {
+      expect(journeyGenerators().kinds, {'journey_flow', 'scenario_copy'});
+      expect(shippedGeneratorKinds, {
+        'journey_flow',
+        'scenario_copy',
+        'feature_catalog',
+      });
     });
   });
 }

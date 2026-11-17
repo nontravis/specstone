@@ -502,9 +502,13 @@ sections:
       expect(runner.generators.kinds, runner.templates.generatorKinds);
     });
 
-    test('the default runner registers journey_flow and '
-        'scenario_copy', () {
-      expect(SpecstoneCommandRunner().generators.kinds, shippedGeneratorKinds);
+    test('the default runner registers journey_flow, scenario_copy, and '
+        'feature_catalog', () {
+      expect(SpecstoneCommandRunner().generators.kinds, {
+        'journey_flow',
+        'scenario_copy',
+        'feature_catalog',
+      });
     });
 
     test('help format prints the usage to out and exits 0', () async {

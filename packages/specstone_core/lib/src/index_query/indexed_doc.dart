@@ -176,6 +176,11 @@ final class IndexedDoc {
   /// Whether exactly one doc type matches [docPath].
   bool get isTyped => docTypeId != null;
 
+  /// Whether the doc has a `# ` title line that holds text.
+  ///
+  /// The test `check` runs for its missing-title finding.
+  bool get hasTitle => title?.trim().isNotEmpty ?? false;
+
   /// The `status` the doc writes, or null when it writes none.
   ///
   /// A story or FR takes its status from its record entry instead
@@ -187,6 +192,15 @@ final class IndexedDoc {
 
   /// Whether the `draft` key holds the YAML boolean `true`.
   bool get isDraft => frontmatter['draft'] == true;
+
+  /// Returns the value of [key] when the frontmatter holds it as a YAML
+  /// string, else null.
+  ///
+  /// [valuesOf] reads a number as text; this read does not.
+  String? stringValueOf(String key) => switch (frontmatter[key]) {
+    final String value => value,
+    _ => null,
+  };
 
   /// Returns the values of [key]: a scalar as one string, each scalar item of
   /// a list, else none.
