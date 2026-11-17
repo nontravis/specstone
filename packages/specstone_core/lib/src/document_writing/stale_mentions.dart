@@ -40,7 +40,33 @@ const removedPath = '';
 /// A mention in a code file or an agent file that a change stops resolving:
 /// the file's path from the project root, the 1-based line, and the mention
 /// as written.
-typedef StaleMention = ({String path, int line, String mention});
+final class StaleMention {
+  const new({required this.path, required this.line, required this.mention});
+
+  /// The file's path from the project root.
+  final String path;
+
+  /// The 1-based line of the mention.
+  final int line;
+
+  /// The mention as written.
+  final String mention;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  bool operator ==(Object other) =>
+      other is StaleMention &&
+      other.path == path &&
+      other.line == line &&
+      other.mention == mention;
+
+  @override
+  // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
+  int get hashCode => Object.hash(path, line, mention);
+
+  @override
+  String toString() => 'StaleMention($path:$line $mention)';
+}
 
 /// What a mention scan reads of a project: its docs, and the roots of the
 /// code files and agent files it scans.
@@ -149,7 +175,13 @@ List<StaleMention> staleMentionsIn(
     if (lf == null) continue;
     for (final mention in nameMentionsInFile(lf, _extensionOf(projectPath))) {
       if (!stopsResolving(mention)) continue;
-      stale.add((path: projectPath, line: mention.line, mention: mention.text));
+      stale.add(
+        StaleMention(
+          path: projectPath,
+          line: mention.line,
+          mention: mention.text,
+        ),
+      );
     }
   }
   if (docWrites != null) {
@@ -182,15 +214,27 @@ List<StaleMention> _docSpanMentions(
     for (final mention in longerSpanMentionsInMarkdown(lf)) {
       if (!stopsResolving(mention)) continue;
       if (!listed.add((mention.line, mention.column))) continue;
-      stale.add((path: path, line: mention.line, mention: mention.text));
+      stale.add(
+        StaleMention(path: path, line: mention.line, mention: mention.text),
+      );
     }
   }
-  return stale..sort(_byPathThenLine);
+  return _byPathThenLine(stale);
 }
 
-int _byPathThenLine(StaleMention a, StaleMention b) {
-  final byPath = compareCodePoints(a.path, b.path);
-  return byPath != 0 ? byPath : a.line.compareTo(b.line);
+/// Returns [mentions] by path, then line; mentions on one line keep their scan
+/// order, which `List.sort` alone does not for more than 32 elements.
+List<StaleMention> _byPathThenLine(List<StaleMention> mentions) {
+  final scanned = [for (final (index, m) in mentions.indexed) (index, m)]
+    ..sort((a, b) {
+      final (aIndex, aMention) = a;
+      final (bIndex, bMention) = b;
+      final byPath = compareCodePoints(aMention.path, bMention.path);
+      if (byPath != 0) return byPath;
+      final byLine = aMention.line.compareTo(bMention.line);
+      return byLine != 0 ? byLine : aIndex.compareTo(bIndex);
+    });
+  return [for (final (_, mention) in scanned) mention];
 }
 
 /// Returns the text line that lists [mention]:
@@ -200,7 +244,7 @@ String mentionLineOf(StaleMention mention) =>
 
 /// Returns [mentions] as the JSON array a command prints under `mentions`.
 List<Map<String, Object>> mentionsJsonOf(List<StaleMention> mentions) => [
-  for (final (:path, :line, :mention) in mentions)
+  for (final StaleMention(:path, :line, :mention) in mentions)
     {'path': path, 'line': line, 'mention': mention},
 ];
 

@@ -99,13 +99,77 @@ final _addressRun = RegExp('[a-z0-9_/:]+');
 /// The `/` and `:` that open or close a run.
 final _runEdge = RegExp(r'^[/:]+|[/:]+$');
 
+/// A no-lookup address found in a line of text.
+final class AddressToken {
+  const new({required this.column, required this.text, required this.address});
+
+  /// The 0-based offset of the first character of [text] in its line.
+  final int column;
+  final String text;
+  final DocAddress address;
+}
+
 /// Returns the no-lookup addresses [text] holds, each a run of slug
-/// characters, `/`, and `:` that any other text bounds, in order.
+/// characters, `/`, and `:` that any other text bounds, less the `/` and `:`
+/// that open or close it, in order.
+List<AddressToken> addressTokensIn(String text) => [
+  for (final run in _addressRun.allMatches(text)) ?_tokenOf(run),
+];
+
+AddressToken? _tokenOf(Match run) {
+  final written = run[0]!;
+  final text = written.replaceAll(_runEdge, '');
+  final address = readDocAddress(text);
+  if (!address.isReferenceWithoutLookup) return null;
+  return AddressToken(
+    column: run.start + written.indexOf(text),
+    text: text,
+    address: address,
+  );
+}
+
+/// A web address: a scheme, `://`, and the text to the next whitespace,
+/// bracket, quote, `|`, or `<`.
+final _webAddress = RegExp(
+  '(?<![A-Za-z0-9.])[A-Za-z][A-Za-z0-9+\\-]*://[^\\s\\])"\'|<]*',
+);
+
+/// A Mermaid node-shape delimiter that holds a slash or a backslash.
+final _nodeShape = RegExp(r'\[[/\\]|[/\\]\]');
+
+/// A run that starts with `/` or follows a `.` after a letter or digit: part
+/// of a path or a host.
+final _pathRun = RegExp(
+  r'(?<![a-z0-9_/:])/[a-z0-9_/:]*|(?<=[A-Za-z0-9]\.)[a-z0-9_/:]+',
+);
+
+/// A sequence-diagram message up to the `:` that opens its text: sender,
+/// arrow, receiver; the first on its line, after any container marks.
+final _sequenceMessage = RegExp(
+  r'\w+\s*(?:<<-->>|<<->>|-->>|--\)|--x|->>|-\)|-x|-->|->)[+-]?\s*\w+\s*:',
+);
+
+String _blanked(Match match) => ' ' * match[0]!.length;
+
+/// Returns the no-lookup tokens of [line], a line of a `mermaid` block: those
+/// of [addressTokensIn], less any in a web address or a path, the shape marks
+/// around a node's text, and, when [isSequence], the sender, arrow, and
+/// receiver of a message, whose `:` is no type prefix.
+List<AddressToken> mermaidTokensIn(String line, {bool isSequence = false}) {
+  final message = isSequence
+      ? line.replaceFirstMapped(_sequenceMessage, _blanked)
+      : line;
+  return addressTokensIn(
+    message
+        .replaceAllMapped(_webAddress, _blanked)
+        .replaceAllMapped(_nodeShape, _blanked)
+        .replaceAllMapped(_pathRun, _blanked),
+  );
+}
+
+/// Returns the no-lookup addresses [text] holds, in order.
 List<DocAddress> referencesWithoutLookupIn(String text) => [
-  for (final run in _addressRun.allMatches(text))
-    if (readDocAddress(run[0]!.replaceAll(_runEdge, '')) case final address
-        when address.isReferenceWithoutLookup)
-      address,
+  for (final token in addressTokensIn(text)) token.address,
 ];
 
 /// A line suffix such as `:12` or `:12:5` after a path written in prose.

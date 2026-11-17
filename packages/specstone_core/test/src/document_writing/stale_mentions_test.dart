@@ -3,7 +3,11 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show WriteStep;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
+import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
+    show planRewrites;
 import 'package:specstone_core/src/document_writing/stale_mentions.dart';
 import 'package:test/test.dart';
 
@@ -27,7 +31,7 @@ void main() {
   );
 
   StaleMention at(String path, int line, String mention) =>
-      (path: path, line: line, mention: mention);
+      StaleMention(path: path, line: line, mention: mention);
 
   group('a name mention', () {
     test(
@@ -192,6 +196,101 @@ void main() {
 
       expect(staleAfter(root, renameLogin), isEmpty);
     });
+  });
+
+  group('longer code spans', () {
+    const note = 'notes/ideas.md';
+
+    List<StaleMention> spansAfter(Directory root) => writeIn(root, (session) {
+      final renamed = renamedNamesOf(session, renameLogin);
+      final rewrites = planRewrites(session, renameLogin, renamed: renamed);
+      return staleMentions(
+        session,
+        renameLogin,
+        namesChange: true,
+        docWrites: rewrites,
+      );
+    });
+
+    Future<Directory> withNote(String text) =>
+        writeCheckProject(extra: {'docs/$note': text});
+
+    test('a span holding a renamed name inside longer text is listed at its file line', () async {
+      final root = await withNote(
+        '---\nnote: x\n---\n\n# Ideas\n\nA span `login/email_login E05`.\n',
+      );
+
+      expect(spansAfter(root), [at('docs/$note', 7, 'login/email_login E05')]);
+    });
+
+    test(
+      'a span that is a whole doc-name mention is not listed as a longer span',
+      () async {
+        final root = await withNote('# Ideas\n\nA span `login/email_login`.\n');
+        const unrewritten = '# Ideas\n\nA span `login/email_login`.\n';
+
+        final stale = writeIn(
+          root,
+          (session) => staleMentions(
+            session,
+            renameLogin,
+            namesChange: true,
+            docWrites: [const WriteStep('docs/$note', unrewritten, before: '')],
+          ),
+        );
+
+        expect(stale, isEmpty);
+      },
+    );
+
+    test('spans on one line keep their column order in a long list', () async {
+      const lines = 40;
+      final root = await withNote(
+        '# Ideas\n\n'
+        '${[for (var i = 0; i < lines; i++) 'One `login/email_login A$i` and `login/email_login B$i`.'].join('\n')}\n',
+      );
+
+      expect(spansAfter(root), [
+        for (var i = 0; i < lines; i++) ...[
+          at('docs/$note', 3 + i, 'login/email_login A$i'),
+          at('docs/$note', 3 + i, 'login/email_login B$i'),
+        ],
+      ]);
+    });
+
+    test('a span naming no renamed doc is not listed', () async {
+      final root = await withNote('# Ideas\n\nA span `shop/cart E05`.\n');
+
+      expect(spansAfter(root), isEmpty);
+    });
+
+    test('a span inside fenced code is not listed', () async {
+      final root = await withNote(
+        '# Ideas\n\n```\n`login/email_login E05`\n```\n',
+      );
+
+      expect(spansAfter(root), isEmpty);
+    });
+
+    test(
+      'a span naming two renamed docs, or one twice, is listed once',
+      () async {
+        final root = await withNote(
+          '# Ideas\n\n'
+          'One `login/email_login and login/email_login/check_password`.\n'
+          'Two `login/email_login or login/email_login`.\n',
+        );
+
+        expect(spansAfter(root), [
+          at(
+            'docs/$note',
+            3,
+            'login/email_login and login/email_login/check_password',
+          ),
+          at('docs/$note', 4, 'login/email_login or login/email_login'),
+        ]);
+      },
+    );
   });
 
   group('the files read', () {

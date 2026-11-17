@@ -9,6 +9,8 @@ import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     show newRecordOf;
+import 'package:specstone_core/src/document_writing/stale_mentions.dart'
+    show StaleMention;
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/setup_migration/carried_packs.dart';
 import 'package:specstone_core/src/setup_migration/legacy_plan.dart';
@@ -1010,7 +1012,11 @@ name: NFR
         ),
       );
       expect(plan.lists.mentions, [
-        (path: 'lib/a.dart', line: 2, mention: 'prds/d01_context.md'),
+        const StaleMention(
+          path: 'lib/a.dart',
+          line: 2,
+          mention: 'prds/d01_context.md',
+        ),
       ]);
       expect(File('${root.path}/lib/a.dart').readAsStringSync(), code);
     });
@@ -1030,7 +1036,11 @@ name: NFR
         );
 
         expect(plan.lists.mentions, [
-          (path: 'lib/a.dart', line: 2, mention: 'prds/d01_context.md'),
+          const StaleMention(
+            path: 'lib/a.dart',
+            line: 2,
+            mention: 'prds/d01_context.md',
+          ),
         ]);
       },
     );

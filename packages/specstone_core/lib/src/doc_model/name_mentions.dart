@@ -1,24 +1,137 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
-import 'package:specstone_core/src/doc_model/doc.dart' show Doc, blockScan;
+import 'package:specstone_core/src/doc_model/doc.dart' show Doc, fenceScan;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 /// A doc-name mention: a code span whose whole text, less an optional
-/// `#<section key>`, reads as a DocAddress of the no-lookup class.
+/// `#<section key>`, reads as a DocAddress of the no-lookup class, or a token
+/// of that class in a `mermaid` block.
 ///
 /// `line` is 1-based and `column` the 0-based offset of the first character
 /// of `text` in its line, after the opening backticks.
 typedef NameMention = ({int line, int column, String text, DocAddress address});
 
+/// The info word that marks a fenced block as a Mermaid diagram.
+const _mermaidInfo = 'mermaid';
+
 /// The doc-name mentions of [lf], a doc body or a markdown file, read from its
-/// code spans outside fenced code, each line alone.
+/// code spans outside fenced code and from the tokens of its `mermaid` blocks,
+/// each line alone.
 List<NameMention> nameMentionsInMarkdown(String lf) {
-  if (!lf.contains('`')) return const [];
-  final lines = lf.split('\n');
-  final fenced = blockScan(lines).fenced;
+  if (!lf.contains('`') && !lf.contains(_mermaidInfo)) return const [];
+  return _readLines(
+    lf.split('\n'),
+    1,
+    _mentionsOnLine,
+    onMermaidLine: _tokenMentionsOnLine,
+  );
+}
+
+Iterable<NameMention> _tokenMentionsOnLine(
+  String line,
+  int number, {
+  required bool isSequence,
+}) => [
+  for (final token in mermaidTokensIn(line, isSequence: isSequence))
+    (
+      line: number,
+      column: token.column,
+      text: token.text,
+      address: token.address,
+    ),
+];
+
+Iterable<NameMention> _noMentions(
+  String line,
+  int number, {
+  required bool isSequence,
+}) => const [];
+
+/// Reads the tokens of one line of a `mermaid` block; `isSequence` tells a
+/// `sequenceDiagram` block.
+typedef _MermaidLineReader = Iterable<NameMention> Function(
+  String line,
+  int number, {
+  required bool isSequence,
+});
+
+/// The mentions [onLine] reads from the lines of [lines] outside fenced code
+/// and [onMermaidLine] from those between the fences of a `mermaid` block,
+/// the first of them at line [firstLine].
+List<NameMention> _readLines(
+  List<String> lines,
+  int firstLine,
+  Iterable<NameMention> Function(String line, int number) onLine, {
+  _MermaidLineReader onMermaidLine = _noMentions,
+}) {
+  final scan = fenceScan(lines);
+  final mermaid = _mermaidLines(
+    scan.contents,
+    scan.fenced,
+    scan.opens,
+    scan.closes,
+  );
   return [
     for (var i = 0; i < lines.length; i++)
-      if (!fenced[i]) ..._mentionsOnLine(lines[i], i + 1),
+      if (!scan.fenced[i])
+        ...onLine(lines[i], firstLine + i)
+      else if (mermaid[i] != _Diagram.none)
+        ...onMermaidLine(
+          lines[i],
+          firstLine + i,
+          isSequence: mermaid[i] == _Diagram.sequence,
+        ),
   ];
+}
+
+/// What a line is to the `mermaid` reader.
+enum _Diagram { none, flow, sequence }
+
+/// The `mermaid` line that names a sequence diagram, as the first line of
+/// the block after its frontmatter, blank lines, and `%%` comments.
+const _sequenceHead = 'sequenceDiagram';
+
+/// Returns, per line, the kind of `mermaid` block it sits between the fences
+/// of, `none` outside one; fence lines are `none`.
+List<_Diagram> _mermaidLines(
+  List<String> contents,
+  List<bool> fenced,
+  List<String?> opens,
+  List<bool> closes,
+) {
+  final kinds = <_Diagram>[];
+  var inMermaid = false;
+  var head = _BlockHead.start;
+  var kind = _Diagram.flow;
+  for (var i = 0; i < fenced.length; i++) {
+    final opened = opens[i];
+    if (opened != null) {
+      inMermaid = opened == _mermaidInfo;
+      head = _BlockHead.start;
+      kind = _Diagram.flow;
+    }
+    if (!fenced[i]) inMermaid = false;
+    final inBlock = inMermaid && opened == null && !closes[i];
+    if (inBlock && head != _BlockHead.done) {
+      (head, kind) = _afterHeadLine(head, contents[i].trim());
+    }
+    kinds.add(inBlock ? kind : _Diagram.none);
+  }
+  return kinds;
+}
+
+/// Where a `mermaid` block stands before its first diagram line.
+enum _BlockHead { start, frontmatter, done }
+
+(_BlockHead, _Diagram) _afterHeadLine(_BlockHead head, String line) {
+  if (head == _BlockHead.frontmatter) {
+    return (line == '---' ? _BlockHead.start : head, _Diagram.flow);
+  }
+  if (line.isEmpty || line.startsWith('%%')) return (head, _Diagram.flow);
+  if (line == '---') return (_BlockHead.frontmatter, _Diagram.flow);
+  return (
+    _BlockHead.done,
+    line.startsWith(_sequenceHead) ? _Diagram.sequence : _Diagram.flow,
+  );
 }
 
 Iterable<NameMention> _mentionsOnLine(String line, int number) =>
@@ -97,9 +210,25 @@ List<NameMention> nameMentionsInComments(String lf, String extension) {
 /// is; any other file by its comment lines. A path mention's text is the path
 /// as written, less any `#anchor`, line suffix, and closing mark, and its
 /// address is no reference without lookup.
-List<NameMention> nameMentionsInFile(String lf, String extension) {
-  if (!lf.contains('`') && !lf.contains(markdownExtension)) return const [];
-  return _readFile(lf, extension, _namesAndPathsOnLine);
+///
+/// With [withMermaid], markdown also yields the tokens of its `mermaid`
+/// blocks, as [nameMentionsInMarkdown] does; a doc's reference readers set it,
+/// a code file's or a cite's reader does not.
+List<NameMention> nameMentionsInFile(
+  String lf,
+  String extension, {
+  bool withMermaid = false,
+}) {
+  final holdsTokens = withMermaid && lf.contains(_mermaidInfo);
+  if (!lf.contains('`') && !lf.contains(markdownExtension) && !holdsTokens) {
+    return const [];
+  }
+  return _readFile(
+    lf,
+    extension,
+    _namesAndPathsOnLine,
+    onMermaidLine: withMermaid ? _tokenMentionsOnLine : _noMentions,
+  );
 }
 
 /// The addresses that sit inside longer code spans of [lf], a markdown doc,
@@ -183,12 +312,14 @@ String? _docPathOf(String token) {
 
 /// The mentions [onLine] reads from the lines of [lf] that a file of
 /// [extension] holds: markdown's text after its frontmatter and outside
-/// fenced code, any other file's comment lines.
+/// fenced code, any other file's comment lines. Markdown's `mermaid` block
+/// lines go to [onMermaidLine].
 List<NameMention> _readFile(
   String lf,
   String extension,
-  Iterable<NameMention> Function(String line, int number) onLine,
-) {
+  Iterable<NameMention> Function(String line, int number) onLine, {
+  _MermaidLineReader onMermaidLine = _noMentions,
+}) {
   if (extension != markdownExtension) {
     final lines = lf.split('\n');
     return [
@@ -198,12 +329,12 @@ List<NameMention> _readFile(
   }
   final body = Doc.parse(lf).afterFrontmatter;
   final bodyStart = _breaksIn(lf.substring(0, lf.length - body.length));
-  final lines = body.split('\n');
-  final fenced = blockScan(lines).fenced;
-  return [
-    for (var i = 0; i < lines.length; i++)
-      if (!fenced[i]) ...onLine(lines[i], bodyStart + i + 1),
-  ];
+  return _readLines(
+    body.split('\n'),
+    bodyStart + 1,
+    onLine,
+    onMermaidLine: onMermaidLine,
+  );
 }
 
 int _breaksIn(String text) => '\n'.allMatches(text).length;

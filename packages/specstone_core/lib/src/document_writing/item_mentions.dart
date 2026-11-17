@@ -209,7 +209,7 @@ List<StaleMention> _listedMentions(
     final line = nth < lines.length
         ? lines[nth]
         : lines.lastOrNull ?? region?.first ?? ref.line;
-    mentions.add((path: path, line: line, mention: ref.text));
+    mentions.add(StaleMention(path: path, line: line, mention: ref.text));
   }
   return mentions;
 }
@@ -243,7 +243,7 @@ List<StaleMention> _addressMentions(
 ) => [
   for (final mention in nameMentionsInFile(lf, extension))
     if (_namesMovedItem(index, moves, mention))
-      (path: path, line: mention.line, mention: mention.text),
+      StaleMention(path: path, line: mention.line, mention: mention.text),
 ];
 
 bool _namesMovedItem(DocIndex index, ItemMoves moves, NameMention mention) {
@@ -302,7 +302,9 @@ List<StaleMention> _bareMentions(
       runPrefixes,
     );
     if (_namesMoved(index, moves, doc, cited, id.written, span)) {
-      mentions.add((path: doc.docPath, line: number, mention: id.written));
+      mentions.add(
+        StaleMention(path: doc.docPath, line: number, mention: id.written),
+      );
     }
   }
   return mentions;

@@ -1252,6 +1252,55 @@ void main() {
       );
     });
 
+    test("a rename rewrites a mermaid node's name alone, and a fenced block of another language stays", () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nflowchart LR\n  N[login/email_login E06]\n```\n\n'
+              '```text\nN[login/email_login E06]\n```\n',
+          '.md',
+          renamed,
+        ),
+        '```mermaid\nflowchart LR\n  N[signin/email_login E06]\n```\n\n'
+        '```text\nN[login/email_login E06]\n```\n',
+      );
+    });
+
+    test('a rename leaves a web address in a mermaid label as written', () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nflowchart LR\n  N[https://my.app/x/y]\n```\n',
+          '.md',
+          {('user_story', 'app/x/y'): 'app/z/y'},
+        ),
+        isNull,
+      );
+    });
+
+    test('a rename reaches a mermaid name next to a slash or a colon', () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nA[/user_story:login/email_login/]\n'
+              'A["login/email_login: x"]\n```\n\n'
+              '```mermaid\nsequenceDiagram\na->>+b:login/email_login\n```\n',
+          '.md',
+          {('user_story', 'login/email_login'): 'signin/email_login'},
+        ),
+        '```mermaid\nA[/user_story:signin/email_login/]\nA["signin/email_login: x"]\n```\n\n'
+        '```mermaid\nsequenceDiagram\na->>+b:signin/email_login\n```\n',
+      );
+    });
+
+    test('a rename leaves a route in a mermaid label as written', () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nA -->|GET /login/email_login| B\n```\n',
+          '.md',
+          {('user_story', 'login/email_login'): 'signin/email_login'},
+        ),
+        isNull,
+      );
+    });
+
     test('E03: a typed mention of another type, a one-slug bare name, and plain text stay', () {
       expect(
         rewriteNameMentions(
