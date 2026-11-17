@@ -568,6 +568,64 @@ void main() {
       expect(item.readability.cells.single.single.words, 3);
     });
 
+    test('leading language marker counts no word', () {
+      const text =
+          '# V\n\n## Statement\n\n### A heading\n\n> en: one two three\n';
+
+      final sentences = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single;
+
+      expect(sentences.map((sentence) => sentence.words), [2, 3]);
+    });
+
+    test('leading language marker counts no character', () {
+      const text = '# V\n\n## Statement\n\n> th: ทุกครั้ง\n';
+
+      final sentence = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single.single;
+
+      expect(sentence.language, 'th');
+      expect(sentence.chars, 5);
+      expect(sentence.runs, 0);
+    });
+
+    test('a marker-like word on a later quote line still counts', () {
+      const text = '# V\n\n## Statement\n\n> see below\n> to: finish\n';
+
+      final sentence = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single.single;
+
+      expect(sentence.words, 4);
+    });
+
+    test('a marker on each of chained quote lines counts no word', () {
+      const text = '# V\n\n## Statement\n\n> en: one two.\n> th: three\n';
+
+      final sentences = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single;
+
+      expect(sentences.map((sentence) => sentence.words), [2, 1]);
+    });
+
+    test('a colon after a longer word is no language marker', () {
+      const text = '# V\n\n## Statement\n\n> note: one two\n';
+
+      final sentence = only(
+        factsOf(_frPath, text),
+        0,
+      ).readability.cells.single.single;
+
+      expect(sentence.words, 3);
+    });
+
     test('untyped doc stores no readability facts', () {
       final item = factsOf(
         'README.md',
