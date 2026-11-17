@@ -8,16 +8,15 @@ Ask the Owner nothing: list each gap in the report.
   pass added; in a fix round, the audit's `Findings:` lines too.
   Before your first write, re-read the drafts in one `specstone get <drafts list>` call. When it refuses with
   `doc_not_found`, drop each name it names, rerun on the rest; list each dropped name under `Findings:`, or
-  as `Not landed:` when listed and never created. After an amend, write the amended design into the drafts through
-  steps 2 and 3. Fix those findings in those drafts as step 2 writes, then sweep each one's terms as step 3 says; go
-  to step 4. List each finding outside those drafts under `Findings:`, unfixed.
+  as `Not landed:` when listed and never created. Through steps 2 to 4, write an amended design into the drafts
+  and fix those findings in them. List each finding outside those drafts under `Findings:`, unfixed.
 
 ## 2. Place each decision
 
 Write each Docs to change row, one with no decision too, as a `design_references` link with a table row. Write a
 reason (Rationale, "since", "so") only in the design's words; list one it lacks under `Findings:`.
 
-- **Guide**: before your first write, run `specstone guide <type> … --out` once for every type you write.
+- **Guide**: before your first write, run `specstone guide <type> … --out` once per type you write.
 - **Code target** (two or more `targets:`): pass a per-target spec doc's `new`, `get`, and `set` the
   `--target <name>` its design row names, or use an existing doc's DocPath.
 - **New doc**: pipe it to `specstone new <type>` (`--parent`, `--slug` as it takes them), parents first.
@@ -53,7 +52,8 @@ doc; list any other under `Findings:`.
 
 Run a bare `specstone check` before your first write and again after your last. Before the second, walk each item
 you wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not banned-word,
-section-status, or template lines; list a line you cannot meet under `Findings:`. Then run
+section-status, or template lines; list a line you cannot meet under `Findings:`. No `Required section.` line or
+`check` finding licenses a Rationale reason the design lacks; list it under `Findings:`. Then run
 `specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating another doc's item
 links it instead. Save each `check` by `--out`, never a redirect.
 
@@ -86,9 +86,9 @@ Findings: <each finding left after step 4, each finding or hit outside the draft
 - **Design**: `<N>`, the last amend or `0`; the relay block's first line too.
 - **Drafts**: every doc you wrote or confirmed again; in a later pass, step 1's list less each name dropped, plus each
   doc added; names only, no `--target`. A moved doc and its children go by their new name.
-- **Counts**: take every count from one `specstone approve --dry-run --json` after your last write, never your own
-  tally. Your drafts are the docs your own list names; the output names a moved one by its old name until its
-  `Move:` line runs. Name each other draft it lists under `Other drafts:`, never counted; one of yours it shows as no
-  draft goes under `Findings:`.
+- **Counts**: take every count from one `specstone approve --dry-run --json` after your last write. Your
+  drafts are the docs your own list names; the output names a moved one by its old name until its `Move:` line
+  runs. Name each other draft it lists under `Other drafts:`, never counted; one of yours it shows as no draft goes
+  under `Findings:`.
 - **Move**: only for a moved doc, item, or scenario: one line per target parent or `--top`; copy each
   into the relay block. Run no `move`.
