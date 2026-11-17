@@ -910,4 +910,142 @@ void main() {
       expect(text, isNot(contains(fingerprint)));
     },
   );
+
+  group('record matrix rows', () {
+    const recordPath = '.specstone/records/f01_login/IMPLEMENTATION.md';
+    const item = 'email_login/validate_credentials';
+    const front =
+        "---\nstatuses:\n  - '$item:implemented'\n"
+        "implements:\n  - '$item:app/lib/src/login/credential_validator.dart'\n"
+        "tests:\n  - '$item:app/test/credential_validator_test.dart'\n---\n\n"
+        '# Login implementation\n\n';
+
+    Future<DocIndex> recordWith(String body) =>
+        indexWith({recordPath: '$front$body'});
+
+    Map<Object?, Object?> recordOf(DocIndex index) =>
+        (answerRefs(index, 'implementation:login').json['docs']! as List).single
+            as Map<Object?, Object?>;
+
+    test('lists a matrix row as an outbound verifies line', () async {
+      final recorded = await recordWith(
+        '## Verification matrix\n\n'
+        '- $item E02: `refuses a wrong password`\n'
+        '- $item E03 skipped: needs a clock\n',
+      );
+
+      final answer = answerRefs(recorded, 'implementation:login');
+
+      expect(
+        answer.text,
+        contains(
+          'Outbound\n'
+          '- implements: app/lib/src/login/credential_validator.dart\n'
+          '- tests: app/test/credential_validator_test.dart\n'
+          '- verifies: $item E02: `refuses a wrong password`\n'
+          '- verifies: $item E03 skipped: needs a clock\n'
+          'Inbound\n',
+        ),
+      );
+      expect(recordOf(recorded)['outbound'], [
+        {
+          'kind': 'implements',
+          'pointer': 'app/lib/src/login/credential_validator.dart',
+        },
+        {'kind': 'tests', 'pointer': 'app/test/credential_validator_test.dart'},
+        {
+          'kind': 'verifies',
+          'pointer': '$item E02: `refuses a wrong password`',
+        },
+        {'kind': 'verifies', 'pointer': '$item E03 skipped: needs a clock'},
+      ]);
+    });
+
+    test('adds no inbound line to the FR a row names', () async {
+      final recorded = await recordWith(
+        '## Verification matrix\n\n- $item E02: `refuses a wrong password`\n',
+      );
+
+      final answer = answerRefs(recorded, 'login/$item');
+
+      expect(answer.text, isNot(contains('verifies')));
+      final doc =
+          (answer.json['docs']! as List).single as Map<Object?, Object?>;
+      expect(
+        (doc['inbound']! as List).where(
+          (ref) => (ref as Map)['kind'] == 'verifies',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('prints a row as written less its fingerprint', () async {
+      const fingerprint = '5d1e0c4b7a92';
+      final stamped = await recordWith(
+        '## Verification matrix\n\n'
+        '- $item E02: `refuses a wrong password` $fingerprint\n'
+        '- $item E03 skipped: needs a clock $fingerprint\n',
+      );
+      final bare = await recordWith(
+        '## Verification matrix\n\n'
+        '- $item E02: `refuses a wrong password`\n'
+        '- $item E03 skipped: needs a clock\n',
+      );
+
+      final text = answerRefs(stamped, 'implementation:login').text;
+
+      expect(text, isNot(contains(fingerprint)));
+      expect(text, answerRefs(bare, 'implementation:login').text);
+    });
+
+    test('keeps a backtick of the test name inside its code span', () async {
+      final recorded = await recordWith(
+        '## Verification matrix\n\n'
+        '- $item E02: `` refuses `x` `` 5d1e0c4b7a92\n',
+      );
+
+      expect(
+        recordOf(recorded)['outbound'],
+        contains(
+          equals({
+            'kind': 'verifies',
+            'pointer': '$item E02: `` refuses `x` ``',
+          }),
+        ),
+      );
+    });
+
+    test('lists no line for a malformed matrix line', () async {
+      final recorded = await recordWith(
+        '## Verification matrix\n\n'
+        'stray text\n'
+        '- $item E02: `refuses a wrong password`\n',
+      );
+
+      final verifies = [
+        for (final ref in recordOf(recorded)['outbound']! as List)
+          if ((ref as Map)['kind'] == 'verifies') ref['pointer'],
+      ];
+
+      expect(verifies, ['$item E02: `refuses a wrong password`']);
+    });
+
+    for (final (label, body) in [
+      ('holds no matrix section', '## Notes\n\nNothing here.\n'),
+      ('holds an empty matrix section', '## Verification matrix\n'),
+    ]) {
+      test('lists no verifies line for a record that $label', () async {
+        final recorded = await recordWith(body);
+
+        expect(
+          answerRefs(recorded, 'implementation:login').text,
+          isNot(contains('verifies')),
+        );
+        expect(
+          recordOf(recorded)['outbound'],
+          isNot(contains(containsPair('kind', 'verifies'))),
+        );
+      });
+    }
+  });
 }
