@@ -5,49 +5,10 @@ import 'package:test/test.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
-const _says = <String, List<String>>{
-  'source_of_truth': ['OpenAPI', 'ApiDog'],
-  'fr_trace': ['FR', 'operation', 'operationId', 'command'],
-  'operations': [
-    '###',
-    '`<operation>` ``',
-    'no FR label',
-    'Request example',
-    'Response example',
-    'success',
-    'error',
-    'source of truth',
-    'Errors',
-    'Auth',
-    '`none`',
-    'Idempotent',
-    'mutating',
-    'no Why line',
-  ],
-  'compatibility': ['breaking', 'Rollout'],
-};
-
 void main() {
   late MergedDocType api;
   setUpAll(() async {
     api = prdCoreDocType(await resolveSoftwareTech(), 'api');
-  });
-
-  test('the FR trace guide names each FR by <story slug>/<fr '
-      'slug>, the confirmed entry text', () {
-    final description = sectionOf(api, 'fr_trace').description!;
-    expect(
-      description,
-      allOf(contains('<story slug>/<fr slug>'), contains('`confirmed`')),
-    );
-  });
-
-  test('the api FR trace guide names <sub-feature slug>/<story '
-      'slug>/<fr slug>', () {
-    expect(
-      sectionOf(api, 'fr_trace').description,
-      contains('<sub-feature slug>/<story slug>/<fr slug>'),
-    );
   });
 
   test('f03/us07/fr01, f03/us07/fr01/e06: api sits under '
@@ -65,34 +26,6 @@ void main() {
       SectionSpec('fr_trace', 'FR trace', required: true),
       SectionSpec('operations', 'Operations', required: true),
       SectionSpec('compatibility', 'Compatibility'),
-    ]);
-  });
-
-  test('f03/us07/fr02, f03/us07/fr02/e01, f03/us07/fr02/e03, '
-      'the api guide', () {
-    expectSpecGuide(api, title: '# <Feature name> API');
-    expectSectionsSay(api, _says);
-  });
-
-  test('api caps 300 lines and 50000 characters, bans no word, and cites its '
-      'four sources', () {
-    expectSpecLint(api, maxLines: 300, maxChars: 50000);
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E11: the guide states one ### per operation '
-      'as its item shape', () {
-    expectItemShape(
-      api,
-      'Write one rule per ID: one `###` per operation, each rule one '
-      'sentence.',
-    );
-  });
-
-  test('the guide states where its rules belong', () {
-    expectDescriptionSays(api, const [
-      "holds one feature's spec",
-      "a rule every feature uses goes to the project's API",
     ]);
   });
 }

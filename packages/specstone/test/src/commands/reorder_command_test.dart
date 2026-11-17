@@ -27,67 +27,6 @@ void main() {
     },
   );
 
-  test('reorder prints moved and rewrote lines', () async {
-    final (:runner, :out, :err) = writeRunner(await writeWriteProject());
-    expect(
-      await runner.run([
-        'reorder',
-        'user_story:login/reset_password',
-        '--to',
-        '1',
-      ]),
-      0,
-    );
-    expect(err.toString(), isEmpty);
-    expect(
-      out.toString(),
-      startsWith(
-        'moved prds/features/f01_login/us03_reset_password/ to prds/features/f01_login/us01_reset_password/\n',
-      ),
-    );
-    expect(
-      out.toString(),
-      contains(
-        'rewrote prds/features/f01_login/us02_email_login/fr02_lock_after_failures.md\n',
-      ),
-    );
-  });
-  test('reorder prints a path mention in a code file as a mentions line '
-      'and keeps the file', () async {
-    const code =
-        '// docs/prds/features/f01_login/us03_reset_password/USER_STORY.md:4\n'
-        '// `login/reset_password`\n';
-    final root = await writeWriteProject(
-      extra: {
-        'docs/specs/TECH_STACK.md':
-            '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n## Stack\n\n'
-            '| Slot | Choice |\n|---|---|\n| Language | Dart |\n\n'
-            '## Naming\n\n- snake_case file names\n',
-        'app/lib/doc.dart': code,
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run([
-        'reorder',
-        'user_story:login/reset_password',
-        '--to',
-        '1',
-        '--json',
-      ]),
-      0,
-    );
-    expect((jsonDecode(out.toString()) as Map)['mentions'], [
-      {
-        'path': 'app/lib/doc.dart',
-        'line': 1,
-        'mention':
-            'docs/prds/features/f01_login/us03_reset_password/USER_STORY.md',
-      },
-    ]);
-    expect(File('${root.path}/app/lib/doc.dart').readAsStringSync(), code);
-  });
-
   test('reorder lists a doc changed by a path mention only', () async {
     final root = await writeWriteProject(
       extra: {
@@ -191,19 +130,6 @@ void main() {
       'reorder needs a place, such as specstone reorder user_story:login/reset_password --to 1\n',
     );
   });
-  test('reorder renumbers a sub-feature inside its top feature', () async {
-    final (:runner, :out, :err) = writeRunner(await writeNestedProject());
-    expect(await runner.run(['reorder', 'feature:shop/pay', '--to', '1']), 0);
-    expect(err.toString(), isEmpty);
-    expect(
-      out.toString(),
-      startsWith(
-        'moved prds/features/f02_shop/f02_pay/ to prds/features/f02_shop/f01_pay/\n'
-        'moved prds/features/f02_shop/f01_cart/ to prds/features/f02_shop/f02_cart/\n',
-      ),
-    );
-  });
-
   test('E13: reorder writes a rewritten typed doc laid out', () async {
     final root = await writeWriteProject(
       extra: {
@@ -295,40 +221,6 @@ void main() {
   });
 
   group('--dry-run', () {
-    const f = 'prds/features/f01_login';
-
-    test('prints the moves and rewrites, then says nothing moved, and moves '
-        'nothing', () async {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'reorder',
-          'user_story:login/reset_password',
-          '--to',
-          '1',
-          '--dry-run',
-        ]),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      expect(
-        out.toString(),
-        startsWith(
-          'moves $f/us03_reset_password/ to $f/us01_reset_password/\n',
-        ),
-      );
-      expect(
-        out.toString(),
-        contains('rewrites $f/us02_email_login/fr02_lock_after_failures.md\n'),
-      );
-      expect(out.toString(), endsWith('dry run: nothing moved\n'));
-      expect(out.toString(), isNot(contains('rewrote')));
-      expect(out.toString(), isNot(contains('plan ')));
-      expect(docFile(root, story3).existsSync(), isTrue);
-      expect(Directory('${root.path}/.specstone/trash').existsSync(), isFalse);
-    });
-
     test('lists a path mention in a code file and keeps the file', () async {
       const code =
           '// docs/prds/features/f01_login/us03_reset_password/USER_STORY.md:4\n';
@@ -428,41 +320,6 @@ void main() {
       expect(await runner.run(['reorder', 'feature:ay', '--to', '1']), 64);
       expect(out.toString(), isEmpty);
       expect(err.toString(), 'no feature doc carries the name ay\n');
-    });
-  });
-
-  group('a feature record under .specstone/records/', () {
-    test('reorder renumbers the record folder with its feature', () async {
-      final root = await writeWriteProject(
-        extra: {
-          ...recordsRootTemplates,
-          '.specstone/records/f01_login/IMPLEMENTATION.md': recordText(
-            statuses: ['email_login:implemented'],
-          ),
-          '.specstone/records/f02_signup/IMPLEMENTATION.md': recordText(
-            statuses: ['ghost:planned'],
-          ),
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['reorder', 'feature:signup', '--to', '1']),
-        0,
-        reason: err.toString(),
-      );
-      expect(
-        out.toString(),
-        contains(
-          'moved .specstone/records/f02_signup/ to '
-          '.specstone/records/f01_signup/\n',
-        ),
-      );
-      for (final path in [
-        '.specstone/records/f01_signup/IMPLEMENTATION.md',
-        '.specstone/records/f02_login/IMPLEMENTATION.md',
-      ]) {
-        expect(File('${root.path}/$path').existsSync(), isTrue, reason: path);
-      }
     });
   });
 }

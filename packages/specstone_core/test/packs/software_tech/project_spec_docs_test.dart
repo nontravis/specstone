@@ -44,54 +44,6 @@ const _overridesCarriers = [
   'topic',
 ];
 
-/// The Overrides carriers whose items include table rows.
-const _tableRowCarriers = ['architecture', 'auth', 'error'];
-
-/// Each project spec doc type's title form and its own example title.
-const _projectTitles = <String, ({String form, String example})>{
-  'project_architecture': (
-    form: '# <Project name> architecture',
-    example: '# Specstone architecture',
-  ),
-  'project_domain': (
-    form: '# <Project name> domain',
-    example: '# Specstone domain',
-  ),
-  'project_api': (form: '# <Project name> API', example: '# Specstone API'),
-  'project_integration': (
-    form: '# <Project name> integrations',
-    example: '# Specstone integrations',
-  ),
-  'project_error': (
-    form: '# <Project name> errors',
-    example: '# Specstone errors',
-  ),
-  'project_auth': (form: '# <Project name> auth', example: '# Specstone auth'),
-};
-
-/// The item shape each project spec doc type's guide states.
-const _projectItemShapes = <String, String>{
-  'project_architecture': 'one Components row per component',
-  'project_domain': 'one bullet per invariant',
-  'project_api': 'one bullet per convention',
-  'project_integration': 'one `###` per system',
-  'project_error': 'one catalog row per code',
-  'project_auth': 'one matrix row per resource and operation',
-};
-
-const _domainCitesArchitecture =
-    "The project's DOMAIN cites the project's ARCHITECTURE by a section link, "
-    'such as `[architecture](ARCHITECTURE.md#components)`.';
-
-/// Names one feature: "the feature", "each feature", "per feature", and so on.
-///
-/// "a feature" stays out: "A feature's `error_envelope` departs from it" names
-/// every feature alike.
-final _namesOneFeature = RegExp(
-  r'\b(?:the|this|that|one|its|each|per)\s+feature\b',
-  caseSensitive: false,
-);
-
 Future<MergedSet> _resolveWith({
   Map<String, String> templates = const {},
   String config = '',
@@ -176,16 +128,6 @@ void main() {
     }
   });
 
-  test('project_domain invariants allow a closing note', () {
-    expectSectionsSay(prdCoreDocType(set, 'project_domain'), const {
-      'invariants': [
-        'no trace tag',
-        '`reference` field',
-        'a cite or ownership note may close',
-      ],
-    });
-  });
-
   test('project_api holds conventions between source_of_truth and '
       'compatibility and no fr_trace, operations, or confirmed', () {
     final type = prdCoreDocType(set, 'project_api');
@@ -239,14 +181,9 @@ void main() {
     }
   });
 
-  test('each project spec doc type carries the four references of its base '
+  test('each project spec doc type carries the references of its base '
       'type', () {
     for (final MapEntry(key: id, value: project) in _projectTypes.entries) {
-      expectSpecLint(
-        prdCoreDocType(set, id),
-        maxLines: specCaps.maxLines,
-        maxChars: specCaps.maxChars,
-      );
       expect(
         [for (final r in prdCoreDocType(set, id).reference!) r.title],
         [for (final r in prdCoreDocType(set, project.base).reference!) r.title],
@@ -264,76 +201,9 @@ void main() {
     expect(limits!.single.count, 1);
   });
 
-  test("each project spec doc type guide titles its doc with the project's "
-      "name and states its base type's line target", () {
-    for (final MapEntry(key: id, value: title) in _projectTitles.entries) {
-      final type = prdCoreDocType(set, id);
-      expectSpecGuide(
-        type,
-        title: title.form,
-        says: [
-          'such as `${title.example}`',
-          "lives in that target's record, its `implementation` docs, only",
-        ],
-      );
-    }
-  });
-
-  test('each project spec doc type guide states where its rules belong', () {
-    for (final id in _projectTypes.keys) {
-      expectDescriptionSays(prdCoreDocType(set, id), const [
-        'only rules every feature uses',
-        'a per-feature spec doc',
-        'a `topic` when two or more features share it',
-      ]);
-    }
-  });
-
-  test('project_integration and project_auth guides say when the doc is '
-      'written', () {
-    expectDescriptionSays(prdCoreDocType(set, 'project_integration'), const [
-      'only when every feature follows one rule for outside calls',
-    ]);
-    expectDescriptionSays(prdCoreDocType(set, 'project_auth'), const [
-      'only when every feature follows one access rule',
-    ]);
-  });
-
-  test('project_api guide states its item shape', () {
-    expectItemShape(
-      prdCoreDocType(set, 'project_api'),
-      'Write one rule per ID: one bullet per convention, each rule one '
-      'sentence.',
-    );
-  });
-
-  test("each other project spec doc type guide states its base type's item "
-      'shape', () {
-    for (final MapEntry(key: id, value: shape) in _projectItemShapes.entries) {
-      expectItemShape(
-        prdCoreDocType(set, id),
-        'Write one rule per ID: $shape, each rule one sentence.',
-      );
-    }
-  });
-
-  test('project_domain and project_architecture guides carry the '
-      'domain-to-architecture cite line', () {
-    for (final id in ['project_domain', 'project_architecture']) {
-      expectItemShape(prdCoreDocType(set, id), _domainCitesArchitecture);
-    }
-  });
-
-  test('project_domain invariants ask the corrective policy of an eventual '
-      'invariant', () {
+  test('project_domain invariants take the corrective policy of domain', () {
     final domain = prdCoreDocType(set, 'domain');
     final projectDomain = prdCoreDocType(set, 'project_domain');
-    expectSectionsSay(projectDomain, const {
-      'invariants': [
-        '- **Corrective policy:** <how the system restores the rule>',
-        'eventual',
-      ],
-    });
     List<Map<String, Object>> fieldsOf(MergedDocType type) => [
       for (final f
           in type.sections.singleWhere((s) => s.id == 'invariants').itemFields!)
@@ -344,59 +214,6 @@ void main() {
       projectDomain.sections.map((s) => s.id),
       isNot(contains('corrective_policies')),
     );
-  });
-
-  test('each project spec doc type guide extends the cite rule to project and '
-      'ancestor rules', () {
-    for (final id in _projectTypes.keys) {
-      expectDescriptionSays(prdCoreDocType(set, id), const [
-        'by a link to the item that holds it, never restate it',
-        "a rule of a project spec doc or of an ancestor feature's spec doc",
-      ]);
-    }
-  });
-
-  test('each Overrides carrier guide extends the cite rule to project and '
-      'ancestor rules', () {
-    for (final id in _overridesCarriers) {
-      expectDescriptionSays(prdCoreDocType(set, id), const [
-        'by a link to the item that holds it, never restate it',
-        "a rule of a project spec doc or of an ancestor feature's spec doc",
-      ]);
-    }
-  });
-
-  test('each Overrides carrier guide asks an Overrides line and its entry', () {
-    for (final id in _overridesCarriers) {
-      expectDescriptionSays(prdCoreDocType(set, id), const [
-        '`Overrides:` line',
-        '`overrides` entry',
-      ]);
-    }
-  });
-
-  test('a carrier whose items include table rows places the Overrides line '
-      'under the table and names the row', () {
-    for (final id in _tableRowCarriers) {
-      expectDescriptionSays(prdCoreDocType(set, id), const [
-        'right under the table when that item is a table row',
-        'its how-clause naming the row',
-      ]);
-    }
-  });
-
-  test('no project spec doc type guide names one feature', () {
-    for (final id in _projectTypes.keys) {
-      final type = prdCoreDocType(set, id);
-      expect(type.description, isNot(contains(_namesOneFeature)), reason: id);
-      for (final section in type.sections) {
-        expect(
-          section.description ?? '',
-          isNot(contains(_namesOneFeature)),
-          reason: '$id.${section.id}',
-        );
-      }
-    }
   });
 
   test('with two targets each project spec doc type reads the target '

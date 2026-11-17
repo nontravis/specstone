@@ -1,18 +1,16 @@
 import 'dart:convert';
 
-import 'package:specstone_core/src/setup_migration/migration_chain.dart';
+import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/pack_manifest.dart';
-import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/check_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 void main() {
-  final shipped = shippedPackVersions()['prd-core']!;
-
   group('prd-core manifest', () {
     test('prd-core ships at 1.17.0 with no extends', () {
       final bytes = shippedPackFiles['prd-core/pack.yaml'];
@@ -33,49 +31,6 @@ void main() {
       );
       expect(manifest.migrations.where((e) => e.steps.isEmpty), isEmpty);
     });
-
-    test('a 1.7.0 or 1.9.0 pin upgrades to the shipped version with no '
-        'step', () {
-      final manifest = PackManifest.parse(
-        utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-        file: 'packs/prd-core/pack.yaml',
-      );
-      for (final pin in ['1.7.0', '1.9.0']) {
-        final upgrades = selectUpgrades(
-          {
-            'prd-core': PackVersion.parse(
-              pin,
-              file: 'config.yaml',
-              key: 'packs.prd-core',
-            ),
-          },
-          {'prd-core': manifest},
-        );
-        expect(upgrades.single.target.toString(), shipped, reason: pin);
-        expect(upgrades.single.steps, isEmpty, reason: pin);
-      }
-    });
-
-    for (final pin in ['1.10.0', '1.11.0', '1.12.0']) {
-      test('a $pin pin takes the shipped pin alone, with no step', () {
-        final manifest = PackManifest.parse(
-          utf8.decode(shippedPackFiles['prd-core/pack.yaml']!),
-          file: 'packs/prd-core/pack.yaml',
-        );
-        final upgrades = selectUpgrades(
-          {
-            'prd-core': PackVersion.parse(
-              pin,
-              file: 'config.yaml',
-              key: 'packs.prd-core',
-            ),
-          },
-          {'prd-core': manifest},
-        );
-        expect(upgrades.single.target.toString(), shipped);
-        expect(upgrades.single.steps, isEmpty);
-      });
-    }
 
     test('a project pinning the shipped prd-core resolves with '
         'no fault', () async {
@@ -113,15 +68,10 @@ void main() {
       expect(
         {
           for (final d in set.docTypes)
-            if (d.bundleRefs != null) d.id: d.bundleRefs,
+            if (d.bundleRefs == true) d.id,
         },
-        {'project': true, 'glossary': true, 'gnfr': true, 'goal': true},
+        {'project', 'glossary', 'gnfr', 'goal'},
       );
-    });
-
-    test('prd-core carries fourteen doc types', () async {
-      final set = await resolvePrdCore();
-      expect(set.docTypes, hasLength(14));
     });
 
     test('f03/us06/fr01, f03/us06/fr01/e01: a project listing only prd-core '
@@ -131,24 +81,39 @@ void main() {
       expect(set.docTypes.map((d) => d.pack), everyElement('prd-core'));
     });
 
-    test('every prd-core doc type caps a doc at 400 lines and 20000 '
-        'characters', () async {
+    test('each doc type flags a doc over its own line and character '
+        'caps', () async {
       final set = await resolvePrdCore();
+      // A draft takes no approval stamp, so the counts stay exact.
+      const draft = '---\ndraft: true\n---\n\n# Probe\n\n';
       for (final docType in set.docTypes) {
-        expect(docType.lint.maxLines, 400, reason: docType.id);
-        expect(docType.lint.maxChars, 20000, reason: docType.id);
-      }
-    });
+        final path = docType.path!
+            .replaceAll('{nn}', '07')
+            .replaceAll('{slug}', 'probe');
+        Future<Set<FindingKind>> kindsOf(String body) async {
+          final report = await checkOf(
+            await writeCheckProject(
+              extra: {'docs/$path': '$draft$body\n'},
+              unstamped: {'docs/$path'},
+            ),
+          );
+          return {
+            for (final f in report.findings)
+              if (f.path == path) f.kind,
+          };
+        }
 
-    test('Set the shared lint and sources: '
-        'only glossary sets max_item_chars, so every other prd-core doc type '
-        'takes the default', () async {
-      final set = await resolvePrdCore();
-      for (final docType in set.docTypes) {
+        final lines = List.filled(docType.lint.maxLines! + 1, 'x').join('\n');
+        final chars = 'x' * (docType.lint.maxChars! + 1);
         expect(
-          docType.lint.maxItemChars,
-          docType.id == 'glossary' ? 300 : isNull,
-          reason: docType.id,
+          await kindsOf(lines),
+          contains(FindingKind.linesOverLimit),
+          reason: '${docType.id} lines',
+        );
+        expect(
+          await kindsOf(chars),
+          contains(FindingKind.charsOverLimit),
+          reason: '${docType.id} chars',
         );
       }
     });

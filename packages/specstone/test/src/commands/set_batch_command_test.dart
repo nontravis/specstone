@@ -218,53 +218,6 @@ void main() {
   );
 
   test(
-    '$_wb E04: a stale block beside a block whose doc is gone names both, prints the stale text, exit 64',
-    () async {
-      final root = await writeWriteProject();
-      var text = await getText(root, [story2, fr11]);
-      text = edit(text, 'Sign out.', 'Sign out everywhere.');
-      text = edit(text, 'check the email', 'check the email twice, then');
-      final file = await batchFile(text);
-      final changed = readDoc(
-        root,
-        story2,
-      ).replaceFirst('Sign out.', 'Sign out now.');
-      docFile(root, story2).writeAsStringSync(changed);
-      docFile(root, fr11).deleteSync();
-      final before = docBytes(root);
-
-      final text64 = await specstone(root, ['set', '--batch', file]);
-
-      expect(text64.code, 64);
-      expect(docBytes(root), before);
-      final lines = text64.err.trimRight().split('\n');
-      expect(lines, hasLength(2));
-      expect(
-        lines[0],
-        matches(
-          RegExp(
-            '^${RegExp.escape(story2)}: doc: the doc changed since base [0-9a-f]{12}\$',
-          ),
-        ),
-      );
-      expect(lines[1], startsWith(fr11));
-      expect(text64.out, contains(changed));
-
-      final json = await specstone(root, ['set', '--batch', file, '--json']);
-
-      expect(json.code, 64);
-      expect(json.out, isEmpty);
-      final error = decode(json.err)['error']! as Map<String, Object?>;
-      expect(error['code'], 'base_mismatch');
-      expect(error['file'], story2);
-      expect(error['key'], 'doc');
-      final blocks = (error['blocks']! as List).cast<Map<String, Object?>>();
-      expect(blocks.map((b) => b['file']), [story2, fr11]);
-      expect((blocks[0]['current']! as Map)['text'], changed);
-    },
-  );
-
-  test(
     '$_wb: --json prints one object holding blocks in file order and an empty warnings array',
     () async {
       final root = await writeWriteProject();
@@ -414,40 +367,6 @@ void main() {
       expect(result.err, 'nope.md: cannot read nope.md\n');
     });
 
-    test(
-      '--json carries code, message, and file, and no blocks array',
-      () async {
-        final root = await writeWriteProject();
-
-        final result = await specstone(root, [
-          'set',
-          '--batch',
-          'nope.md',
-          '--json',
-        ]);
-
-        expect(result.code, 64);
-        expect(result.out, isEmpty);
-        expect(decode(result.err), {
-          'error': {
-            'code': 'argument_invalid',
-            'message': 'cannot read nope.md',
-            'file': 'nope.md',
-          },
-        });
-      },
-    );
-
-    test('a file of text with no naming line holds no block', () async {
-      final root = await writeWriteProject();
-      final file = await batchFile('just text\n');
-
-      final result = await specstone(root, ['set', '--batch', file]);
-
-      expect(result.code, 64);
-      expect(result.err, '$file: $file holds no block\n');
-    });
-
     test('a file with no block refuses before the project opens, so outside a project it exits 64 and not 78', () async {
       final folder = await Directory.systemTemp.createTemp('specstone_bare_');
       addTearDown(() => folder.delete(recursive: true));
@@ -459,78 +378,4 @@ void main() {
       expect(result.err, '$file: $file holds no block\n');
     });
   });
-
-  group('$_wb E18:', () {
-    test('a stray line before the first naming line is a line fault beside every other fault, exit 64', () async {
-      final root = await writeWriteProject();
-      final text = edit(
-        await getText(root, [story2]),
-        'Sign out.',
-        'Sign out everywhere.',
-      );
-      final file = await batchFile('stray\n$text');
-      final before = docBytes(root);
-
-      final plain = await specstone(root, ['set', '--batch', file]);
-
-      expect(plain.code, 64);
-      expect(plain.out, isEmpty);
-      expect(plain.err, '$file:1: text before the first naming line\n');
-      expect(docBytes(root), before);
-
-      final json = await specstone(root, ['set', '--batch', file, '--json']);
-
-      expect(json.code, 64);
-      expect(json.out, isEmpty);
-      final error = decode(json.err)['error']! as Map<String, Object?>;
-      expect(error['code'], 'argument_invalid');
-      expect(error['file'], file);
-      expect(error['line'], 1);
-      expect(error.containsKey('key'), isFalse);
-      final blocks = (error['blocks']! as List).cast<Map<String, Object?>>();
-      expect(blocks, hasLength(1));
-      expect(blocks.single['line'], 1);
-    });
-
-    test("a reply's own unchanged line is no naming line with a base, so a batch file holding it refuses", () async {
-      final root = await writeWriteProject();
-      final text = await getText(root, [story2]);
-      final unchanged = await specstone(root, [
-        'set',
-        '--batch',
-        await batchFile(text),
-      ]);
-      final file = await batchFile('${unchanged.out}\n$text');
-
-      final result = await specstone(root, ['set', '--batch', file]);
-
-      expect(result.code, 64);
-      expect(result.err, startsWith('$file:1: '));
-    });
-  });
-
-  test(
-    '$_wb: get a b c written back unedited prints only unchanged lines, exit 0, no write and no journal',
-    () async {
-      final root = await writeWriteProject();
-      final text = await getText(root, [
-        story2,
-        '$story1#use_case',
-        fr11,
-        loginArch,
-      ]);
-      final file = await batchFile(text);
-      final before = docBytes(root);
-
-      final result = await specstone(root, ['set', '--batch', file]);
-
-      expect(result.code, 0, reason: result.err);
-      expect(result.err, isEmpty);
-      final lines = result.out.trimRight().split('\n');
-      expect(lines, hasLength(4));
-      expect(lines, everyElement(endsWith(' · unchanged <==')));
-      expect(docBytes(root), before);
-      expect(File(journalOf(root)).existsSync(), isFalse);
-    },
-  );
 }

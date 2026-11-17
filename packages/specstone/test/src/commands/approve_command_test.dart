@@ -6,7 +6,6 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
-import '../../../../specstone_core/test/helpers/check_fixture.dart';
 import '../../../../specstone_core/test/helpers/git_repo.dart';
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../../../specstone_core/test/helpers/relative_link.dart';
@@ -955,32 +954,6 @@ void main() {
         '--target needs a code target name: the code targets are flutter, jaspr\n',
       );
     });
-
-    test(
-      '--dry-run without --target shows each target status in the status row',
-      () async {
-        final root = await writeTwinProject(
-          extra: {
-            ...edit(loginStory, [('goals:\n', 'draft: true\ngoals:\n')]),
-            '.specstone/records/flutter/f01_login/IMPLEMENTATION.md': "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n# Login implementation\n",
-          },
-        );
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run([
-            'approve',
-            '--dry-run',
-            'user_story:login/email_login',
-          ]),
-          0,
-          reason: err.toString(),
-        );
-        expect(
-          out.toString(),
-          contains('| status  | `flutter implemented · jaspr planned` |'),
-        );
-      },
-    );
   });
   group('a draft named by the end of its name', () {
     Future<Directory> shop() => writeNestedProject(

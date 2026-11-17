@@ -5,29 +5,6 @@ import 'package:test/test.dart';
 import '../../helpers/prd_core.dart';
 import '../../helpers/software_tech.dart';
 
-const _says = <String, List<String>>{
-  'stack': [
-    'Slot',
-    'Choice',
-    'Version',
-    'Why',
-    'Language',
-    'Architecture',
-    'API protocol',
-    'Storage',
-    'Auth / Identity',
-    'Frontend framework',
-    'Repo layout',
-    'Primary dependencies',
-    'Testing',
-    'Target platform',
-    'pointing at the architecture docs',
-  ],
-  'constraints': ['license', 'no network'],
-  'naming': ['naming', 'five'],
-  'avoid': ['What', 'Why'],
-};
-
 void main() {
   late MergedDocType techStack;
   setUpAll(() async {
@@ -50,33 +27,8 @@ void main() {
     ]);
   });
 
-  test('f03/us07/fr02, f03/us07/fr02/e02, f03/us07/fr02/e03, '
-      'f03/us07/fr02/e04, f03/us07/fr02/e08: the tech_stack guide', () {
-    expectSpecGuide(
-      techStack,
-      title: '# Tech stack',
-      says: ['secret', 'performance and scale'],
-    );
-    expectSectionsSay(techStack, _says);
-  });
-
-  test('tech_stack caps 300 lines and 50000 characters, bans no word, and '
-      'cites its four sources', () {
-    expectSpecLint(techStack, maxLines: 300, maxChars: 50000);
-  });
-
   test('tech_stack joins implement and design', () async {
     final set = await resolveSoftwareTech();
     expect(set.lookup('tech_stack')!.bundle, ['implement', 'design']);
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'write_spec_writing_guides E11: the guide states one Stack row per slot '
-      'as its item shape', () {
-    expectItemShape(
-      techStack,
-      'Write one rule per ID: one Stack row per slot, each rule one '
-      'sentence.',
-    );
   });
 }

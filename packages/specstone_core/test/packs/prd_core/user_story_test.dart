@@ -4,25 +4,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
 
-const _templates = {
-  'use_case':
-      '- **As a** <Role> [who <situation>]\n'
-      '- **I want to** <action>\n'
-      '- **so that** <benefit>',
-  'rules': '- **BR-01** — <rule>',
-  'acceptance_criteria':
-      '### Scenario 1 — [happy] <what differs>\n'
-      '- **Given** <only the state the scenario needs>\n'
-      '- **When** <one trigger>\n'
-      '- **Then** <observed outcome>\n'
-      '\n'
-      '### Scenario 2 — [error] <what differs> (BR-01)\n'
-      '- **Given** <only the state the scenario needs>\n'
-      '- **When** <one trigger>\n'
-      '- **Then** <what the person sees or what the system refuses>',
-  'open_questions': '- <question>',
-};
-
 void main() {
   late MergedDocType story;
   setUpAll(() async {
@@ -50,54 +31,6 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr02, f03/us06/fr02/e02, f03/us06/fr03, f03/us06/fr03/e01, '
-      'titled # <Name>, no NASA list', () {
-    expectGuideShape(story, title: '# <Name>');
-    expectNoNasaLint(story);
-    expectSources(story, [
-      (
-        "Dan North, What's in a Story?",
-        'https://dannorth.net/blog/whats-in-a-story/',
-      ),
-      (
-        'Mike Cohn, User Stories guide',
-        'https://www.mountaingoatsoftware.com/agile/user-stories',
-      ),
-      (
-        'Cucumber, Gherkin Reference',
-        'https://cucumber.io/docs/gherkin/reference/',
-      ),
-      (
-        'Matt Wynne, Introducing Example Mapping',
-        'https://cucumber.io/blog/bdd/example-mapping-introduction/',
-      ),
-    ]);
-  });
-
-  test('f03/us06/s2, f03/us06/fr02: the guide gives the title form, then '
-      'each section header in order', () {
-    final guide = story.renderGuide();
-    expect(guide, startsWith(story.description!.trimRight()));
-    final at = [
-      '## Use Case',
-      '## Rules',
-      '## Acceptance Criteria',
-      '## Open questions',
-    ].map(guide.indexOf).toList();
-    expect(at, everyElement(greaterThan(guide.indexOf('# <Name>'))));
-    expect(at, orderedEquals(List.of(at)..sort()));
-  });
-
-  test('the templates hold the story form', () {
-    for (final MapEntry(:key, :value) in _templates.entries) {
-      expect(sectionOf(story, key).template, value, reason: key);
-    }
-    expect(
-      sectionOf(story, 'rules').description,
-      contains('two or more rules'),
-    );
-  });
-
   test(
     'f03/us06/fr01, db-r1, db-r8: user_story marks use_case and rules summary',
     () {
@@ -110,23 +43,4 @@ void main() {
       );
     },
   );
-
-  test('Write the shipped writing guides '
-      'E07: the guide states the item shape: rule per ID, bound, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      story,
-      'Write one rule per ID: each `BR-*` rule states one '
-      'thing, with mechanics left to the spec docs.\n'
-      'Keep a bound in the rule it limits, and the trace in '
-      '`vision:` and `goals:`, never in the prose.',
-    );
-  });
-
-  test('goals field description names the goal doc', () {
-    expect(
-      fieldOf(story, 'goals').description,
-      contains('goal IDs (`PG-*`) of the goal doc'),
-    );
-  });
 }

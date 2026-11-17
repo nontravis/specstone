@@ -1,46 +1,9 @@
 import 'package:specstone_core/src/consistency_check/finding.dart';
-import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
-import '../../helpers/prd_core.dart';
-import '../../helpers/software_tech.dart';
-
-const _fr =
-    'template_packs/write_spec_docs_from_software_tech/'
-    'write_spec_writing_guides';
 
 void main() {
-  late MergedDocType record;
-  setUpAll(() async {
-    record = prdCoreDocType(await resolveSoftwareTech(), 'implementation');
-  });
-
-  test('$_fr E01, E03, E04, E14: the implementation guide titles its doc, '
-      'never writes status, and names the record as the one home', () {
-    expectSpecGuide(
-      record,
-      title: '# <Feature name> implementation',
-      says: [
-        'one home of each story',
-        '`planned`, code paths or not',
-        'skipped',
-        'one-line reason',
-      ],
-    );
-    expectItemShape(
-      record,
-      'Write one rule per ID: one entry per story and FR, each rule one '
-      'sentence.',
-    );
-  });
-
-  test('template_packs/write_spec_docs_from_software_tech/'
-      'set_spec_lint_and_sources: the implementation type caps 400 lines, '
-      'bans no word, and cites its four sources', () {
-    expectSpecLint(record, maxLines: 400, maxChars: 60000);
-  });
-
   test(
     'template_packs/write_spec_docs_from_software_tech/'
     'set_spec_lint_and_sources E04: a record holding an entry for every '

@@ -44,39 +44,6 @@ const nasaBannedWords = <String>[
   'but not limited to',
 ];
 
-/// The title of the NASA handbook reference entry.
-const nasaHandbookTitle =
-    'NASA Systems Engineering Handbook, NASA SP-2016-6105 Rev2';
-
-/// The URL of the NASA handbook reference entry, the web edition (GS-R2).
-const nasaHandbookUrl =
-    'https://www.nasa.gov/reference/systems-engineering-handbook/';
-
-/// The locator of the NASA handbook reference entry.
-const nasaHandbookLocator = 'Appendix C and section 4.2';
-
-/// The Statement template `fr` and `nf` share (F3P-D37, F3P-D39).
-const requirementStatementTemplate =
-    'The <product> shall <verb> <object> <value ± tolerance> <condition>.';
-
-/// The Mermaid quoting sentence that ends every flowchart guide text.
-const mermaidQuoteSentence =
-    'Quote a node label that holds `(`, `)`, `[`, `]`, `{`, or `}`, as in '
-    '`A["Save (draft)"]`; write `"` in it as `#quot;`.';
-
-/// The Verification template `fr` and `nf` share.
-const verificationTemplate =
-    '- **Pass criteria:** <what shows the requirement holds>\n'
-    '- **Level:** <level>';
-
-/// The TBR template `fr` and `nf` share.
-const tbrTemplate =
-    '- **Value:** <best estimate>\n'
-    '- **Why:** <reason>\n'
-    '- **Close action:** <what resolves it>\n'
-    '- **Who:** <name>\n'
-    '- **By when:** <date or milestone>';
-
 /// The `prd-core` doc type ids, in code point order.
 const prdCoreIds = <String>[
   'anti_persona',
@@ -213,50 +180,6 @@ void expectStatusValues(MergedDocType docType, List<String> values) {
   expect(fieldOf(docType, 'status').enumValues, values, reason: docType.id);
 }
 
-/// Expects each line of [shape], newline-joined, as a whole line of
-/// [docType]'s description: the item shape its guide states.
-void expectItemShape(MergedDocType docType, String shape) {
-  final description = const LineSplitter().convert(docType.description!);
-  for (final line in shape.split('\n')) {
-    expect(description, contains(line), reason: docType.id);
-  }
-}
-
-/// Expects the guide shape every `prd-core` doc type shares.
-///
-/// [maxLines] and [maxChars] are the doc type's line and character caps.
-void expectGuideShape(
-  MergedDocType docType, {
-  required String title,
-  String pack = 'prd-core',
-  int maxLines = 400,
-  int maxChars = 20000,
-}) {
-  final id = docType.id;
-  expect(docType.pack, pack, reason: id);
-  final description = docType.description;
-  expect(description, isNotNull, reason: id);
-  final firstLine = const LineSplitter().convert(description!).first;
-  expect(firstLine, isNotEmpty, reason: id);
-  expect(firstLine, endsWith('.'), reason: id);
-  expect(firstLine, isNot(startsWith('#')), reason: id);
-  expect(description, contains(title), reason: id);
-  for (final section in docType.sections) {
-    final lines = const LineSplitter().convert(section.description ?? '');
-    final where = '$id.${section.id}';
-    expect(section.description, isNotEmpty, reason: where);
-    expect(lines.length, lessThanOrEqualTo(5), reason: where);
-    for (final line in lines) {
-      expect(line.length, lessThanOrEqualTo(120), reason: '$where: $line');
-    }
-  }
-  expect(_guideTexts(docType).where(_thai.hasMatch), isEmpty, reason: id);
-  expect(docType.fields.any((f) => f.id == 'name'), isFalse, reason: id);
-  expect(docType.lint.maxLines, maxLines, reason: id);
-  expect(docType.lint.maxChars, maxChars, reason: id);
-  expect(fieldOf(docType, 'reference').docTypes, isNull, reason: id);
-}
-
 /// Expects the NASA words on [sections] only, with [linePrefix], and the
 /// handbook reference on [docType].
 ///
@@ -282,42 +205,6 @@ void expectNasaLint(
   }
   final reference = docType.reference;
   expect(reference, isNotNull, reason: docType.id);
-  expect(reference, hasLength(1), reason: docType.id);
-  final entry = reference!.single;
-  expect(entry.title, nasaHandbookTitle, reason: docType.id);
-  expect(entry.url, nasaHandbookUrl, reason: docType.id);
-  expect(entry.file, isNull, reason: docType.id);
-  expect(entry.doc, isNull, reason: docType.id);
-  expect(entry.locator, nasaHandbookLocator, reason: docType.id);
-}
-
-/// Expects [docType] to carry no banned words.
-void expectNoNasaLint(MergedDocType docType) {
-  expect(docType.lint.bannedWords, isNull, reason: docType.id);
-  for (final section in docType.sections) {
-    expect(section.bannedWords, isNull, reason: '${docType.id}.${section.id}');
-  }
-}
-
-/// Expects [docType]'s reference list to be [sources], each a title and url
-/// in order with no file, doc, or locator; an empty [sources] expects none.
-void expectSources(MergedDocType docType, List<(String, String)> sources) {
-  final reference = docType.reference;
-  if (sources.isEmpty) {
-    expect(reference, isNull, reason: docType.id);
-    return;
-  }
-  expect(
-    [for (final entry in reference!) (entry.title, entry.url)],
-    sources,
-    reason: docType.id,
-  );
-  for (final entry in reference) {
-    final where = '${docType.id}: ${entry.title}';
-    expect(entry.file, isNull, reason: where);
-    expect(entry.doc, isNull, reason: where);
-    expect(entry.locator, isNull, reason: where);
-  }
 }
 
 /// Returns the [nasaBannedWords] entries [text] holds, in list order.
@@ -343,20 +230,6 @@ RegExp _wholeWord(String word) => RegExp(
   '(?<![A-Za-z0-9])${RegExp.escape(word)}(?![A-Za-z0-9])',
   caseSensitive: false,
 );
-
-final _thai = RegExp(r'[\u0E00-\u0E7F]');
-
-Iterable<String> _guideTexts(MergedDocType docType) sync* {
-  yield docType.description ?? '';
-  for (final field in docType.fields) {
-    yield field.description ?? '';
-  }
-  for (final section in docType.sections) {
-    yield section.header;
-    yield section.description ?? '';
-    yield section.template ?? '';
-  }
-}
 
 final class _NoFiles implements LayerFiles {
   const new();

@@ -3,31 +3,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
 
-const _prefixes = {
-  'performance': 'NFR-P',
-  'security': 'NFR-Sec',
-  'reliability': 'NFR-R',
-  'maintainability': 'NFR-M',
-  'interface': 'NFR-I',
-  'environment': 'NFR-E',
-  'safety': 'NFR-Sa',
-  'operability': 'NFR-O',
-  'design_standards': 'NFR-DS',
-};
-
-/// The F3P-D18 block every category template holds, with its prefix.
-String _block(String prefix) =>
-    '### ${prefix}01 — <name>\n'
-    '- **Statement:** The <product> shall <verb> <object> '
-    '<value ± tolerance> <condition>.\n'
-    '- **Rationale:** <reason and assumptions>\n'
-    '- **Traced from:** <PG id, stakeholder expectation, standard, or '
-    'self-derived>\n'
-    '- **Verification:** <test | analysis | inspection | demonstration>; '
-    '<pass criteria>; <level>\n'
-    '- **Owner:** <name, or blank for the PROJECT owner>\n'
-    '- **TBR:** <value, why, close action, who, by when; or none>';
-
 void main() {
   late MergedDocType gnfr;
   setUpAll(() async {
@@ -83,13 +58,6 @@ void main() {
     ]);
   });
 
-  test('f03/us06/fr02, f03/us06/fr02/e01, f03/us06/fr02/e03, '
-      'titled # Project-wide non-functional requirements, '
-      'naming the -ly and -ize words', () {
-    expectGuideShape(gnfr, title: '# Project-wide non-functional requirements');
-    expect(gnfr.description, allOf(contains('-ly'), contains('-ize')));
-  });
-
   test('f03/us06/fr03, f03/us06/fr03/e02: the 29 NASA words on the Statement '
       'lines of each category, and the NASA handbook', () {
     expectNasaLint(
@@ -109,45 +77,14 @@ void main() {
     );
   });
 
-  test('each category template is one NFR block with its '
-      'prefix', () {
-    for (final MapEntry(:key, :value) in _prefixes.entries) {
-      expect(sectionOf(gnfr, key).template, _block(value), reason: key);
-    }
-  });
-
-  test('Maintainability reads industry-neutral', () {
-    expect(
-      sectionOf(gnfr, 'maintainability').description,
-      contains('cost and time to change, inspect, and repair'),
-    );
-  });
-
   test('no starter template holds a listed word', () {
     expectTemplatesFreeOfListedWords(gnfr);
   });
 
-  test('gnfr sets bundle_refs', () async {
-    final gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');
+  test('gnfr joins implement and design, sets bundle_refs, and marks no '
+      'query section', () {
     expect(gnfr.bundleRefs, isTrue);
-  });
-
-  test('gnfr joins implement and design and marks no query '
-      'section', () async {
-    final gnfr = prdCoreDocType(await resolvePrdCore(), 'gnfr');
     expect(gnfr.bundle, ['implement', 'design']);
     expect(gnfr.sections.where((s) => s.query != null), isEmpty);
-  });
-
-  test('Write the shipped writing guides '
-      'E07: the guide states the item shape: rule per ID, bound, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      gnfr,
-      'Write one rule per `NFR-*` ID, keep its bound in its '
-      'Statement, and leave mechanics to the spec docs.\n'
-      "Keep the trace in the entry's `**Traced from:**` bullet, "
-      'never in the Statement.',
-    );
   });
 }

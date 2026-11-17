@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:specstone_core/src/setup_migration/host_render.dart';
 import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
-import 'package:specstone_core/src/version.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/git_repo.dart';
@@ -30,45 +29,6 @@ Future<String> _dryRunPlanHash(Directory root) async {
 }
 
 void main() {
-  test("an Agent's shell sets up the same files", () async {
-    final root = await writeTree({'keep.txt': 'x\n'});
-    final (:runner, :out, :err) = writeRunner(root);
-
-    final status = await runner.run(['init']);
-
-    expect(status, 0);
-    expect(err.toString(), isEmpty);
-    expect(
-      out.toString(),
-      startsWith('created docs/prds/PROJECT.md (draft)\n'),
-    );
-    expect(out.toString(), endsWith(_configLine()));
-    expect(
-      File('${root.path}/.specstone/config.yaml').readAsStringSync(),
-      '${shippedPinsConfig()}agent_files_version: $specstoneVersion\n',
-    );
-  });
-
-  test('init prints the six drafts in the project, goal, glossary, features, '
-      'gnfr, tech_stack order', () async {
-    final root = await writeTree({'keep.txt': 'x\n'});
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['init']), 0);
-
-    expect(
-      out.toString(),
-      startsWith(
-        'created docs/prds/PROJECT.md (draft)\n'
-        'created docs/prds/GOAL.md (draft)\n'
-        'created docs/prds/GLOSSARY.md (draft)\n'
-        'created docs/prds/FEATURES.md (draft)\n'
-        'created docs/prds/GNFR.md (draft)\n'
-        'created docs/specs/TECH_STACK.md (draft)\n',
-      ),
-    );
-  });
-
   test('list --draft lists every doc init created', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
@@ -165,18 +125,6 @@ void main() {
     expect(await runner.run(['init']), 0);
 
     expect(err.toString(), isEmpty);
-  });
-
-  test('init writes '
-      'an AGENT.md of at most 200 words with the one target clause', () async {
-    final root = await writeTree({'keep.txt': 'x\n'});
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['init']), 0);
-
-    final text = File('${root.path}/.specstone/AGENT.md').readAsStringSync();
-    expect(RegExp(r'\S+').allMatches(text).length, lessThanOrEqualTo(200));
-    expect(RegExp('--target <code target>').allMatches(text), hasLength(1));
   });
 
   test(

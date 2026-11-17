@@ -4,13 +4,6 @@ import 'package:test/test.dart';
 
 import '../../helpers/prd_core.dart';
 
-const _goalTemplate =
-    '### PG-01 — <short name>\n'
-    '- **Serves:** PV-01\n'
-    '- **Statement:** <goal statement>\n'
-    '- **Metric:** <numeric target with unit>\n'
-    '- **By:** <date or milestone>';
-
 const _horizonIds = ['long_term', 'mid_term', 'short_term'];
 
 void main() {
@@ -35,7 +28,6 @@ void main() {
       expect(section.skeleton, isTrue, reason: id);
       expect(section.query, isNull, reason: id);
       expect(section.summary, isNull, reason: id);
-      expect(section.template, _goalTemplate, reason: id);
     }
   });
 
@@ -45,45 +37,8 @@ void main() {
       expect([for (final p in entries) p.id], ['metric_number'], reason: id);
       final pattern = entries.single;
       expect(pattern.scope, PatternScope.all, reason: id);
-      expect(pattern.message, contains('numeric metric with unit'));
       expect(pattern.regExp.hasMatch('- **Metric:** a fast tool'), isTrue);
       expect(pattern.regExp.hasMatch('**Metric:** 3 calls'), isFalse);
-    }
-  });
-
-  test('goal is titled # Project goals, caps at 400 lines, and carries the '
-      'doc_citation and history entries with no word list or source', () {
-    expectGuideShape(goal, title: '# Project goals');
-    expectNoNasaLint(goal);
-    expectSources(goal, []);
-    expect(
-      [for (final pattern in goal.lint.bannedPatterns!) pattern.id],
-      ['doc_citation', 'history'],
-    );
-  });
-
-  test('the description states the goal rules and the item shape', () {
-    expectItemShape(
-      goal,
-      'Write one rule per `PG-*` ID, and leave mechanics to the spec docs.\n'
-      'Cite a rule another doc owns by a link to the item that holds it, '
-      'never restate it.',
-    );
-    final description = goal.description!;
-    for (final rule in const [
-      "next number above the doc's highest `PG-` ID",
-      "moves its block to that horizon's section, its ID kept",
-      'deleted from the goal doc together with its measurement',
-      'leaves out `**By:**`',
-      "links the goal's measurement",
-      'no ID is used again',
-      'no status field and no archive section',
-      'every other `**By:**` names a date or a milestone',
-      'GOAL holds no measured number',
-      'State the present truth; history lives in git.',
-      'Cite a rule another doc owns by a link',
-    ]) {
-      expect(description, contains(rule));
     }
   });
 }

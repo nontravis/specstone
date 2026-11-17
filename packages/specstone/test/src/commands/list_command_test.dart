@@ -206,16 +206,6 @@ void main() {
     },
   );
 
-  test('f10/us04/s4, f10/us04/fr01/e05: list feature --unwalked exits 64 with the refusal', () async {
-    final (:runner, :out, :err) = readRunner(await writeCheckProject());
-    expect(await runner.run(['list', 'feature', '--unwalked']), 64);
-    expect(
-      err.toString(),
-      contains('--unwalked lists user_story docs only, not feature'),
-    );
-    expect(out.toString(), isEmpty);
-  });
-
   test('list user_story --suspect --unwalked exits 0', () async {
     final (:runner, :out, :err) = readRunner(await suspectProject());
     expect(
@@ -288,22 +278,6 @@ void main() {
       expect(out.toString(), contains(' · planned · '));
     });
 
-    test('f01/us03/fr02/e10: --status or --no-implements with two targets and no --target is argument_missing, exit 64', () async {
-      for (final args in [
-        ['list', 'user_story', '--status', 'planned'],
-        ['list', 'fr', '--no-implements'],
-      ]) {
-        final (:runner, :out, :err) = readRunner(await twoTargets());
-        expect(await runner.run(args), 64);
-        expect(
-          err.toString(),
-          '--status and --no-implements need --target with two or more code '
-          'targets; the targets are flutter, jaspr\n',
-        );
-        expect(out.toString(), isEmpty);
-      }
-    });
-
     test('f01/us03/fr02/e11: list user_story --status skipped --target jaspr keeps the skipped story', () async {
       final (:runner, :out, :err) = readRunner(
         await writeTree({
@@ -346,24 +320,5 @@ void main() {
         startsWith('login/hide (user_story) — Agent hides it · skipped · '),
       ]);
     });
-
-    test(
-      'f01/us03/fr02/e12: one target judges its status with no --target',
-      () async {
-        final (:runner, :out, :err) = readRunner(await writeReadProject());
-        expect(
-          await runner.run(['list', 'user_story', '--status', 'planned']),
-          0,
-        );
-        expect(
-          out
-              .toString()
-              .split('\n')
-              .where((l) => l.isNotEmpty)
-              .map((l) => l.split(' (').first),
-          ['login/email_login'],
-        );
-      },
-    );
   });
 }

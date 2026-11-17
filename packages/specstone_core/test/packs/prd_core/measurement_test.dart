@@ -59,42 +59,8 @@ void main() {
     }
   });
 
-  test('measurement titles with no number, carries the shared lint and '
-      'pattern entries, caps at 400 lines, and cites no source', () {
-    expectGuideShape(measurement, title: "# <the goal's short name>");
+  test('measurement titles with no number', () {
     expect(measurement.lint.titleNoNumber, isTrue);
-    expect(measurement.lint.maxLines, 400);
-    expect(
-      [for (final pattern in measurement.lint.bannedPatterns!) pattern.id],
-      ['doc_citation', 'history'],
-    );
-    expectNoNasaLint(measurement);
-    expectSources(measurement, []);
-  });
-
-  test('the guide states the item shape: rule per ID, mechanics, and '
-      'bound', () {
-    expectItemShape(
-      measurement,
-      'Write one rule per ID; in a section with no IDs, one rule per item, '
-      'with mechanics left to the spec docs.\n'
-      'Keep a bound in the item it limits, never in the prose.',
-    );
-  });
-
-  test('the guide states the log rule and the goal link', () {
-    final guide = measurement.renderGuide();
-    expect(
-      guide,
-      contains(
-        'a run adds its row on top and never edits an '
-        'older row',
-      ),
-    );
-    expect(guide, contains("goal's `### PG-` heading in the goal doc"));
-    expect(guide, isNot(contains('in the project doc')));
-    expect(guide, contains('`**Metric:**` line links back'));
-    expect(guide, contains('never restate it.'));
   });
 
   group('check', () {

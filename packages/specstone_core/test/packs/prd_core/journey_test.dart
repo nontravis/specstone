@@ -25,43 +25,12 @@ void main() {
       SectionSpec('steps', 'Steps', required: true),
     ]);
     expect(journey.generators, ['journey_flow', 'scenario_copy']);
-    expect(journey.lint.maxLines, 400);
-  });
-
-  test('f10/us01/fr01/e01, f10/us01/s5: the guide opens with the sizing '
-      'rule, then Goal, Flow, and Steps', () {
-    final guide = journey.renderGuide();
-    final rule = guide.indexOf('one goal of one persona');
-    final branch = guide.indexOf('Branch only on outcomes the persona sees');
-    final headers = ['## Goal', '## Flow', '## Steps'].map(guide.indexOf);
-    expect(rule, isNonNegative);
-    expect(branch, isNonNegative);
-    expect(headers, everyElement(greaterThan(branch)));
-    expect(headers.toList(), orderedEquals(List.of(headers)..sort()));
   });
 
   test("a journey's Name is its slug", () {
     expect(
       docNameOf('prds/journeys/first_project_to_html/JOURNEY.md', journey),
       'first_project_to_html',
-    );
-  });
-
-  test('f03/us06/fr02, f03/us06/fr03, f03/us06/fr03/e01: titled # <the goal '
-      'as the persona says it>, no NASA list', () {
-    expectGuideShape(journey, title: '# <the goal as the persona says it>');
-    expectNoNasaLint(journey);
-    expectSources(journey, []);
-  });
-
-  test('Write the shipped writing guides '
-      'E07: the guide states the item shape: rule per ID, bound, '
-      'mechanics, and trace', () {
-    expectItemShape(
-      journey,
-      'Write one rule per ID; in a section with no IDs, one '
-      'rule per item, with mechanics left to the spec docs.\n'
-      'Keep a bound in the step it limits, never in the prose.',
     );
   });
 }

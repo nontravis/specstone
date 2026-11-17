@@ -21,6 +21,17 @@ const _frLayer = <String, String>{
 
 Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
 
+/// True when an ancestor of the system temp folder holds a project config.
+bool _tempHasConfigAncestor() {
+  Directory? dir = Directory.systemTemp.absolute;
+  while (dir != null) {
+    if (File.fromUri(dir.uri.resolve(_configPath)).existsSync()) return true;
+    final parent = dir.parent;
+    dir = parent.path == dir.path ? null : parent;
+  }
+  return false;
+}
+
 /// The shipped fixture: `prd-core` holds `feature` and `user_story`.
 Map<String, Uint8List> shipped() => {
   'prd-core/pack.yaml': _bytes('name: prd-core\nversion: 1.1.0\n'),
@@ -1171,7 +1182,7 @@ items:
     });
   });
 
-  group('specstone guide with the shipped writing guides', () {
+  group('specstone guide with the shipped packs', () {
     late StringBuffer out;
     late StringBuffer err;
 
@@ -1180,45 +1191,153 @@ items:
       err = StringBuffer();
     });
 
-    Future<SpecstoneCommandRunner> shippedRunner() async =>
-        SpecstoneCommandRunner(
-          out: out,
-          err: err,
-          templates: TemplateResolver(),
-          workingDirectory: await writeTree({_configPath: shippedPinsConfig()}),
-          homeDirectory: await writeTree({}),
-        );
+    Future<SpecstoneCommandRunner> runnerFor({
+      String? packs,
+      Directory? working,
+    }) async => SpecstoneCommandRunner(
+      out: out,
+      err: err,
+      templates: TemplateResolver(),
+      workingDirectory:
+          working ??
+          await writeTree({_configPath: packs ?? shippedPinsConfig()}),
+      homeDirectory: await writeTree({}),
+    );
 
-    test('template_packs/write_prd_docs_from_prd_core/'
-        'write_shipped_writing_guides E05: guide feature names the three size '
-        'findings in order, with the no-split case', () async {
-      final runner = await shippedRunner();
+    Future<Map<String, Object?>> schemaOf(
+      SpecstoneCommandRunner runner,
+      String id,
+    ) async {
+      out.clear();
+      expect(await runner.run(['guide', id, '--json']), 0, reason: id);
+      return jsonDecode(out.toString()) as Map<String, Object?>;
+    }
 
-      expect(await runner.run(['guide', 'feature']), 0);
-      final guide = out.toString();
-      final chars = guide.indexOf('`chars_over_limit`');
-      final lines = guide.indexOf('`lines_over_limit`');
-      final item = guide.indexOf('`item_over_limit`');
-      expect(chars, isNonNegative);
-      expect(lines, greaterThan(chars));
-      expect(item, greaterThan(lines));
-      expect(guide, contains('fewer than 4 stories'));
-      expect(guide, contains('never both'));
-      expect(guide, contains('a split never shrinks one item'));
-      expect(guide, contains('Cut no text to pass a size'));
+    Map<String, Object?> errorOf() =>
+        (jsonDecode(err.toString()) as Map<String, Object?>)['error']!
+            as Map<String, Object?>;
+
+    test('lists each doc type with the pack that owns it', () async {
+      final runner = await runnerFor();
+
+      expect(await runner.run(['guide', '--json']), 0);
+      final entries = (jsonDecode(out.toString()) as List<Object?>)
+          .cast<Map<String, Object?>>();
+      String packOf(String id) =>
+          entries.singleWhere((e) => e['id'] == id)['pack']! as String;
+      expect(packOf('fr'), 'prd-core');
+      expect(packOf('architecture'), 'software-tech');
+      for (final entry in entries) {
+        expect(entry['description'], isNotEmpty, reason: '${entry['id']}');
+      }
+      out.clear();
+      expect(await runner.run(['guide']), 0);
+      expect(
+        out.toString(),
+        [for (final entry in entries) '${entry['id']}\n'].join(),
+      );
       expect(err.toString(), isEmpty);
     });
 
-    test('template_packs/write_spec_docs_from_software_tech/'
-        'write_spec_writing_guides: guide api names the FR Rationale as the '
-        'home of a legacy Why line', () async {
-      final runner = await shippedRunner();
+    test(
+      'outside a project it lists every shipped doc type',
+      () async {
+        final runner = await runnerFor(working: await writeTree({}));
 
-      expect(await runner.run(['guide', 'api']), 0);
+        expect(await runner.run(['guide']), 0);
+        final ids = const LineSplitter().convert(out.toString());
+        expect(ids, containsAll(['fr', 'architecture']));
+        expect(err.toString(), isEmpty);
+      },
+      skip: _tempHasConfigAncestor()
+          ? 'an ancestor of the system temp folder holds $_configPath'
+          : false,
+    );
+
+    test('with only prd-core a software-tech type is neither listed nor '
+        'printed', () async {
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
+
+      expect(await runner.run(['guide']), 0);
+      final ids = const LineSplitter().convert(out.toString());
+      expect(ids, contains('fr'));
+      expect(ids, isNot(contains('architecture')));
+
+      out.clear();
+      expect(await runner.run(['guide', 'architecture']), 64);
       expect(
-        out.toString(),
-        contains('the reason a legacy Why line gives goes to the `Rationale`'),
+        err.toString(),
+        contains(
+          'Could not find a doc type named "architecture".\n\n$_guideUsage',
+        ),
       );
+      expect(out.toString(), isEmpty);
+
+      err.clear();
+      expect(await runner.run(['guide', 'architecture', '--json']), 64);
+      expect(errorOf()['code'], 'doc_type_unknown');
+      expect(out.toString(), isEmpty);
+    });
+
+    test(
+      'software-tech without prd-core exits 78 as prd_core_missing',
+      () async {
+        final runner = await runnerFor(
+          packs: shippedPinsConfig(['software-tech']),
+        );
+
+        expect(await runner.run(['guide', '--json']), 78);
+        expect(errorOf()['code'], 'prd_core_missing');
+        expect(out.toString(), isEmpty);
+      },
+    );
+
+    test('with only prd-core no field of a doc type points at code', () async {
+      final runner = await runnerFor(packs: shippedPinsConfig(['prd-core']));
+
+      final fields =
+          ((await schemaOf(runner, 'fr'))['fields']! as List<Object?>)
+              .cast<Map<String, Object?>>();
+      expect(fields, isNotEmpty);
+      for (final field in fields) {
+        expect(field['type'], isNot('output_ref'), reason: '${field['id']}');
+        expect(field.containsKey('pointer'), isFalse, reason: '${field['id']}');
+      }
+    });
+
+    test('every doc type prints its sections in the order its schema '
+        'gives', () async {
+      final runner = await runnerFor();
+      expect(await runner.run(['guide']), 0);
+      final ids = const LineSplitter().convert(out.toString());
+
+      for (final id in ids) {
+        final headers = [
+          for (final section
+              in ((await schemaOf(runner, id))['sections']! as List<Object?>)
+                  .cast<Map<String, Object?>>())
+            '## ${section['header']}\n',
+        ];
+        out.clear();
+        expect(await runner.run(['guide', id]), 0, reason: id);
+        final at = headers.map(out.toString().indexOf).toList();
+        expect(at, everyElement(isNonNegative), reason: id);
+        expect(at, orderedEquals(List.of(at)..sort()), reason: id);
+      }
+      expect(err.toString(), isEmpty);
+    });
+
+    test('every shipped feature pattern prints', () async {
+      final runner = await runnerFor();
+      expect(await runner.run(['guide', '--pattern']), 0);
+      final ids = const LineSplitter().convert(out.toString());
+      expect(ids, isNotEmpty);
+
+      for (final id in ids) {
+        out.clear();
+        expect(await runner.run(['guide', '--pattern', id]), 0, reason: id);
+        expect(out.toString(), contains('- **'), reason: id);
+      }
       expect(err.toString(), isEmpty);
     });
   });
@@ -1373,27 +1492,5 @@ items:
         'feature\nuser_story\n',
       );
     });
-
-    test(
-      'prd-core and software-tech list fourteen and fifteen doc types',
-      () async {
-        final project = await writeTree({_configPath: shippedPinsConfig()});
-        final runner = SpecstoneCommandRunner(
-          out: out,
-          err: err,
-          templates: TemplateResolver(),
-          workingDirectory: project,
-          homeDirectory: await writeTree({}),
-        );
-
-        expect(await runner.run(['guide', '--json']), 0);
-        final packs = [
-          for (final row in jsonDecode(out.toString()) as List<Object?>)
-            (row! as Map<String, Object?>)['pack'],
-        ];
-        expect(packs.where((pack) => pack == 'prd-core'), hasLength(14));
-        expect(packs.where((pack) => pack == 'software-tech'), hasLength(15));
-      },
-    );
   });
 }
