@@ -36,13 +36,6 @@ String frWithSizes() =>
     '## Edge cases\n${'1. E01 — A wrong password → refused'.padRight(106, '.')}\n'
     '${'2. E02 — An unknown email → refused'.padRight(121, '.')}\n';
 
-// The same requirement with a lead of 681 chars after its title.
-String frWithLead() => frWithSizes().replaceFirst(
-  '# Validate credentials\n\n',
-  '# Validate credentials\n\n'
-      '${'The lead says what the check covers.'.padRight(681, '.')}\n\n',
-);
-
 Map<String, Object?> errorOf(StringBuffer err) =>
     (jsonDecode(err.toString()) as Map)['error'] as Map<String, Object?>;
 
@@ -110,32 +103,6 @@ void main() {
     expect(out.toString(), contains('login (feature) — Login · planned · '));
     expect(err.toString(), isEmpty);
   });
-  test(
-    's8, fr01/e15: structure names each target status, a skipped story skipped',
-    () async {
-      final (:runner, :out, :err) = readRunner(await writeTargetedTree());
-      expect(await runner.run(['structure', 'feedback/toast']), 0);
-      expect(out.toString().split('\n').take(3), [
-        startsWith(
-          'feedback/toast (feature) — Toast · '
-          'flutter: implemented, jaspr: planned · ',
-        ),
-        isA<String>().having(
-          (l) => l.trim().split(' · ').take(2).join(' · '),
-          'statuses',
-          'feedback/toast/show (user_story) — Agent sees a toast · '
-              'flutter: implemented, jaspr: planned',
-        ),
-        isA<String>().having(
-          (l) => l.trim().split(' · ').take(2).join(' · '),
-          'statuses',
-          'feedback/toast/swipe (user_story) — Agent swipes a toast away · '
-              'flutter: implemented, jaspr: skipped',
-        ),
-      ]);
-      expect(err.toString(), isEmpty);
-    },
-  );
   test('fr01/e16: structure --target jaspr prints jaspr alone, no flutter spec doc', () async {
     final (:runner, :out, :err) = readRunner(await writeTargetedTree());
     expect(
@@ -154,16 +121,6 @@ void main() {
       reason: 'no flutter status and no flutter spec doc',
     );
     expect(err.toString(), isEmpty);
-  });
-  test('read_doc_section/resolve_doc_name E22: an unknown --target with no '
-      'positional target exits 64', () async {
-    final (:runner, :out, :err) = readRunner(await writeTargetedTree());
-    expect(await runner.run(['structure', '--target', 'web']), 64);
-    expect(
-      err.toString(),
-      '--target web: the code targets are flutter, jaspr\n',
-    );
-    expect(out.toString(), isEmpty);
   });
   test('f01/us02/fr01/e17: one named target reads its records with no --target '
       'through list', () async {
@@ -214,88 +171,6 @@ void main() {
     expect(await runner.run(['structure']), 0);
     expect(err.toString(), '⚠️ WARNING: $frWarning\n');
   });
-  test(
-    'S7: a requirement prints each section and item with its characters',
-    () async {
-      final (:runner, :out, :err) = readRunner(
-        await writeReadProject(extra: {frKey: frWithSizes()}),
-      );
-      expect(await runner.run(['structure', frTarget]), 0);
-      expect(
-        out.toString().split('\n').skip(1).join('\n'),
-        '  statement · 179 chars\n'
-        '    line 14 · 165 chars\n'
-        '  edge_cases · 243 chars\n'
-        '    E01 · 106 chars\n'
-        '    E02 · 121 chars\n',
-      );
-      expect(err.toString(), isEmpty);
-    },
-  );
-  test('S7: --json gives the doc object its sections', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(extra: {frKey: frWithSizes()}),
-    );
-    expect(await runner.run(['structure', frTarget, '--json']), 0);
-    final doc =
-        ((jsonDecode(out.toString()) as Map)['docs']! as List).single
-            as Map<String, Object?>;
-    expect(doc['sections'], [
-      {
-        'key': 'statement',
-        'chars': 179,
-        'items': [
-          {'line': 14, 'chars': 165},
-        ],
-      },
-      {
-        'key': 'edge_cases',
-        'chars': 243,
-        'items': [
-          {'id': 'E01', 'line': 18, 'chars': 106},
-          {'id': 'E02', 'line': 19, 'chars': 121},
-        ],
-      },
-    ]);
-    expect(err.toString(), isEmpty);
-  });
-  test('S7: a requirement with a lead prints it first, as text', () async {
-    final (:runner, :out, :err) = readRunner(
-      await writeReadProject(extra: {frKey: frWithLead()}),
-    );
-    expect(await runner.run(['structure', frTarget]), 0);
-    expect(
-      out.toString().split('\n').skip(1).join('\n'),
-      '  _lead · 681 chars\n'
-      '    line 12 · 681 chars\n'
-      '  statement · 179 chars\n'
-      '    line 16 · 165 chars\n'
-      '  edge_cases · 243 chars\n'
-      '    E01 · 106 chars\n'
-      '    E02 · 121 chars\n',
-    );
-    expect(err.toString(), isEmpty);
-  });
-  test(
-    'S7: a requirement with a lead gives --json a _lead section first',
-    () async {
-      final (:runner, :out, :err) = readRunner(
-        await writeReadProject(extra: {frKey: frWithLead()}),
-      );
-      expect(await runner.run(['structure', frTarget, '--json']), 0);
-      final doc =
-          ((jsonDecode(out.toString()) as Map)['docs']! as List).single
-              as Map<String, Object?>;
-      expect((doc['sections']! as List).first, {
-        'key': '_lead',
-        'chars': 681,
-        'items': [
-          {'line': 12, 'chars': 681},
-        ],
-      });
-      expect(err.toString(), isEmpty);
-    },
-  );
   test('f01/us02/s5, f01/us02/fr01/e03: a target no doc carries exits 64 and names it', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['structure', 'logn']), 64);

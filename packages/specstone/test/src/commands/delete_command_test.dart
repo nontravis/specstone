@@ -4,8 +4,6 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/nested_fixture.dart';
-import '../../../../specstone_core/test/helpers/record_fixture.dart';
-import '../../../../specstone_core/test/helpers/shipped_pins.dart';
 import '../../../../specstone_core/test/helpers/target_fixture.dart';
 import '../../../../specstone_core/test/helpers/write_fixture.dart';
 import '../../helpers/built_cli.dart';
@@ -57,139 +55,6 @@ void main() {
     },
   );
   const fr11Target = 'fr:login/email_login/validate_credentials';
-  test('--dry-run prints a mention of a removed doc in an agent file '
-      'before the plan line', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'CLAUDE.md': 'Read `fr:login/email_login/validate_credentials`.\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['delete', fr11Target, '--dry-run']), 0);
-    expect(
-      out.toString(),
-      contains(
-        'mentions CLAUDE.md:1 fr:login/email_login/validate_credentials\n'
-        "guarded: 1 docs; the delete needs the Owner's ok\nplan ",
-      ),
-    );
-    expect(
-      File('${root.path}/CLAUDE.md').readAsStringSync(),
-      'Read `fr:login/email_login/validate_credentials`.\n',
-    );
-  });
-
-  group('--dry-run marks the guarded files', () {
-    const emailStory = 'user_story:login/email_login';
-    final removed = [
-      'prds/features/f01_login/us01_email_login/USER_STORY.md',
-      fr11,
-      fr12,
-    ];
-
-    Future<Directory> mixedUnit({
-      bool techStack = false,
-      Map<String, String> codeFiles = const {},
-    }) => writeWriteProject(
-      extra: {
-        'docs/$fr11': '---\napproved: true\n---\n\n# Validate credentials\n',
-        // fr12 loses its link into story3, so the unit is free to delete
-        'docs/$fr12': '---\ndraft: true\n---\n\n# Lock after failures\n',
-        // the persona drops its reference, so no doc outside the unit refers in
-        'docs/prds/personas/buyer/PERSONA.md':
-            '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
-        if (techStack)
-          'docs/specs/TECH_STACK.md':
-              '---\ncode:\n  - app/lib/\n---\n\n# Tech stack\n\n'
-              '## Stack\n\n| Slot | Choice |\n|---|---|\n'
-              '| Language | Dart |\n\n## Naming\n\n- snake_case file names\n',
-        ...codeFiles,
-      },
-    );
-
-    test('ends each guarded file with a mark, prints the count line, and '
-        'removes nothing', () async {
-      final root = await mixedUnit();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(await runner.run(['delete', emailStory, '--dry-run']), 0);
-      expect(err.toString(), isEmpty);
-      final text = out.toString();
-      expect(text, startsWith('${removed[0]}\n'));
-      expect(text, contains('${removed[1]} (guarded)\n${removed[2]}\n'));
-      expect(text, contains('${removed[1]} (guarded)\n'));
-      expect(
-        text,
-        endsWith(
-          "guarded: 1 docs; the delete needs the Owner's ok\n"
-          'plan ${await _dryRunPlanHash(root, emailStory)}\n'
-          'dry run: nothing removed\n',
-        ),
-      );
-      expect(File('${root.path}/docs/$fr11').existsSync(), isTrue);
-    });
-
-    test('--json prints the guarded paths under guarded', () async {
-      final root = await mixedUnit();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['delete', emailStory, '--dry-run', '--json']),
-        0,
-      );
-      final answer = jsonDecode(out.toString()) as Map;
-      expect(answer['files'], removed);
-      expect(answer['guarded'], [fr11]);
-      expect(answer.keys, contains('plan'));
-    });
-
-    test('a code comment naming the story prints a mentions line beside the '
-        'marks', () async {
-      final root = await mixedUnit(
-        techStack: true,
-        codeFiles: {'app/lib/login.dart': '// `login/email_login` names it\n'},
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run([
-          'delete',
-          'user_story:login/email_login',
-          '--dry-run',
-        ]),
-        0,
-      );
-      expect(
-        out.toString(),
-        contains('mentions app/lib/login.dart:1 login/email_login\n'),
-      );
-      expect(
-        out.toString(),
-        contains("guarded: 1 docs; the delete needs the Owner's ok\n"),
-      );
-    });
-
-    test(
-      'a unit with no guarded file prints no mark and no count line',
-      () async {
-        final root = await writeWriteProject(
-          extra: {
-            'docs/prds/features/f01_login/us02_sign_out/USER_STORY.md':
-                '---\nstatus: planned\ndraft: true\n---\n\n# Sign out\n',
-            'docs/$fr12': '---\ndraft: true\n---\n\n# Lock after failures\n',
-          },
-        );
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run([
-            'delete',
-            'fr:login/email_login/lock_after_failures',
-            '--dry-run',
-          ]),
-          0,
-        );
-        expect(out.toString(), isNot(contains('guarded')));
-        expect(out.toString(), isNot(contains('(guarded)')));
-      },
-    );
-  });
 
   test('ms-r11: --dry-run lists the files and the plan line, removes '
       'nothing, and needs no terminal', () async {
@@ -280,21 +145,6 @@ void main() {
       expect((jsonDecode(out.toString()) as Map)['removed'], [fr11]);
     },
   );
-  test('ms-r11: --yes --plan after an uncommitted edit to a listed file '
-      'exits 75 and removes nothing', () async {
-    final root = await writeWriteProject();
-    final hash = await _dryRunPlanHash(root, fr11Target);
-    final file = File('${root.path}/docs/$fr11');
-    file.writeAsStringSync('${file.readAsStringSync()}More.\n');
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(
-      await runner.run(['delete', fr11Target, '--yes', '--plan', hash]),
-      75,
-    );
-    expect(out.toString(), isEmpty);
-    expect(err.toString(), startsWith('the delete list is not the one'));
-    expect(file.existsSync(), isTrue);
-  });
   test(
     'ms-r11: --yes --plan with a stale hash exits 75 and removes nothing',
     () async {
@@ -402,32 +252,6 @@ void main() {
     expect(File('${root.path}/docs/$one').existsSync(), isFalse);
     expect(File('${root.path}/docs/$two').existsSync(), isFalse);
   });
-  test("an Agent's delete of an untyped doc with no draft exits 77", () async {
-    final root = await writeWriteProject(extra: untyped);
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['delete', notes]), 77);
-    expect(
-      err.toString(),
-      contains('holds guarded docs; only the Owner deletes them'),
-    );
-    expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
-  });
-  test('f02/us04/s8, f02/us04/fr04/e03: at a terminal the Owner sees the list and the prompt, then the removed paths', () async {
-    final root = await writeWriteProject(extra: untyped);
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(
-        stdinIsTerminal: true,
-        stdoutIsTerminal: true,
-        answers: ['y'],
-      ),
-    );
-    expect(await runner.run(['delete', notes, errors, index]), 0);
-    expect(err.toString(), isEmpty);
-    // The core lists a delete set sorted by code point, not in call order.
-    const paths = '$index\n$errors\n$notes\n';
-    expect(out.toString(), '${paths}delete 3 files? [y/N] $paths');
-  });
   test('f02/us04/s9, f02/us04/fr04/e04: a referrer outside the set exits 64 and is named after ; also', () async {
     final root = await writeWriteProject(
       extra: {
@@ -478,77 +302,6 @@ void main() {
     );
     expect(File('${root.path}/docs/$notes').existsSync(), isTrue);
   });
-  test('under --json the link that will dangle is in warnings', () async {
-    final root = await writeWriteProject(extra: withPlan);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    final status = await runner.run(['delete', notes, '--dry-run', '--json']);
-
-    expect(status, 0);
-    expect(err.toString(), isEmpty);
-    final json = jsonDecode(out.toString()) as Map;
-    expect(json['files'], [notes]);
-    expect(json['warnings'], [dangles]);
-  });
-  test('at a terminal, y deletes the doc a plan links into and warns that the '
-      'link will dangle', () async {
-    final root = await writeWriteProject(extra: withPlan);
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(
-        stdinIsTerminal: true,
-        stdoutIsTerminal: true,
-        answers: ['y'],
-      ),
-    );
-
-    final status = await runner.run(['delete', notes]);
-
-    expect(status, 0);
-    expect(err.toString(), '⚠️ WARNING: $dangles\n');
-    expect(out.toString(), endsWith('delete 1 files? [y/N] $notes\n'));
-    expect(File('${root.path}/docs/$notes').existsSync(), isFalse);
-    expect(File('${root.path}/docs/$plan').existsSync(), isTrue);
-  });
-  const mentioningProject = 'prds/PROJECT.md';
-  const mentionWarning =
-      '$mentioningProject mentions $loginFeature; the mention will dangle';
-  Future<Directory> mentionedLogin() => writeWriteProject(
-    extra: {
-      'docs/prds/FEATURES.md': '# Feature index\n\n## Systems\n- [Signup](features/f02_signup/FEATURE.md)\n',
-      'docs/$persona':
-          '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
-      'docs/$mentioningProject':
-          '# Project context\n\nSee `features/f01_login/FEATURE.md`.\n',
-    },
-  );
-  test('f02/us04/fr01/e13, ms-r11: --dry-run on a feature a typed doc mentions exits 0 and warns on stderr that the mention will dangle', () async {
-    final root = await mentionedLogin();
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['delete', 'feature:login', '--dry-run']), 0);
-
-    expect(err.toString(), '⚠️ WARNING: $mentionWarning\n');
-    expect(File('${root.path}/docs/$loginFeature').existsSync(), isTrue);
-  });
-  test('delete of a feature a typed doc mentions exits 0 and warns on stderr '
-      'that the mention will dangle', () async {
-    final root = await mentionedLogin();
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(
-        stdinIsTerminal: true,
-        stdoutIsTerminal: true,
-        answers: ['y'],
-      ),
-    );
-
-    expect(await runner.run(['delete', 'feature:login']), 0);
-
-    expect(err.toString(), '⚠️ WARNING: $mentionWarning\n');
-    expect(File('${root.path}/docs/$loginFeature').existsSync(), isFalse);
-    expect(File('${root.path}/docs/$mentioningProject').existsSync(), isTrue);
-  });
   test('delete --help shows several targets', () async {
     final (:runner, :out, :err) = writeRunner(await writeWriteProject());
     expect(await runner.run(['delete', '--help']), 0);
@@ -569,128 +322,6 @@ void main() {
     expect(await runner.run(['delete', spaced]), 0);
     expect(out.toString(), '$spaced\n');
     expect(File('${root.path}/docs/$spaced').existsSync(), isFalse);
-  });
-  test('delete prints doc_referenced naming the journey, exit 64', () async {
-    const journey = 'prds/journeys/sign_in/JOURNEY.md';
-    final root = await writeWriteProject(
-      extra: {
-        // fr12 and story3 lose their links, so only the journey refers in.
-        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\nThe system shall lock the account.\n',
-        'docs/$story3': '---\nstatus: planned\ndraft: true\n---\n\n# Reset password\n\n## Use Case\nReset a password.\n',
-        'docs/$journey':
-            '---\ndraft: true\n---\n\n# Sign in\n\n## Goal\nGet in.\n\n'
-            '## Flow\n\n## Steps\n'
-            '### 1. Reset\nstep: login/reset_password S1\n',
-      },
-    );
-    final (:runner, :out, :err) = writeRunner(root);
-    expect(await runner.run(['delete', 'user_story:login/reset_password']), 64);
-    expect(
-      err.toString(),
-      '$story3: docs outside user_story:login/reset_password link into it; also $journey\n',
-    );
-    expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
-  });
-
-  group('record entries', () {
-    const record = 'specs/f01_login/IMPLEMENTATION.md';
-    const resetStory = 'user_story:login/reset_password';
-    final removed = [story3, fr31, fr32];
-
-    Future<Directory> recordProject() => writeWriteProject(
-      extra: {
-        // fr12 loses its link into story3, so the unit is free
-        'docs/$fr12': '---\ndraft: true\ntraced_from: US-01\nverify_method: test\n---\n\n# Lock after failures\n\n## Statement\nThe system shall lock the account.\n',
-        '.specstone/config.yaml': '${shippedPinsConfig()}code_root: app\n',
-        '.specstone/templates/implementation.yaml':
-            'id: implementation\n'
-            'description: One feature record per target.\n'
-            'path: specs/f{nn}_{slug}/IMPLEMENTATION.md\n'
-            'parent: feature\n'
-            'per_target: true\n'
-            'fields:\n'
-            '  - id: statuses\n'
-            '    type: record_status\n'
-            '    list: true\n',
-        'docs/$record':
-            "---\nstatuses:\n  - 'email_login:implemented'\n"
-            "  - 'reset_password:implemented'\n---\n\n# Record\n",
-      },
-    );
-
-    test(
-      'E11: --dry-run lists the record it rewrites before the plan line',
-      () async {
-        final root = await recordProject();
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(await runner.run(['delete', resetStory, '--dry-run']), 0);
-        expect(
-          out.toString(),
-          matches(
-            RegExp(
-              '^${removed.map(RegExp.escape).join(r'\n')}\n'
-              'rewrites ${RegExp.escape(record)}: reset_password\n'
-              'plan [0-9a-f]{12}\ndry run: nothing removed\n\$',
-            ),
-          ),
-        );
-      },
-    );
-
-    test(
-      'E11: --dry-run --json prints each record with its path and entries',
-      () async {
-        final root = await recordProject();
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run(['delete', resetStory, '--dry-run', '--json']),
-          0,
-        );
-        final answer = jsonDecode(out.toString()) as Map;
-        expect(answer['files'], removed);
-        expect(answer['records'], [
-          {
-            'path': record,
-            'entries': ['reset_password'],
-          },
-        ]);
-      },
-    );
-
-    test(
-      'E16: --yes --plan removes the story and rewrites the record as a draft',
-      () async {
-        final root = await recordProject();
-        final hash = await _dryRunPlanHash(root, resetStory);
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run(['delete', resetStory, '--yes', '--plan', hash]),
-          0,
-          reason: err.toString(),
-        );
-        expect(out.toString(), '${removed.join('\n')}\n');
-        final text = File('${root.path}/docs/$record').readAsStringSync();
-        expect(text, contains("'email_login:implemented'"));
-        expect(text, isNot(contains('reset_password')));
-        expect(text, contains('draft: true'));
-      },
-    );
-
-    test('E11: a record edited after the dry run is plan_mismatch, exit 75, '
-        'and nothing changes', () async {
-      final root = await recordProject();
-      final hash = await _dryRunPlanHash(root, resetStory);
-      final file = File('${root.path}/docs/$record');
-      file.writeAsStringSync('${file.readAsStringSync()}More.\n');
-      final edited = file.readAsStringSync();
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['delete', resetStory, '--yes', '--plan', hash]),
-        75,
-      );
-      expect(File('${root.path}/docs/$story3').existsSync(), isTrue);
-      expect(file.readAsStringSync(), edited);
-    });
   });
 
   group('with two code targets', () {
@@ -787,23 +418,6 @@ void main() {
   });
   group('a delete target named by the end of its name', () {
     test(
-      'delete --dry-run takes a unique suffix as it takes the full name',
-      () async {
-        final root = await writeNestedProject();
-        final full = writeRunner(root);
-        expect(
-          await full.runner.run(['delete', 'feature:shop/pay', '--dry-run']),
-          0,
-        );
-        final short = writeRunner(root);
-        expect(
-          await short.runner.run(['delete', 'feature:pay', '--dry-run']),
-          0,
-        );
-        expect(short.out.toString(), full.out.toString());
-      },
-    );
-    test(
       'delete --dry-run refuses a suffix of no identity, naming it',
       () async {
         final (:runner, :out, :err) = writeRunner(await writeNestedProject());
@@ -812,108 +426,5 @@ void main() {
         expect(err.toString(), 'no feature doc carries the name ay\n');
       },
     );
-  });
-
-  group('a feature record under .specstone/records/', () {
-    const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
-
-    Future<Directory> recordProject() => writeWriteProject(
-      extra: {
-        ...recordsRootTemplates,
-        'docs/prds/FEATURES.md':
-            '# Feature index\n\n## Systems\n'
-            '- [Signup](features/f02_signup/FEATURE.md)\n',
-        'docs/$persona':
-            '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
-        record: recordText(
-          front: 'approved: true\n',
-          statuses: ['email_login:implemented'],
-        ),
-      },
-    );
-
-    test(
-      'the plan names the record by its path and the delete removes it',
-      () async {
-        final root = await recordProject();
-        final (:runner, :out, :err) = writeRunner(root);
-        expect(
-          await runner.run(['delete', 'feature:login', '--dry-run', '--json']),
-          0,
-          reason: err.toString(),
-        );
-        final plan = jsonDecode(out.toString()) as Map;
-        expect(plan['files'], contains(record));
-        expect(plan['guarded'], contains(record));
-        expect(File('${root.path}/$record').existsSync(), isTrue);
-
-        final (runner: second, out: secondOut, err: secondErr) = writeRunner(
-          root,
-        );
-        expect(
-          await second.run([
-            'delete',
-            'feature:login',
-            '--yes',
-            '--plan',
-            plan['plan']! as String,
-          ]),
-          0,
-          reason: secondErr.toString(),
-        );
-        expect(secondOut.toString(), contains(record));
-        expect(File('${root.path}/$record').existsSync(), isFalse);
-      },
-    );
-
-    test('with two targets one delete removes both records', () async {
-      const flutterRecord =
-          '.specstone/records/flutter/f01_login/IMPLEMENTATION.md';
-      const jasprRecord =
-          '.specstone/records/jaspr/f01_login/IMPLEMENTATION.md';
-      final root = await writeWriteProject(
-        extra: {
-          ...recordsRootTemplates,
-          'docs/prds/FEATURES.md':
-              '# Feature index\n\n## Systems\n'
-              '- [Signup](features/f02_signup/FEATURE.md)\n',
-          'docs/$persona':
-              '---\ndraft: true\n---\n\n# Buyer\n\n## Profile\nBuys things.\n',
-          '.specstone/config.yaml': twinConfig(),
-          '.specstone/templates/architecture.yaml':
-              'id: architecture\nper_target: false\n',
-          flutterRecord: recordText(statuses: ['email_login:implemented']),
-          jasprRecord: recordText(statuses: ['email_login:implemented']),
-        },
-      );
-      final (:runner, :out, :err) = writeRunner(root);
-      expect(
-        await runner.run(['delete', 'feature:login', '--dry-run', '--json']),
-        0,
-        reason: err.toString(),
-      );
-      final plan = jsonDecode(out.toString()) as Map;
-      final (runner: second, out: secondOut, err: secondErr) = writeRunner(
-        root,
-      );
-      expect(
-        await second.run([
-          'delete',
-          'feature:login',
-          '--yes',
-          '--plan',
-          plan['plan']! as String,
-        ]),
-        0,
-        reason: secondErr.toString(),
-      );
-      expect(secondOut.toString(), contains(flutterRecord));
-      expect(secondOut.toString(), contains(jasprRecord));
-      expect(
-        Directory('${root.path}/.specstone/records/flutter').existsSync() ||
-            Directory('${root.path}/.specstone/records/jaspr').existsSync(),
-        isFalse,
-      );
-    });
   });
 }

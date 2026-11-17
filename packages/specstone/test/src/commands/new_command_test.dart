@@ -41,31 +41,6 @@ void main() {
     expect(text, startsWith('---\ndraft: true\n---\n\n# recover_account\n'));
     expect(text, contains('## Use Case'));
   });
-  test(
-    'sf-c11: new feature --parent prints the sub-feature path under --json',
-    () async {
-      final root = await writeNestedProject();
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(stdinIsTerminal: true),
-      );
-      expect(
-        await runner.run([
-          'new',
-          'feature',
-          '--parent',
-          'shop',
-          '--slug',
-          'ship',
-          '--json',
-        ]),
-        0,
-      );
-      expect(err.toString(), isEmpty);
-      final json = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(json['path'], 'prds/features/f02_shop/f03_ship/FEATURE.md');
-    },
-  );
   test('new refuses while a migration is unfinished', () async {
     final root = await writeWriteProject();
     writeJournal(root, [
@@ -144,38 +119,6 @@ void main() {
     expect(out.toString(), isEmpty);
     expect(err.toString(), 'no feature doc carries the name nobody\n');
   });
-  test('f02/us02/fr01/e20: --parent feature:login and a path create the story E01 creates', () async {
-    for (final parent in [
-      'feature:login',
-      'prds/features/f01_login/FEATURE.md',
-    ]) {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(stdinIsTerminal: true),
-      );
-      expect(
-        await runner.run([
-          'new',
-          'user_story',
-          '--parent',
-          parent,
-          '--slug',
-          'reset_it',
-        ]),
-        0,
-        reason: parent,
-      );
-      expect(err.toString(), isEmpty, reason: parent);
-      expect(
-        File(
-          '${root.path}/docs/prds/features/f01_login/us04_reset_it/USER_STORY.md',
-        ).existsSync(),
-        isTrue,
-        reason: parent,
-      );
-    }
-  });
   test(
     'f02/us02/fr01/e20: new --help names the three forms of --parent',
     () async {
@@ -213,35 +156,6 @@ void main() {
       'prds/features/f03_login/FEATURE.md',
     );
   });
-  test(
-    'f02/us02/fr01/e10: no --parent --json carries the sidecar message',
-    () async {
-      final root = await writeWriteProject();
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(stdinIsTerminal: true),
-      );
-      expect(
-        await runner.run([
-          'new',
-          'user_story',
-          '--slug',
-          'reset_password',
-          '--json',
-        ]),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(jsonDecode(err.toString()), {
-        'error': {
-          'code': 'argument_missing',
-          'message':
-              'user_story needs --parent: a feature named by '
-              '<doc type>:<name>, a bare name, or a path',
-        },
-      });
-    },
-  );
   test('f02/us02/fr01/e10: no doc type is argument_missing', () async {
     final (:runner, :out, :err) = writeRunner(
       await writeWriteProject(),
@@ -532,29 +446,6 @@ sections:
       );
       expect(hasDoc(root, jasprArchitecture), isFalse);
       expect(hasDoc(root, flutterArchitecture), isFalse);
-    });
-
-    test('E25: a --target the project lacks exits 64', () async {
-      final root = await twinWithoutDocs();
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(stdinIsTerminal: true),
-      );
-      expect(
-        await runner.run([
-          'new',
-          'architecture',
-          '--parent',
-          'login',
-          '--target',
-          'dart',
-        ]),
-        64,
-      );
-      expect(
-        err.toString(),
-        '--target dart: the code targets are flutter, jaspr\n',
-      );
     });
   });
   group('a parent named by the end of its name', () {

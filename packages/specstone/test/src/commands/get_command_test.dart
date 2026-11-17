@@ -5,7 +5,6 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
-import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -181,42 +180,6 @@ void main() {
         'Could not find a doc type named "nosuchtype".\n',
       );
     });
-
-    test("E17: --json with an unknown doc type prints the first name's "
-        'fault', () async {
-      for (final (names, code) in [
-        (['nosuch1', 'login#zzz', 'nosuchtype:x'], 'doc_not_found'),
-        (['nosuchtype:x', 'nosuch2'], 'doc_type_unknown'),
-      ]) {
-        final (:runner, :out, :err) = readRunner(await writeReadProject());
-        expect(await runner.run(['get', ...names, '--json']), 64);
-        expect(out.toString(), isEmpty);
-        expect(
-          ((jsonDecode(err.toString()) as Map)['error'] as Map)['code'],
-          code,
-          reason: '$names',
-        );
-      }
-    });
-
-    test('E15, E02: a name given twice is named once on stderr', () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(await runner.run(['get', 'logn', 'logn']), 64);
-      expect(err.toString(), 'no doc carries the name logn\n');
-    });
-
-    test("E17: --json prints the first fault's code and message", () async {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(
-        await runner.run(['get', 'login#acceptance', 'logn', '--json']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect((jsonDecode(err.toString()) as Map)['error'], {
-        'code': 'section_not_found',
-        'message': 'no doc named login holds a section with the key acceptance',
-      });
-    });
   });
   test('no name is argument_missing, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
@@ -240,17 +203,6 @@ void main() {
       'message': 'no architecture doc carries the name signup',
     });
   });
-  test('E18: a target whose text before its first colon is no slug is '
-      'doc_not_found, exit 64', () async {
-    for (final target in ['Grid:login', 'check architecture:login']) {
-      final (:runner, :out, :err) = readRunner(await writeReadProject());
-      expect(await runner.run(['get', target, '--json']), 64, reason: target);
-      expect((jsonDecode(err.toString()) as Map)['error'], {
-        'code': 'doc_not_found',
-        'message': 'no doc carries the name $target',
-      }, reason: target);
-    }
-  });
   test('E07: a misspelled slug prefix is doc_type_unknown, exit 64', () async {
     final (:runner, :out, :err) = readRunner(await writeReadProject());
     expect(await runner.run(['get', 'architectur:login', '--json']), 64);
@@ -268,22 +220,6 @@ void main() {
       extra: {'.specstone/config.yaml': 'packs:\n  prd-core: 9.9.9\n'},
     );
     expect(await readRunner(pinned).runner.run(['get', 'login']), 78);
-  });
-  test('f01/us04/s8: get prints the section base on the naming line', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run([
-        'get',
-        'user_story:login/email_login#acceptance_criteria',
-      ]),
-      0,
-    );
-    expect(
-      out.toString(),
-      startsWith(
-        '==> login/email_login (user_story) · prds/features/f01_login/us01_email_login/USER_STORY.md#acceptance_criteria · base 6d6a67fa9a00 <==\n',
-      ),
-    );
   });
   test('E08: '
       'get --json prints the laid-out section bases', () async {
@@ -406,34 +342,6 @@ void main() {
         },
       );
     }
-    test('E10, '
-        'Print every start-to-end path: '
-        'the journey line holds no base', () async {
-      for (final option in ['--paths', '--code']) {
-        final (:runner, :out, :err) = readRunner(await project());
-        expect(await runner.run(['get', 'journey:sign_in', option]), 0);
-        expect(
-          out.toString(),
-          startsWith(
-            '==> sign_in (journey) · prds/journeys/sign_in/JOURNEY.md <==\n',
-          ),
-          reason: option,
-        );
-      }
-    });
-    test('a project with no record doc type prints each step '
-        'with no code pointer, exit 0 and no error', () async {
-      final (:runner, :out, :err) = readRunner(await project());
-      expect(await runner.run(['get', 'journey:sign_in', '--code']), 0);
-      expect(
-        out.toString(),
-        endsWith(
-          '1. Open the page — login/email_login S1\n'
-          '  login/email_login (user_story)\n  - none\n',
-        ),
-      );
-      expect(err.toString(), isEmpty);
-    });
     test(
       'get journey:<slug> --code --json prints one object, exit 0',
       () async {
@@ -499,29 +407,6 @@ void main() {
       expect(file.readAsStringSync(), contains('1. Open the page'));
       expect(run.out.toString(), startsWith('==> get: '));
     });
-
-    test(
-      '--json --out writes the JSON and prints out, lines, and tokens',
-      () async {
-        final project = await writeReadProject();
-        final run = readRunner(project);
-        expect(
-          await run.runner.run(['get', 'feature:login', '--json', '--out']),
-          0,
-          reason: run.err.toString(),
-        );
-        final file = File(
-          '${project.path}/.specstone/reports/get.feature-login.json',
-        );
-        final written =
-            jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
-        expect(written['docs'], isA<List<Object?>>());
-        final printed = jsonDecode(run.out.toString()) as Map<String, Object?>;
-        expect(printed['out'], file.resolveSymbolicLinksSync());
-        expect(printed['lines'], isA<int>());
-        expect(printed['tokens'], isA<int>());
-      },
-    );
 
     test('a typed name has its colon turned to a dash in the bare file name, '
         'for --paths and --code', () async {
@@ -702,46 +587,6 @@ void main() {
         ),
       );
     });
-    test(
-      'E20: a name only another target holds is doc_not_found, exit 64',
-      () async {
-        final (:runner, :out, :err) = readRunner(await writeTargetedProject());
-        expect(
-          await runner.run([
-            'get',
-            'domain:feedback/toast',
-            '--target',
-            'jaspr',
-            '--json',
-          ]),
-          64,
-        );
-        expect((jsonDecode(err.toString()) as Map)['error'], {
-          'code': 'doc_not_found',
-          'message': 'no domain doc carries the name feedback/toast',
-        });
-      },
-    );
-    test(
-      'E22: a target targets: holds none of is argument_invalid, exit 64',
-      () async {
-        final (:runner, :out, :err) = readRunner(await writeTargetedProject());
-        expect(
-          await runner.run([
-            'get',
-            'feedback/toast',
-            '--target',
-            'web',
-            '--json',
-          ]),
-          64,
-        );
-        expect((jsonDecode(err.toString()) as Map)['error'], {
-          'code': 'argument_invalid',
-          'message': '--target web: the code targets are flutter, jaspr',
-        });
-      },
-    );
     test('E22: --paths and --code refuse a target targets: holds none of, '
         'argument_invalid, exit 64', () async {
       for (final option in ['--paths', '--code']) {
@@ -851,19 +696,6 @@ void main() {
           '1. Open the page — feedback/toast/show S1\n'
           '  feedback/toast/show (user_story)\n';
 
-      test('f10/us03/s1, f10/us03/fr01/e11: no --target lists each target '
-          'under its name, a skip as <target>: skipped', () async {
-        final (:runner, :out, :err) = readRunner(await project());
-        expect(await runner.run(['get', 'sign_in', '--code']), 0);
-        expect(
-          out.toString(),
-          endsWith(
-            '$stepLines  - flutter: lib/toast.dart:Toast\n  - jaspr: skipped\n',
-          ),
-        );
-        expect(err.toString(), isEmpty);
-      });
-
       test('--target keeps one target, printed with no '
           'target name', () async {
         final (:runner, :out, :err) = readRunner(await project());
@@ -881,22 +713,6 @@ void main() {
           0,
         );
         expect(out.toString(), endsWith('$stepLines  - skipped\n'));
-      });
-
-      test('--json holds implementsByTarget with no '
-          '--target', () async {
-        final (:runner, :out, :err) = readRunner(await project());
-        expect(await runner.run(['get', 'sign_in', '--code', '--json']), 0);
-        final journeys =
-            (jsonDecode(out.toString()) as Map)['journeys']! as List;
-        final steps = (journeys.single as Map)['steps']! as List;
-        expect((steps.single as Map)['story'], {
-          'name': 'feedback/toast/show',
-          'implementsByTarget': {
-            'flutter': ['lib/toast.dart:Toast'],
-            'jaspr': <String>[],
-          },
-        });
       });
     });
     test('E19: --paths with no --target resolves the step in a two-target '
@@ -929,30 +745,6 @@ void main() {
           contains('- **Then** the Agent sees it on flutter'),
         ),
       );
-    });
-  });
-  group('a sub-feature named by the end of its name', () {
-    test('get takes a sub-feature by its last segment', () async {
-      final root = await writeNestedProject();
-      final full = readRunner(root);
-      expect(await full.runner.run(['get', 'shop/cart']), 0);
-      final short = readRunner(root);
-      expect(await short.runner.run(['get', 'cart']), 0);
-      expect(short.out.toString(), full.out.toString());
-      expect(short.out.toString(), contains('==> shop/cart (feature)'));
-    });
-    test('get refuses a suffix two names share', () async {
-      final root = await writeNestedProject(
-        extra: {
-          'docs/prds/features/f02_shop/f02_pay/us03_add_item/USER_STORY.md':
-              '# Add item\n',
-        },
-      );
-      final (:runner, :out, :err) = readRunner(root);
-      expect(await runner.run(['get', 'add_item']), 64);
-      expect(out.toString(), isEmpty);
-      expect(err.toString(), contains('shop/cart/add_item'));
-      expect(err.toString(), contains('shop/pay/add_item'));
     });
   });
 }

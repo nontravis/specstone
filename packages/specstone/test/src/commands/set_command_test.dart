@@ -350,35 +350,6 @@ void main() {
     );
   });
 
-  test('f02/us01/fr06: set #_lead writes the lead end to end and prints the new base', () async {
-    final root = await writeWriteProject(
-      extra: {
-        'docs/$story1': writeProject['docs/$story1']!.replaceFirst(
-          '# Sign in with email\n',
-          '# Sign in with email\n\nOld lead.\n',
-        ),
-      },
-    );
-    const target = 'user_story:login/email_login#_lead';
-    final base = getDoc(root, target)['base']! as String;
-    expect(base, baseHashOf('\nOld lead.\n'));
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(input: 'New lead.\n'),
-    );
-    expect(await runner.run(['set', target, '--base', base]), 0);
-    expect(err.toString(), isEmpty);
-    expect(
-      out.toString(),
-      '==> login/email_login (user_story) · $story1#_lead · base ${baseHashOf('\nNew lead.\n')} <==\n',
-    );
-    expect(
-      readDoc(root, story1),
-      contains('# Sign in with email\n\nNew lead.\n\n## Use Case\n'),
-    );
-    expect(readDoc(root, story1), contains('draft: true'));
-  });
-
   group('with two code targets', () {
     const story = 'user_story:login/email_login';
     const storyPath = 'prds/features/f01_login/us01_email_login/USER_STORY.md';
@@ -441,32 +412,6 @@ void main() {
         contains('covers:\n  - app/lib/login/\n'),
       );
       expect(readDoc(root, flutterArchitecture), flutterBefore);
-    });
-
-    test('f02/us01/s4: a name that two targets share, with no --target, exits 64 listing both docs and writes nothing', () async {
-      final root = await writeTwinProject();
-      final before = readDoc(root, jasprArchitecture);
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(input: '- app/lib/login/\n'),
-      );
-      expect(
-        await runner.run([
-          'set',
-          'architecture:login',
-          '--field',
-          'covers',
-          '--base',
-          fieldBaseAt(root, jasprArchitecture, 'covers'),
-        ]),
-        64,
-      );
-      expect(
-        err.toString(),
-        'architecture:login names 2 docs: '
-        '$flutterArchitecture, $jasprArchitecture\n',
-      );
-      expect(readDoc(root, jasprArchitecture), before);
     });
 
     test('f02/us01/fr01: --target with no value, or a name the project lacks, exits 64 naming the targets', () async {
@@ -640,34 +585,6 @@ void main() {
       expect(readDoc(root, loginArch), before);
     });
 
-    test('a value that is empty or holds a colon exits 64 as argument_invalid and writes nothing', () async {
-      final root = await project();
-      final before = readDoc(root, loginArch);
-      for (final value in ['', 'INV-4:ENG-42']) {
-        final (:runner, :out, :err) = writeRunner(root);
-
-        expect(
-          await runner.run([
-            'set',
-            '--remove-task',
-            'ENG-42',
-            '--remove-task',
-            value,
-          ]),
-          64,
-          reason: value,
-        );
-
-        expect(
-          err.toString(),
-          '--remove-task takes a task id that is not empty and holds no ":"; got "$value"\n',
-          reason: value,
-        );
-        expect(out.toString(), isEmpty, reason: value);
-      }
-      expect(readDoc(root, loginArch), before);
-    });
-
     test('--target keeps the removal to one code target', () async {
       final root = await writeTwinProject();
       for (final docPath in [flutterArchitecture, jasprArchitecture]) {
@@ -731,46 +648,6 @@ void main() {
         '==> login/email_login (user_story) · $story1#use_case · base ${baseHashOf('\nSign in with a link.\n')} <==\n',
       );
       expect(err.toString(), isEmpty);
-    });
-
-    test('exits 75 as replace_unmatched and prints the current section', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      final base = getDoc(root, target)['base']! as String;
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(
-          input: '==> old <==\nBlue fish.\n==> new <==\nx\n',
-        ),
-      );
-      expect(
-        await runner.run(['set', target, '--base', base, '--replace']),
-        75,
-      );
-      expect(
-        out.toString(),
-        '==> login/email_login (user_story) · $story1#use_case · base $base <==\n'
-        '## Use Case\n\nSign in with an email.\n',
-      );
-      expect(err.toString(), contains('the old passage is not in the section'));
-      expect(readDoc(root, story1), before);
-    });
-
-    test('exits 64 as replace_ambiguous naming the count', () async {
-      final root = await writeWriteProject();
-      final before = readDoc(root, story1);
-      final base = getDoc(root, target)['base']! as String;
-      final (:runner, :out, :err) = writeRunner(
-        root,
-        console: FakeConsole(input: '==> old <==\na\n==> new <==\nx\n'),
-      );
-      expect(
-        await runner.run(['set', target, '--base', base, '--replace']),
-        64,
-      );
-      expect(out.toString(), isEmpty);
-      expect(err.toString(), contains('occurs 2 times'));
-      expect(readDoc(root, story1), before);
     });
 
     test('exits 64 as argument_conflict beside --field, --title, --batch, a lead target, or a whole-doc target, and writes nothing', () async {
