@@ -118,7 +118,8 @@ finding.
 - **Bootstrap**: the drafts as in sync; proposals and waivers; split proposals, or why none applies; open questions;
   each `Uncovered:` file; one `specstone delete …` line; each repeat group kept; findings outside `batch`, and each
   untyped referrer outside it with the file it names; `Waits on the Owner:`, each `item_over_limit` finding on a
-  `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added by your writes, or `none`.
+  `batch` path when `batch` does not name `item_over_limit`; then `Findings:`, each finding left in `batch` or added
+  by your writes, or `none`.
 
 ## Scope Boundaries
 
