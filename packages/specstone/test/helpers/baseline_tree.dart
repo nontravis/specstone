@@ -51,7 +51,9 @@ const _padWords = [
 /// 1,042 code files sit under the tech stack's `code:` root and every one is
 /// reached by a `covers:` prefix. Each entry and prefix ends in the fingerprint
 /// of the code it names, from the shipped recipe, so a check finds no code link
-/// changed or unconfirmed. The folder is deleted by `addTearDown`.
+/// changed or unconfirmed. Each feature's architecture doc holds one small
+/// Mermaid block that parses, inside its size. The folder is deleted by
+/// `addTearDown`.
 Future<Directory> writeBaselineTree() async {
   final root = await writeTree({'.specstone/config.yaml': shippedPinsConfig()});
   final templates = TemplateResolver().resolve(
@@ -162,6 +164,18 @@ const Map<String, String> _citingFr = {
       '[E01](../../f01_feature_1/us01_story_1/fr01_req_1.md#edge-cases).',
 };
 
+/// Returns the small Mermaid block of feature [f]'s architecture doc.
+///
+/// It differs per feature, so the index stores one parse result for each doc.
+String _diagram(int f) =>
+    '```mermaid\n'
+    '---\n'
+    'title: Feature $f flow\n'
+    '---\n'
+    'flowchart LR\n'
+    '  A["Cli $f"] -->|"reads over stdio"| B["Index $f"]\n'
+    '```';
+
 /// Lists every doc of the tree in generation order.
 List<_DocSpec> _docSpecs() => [
   _spec('project', 'prds/PROJECT.md', 'Baseline project', 'owner: baseline\n'),
@@ -192,6 +206,7 @@ List<_DocSpec> _featureSpecs(int f) {
       'specs/$key/ARCHITECTURE.md',
       'Architecture $f',
       _coversFrontmatter('src/feature_$f/'),
+      {'Component diagram': _diagram(f)},
     ),
     _spec('domain', 'specs/$key/DOMAIN.md', 'Domain $f'),
     _spec('api', 'specs/$key/API.md', 'Api $f'),

@@ -18,7 +18,7 @@ void main() {
   final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
 
   test('f04/us04/s1, f04/us04/s5, f04/us04/fr01/e01, f04/us04/fr02/e03: approved docs whose entries match are clean', () async {
-    expect(checkOf(await writeCheckProject()).findings, isEmpty);
+    expect((await checkOf(await writeCheckProject())).findings, isEmpty);
   });
 
   test('a scenario is named by the value of its number, so S02 '
@@ -35,9 +35,12 @@ void main() {
         ]),
       },
     ]) {
-      expect(checkOf(await writeCheckProject(extra: extra)).findings, isEmpty);
+      expect(
+        (await checkOf(await writeCheckProject(extra: extra))).findings,
+        isEmpty,
+      );
     }
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           ...doc(loginStory, loginScenario2, edited),
@@ -55,7 +58,7 @@ void main() {
   });
 
   test('traces S2 and S02 are one link, so an edit of Scenario 2 raises one suspect', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           ...doc(loginStory, loginScenario2, edited),
@@ -72,7 +75,7 @@ void main() {
 
   test('f04/us04/s2, f04/us04/fr01/e02, f04/us01/fr02/e06: an edited scenario makes the FR suspect, naming both '
       'fingerprints and the block, at the one finding level', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
     );
     expect(report.exitStatus, 1);
@@ -101,11 +104,11 @@ void main() {
       'E02: a suspect finding prints the block, then the fingerprint, '
       'each indented 4 spaces, and its message holds no fingerprint',
       () async {
-        final finding = checkOf(
+        final finding = (await checkOf(
           await writeCheckProject(
             extra: doc(loginStory, loginScenario2, edited),
           ),
-        ).findings.single;
+        )).findings.single;
 
         expect(
           finding.message,
@@ -135,11 +138,11 @@ void main() {
       'E12: no line before the last block line holds the current '
       'fingerprint, and under --json text comes before fingerprint',
       () async {
-        final finding = checkOf(
+        final finding = (await checkOf(
           await writeCheckProject(
             extra: doc(loginStory, loginScenario2, edited),
           ),
-        ).findings.single;
+        )).findings.single;
 
         for (final line in finding.textLines.take(
           finding.textLines.length - 1,
@@ -156,7 +159,7 @@ void main() {
       'a block whose last line ends in a no-break space keeps it in text, '
       'and text plus its line break is the block the fingerprint hashes',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: fr(checkPasswordStatement, '$checkPasswordStatement\u00A0'),
           ),
@@ -178,9 +181,9 @@ void main() {
         'sign-in refused',
         'sign-in refused\n\nfingerprint 000000000000 is spelled out here',
       );
-      final finding = checkOf(
+      final finding = (await checkOf(
         await writeCheckProject(extra: doc(loginStory, loginScenario2, tricky)),
-      ).findings.single;
+      )).findings.single;
 
       final lines = finding.textLines;
       expect(lines.last, '    fingerprint ${fp(tricky)}');
@@ -206,11 +209,11 @@ void main() {
   group('Report unconfirmed links', () {
     test('E01: a link with no entry carries the block text before the '
         'fingerprint and prints them indented', () async {
-      final finding = checkOf(
+      final finding = (await checkOf(
         await writeCheckProject(
           extra: fr('confirmed:\n  - S2 ${fp(loginScenario2)}\n', ''),
         ),
-      ).findings.single;
+      )).findings.single;
 
       expect(
         finding.message,
@@ -234,14 +237,14 @@ void main() {
 
     test('E04: a draft whose entry records an older fingerprint carries the '
         'block text before the fingerprint', () async {
-      final finding = checkOf(
+      final finding = (await checkOf(
         await writeCheckProject(
           extra: edit(loginFr, [
             ('traced_from:\n', 'draft: true\ntraced_from:\n'),
             ('  - S2 ${fp(loginScenario2)}', '  - S2 000000000000'),
           ]),
         ),
-      ).findings.single;
+      )).findings.single;
 
       expect(
         finding.message,
@@ -264,11 +267,11 @@ void main() {
     });
 
     test('an owner finding carries no text and prints one line', () async {
-      final finding = checkOf(
+      final finding = (await checkOf(
         await writeCheckProject(
           extra: fr('traced_from:\n', 'draft: true\ntraced_from:\n'),
         ),
-      ).findings.single;
+      )).findings.single;
 
       expect(finding.waitsFor, WaitsFor.owner);
       expect(finding.keys.containsKey('text'), isFalse);
@@ -284,7 +287,7 @@ void main() {
       '$story\n\n',
       story.replaceAll('\n', '\r\n'),
     ]) {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: {'docs/$loginStory': text}),
       );
       expect(
@@ -299,14 +302,14 @@ void main() {
     () async {
       const statement =
           '- **Statement:** The system shall answer a sign-in within 3 s.';
-      final suspect = checkOf(
+      final suspect = await checkOf(
         await writeCheckProject(
           extra: doc(gnfrDoc, loginNfrStatement, statement),
         ),
       );
       expect(spots(suspect), ['$loginNf:7: suspect']);
       expect(suspect.findings.single.toJson()['block'], 'NFR-P01 Statement');
-      final rationale = checkOf(
+      final rationale = await checkOf(
         await writeCheckProject(
           extra: doc(
             gnfrDoc,
@@ -324,7 +327,7 @@ void main() {
         'prds/features/f01_login/us01_email_login/fr02_lock_account.md';
     const lockStatement =
         'The system shall lock the account after 5 failed sign-ins.';
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/$lock':
@@ -364,7 +367,7 @@ void main() {
 
   test('f04/us04/fr01/e07, f04/us04/fr01/e08: self-derived and a missing scenario track nothing', () async {
     for (final entry in ['self-derived', 'S9']) {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: fr('  - S2\n', '  - $entry\n')),
       );
       expect(spots(report, FindingKind.suspect), isEmpty);
@@ -373,7 +376,7 @@ void main() {
   });
 
   test('f04/us04/s3, f04/us04/fr02/e01: a tracked link with no entry is unconfirmed at its trace', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('confirmed:\n  - S2 ${fp(loginScenario2)}\n', ''),
       ),
@@ -390,7 +393,7 @@ void main() {
 
   test('f04/us04/s4, f04/us04/fr02/e02, f04/us04/fr02/e05, f04/us04/fr02/e07, cc-s03/inv6: a matching entry in a '
       "draft waits for the Owner's approve", () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('traced_from:\n', 'draft: true\ntraced_from:\n'),
       ),
@@ -405,11 +408,11 @@ void main() {
     'E02: a draft '
     'whose entry matches the current fingerprint waits for the Owner',
     () async {
-      final finding = checkOf(
+      final finding = (await checkOf(
         await writeCheckProject(
           extra: fr('traced_from:\n', 'draft: true\ntraced_from:\n'),
         ),
-      ).findings.single;
+      )).findings.single;
       expect(finding.kind, FindingKind.unconfirmed);
       expect(finding.waitsFor, WaitsFor.owner);
       expect(finding.toJson()['waitsFor'], 'owner');
@@ -420,7 +423,7 @@ void main() {
   test('E05: in a '
       'draft with one entry at the current fingerprint, that link waits for the '
       'Owner and a link with no entry waits for the Agent', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           (
@@ -445,34 +448,34 @@ void main() {
   test('E04: a '
       'draft whose entry records an older fingerprint waits for the Agent, and '
       'so does a link with no entry outside a draft', () async {
-    final older = checkOf(
+    final older = (await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           ('traced_from:\n', 'draft: true\ntraced_from:\n'),
           ('  - S2 ${fp(loginScenario2)}', '  - S2 000000000000'),
         ]),
       ),
-    ).findings.single;
-    final none = checkOf(
+    )).findings.single;
+    final none = (await checkOf(
       await writeCheckProject(
         extra: fr('confirmed:\n  - S2 ${fp(loginScenario2)}\n', ''),
       ),
-    ).findings.single;
+    )).findings.single;
     expect(older.waitsFor, WaitsFor.agent);
     expect(none.waitsFor, WaitsFor.agent);
   });
 
   test('a suspect '
       'finding waits for the Agent', () async {
-    final finding = checkOf(
+    final finding = (await checkOf(
       await writeCheckProject(extra: doc(loginStory, loginScenario2, edited)),
-    ).findings.single;
+    )).findings.single;
     expect(finding.kind, FindingKind.suspect);
     expect(finding.waitsFor, WaitsFor.agent);
   });
 
   test('a draft whose entry records an older fingerprint is unconfirmed, never suspect', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           ('traced_from:\n', 'draft: true\ntraced_from:\n'),
@@ -498,7 +501,7 @@ void main() {
   });
 
   test('cc-s03/inv6, review focus 2: a draft whose scenario is missing gets only the US-03 trace finding', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           ('traced_from:\n', 'draft: true\ntraced_from:\n'),
@@ -515,12 +518,12 @@ void main() {
 
   test('cc-s03/inv4: an FR without a Statement section and an NFR without a Statement line fingerprint the empty text', () async {
     const empty = 'e3b0c44298fc';
-    final nfr = checkOf(
+    final nfr = await checkOf(
       await writeCheckProject(extra: doc(gnfrDoc, '$loginNfrStatement\n', '')),
     );
     expect(spots(nfr), ['$loginNf:7: suspect']);
     expect(nfr.findings.single.toJson(), containsPair('fingerprint', empty));
-    final noStatement = checkOf(
+    final noStatement = await checkOf(
       await writeCheckProject(
         extra: doc(loginFr, '## Statement\n\n$checkPasswordStatement\n\n', ''),
       ),
@@ -576,7 +579,7 @@ void main() {
       'S2 047E817F9707',
       'S2 047e817f97',
     ]) {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr('  - S2 ${fp(loginScenario2)}', '  - $bad'),
         ),
@@ -595,7 +598,7 @@ void main() {
 
   test('f04/us04/s7, f04/us04/fr03/e04: an entry for a link the doc does not trace is stale, in a draft too', () async {
     for (final draft in ['', 'draft: true\n']) {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: edit(loginFr, [
             ('traced_from:\n', '${draft}traced_from:\n'),
@@ -632,7 +635,7 @@ void main() {
     test('two entries naming one scenario give one finding at the second, '
         'whatever the fingerprints', () async {
       for (final second in [secondFingerprint, fp(loginScenario2)]) {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: fr(firstEntry, '$firstEntry\n  - S2 $second'),
           ),
@@ -654,7 +657,7 @@ void main() {
     });
 
     test('three entries give two findings, each naming the first', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr(
             firstEntry,
@@ -681,7 +684,7 @@ void main() {
           ),
         },
       );
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
         docPath: loginDomain,
       );
@@ -700,7 +703,7 @@ void main() {
 
     test('two confirmed entries naming one scenario in one flow list give one '
         'finding naming that line', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr(
             'confirmed:\n$firstEntry\n',
@@ -733,7 +736,7 @@ void main() {
                 '$rootAddress $secondFingerprint]\n',
           );
       final files = overrideFiles(extra: {'docs/$loginDomain': domain});
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
         docPath: loginDomain,
       );
@@ -744,7 +747,7 @@ void main() {
 
     test('a repeated entry for an untraced link is stale at the first copy '
         'and repeated at the later copy', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr(
             firstEntry,
@@ -762,7 +765,7 @@ void main() {
     });
 
     test('a malformed entry is never counted as a repeat', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr(firstEntry, '$firstEntry\n  - S2 047E817F9707'),
         ),
@@ -773,7 +776,7 @@ void main() {
   });
 
   test('an add nf tracks no link, so its entry is stale', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginNf, [
           ('kind: tighten', 'kind: add'),
@@ -785,7 +788,7 @@ void main() {
   });
 
   test('an untyped doc gets no field, section, banned-word, trace, or suspect rule', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/prds/notes.md':
@@ -798,7 +801,7 @@ void main() {
   });
 
   test('an API entry with no FR trace row is stale', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginApi,
@@ -811,7 +814,7 @@ void main() {
   });
 
   test('f04/us04, cc-s03/inv2: a project layer that disables confirmed on fr runs no link state rule on an fr', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
@@ -824,7 +827,7 @@ void main() {
   });
 
   test('f04/us04/fr01, cc-s03/inv2: a bare confirmed key counts as absent, not as a malformed entry', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr(
           'confirmed:\n  - S2 ${fingerprintFor(loginScenario2)}\n',
@@ -838,7 +841,7 @@ void main() {
 
   test('f04/us04/fr01, cc-s03/inv6: a scenario with a fenced example heading keeps its whole block, and the example is no scenario', () async {
     const example = '```\n### Scenario 3 — Example\n- **Given** a sketch\n```';
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           ...doc(
@@ -862,7 +865,10 @@ void main() {
   test(
     'an api entry naming a nested FR by three segments is well-formed',
     () async {
-      final report = checkOf(await writeNestedProject(), docPath: shopApi);
+      final report = await checkOf(
+        await writeNestedProject(),
+        docPath: shopApi,
+      );
 
       expect(spots(report, FindingKind.confirmedEntryMalformed), isEmpty);
       expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
@@ -894,7 +900,7 @@ void main() {
     Future<CheckReport> check(
       String text, {
       Map<String, String> extra = const {},
-    }) async => checkOf(
+    }) async => await checkOf(
       await writeCheckProject(extra: {'docs/$journeyPath': text, ...extra}),
       docPath: journeyPath,
     );
@@ -1062,7 +1068,7 @@ void main() {
       String entry, {
       required String recorded,
       Map<String, String> extra = const {},
-    }) async => checkOf(
+    }) async => await checkOf(
       await writeNestedProject(
         extra: {
           'docs/$cartAddFr': frWith(entry, recorded: recorded),
@@ -1142,7 +1148,7 @@ void main() {
     );
 
     test('a confirmed entry with a lettered scenario number is confirmed_entry_malformed', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr('  - S2 ${fp(loginScenario2)}', '  - S6a 0123456789ab'),
         ),
@@ -1167,7 +1173,7 @@ void main() {
       Map<String, String> files,
       String docPath,
     ) async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: files, unstamped: files.keys.toSet()),
         docPath: docPath,
       );
@@ -1352,7 +1358,7 @@ void main() {
         (await findings(inOverrides, loginDomain)).map((f) => f.keys['entry']),
         [scenarioEntry],
       );
-      final inConfirmed = checkOf(
+      final inConfirmed = await checkOf(
         await writeCheckProject(
           extra: fr('  - S2 ${fp(loginScenario2)}', '  - $rootEntry'),
         ),
@@ -1394,7 +1400,7 @@ void main() {
 
     test('an override address written into confirmed is told to move to '
         'overrides', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr('  - S2 ${fp(loginScenario2)}', '  - $rootEntry'),
         ),
@@ -1409,7 +1415,7 @@ void main() {
 
     test('a malformed confirmed entry that is no override address keeps '
         'its form hint', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr('  - S2 ${fp(loginScenario2)}', '  - S2'),
         ),
@@ -1509,7 +1515,7 @@ void main() {
     test(
       'an nf keeps its own overrides field out of override checks',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(extra: overrideFiles()),
           docPath: loginNf,
         );

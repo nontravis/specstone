@@ -7,6 +7,7 @@ import 'package:specstone_core/src/doc_model/markdown_body.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/mermaid_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:test/test.dart';
 
@@ -581,6 +582,47 @@ void main() {
     });
   });
 
+  group('LineFacts mermaid blocks', () {
+    test('mermaidBlocks survives toJson and fromJson as pairs', () {
+      const blocks = [
+        MermaidBlock(fenceLine: 3, hash: 'aa'),
+        MermaidBlock(fenceLine: 9, hash: 'bb'),
+      ];
+      final facts = LineFacts.of(
+        lfText: '# T\n',
+        countedText: '# T\n',
+        docPath: 'doc.md',
+        doc: Doc.parse('# T\n'),
+        sectionCounts: const [],
+        frontmatterErrorLine: null,
+        bodyNumberLabels: const [],
+        bodyTbrMarkers: const [],
+        citeCandidates: const [],
+        mermaidBlocks: blocks,
+        warnings: [],
+      );
+      final json =
+          jsonDecode(jsonEncode(facts.toJson())) as Map<String, Object?>;
+
+      expect(json['mermaid_blocks'], [
+        [3, 'aa'],
+        [9, 'bb'],
+      ]);
+      final read = LineFacts.fromJson(json, sectionCounts: const []);
+      expect(
+        [for (final b in read.mermaidBlocks) (b.fenceLine, b.hash)],
+        [(3, 'aa'), (9, 'bb')],
+      );
+    });
+
+    test('structureOf stores no block', () {
+      const text = '# T\n\n```mermaid\npie\n```\n';
+      final facts = LineFacts.structureOf(lfText: text, doc: Doc.parse(text));
+
+      expect(facts.mermaidBlocks, isEmpty);
+    });
+  });
+
   group('LineFacts.of counted text', () {
     test('lineCount and charCount measure countedText '
         'while every line number stays the file line', () {
@@ -595,6 +637,7 @@ void main() {
         bodyNumberLabels: const [],
         bodyTbrMarkers: const [],
         citeCandidates: const [],
+        mermaidBlocks: const [],
         warnings: [],
       );
       expect(facts.sectionLines, [3, 7]);

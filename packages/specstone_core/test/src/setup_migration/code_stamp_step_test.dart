@@ -116,10 +116,10 @@ void _write(Directory project, CodeStampStep step) {
   }
 }
 
-CheckReport _check(Directory project) {
+Future<CheckReport> _check(Directory project) async {
   final session = openSession(project);
   try {
-    return runCheck(session);
+    return await runCheck(session);
   } finally {
     session.close();
   }
@@ -165,7 +165,7 @@ void main() {
       'check computes, so the next check finds no code link to compare',
       () async {
         final project = await _project();
-        expect(_codeFindings(_check(project)), isNotEmpty);
+        expect(_codeFindings(await _check(project)), isNotEmpty);
 
         final step = _planAt(project);
         _write(project, step);
@@ -181,7 +181,7 @@ void main() {
           _read(project, loginArchitecture),
           contains('covers:\n  - app/lib/ $_appLibFingerprint\n'),
         );
-        expect(_codeFindings(_check(project)), isEmpty);
+        expect(_codeFindings(await _check(project)), isEmpty);
       },
     );
 
@@ -323,7 +323,7 @@ void main() {
               '${shippedPinsConfig()}targets:\n  app:\n    code_root: .\n',
         },
       );
-      expect(_codeFindings(_check(project)), hasLength(3));
+      expect(_codeFindings(await _check(project)), hasLength(3));
 
       final step = _planAt(project);
       _write(project, step);
@@ -332,7 +332,7 @@ void main() {
         step.stepLine(from: _from, step: _step).text,
         'from 1.6.0: stamp_code_fingerprints: 2 docs; 3 entries',
       );
-      expect(_codeFindings(_check(project)), isEmpty);
+      expect(_codeFindings(await _check(project)), isEmpty);
     });
   });
 
@@ -508,7 +508,7 @@ void main() {
       final project = await restampProject(
         code: ['email_login:$_login:SignInPage $legacyLogin'],
       );
-      expect(_codeFindings(_check(project)), isNotEmpty);
+      expect(_codeFindings(await _check(project)), isNotEmpty);
 
       final step = _planAt(project, restamp: true);
       _write(project, step);
@@ -518,7 +518,7 @@ void main() {
         contains("  - 'email_login:$_login:SignInPage $_loginFingerprint'\n"),
       );
       expect(
-        _codeFindings(_check(project))
+        _codeFindings(await _check(project))
             .where((finding) => finding.kind == FindingKind.codeSuspect),
         isEmpty,
       );

@@ -102,7 +102,7 @@ void main() {
       contains('[me](USER_STORY.md#use-case)'),
     );
     expect(
-      spots(checkOf(root), FindingKind.linkUnresolved),
+      spots(await checkOf(root), FindingKind.linkUnresolved),
       isNot(contains(startsWith('$f/us01_sign_out/'))),
     );
   });
@@ -1027,7 +1027,7 @@ void main() {
         contains('| cart/add_item/check_stock | `addItem` |'),
       );
       expect(
-        spots(checkOf(root), FindingKind.frTraceUnresolved),
+        spots(await checkOf(root), FindingKind.frTraceUnresolved),
         contains(startsWith('$shopApi:')),
       );
     });
@@ -1062,7 +1062,10 @@ void main() {
             readDoc(root, '$f/${folderOf('drop_item')}/USER_STORY.md'),
             contains('(../${folderOf('add_item')}/fr01_check_stock.md)'),
           );
-          expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+          expect(
+            spots(await checkOf(root), FindingKind.linkUnresolved),
+            isEmpty,
+          );
         },
       );
     }
@@ -1079,7 +1082,7 @@ void main() {
         readDoc(root, '$shop/f02_pay/us03_drop_item/USER_STORY.md'),
         contains('[me](USER_STORY.md#x)'),
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
     });
 
     test('f02/us07/fr02/e03, dw-s03/inv10: a moved story links to a plain file that stays, and the link follows', () async {
@@ -1092,7 +1095,10 @@ void main() {
         readDoc(root, '$f/us02_drop_item/USER_STORY.md'),
         contains('![flow](../../f02_shop/f01_cart/flow.png)'),
       );
-      expect(spots(checkOf(root), FindingKind.linkTargetMissing), isEmpty);
+      expect(
+        spots(await checkOf(root), FindingKind.linkTargetMissing),
+        isEmpty,
+      );
     });
 
     test('f02/us07/fr02, dw-s03/inv10: a non-UTF-8 moved story whose link must change refuses with output_not_writable, and nothing moves', () async {
@@ -1151,7 +1157,7 @@ void main() {
       ]) {
         expect(readDoc(root, path), isNot(contains('status: draft')));
       }
-      final report = checkOf(root);
+      final report = await checkOf(root);
       expect(spots(report, FindingKind.confirmedEntryStale), isEmpty);
       expect(spots(report, FindingKind.suspect), isEmpty);
     });
@@ -2234,7 +2240,7 @@ void main() {
             'shop/cart/add_item/load_fast Verification\n',
           ),
         );
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       });
 
       test('a link inside a moved nf follows, and a longer span in it lists at its new path', () async {
@@ -2251,7 +2257,7 @@ void main() {
           contains('[check stock](../us01_add_item/fr01_check_stock.md)'),
         );
         expect(moved, contains('`shop/cart/add_item/load_fast Verification`'));
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
         expect(answer.json['mentions'], [
           {
             'path': 'docs/$landed',
@@ -2312,7 +2318,7 @@ void main() {
         expect(moved, contains('traced_from:\n  - shop/cart/add_item#S1\n'));
         expect(moved, contains('  - shop/cart/add_item#S1 $fp\n'));
         expect(moved, isNot(contains('draft')));
-        final report = checkOf(root);
+        final report = await checkOf(root);
         for (final kind in [
           FindingKind.suspect,
           FindingKind.unconfirmed,
@@ -2343,7 +2349,7 @@ void main() {
           final moved = readDoc(root, movedAcross);
           expect(moved, contains('  - shop/cart/add_item#S1 $fp\n'));
           expect(
-            spots(checkOf(root), FindingKind.scenarioTraceUnresolved),
+            spots(await checkOf(root), FindingKind.scenarioTraceUnresolved),
             contains(startsWith('$movedAcross:')),
           );
         },
@@ -2389,7 +2395,7 @@ void main() {
             '[reserve](../../f01_cart/us01_add_item/fr02_reserve_stock.md)',
           ),
         );
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       });
 
       test('a code comment naming a moved fr is listed and kept', () async {
@@ -2504,7 +2510,7 @@ void main() {
         expect(journey, contains('step: shop/pay/add_item S1'));
         final rewritten = answer.json['rewritten']! as List<Object?>;
         expect(rewritten.where((p) => p == journeyPath), hasLength(1));
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       });
 
       test('E16: a target of another type refuses the whole call, and nothing moves', () async {
@@ -2748,8 +2754,8 @@ void main() {
       multiLine: true,
     ).firstMatch(readDoc(root, docPath))?.group(1);
 
-    List<String> staleDocs(Directory root) => spots(
-      checkOf(root),
+    Future<List<String>> staleDocs(Directory root) async => spots(
+      await checkOf(root),
       FindingKind.approvalStale,
     ).map((spot) => spot.split(':').first).toList();
 
@@ -2765,7 +2771,7 @@ void main() {
       expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
       expect(approvedValue(root, featuresIndex), isNotNull);
       expect(approvedValue(root, featuresIndex), isNot(before));
-      expect(staleDocs(root), isEmpty);
+      expect(await staleDocs(root), isEmpty);
     });
 
     test('E07: a rewritten doc whose hash did not match keeps its hash and still awaits approval', () async {
@@ -2775,7 +2781,7 @@ void main() {
       writeIn(root, (s) => answerReorder(s, 'feature:signup', place: '1'));
       expect(readDoc(root, featuresIndex), contains('f01_signup/FEATURE.md'));
       expect(approvedValue(root, featuresIndex), before);
-      expect(staleDocs(root), [featuresIndex]);
+      expect(await staleDocs(root), [featuresIndex]);
     });
 
     test('E07: a rewritten draft keeps draft and gains no approved', () async {
@@ -2806,7 +2812,7 @@ void main() {
           contains('f02_register/FEATURE.md'),
         );
         expect(approvedValue(root, featuresIndex), before);
-        expect(staleDocs(root), [featuresIndex]);
+        expect(await staleDocs(root), [featuresIndex]);
       },
     );
 
@@ -2816,14 +2822,14 @@ void main() {
       rename(root, 'feature:signup', 'register');
       expect(readDoc(root, featuresIndex), contains('f02_register/FEATURE.md'));
       expect(approvedValue(root, featuresIndex), isNot(before));
-      expect(staleDocs(root), isEmpty);
+      expect(await staleDocs(root), isEmpty);
 
       final stale = await writeWriteProject();
       leaveStale(stale, featuresIndex);
       final kept = approvedValue(stale, featuresIndex);
       rename(stale, 'feature:signup', 'register');
       expect(approvedValue(stale, featuresIndex), kept);
-      expect(staleDocs(stale), [featuresIndex]);
+      expect(await staleDocs(stale), [featuresIndex]);
     });
 
     test(
@@ -2844,10 +2850,10 @@ void main() {
             ),
           ),
         );
-        expect(staleDocs(root), isEmpty);
+        expect(await staleDocs(root), isEmpty);
         rename(root, 'persona:buyer', 'shopper');
         expect(readDoc(root, story2), contains('persona:\n  - shopper\n'));
-        expect(staleDocs(root), isEmpty);
+        expect(await staleDocs(root), isEmpty);
       },
     );
 
@@ -2861,7 +2867,7 @@ void main() {
       );
       expect(readDoc(root, shopApi), contains('pay/add_item/check_stock'));
       expect(approvedValue(root, shopApi), isNot(before));
-      expect(staleDocs(root), isNot(contains(shopApi)));
+      expect(await staleDocs(root), isNot(contains(shopApi)));
 
       final stale = await writeNestedProject();
       leaveStale(stale, shopApi);
@@ -2872,7 +2878,7 @@ void main() {
             answerMove(s, ['user_story:shop/cart/add_item'], under: 'shop/pay'),
       );
       expect(approvedValue(stale, shopApi), kept);
-      expect(staleDocs(stale), contains(shopApi));
+      expect(await staleDocs(stale), contains(shopApi));
     });
   });
   group('doc-name mentions in docs and code files', () {
@@ -2895,8 +2901,8 @@ void main() {
       multiLine: true,
     ).firstMatch(readDoc(root, docPath))?.group(1);
 
-    List<String> staleDocs(Directory root) => spots(
-      checkOf(root),
+    Future<List<String>> staleDocs(Directory root) async => spots(
+      await checkOf(root),
       FindingKind.approvalStale,
     ).map((spot) => spot.split(':').first).toList();
 
@@ -3202,13 +3208,13 @@ void main() {
         ),
       );
       final before = approvedHash(root, loginFeature);
-      expect(staleDocs(root), isEmpty);
+      expect(await staleDocs(root), isEmpty);
       rename(root, 'feature:signup', 'register');
       expect(readDoc(root, antiPersona), contains('draft: true'));
       expect(readDoc(root, antiPersona), contains('`feature:register`'));
       expect(readDoc(root, loginFeature), contains('`feature:register`'));
       expect(approvedHash(root, loginFeature), isNot(before));
-      expect(staleDocs(root), isEmpty);
+      expect(await staleDocs(root), isEmpty);
     });
 
     test('a move lists a mention in a code comment, a code markdown file, and an agent file, and keeps their bytes, but lists no fenced one or plain text', () async {
@@ -3300,7 +3306,7 @@ void main() {
         );
         expect(readDoc(root, shopDomain), contains('`shop/pay/add_item`'));
         expect(approvedHash(root, shopDomain), isNot(before));
-        expect(staleDocs(root), isNot(contains(shopDomain)));
+        expect(await staleDocs(root), isNot(contains(shopDomain)));
       },
     );
 
@@ -3349,7 +3355,7 @@ void main() {
       );
       expect(readDoc(root, projectDoc), contains('See `signin/email_login`.'));
       expect(approvedHash(root, projectDoc), isNot(before));
-      expect(staleDocs(root), isEmpty);
+      expect(await staleDocs(root), isEmpty);
       expect(stderrLines.lines, isEmpty);
       expect(
         (answer.json['rewritten']! as List).where(
@@ -3876,7 +3882,10 @@ void main() {
         contains("'recover/send_reset_link:app/test/reset_test.dart:sends'"),
       );
       expect(text, isNot(contains('reset_password')));
-      expect(spots(checkOf(root), FindingKind.recordEntryUnresolved), isEmpty);
+      expect(
+        spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+        isEmpty,
+      );
     });
   });
 
@@ -4060,7 +4069,10 @@ void main() {
     test('E10: the entries name the story and FR relative to pay, so check finds no unresolved entry', () async {
       final root = await shopTwins();
       moveAddItem(root);
-      expect(spots(checkOf(root), FindingKind.recordEntryUnresolved), isEmpty);
+      expect(
+        spots(await checkOf(root), FindingKind.recordEntryUnresolved),
+        isEmpty,
+      );
     });
 
     test('E20: a target whose cart record holds no entry of the moved items changes nothing, and no pay record is made there', () async {
@@ -4323,7 +4335,7 @@ void main() {
         expect(parent, contains("':skipped:no tablet'"));
         expect(parent, isNot(contains('checkout')));
         expect(
-          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
           isEmpty,
         );
       });
@@ -4409,7 +4421,7 @@ void main() {
             '.specstone/records/flutter/f02_shop/f01_basket/IMPLEMENTATION.md';
         expect(readDoc(root, basketFlutter), flutterCart);
         expect(
-          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
           isEmpty,
         );
       });
@@ -4508,7 +4520,7 @@ void main() {
         );
         expect(readDoc(root, cartJaspr), isNot(contains('check_stock')));
         expect(
-          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
           isEmpty,
         );
       });
@@ -4556,7 +4568,7 @@ void main() {
         expect(pay, contains("'refund/check_stock:implemented'"));
         expect(pay, isNot(contains('card/x')));
         expect(
-          spots(checkOf(root), FindingKind.recordEntryUnresolved),
+          spots(await checkOf(root), FindingKind.recordEntryUnresolved),
           isEmpty,
         );
       });
@@ -4925,7 +4937,7 @@ void main() {
         recordFile(root, loginRecordPath),
         '\nSee [stories](../../../docs/$story2).\n',
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
 
       rename(root, 'user_story:login/sign_out', 'log_out');
 
@@ -4935,7 +4947,7 @@ void main() {
           '](../../../docs/prds/features/f01_login/us02_log_out/USER_STORY.md)',
         ),
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
     });
 
     test(
@@ -4956,7 +4968,7 @@ void main() {
           ).readAsStringSync(),
           contains('](../../../docs/specs/f01_signin/ARCHITECTURE.md)'),
         );
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       },
     );
 
@@ -4970,7 +4982,7 @@ void main() {
         recordFile(root, loginRecordPath),
         '\nSee [diagram](../../../docs/$folder/diagram.png).\n',
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
 
       reorder(root, 'user_story:login/reset_password', '1');
 
@@ -4980,7 +4992,7 @@ void main() {
           '](../../../docs/prds/features/f01_login/us03_sign_out/diagram.png)',
         ),
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
     });
 
     test('reordering features rewrites a docs file link into a moved record folder', () async {
@@ -4993,7 +5005,7 @@ void main() {
         '\nSee [notes](../../../../.specstone/records/f01_login/notes.png).\n',
         mode: FileMode.append,
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
 
       reorder(root, 'feature:signup', '1');
 
@@ -5001,7 +5013,7 @@ void main() {
         readDoc(root, persona),
         contains('](../../../../.specstone/records/f02_login/notes.png)'),
       );
-      expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
     });
 
     test(
@@ -5032,7 +5044,7 @@ void main() {
           '\nSee [record](../../$loginRecordPath).\n',
           mode: FileMode.append,
         );
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
 
         rename(root, 'feature:login', 'signin');
 
@@ -5040,7 +5052,7 @@ void main() {
           readDoc(root, 'prds/d01_context.md'),
           contains('](../../.specstone/records/f01_signin/IMPLEMENTATION.md)'),
         );
-        expect(spots(checkOf(root), FindingKind.linkUnresolved), isEmpty);
+        expect(spots(await checkOf(root), FindingKind.linkUnresolved), isEmpty);
       },
     );
 

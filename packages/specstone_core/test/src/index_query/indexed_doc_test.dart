@@ -618,6 +618,27 @@ void main() {
     });
   });
 
+  group('mermaid blocks', () {
+    const frPath =
+        'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';
+    const text =
+        '# T\n\n```mermaid\npie\n```\n\n```mermaid\nflowchart TD\n```\n';
+
+    test('a typed doc stores one block per mermaid fence', () {
+      final blocks = parse(frPath, text).content.lineFacts.mermaidBlocks;
+
+      expect([for (final b in blocks) b.fenceLine], [3, 7]);
+      expect(blocks[0].hash, isNot(blocks[1].hash));
+    });
+
+    test('an untyped doc stores no block', () {
+      expect(
+        parse('notes/a.md', text).content.lineFacts.mermaidBlocks,
+        isEmpty,
+      );
+    });
+  });
+
   group('item facts', () {
     const frPath =
         'prds/features/f01_login/us01_email_login/fr01_validate_credentials.md';

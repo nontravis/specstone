@@ -14,6 +14,8 @@ import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show RuleItemWords;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
+    show mermaidSourcesOf;
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -336,6 +338,9 @@ ParsedDoc parseIndexedDoc({
     citeCandidates: docType == null
         ? const []
         : citeCandidatesOf(lfText, idPrefixes: idPrefixes),
+    mermaidBlocks: docType == null
+        ? const []
+        : [for (final s in mermaidSourcesOf(doc, lfText)) s.block],
     warnings: warnings,
   );
   final content = DocContent(

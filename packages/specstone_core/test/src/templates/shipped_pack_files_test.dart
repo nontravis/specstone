@@ -531,7 +531,7 @@ void main() {
         '## Operations\n\n$operations';
 
     Future<List<String>> apiSpots(String operations) async => spots(
-      checkOf(
+      await checkOf(
         await writeCheckProject(
           extra: {'docs/$loginApi': api(operations)},
           unstamped: {'docs/$loginApi'},
@@ -578,7 +578,7 @@ void main() {
           '## Used by\n\n| Feature | What it uses |\n|---|---|\n'
           '| login | all |\n\n## Interface\n\n$item\n';
       Future<List<String>> bannedIn(String item) async => spots(
-        checkOf(
+        await checkOf(
           await writeCheckProject(
             extra: {topicPath: topic(item)},
             unstamped: {topicPath},

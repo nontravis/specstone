@@ -301,7 +301,7 @@ void main() {
         idPrefixes: itemIdPrefixesOf(set.docTypes),
         layoutPaths: singularLayoutPathsOf(set, twinNames: const []),
       );
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/architecture.yaml': override,

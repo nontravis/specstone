@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -707,5 +708,208 @@ void main() {
       expect(sessions, hasLength(1));
       expect(sessions, closed());
     });
+  });
+
+  group('ReadSession.runAsync', () {
+    Future<T> runSession<T>(
+      Directory p,
+      Future<T> Function(ReadSession s) answer,
+    ) => ReadSession.runAsync(
+      answer,
+      templates: TemplateResolver(),
+      workingDirectory: p,
+      homeDirectory: null,
+    );
+    Matcher closed() => everyElement(
+      isA<ReadSession>().having(
+        (s) =>
+            () => s.store.readStamp(),
+        'store read',
+        throwsStateError,
+      ),
+    );
+
+    test('runAsync answers from a fresh session and closes it', () async {
+      final project = await writeLoginProject();
+      final sessions = <ReadSession>[];
+      final answered = await runSession(project, (s) async {
+        await Future<void>.delayed(Duration.zero);
+        sessions.add(s);
+        return answers(s);
+      });
+      expect(answered, hasLength(25));
+      expect(sessions, hasLength(1));
+      expect(sessions, closed());
+    });
+    test('runAsync rebuilds a damaged index once and answers again', () async {
+      final project = await writeLoginProject();
+      final expected = await runSession(project, (s) async => answers(s));
+      final index = inProject(project, indexFilePath);
+      final db = sqlite3.open(index.path);
+      final pageSize = db.select('PRAGMA page_size').single.columnAt(0) as int;
+      final roots = [
+        for (final row in db.select(
+          'SELECT rootpage FROM sqlite_master '
+          "WHERE name IN ('sections', 'links', 'doc_search_content')",
+        ))
+          row.columnAt(0) as int,
+      ];
+      db.close();
+      final bytes = index.readAsBytesSync();
+      for (final root in roots) {
+        bytes.fillRange((root - 1) * pageSize, root * pageSize, 0);
+      }
+      index.writeAsBytesSync(bytes);
+      final sessions = <ReadSession>[];
+      final answered = await runSession(project, (s) async {
+        await Future<void>.delayed(Duration.zero);
+        sessions.add(s);
+        return answers(s);
+      });
+      expect(answered, expected);
+      expect(sessions, hasLength(2));
+      expect(sessions.last.warnings.first, damagedIndexWarning);
+      expect(sessions, closed());
+    });
+    test('runAsync reports a second damage error as an index fault and closes both sessions', () async {
+      final project = await writeLoginProject();
+      final sessions = <ReadSession>[];
+      await expectLater(
+        runSession<void>(project, (s) async {
+          sessions.add(s);
+          throw SqliteException(
+            extendedResultCode: SqlError.SQLITE_CORRUPT,
+            message: 'test error',
+          );
+        }),
+        throwsA(
+          isA<IndexFault>()
+              .having((f) => f.code, 'code', IndexFaultCode.indexNotWritable)
+              .having((f) => f.exitStatus, 'exit', 73),
+        ),
+      );
+      expect(sessions, hasLength(2));
+      expect(sessions, closed());
+    });
+    test('runAsync passes a fault from the answer unchanged and closes the session', () async {
+      final project = await writeLoginProject();
+      final fault = IndexFault(IndexFaultCode.sectionNotFound, 'no section');
+      final sessions = <ReadSession>[];
+      await expectLater(
+        runSession<void>(project, (s) async {
+          sessions.add(s);
+          throw fault;
+        }),
+        throwsA(same(fault)),
+      );
+      expect(sessions, hasLength(1));
+      expect(sessions, closed());
+    });
+  });
+
+  group('ReadSession writeIndex', () {
+    const parserHash = 'parser-a';
+    const row = DiagramParse(
+      blockHash: 'block-1',
+      diagram: 'flowchart',
+      parses: false,
+      message: 'Parse error',
+      blockLine: 3,
+    );
+    void put(ReadSession s) => s.writeIndex(
+      (store) => store.putDiagramParses([row], parserHash: parserHash),
+    );
+    DiagramParse? readRow(ReadSession s) =>
+        s.store.diagramParsesOf({'block-1'}, parserHash: parserHash)['block-1'];
+
+    test('rows written inside an open session reach the next session, and close still succeeds', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      put(session);
+      expect(readRow(session)?.message, 'Parse error');
+      session.close();
+      final next = openSession(project);
+      addTearDown(next.close);
+      expect(readRow(next)?.blockLine, 3);
+    });
+    test(
+      'a lock held past the timeout throws indexBusy, and close still succeeds',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(
+          project,
+          busyTimeout: const Duration(milliseconds: 100),
+        );
+        final holder = sqlite3.open(inProject(project, indexFilePath).path)
+          ..execute('BEGIN IMMEDIATE');
+        addTearDown(() {
+          holder
+            ..execute('ROLLBACK')
+            ..close();
+        });
+        expect(
+          () => put(session),
+          throwsA(
+            isA<IndexFault>().having(
+              (f) => f.code,
+              'code',
+              IndexFaultCode.indexBusy,
+            ),
+          ),
+        );
+        expect(session.close, returnsNormally);
+      },
+    );
+    test(
+      'a body that throws rolls back its rows and leaves the session closable',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        expect(
+          () => session.writeIndex((store) {
+            store.putDiagramParses([row], parserHash: parserHash);
+            throw StateError('stop');
+          }),
+          throwsStateError,
+        );
+        expect(readRow(session), isNull);
+        expect(session.close, returnsNormally);
+      },
+    );
+    test('a write that fails with an error of no fault of its own is index_not_writable', () async {
+      final project = await writeLoginProject();
+      final session = openSession(project);
+      expect(
+        () => session.writeIndex((store) {
+          throw SqliteException(
+            extendedResultCode: SqlError.SQLITE_FULL,
+            message: 'database or disk is full',
+          );
+        }),
+        throwsA(
+          isA<IndexFault>().having(
+            (f) => f.code,
+            'code',
+            IndexFaultCode.indexNotWritable,
+          ),
+        ),
+      );
+      expect(session.close, returnsNormally);
+    });
+    test(
+      'a peer reset between open and write still lets the write land',
+      () async {
+        final project = await writeLoginProject();
+        final session = openSession(project);
+        final peer = IndexStore.open(project);
+        peer.write(
+          () => peer.reset(const IndexStamp(binaryVersion: '1', docTypes: 'x')),
+        );
+        peer.close();
+        put(session);
+        expect(readRow(session)?.message, 'Parse error');
+        expect(session.close, returnsNormally);
+      },
+    );
   });
 }

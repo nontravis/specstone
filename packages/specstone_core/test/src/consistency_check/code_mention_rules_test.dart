@@ -81,7 +81,7 @@ void main() {
     });
 
     test('a comment line naming a doc gives one finding at its line', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'app/lib/auth.dart': 'class A {}\n// Implements `$_fr`.\n'},
         ),
@@ -101,7 +101,7 @@ void main() {
 
     test('a path read from the docs root or the project root names a doc, '
         'one read from the own folder names none', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'app/lib/auth.dart':
@@ -120,7 +120,7 @@ void main() {
 
     test('a markdown file reads its code spans outside fenced code, not its '
         'frontmatter', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'app/lib/SKILL.md':
@@ -134,7 +134,7 @@ void main() {
     });
 
     test('a mention with a section key is reported whole', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'app/lib/auth.dart': '// `$_fr#statement`\n'},
         ),
@@ -143,7 +143,7 @@ void main() {
     });
 
     test('text that resolves to no doc gives nothing', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'app/lib/auth.dart':
@@ -156,7 +156,7 @@ void main() {
     });
 
     test('a name inside a string literal is no comment line', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'app/lib/auth_test.dart':
@@ -171,7 +171,7 @@ void main() {
     test(
       'a lone-word span raises nothing, whether a doc has that name or not',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {
               'app/lib/auth.dart':
@@ -186,7 +186,7 @@ void main() {
 
     test("a singular type's layout path in a comment or a skill file raises "
         'nothing', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'app/lib/auth.dart':
@@ -202,7 +202,7 @@ void main() {
     test(
       "a project spec type's layout path in a skill file raises nothing",
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {
               'docs/specs/DOMAIN.md': '# Project domain\n',
@@ -215,7 +215,7 @@ void main() {
     );
 
     test('an agent file under a code root is never read', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'app/lib/CLAUDE.md': 'Use `$_fr`.\n',
@@ -231,7 +231,7 @@ void main() {
     test(
       'a copilot file below the project root is read, the root one is not',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {
               ...doc(
@@ -253,7 +253,7 @@ void main() {
     test(
       'a test file is read under a code root and unread outside it',
       () async {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: {
               'app/lib/auth_test.dart': '// `$_fr`\n',
@@ -277,7 +277,7 @@ void main() {
           'vendor/pkg/.git/HEAD': 'ref\n',
         },
       );
-      final report = checkOf(project);
+      final report = await checkOf(project);
       expect(_cited(report), ['README.md:1 $_fr', 'app/lib/auth.dart:1 $_fr']);
     });
 
@@ -285,9 +285,9 @@ void main() {
       final project = await writeCheckProject(
         extra: {'app/lib/auth.dart': '// `$_fr`\n'},
       );
-      expect(_cited(checkOf(project)), isNotEmpty);
-      expect(_cited(checkOf(project, target: 'login')), isEmpty);
-      expect(_cited(checkOf(project, docPath: _featureDoc)), isEmpty);
+      expect(_cited(await checkOf(project)), isNotEmpty);
+      expect(_cited(await checkOf(project, target: 'login')), isEmpty);
+      expect(_cited(await checkOf(project, docPath: _featureDoc)), isEmpty);
     });
 
     test(
@@ -299,20 +299,20 @@ void main() {
             'jaspr_ws/app/lib/b.dart': '// `$_fr`\n',
           },
         );
-        CheckReport run({String? codeTarget}) {
+        Future<CheckReport> run({String? codeTarget}) async {
           final session = openSession(project);
           try {
-            return runCheck(session, codeTarget: codeTarget);
+            return await runCheck(session, codeTarget: codeTarget);
           } finally {
             session.close();
           }
         }
 
-        expect(_cited(run()), [
+        expect(_cited(await run()), [
           'flutter_ws/app/lib/a.dart:1 $_fr',
           'jaspr_ws/app/lib/b.dart:1 $_fr',
         ]);
-        expect(_cited(run(codeTarget: 'jaspr')), [
+        expect(_cited(await run(codeTarget: 'jaspr')), [
           'jaspr_ws/app/lib/b.dart:1 $_fr',
         ]);
       },
@@ -324,7 +324,7 @@ void main() {
       );
       File('${project.path}/app/lib/bad.dart')
           .writeAsBytesSync([0x2F, 0x2F, 0x20, 0xFF, 0xFE, 0x0A]);
-      final report = checkOf(project);
+      final report = await checkOf(project);
       expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
       expect(report.warnings, [
         'app/lib/bad.dart: not UTF-8; doc names in it are not checked',
@@ -345,7 +345,7 @@ void main() {
         final path = '${project.path}/app/lib/locked.dart';
         Process.runSync('chmod', ['000', path]);
         addTearDown(() => Process.runSync('chmod', ['644', path]));
-        final report = checkOf(project);
+        final report = await checkOf(project);
         expect(_cited(report), ['app/lib/auth.dart:1 $_fr']);
         expect(report.warnings, [
           'app/lib/locked.dart: cannot read the file; the code links that reach it are not checked',
@@ -360,7 +360,7 @@ void main() {
       );
       File('${project.path}/app/lib/image.png')
           .writeAsBytesSync([0x89, 0x50, 0xFF, 0xFE]);
-      final report = checkOf(project);
+      final report = await checkOf(project);
       expect(_cited(report), isEmpty);
       expect(report.warnings, isEmpty);
     });

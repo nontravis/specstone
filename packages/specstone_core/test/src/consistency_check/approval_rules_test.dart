@@ -63,7 +63,7 @@ Future<CheckReport> _checkBelowPins(Map<String, String> extra) async {
     homeDirectory: null,
   );
   try {
-    return runCheck(session);
+    return await runCheck(session);
   } finally {
     session.close();
   }
@@ -94,14 +94,14 @@ void main() {
   test(
     '$_name: a project whose docs carry their approval hash raises no approval_stale',
     () async {
-      expect(_stales(checkOf(await writeCheckProject())), isEmpty);
+      expect(_stales(await checkOf(await writeCheckProject())), isEmpty);
     },
   );
 
   test(
     '$_name E01: an approved story edited in an editor is one approval_stale on its approved: line, and none once the Owner approves',
     () async {
-      final edited = checkOf(
+      final edited = await checkOf(
         await writeCheckProject(
           extra: editedAfterApproval(loginStory, [
             ('Sign in', 'Sign in again'),
@@ -116,7 +116,7 @@ void main() {
       expect(finding.name, 'login/email_login');
       expect(finding.keys, {'value': isA<String>()});
 
-      final approved = checkOf(
+      final approved = await checkOf(
         await writeCheckProject(
           extra: doc(loginStory, 'Sign in', 'Sign in again'),
         ),
@@ -128,7 +128,7 @@ void main() {
   test(
     '$_name E02: a change of layout alone raises no approval_stale',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: editedAfterApproval(loginFeature, [
             ('## Problem\n\n', '## Problem\n\n\n\n'),
@@ -153,7 +153,7 @@ void main() {
       final approved = withApprovalHashes(base);
       final record = approved[recordPath]!;
       expect(record, contains('approved:'));
-      final report = checkOf(
+      final report = await checkOf(
         await writeTree({
           ...approved,
           recordPath: record.replaceFirst(
@@ -170,7 +170,7 @@ void main() {
   );
 
   test('a change of a task_ref list raises no approval_stale', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/feature.yaml':
@@ -189,7 +189,7 @@ void main() {
     const to = 'email_login/check_password:planned';
 
     test('raises no approval_stale at the statuses pin', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: editedAfterApproval(loginRecord, [(from, to)]),
         ),
@@ -215,7 +215,7 @@ void main() {
       );
       final CheckReport report;
       try {
-        report = runCheck(session);
+        report = await runCheck(session);
       } finally {
         session.close();
       }
@@ -228,7 +228,7 @@ void main() {
   test(
     '$_name E04: a draft beside an approved: hash its content does not match raises no approval_stale',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: editedAfterApproval(loginStory, [
             ('goals:\n', 'draft: true\ngoals:\n'),
@@ -244,7 +244,7 @@ void main() {
     '$_name E05: a doc with no approved: key is one approval_stale on line 1 once the pins reach the stamps, and none below them or as a draft',
     () async {
       final plain = checkProjectFiles()['docs/$loginFr']!;
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'docs/$loginFr': plain},
           unstamped: {'docs/$loginFr'},
@@ -260,7 +260,7 @@ void main() {
 
       expect(_stales(await _checkBelowPins({'docs/$loginFr': plain})), isEmpty);
 
-      final draft = checkOf(
+      final draft = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$loginFr': plain.replaceFirst(
@@ -278,7 +278,7 @@ void main() {
     '$_name E06: approved: true is one approval_stale on its line with value true once the pins reach the stamps, and no other finding; below them it counts as approved',
     () async {
       final marked = fr('traced_from:\n', 'approved: true\ntraced_from:\n');
-      final report = checkOf(await writeCheckProject(extra: marked));
+      final report = await checkOf(await writeCheckProject(extra: marked));
       expect(spots(report), ['$loginFr:2: approval_stale']);
       expect(report.findings.single.keys, {'value': 'true'});
       expect(report.findings.single.message, _stale);
@@ -295,7 +295,7 @@ void main() {
         'turn away a wrong password',
       );
       final docType = fixtureDocTypeOf(loginFr);
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$loginFr': withApprovalHash(
@@ -311,7 +311,7 @@ void main() {
   );
 
   test('$_name E08: an untyped doc raises no approval_stale', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {'docs/prds/notes.md': '# Notes\n\nA scratch note.\n'},
       ),
@@ -326,7 +326,7 @@ void main() {
     '$_name E09: an approved: value YAML reads as a number is one approval_stale, even when its digits match; the quoted digits match',
     () async {
       final (digitsText, digits) = _frHashing(RegExp(r'^\d{12}$'));
-      final bare = checkOf(
+      final bare = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$loginFr': digitsText.replaceFirst(
@@ -346,7 +346,7 @@ void main() {
         'traced_from:\n',
         'approved: $value\ntraced_from:\n',
       );
-      final unquoted = checkOf(
+      final unquoted = await checkOf(
         await writeCheckProject(extra: {'docs/$loginFr': withValue(exponent)}),
       );
       expect(spots(unquoted, FindingKind.approvalStale), [
@@ -354,7 +354,7 @@ void main() {
       ]);
       expect(_stales(unquoted).single.keys, {'value': exponent});
 
-      final quoted = checkOf(
+      final quoted = await checkOf(
         await writeCheckProject(
           extra: {'docs/$loginFr': withValue('"$exponent"')},
         ),
@@ -364,7 +364,7 @@ void main() {
   );
 
   test('$_name E09: a literal overflowing exponent reads as written', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('traced_from:\n', 'approved: 123e45678901\ntraced_from:\n'),
       ),
@@ -378,7 +378,7 @@ void main() {
   test(
     '$_name: an approved: key with no value reports its own line with the no-approval message and no value',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr('traced_from:\n', 'approved:\ntraced_from:\n'),
           unstamped: {'docs/$loginFr'},
@@ -401,7 +401,7 @@ void main() {
         ('approved: [a, b]', '[a, b]'),
         ('approved:\n  - a\n  - b', '- a\n  - b'),
       ]) {
-        final report = checkOf(
+        final report = await checkOf(
           await writeCheckProject(
             extra: fr('traced_from:', '$written\ntraced_from:'),
           ),

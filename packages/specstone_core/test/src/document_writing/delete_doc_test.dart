@@ -2214,7 +2214,7 @@ void main() {
           reason: path,
         );
       }
-      final report = check.checkOf(root);
+      final report = await check.checkOf(root);
       expect([
         for (final f in report.findings)
           if (f.kind == FindingKind.recordEntryUnresolved) f.path,

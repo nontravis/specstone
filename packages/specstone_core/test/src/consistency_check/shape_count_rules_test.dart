@@ -26,7 +26,7 @@ Future<List<Finding>> _found(
   final project = await writeCheckProject(extra: {layerPath: layer, ...edits});
   _project = project;
   return [
-    for (final f in checkOf(project).findings)
+    for (final f in (await checkOf(project)).findings)
       if (_shapeKinds.contains(f.kind)) f,
   ];
 }
@@ -434,7 +434,8 @@ void main() {
         extra: fr('1. E01 — An empty password → refused.', '1. E01 — a. b. c.'),
       );
       expect(
-        checkOf(project).findings.where((f) => _shapeKinds.contains(f.kind)),
+        (await checkOf(project)).findings
+            .where((f) => _shapeKinds.contains(f.kind)),
         isEmpty,
       );
     },

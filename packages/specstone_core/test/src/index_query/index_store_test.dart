@@ -4,6 +4,7 @@ import 'dart:isolate';
 
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -1125,6 +1126,109 @@ void main() {
     addTearDown(raw.close);
     raw.execute('UPDATE meta SET layout = 20');
     expect(store.readStamp(), isNull);
+  });
+
+  group('IndexStore diagram parses', () {
+    const parserHash = 'parser-a';
+    const failed = DiagramParse(
+      blockHash: 'block-1',
+      diagram: 'flowchart',
+      parses: false,
+      message: 'Parse error on line 2',
+      blockLine: 7,
+    );
+    const passed = DiagramParse(blockHash: 'block-2', parses: true);
+    Future<IndexStore> stored() async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      store.write(
+        () => store.putDiagramParses([failed, passed], parserHash: parserHash),
+      );
+      return store;
+    }
+
+    test('a stored row reads back field for field', () async {
+      final store = await stored();
+      final rows = store.diagramParsesOf({
+        'block-1',
+        'block-2',
+        'block-3',
+      }, parserHash: parserHash);
+      expect(rows.keys, unorderedEquals(['block-1', 'block-2']));
+      expect(rows['block-1']!.blockHash, 'block-1');
+      expect(rows['block-1']!.diagram, 'flowchart');
+      expect(rows['block-1']!.parses, isFalse);
+      expect(rows['block-1']!.message, 'Parse error on line 2');
+      expect(rows['block-1']!.blockLine, 7);
+      expect(rows['block-2']!.parses, isTrue);
+      expect(rows['block-2']!.diagram, isNull);
+      expect(rows['block-2']!.message, isNull);
+      expect(rows['block-2']!.blockLine, isNull);
+    });
+    test('a lookup under another parser hash misses', () async {
+      final store = await stored();
+      expect(
+        store.diagramParsesOf({'block-1'}, parserHash: 'parser-b'),
+        isEmpty,
+      );
+    });
+    test('an empty lookup returns no rows', () async {
+      final store = await stored();
+      expect(store.diagramParsesOf({}, parserHash: parserHash), isEmpty);
+    });
+    test('a lookup of 2000 hashes returns every row', () async {
+      final store = IndexStore.open(await root());
+      addTearDown(store.close);
+      final hashes = {for (var i = 0; i < 2000; i++) 'block-$i'};
+      store.write(
+        () => store.putDiagramParses([
+          for (final h in hashes) DiagramParse(blockHash: h, parses: true),
+        ], parserHash: parserHash),
+      );
+      expect(
+        store.diagramParsesOf(hashes, parserHash: parserHash),
+        hasLength(2000),
+      );
+    });
+    test(
+      'a second put of the same block and parser replaces the row',
+      () async {
+        final store = await stored();
+        store.write(
+          () => store.putDiagramParses([
+            const DiagramParse(blockHash: 'block-1', parses: true),
+          ], parserHash: parserHash),
+        );
+        final row = store.diagramParsesOf({
+          'block-1',
+        }, parserHash: parserHash)['block-1']!;
+        expect(row.parses, isTrue);
+        expect(row.message, isNull);
+      },
+    );
+    test('reset drops every row', () async {
+      final store = await stored();
+      store.write(
+        () => store.reset(const IndexStamp(binaryVersion: '1', docTypes: 'x')),
+      );
+      expect(
+        store.diagramParsesOf({'block-1', 'block-2'}, parserHash: parserHash),
+        isEmpty,
+      );
+    });
+    test('putDoc and deleteDoc leave the rows alone', () async {
+      final store = await stored();
+      store.write(() {
+        store
+          ..putDoc(parsed('prds/a.md', '# A\n'))
+          ..deleteDoc('prds/a.md')
+          ..putDoc(parsed('prds/b.md', '# B\n'));
+      });
+      expect(
+        store.diagramParsesOf({'block-1', 'block-2'}, parserHash: parserHash),
+        hasLength(2),
+      );
+    });
   });
 
   group('IndexStore rule item words', () {

@@ -14,7 +14,7 @@ Future<List<Finding>> _found(
   Map<String, String> edits,
   FindingKind kind,
 ) async {
-  final report = checkOf(await writeCheckProject(extra: edits));
+  final report = await checkOf(await writeCheckProject(extra: edits));
   return [
     for (final f in report.findings)
       if (f.kind == kind) f,
@@ -121,7 +121,7 @@ void main() {
   });
 
   test('a story with only happy scenarios is error_case', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(loginStory, '\n\n$loginScenario2', ''),
       ),

@@ -9,7 +9,7 @@ Future<List<Finding>> _found(
   Map<String, String> edits,
   FindingKind kind,
 ) async {
-  final report = checkOf(await writeCheckProject(extra: edits));
+  final report = await checkOf(await writeCheckProject(extra: edits));
   return [
     for (final f in report.findings)
       if (f.kind == kind) f,
@@ -131,7 +131,7 @@ void main() {
     });
 
     test('a non-target holding the three base sections gives none', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$_antiPersona': _antiPersonaDoc('non-target', const []),

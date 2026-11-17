@@ -73,7 +73,7 @@ Future<List<Finding>> _found(
 }) async {
   _project = await writeCheckProject(extra: {_frLayer: layer, ...edits});
   return [
-    for (final f in checkOf(_project).findings)
+    for (final f in (await checkOf(_project)).findings)
       if (_fieldKinds.contains(f.kind)) f,
   ];
 }
@@ -192,7 +192,8 @@ void main() {
       extra: _withRationale('- **R1** Refuse it.', behavior: true),
     );
     expect(
-      checkOf(project).findings.where((f) => _fieldKinds.contains(f.kind)),
+      (await checkOf(project)).findings
+          .where((f) => _fieldKinds.contains(f.kind)),
       isEmpty,
     );
   });
@@ -216,7 +217,7 @@ void main() {
         },
       );
       return [
-        for (final f in checkOf(_project).findings)
+        for (final f in (await checkOf(_project)).findings)
           if (domainKinds.contains(f.kind)) f,
       ];
     }

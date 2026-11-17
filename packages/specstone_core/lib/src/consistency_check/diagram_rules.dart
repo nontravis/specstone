@@ -5,7 +5,6 @@ import 'package:specstone_core/src/index_query/held_sections.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
-const _mermaidInfo = 'mermaid';
 const _frontMatterMark = '---';
 const _arrowChars = '-=.';
 const _openLinkRun = 3;
@@ -61,7 +60,7 @@ Iterable<DiagramBlock> _flowchartBlocks(List<BodyLine> body) sync* {
     }
     final lines = body.sublist(i + 1, end);
     final drawn = lines.skip(_frontMatterLines(lines).length);
-    if (info == _mermaidInfo &&
+    if (info == mermaidInfoWord &&
         drawn.isNotEmpty &&
         _flowchartWord.hasMatch(drawn.first.text.trim())) {
       yield (fenceLine: body[i].line, lines: lines);

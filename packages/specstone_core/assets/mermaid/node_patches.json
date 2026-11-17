@@ -1,0 +1,18 @@
+[
+  {
+    "find": "return t.isSupported=!1,t;",
+    "replace": "return t.isSupported=!1,t.addHook=()=>{},t.removeHook=()=>{},t.removeAllHooks=()=>{},t.sanitize=x=>x,t;"
+  },
+  {
+    "find": "var __esbuild_esm_mermaid_nm;",
+    "replace": ""
+  },
+  {
+    "find": "(__esbuild_esm_mermaid_nm||={})",
+    "replace": "(globalThis.__esbuild_esm_mermaid_nm)"
+  },
+  {
+    "find": "s(NX,\"preprocessDiagram\");",
+    "replace": "s(NX,\"preprocessDiagram\");globalThis.__specstonePreprocessDiagram=NX;"
+  }
+]

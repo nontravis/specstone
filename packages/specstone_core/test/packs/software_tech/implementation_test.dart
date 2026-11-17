@@ -79,7 +79,7 @@ void main() {
         reason: 'an entry for every story and FR',
       );
 
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(extra: docs, unstamped: {recordPath}),
       );
 

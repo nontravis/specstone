@@ -20,7 +20,7 @@ Future<List<Finding>> _findings(
   Map<String, String> edits = const {},
   FindingKind kind = FindingKind.patternBanned,
 }) async {
-  final report = checkOf(
+  final report = await checkOf(
     await writeCheckProject(extra: {_frLayer: layer, ...edits}),
   );
   return [
@@ -309,13 +309,13 @@ void main() {
         ...fr(checkPasswordStatement, 'The system shall refuse fast, slow.'),
       },
     );
-    List<Object?> matched() => [
-      for (final f in checkOf(project).findings)
+    Future<List<Object?>> matched() async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == FindingKind.patternBanned) f.toJson()['match'],
     ];
-    expect(matched(), ['fast']);
+    expect(await matched(), ['fast']);
     File('${project.path}/$_frLayer').writeAsStringSync(layer('slow'));
-    expect(matched(), ['slow']);
+    expect(await matched(), ['slow']);
   });
 
   test('f04/us01/fr08, f04/nfr-p03: a doc edited after a check reports its new match and drops the removed one', () async {
@@ -330,16 +330,16 @@ void main() {
         ...fr(checkPasswordStatement, 'The system shall refuse fast.'),
       },
     );
-    List<Object?> matched() => [
-      for (final f in checkOf(project).findings)
+    Future<List<Object?>> matched() async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == FindingKind.patternBanned) f.toJson()['match'],
     ];
-    expect(matched(), ['fast']);
+    expect(await matched(), ['fast']);
     final file = File('${project.path}/docs/$loginFr');
     file.writeAsStringSync(
       file.readAsStringSync().replaceFirst('refuse fast.', 'refuse slowly.'),
     );
-    expect(matched(), ['slow']);
+    expect(await matched(), ['slow']);
   });
 
   test('a required pattern no line matches reports at the header; an absent '

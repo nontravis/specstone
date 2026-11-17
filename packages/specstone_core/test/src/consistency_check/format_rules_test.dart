@@ -13,12 +13,12 @@ const _driftMessage =
 
 void main() {
   test('a laid-out project raises no format_drift', () async {
-    final report = checkOf(await writeCheckProject());
+    final report = await checkOf(await writeCheckProject());
     expect(spots(report, FindingKind.formatDrift), isEmpty);
   });
 
   test('E01: a table padded to a different width gives one format_drift on line 1 naming the file and its fix', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr(
           'A wrong password must not sign in.\n',
@@ -36,7 +36,7 @@ void main() {
   });
 
   test('E02: sections out of the template order give one format_drift however many places differ', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           (
@@ -52,7 +52,7 @@ void main() {
   });
 
   test('E02: a header differing from the template in letter case gives one format_drift', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: fr('## Edge cases', '## Edge Cases')),
     );
     expect(spots(report, FindingKind.formatDrift), [
@@ -64,7 +64,7 @@ void main() {
     'E03: a doc differing in line endings only gives no format_drift',
     () async {
       final text = checkProjectFiles()['docs/$loginFr']!;
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'docs/$loginFr': text.replaceAll('\n', '\r\n')},
         ),
@@ -74,7 +74,7 @@ void main() {
   );
 
   test('E04: a doc the format command refuses, for an unknown header, gives no format_drift', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('## Rationale', '## Mystery\nx\n\n## Rationale'),
       ),
@@ -86,7 +86,7 @@ void main() {
   test(
     'E04: a doc with an unclosed code fence gives no format_drift',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: fr(
             'A wrong password must not sign in.\n',
@@ -100,7 +100,7 @@ void main() {
 
   test('E04: a doc with an open generated block, which format refuses, gives no format_drift', () async {
     const journey = 'prds/journeys/sign_in/JOURNEY.md';
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/$journey':
@@ -115,7 +115,7 @@ void main() {
   });
 
   test('E05: an untyped doc gives no format_drift', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {'docs/prds/notes/loose.md': '#   Loose\n\n\n\ntext   \n'},
       ),
@@ -125,7 +125,7 @@ void main() {
   });
 
   test('E06: a doc lacking a required section but laid out gives required_section_missing only', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: fr('## Statement\n\n$checkPasswordStatement\n\n', ''),
       ),
@@ -140,7 +140,7 @@ void main() {
     'E07: a generated block with out-of-date text gives no format_drift',
     () async {
       const journey = 'prds/journeys/sign_in/JOURNEY.md';
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$journey':
@@ -169,16 +169,17 @@ void main() {
         ),
       },
     );
-    expect(spots(checkOf(project, target: 'login'), FindingKind.formatDrift), [
-      '$loginFr:1: format_drift',
-    ]);
+    expect(
+      spots(await checkOf(project, target: 'login'), FindingKind.formatDrift),
+      ['$loginFr:1: format_drift'],
+    );
   });
 
   test(
     'a drifted record names the project path of its file in the fix',
     () async {
       const record = '.specstone/records/f01_login/IMPLEMENTATION.md';
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             ...recordsRootTemplates,

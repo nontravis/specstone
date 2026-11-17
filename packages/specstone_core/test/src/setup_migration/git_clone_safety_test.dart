@@ -92,7 +92,11 @@ Future<Directory> _evilClone(List<(String, String)> configLines) async {
   return clone;
 }
 
-int _migrate(Directory root, StringBuffer out, {RunGit? runGit}) => runMigrate(
+Future<int> _migrate(
+  Directory root,
+  StringBuffer out, {
+  RunGit? runGit,
+}) async => await runMigrate(
   MigrateRequest(
     workingDirectory: root,
     homeDirectory: testHome(),
@@ -146,7 +150,10 @@ void main() {
         'docs link and runs no command its $key names', () async {
       final clone = await _evilClone(value(marker));
 
-      expect(() => _migrate(clone, StringBuffer()), _refusesAsNoWorkTree());
+      await expectLater(
+        () => _migrate(clone, StringBuffer()),
+        _refusesAsNoWorkTree(),
+      );
 
       expect(marker.existsSync(), isFalse);
     }, skip: _skip);
@@ -155,7 +162,7 @@ void main() {
         'the git dir check before any command runs ($key)', () async {
       final clone = await _evilClone(value(marker));
 
-      expect(
+      await expectLater(
         () => _migrate(clone, StringBuffer(), runGit: _migrateOlderGit()),
         _refusesAsNoWorkTree(),
       );
@@ -168,7 +175,7 @@ void main() {
       final clone = await _evilClone(value(marker));
       final evil = Directory('${clone.path}/evil');
 
-      expect(
+      await expectLater(
         () => _migrate(clone, StringBuffer(), runGit: _migrateOlderGit()),
         _refusesAsNoWorkTree(),
         reason: 'the plan hash starts no git; the preflight refuses the clone',
@@ -194,7 +201,7 @@ void main() {
         'check ($key)', () async {
       final clone = await _evilClone(value(marker));
 
-      expect(
+      await expectLater(
         () => _migrate(
           clone,
           StringBuffer(),

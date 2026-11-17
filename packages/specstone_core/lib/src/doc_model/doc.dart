@@ -355,6 +355,9 @@ blockScan(List<String> lines) {
   );
 }
 
+/// The info word of a fenced block that holds a Mermaid diagram.
+const mermaidInfoWord = 'mermaid';
+
 /// Reads [lines] as [blockScan] does and reports, per line, the fence it
 /// opens or closes.
 ///

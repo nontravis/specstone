@@ -1,6 +1,6 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart'
-    show blockScan, fenceScan;
+    show blockScan, fenceScan, mermaidInfoWord;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show ItemId, itemIdRunAt;
 
@@ -447,7 +447,7 @@ List<bool> _readableLines(List<String> lines) {
   var inMermaid = false;
   for (var i = 0; i < lines.length; i++) {
     final opened = scan.opens[i];
-    if (opened != null) inMermaid = opened == 'mermaid';
+    if (opened != null) inMermaid = opened == mermaidInfoWord;
     if (!scan.fenced[i]) inMermaid = false;
     final isDelimiter = opened != null || scan.closes[i];
     readable.add(!scan.fenced[i] || (inMermaid && !isDelimiter));

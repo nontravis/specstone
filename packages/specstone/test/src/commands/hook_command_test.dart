@@ -56,6 +56,43 @@ final _e05Context = RegExp(
   r'^prds/features/f01_login/us01_email_login/USER_STORY\.md:\d+: link_unresolved: link target \.\./us02_reset_password/USER_STORY\.md is no doc\n1 finding$',
 );
 
+/// Returns the architecture doc with one parsing and one refused block.
+Map<String, String> _refusedArchitecture() => {
+  'docs/$loginArchitecture':
+      '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
+      '## Component diagram\n\n'
+      '```mermaid\nsequenceDiagram\n  A->>B: ok\n```\n\n'
+      '```mermaid\nsequenceDiagram\n  A->>B: ok\n  A->>B: x;y\n```\n\n'
+      '## Components\n\n| Component | Responsibility |\n|---|---|\n'
+      '| Sign-in page | Takes the form |\n\n'
+      '## Concerns\n\n- Integration: N/A — no outside call\n'
+      '- Errors: see Components\n- Auth: N/A — one local user\n'
+      '- Lifecycle: N/A — no states\n- Events: N/A — no events\n'
+      '- Rollout: N/A — one release\n- Observability: N/A — no telemetry\n',
+};
+
+/// Reports whether a `node` starts on this machine's `PATH`.
+bool _nodeStarts() {
+  try {
+    return Process.runSync('node', ['--version']).exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}
+
+/// Returns an environment whose own `PATH` key holds no `node`.
+Future<Map<String, String>> _environmentWithoutNode() async {
+  final empty = await Directory.systemTemp.createTemp('specstone_no_node_');
+  addTearDown(() => empty.delete(recursive: true));
+  final key = Platform.environment.keys.firstWhere(
+    (k) => k.toUpperCase() == 'PATH',
+    orElse: () => 'PATH',
+  );
+  if (!Platform.isWindows) return {key: empty.path};
+  final system32 = '${Platform.environment['SystemRoot']}\\System32';
+  return {key: '${empty.path};$system32'};
+}
+
 void _expectE05(String out) {
   final decoded = jsonDecode(out) as Map<String, Object?>;
   final specific = decoded['hookSpecificOutput']! as Map<String, Object?>;
@@ -369,12 +406,15 @@ void main() {
 
     Future<({int status, String out, String err})> spawn(
       Directory root,
-      String stdin,
-    ) async {
-      final process = await Process.start(bin, [
-        'hook',
-        'post-edit',
-      ], workingDirectory: root.path);
+      String stdin, {
+      Map<String, String>? environment,
+    }) async {
+      final process = await Process.start(
+        bin,
+        ['hook', 'post-edit'],
+        workingDirectory: root.path,
+        environment: environment,
+      );
       process.stdin.write(stdin);
       await process.stdin.close();
       final out = process.stdout.transform(utf8.decoder).join();
@@ -388,6 +428,63 @@ void main() {
       expect(result.status, 0);
       _expectE05(result.out);
     });
+
+    test('a refused Mermaid block hands back its finding, exit 0', () async {
+      final root = await writeCheckProject(extra: _refusedArchitecture());
+
+      final result = await spawn(root, _request(abs(root, loginArchitecture)));
+
+      expect(result.status, 0, reason: '${result.out}\n${result.err}');
+      final decoded = jsonDecode(result.out) as Map<String, Object?>;
+      final specific = decoded['hookSpecificOutput']! as Map<String, Object?>;
+      expect(
+        specific['additionalContext'],
+        matches(
+          RegExp(
+            '^${RegExp.escape(loginArchitecture)}:19: diagram_parse_failed: '
+            r'Parse error on line 3: .*\n1 finding$',
+          ),
+        ),
+      );
+    }, skip: _nodeStarts() ? null : 'node is not on PATH');
+
+    test(
+      'with no Node the hook reports a stored row and prints no warning',
+      () async {
+        final root = await writeCheckProject(extra: _refusedArchitecture());
+        final request = _request(abs(root, loginArchitecture));
+        final stored = await spawn(root, request);
+
+        final result = await spawn(
+          root,
+          request,
+          environment: await _environmentWithoutNode(),
+        );
+
+        expect(result.status, 0, reason: '${result.out}\n${result.err}');
+        expect(result.out, stored.out);
+        expect(result.out, contains('diagram_parse_failed'));
+        expect(result.err, isEmpty);
+      },
+      skip: _nodeStarts() ? null : 'node is not on PATH',
+    );
+
+    test(
+      'with no Node and no stored row the hook prints no skip warning, exit 0',
+      () async {
+        final root = await writeCheckProject(extra: _refusedArchitecture());
+
+        final result = await spawn(
+          root,
+          _request(abs(root, loginArchitecture)),
+          environment: await _environmentWithoutNode(),
+        );
+
+        expect(result.status, 0);
+        expect(result.out, isEmpty);
+        expect(result.err, isEmpty);
+      },
+    );
 
     test('the built binary exits 64 on stdin that is no JSON', () async {
       final root = await writeCheckProject();

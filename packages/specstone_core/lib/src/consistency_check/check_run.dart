@@ -23,6 +23,8 @@ import 'package:specstone_core/src/consistency_check/item_id_rules.dart';
 import 'package:specstone_core/src/consistency_check/journey_rules.dart';
 import 'package:specstone_core/src/consistency_check/label_rules.dart';
 import 'package:specstone_core/src/consistency_check/link_rules.dart';
+import 'package:specstone_core/src/consistency_check/mermaid_node_run.dart';
+import 'package:specstone_core/src/consistency_check/mermaid_parse_rules.dart';
 import 'package:specstone_core/src/consistency_check/nesting_rules.dart';
 import 'package:specstone_core/src/consistency_check/override_lines.dart';
 import 'package:specstone_core/src/consistency_check/pattern_rules.dart';
@@ -51,12 +53,16 @@ import 'package:specstone_core/src/index_query/read_session.dart';
 /// given, an `IndexFault` for a name no doc carries or a [codeTarget] the
 /// project does not name, and a `TemplateFault` for an unknown doc type; the
 /// last three come from the index lookup.
-CheckReport runCheck(
+///
+/// The Mermaid parse runs last, over the typed docs the run checks;
+/// [mermaidRunner] stands in for Node in tests, and null starts `node`.
+Future<CheckReport> runCheck(
   ReadSession session, {
   String? target,
   String? docPath,
   String? codeTarget,
-}) {
+  MermaidNodeRun? mermaidRunner,
+}) async {
   if (target != null && docPath != null) {
     throw ArgumentError('give either a target or a docPath, not both');
   }
@@ -65,6 +71,7 @@ CheckReport runCheck(
   final scope = _scopeOf(context, target, docPath, codeTarget);
   final work = ImplementedWork(context, scope.targets);
   final findings = <Finding>[];
+  final typedDocs = <IndexedDoc>[];
   for (final doc in index.docs) {
     if (!scope.contains(doc.docPath)) continue;
     if (!context.isChecked(doc)) continue;
@@ -79,6 +86,7 @@ CheckReport runCheck(
       }
       continue;
     }
+    typedDocs.add(doc);
     if (!context.hasNoParent(doc)) {
       findings
         ..addAll(checkTraces(context, doc))
@@ -141,7 +149,16 @@ CheckReport runCheck(
       ).where((finding) => scope.contains(finding.path)),
     )
     ..addAll(unreadableFindings(context, scope));
-  return CheckReport(findings: findings, warnings: context.unstatedWarnings);
+  final parse = await checkMermaidParses(
+    session,
+    context,
+    typedDocs,
+    runner: mermaidRunner,
+  );
+  return CheckReport(
+    findings: [...findings, ...parse.findings],
+    warnings: [...context.unstatedWarnings, ...parse.warnings],
+  );
 }
 
 /// Returns the checked nesting-type docs [scope] holds, and for a [docPath]

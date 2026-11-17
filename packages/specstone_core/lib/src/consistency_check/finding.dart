@@ -130,6 +130,7 @@ enum FindingKind {
   diagramTitleMissing('diagram_title_missing'),
   diagramEdgeUnlabeled('diagram_edge_unlabeled'),
   diagramLabelUnquoted('diagram_label_unquoted'),
+  diagramParseFailed('diagram_parse_failed'),
   suspect('suspect'),
   unconfirmed('unconfirmed'),
   confirmedEntryMalformed('confirmed_entry_malformed'),

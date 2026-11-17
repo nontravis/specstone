@@ -135,7 +135,7 @@ void main() {
 
   test('check reports no finding about unwalked scenarios', () async {
     final project = await writeCheckProject(extra: _files([]));
-    expect(checkOf(project).findings, isEmpty);
+    expect((await checkOf(project)).findings, isEmpty);
   });
 
   test('--unwalked combines with --under', () async {
