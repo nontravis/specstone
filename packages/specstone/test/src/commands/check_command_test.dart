@@ -30,6 +30,47 @@ import '../../helpers/write_runner.dart';
 
 Map<String, String> frWith(String line) => fr('verify_method: test', line);
 
+const _parsingDiagram = 'sequenceDiagram\n  A->>B: ok';
+const _refusedDiagram = 'sequenceDiagram\n  A->>B: ok\n  A->>B: x;y';
+const _noNodeWarning = 'Mermaid parse skipped: node not found';
+
+/// The doc line of the refused block's third line in [_architectureWith]: the
+/// parsing block's fence sits on line 11, after the approval stamp adds one
+/// front matter line, and the refused block's fence on line 16.
+const _refusedDocLine = 19;
+
+/// The login architecture doc whose component diagram holds a block that
+/// parses, then one the bundled parser refuses on its third line.
+Map<String, String> _architectureWith() => {
+  'docs/$loginArchitecture':
+      '---\ncovers:\n  - app/lib/\n---\n\n# Login architecture\n\n'
+      '## Component diagram\n\n```mermaid\n$_parsingDiagram\n```\n\n'
+      '```mermaid\n$_refusedDiagram\n```\n\n## Components\n\n'
+      '| Component | Responsibility |\n|---|---|\n| Sign-in page | Takes the form |\n\n'
+      '## Concerns\n\n- Integration: N/A — no outside call\n- Errors: see Components\n'
+      '- Auth: N/A — one local user\n- Lifecycle: N/A — no states\n- Events: N/A — no events\n'
+      '- Rollout: N/A — one release\n- Observability: N/A — no telemetry\n',
+};
+
+/// Whether a `node` starts on this machine's `PATH`.
+bool _nodeStarts() {
+  try {
+    return Process.runSync('node', ['--version']).exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}
+
+/// Returns an environment whose `PATH` holds an empty folder, and on Windows
+/// the system folder the binary needs to start, which holds no `node`.
+Future<Map<String, String>> _environmentWithoutNode() async {
+  final empty = await Directory.systemTemp.createTemp('specstone_no_node_');
+  addTearDown(() => empty.delete(recursive: true));
+  if (!Platform.isWindows) return {'PATH': empty.path};
+  final system32 = '${Platform.environment['SystemRoot']}\\System32';
+  return {'PATH': '${empty.path};$system32'};
+}
+
 void main() {
   late String binary;
 
@@ -2349,6 +2390,104 @@ void main() {
           '.specstone/records/f01_login/IMPLEMENTATION.md:1: untyped_doc',
         ),
       );
+    });
+  });
+
+  group('mermaid parse through the built binary', () {
+    final hasNode = _nodeStarts();
+    final noNode = hasNode ? null : 'node is not on PATH';
+
+    Future<ProcessResult> check(
+      Directory project, {
+      Map<String, String>? environment,
+      bool json = false,
+    }) => Process.run(
+      binary,
+      ['check', if (json) '--json'],
+      workingDirectory: project.path,
+      environment: environment,
+    );
+
+    test('a refused block is one finding at its error line, a block that parses gets none, and it exits 1', () async {
+      final project = await writeCheckProject(extra: _architectureWith());
+
+      final run = await check(project, json: true);
+
+      expect(run.exitCode, 1, reason: '${run.stdout}\n${run.stderr}');
+      final findings = [
+        for (final f
+            in (jsonDecode(run.stdout as String) as Map)['findings']! as List)
+          if ((f as Map)['kind'] == 'diagram_parse_failed') f,
+      ];
+      expect(findings, hasLength(1), reason: '${run.stdout}');
+      final finding = findings.single;
+      expect(finding['docPath'], loginArchitecture);
+      expect(finding['line'], _refusedDocLine);
+      expect(finding['diagram'], 'sequence');
+      expect(finding['waitsFor'], 'agent');
+      expect(finding['message'], startsWith('Parse error on line 3:'));
+    }, skip: noNode);
+
+    test('a rerun with no Node on PATH reports the same finding from its stored row', () async {
+      final project = await writeCheckProject(extra: _architectureWith());
+      final first = await check(project);
+
+      final rerun = await check(
+        project,
+        environment: await _environmentWithoutNode(),
+      );
+
+      expect(
+        first.stdout,
+        contains(
+          '$loginArchitecture:$_refusedDocLine: diagram_parse_failed: Parse error on line 3:',
+        ),
+      );
+      expect(rerun.exitCode, 1, reason: '${rerun.stdout}\n${rerun.stderr}');
+      expect(rerun.stdout, first.stdout);
+      expect(rerun.stderr, isEmpty);
+    }, skip: noNode);
+
+    test(
+      'with no Node and no stored row the run warns and keeps its status',
+      () async {
+        final project = await writeCheckProject(extra: _architectureWith());
+        final environment = await _environmentWithoutNode();
+
+        final run = await check(project, environment: environment);
+
+        expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+        expect(run.stdout, '0 findings\n');
+        expect(run.stderr, '⚠️ WARNING: $_noNodeWarning\n');
+      },
+    );
+
+    test('the warning run stores nothing, so the next run with Node parses the block', () async {
+      final project = await writeCheckProject(extra: _architectureWith());
+      await check(project, environment: await _environmentWithoutNode());
+
+      final next = await check(project);
+
+      expect(next.exitCode, 1, reason: '${next.stdout}\n${next.stderr}');
+      expect(
+        next.stdout,
+        contains('$loginArchitecture:$_refusedDocLine: diagram_parse_failed:'),
+      );
+    }, skip: noNode);
+
+    test('--json carries the skip warning in warnings', () async {
+      final project = await writeCheckProject(extra: _architectureWith());
+
+      final run = await check(
+        project,
+        environment: await _environmentWithoutNode(),
+        json: true,
+      );
+
+      expect(run.exitCode, 0, reason: '${run.stdout}\n${run.stderr}');
+      final printed = jsonDecode(run.stdout as String) as Map;
+      expect(printed['warnings'], [_noNodeWarning]);
+      expect(printed['findings'], isEmpty);
     });
   });
 }
