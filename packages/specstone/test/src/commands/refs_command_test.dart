@@ -67,6 +67,26 @@ void main() {
       },
     );
 
+    test(
+      'refs --target jaspr keeps the jaspr record of a shared name',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twoTargets());
+
+        expect(
+          await runner.run([
+            'refs',
+            'implementation:login',
+            '--target',
+            'jaspr',
+          ]),
+          0,
+        );
+
+        expect(out.toString(), contains('- implements: lib/web_page.dart\n'));
+        expect(out.toString(), isNot(contains('sign_in_page')));
+      },
+    );
+
     test('E22: refs --target web is argument_invalid, exit 64', () async {
       final (:runner, :out, :err) = readRunner(await twoTargets());
 

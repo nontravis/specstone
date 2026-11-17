@@ -86,6 +86,17 @@ void main() {
       '--for takes query, implement, or design, not deploy\n',
     );
   });
+  test('f01/us05/s15, db-r6: context --summary on a feature prints its stories in summary, exit 0', () async {
+    final (:runner, :out, :err) = readRunner(await writeReadProject());
+    expect(
+      await runner.run(['context', 'login', '--for', 'design', '--summary']),
+      0,
+    );
+    expect(
+      out.toString(),
+      contains('- login/email_login (user_story) · summary\n'),
+    );
+  });
   test('f01/us05/fr01/e18, db-c2: --summary with another mode or --code refuses with exit 64', () async {
     final project = await writeReadProject();
     final mode = readRunner(project);
@@ -608,6 +619,30 @@ void main() {
       expect(
         err.toString(),
         '--target ci: the code targets are flutter, jaspr\n',
+      );
+    });
+
+    test('--out with --target ends the name with .<target>.txt', () async {
+      final project = await writeToastProject();
+      final (:runner, :out, :err) = readRunner(project);
+      expect(
+        await runner.run([
+          'context',
+          'feedback/toast/show',
+          '--for',
+          'implement',
+          '--target',
+          'jaspr',
+          '--out',
+        ]),
+        0,
+        reason: '$err',
+      );
+      expect(
+        File(
+          '${project.path}/.specstone/bundles/feedback-toast-show.implement.jaspr.txt',
+        ).existsSync(),
+        isTrue,
       );
     });
 

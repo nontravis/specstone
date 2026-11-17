@@ -130,31 +130,27 @@ void main() {
   });
 
   group('code link', () {
-    const recorded = '0123456789ab';
-    const entry = 'app/lib/login.dart:checkPassword';
     final current = fileCodeFingerprint(
       utf8.encode(checkProjectFiles()['app/lib/login.dart']!),
       path: 'app/lib/login.dart',
     );
 
-    // The record's other entry records its fingerprint, so the entry named
-    // by [suffix] is the project's one code finding.
-    Future<Directory> project([String suffix = ' $recorded']) =>
-        writeCheckProject(
-          extra: edit(loginRecord, [
-            (
-              "email_login:app/lib/login.dart:SignInPage'",
-              "email_login:app/lib/login.dart:SignInPage $current'",
-            ),
-            ("check_password:$entry'", "check_password:$entry$suffix'"),
-          ]),
-          unfingerprinted: {loginRecord},
-        );
+    // The record's other entry records its fingerprint, so the entry with
+    // none is the project's one code finding.
+    Future<Directory> project() => writeCheckProject(
+      extra: edit(loginRecord, [
+        (
+          "email_login:app/lib/login.dart:SignInPage'",
+          "email_login:app/lib/login.dart:SignInPage $current'",
+        ),
+      ]),
+      unfingerprinted: {loginRecord},
+    );
 
     test(
       'with no fingerprint counts toward no doc of list --suspect',
       () async {
-        final (:runner, :out, :err) = readRunner(await project(''));
+        final (:runner, :out, :err) = readRunner(await project());
 
         expect(await runner.run(['list', 'fr', '--suspect']), 0);
         expect(out.toString(), isEmpty);
@@ -379,9 +375,26 @@ void main() {
   });
 
   group('consistency_check/find_template_breaks/check_target, --target', () {
+    const jasprArch = jasprArchitecture;
     // The shared API doc stays out, so only the feature and the twins speak.
     Future<Directory> twinProject() =>
         writeTwinProject(without: {'docs/$loginApi'});
+
+    test(
+      'E21: check --target jaspr keeps the shared docs and jaspr, --json too',
+      () async {
+        final (:runner, :out, :err) = readRunner(await twinProject());
+        expect(await runner.run(['check', '--target', 'jaspr', '--json']), 1);
+        final findings =
+            (jsonDecode(out.toString()) as Map<String, Object?>)['findings']!
+                as List;
+        expect(
+          {for (final f in findings) (f as Map<String, Object?>)['docPath']},
+          {loginFeature, jasprArch},
+        );
+        expect(err.toString(), isEmpty);
+      },
+    );
 
     test('E22: a --target name targets: lacks is argument_invalid, exit 64, no finding', () async {
       final (:runner, :out, :err) = readRunner(await twinProject());
@@ -452,18 +465,15 @@ void main() {
         '${paths.isEmpty ? '' : 'implements:\n${[for (final p in paths) "  - '$p'\n"].join()}'}'
         '---\n\n# Record\n';
 
-    /// Writes the twin project with the two records; no jaspr record when
-    /// [jaspr] is null.
+    /// Writes the twin project with the flutter and jaspr records.
     Future<Directory> project({
       required String flutter,
-      String? jaspr,
-      Map<String, String> extra = const {},
+      required String jaspr,
     }) => writeTwinProject(
       extra: {
         '.specstone/templates/implementation.yaml': layer,
         'docs/$flutterRecord': flutter,
-        'docs/$jasprRecord': ?jaspr,
-        ...extra,
+        'docs/$jasprRecord': jaspr,
       },
     );
 
