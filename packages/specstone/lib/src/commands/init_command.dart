@@ -49,7 +49,7 @@ class InitCommand extends SpecstoneCommand {
     final runner = specstoneRunner;
     final console = runner.console;
     try {
-      return runInit(
+      return await runInit(
         InitRequest(
           workingDirectory: runner.workingDirectory,
           homeDirectory: runner.homeDirectory,

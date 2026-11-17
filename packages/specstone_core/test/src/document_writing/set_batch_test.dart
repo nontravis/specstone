@@ -791,7 +791,10 @@ void main() {
         readDoc(root, story1),
         contains('## Extra\n\nA note the template lacks.\n'),
       );
-      expect(spots(checkOf(root), FindingKind.sectionUndeclared), isNotEmpty);
+      expect(
+        spots(await checkOf(root), FindingKind.sectionUndeclared),
+        isNotEmpty,
+      );
     },
   );
 
@@ -1299,7 +1302,7 @@ void main() {
       expect(readDoc(root, loginArch), isNot(contains('draft:')));
       expect(readDoc(root, loginArch), contains('app/lib/src/signin/'));
       expect(answer.json['blocks'], [containsPair('draft', false)]);
-      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
     },
   );
 
@@ -1338,7 +1341,7 @@ void main() {
     expect(readDoc(root, loginFeature), contains('tasks:'));
     expect(readDoc(root, loginFeature), isNot(contains('draft:')));
     expect(answer.json['blocks'], [containsPair('draft', false)]);
-    expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+    expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
   });
 
   test('a whole-doc block that changes only a task_ref field keeps a draft doc a draft', () async {
@@ -1381,7 +1384,7 @@ void main() {
         allOf(contains(to), contains(approved), isNot(contains('draft'))),
       );
       expect(answer.json['blocks'], [containsPair('draft', false)]);
-      expect(spots(checkOf(root), FindingKind.approvalStale), isEmpty);
+      expect(spots(await checkOf(root), FindingKind.approvalStale), isEmpty);
     });
 
     test('below the statuses pin drafts the record', () async {

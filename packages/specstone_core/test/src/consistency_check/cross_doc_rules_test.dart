@@ -25,7 +25,7 @@ late Directory _project;
 Future<List<Finding>> _found(Map<String, String> edits) async {
   _project = await writeCheckProject(extra: edits);
   return [
-    for (final f in checkOf(_project).findings)
+    for (final f in (await checkOf(_project)).findings)
       if (_crossKinds.contains(f.kind)) f,
   ];
 }

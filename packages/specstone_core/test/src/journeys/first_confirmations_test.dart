@@ -68,8 +68,8 @@ String _new(Directory root, {String text = ''}) {
   return readDoc(root, _journeyDoc);
 }
 
-List<Finding> _check(Directory root) =>
-    checkOf(root, docPath: _journeyDoc).findings;
+Future<List<Finding>> _check(Directory root) async =>
+    (await checkOf(root, docPath: _journeyDoc)).findings;
 
 FormatReport _format(Directory root) {
   final project = DocsProject.open(
@@ -118,7 +118,7 @@ void main() {
       }
       expect(_count(text, generatedOpenMarker(journeyFlowKind)), 1);
       expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 5);
-      final waiting = _check(root);
+      final waiting = await _check(root);
       expect(waiting, hasLength(5));
       expect(waiting.map((f) => f.kind), everyElement(FindingKind.unconfirmed));
 
@@ -129,7 +129,7 @@ void main() {
           statusesOutside: shippedStatusesOutside,
         ),
       );
-      expect(_check(root), isEmpty);
+      expect(await _check(root), isEmpty);
     },
   );
 
@@ -170,7 +170,7 @@ void main() {
     expect(text, isNot(contains('#S9')));
     expect(_count(text, generatedOpenMarker(scenarioCopyKind)), 2);
     expect(
-      _check(root).map((f) => f.kind),
+      (await _check(root)).map((f) => f.kind),
       contains(FindingKind.journeyStepUnresolved),
     );
   });

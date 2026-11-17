@@ -815,8 +815,11 @@ void main() {
     });
 
     test('an overrides entry that matched a renumbered item takes the landed fingerprint and checks clean, while a stale one keeps its value and stays suspect', () async {
-      List<Map<String, Object>> suspects(Directory root) => [
-        for (final finding in checkOf(root, docPath: _couponDomain).findings)
+      Future<List<Map<String, Object>>> suspects(Directory root) async => [
+        for (final finding in (await checkOf(
+          root,
+          docPath: _couponDomain,
+        )).findings)
           if (finding.kind == FindingKind.suspect) finding.toJson(),
       ];
       Future<Directory> coupon(String fingerprint) => _project(
@@ -836,7 +839,7 @@ void main() {
       );
 
       final matched = await coupon(fingerprintFor(_inv(3)));
-      expect(suspects(matched), isEmpty);
+      expect(await suspects(matched), isEmpty);
       _move(matched, ['domain:shop#INV-3']);
       expect(
         readDoc(matched, _couponDomain),
@@ -845,10 +848,10 @@ void main() {
           '${fingerprintFor(_inv(13).replaceFirst('Rule 13', 'Rule 3'))}\n',
         ),
       );
-      expect(suspects(matched), isEmpty);
+      expect(await suspects(matched), isEmpty);
 
       final stale = await coupon(_fingerprint);
-      expect(suspects(stale), hasLength(1));
+      expect(await suspects(stale), hasLength(1));
       _move(stale, ['domain:shop#INV-3']);
       expect(
         readDoc(stale, _couponDomain),
@@ -856,7 +859,7 @@ void main() {
       );
       expect(
         [
-          for (final suspect in suspects(stale))
+          for (final suspect in await suspects(stale))
             (suspect['link'], suspect['recorded']),
         ],
         [('domain:shop/cart#INV-13', _fingerprint)],
@@ -930,7 +933,7 @@ void main() {
       expect(pay, contains('approved: "'));
       expect(approvedBefore, isNotNull);
       expect(
-        spots(checkOf(root), FindingKind.approvalStale),
+        spots(await checkOf(root), FindingKind.approvalStale),
         isNot(contains(_payDomain)),
       );
     });

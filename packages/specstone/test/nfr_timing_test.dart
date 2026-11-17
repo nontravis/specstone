@@ -261,6 +261,15 @@ void main() {
         .where((f) => f.path.endsWith('IMPLEMENTATION.md'))
         .toList();
     expect(records, hasLength(52)); // one record per feature
+    final architectures = Directory('${project.path}/docs/specs')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('ARCHITECTURE.md'))
+        .toList();
+    expect(architectures, hasLength(52)); // one architecture doc per feature
+    for (final doc in architectures) {
+      expect(doc.readAsStringSync(), contains('```mermaid'), reason: doc.path);
+    }
     final entry = RegExp(r"^  - '[^']+:implemented'$", multiLine: true);
     final path = RegExp(
       r"^  - '[^']+:src/feature_\d+/story_\d/req_\d\.dart:Req\d [0-9a-f]{12}'$",
@@ -277,8 +286,10 @@ void main() {
       workingDirectory: project.path,
     ); // warm-up: the index is current after it
     expect(first.exitCode, anyOf(0, 1), reason: '${first.stderr}');
+    expect(first.stderr.toString(), isNot(contains('Mermaid parse')));
     final out = first.stdout.toString();
     for (final kind in const [
+      'diagram_parse_failed',
       'implements_path_unresolved',
       'implements_symbol_unresolved',
       'implements_missing',

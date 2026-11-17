@@ -26,7 +26,7 @@ Future<List<Finding>> _itemIdFindings(
   Map<String, String> edits, {
   FindingKind kind = FindingKind.itemIdMissing,
 }) async {
-  final report = checkOf(await writeCheckProject(extra: edits));
+  final report = await checkOf(await writeCheckProject(extra: edits));
   return [
     for (final f in report.findings)
       if (f.kind == kind) f,

@@ -49,13 +49,13 @@ ReadAnswer _rename(Directory root, String address, String slug) =>
 
 // The step naming other/story is unresolved by design; a renamed step that
 // kept its old name would make a second one.
-int _unresolvedSteps(Directory root) => checkOf(
+Future<int> _unresolvedSteps(Directory root) async => (await checkOf(
   root,
   docPath: _journeyPath,
-).findings.where((f) => f.kind == FindingKind.journeyStepUnresolved).length;
+)).findings.where((f) => f.kind == FindingKind.journeyStepUnresolved).length;
 
-Set<FindingKind> _kindsOf(Directory root, String docPath) => {
-  for (final f in checkOf(root, docPath: docPath).findings) f.kind,
+Future<Set<FindingKind>> _kindsOf(Directory root, String docPath) async => {
+  for (final f in (await checkOf(root, docPath: docPath)).findings) f.kind,
 };
 
 const _cartApi = 'specs/f02_shop/f01_cart/API.md';
@@ -115,8 +115,11 @@ void main() {
     final text = readDoc(root, _journeyPath);
     expect(text, contains('### 1. Sign in\n\nstep: login/password_login S1\n'));
     expect(text, contains('  - login/password_login#S1 $_fp1\n'));
-    expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
-    expect(_unresolvedSteps(root), 1);
+    expect(
+      (await _kindsOf(root, _journeyPath)).intersection(_storyKinds),
+      isEmpty,
+    );
+    expect(await _unresolvedSteps(root), 1);
   });
 
   test('E01: rename of shop/set_up_cart rewrites its step and its confirmed entry, and the check reports no suspect, unconfirmed, or stale finding', () async {
@@ -138,7 +141,10 @@ void main() {
     final text = readDoc(root, _journeyPath);
     expect(text, contains('### 1. Sign in\n\nstep: shop/start_cart S1\n'));
     expect(text, contains('  - shop/start_cart#S1 $_fp1\n'));
-    expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
+    expect(
+      (await _kindsOf(root, _journeyPath)).intersection(_storyKinds),
+      isEmpty,
+    );
   });
 
   test('rename of a feature rewrites every step naming its stories', () async {
@@ -147,8 +153,11 @@ void main() {
     final text = readDoc(root, _journeyPath);
     expect(text, contains('step: signin/email_login S1\n'));
     expect(text, contains('  - signin/email_login#S1 $_fp1\n'));
-    expect(_kindsOf(root, _journeyPath).intersection(_storyKinds), isEmpty);
-    expect(_unresolvedSteps(root), 1);
+    expect(
+      (await _kindsOf(root, _journeyPath)).intersection(_storyKinds),
+      isEmpty,
+    );
+    expect(await _unresolvedSteps(root), 1);
   });
 
   test('f02/us06/s8, f02/us06/fr03/e03, f04/us04/fr03/e08: rename of a story rewrites the api row and its entry', () async {
@@ -157,7 +166,7 @@ void main() {
     final api = readDoc(root, loginApi);
     expect(api, contains('| password_login/check_password | `signIn` |'));
     expect(api, contains('  - password_login/check_password $_fpStatement\n'));
-    final kinds = _kindsOf(root, loginApi);
+    final kinds = await _kindsOf(root, loginApi);
     expect(kinds, isNot(contains(FindingKind.frTraceUnresolved)));
     expect(kinds, isNot(contains(FindingKind.suspect)));
     expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
@@ -330,7 +339,7 @@ void main() {
       final api = readDoc(root, shopApi);
       expect(api, contains('| basket/add_item/check_stock | `addItem` |'));
       expect(api, contains('  - basket/add_item/check_stock $_fpCheckStock\n'));
-      final kinds = _kindsOf(root, shopApi);
+      final kinds = await _kindsOf(root, shopApi);
       expect(kinds, isNot(contains(FindingKind.frTraceUnresolved)));
       expect(kinds, isNot(contains(FindingKind.confirmedEntryStale)));
       expect(kinds, isNot(contains(FindingKind.confirmedEntryMalformed)));
@@ -385,7 +394,7 @@ void main() {
     expect(fr, contains('  - login/recover_password#S3 $_fp3\n'));
     expect(fr, isNot(contains('reset_password')));
     expect(fr, isNot(contains('draft')));
-    expect(_frKinds(root), isEmpty);
+    expect(await _frKinds(root), isEmpty);
   });
 
   for (final entry in [
@@ -408,7 +417,7 @@ void main() {
         readDoc(root, loginFr),
         contains('confirmed: [S1 $_fp1, $renamed]\n'),
       );
-      expect(_frKinds(root), isEmpty);
+      expect(await _frKinds(root), isEmpty);
     });
   }
 
@@ -422,7 +431,7 @@ void main() {
       fr,
       contains('traced_from:\n  - S1\n  - "login/recover_password#S3" # why\n'),
     );
-    expect(_frKinds(root), isEmpty);
+    expect(await _frKinds(root), isEmpty);
   });
 
   for (final (shape, tracedFrom) in [
@@ -446,7 +455,7 @@ void main() {
       expect(fr, contains('login/recover_password#S3'));
       expect(fr, isNot(contains('reset_password')));
       expect(fr, contains('  - login/recover_password#S3 $_fp3\n'));
-      expect(_frKinds(root), isEmpty);
+      expect(await _frKinds(root), isEmpty);
     });
   }
 
@@ -472,7 +481,7 @@ void main() {
     expect(fr, contains('traced_from: [S1, account/reset_password#S3]\n'));
     expect(fr, contains('  - account/reset_password#S3 $_fp3\n'));
     expect(fr, isNot(contains('draft')));
-    expect(_frKinds(root), contains(FindingKind.scenarioTraceUnresolved));
+    expect(await _frKinds(root), contains(FindingKind.scenarioTraceUnresolved));
   });
 
   group('override entries', () {
@@ -497,21 +506,24 @@ void main() {
       ),
     );
 
-    Set<FindingKind> linkKindsOf(Directory root, String docPath) => {
-      for (final f in checkOf(root, docPath: docPath).findings)
+    Future<Set<FindingKind>> linkKindsOf(
+      Directory root,
+      String docPath,
+    ) async => {
+      for (final f in (await checkOf(root, docPath: docPath)).findings)
         if (linkKinds.contains(f.kind)) f.kind,
     };
 
     test('a feature rename rewrites the name of an override entry and keeps '
         'type, id, and fingerprint', () async {
       final root = await project();
-      expect(linkKindsOf(root, _cartDomain), isEmpty);
+      expect(await linkKindsOf(root, _cartDomain), isEmpty);
       final answer = _rename(root, 'feature:shop', 'store');
       expect(answer.json['rewritten'], contains(_cartDomainOf('store')));
       final text = readDoc(root, _cartDomainOf('store'));
       expect(text, contains('  - domain:store#INV-3 $shopFingerprint\n'));
       expect(text, isNot(contains('domain:shop#')));
-      expect(linkKindsOf(root, _cartDomainOf('store')), isEmpty);
+      expect(await linkKindsOf(root, _cartDomainOf('store')), isEmpty);
     });
 
     test(
@@ -549,14 +561,14 @@ void main() {
           },
         ),
       );
-      expect(linkKindsOf(root, lineDomain), isEmpty);
+      expect(await linkKindsOf(root, lineDomain), isEmpty);
       _rename(root, 'feature:shop', 'store');
       final moved = lineDomain.replaceFirst('f02_shop', 'f02_store');
       expect(
         readDoc(root, moved),
         contains('  - domain:store/cart#INV-9 $cartFingerprint\n'),
       );
-      expect(linkKindsOf(root, moved), isEmpty);
+      expect(await linkKindsOf(root, moved), isEmpty);
     });
 
     test('a rename leaves override entries of other docs untouched', () async {
@@ -580,7 +592,7 @@ void main() {
         .replaceFirst('us02', 'us01');
     expect(readDoc(root, moved), before);
     expect(
-      _frKinds(root, docPath: moved),
+      await _frKinds(root, docPath: moved),
       contains(FindingKind.scenarioTraceUnresolved),
     );
   });
@@ -646,8 +658,11 @@ const Set<FindingKind> _frKindSet = {
   FindingKind.scenarioTraceUnresolved,
 };
 
-Set<FindingKind> _frKinds(Directory root, {String docPath = loginFr}) => {
-  for (final f in checkOf(root, docPath: docPath).findings)
+Future<Set<FindingKind>> _frKinds(
+  Directory root, {
+  String docPath = loginFr,
+}) async => {
+  for (final f in (await checkOf(root, docPath: docPath)).findings)
     if (_frKindSet.contains(f.kind)) f.kind,
 };
 

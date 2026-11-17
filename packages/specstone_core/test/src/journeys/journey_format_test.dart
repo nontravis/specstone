@@ -180,8 +180,8 @@ void main() {
         '---\n${draft ? 'draft: true\n' : ''}confirmed:\n'
         '${entries.map((e) => '  - $e\n').join()}---\n\n';
 
-    List<Finding> check(Directory root) =>
-        checkOf(root, docPath: journeyDocPath).findings;
+    Future<List<Finding>> check(Directory root) async =>
+        (await checkOf(root, docPath: journeyDocPath)).findings;
 
     void rewrite(Directory root, String Function(String) change) {
       final file = File.fromUri(root.uri.resolve(_journeyKey));
@@ -213,7 +213,7 @@ void main() {
       _format(root);
 
       expect(_read(root), contains('sees the dashboard'));
-      final suspect = check(root).single;
+      final suspect = (await check(root)).single;
       expect(suspect.kind, FindingKind.suspect);
       expect(suspect.toJson(), containsPair('link', label1));
 
@@ -222,7 +222,7 @@ void main() {
         root,
         (text) => withFront(text, front(['$label1 $recorded'], draft: true)),
       );
-      final waiting = check(root).single;
+      final waiting = (await check(root)).single;
       expect(waiting.kind, FindingKind.unconfirmed);
       expect(waiting.message, contains("waits for the Owner's approve"));
 
@@ -230,7 +230,7 @@ void main() {
         root,
         (text) => approved(withFront(text, front(['$label1 $recorded']))),
       );
-      expect(check(root), isEmpty);
+      expect(await check(root), isEmpty);
     });
 
     test('format pastes links that '
@@ -265,7 +265,7 @@ void main() {
       final journey = report.files.singleWhere((f) => f.path == _journeyKey);
       expect(journey.status, FileStatus.unchanged);
       expect(_read(root), first);
-      expect(check(root), isEmpty);
+      expect(await check(root), isEmpty);
     });
 
     test('a cite the cite pass links in a story and in its pasted copy '
@@ -324,7 +324,7 @@ void main() {
         ], frontMatter: front(['$label1 $scenario1'])),
       );
       _format(root);
-      expect(check(root), isEmpty);
+      expect(await check(root), isEmpty);
       rewrite(
         root,
         (text) => '${text.trimRight()}\n\n${_step('2', 'Wrong', 'S2')}',
@@ -333,7 +333,7 @@ void main() {
       _format(root);
 
       // A step typed in an editor also leaves the approved doc changed.
-      final found = check(root);
+      final found = await check(root);
       expect(found.map((f) => f.kind), [
         FindingKind.approvalStale,
         FindingKind.unconfirmed,
@@ -343,13 +343,13 @@ void main() {
       final both = ['$label1 $scenario1', '$label2 $scenario2'];
       rewrite(root, (text) => withFront(text, front(both, draft: true)));
       expect(
-        check(root).map((f) => f.kind),
+        (await check(root)).map((f) => f.kind),
         everyElement(FindingKind.unconfirmed),
       );
-      expect(check(root), isNotEmpty);
+      expect(await check(root), isNotEmpty);
 
       rewrite(root, (text) => approved(withFront(text, front(both))));
-      expect(check(root), isEmpty);
+      expect(await check(root), isEmpty);
     });
   });
 }

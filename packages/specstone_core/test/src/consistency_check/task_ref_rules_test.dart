@@ -39,13 +39,13 @@ int _lineOf(Directory project, String path, String text) =>
         .indexWhere((line) => line.contains(text)) +
     1;
 
-List<Finding> _missing(Directory project) => [
-  for (final finding in checkOf(project).findings)
+Future<List<Finding>> _missing(Directory project) async => [
+  for (final finding in (await checkOf(project)).findings)
     if (finding.kind == FindingKind.taskItemMissing) finding,
 ];
 
-List<Finding> _leftover(Directory project) => [
-  for (final finding in checkOf(project).findings)
+Future<List<Finding>> _leftover(Directory project) async => [
+  for (final finding in (await checkOf(project)).findings)
     if (finding.kind == FindingKind.taskRefLeftover) finding,
 ];
 
@@ -55,7 +55,7 @@ void main() {
       _domain: _domainDoc(tasks: ['INV-4:ENG-42']),
     });
 
-    expect(_missing(project), isEmpty);
+    expect(await _missing(project), isEmpty);
   });
 
   test('an entry whose item is gone is one finding at the entry line with its task and item', () async {
@@ -66,7 +66,7 @@ void main() {
       ),
     });
 
-    final found = _missing(project);
+    final found = await _missing(project);
 
     expect(found, hasLength(1));
     final finding = found.single;
@@ -88,7 +88,7 @@ void main() {
           .replaceFirst('### signIn', '### `set --batch`'),
     });
 
-    expect(_missing(project), isEmpty);
+    expect(await _missing(project), isEmpty);
   });
 
   test('an item written in another case is a finding', () async {
@@ -96,7 +96,7 @@ void main() {
       _domain: _domainDoc(tasks: ['inv-4:ENG-42']),
     });
 
-    final found = _missing(project);
+    final found = await _missing(project);
 
     expect(found, hasLength(1));
     expect(found.single.toJson(), containsPair('item', 'inv-4'));
@@ -117,7 +117,7 @@ void main() {
       },
     );
 
-    expect(_missing(project), isEmpty);
+    expect(await _missing(project), isEmpty);
   });
 
   test('an entry whose item is an item ID of the lead resolves, and one the lead lacks does not', () async {
@@ -128,7 +128,7 @@ void main() {
       ),
     });
 
-    final found = _missing(project);
+    final found = await _missing(project);
 
     expect(found, hasLength(1));
     expect(found.single.toJson(), containsPair('item', 'INV-8'));
@@ -140,7 +140,7 @@ void main() {
       _domain: _domainDoc(tasks: ['Notes:ENG-42'], lead: '### Notes\n\n'),
     });
 
-    expect(_missing(project), isEmpty);
+    expect(await _missing(project), isEmpty);
   });
 
   group('an item ID inside a closed generated block of the lead', () {
@@ -159,7 +159,7 @@ void main() {
         extra: {layer: 'generators: [scenario_copy]\n'},
       );
 
-      final found = _missing(project);
+      final found = await _missing(project);
 
       expect(found, hasLength(1));
       expect(found.single.toJson(), containsPair('item', 'INV-9'));
@@ -168,7 +168,7 @@ void main() {
     test('is an item when the doc type lists no generator', () async {
       final project = await _project({_domain: doc});
 
-      expect(_missing(project), isEmpty);
+      expect(await _missing(project), isEmpty);
     });
   });
 
@@ -177,7 +177,7 @@ void main() {
       _error: '---\ntasks:\n  - login_failed:ENG-43\n---\n\n# Login errors\n\n## Error catalog\n\n| Code | Meaning |\n|---|---|\n| login_failed | Refused |\n',
     });
 
-    final found = _missing(project);
+    final found = await _missing(project);
 
     expect(found, hasLength(1));
     expect(found.single.path, _error);
@@ -189,9 +189,9 @@ void main() {
       _domain: _domainDoc(tasks: [':ENG-42', "'INV-4:'"]),
     });
 
-    final report = checkOf(project);
+    final report = await checkOf(project);
 
-    expect(_missing(project), isEmpty);
+    expect(await _missing(project), isEmpty);
     expect(
       [
         for (final f in report.findings)
@@ -216,7 +216,7 @@ void main() {
       },
     );
 
-    final found = _missing(project);
+    final found = await _missing(project);
 
     expect(found, hasLength(1));
     expect(found.single.path, loginFeature);
@@ -236,7 +236,7 @@ void main() {
       ),
     });
 
-    final found = _missing(project);
+    final found = await _missing(project);
 
     expect(found, hasLength(1));
     expect(found.single.toJson(), containsPair('task', 'ENG-7'));
@@ -255,7 +255,7 @@ void main() {
       ),
     });
 
-    expect(_missing(project), isEmpty);
+    expect(await _missing(project), isEmpty);
   });
 
   group('a task ref left on a done feature', () {
@@ -292,7 +292,7 @@ void main() {
         '$frName:implemented',
       ]);
 
-      final found = _leftover(project);
+      final found = await _leftover(project);
 
       expect(found, hasLength(1));
       final finding = found.single;
@@ -319,9 +319,9 @@ void main() {
       final noLine = await projectWith(['$story:implemented']);
       final bare = await projectWith([]);
 
-      expect(_leftover(planned), isEmpty);
-      expect(_leftover(noLine), isEmpty);
-      expect(_leftover(bare), isEmpty);
+      expect(await _leftover(planned), isEmpty);
+      expect(await _leftover(noLine), isEmpty);
+      expect(await _leftover(bare), isEmpty);
     });
 
     test(
@@ -336,8 +336,8 @@ void main() {
           '$frName:deprecated',
         ]);
 
-        expect(_leftover(skipped), hasLength(1));
-        expect(_leftover(deprecated), hasLength(1));
+        expect(await _leftover(skipped), hasLength(1));
+        expect(await _leftover(deprecated), hasLength(1));
       },
     );
 
@@ -351,8 +351,8 @@ void main() {
         '$frName:skipped:no web',
       ]);
 
-      expect(_leftover(deprecated), isEmpty);
-      expect(_leftover(mixed), isEmpty);
+      expect(await _leftover(deprecated), isEmpty);
+      expect(await _leftover(mixed), isEmpty);
     });
 
     test('is none when the feature is skipped by its own entry', () async {
@@ -362,7 +362,7 @@ void main() {
         '$frName:implemented',
       ]);
 
-      expect(_leftover(project), isEmpty);
+      expect(await _leftover(project), isEmpty);
     });
 
     group('with nested features', () {
@@ -387,9 +387,9 @@ void main() {
       test('waits for every story and FR of the nested features', () async {
         const shopDoc = 'docs/$shopDomain';
 
-        expect(_leftover(await nested('planned', doc: shopDoc)), isEmpty);
+        expect(await _leftover(await nested('planned', doc: shopDoc)), isEmpty);
         expect(
-          _leftover(await nested('implemented', doc: shopDoc)),
+          await _leftover(await nested('implemented', doc: shopDoc)),
           hasLength(1),
         );
       });
@@ -402,7 +402,7 @@ void main() {
           },
         );
 
-        expect(_leftover(project), isEmpty);
+        expect(await _leftover(project), isEmpty);
       });
     });
 
@@ -432,7 +432,7 @@ void main() {
         },
       );
 
-      expect(_leftover(project), isEmpty);
+      expect(await _leftover(project), isEmpty);
     });
 
     test('is one finding for a whole-doc entry with an empty item', () async {
@@ -441,7 +441,7 @@ void main() {
         tasks: ['ENG-42'],
       );
 
-      final found = _leftover(project);
+      final found = await _leftover(project);
 
       expect(found, hasLength(1));
       expect(found.single.toJson(), containsPair('item', ''));
@@ -458,7 +458,7 @@ void main() {
       );
 
       expect(
-        _leftover(project).single.message,
+        (await _leftover(project)).single.message,
         contains('--field tickets --base <bases.fields.tickets of get --json>'),
       );
     });
@@ -487,28 +487,28 @@ void main() {
       const skipped = [':skipped:no jaspr'];
       const planned = ['$story:implemented', '$frName:planned'];
 
-      List<Finding> leftoverOn(Directory project) => [
-        for (final f in _leftover(project))
+      Future<List<Finding>> leftoverOn(Directory project) async => [
+        for (final f in await _leftover(project))
           if (f.path == loginApi) f,
       ];
 
       test(
         'is one finding once done in every target that does not skip it',
         () async {
-          expect(leftoverOn(await twins(done, done)), hasLength(1));
-          expect(leftoverOn(await twins(done, skipped)), hasLength(1));
+          expect(await leftoverOn(await twins(done, done)), hasLength(1));
+          expect(await leftoverOn(await twins(done, skipped)), hasLength(1));
         },
       );
 
       test(
         'is none while one target that does not skip it is not done',
         () async {
-          expect(leftoverOn(await twins(done, planned)), isEmpty);
+          expect(await leftoverOn(await twins(done, planned)), isEmpty);
         },
       );
 
       test('is none when every target skips the feature', () async {
-        expect(leftoverOn(await twins(skipped, skipped)), isEmpty);
+        expect(await leftoverOn(await twins(skipped, skipped)), isEmpty);
       });
 
       test('names the target on both the get and the set of the fix', () async {
@@ -521,7 +521,7 @@ void main() {
           ),
         );
 
-        final fix = _leftover(project)
+        final fix = (await _leftover(project))
             .singleWhere((f) => f.path == flutterArchitecture)
             .message;
 
@@ -544,7 +544,7 @@ void main() {
         },
       );
 
-      expect(_leftover(project), hasLength(1));
+      expect(await _leftover(project), hasLength(1));
     });
 
     test('comes with the missing-item finding when the entry names an item the doc lacks', () async {
@@ -553,8 +553,8 @@ void main() {
         tasks: ['INV-9:ENG-42'],
       );
 
-      expect(_missing(project), hasLength(1));
-      expect(_leftover(project), hasLength(1));
+      expect(await _missing(project), hasLength(1));
+      expect(await _leftover(project), hasLength(1));
     });
   });
 }

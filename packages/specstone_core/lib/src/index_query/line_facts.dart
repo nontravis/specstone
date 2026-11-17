@@ -11,6 +11,8 @@ import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart'
     show CiteCandidate;
 import 'package:specstone_core/src/index_query/link_places.dart';
+import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
+    show MermaidBlock;
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
 import 'package:yaml/yaml.dart';
@@ -102,6 +104,7 @@ final class LineFacts {
     required this.numberLabels,
     required this.tbrMarkers,
     required this.citeCandidates,
+    required this.mermaidBlocks,
     required this.anchors,
     required this.headingLines,
     required this.sectionLines,
@@ -120,8 +123,8 @@ final class LineFacts {
   /// [frontmatterErrorLine] is `FrontmatterYaml.errorLine` of its
   /// frontmatter. [bodyNumberLabels] are the number labels of the body, by
   /// 0-based body line, and [bodyTbrMarkers] its TBR markers, by the same
-  /// line; [citeCandidates] are the cite candidates of a typed doc, none for
-  /// an untyped one. A body whose parse fails has no links and an unknown
+  /// line; [citeCandidates] and [mermaidBlocks] are those of a typed doc, none
+  /// for an untyped one. A body whose parse fails has no links and an unknown
   /// anchor set; [markdownUnparsedWarning] joins [warnings] only when the body
   /// holds link syntax, as at base — a body with no link syntax is never
   /// parsed for links, so it never warns. [linkWarningOf] gives the warning.
@@ -135,6 +138,7 @@ final class LineFacts {
     required List<({int line, String written})> bodyNumberLabels,
     required List<({int line, String rest})> bodyTbrMarkers,
     required List<CiteCandidate> citeCandidates,
+    required List<MermaidBlock> mermaidBlocks,
     required List<String> warnings,
   }) {
     final bodyStart = linesBeforeBodyOf(doc, lfText);
@@ -175,6 +179,7 @@ final class LineFacts {
           (line: bodyStart + line + 1, rest: rest),
       ],
       citeCandidates: citeCandidates,
+      mermaidBlocks: mermaidBlocks,
       anchors: anchors,
       headingLines: anchors == null
           ? null
@@ -207,6 +212,7 @@ final class LineFacts {
       numberLabels: const [],
       tbrMarkers: const [],
       citeCandidates: const [],
+      mermaidBlocks: const [],
       anchors: null,
       headingLines: null,
       sectionLines: [for (final i in doc.sectionLineIndexes) bodyStart + i + 1],
@@ -244,6 +250,7 @@ final class LineFacts {
           (line: marker[0]! as int, rest: marker[1]! as String),
       ],
       citeCandidates: _citeCandidatesOfJson(json['cite_candidates']!),
+      mermaidBlocks: _mermaidBlocksOfJson(json['mermaid_blocks']!),
       anchors: anchors == null
           ? null
           : DocAnchors(
@@ -303,6 +310,10 @@ final class LineFacts {
   /// The cite candidates of the body, in source order; none for an
   /// untyped doc.
   final List<CiteCandidate> citeCandidates;
+
+  /// The `mermaid` blocks of the body, in source order; none for an untyped
+  /// doc.
+  final List<MermaidBlock> mermaidBlocks;
 
   /// The doc's anchor set; null when the anchor set cannot
   /// be computed, never a stand-in for an empty one.
@@ -375,6 +386,9 @@ final class LineFacts {
       for (final c in citeCandidates)
         [c.line, c.written, c.sectionKey, c.itemIds],
     ],
+    'mermaid_blocks': [
+      for (final b in mermaidBlocks) [b.fenceLine, b.hash],
+    ],
     'anchors': anchors?.toJson(),
     'heading_lines': headingLines,
     'sections': sectionLines,
@@ -440,6 +454,12 @@ List<CiteCandidate> _citeCandidatesOfJson(Object json) => [
       sectionKey: c[2] as String?,
       itemIds: (c[3]! as List<Object?>).cast<String>().toList(),
     ),
+];
+
+/// Returns the mermaid blocks [json] holds, as `LineFacts.toJson` wrote them.
+List<MermaidBlock> _mermaidBlocksOfJson(Object json) => [
+  for (final b in (json as List<Object?>).cast<List<Object?>>())
+    MermaidBlock(fenceLine: b[0]! as int, hash: b[1]! as String),
 ];
 
 /// Returns the places [json] holds, as [_placesToJson] wrote them.

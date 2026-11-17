@@ -9,6 +9,22 @@ import '../helpers/package_root.dart';
 
 Uint8List _bytes(String text) => Uint8List.fromList(utf8.encode(text));
 
+String _render(
+  String script, {
+  String license = 'L',
+  String parseScript = 'P',
+  String patches = '[]',
+}) => renderMermaidScript(
+  _bytes(script),
+  _bytes(license),
+  parseScript: _bytes(parseScript),
+  patches: _bytes(patches),
+);
+
+String _patchesJson(List<String> finds) => jsonEncode([
+  for (final find in finds) {'find': find, 'replace': 'R'},
+]);
+
 String _constant(String text, String name) {
   final match = RegExp("const String $name =\\s*'([^']*)';").firstMatch(text);
   if (match == null) fail('constant $name is missing from:\n$text');
@@ -17,8 +33,9 @@ String _constant(String text, String name) {
 
 void main() {
   group('renderMermaidScript', () {
-    test('holds both constants and decodes back to the inputs', () {
-      final text = renderMermaidScript(_bytes('a\nb'), _bytes('L'));
+    test('holds each constant and decodes back to the inputs', () {
+      final patches = _patchesJson(['a']);
+      final text = _render('a\nb', parseScript: 'P', patches: patches);
 
       expect(text, startsWith('// GENERATED CODE - DO NOT MODIFY BY HAND\n'));
       expect(
@@ -29,13 +46,22 @@ void main() {
         utf8.decode(base64Decode(_constant(text, 'mermaidLicenseBase64'))),
         'L',
       );
+      expect(
+        utf8.decode(base64Decode(_constant(text, 'mermaidParseScriptBase64'))),
+        'P',
+      );
+      expect(
+        utf8.decode(base64Decode(_constant(text, 'mermaidNodePatchesBase64'))),
+        patches,
+      );
+      expect(
+        _constant(text, 'mermaidParserSha256'),
+        matches(r'^[0-9a-f]{64}$'),
+      );
     });
 
     test('a long script wraps each constant onto its own indented line', () {
-      final text = renderMermaidScript(
-        Uint8List.fromList(List<int>.filled(300, 0x61)),
-        _bytes('L'),
-      );
+      final text = _render('a' * 300);
 
       expect(
         text,
@@ -45,11 +71,8 @@ void main() {
 
     test('the rendered text is dart format stable', () {
       final samples = [
-        renderMermaidScript(_bytes('a\nb'), _bytes('L')),
-        renderMermaidScript(
-          Uint8List.fromList(List<int>.filled(300, 0x61)),
-          Uint8List.fromList(List<int>.filled(100, 0x62)),
-        ),
+        _render('a\nb'),
+        _render('a' * 300, license: 'b' * 100, parseScript: 'c' * 100),
       ];
       for (final (index, text) in samples.indexed) {
         final out = File(
@@ -70,11 +93,53 @@ void main() {
 
     test('refuses a script holding a script tag in any letter case', () {
       for (final script in ['x</SCRIPT>y', 'x<script y', 'x</Script']) {
-        expect(
-          () => renderMermaidScript(_bytes(script), _bytes('L')),
-          throwsStateError,
-          reason: script,
-        );
+        expect(() => _render(script), throwsStateError, reason: script);
+      }
+    });
+
+    test('refuses a patch whose find the script does not hold, naming it', () {
+      expect(
+        () => _render('abc', patches: _patchesJson(['zz'])),
+        throwsA(
+          isA<StateError>().having((e) => e.message, 'message', contains('zz')),
+        ),
+      );
+    });
+
+    test('refuses a patch whose find the script holds twice', () {
+      expect(
+        () => _render('ab ab', patches: _patchesJson(['ab'])),
+        throwsA(
+          isA<StateError>().having((e) => e.message, 'message', contains('ab')),
+        ),
+      );
+    });
+
+    test('accepts a patch whose find the script holds once', () {
+      expect(
+        () => _render('ab cd', patches: _patchesJson(['ab'])),
+        returnsNormally,
+      );
+    });
+
+    test('refuses a parse script over the Windows command line cap', () {
+      expect(() => _render('a', parseScript: 'x' * 30000), returnsNormally);
+      expect(() => _render('a', parseScript: 'x' * 30001), throwsStateError);
+    });
+
+    test('the parser hash changes when the script, parse script, or patches '
+        'change', () {
+      String hashOf(String text) => _constant(text, 'mermaidParserSha256');
+      final base = hashOf(_render('ab', parseScript: 'P'));
+      final others = [
+        hashOf(_render('abc', parseScript: 'P')),
+        hashOf(_render('ab', parseScript: 'Q')),
+        hashOf(_render('ab', parseScript: 'P', patches: _patchesJson(['a']))),
+      ];
+
+      expect(hashOf(_render('ab', parseScript: 'P', license: 'X')), base);
+      for (final other in others) {
+        expect(other, isNot(base));
       }
     });
   });
@@ -87,6 +152,12 @@ void main() {
         root.uri.resolve('assets/mermaid/mermaid.min.js'),
       );
       final license = File.fromUri(root.uri.resolve('assets/mermaid/LICENSE'));
+      final parseScript = File.fromUri(
+        root.uri.resolve('assets/mermaid/parse_diagrams.js'),
+      );
+      final patches = File.fromUri(
+        root.uri.resolve('assets/mermaid/node_patches.json'),
+      );
       final committed = File.fromUri(
         root.uri.resolve('lib/src/rendering/mermaid_script.g.dart'),
       );
@@ -96,6 +167,8 @@ void main() {
         renderMermaidScript(
           script.readAsBytesSync(),
           license.readAsBytesSync(),
+          parseScript: parseScript.readAsBytesSync(),
+          patches: patches.readAsBytesSync(),
         ),
       );
     });

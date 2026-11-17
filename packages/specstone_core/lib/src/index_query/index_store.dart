@@ -5,6 +5,7 @@ import 'package:specstone_core/src/atomic_write.dart';
 import 'package:specstone_core/src/document_writing/journal_bounds.dart'
     show requireWritableTarget;
 import 'package:specstone_core/src/index_query/banned_matches.dart';
+import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_facts.dart';
@@ -67,7 +68,10 @@ const _notWritableMessage =
 /// character for a leading language marker, so an index of layout 23, whose
 /// sentence facts count it, is rebuilt. Layout 25 adds the tokens of a
 /// `mermaid` block to each line's name mentions, so an older index is rebuilt.
-const indexLayoutVersion = 25;
+/// Layout 26 stores each typed doc's `mermaid` blocks in its line facts and
+/// adds the `diagram_parses` table, so an index of layout 25, which holds
+/// neither, is rebuilt.
+const indexLayoutVersion = 26;
 
 const _schema = '''
 CREATE TABLE meta (
@@ -129,6 +133,15 @@ CREATE TABLE item_words (
   words TEXT NOT NULL,
   PRIMARY KEY (doc_path, position)
 );
+CREATE TABLE diagram_parses (
+  block_hash TEXT NOT NULL,
+  parser_hash TEXT NOT NULL,
+  diagram TEXT,
+  parses INTEGER NOT NULL,
+  message TEXT,
+  block_line INTEGER,
+  PRIMARY KEY (block_hash, parser_hash)
+);
 CREATE VIRTUAL TABLE doc_search USING fts5(
   text, path UNINDEXED, section_key UNINDEXED, tokenize = 'trigram'
 );
@@ -144,6 +157,7 @@ const _tables = [
   'sections',
   'links',
   'item_words',
+  'diagram_parses',
   'doc_search',
 ];
 
@@ -519,6 +533,57 @@ final class IndexStore {
         'INSERT INTO item_words (doc_path, position, line, item_id, words) '
         'VALUES (?, ?, ?, ?, ?)',
         [doc.docPath, position, item.line, item.itemId, item.words.join(' ')],
+      );
+    }
+  }
+
+  /// Returns the stored parse of each block in [blockHashes] under
+  /// [parserHash], by block hash; a block with none is absent.
+  ///
+  /// Reads every row in one query.
+  Map<String, DiagramParse> diagramParsesOf(
+    Set<String> blockHashes, {
+    required String parserHash,
+  }) {
+    if (blockHashes.isEmpty) return const {};
+    final marks = List.filled(blockHashes.length, '?').join(', ');
+    return {
+      for (final row in _db.select(
+        'SELECT block_hash, diagram, parses, message, block_line '
+        'FROM diagram_parses WHERE parser_hash = ? AND block_hash IN ($marks)',
+        [parserHash, ...blockHashes],
+      ))
+        row['block_hash'] as String: DiagramParse(
+          blockHash: row['block_hash'] as String,
+          diagram: row['diagram'] as String?,
+          parses: row['parses'] == 1,
+          message: row['message'] as String?,
+          blockLine: row['block_line'] as int?,
+        ),
+    };
+  }
+
+  /// Stores [rows] under [parserHash], replacing a row of the same block.
+  ///
+  /// Rows are keyed by content, so [putDoc] and [deleteDoc] leave them alone.
+  /// Call it inside [write].
+  void putDiagramParses(
+    Iterable<DiagramParse> rows, {
+    required String parserHash,
+  }) {
+    for (final row in rows) {
+      final parses = row.parses ? 1 : 0;
+      _db.execute(
+        'INSERT OR REPLACE INTO diagram_parses (block_hash, parser_hash, '
+        'diagram, parses, message, block_line) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+          row.blockHash,
+          parserHash,
+          row.diagram,
+          parses,
+          row.message,
+          row.blockLine,
+        ],
       );
     }
   }

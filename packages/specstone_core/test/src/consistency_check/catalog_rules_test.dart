@@ -136,11 +136,11 @@ void main() {
     ];
 
     expect(
-      duplicates(checkOf(project)),
+      duplicates(await checkOf(project)),
       unorderedEquals([_errorDoc, _shopErrorDoc]),
     );
-    expect(duplicates(checkOf(project, docPath: _errorDoc)), [_errorDoc]);
-    expect(duplicates(checkOf(project, target: 'login')), [_errorDoc]);
+    expect(duplicates(await checkOf(project, docPath: _errorDoc)), [_errorDoc]);
+    expect(duplicates(await checkOf(project, target: 'login')), [_errorDoc]);
   });
 
   test('a row no unskipped edge case or scenario of its feature names is '
@@ -236,7 +236,7 @@ void main() {
   test(
     'a merged set that sets neither catalog nor names_codes runs no rule',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
@@ -267,7 +267,7 @@ void main() {
 
   test('two targets: each catalog is checked in its own target alone, and an '
       'uncataloged message names its target', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeTwinProject(
         extra: {
           'docs/$_flutterErrorDoc': _error('Login errors', ['bad_password']),
@@ -291,7 +291,7 @@ void main() {
 
   test('a requirement under a sub-feature counts toward the catalog of the '
       'nearest feature above it that holds one', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeNestedProject(
         extra: {
           'docs/$_shopErrorDoc': _error('Shop errors', ['out_of_stock']),
@@ -308,7 +308,7 @@ void main() {
 
   test('a skipped FR counts toward nothing, in a project with named targets '
       'too', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeTwinProject(
         extra: {
           'docs/$_flutterErrorDoc': _error('Login errors', ['bad_password']),
@@ -349,11 +349,14 @@ void main() {
         ]),
       },
     );
-    List<String> run(String? codeTarget) {
+    Future<List<String>> run(String? codeTarget) async {
       final session = openSession(project);
       try {
         return [
-          for (final f in runCheck(session, codeTarget: codeTarget).findings)
+          for (final f in (await runCheck(
+            session,
+            codeTarget: codeTarget,
+          )).findings)
             if (_catalogKinds.contains(f.kind)) '${f.path} ${f.kind.wire}',
         ];
       } finally {
@@ -361,7 +364,7 @@ void main() {
       }
     }
 
-    final jaspr = run('jaspr');
+    final jaspr = await run('jaspr');
     expect(jaspr, contains('$loginFr error_code_uncataloged'));
     expect(jaspr, contains('$_jasprErrorDoc error_code_unraised'));
     expect(jaspr.where((f) => f.contains('flutter')), isEmpty);

@@ -165,7 +165,7 @@ void main() {
         skips: ['- `crud/paged_list` — one page is enough'],
       );
 
-      expect(spots(checkOf(project)), isEmpty);
+      expect(spots(await checkOf(project)), isEmpty);
     },
   );
 
@@ -174,7 +174,7 @@ void main() {
       skips: ['- `crud/paged_lis` — one page is enough'],
     );
 
-    final found = _found(checkOf(project));
+    final found = _found(await checkOf(project));
 
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.featurePatternItemMissing);
@@ -192,7 +192,7 @@ void main() {
       skips: ['- `cruds/paged_list` — one page is enough'],
     );
 
-    final found = _found(checkOf(project));
+    final found = _found(await checkOf(project));
 
     expect(found, hasLength(1));
     expect(found.single.kind, FindingKind.featurePatternMissing);
@@ -216,7 +216,7 @@ void main() {
       },
     );
 
-    final found = _found(checkOf(project));
+    final found = _found(await checkOf(project));
 
     expect(
       [for (final f in found) f.line],
@@ -234,7 +234,7 @@ void main() {
         files: {'.specstone/templates/patterns/crud.yaml': _crudWithoutPaging},
       );
 
-      final found = _found(checkOf(project));
+      final found = _found(await checkOf(project));
 
       expect(found.map((f) => f.kind), [FindingKind.featurePatternItemMissing]);
       expect(found.single.toJson(), containsPair('item', 'paged_list'));
@@ -249,7 +249,7 @@ void main() {
       },
     );
 
-    final found = _found(checkOf(project));
+    final found = _found(await checkOf(project));
 
     expect(found.map((f) => f.kind), [
       FindingKind.featurePatternMissing,
@@ -283,7 +283,7 @@ void main() {
         },
       );
 
-      final found = _found(checkOf(project));
+      final found = _found(await checkOf(project));
 
       expect(found.map((f) => f.path).toSet(), {loginStory});
       expect(found.map((f) => f.kind), [
@@ -304,7 +304,7 @@ void main() {
         },
       );
 
-      expect(_found(checkOf(project)), isEmpty);
+      expect(_found(await checkOf(project)), isEmpty);
     },
   );
 
@@ -325,7 +325,7 @@ void main() {
           },
         );
 
-        expect(_found(checkOf(project)), isEmpty, reason: written);
+        expect(_found(await checkOf(project)), isEmpty, reason: written);
       }
     },
   );
@@ -339,7 +339,7 @@ void main() {
       ],
     );
 
-    expect(_found(checkOf(project)), isEmpty);
+    expect(_found(await checkOf(project)), isEmpty);
   });
 
   test('a bullet naming a pattern the doc does not list, text before the span, and a fenced bullet are no skip lines', () async {
@@ -354,7 +354,7 @@ void main() {
       ],
     );
 
-    expect(_found(checkOf(project)), isEmpty);
+    expect(_found(await checkOf(project)), isEmpty);
   });
 
   test(
@@ -364,7 +364,7 @@ void main() {
         skips: ['* `crud/paged_lis` — instead of `crud/paged_list`'],
       );
 
-      final found = _found(checkOf(project));
+      final found = _found(await checkOf(project));
 
       expect(found.map((f) => f.toJson()['item']), ['paged_lis']);
     },

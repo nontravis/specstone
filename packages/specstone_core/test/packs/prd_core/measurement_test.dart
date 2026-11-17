@@ -101,7 +101,7 @@ void main() {
     Future<List<String>> kindsAt(String text) async {
       final project = await writeCheckProject(extra: {'docs/$_docPath': text});
       return [
-        for (final f in checkOf(project).findings)
+        for (final f in (await checkOf(project)).findings)
           if (f.path == _docPath) f.kind.wire,
       ];
     }

@@ -28,7 +28,7 @@ void main() {
     ).listSync(recursive: true).whereType<File>()) {
       file.setLastModifiedSync(anHourAgo);
     }
-    checkOf(project);
+    await checkOf(project);
     // The stat is unchanged, so the next refresh keeps the row with its text
     // edited to hold no link.
     sqlite3.open('${project.path}/$indexFilePath')
@@ -37,7 +37,7 @@ void main() {
         [loginFeature],
       )
       ..close();
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(
       report.findings.single.textLine,
       '$loginFeature:13: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
@@ -45,7 +45,7 @@ void main() {
   });
 
   test('f04/us02/s5, f04/us02/fr04/e01: a link to a deleted story names the link and its line', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -66,14 +66,14 @@ void main() {
       'goals:\n  - PG-01\n',
       'goals:\n  - PG-01\npersona:\n  - buyer\n',
     );
-    final report = checkOf(await writeCheckProject(extra: story));
+    final report = await checkOf(await writeCheckProject(extra: story));
     expect(spots(report), ['$loginStory:6: doc_ref_unresolved']);
     expect(
       report.findings.single.toJson(),
       allOf(containsPair('field', 'persona'), containsPair('value', 'buyer')),
     );
     expect(report.findings.single.message, 'persona value buyer names no doc');
-    final withBuyer = checkOf(
+    final withBuyer = await checkOf(
       await writeCheckProject(
         extra: {
           ...story,
@@ -86,7 +86,7 @@ void main() {
 
   test('E02: an empty '
       'depends_on list reports nothing', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -100,7 +100,7 @@ void main() {
 
   test('E02: a scalar '
       'depends_on is field_value_mismatch at the key line', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -117,7 +117,7 @@ void main() {
 
   test('E02: an empty '
       'depends_on item is doc_ref_unresolved at the item line', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -138,7 +138,7 @@ void main() {
         '  - PG-01\n---',
         '  - PG-01\ndepends_on:\n  - checkout\n  - login/email_login\n  - login\n---',
       );
-      final report = checkOf(await writeCheckProject(extra: dependsOn));
+      final report = await checkOf(await writeCheckProject(extra: dependsOn));
       expect(spots(report), [
         '$loginFeature:8: doc_ref_unresolved',
         '$loginFeature:9: doc_ref_unresolved',
@@ -148,7 +148,7 @@ void main() {
         report.findings.first.message,
         'depends_on value checkout names no doc',
       );
-      final withCheckout = checkOf(
+      final withCheckout = await checkOf(
         await writeCheckProject(
           extra: {
             ...dependsOn,
@@ -168,7 +168,7 @@ void main() {
 
   test('f04/us02/fr04/e03, f04/us02/fr04/e04, f04/us02/fr04/e06, f04/us02/fr04/e07, f04/us01/fr06/e04: an anchor, a '
       'URL, a picture, a link outside the checked folders, and prose resolve or are no link', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           ...doc(
@@ -189,8 +189,8 @@ void main() {
   group('link_target_missing', () {
     const picture = 'docs/prds/features/f01_login/flow chart.png';
 
-    List<String> missingOf(Directory project) => [
-      for (final f in checkOf(project).findings)
+    Future<List<String>> missingOf(Directory project) async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == FindingKind.linkTargetMissing) f.textLine,
     ];
 
@@ -208,13 +208,13 @@ void main() {
           'See [x](../../../docs/prds/d03_non_functional.md).',
         ),
       );
-      expect(spots(checkOf(project), FindingKind.linkTargetMissing), [
+      expect(spots(await checkOf(project), FindingKind.linkTargetMissing), [
         'prds/GNFR.md:16: link_target_missing',
       ]);
-      expect(missingOf(project), [
+      expect(await missingOf(project), [
         'prds/GNFR.md:16: link_target_missing: link target ../../../docs/prds/d03_non_functional.md is missing at ../docs/prds/d03_non_functional.md',
       ]);
-      final finding = checkOf(project).findings
+      final finding = (await checkOf(project)).findings
           .firstWhere((f) => f.kind == FindingKind.linkTargetMissing);
       expect(
         finding.toJson(),
@@ -230,7 +230,7 @@ void main() {
       final project = await writeCheckProject(
         extra: linking('![flow](flow.png)'),
       );
-      expect(missingOf(project), [
+      expect(await missingOf(project), [
         '$loginFeature:13: link_target_missing: link target flow.png is missing at docs/prds/features/f01_login/flow.png',
       ]);
     });
@@ -242,7 +242,7 @@ void main() {
           'docs/prds/features/f01_login/flow.png': 'png',
         },
       );
-      expect(missingOf(project), isEmpty);
+      expect(await missingOf(project), isEmpty);
     });
 
     test(
@@ -259,7 +259,7 @@ void main() {
           File('${project.path}/docs/prds/features/f01_login/$name')
               .writeAsStringSync('png');
 
-          expect(missingOf(project), hasLength(1), reason: href);
+          expect(await missingOf(project), hasLength(1), reason: href);
         }
       },
       skip: Platform.isWindows ? 'Windows cannot hold such a name' : null,
@@ -269,20 +269,20 @@ void main() {
       final missing = await writeCheckProject(
         extra: linking('![flow](flow%20chart.png#top)'),
       );
-      expect(missingOf(missing), [
+      expect(await missingOf(missing), [
         '$loginFeature:13: link_target_missing: link target flow%20chart.png#top is missing at docs/prds/features/f01_login/flow chart.png',
       ]);
       final present = await writeCheckProject(
         extra: {...linking('![flow](flow%20chart.png#top)'), picture: 'png'},
       );
-      expect(missingOf(present), isEmpty);
+      expect(await missingOf(present), isEmpty);
     });
 
     test('a query is left out of the checked path', () async {
       final missing = await writeCheckProject(
         extra: linking('![a](a.png?raw=1)'),
       );
-      expect(missingOf(missing), [
+      expect(await missingOf(missing), [
         '$loginFeature:13: link_target_missing: link target a.png?raw=1 is missing at docs/prds/features/f01_login/a.png',
       ]);
       final present = await writeCheckProject(
@@ -291,7 +291,7 @@ void main() {
           'docs/prds/features/f01_login/a.png': 'png',
         },
       );
-      expect(missingOf(present), isEmpty);
+      expect(await missingOf(present), isEmpty);
     });
 
     test('f04/us02/fr04, M6: an existing folder counts as present', () async {
@@ -301,7 +301,7 @@ void main() {
           'docs/prds/features/f01_login/assets/a.txt': 'a',
         },
       );
-      expect(missingOf(project), isEmpty);
+      expect(await missingOf(project), isEmpty);
     });
 
     test('a link to an existing file outside the project is no finding', () async {
@@ -313,7 +313,7 @@ void main() {
         extra: linking('[o](../../../../../${outside.uri.pathSegments.last})'),
       );
       expect(project.parent.path, Directory.systemTemp.path);
-      expect(missingOf(project), isEmpty);
+      expect(await missingOf(project), isEmpty);
     });
 
     test('a web address, mailto, and a rooted path are no finding', () async {
@@ -322,13 +322,13 @@ void main() {
           '[w](https://example.com/a.png) [m](mailto:a@b.c) [r](/abs/x.md) [s](#top)',
         ),
       );
-      expect(missingOf(project), isEmpty);
+      expect(await missingOf(project), isEmpty);
     });
 
     test('f04/us02/fr04/e14, PS-R3: a missing in-tree .md link stays link_unresolved only', () async {
       final project = await writeCheckProject(extra: linking('[g](gone.md)'));
-      expect(missingOf(project), isEmpty);
-      expect(spots(checkOf(project), FindingKind.linkUnresolved), [
+      expect(await missingOf(project), isEmpty);
+      expect(spots(await checkOf(project), FindingKind.linkUnresolved), [
         '$loginFeature:13: link_unresolved',
       ]);
     });
@@ -343,12 +343,15 @@ void main() {
       'prds/d01_context.md:1: untyped_doc',
       'prds/d01_context.md:3: link_unresolved',
     ];
-    expect(spots(checkOf(project)), expected);
-    expect(spots(checkOf(project, target: 'prds/d01_context.md')), expected);
+    expect(spots(await checkOf(project)), expected);
+    expect(
+      spots(await checkOf(project, target: 'prds/d01_context.md')),
+      expected,
+    );
   });
 
   test('two links to one deleted doc are two findings', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -364,7 +367,7 @@ void main() {
   });
 
   test('a broken link to a file outside the checked folders is reported', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -382,7 +385,7 @@ void main() {
   test(
     'an angle-bracket destination with a space is shown as written',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: doc(
             loginFeature,
@@ -399,7 +402,7 @@ void main() {
   );
 
   test('a non-ASCII destination is shown as written', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -417,7 +420,7 @@ void main() {
   test(
     'reference links sit on the line of their use, definitions in any order',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: doc(
             loginFeature,
@@ -437,7 +440,7 @@ void main() {
   );
 
   test('wrapped link text does not displace the next broken link', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -458,7 +461,7 @@ void main() {
   test(
     'a balanced () in a destination and [] in link text are placed',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: doc(
             loginFeature,
@@ -478,7 +481,7 @@ void main() {
   );
 
   test('f04/us02/fr04/e09, cc-s03/inv15, LP4: a doc the parser fails on gets markdown_unparsed at line 1', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginFeature,
@@ -509,8 +512,8 @@ void main() {
     };
     const d03 = 'prds/d03_non_functional.md';
 
-    List<Finding> pointersOf(Directory project) => [
-      for (final f in checkOf(project).findings)
+    Future<List<Finding>> pointersOf(Directory project) async => [
+      for (final f in (await checkOf(project)).findings)
         if (pointerKinds.contains(f.kind)) f,
     ];
 
@@ -533,7 +536,7 @@ void main() {
 
     test('E03: an anchor that is the slug of a heading of '
         'its target resolves', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: {
             ...featureLinking(
@@ -548,7 +551,7 @@ void main() {
 
     test('E15: an anchor no heading, id, or name of its '
         'target carries is link_anchor_missing; a link to no doc is link_unresolved only', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: {
             ...featureLinking(
@@ -575,7 +578,7 @@ void main() {
         "doc's own headings, ids, and names; one it lacks, a footnote's id included, is link_anchor_missing", () async {
       const rules = 'prds/d02_rules.md';
       const notes = 'prds/d04_notes.md';
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: {
             'docs/$rules':
@@ -599,7 +602,7 @@ void main() {
     test("E17: a heading's anchor is its rendered text's "
         'slug, a repeat suffixed', () async {
       const moves = 'prds/d05_moves.md';
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: {
             'docs/$moves':
@@ -615,7 +618,7 @@ void main() {
 
     test('E18: a link to its own doc with no anchor is '
         'link_self; with a heading anchor it resolves', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: gnfrLinking(
             '[self](../../docs/prds/GNFR.md) and [perf](../../docs/prds/GNFR.md#performance).',
@@ -632,7 +635,7 @@ void main() {
 
     test('E18: an empty link target is link_self, its '
         'message showing (empty) for the target', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(extra: gnfrLinking('[TBD]() here.')),
       );
       expect(textOf(findings), [
@@ -646,7 +649,7 @@ void main() {
     test('E19: a doc_ref value one list field holds a '
         'second time is doc_ref_duplicate at the second value; another field is its own list', () async {
       const checkout = 'prds/features/f02_checkout/FEATURE.md';
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             'docs/$checkout': checkProjectFiles()['docs/$loginFeature']!
@@ -672,7 +675,7 @@ void main() {
 
     test('E20: a doc_ref value naming the doc that holds '
         'it is doc_ref_self; a value naming a doc of another type is not', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: {
             ...doc(
@@ -694,7 +697,7 @@ void main() {
 
     test('E21: a link target the URL parser fails on is '
         'reference_malformed; a lone % stays in the path', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: featureLinking('[x](http://h:abc/x.md) and [y](a%zz.md).'),
         ),
@@ -711,7 +714,7 @@ void main() {
 
     test("E22: an empty fragment names its doc's top, so "
         'it is neither link_self nor link_anchor_missing; a self link with no # is link_self', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: gnfrLinking(
             '[top](#), [top](GNFR.md#), [up](../../docs/prds/GNFR.md#), [x](PROJECT.md#), and [self](GNFR.md).',
@@ -725,7 +728,7 @@ void main() {
 
     test("a web link's fragment is never read; a doc "
         "link's anchor is read past its query", () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: gnfrLinking(
             '[w](https://example.com/x#nothing) and [q](PROJECT.md?x=1#missing).',
@@ -742,7 +745,7 @@ void main() {
 
     test('an anchor of a doc whose anchor set is unknown '
         'is no link_anchor_missing', () async {
-      final findings = pointersOf(
+      final findings = await pointersOf(
         await writeCheckProject(
           extra: {
             ...featureLinking('[x](../../d09_broken.md#gone).'),
@@ -755,8 +758,8 @@ void main() {
   });
 
   group('resolve_doc_links doc-name mentions', () {
-    List<Finding> mentionsOf(Directory project) => [
-      for (final f in checkOf(project).findings)
+    Future<List<Finding>> mentionsOf(Directory project) async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == FindingKind.docNameUnresolved) f,
     ];
 
@@ -769,7 +772,7 @@ void main() {
     test('E25: a typed '
         'name one letter short under a top-level feature is '
         'doc_name_unresolved, the name as written', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
             'see `fr:login/email_login/check_pasword#statement`.',
@@ -797,7 +800,7 @@ void main() {
     );
 
     test('a stale mermaid name under a top-level feature is doc_name_unresolved at its line', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWithMermaid('  N[login/email_login/check_pasword E06]'),
         ),
@@ -817,7 +820,7 @@ void main() {
     });
 
     test('a mermaid token under no top-level feature is left alone', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWithMermaid(
             '  N[origin/develop]\n  M[https://example.com/a/b]\n'
@@ -831,7 +834,7 @@ void main() {
     test('E26: a '
         'name whose first slug names no top-level feature, a git ref, and a '
         'skill name raise nothing', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
             'see `shop/checkout`, `architecture:shop`, `origin/develop`, '
@@ -846,7 +849,7 @@ void main() {
     test('E27: names '
         'that resolve raise nothing, and a section key the doc lacks is '
         'never read', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
             'see `feature:login`, `login/email_login#nothing_here`, and '
@@ -859,7 +862,7 @@ void main() {
 
     test('E07: a name '
         'in plain text and one in fenced code raise nothing', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: featureWriting(
             'see login/email_login/check_pasword.\n\n```text\n'
@@ -895,7 +898,7 @@ void main() {
 
     test('a skip line of a listed pattern is no doc-name mention, even '
         'when a feature of the pattern name exists', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await skipProject(skips: ['- `crud/paged_list` — one page is enough']),
       );
       expect(findings, isEmpty);
@@ -908,7 +911,7 @@ void main() {
         skips: ['- `crud/paged_list` — one page is enough'],
       );
       expect(
-        [for (final f in mentionsOf(project)) f.keys],
+        [for (final f in await mentionsOf(project)) f.keys],
         [
           {'name': 'crud/paged_list'},
         ],
@@ -918,7 +921,7 @@ void main() {
     test(
       'a second span on a skip line still reads as a doc-name mention',
       () async {
-        final findings = mentionsOf(
+        final findings = await mentionsOf(
           await skipProject(
             skips: ['- `crud/paged_list` — instead of `crud/paged_lis`'],
           ),
@@ -934,7 +937,7 @@ void main() {
 
     test('guard: a bullet with a hyphen or two as its separator is no skip '
         'line, so its span reads as any doc-name mention', () async {
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await skipProject(
           skips: [
             '- `crud/paged_list` - one page is enough',
@@ -955,7 +958,7 @@ void main() {
         'untyped doc is checked and the finding names the doc, the line, and '
         'the name', () async {
       const notes = 'prds/d07_notes.md';
-      final findings = mentionsOf(
+      final findings = await mentionsOf(
         await writeCheckProject(
           extra: {'docs/$notes': '# Notes\n\nOne `login/email_logn`.\n'},
         ),
@@ -1001,8 +1004,12 @@ void main() {
             .indexWhere((line) => line.contains(needle)) +
         1;
 
-    List<Finding> found(Directory project, FindingKind kind, {String? at}) => [
-      for (final f in checkOf(project).findings)
+    Future<List<Finding>> found(
+      Directory project,
+      FindingKind kind, {
+      String? at,
+    }) async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == kind && (at == null || f.path == at)) f,
     ];
 
@@ -1013,7 +1020,7 @@ void main() {
         extra: shared('See `architecture:login`.'),
       );
 
-      final findings = found(project, FindingKind.perTargetReference);
+      final findings = await found(project, FindingKind.perTargetReference);
 
       expect(
         [for (final f in findings) '${f.path}:${f.line}'],
@@ -1036,7 +1043,7 @@ void main() {
         ),
       );
 
-      final findings = found(project, FindingKind.perTargetReference);
+      final findings = await found(project, FindingKind.perTargetReference);
 
       expect(
         [for (final f in findings) '${f.path}:${f.line}'],
@@ -1066,13 +1073,13 @@ void main() {
       final lone = await project();
       final both = await project(jasprHoldsOne: true);
 
-      final findings = found(lone, FindingKind.docNameUnresolved);
+      final findings = await found(lone, FindingKind.docNameUnresolved);
       expect([for (final f in findings) f.path], [jasprArchitecture]);
       expect(
         findings.single.line,
         lineOf(lone, jasprArchitecture, 'implementation:login'),
       );
-      expect(found(both, FindingKind.docNameUnresolved), isEmpty);
+      expect(await found(both, FindingKind.docNameUnresolved), isEmpty);
     });
 
     test('E30: a '
@@ -1081,7 +1088,7 @@ void main() {
         extra: shared('See `feature:login` and `login/email_login`.'),
       );
 
-      expect(found(project, FindingKind.perTargetReference), isEmpty);
+      expect(await found(project, FindingKind.perTargetReference), isEmpty);
     });
 
     test('E30: a '
@@ -1091,7 +1098,7 @@ void main() {
         extra: shared('See [arch]($written).'),
       );
 
-      final findings = found(project, FindingKind.perTargetReference);
+      final findings = await found(project, FindingKind.perTargetReference);
 
       expect(
         [for (final f in findings) f.keys],
@@ -1100,7 +1107,10 @@ void main() {
         ],
       );
       expect(findings.single.line, lineOf(project, loginNf, written));
-      expect(found(project, FindingKind.linkUnresolved, at: loginNf), isEmpty);
+      expect(
+        await found(project, FindingKind.linkUnresolved, at: loginNf),
+        isEmpty,
+      );
     });
 
     test('E30: a '
@@ -1110,7 +1120,7 @@ void main() {
         extra: shared('See `$path`, then `specs/f01_login/API.md`.'),
       );
 
-      final findings = found(project, FindingKind.perTargetReference);
+      final findings = await found(project, FindingKind.perTargetReference);
 
       expect(
         [for (final f in findings) f.keys],
@@ -1132,7 +1142,7 @@ void main() {
         ),
       );
 
-      final findings = found(project, FindingKind.perTargetReference);
+      final findings = await found(project, FindingKind.perTargetReference);
 
       expect(
         [for (final f in findings) f.keys['reference']],
@@ -1147,7 +1157,10 @@ void main() {
         extra: shared('See [$path](../../../../$path).'),
       );
 
-      expect(found(project, FindingKind.perTargetReference), hasLength(1));
+      expect(
+        await found(project, FindingKind.perTargetReference),
+        hasLength(1),
+      );
     });
 
     test('E30: a '
@@ -1158,7 +1171,10 @@ void main() {
         ),
       );
 
-      expect(found(project, FindingKind.perTargetReference), hasLength(1));
+      expect(
+        await found(project, FindingKind.perTargetReference),
+        hasLength(1),
+      );
     });
 
     test(
@@ -1181,7 +1197,7 @@ void main() {
           },
         );
 
-        final findings = found(project, FindingKind.perTargetReference);
+        final findings = await found(project, FindingKind.perTargetReference);
 
         expect(
           [for (final f in findings) f.keys],
@@ -1214,7 +1230,7 @@ void main() {
         FindingKind.docNameUnresolved,
         FindingKind.linkUnresolved,
       ]) {
-        expect(found(project, kind, at: jasprArchitecture), isEmpty);
+        expect(await found(project, kind, at: jasprArchitecture), isEmpty);
       }
     });
 
@@ -1236,11 +1252,14 @@ void main() {
       final both = await project(jasprHoldsOne: true);
 
       expect(
-        [for (final f in found(lone, FindingKind.docNameUnresolved)) f.path],
+        [
+          for (final f in await found(lone, FindingKind.docNameUnresolved))
+            f.path,
+        ],
         [jasprArchitecture],
       );
-      expect(found(both, FindingKind.docNameUnresolved), isEmpty);
-      expect(found(lone, FindingKind.perTargetReference), isEmpty);
+      expect(await found(both, FindingKind.docNameUnresolved), isEmpty);
+      expect(await found(lone, FindingKind.perTargetReference), isEmpty);
     });
 
     test('E28: a '
@@ -1261,10 +1280,10 @@ void main() {
       final lone = await project();
       final both = await project(jasprHoldsOne: true);
 
-      final findings = found(lone, FindingKind.docRefUnresolved);
+      final findings = await found(lone, FindingKind.docRefUnresolved);
       expect([for (final f in findings) f.path], [jasprArchitecture]);
       expect(findings.single.keys, {'field': 'related', 'value': 'login'});
-      expect(found(both, FindingKind.docRefUnresolved), isEmpty);
+      expect(await found(both, FindingKind.docRefUnresolved), isEmpty);
     });
   });
 
@@ -1309,7 +1328,7 @@ void main() {
         );
 
         expect([
-          for (final f in checkOf(project).findings)
+          for (final f in (await checkOf(project)).findings)
             if (f.kind == FindingKind.perTargetReference ||
                 f.kind == FindingKind.docNameUnresolved ||
                 f.kind == FindingKind.linkUnresolved)
@@ -1326,8 +1345,8 @@ void main() {
     };
     const gnfrPerformance = '../../GNFR.md#performance';
 
-    List<Finding> itemFindingsOf(Directory project) => [
-      for (final f in checkOf(project).findings)
+    Future<List<Finding>> itemFindingsOf(Directory project) async => [
+      for (final f in (await checkOf(project)).findings)
         if (itemKinds.contains(f.kind)) f,
     ];
 
@@ -1347,7 +1366,7 @@ void main() {
     test(
       'an item link whose section holds the item gives no finding',
       () async {
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: featureLinking('[NFR-P01]($gnfrPerformance).'),
           ),
@@ -1357,7 +1376,7 @@ void main() {
     );
 
     test('an item link whose section lacks the item is link_item_missing with target and item', () async {
-      final findings = itemFindingsOf(
+      final findings = await itemFindingsOf(
         await writeCheckProject(
           extra: featureLinking('[NFR-P09]($gnfrPerformance).'),
         ),
@@ -1375,7 +1394,7 @@ void main() {
       'an S<N> link to a scenario the story lacks is link_item_missing',
       () async {
         const story = 'us01_email_login/USER_STORY.md#acceptance-criteria';
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: featureLinking('[S2]($story) and [S7]($story).'),
           ),
@@ -1392,7 +1411,7 @@ void main() {
     test(
       'a fragment that names no anchor is link_anchor_missing only',
       () async {
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: featureLinking('[NFR-P09](../../GNFR.md#speed).'),
           ),
@@ -1407,7 +1426,7 @@ void main() {
     test(
       'an anchor of a doc whose anchor set is unknown gives neither finding',
       () async {
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: {
               ...featureLinking('[NFR-P09]($gnfrPerformance).'),
@@ -1426,7 +1445,7 @@ void main() {
       () async {
         const plain = '../../GNFR.md#performance';
         const dotted = './../../GNFR.md#performance';
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: featureLinking('[NFR-P08]($plain) and [NFR-P09]($dotted).'),
           ),
@@ -1442,7 +1461,7 @@ void main() {
     );
 
     test('a text that is no item ID of the section prefix is a section link', () async {
-      final findings = itemFindingsOf(
+      final findings = await itemFindingsOf(
         await writeCheckProject(
           extra: featureLinking(
             '[NFR-9]($gnfrPerformance), [the NFR-P09 rule]($gnfrPerformance), and [rules](../../GNFR.md#performance).',
@@ -1455,7 +1474,7 @@ void main() {
     test(
       'a fragment that names a ### heading gives no finding of this rule',
       () async {
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: featureLinking(
               '[NFR-P09](../../GNFR.md#nfr-p01--sign-in-time).',
@@ -1476,7 +1495,7 @@ void main() {
           ),
         },
       );
-      final findings = itemFindingsOf(project);
+      final findings = await itemFindingsOf(project);
       expect(
         [for (final f in findings) f.keys],
         [
@@ -1489,7 +1508,7 @@ void main() {
     test(
       'a bare #anchor link is checked against the linking doc own section',
       () async {
-        final findings = itemFindingsOf(
+        final findings = await itemFindingsOf(
           await writeCheckProject(
             extra: doc(
               gnfrDoc,
@@ -1518,7 +1537,7 @@ void main() {
       ).listSync(recursive: true).whereType<File>()) {
         file.setLastModifiedSync(anHourAgo);
       }
-      expect(itemFindingsOf(project), isEmpty);
+      expect(await itemFindingsOf(project), isEmpty);
       // The stat is unchanged, so the next refresh keeps the row with its
       // item facts edited to hold no NFR-P01.
       sqlite3.open('${project.path}/$indexFilePath')
@@ -1528,7 +1547,7 @@ void main() {
         )
         ..close();
       expect(
-        [for (final f in itemFindingsOf(project)) f.keys],
+        [for (final f in await itemFindingsOf(project)) f.keys],
         [
           {'target': gnfrPerformance, 'item': 'NFR-P01'},
         ],
@@ -1547,8 +1566,8 @@ void main() {
       rulesDoc: rulesBody ?? '# Rules\n\n## Purpose\nRules.\n',
     };
 
-    List<String> linkFindings(Directory project) => [
-      for (final f in checkOf(project).findings)
+    Future<List<String>> linkFindings(Directory project) async => [
+      for (final f in (await checkOf(project)).findings)
         if (f.kind == FindingKind.linkUnresolved ||
             f.kind == FindingKind.linkTargetMissing)
           f.textLine,
@@ -1562,7 +1581,7 @@ void main() {
             'See [rules](../../../docs/specs/topics/rules.md#purpose).',
           ),
         );
-        expect(linkFindings(project), isEmpty);
+        expect(await linkFindings(project), isEmpty);
       },
     );
 
@@ -1570,7 +1589,7 @@ void main() {
       final project = await writeCheckProject(
         extra: records('See [gone](../../../docs/specs/topics/gone.md).'),
       );
-      expect(linkFindings(project), [
+      expect(await linkFindings(project), [
         '$record:9: link_unresolved: link target ../../../docs/specs/topics/gone.md is no doc',
       ]);
     });
@@ -1582,7 +1601,7 @@ void main() {
           rulesBody: '# Rules\n\n## Purpose\nSee [record](../../../.specstone/records/f01_login/IMPLEMENTATION.md).\n',
         ),
       );
-      expect(linkFindings(project), isEmpty);
+      expect(await linkFindings(project), isEmpty);
     });
   });
 }

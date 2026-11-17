@@ -53,7 +53,7 @@ class PostEditCommand extends SpecstoneCommand {
       );
       final docPath = _checkedDocPath(project, filePath);
       if (docPath == null) return 0;
-      final report = ReadSession.run(
+      final report = await ReadSession.runAsync(
         (session) => runCheck(session, docPath: docPath),
         templates: runner.templates,
         workingDirectory: runner.workingDirectory,

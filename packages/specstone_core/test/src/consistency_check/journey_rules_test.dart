@@ -40,7 +40,7 @@ Future<List<Finding>> _check(
   List<String> fields = const [],
   Map<String, String> extra = const {},
 }) async {
-  final report = checkOf(
+  final report = await checkOf(
     await writeCheckProject(
       extra: {
         'docs/$_journeyPath': _journey(
@@ -182,7 +182,7 @@ void main() {
 
   test('check journey:sign_in reports an untyped file in the '
       "journey's folder", () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/$_journeyPath': _journey([

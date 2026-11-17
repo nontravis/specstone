@@ -92,7 +92,7 @@ Future<CheckReport> _check(
   String path = _recordPath,
   Map<String, String> extra = const {},
   Set<String> without = const {},
-}) async => checkOf(
+}) async => await checkOf(
   await writeCheckProject(
     extra: {..._oneTarget(path, record), ...extra},
     without: without,
@@ -103,16 +103,17 @@ Future<CheckReport> _check(
 
 /// Checks the nested project, the `shop` record holding [shop] and the
 /// `shop/cart` record [cart].
-Future<CheckReport> _checkNested(String shop, String cart) async => checkOf(
-  await writeCheckProject(
-    extra: {
-      ...nestedFiles(),
-      ..._oneTarget(_shopRecord, shop),
-      'docs/$_cartRecord': cart,
-    },
-    unstamped: {'docs/$_shopRecord', 'docs/$_cartRecord'},
-  ),
-);
+Future<CheckReport> _checkNested(String shop, String cart) async =>
+    await checkOf(
+      await writeCheckProject(
+        extra: {
+          ...nestedFiles(),
+          ..._oneTarget(_shopRecord, shop),
+          'docs/$_cartRecord': cart,
+        },
+        unstamped: {'docs/$_shopRecord', 'docs/$_cartRecord'},
+      ),
+    );
 
 /// Returns `<line> <kind>` per record finding on the record at [path].
 List<String> _found(CheckReport report, [String path = _recordPath]) => [
@@ -288,7 +289,7 @@ void main() {
 
   test('a project whose merged set holds no record doc '
       'type runs no rule of this FR', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/config.yaml': shippedPinsConfig(['prd-core']),
@@ -579,7 +580,7 @@ void main() {
         ),
       );
       addTearDown(session.close);
-      return runCheck(session, codeTarget: codeTarget);
+      return await runCheck(session, codeTarget: codeTarget);
     }
 
     const jaspr = 'specs/jaspr/f01_login/IMPLEMENTATION.md';

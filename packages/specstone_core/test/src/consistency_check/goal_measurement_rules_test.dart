@@ -70,7 +70,7 @@ Map<String, String> _goals({
 
 Future<(Directory, CheckReport)> _run(Map<String, String> extra) async {
   final project = await writeCheckProject(extra: extra);
-  return (project, checkOf(project));
+  return (project, await checkOf(project));
 }
 
 /// The 1-based line of the first line of [docPath] that starts with [prefix].
@@ -92,7 +92,7 @@ void main() {
 
   test('a goal no measurement head links is goal_measurement_missing at its heading', () async {
     final project = await writeCheckProject(extra: _goals(secondGoal: true));
-    final report = checkOf(project);
+    final report = await checkOf(project);
     final finding = _goalFindings(report).single;
     expect(finding.kind, FindingKind.goalMeasurementMissing);
     expect(finding.path, goalDoc);
@@ -104,7 +104,7 @@ void main() {
     final project = await writeCheckProject(
       extra: {'docs/$_secondMeasurement': _measurement(measurementHeadLink)},
     );
-    final finding = _goalFindings(checkOf(project)).single;
+    final finding = _goalFindings(await checkOf(project)).single;
     expect(finding.kind, FindingKind.goalMeasurementDuplicate);
     expect(finding.path, goalDoc);
     expect(finding.line, _lineOf(project, goalDoc, '### PG-01'));
@@ -124,7 +124,7 @@ void main() {
         ),
       },
     );
-    final finding = _goalFindings(checkOf(project)).single;
+    final finding = _goalFindings(await checkOf(project)).single;
     expect(finding.kind, FindingKind.goalMeasurementDuplicate);
     expect(finding.path, measurementDoc);
     expect(finding.line, _lineOf(project, measurementDoc, '# '));
@@ -139,7 +139,7 @@ void main() {
       final project = await writeCheckProject(
         extra: {'docs/$measurementDoc': _measurement(head)},
       );
-      final report = checkOf(project);
+      final report = await checkOf(project);
       final finding = _goalFindings(report)
           .singleWhere((f) => f.kind == FindingKind.measurementGoalUnresolved);
       expect(finding.path, measurementDoc, reason: head);
@@ -160,7 +160,7 @@ void main() {
         ),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.measurementGoalUnresolved), [
       '$measurementDoc:${_lineOf(project, measurementDoc, '# ')}: measurement_goal_unresolved',
     ]);
@@ -176,7 +176,7 @@ void main() {
         ),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.measurementGoalUnresolved), [
       '$measurementDoc:${_lineOf(project, measurementDoc, '# ')}: measurement_goal_unresolved',
     ]);
@@ -195,7 +195,7 @@ void main() {
       homeDirectory: null,
     );
     addTearDown(session.close);
-    expect(_goalFindings(runCheck(session)), isEmpty);
+    expect(_goalFindings(await runCheck(session)), isEmpty);
   });
 
   test('a lettered goal heading holds no goal, and a head link to it is no goal link', () async {
@@ -207,7 +207,7 @@ void main() {
         ),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.goalMeasurementMissing), isEmpty);
     expect(spots(report, FindingKind.measurementGoalUnresolved), hasLength(1));
   });
@@ -220,7 +220,7 @@ void main() {
         ),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.measurementGoalUnresolved), hasLength(1));
     expect(spots(report, FindingKind.goalMeasurementMissing), hasLength(1));
   });
@@ -232,7 +232,7 @@ void main() {
         'docs/$measurementDoc': _measurement(_projectGoalLink),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.measurementGoalUnresolved), [
       '$measurementDoc:${_lineOf(project, measurementDoc, '# ')}: measurement_goal_unresolved',
     ]);
@@ -248,7 +248,7 @@ void main() {
         ),
       },
     );
-    expect(_goalFindings(checkOf(project)), isEmpty);
+    expect(_goalFindings(await checkOf(project)), isEmpty);
   });
 
   test('a merged set with no goal doc type runs no rule', () async {
@@ -273,7 +273,7 @@ void main() {
       homeDirectory: null,
     );
     addTearDown(session.close);
-    expect(_goalFindings(runCheck(session)), isEmpty);
+    expect(_goalFindings(await runCheck(session)), isEmpty);
   });
 
   test('a Metric that links the measurement of another goal is goal_metric_mismatch on the Metric line', () async {
@@ -286,7 +286,7 @@ void main() {
         'docs/$_secondMeasurement': _measurement(_goal2Link),
       },
     );
-    final mismatch = _goalFindings(checkOf(project)).single;
+    final mismatch = _goalFindings(await checkOf(project)).single;
     expect(mismatch.kind, FindingKind.goalMetricMismatch);
     expect(mismatch.path, goalDoc);
     expect(mismatch.line, _lineOf(project, goalDoc, '- **Metric:** 50'));
@@ -306,7 +306,7 @@ void main() {
         'docs/$_thirdMeasurement': _measurement('No link here.'),
       },
     );
-    final mismatches = checkOf(project).findings
+    final mismatches = (await checkOf(project)).findings
         .where((f) => f.kind == FindingKind.goalMetricMismatch);
     expect(mismatches, hasLength(1));
     expect(
@@ -322,7 +322,7 @@ void main() {
         'docs/$measurementDoc': _measurement('No link here.'),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.goalMetricMismatch), [
       '$goalDoc:${_lineOf(project, goalDoc, '- **Metric:**')}: goal_metric_mismatch',
     ]);
@@ -341,7 +341,7 @@ void main() {
         ),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.goalMetricMismatch), isEmpty);
     expect(spots(report, FindingKind.goalMeasurementDuplicate), hasLength(1));
   });
@@ -350,7 +350,7 @@ void main() {
     final project = await writeCheckProject(
       extra: _goals(metric: '- **Metric:** 50%'),
     );
-    final finding = _goalFindings(checkOf(project)).single;
+    final finding = _goalFindings(await checkOf(project)).single;
     expect(finding.kind, FindingKind.goalMetricUnlinked);
     expect(finding.path, goalDoc);
     expect(finding.line, _lineOf(project, goalDoc, '- **Metric:**'));
@@ -366,7 +366,7 @@ void main() {
       '- **Metric:** 50%, see [features](FEATURES.md#top) and [site](https://example.com/a)',
     ]) {
       final project = await writeCheckProject(extra: _goals(metric: metric));
-      final report = checkOf(project);
+      final report = await checkOf(project);
       expect(spots(report, FindingKind.goalMetricUnlinked), [
         '$goalDoc:${_lineOf(project, goalDoc, '- **Metric:**')}: goal_metric_unlinked',
       ], reason: metric);
@@ -386,7 +386,7 @@ void main() {
       '- **Metric:** 50%, see [m][ref]\n\n[ref]: ../measurements/fewer_resets/MEASUREMENT.md',
     ]) {
       final project = await writeCheckProject(extra: _goals(metric: metric));
-      final report = checkOf(project);
+      final report = await checkOf(project);
       expect(
         spots(report, FindingKind.goalMetricUnlinked),
         isEmpty,
@@ -407,7 +407,7 @@ void main() {
             '- **Metric:** 50%, see [m](../measurements/gone/MEASUREMENT.md)',
       ),
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.goalMetricUnlinked), [
       '$goalDoc:${_lineOf(project, goalDoc, '- **Metric:**')}: goal_metric_unlinked',
     ]);
@@ -421,7 +421,7 @@ void main() {
         metric: '- **Metric:** 50%, see [m](../measurements/fewer_resets/MEASUREMENT.md#nope)',
       ),
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(_goalFindings(report), isEmpty);
     expect(spots(report, FindingKind.linkAnchorMissing), hasLength(1));
   });
@@ -431,7 +431,11 @@ void main() {
     () async {
       for (final metric in [null, '```\n- **Metric:** 50%\n```']) {
         final project = await writeCheckProject(extra: _goals(metric: metric));
-        expect(_goalFindings(checkOf(project)), isEmpty, reason: '$metric');
+        expect(
+          _goalFindings(await checkOf(project)),
+          isEmpty,
+          reason: '$metric',
+        );
       }
     },
   );
@@ -451,7 +455,7 @@ void main() {
       homeDirectory: null,
     );
     addTearDown(session.close);
-    expect(_goalFindings(runCheck(session)), isEmpty);
+    expect(_goalFindings(await runCheck(session)), isEmpty);
   });
 
   test('a Metric link to a section of the measurement counts as a Metric link', () async {
@@ -464,7 +468,7 @@ void main() {
         'docs/$_secondMeasurement': _measurement(_goal2Link),
       },
     );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.goalMetricMismatch), [
       '$goalDoc:${_lineOf(project, goalDoc, '- **Metric:**')}: goal_metric_mismatch',
     ]);
@@ -483,7 +487,7 @@ void main() {
         },
       );
       expect(
-        spots(checkOf(project), FindingKind.goalMetricMismatch),
+        spots(await checkOf(project), FindingKind.goalMetricMismatch),
         hasLength(1),
       );
     },
@@ -493,14 +497,14 @@ void main() {
     final project = await writeCheckProject(extra: _goals(secondGoal: true));
     expect(
       spots(
-        checkOf(project, docPath: measurementDoc),
+        await checkOf(project, docPath: measurementDoc),
         FindingKind.goalMeasurementMissing,
       ),
       isEmpty,
     );
     expect(
       spots(
-        checkOf(project, docPath: goalDoc),
+        await checkOf(project, docPath: goalDoc),
         FindingKind.goalMeasurementMissing,
       ),
       hasLength(1),
@@ -517,7 +521,10 @@ void main() {
           (table, 'Run one halved the resets.\n\n'),
         ]),
       );
-      expect(checkOf(project, docPath: measurementDoc).findings, isEmpty);
+      expect(
+        (await checkOf(project, docPath: measurementDoc)).findings,
+        isEmpty,
+      );
     },
   );
 }

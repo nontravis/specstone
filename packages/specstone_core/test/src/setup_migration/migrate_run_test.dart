@@ -127,9 +127,9 @@ Future<Directory> _twoRepositories(
 }
 
 /// Returns the hash on the `plan <hash>` line a dry run of [root] prints.
-String _dryRunPlanHash(Directory root) {
+Future<String> _dryRunPlanHash(Directory root) async {
   final out = StringBuffer();
-  expect(_run(root, out, dryRun: true), 0);
+  expect(await _run(root, out, dryRun: true), 0);
   final lines = out.toString().split('\n');
   return lines[lines.length - 3].substring('plan '.length);
 }
@@ -140,7 +140,7 @@ String _planHashIn(String text) => text
     .firstWhere((line) => line.startsWith('plan '))
     .substring('plan '.length);
 
-int _run(
+Future<int> _run(
   Directory root,
   StringBuffer out, {
   OwnerConfirmation confirmation = OwnerConfirmation.prompt,
@@ -151,9 +151,9 @@ int _run(
   String? planHash,
   List<String>? warnings,
   RunGit runGit = runMigrateGit,
-}) {
+}) async {
   var call = 0;
-  return runMigrate(
+  return await runMigrate(
     MigrateRequest(
       workingDirectory: root,
       homeDirectory: home ?? testHome(),
@@ -177,7 +177,7 @@ void main() {
       final root = await _spacedFixture(acmeLegacy);
       final out = StringBuffer();
 
-      final status = _run(root, out, answers: ['y']);
+      final status = await _run(root, out, answers: ['y']);
 
       expect(status, 0);
       final subjects = (git(root, ['log', '--format=%s']).stdout as String)
@@ -252,8 +252,8 @@ void main() {
   group('the closing count and the JSON plan', () {
     final skipGit = hasGit ? null : 'git is not available';
 
-    int findingsOf(Directory root) => ReadSession.run(
-      (session) => runCheck(session).findings.length,
+    Future<int> findingsOf(Directory root) => ReadSession.runAsync(
+      (session) async => (await runCheck(session)).findings.length,
       templates: TemplateResolver(),
       workingDirectory: root,
       homeDirectory: testHome(),
@@ -264,12 +264,12 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       final out = StringBuffer();
 
-      expect(_run(root, out, answers: ['y']), 0);
+      expect(await _run(root, out, answers: ['y']), 0);
 
       final last = out.toString().trim().split('\n').last;
       expect(
         last,
-        'check: ${findingsOf(root)} findings left; '
+        'check: ${await findingsOf(root)} findings left; '
         'run specstone check to see them',
       );
     }, skip: skipGit);
@@ -278,7 +278,10 @@ void main() {
       final fixture = await _upgradeFixture();
       final out = StringBuffer();
 
-      expect(_run(fixture.project, out, home: fixture.home, answers: ['y']), 0);
+      expect(
+        await _run(fixture.project, out, home: fixture.home, answers: ['y']),
+        0,
+      );
 
       expect(
         out.toString().trim().split('\n').last,
@@ -291,9 +294,9 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       final text = StringBuffer();
       final json = StringBuffer();
-      expect(_run(root, text, dryRun: true), 0);
+      expect(await _run(root, text, dryRun: true), 0);
 
-      expect(_run(root, json, dryRun: true, asJson: true), 0);
+      expect(await _run(root, json, dryRun: true, asJson: true), 0);
 
       final object = jsonDecode(json.toString()) as Map<String, Object?>;
       expect(object.keys, [
@@ -313,7 +316,7 @@ void main() {
       expect(text.toString(), startsWith(object['plan']! as String));
       expect(
         (object['plan']! as String).trimRight().split('\n').last,
-        'plan ${_dryRunPlanHash(root)}',
+        'plan ${await _dryRunPlanHash(root)}',
       );
       expect(object['formatLayout'], ['specs/f01_login/DOMAIN.md']);
       expect(object['agentFiles'], [
@@ -339,7 +342,7 @@ void main() {
       final fixture = await _upgradeFixture();
       final dry = StringBuffer();
       expect(
-        _run(
+        await _run(
           fixture.project,
           dry,
           home: fixture.home,
@@ -354,7 +357,7 @@ void main() {
       final out = StringBuffer();
       final notes = <String>[];
 
-      final status = _run(
+      final status = await _run(
         fixture.project,
         out,
         home: fixture.home,
@@ -383,7 +386,7 @@ void main() {
       File('${root.path}/notes.txt').writeAsStringSync('scratch\n');
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true, asJson: true), 0);
+      expect(await _run(root, out, dryRun: true, asJson: true), 0);
 
       final object = jsonDecode(out.toString()) as Map<String, Object?>;
       expect(object['dirty'], isTrue);
@@ -393,7 +396,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true, asJson: true), 0);
+      expect(await _run(root, out, dryRun: true, asJson: true), 0);
 
       final object = jsonDecode(out.toString()) as Map<String, Object?>;
       expect(object['dirty'], isFalse);
@@ -403,7 +406,7 @@ void main() {
       final fixture = await _upgradeFixture();
       final dry = StringBuffer();
       expect(
-        _run(
+        await _run(
           fixture.project,
           dry,
           home: fixture.home,
@@ -417,7 +420,7 @@ void main() {
       );
       final out = StringBuffer();
 
-      final status = _run(
+      final status = await _run(
         fixture.project,
         out,
         home: fixture.home,
@@ -435,8 +438,8 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       final withJson = StringBuffer();
       final without = StringBuffer();
-      expect(_run(root, withJson, dryRun: true, asJson: true), 0);
-      expect(_run(root, without, dryRun: true), 0);
+      expect(await _run(root, withJson, dryRun: true, asJson: true), 0);
+      expect(await _run(root, without, dryRun: true), 0);
 
       final object = jsonDecode(withJson.toString()) as Map<String, Object?>;
 
@@ -462,12 +465,12 @@ void main() {
           ),
     );
 
-    int runHomeless(
+    Future<int> runHomeless(
       Directory root,
       StringBuffer out, {
       OwnerConfirmation confirmation = OwnerConfirmation.prompt,
       String? planHash,
-    }) => runMigrate(
+    }) async => await runMigrate(
       MigrateRequest(
         workingDirectory: root,
         homeDirectory: null,
@@ -485,7 +488,7 @@ void main() {
       () async {
         final root = await writeTree(acmeLegacy);
 
-        expect(
+        await expectLater(
           () => runHomeless(root, StringBuffer()),
           throwsA(
             isA<MigrateFault>()
@@ -508,7 +511,7 @@ void main() {
         final before = treeBytes(root);
         final out = StringBuffer();
 
-        expect(() => runHomeless(root, out), refusesHomeless());
+        await expectLater(() => runHomeless(root, out), refusesHomeless());
 
         expect(out.toString(), startsWith('legacy migration: '));
         expect(out.toString(), isNot(contains('apply?')));
@@ -521,10 +524,10 @@ void main() {
       'under --yes with the seen plan refuses and changes nothing',
       () async {
         final root = await gitFixture(acmeLegacy);
-        final hash = _dryRunPlanHash(root);
+        final hash = await _dryRunPlanHash(root);
         final before = treeBytes(root);
 
-        expect(
+        await expectLater(
           () => runHomeless(
             root,
             StringBuffer(),
@@ -545,7 +548,7 @@ void main() {
     final legacy = _bytesUnder(root);
     final out = StringBuffer();
 
-    expect(_run(root, out, answers: ['y']), 0);
+    expect(await _run(root, out, answers: ['y']), 0);
 
     expect(git(root, ['reset', '-q', '--hard', 'HEAD~2']).exitCode, 0);
     expect(_bytesUnder(root), legacy);
@@ -562,7 +565,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       final out = StringBuffer();
 
-      expect(_run(root, out, answers: ['y']), 0);
+      expect(await _run(root, out, answers: ['y']), 0);
 
       for (final file in _bytesUnder(root).entries) {
         if (file.key == '.specstone/.gitignore') continue;
@@ -596,7 +599,7 @@ void main() {
       'the created draft keeps draft: true', () async {
     final root = await gitFixture(acmeLegacy);
 
-    expect(_run(root, StringBuffer(), answers: ['y']), 0);
+    expect(await _run(root, StringBuffer(), answers: ['y']), 0);
 
     final files = _bytesUnder(root);
     for (final path in [
@@ -625,7 +628,7 @@ void main() {
     });
     final out = StringBuffer();
 
-    expect(_run(root, out, answers: ['y']), 0);
+    expect(await _run(root, out, answers: ['y']), 0);
 
     expect(
       File.fromUri(root.uri.resolve('docs/specs/INDEX.md')).readAsStringSync(),
@@ -674,7 +677,7 @@ void main() {
         final head = (git(root, ['rev-parse', 'HEAD']).stdout as String).trim();
         final out = StringBuffer();
 
-        final status = _run(root, out, answers: [answer]);
+        final status = await _run(root, out, answers: [answer]);
 
         expect(status, 0, reason: 'answer $answer');
         expect(
@@ -695,7 +698,7 @@ void main() {
 
     /// Runs bare migrate on [root] at a terminal, running [meanwhile] while
     /// the prompt waits, then answering `y`.
-    int answerAfter(
+    Future<int> answerAfter(
       Directory root,
       void Function() meanwhile, {
       Directory? home,
@@ -721,7 +724,7 @@ void main() {
       final head = headOf(root);
       final context = File('${root.path}/docs/prds/d01_context.md');
 
-      expect(
+      await expectLater(
         () => answerAfter(
           root,
           () => context.writeAsStringSync('# D-01 — Project context\n\nedit\n'),
@@ -749,7 +752,7 @@ void main() {
       late final String meanwhile;
 
       expect(
-        answerAfter(root, () {
+        await answerAfter(root, () {
           File('${root.path}/notes.txt').writeAsStringSync('x\n');
           commitAll(root, 'meanwhile');
           meanwhile = headOf(root);
@@ -779,7 +782,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       const input = 'docs/prds/d01_context.md';
 
-      expect(
+      await expectLater(
         () => answerAfter(root, () {
           File('${root.path}/$input').writeAsStringSync('# edited\n');
           commitAll(root, 'meanwhile');
@@ -805,7 +808,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       const input = 'docs/prds/d01_context.md';
 
-      expect(
+      await expectLater(
         () => answerAfter(root, () {
           expect(git(root, ['rm', '-q', input]).exitCode, 0);
           expect(git(root, ['commit', '-q', '-m', 'meanwhile']).exitCode, 0);
@@ -828,7 +831,7 @@ void main() {
       );
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => answerAfter(
           project,
           () => runbook.writeAsStringSync('# Deploy\n\n## Steps\n\nedited\n'),
@@ -850,14 +853,14 @@ void main() {
 
     /// Expects [meanwhile], run while the prompt waits, to make the run refuse
     /// `working_tree_dirty` naming [input], with nothing written after it.
-    void expectRefusedNaming(
+    Future<void> expectRefusedNaming(
       Directory root,
       String input,
       void Function() meanwhile, {
       Directory? home,
-    }) {
+    }) async {
       late final String head;
-      expect(
+      await expectLater(
         () => answerAfter(root, () {
           meanwhile();
           head = headOf(root);
@@ -878,7 +881,7 @@ void main() {
       final root = await gitFixture(acmeLegacy);
       const added = 'docs/prds/d09_extra.md';
 
-      expectRefusedNaming(root, added, () {
+      await expectRefusedNaming(root, added, () {
         File('${root.path}/$added').writeAsStringSync('# D-09 — Extra\n');
         commitAll(root, 'meanwhile');
       });
@@ -893,7 +896,7 @@ void main() {
       const collided = 'prds/PROJECT.md';
       late final String head;
 
-      expect(
+      await expectLater(
         () => answerAfter(root, () {
           File('${root.path}/docs/$collided').writeAsStringSync('# Project\n');
           commitAll(root, 'meanwhile');
@@ -927,7 +930,7 @@ void main() {
       addTearDown(() => Process.runSync('chmod', ['644', file.path]));
 
       // The read's RenderFault carries no file; the recorded read names it.
-      expectRefusedNaming(root, ignored, () {
+      await expectRefusedNaming(root, ignored, () {
         expect(Process.runSync('chmod', ['000', file.path]).exitCode, 0);
       });
     }, skip: Platform.isWindows ? 'chmod does not apply on Windows' : skipGit);
@@ -938,7 +941,7 @@ void main() {
       final (:project, :home) = await _upgradeFixture();
       const added = 'docs/prds/runbooks/other/RUNBOOK.md';
 
-      expectRefusedNaming(project, added, () {
+      await expectRefusedNaming(project, added, () {
         File('${project.path}/$added')
           ..parent.createSync(recursive: true)
           ..writeAsStringSync('# Other\n\n## Steps\n\nRun it.\n');
@@ -964,7 +967,7 @@ void main() {
         'playbook.yaml',
       ].join(Platform.pathSeparator);
 
-      expectRefusedNaming(project, added, () {
+      await expectRefusedNaming(project, added, () {
         File('${home.path}$added').writeAsStringSync('''
 id: playbook
 description: A playbook.
@@ -981,7 +984,7 @@ sections:
       final (:project, :home) = await _upgradeFixture();
       const config = '.specstone/config.yaml';
 
-      expectRefusedNaming(project, config, () {
+      await expectRefusedNaming(project, config, () {
         expect(git(project, ['rm', '-q', config]).exitCode, 0);
         commitAll(project, 'meanwhile');
       }, home: home);
@@ -995,7 +998,7 @@ sections:
       final (:project, :home) = await _upgradeFixture();
       const packPath = '.specstone/packs/acme/pack.yaml';
 
-      expectRefusedNaming(project, packPath, () {
+      await expectRefusedNaming(project, packPath, () {
         File('${home.path}/$packPath').deleteSync();
       }, home: home);
 
@@ -1011,7 +1014,7 @@ sections:
       final (:project, :home) = await _upgradeFixture();
       const broken = 'playbook.yaml';
 
-      expectRefusedNaming(project, broken, () {
+      await expectRefusedNaming(project, broken, () {
         File('${home.path}/.specstone/packs/acme/$broken')
             .writeAsStringSync('id: [unclosed\n');
       }, home: home);
@@ -1023,7 +1026,7 @@ sections:
       final project = await _labelledCodeFixture();
 
       expect(
-        answerAfter(project, () {
+        await answerAfter(project, () {
           File('${project.path}/notes.txt').writeAsStringSync('x\n');
           commitAll(project, 'meanwhile');
         }),
@@ -1043,7 +1046,7 @@ sections:
     final root = await _spacedFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
     final out = StringBuffer();
 
-    expect(_run(root, out, answers: ['y']), 0);
+    expect(await _run(root, out, answers: ['y']), 0);
 
     final names =
         (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
@@ -1082,7 +1085,7 @@ sections:
       final root = await fixture(stale);
       final out = StringBuffer();
 
-      expect(_run(root, out, answers: ['y']), 0);
+      expect(await _run(root, out, answers: ['y']), 0);
 
       final names =
           (git(root, ['show', '--name-only', '--format=', 'HEAD']).stdout
@@ -1106,7 +1109,7 @@ sections:
     test('a dry run writes no stamp and no file', () async {
       final root = await fixture(stale);
 
-      expect(_run(root, StringBuffer(), dryRun: true), 0);
+      expect(await _run(root, StringBuffer(), dryRun: true), 0);
 
       expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
       expect(
@@ -1126,8 +1129,11 @@ sections:
       );
       final dryOut = StringBuffer();
 
-      expect(() => _run(root, dryOut, dryRun: true), fault());
-      expect(() => _run(root, StringBuffer(), answers: ['y']), fault());
+      await expectLater(() => _run(root, dryOut, dryRun: true), fault());
+      await expectLater(
+        () => _run(root, StringBuffer(), answers: ['y']),
+        fault(),
+      );
 
       expect(dryOut.toString(), isEmpty);
       expect(git(root, ['rev-list', '--count', 'HEAD']).stdout, commits);
@@ -1139,13 +1145,13 @@ sections:
 
     test('the dry run plan hash follows the settings bytes', () async {
       final root = await fixture(stale);
-      final before = _dryRunPlanHash(root);
+      final before = await _dryRunPlanHash(root);
 
       File('${root.path}/$settingsFilePath')
           .writeAsStringSync(stale.replaceFirst('Bash(ls)', 'Bash(pwd)'));
       commitAll(root, 'edit settings');
 
-      expect(_dryRunPlanHash(root), isNot(before));
+      expect(await _dryRunPlanHash(root), isNot(before));
     }, skip: hasGit ? null : 'git is not available');
   });
 
@@ -1165,7 +1171,7 @@ sections:
     locateSetupTrust(code, homeDirectory: testHome()).record();
     final out = StringBuffer();
 
-    expect(_run(code, out, dryRun: true), 0);
+    expect(await _run(code, out, dryRun: true), 0);
 
     expect(
       out.toString(),
@@ -1195,9 +1201,12 @@ sections:
           ),
     );
     final dryOut = StringBuffer();
-    expect(() => _run(root, dryOut, dryRun: true), refusal());
+    await expectLater(() => _run(root, dryOut, dryRun: true), refusal());
     expect(dryOut.toString(), isEmpty);
-    expect(() => _run(root, StringBuffer(), answers: ['y']), refusal());
+    await expectLater(
+      () => _run(root, StringBuffer(), answers: ['y']),
+      refusal(),
+    );
     expect(
       File('${root.path}/${MoveJournal.journalPath}').readAsStringSync(),
       '{',
@@ -1209,7 +1218,7 @@ sections:
     final root = await gitFixture(acmeLegacy);
     final out = StringBuffer();
 
-    expect(_run(root, out, dryRun: true), 0);
+    expect(await _run(root, out, dryRun: true), 0);
 
     final text = out.toString();
     final lines = text.split('\n');
@@ -1237,7 +1246,7 @@ sections:
       final head = headOf(root);
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       final lines = out.toString().split('\n');
       expect(out.toString(), startsWith('legacy migration: '));
@@ -1250,12 +1259,12 @@ sections:
     test('hashes the files as they are, edits not yet committed '
         'included', () async {
       final root = await gitFixture(acmeLegacy);
-      final clean = _dryRunPlanHash(root);
+      final clean = await _dryRunPlanHash(root);
       File('${root.path}/docs/prds/d01_context.md')
           .writeAsStringSync('edited\n');
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       final text = out.toString();
       final planLine = 'plan ${_planHashIn(text)}\n';
@@ -1273,7 +1282,7 @@ sections:
       final root = await gitFixture(acmeLegacy);
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       expect(out.toString(), endsWith('\ndry run: nothing written\n'));
       expect(out.toString(), isNot(contains('clean working tree')));
@@ -1283,11 +1292,11 @@ sections:
         'nothing', () async {
       final root = await gitFixture(acmeLegacy);
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
-      final hash = _dryRunPlanHash(root);
+      final hash = await _dryRunPlanHash(root);
       final before = _bytesUnder(root);
       final head = headOf(root);
 
-      expect(
+      await expectLater(
         () => _run(
           root,
           StringBuffer(),
@@ -1310,7 +1319,7 @@ sections:
       final root = await writeTree(acmeLegacy);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(root, out, dryRun: true),
         throwsA(
           isA<MigrateFault>().having(
@@ -1328,13 +1337,13 @@ sections:
       'the dry run and --yes changes the plan hash, so --yes refuses '
       'plan_mismatch and writes nothing', () async {
     final root = await gitFixture(acmeLegacy);
-    final hash = _dryRunPlanHash(root);
+    final hash = await _dryRunPlanHash(root);
     File('${root.path}/docs/prds/d01_context.md').writeAsStringSync('later\n');
     commitAll(root, 'edit a doc');
     final legacy = _bytesUnder(root);
     final head = headOf(root);
 
-    expect(
+    await expectLater(
       () => _run(
         root,
         StringBuffer(),
@@ -1357,12 +1366,12 @@ sections:
       'between the dry run and --yes leaves the plan hash, so --yes '
       'applies', () async {
     final root = await gitFixture(acmeLegacy);
-    final hash = _dryRunPlanHash(root);
+    final hash = await _dryRunPlanHash(root);
     File('${root.path}/notes.txt').writeAsStringSync('later\n');
     commitAll(root, 'unrelated');
 
     expect(
-      _run(
+      await _run(
         root,
         StringBuffer(),
         confirmation: OwnerConfirmation.given,
@@ -1378,10 +1387,10 @@ sections:
   test("ms-r11: --yes with the dry run's plan hash applies the plan with no "
       "prompt, as the Owner's y does", () async {
     final root = await gitFixture(acmeLegacy);
-    final hash = _dryRunPlanHash(root);
+    final hash = await _dryRunPlanHash(root);
     final out = StringBuffer();
 
-    final status = runMigrate(
+    final status = await runMigrate(
       MigrateRequest(
         workingDirectory: root,
         homeDirectory: testHome(),
@@ -1415,7 +1424,7 @@ sections:
       final head = headOf(root);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(
           root,
           out,
@@ -1447,7 +1456,7 @@ sections:
     final legacy = _bytesUnder(root);
     final out = StringBuffer();
 
-    expect(
+    await expectLater(
       () => _run(root, out, confirmation: OwnerConfirmation.missing),
       throwsA(
         isA<WriteFault>()
@@ -1475,7 +1484,7 @@ sections:
     final clean = await gitFixture(duplicateWithContext);
     final out = StringBuffer();
 
-    expect(
+    await expectLater(
       () => _run(clean, out),
       throwsA(
         isA<MigrateFault>().having(
@@ -1491,7 +1500,7 @@ sections:
     File.fromUri(dirty.uri.resolve('notes.txt')).writeAsStringSync('x\n');
     final dirtyOut = StringBuffer();
 
-    expect(
+    await expectLater(
       () => _run(dirty, dirtyOut),
       throwsA(
         isA<MigrateFault>().having(
@@ -1521,8 +1530,8 @@ sections:
     final dryOut = StringBuffer();
     final out = StringBuffer();
 
-    expect(() => _run(root, dryOut, dryRun: true), refusal());
-    expect(() => _run(root, out, answers: ['y']), refusal());
+    await expectLater(() => _run(root, dryOut, dryRun: true), refusal());
+    await expectLater(() => _run(root, out, answers: ['y']), refusal());
 
     expect(dryOut.toString(), isEmpty);
     expect(out.toString(), isEmpty);
@@ -1557,14 +1566,14 @@ sections:
     final root = await _spacedFixture(acmeLegacy);
     final out = StringBuffer();
 
-    expect(_run(root, out, answers: ['y']), 0);
+    expect(await _run(root, out, answers: ['y']), 0);
     expect(
       (git(root, ['rev-list', '--count', 'HEAD']).stdout as String).trim(),
       '3',
     );
 
     final again = StringBuffer();
-    expect(_run(root, again), 0);
+    expect(await _run(root, again), 0);
     expect(again.toString(), 'nothing to migrate\n');
   }, skip: hasGit ? null : 'git is not available');
 
@@ -1576,7 +1585,7 @@ sections:
         .writeAsStringSync('finder\n');
     final out = StringBuffer();
 
-    expect(_run(root, out, answers: ['y']), 0);
+    expect(await _run(root, out, answers: ['y']), 0);
 
     final subjects = (git(root, ['log', '--format=%s']).stdout as String)
         .trim()
@@ -1620,7 +1629,7 @@ sections:
         agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
       );
 
-      expect(
+      await expectLater(
         () => runMigrate(
           MigrateRequest(
             workingDirectory: project,
@@ -1666,7 +1675,7 @@ sections:
         agentFiles: {'${base.resolveSymbolicLinksSync()}/CLAUDE.md'},
       );
 
-      final status = runMigrate(
+      final status = await runMigrate(
         MigrateRequest(
           workingDirectory: base,
           homeDirectory: testHome(),
@@ -1702,7 +1711,7 @@ sections:
       expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
       final topFile = File('${project.path}/mono/AGENTS.md');
 
-      expect(
+      await expectLater(
         () => _run(project, StringBuffer(), answers: ['y']),
         throwsA(
           isA<MigrateFault>().having(
@@ -1719,7 +1728,7 @@ sections:
       expect(MoveJournal.pending(project), isTrue);
 
       hook.deleteSync();
-      expect(_run(project, StringBuffer()), 0);
+      expect(await _run(project, StringBuffer()), 0);
 
       expect(MoveJournal.pending(project), isFalse);
       expect(
@@ -1754,8 +1763,11 @@ sections:
           '../mono reaches outside the project root; left as it is',
         ];
 
-        expect(_run(project, dryOut, dryRun: true, warnings: dryWarnings), 0);
-        expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
+        expect(
+          await _run(project, dryOut, dryRun: true, warnings: dryWarnings),
+          0,
+        );
+        expect(await _run(project, out, answers: ['y'], warnings: warnings), 0);
 
         expect(dryOut.toString(), isNot(contains('mono')));
         expect(out.toString(), isNot(contains('mono/AGENTS.md')));
@@ -1796,7 +1808,7 @@ sections:
       expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
       final warnings = <String>[];
 
-      expect(
+      await expectLater(
         () => _run(app, StringBuffer(), answers: ['y'], warnings: warnings),
         throwsA(
           isA<MigrateFault>().having(
@@ -1812,7 +1824,7 @@ sections:
       );
 
       hook.deleteSync();
-      expect(_run(app, StringBuffer()), 0);
+      expect(await _run(app, StringBuffer()), 0);
 
       expect(MoveJournal.pending(project), isFalse);
       expect(warnings, [
@@ -1848,7 +1860,12 @@ sections:
           final out = StringBuffer();
           final warnings = <String>[];
 
-          final status = _run(project, out, answers: ['y'], warnings: warnings);
+          final status = await _run(
+            project,
+            out,
+            answers: ['y'],
+            warnings: warnings,
+          );
 
           expect(status, 0);
           expect(warnings, [
@@ -1881,7 +1898,10 @@ sections:
           final out = StringBuffer();
           final warnings = <String>[];
 
-          expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
+          expect(
+            await _run(project, out, answers: ['y'], warnings: warnings),
+            0,
+          );
 
           expect(warnings, [
             'CLAUDE.md reaches outside the project root; left as it is',
@@ -1914,7 +1934,12 @@ sections:
         final warnings = <String>[];
 
         expect(
-          _run(project, StringBuffer(), answers: ['y'], warnings: warnings),
+          await _run(
+            project,
+            StringBuffer(),
+            answers: ['y'],
+            warnings: warnings,
+          ),
           0,
         );
 
@@ -1940,7 +1965,12 @@ sections:
           final warnings = <String>[];
 
           expect(
-            _run(project, StringBuffer(), answers: ['y'], warnings: warnings),
+            await _run(
+              project,
+              StringBuffer(),
+              answers: ['y'],
+              warnings: warnings,
+            ),
             0,
           );
 
@@ -1970,7 +2000,10 @@ sections:
           final out = StringBuffer();
           final warnings = <String>[];
 
-          expect(_run(project, out, answers: ['y'], warnings: warnings), 0);
+          expect(
+            await _run(project, out, answers: ['y'], warnings: warnings),
+            0,
+          );
 
           expect(warnings, isEmpty);
           expect(
@@ -1992,7 +2025,7 @@ sections:
       expect(File('${root.path}/.specstone/config.yaml').existsSync(), isFalse);
       final out = StringBuffer();
 
-      final status = runMigrate(
+      final status = await runMigrate(
         MigrateRequest(
           workingDirectory: root,
           homeDirectory: testHome(),
@@ -2049,7 +2082,7 @@ sections:
         edits[path] = file.readAsStringSync();
       }
 
-      expect(_run(root, StringBuffer()), 0);
+      expect(await _run(root, StringBuffer()), 0);
 
       for (final MapEntry(:key, :value) in edits.entries) {
         expect(File('${root.path}/$key').readAsStringSync(), value);
@@ -2067,7 +2100,7 @@ sections:
           .readAsStringSync();
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       final lines = out.toString().trim().split('\n');
       expect(
@@ -2092,7 +2125,7 @@ sections:
       final head = headOf(root);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(root, out, confirmation: OwnerConfirmation.missing),
         throwsA(
           isA<WriteFault>()
@@ -2114,11 +2147,16 @@ sections:
         'run with no terminal', () async {
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
-      final hash = _dryRunPlanHash(root);
+      final hash = await _dryRunPlanHash(root);
       final out = StringBuffer();
 
       expect(
-        _run(root, out, confirmation: OwnerConfirmation.given, planHash: hash),
+        await _run(
+          root,
+          out,
+          confirmation: OwnerConfirmation.given,
+          planHash: hash,
+        ),
         0,
       );
       expect(out.toString(), contains('remaining steps:\n'));
@@ -2135,7 +2173,7 @@ sections:
       _stopAfterCommit1(root);
       final cursor = File('${root.path}/${MoveJournal.cursorPath}')
         ..writeAsStringSync('0');
-      final hash = _dryRunPlanHash(root);
+      final hash = await _dryRunPlanHash(root);
 
       expect(
         git(root, [
@@ -2147,10 +2185,10 @@ sections:
         ]).exitCode,
         0,
       );
-      expect(_dryRunPlanHash(root), hash);
+      expect(await _dryRunPlanHash(root), hash);
 
       cursor.writeAsStringSync('00');
-      expect(_dryRunPlanHash(root), isNot(hash));
+      expect(await _dryRunPlanHash(root), isNot(hash));
     }, skip: skipGit);
 
     test('ms-r11: --yes with a stale plan hash leaves the stopped run '
@@ -2160,7 +2198,7 @@ sections:
       final head = headOf(root);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(
           root,
           out,
@@ -2189,7 +2227,7 @@ sections:
       final root = await gitFixture(files);
       writeJournal(root, [const MoveStep('docs/prds/a.md', 'docs/prds/b.md')]);
 
-      expect(
+      await expectLater(
         () => _run(root, StringBuffer()),
         throwsA(
           isA<MigrateFault>().having(
@@ -2212,7 +2250,7 @@ sections:
       final journalBytes = journal.readAsBytesSync();
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(dry, out, dryRun: true),
         throwsA(
           isA<MigrateFault>()
@@ -2243,7 +2281,7 @@ sections:
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
       expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
 
-      expect(
+      await expectLater(
         () => _run(root, StringBuffer(), answers: ['y']),
         throwsA(
           isA<MigrateFault>()
@@ -2263,7 +2301,7 @@ sections:
 
       hook.deleteSync();
       final out = StringBuffer();
-      expect(_run(root, out), 0);
+      expect(await _run(root, out), 0);
 
       final subjects = (git(root, ['log', '--format=%s']).stdout as String)
           .trim()
@@ -2279,7 +2317,7 @@ sections:
         ..parent.createSync(recursive: true)
         ..writeAsStringSync('#!/bin/sh\necho "lint failed" >&2\nexit 1\n');
       expect(Process.runSync('chmod', ['755', hook.path]).exitCode, 0);
-      expect(
+      await expectLater(
         () => _run(root, StringBuffer(), answers: ['y']),
         throwsA(isA<MigrateFault>()),
       );
@@ -2287,7 +2325,7 @@ sections:
       expect(git(root, ['add', 'notes.txt']).exitCode, 0);
       hook.deleteSync();
 
-      expect(_run(root, StringBuffer()), 0);
+      expect(await _run(root, StringBuffer()), 0);
 
       final renames =
           git(root, [
@@ -2323,7 +2361,7 @@ sections:
       );
       final out = StringBuffer();
 
-      expect(_run(root, out), 0);
+      expect(await _run(root, out), 0);
 
       expect(out.toString(), isNot(contains('owner work')));
       expect(out.toString(), contains(': $_commit1Message\n'));
@@ -2335,7 +2373,7 @@ sections:
       final root = await gitFixture(acmeLegacy);
       _stopAfterCommit1(root);
 
-      expect(
+      await expectLater(
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
@@ -2365,7 +2403,7 @@ sections:
       _stopAfterCommit1(root);
       final before = _bytesUnder(root);
 
-      expect(
+      await expectLater(
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
@@ -2397,7 +2435,7 @@ sections:
         'git_failed naming the command, and the journal stays', () async {
       final root = await gitFixture(acmeLegacy);
 
-      expect(
+      await expectLater(
         () => runMigrate(
           MigrateRequest(
             workingDirectory: root,
@@ -2461,7 +2499,7 @@ sections:
       final root = await gitFixture(acmeLegacy);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(
           root,
           out,
@@ -2470,7 +2508,7 @@ sections:
         ),
         gitRefusal(),
       );
-      expect(
+      await expectLater(
         () => _run(
           root,
           out,
@@ -2490,7 +2528,7 @@ sections:
       expect(out.toString(), isEmpty);
 
       _stopAfterCommit1(root);
-      expect(
+      await expectLater(
         () => _run(
           root,
           out,
@@ -2509,7 +2547,7 @@ sections:
       final calls = <List<String>>[];
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(
           Directory('${tree.path}/ws/code'),
           out,
@@ -2529,7 +2567,7 @@ sections:
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       expect(out.toString(), contains('remaining steps:'));
       expect(out.toString(), contains('\nplan '));
@@ -2541,7 +2579,7 @@ sections:
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true, asJson: true), 0);
+      expect(await _run(root, out, dryRun: true, asJson: true), 0);
 
       final object = jsonDecode(out.toString()) as Map<String, Object?>;
       expect(object['dirty'], isFalse);
@@ -2557,7 +2595,7 @@ sections:
       final journal = File('${project.path}/${MoveJournal.journalPath}');
       final before = journal.readAsStringSync();
 
-      expect(
+      await expectLater(
         () => _run(
           Directory('${tree.path}/ws/code'),
           StringBuffer(),
@@ -2580,7 +2618,7 @@ sections:
       final out = StringBuffer();
       final calls = <List<String>>[];
 
-      expect(
+      await expectLater(
         () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
         throwsA(
           isA<MigrateFault>().having(
@@ -2617,7 +2655,7 @@ sections:
       final out = StringBuffer();
       final calls = <List<String>>[];
 
-      expect(_run(root, out, dryRun: true, runGit: _fakeGit(calls)), 0);
+      expect(await _run(root, out, dryRun: true, runGit: _fakeGit(calls)), 0);
 
       expect(calls, isNotEmpty);
       expect(out.toString(), contains('\nplan '));
@@ -2641,7 +2679,7 @@ sections:
       final out = StringBuffer();
       final calls = <List<String>>[];
 
-      expect(_run(root, out, dryRun: true, runGit: _fakeGit(calls)), 0);
+      expect(await _run(root, out, dryRun: true, runGit: _fakeGit(calls)), 0);
 
       expect(calls, isNotEmpty);
       expect(out.toString(), contains('\nplan '));
@@ -2675,7 +2713,7 @@ sections:
         final reason = 'cursor $cursor, second step done: $secondDone';
 
         if (refuses) {
-          expect(
+          await expectLater(
             () => _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
             refusesWith(MigrateFaultCode.workingTreeDirty),
             reason: reason,
@@ -2684,7 +2722,7 @@ sections:
           expect(out.toString(), isEmpty, reason: reason);
         } else {
           expect(
-            _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
+            await _run(root, out, dryRun: true, runGit: _fakeGit(calls)),
             0,
             reason: reason,
           );
@@ -2705,7 +2743,7 @@ sections:
       final calls = <List<String>>[];
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(
           Directory('${ws.path}/code'),
           out,
@@ -2725,7 +2763,7 @@ sections:
       _stopAfterCommit1(root);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(
           root,
           out,
@@ -2754,7 +2792,7 @@ sections:
         File('${root.path}/notes.txt').writeAsStringSync('x\n');
         final out = StringBuffer();
 
-        expect(_run(root, out, dryRun: true), 0);
+        expect(await _run(root, out, dryRun: true), 0);
 
         expect(out.toString(), contains('\nplan '));
         expect(
@@ -2770,7 +2808,7 @@ sections:
         final root = await gitFixture(upgrade);
         final out = StringBuffer();
 
-        expect(
+        await expectLater(
           () => _run(
             root,
             out,
@@ -2788,7 +2826,7 @@ sections:
         final root = await gitFixture(upgrade);
         final out = StringBuffer();
 
-        expect(
+        await expectLater(
           () => _run(
             root,
             out,
@@ -2816,7 +2854,7 @@ sections:
       File('${root.path}/build.log').writeAsStringSync('x\n');
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       expect(out.toString(), endsWith('dry run: nothing written\n'));
     }, skip: skipGit);
@@ -2831,7 +2869,7 @@ sections:
       File('${root.path}/notes.txt').writeAsStringSync('x\n');
       final out = StringBuffer();
 
-      expect(_run(root, out, dryRun: true), 0);
+      expect(await _run(root, out, dryRun: true), 0);
 
       expect(
         out.toString(),
@@ -2850,7 +2888,7 @@ sections:
       for (final dryRun in [false, true]) {
         final out = StringBuffer();
 
-        expect(_run(root, out, dryRun: dryRun), 0);
+        expect(await _run(root, out, dryRun: dryRun), 0);
 
         expect(out.toString(), 'nothing to migrate\n');
       }
@@ -2874,7 +2912,7 @@ sections:
       final before = _bytesUnder(root);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(root, out, dryRun: true),
         refusedAt('.specstone/templates/gnfr.yaml'),
       );
@@ -2896,7 +2934,7 @@ sections:
       final before = _bytesUnder(root);
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => _run(root, out, dryRun: true),
         refusedAt('docs/specs/TECH_STACK.md'),
       );

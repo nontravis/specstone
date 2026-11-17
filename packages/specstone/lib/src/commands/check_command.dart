@@ -47,8 +47,8 @@ class CheckCommand extends SpecstoneCommand {
     final String? outPath;
     try {
       outPath = outPathOf(args);
-      output = ReadSession.run(
-        (session) {
+      output = await ReadSession.runAsync(
+        (session) async {
           sessionWarnings = session.warnings;
           final target = args.rest.firstOrNull;
           final codeTarget = targetOf(args);
@@ -67,7 +67,7 @@ class CheckCommand extends SpecstoneCommand {
               exitStatus: 0,
             );
           }
-          final report = runCheck(
+          final report = await runCheck(
             session,
             target: target,
             codeTarget: codeTarget,

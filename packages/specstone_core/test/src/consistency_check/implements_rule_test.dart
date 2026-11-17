@@ -84,10 +84,10 @@ Future<Directory> _project(
   unstamped: {_recordPath},
 );
 
-CheckReport _run(Directory project, {String? codeTarget}) {
+Future<CheckReport> _run(Directory project, {String? codeTarget}) async {
   final session = openSession(project);
   try {
-    return runCheck(session, codeTarget: codeTarget);
+    return await runCheck(session, codeTarget: codeTarget);
   } finally {
     session.close();
   }
@@ -110,14 +110,14 @@ void main() {
   test(
     'f04/us02/s1, f04/us02/fr01/e01: every pointer of the fixture resolves',
     () async {
-      final report = _run(await _project(_record(code: [point])));
+      final report = await _run(await _project(_record(code: [point])));
 
       expect(_found(report), isEmpty);
     },
   );
 
   test('f04/us02/s2, f04/us02/fr01/e02: a renamed function names the pointer and the symbol', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(code: [point]),
         extra: {
@@ -145,7 +145,7 @@ void main() {
   test(
     'a pointer resolves from the code folder, not the project root',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(
           _record(code: [point, '$_fr:app/lib/b.dart']),
           extra: {
@@ -179,7 +179,9 @@ void main() {
       'outside/$login': files[login]!,
     });
 
-    final report = _run(Directory.fromUri(workspace.uri.resolve('project/')));
+    final report = await _run(
+      Directory.fromUri(workspace.uri.resolve('project/')),
+    );
 
     expect(_found(report), isEmpty);
   });
@@ -201,7 +203,7 @@ void main() {
       },
     );
 
-    final report = _run(project);
+    final report = await _run(project);
 
     expect(_spots(report), [
       '$_jasprRecord:${_codeLine(1, 0)}: implements_symbol_unresolved',
@@ -222,7 +224,7 @@ void main() {
         () => Process.runSync('chmod', ['644', '${single.path}/$login']),
       );
 
-      final report = _run(single);
+      final report = await _run(single);
 
       expect(_found(report), isEmpty);
       expect(report.warnings.where((w) => w.endsWith(text)), ['$login: $text']);
@@ -241,7 +243,7 @@ void main() {
         );
       }
 
-      expect(_run(twin).warnings.where((w) => w.endsWith(text)), [
+      expect((await _run(twin)).warnings.where((w) => w.endsWith(text)), [
         'flutter: $login: $text',
         'jaspr: $login: $text',
       ]);
@@ -257,16 +259,16 @@ void main() {
       },
     );
 
-    expect(_spots(_run(project, codeTarget: 'jaspr')), [
+    expect(_spots(await _run(project, codeTarget: 'jaspr')), [
       '$_jasprRecord:${_codeLine(1, 0)}: implements_path_unresolved',
     ]);
-    expect(_spots(_run(project)), hasLength(2));
+    expect(_spots(await _run(project)), hasLength(2));
   });
 
   test(
     'a code root that does not exist leaves every path unresolved',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(
           _record(code: [point]),
           extra: {
@@ -293,13 +295,13 @@ void main() {
       },
     );
 
-    expect(_spots(_run(project)), [
+    expect(_spots(await _run(project)), [
       '$_jasprRecord:${_codeLine(1, 0)}: implements_path_unresolved',
     ]);
   });
 
   test('an empty code path is a path finding that says so', () async {
-    final report = _run(await _project(_record(code: ['$_fr:'])));
+    final report = await _run(await _project(_record(code: ['$_fr:'])));
 
     expect(_found(report).single.message, 'the code path is empty');
   });
@@ -310,18 +312,18 @@ void main() {
       final root = await _project(_record(code: ['$_fr:$pointer']));
       File('${root.path}/$pointer').writeAsStringSync('class SignInPage {}\n');
 
-      expect(_spots(_run(root)), [
+      expect(_spots(await _run(root)), [
         '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
       ], reason: pointer);
     }
   }, skip: Platform.isWindows ? 'Windows cannot hold such a name' : null);
 
   test('f04/us02/s7, f04/us02/fr01/e03: a pointer to a folder, or to nothing, names no file', () async {
-    final folder = _run(await _project(_record(code: ['$_fr:app/lib'])));
+    final folder = await _run(await _project(_record(code: ['$_fr:app/lib'])));
     expect(_spots(folder), [
       '$_recordPath:${_codeLine(1, 0)}: implements_path_unresolved',
     ]);
-    final gone = _run(
+    final gone = await _run(
       await _project(_record(code: ['$_fr:app/lib/gone.dart:X'])),
     );
     expect(_spots(gone), [
@@ -346,7 +348,7 @@ void main() {
   test(
     'a pointer ending in a fingerprint resolves as one without it',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(_record(code: ['$point 5d1e0c4b7a92'])),
       );
 
@@ -355,7 +357,7 @@ void main() {
   );
 
   test('an entry key holds the pointer without its fingerprint', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(
           code: [
@@ -373,7 +375,9 @@ void main() {
   });
 
   test('an upper-case token stays part of the Symbol or the path', () async {
-    final symbol = _run(await _project(_record(code: ['$point 5D1E0C4B7A92'])));
+    final symbol = await _run(
+      await _project(_record(code: ['$point 5D1E0C4B7A92'])),
+    );
     expect(_spots(symbol), [
       '$_recordPath:${_codeLine(1, 0)}: implements_symbol_unresolved',
     ]);
@@ -382,7 +386,7 @@ void main() {
       containsPair('entry', '$entry 5D1E0C4B7A92'),
     );
 
-    final path = _run(
+    final path = await _run(
       await _project(_record(code: ['$_fr:$login 5D1E0C4B7A92'])),
     );
     expect(_spots(path), [
@@ -394,14 +398,14 @@ void main() {
     final files = {
       'app/lib/auth.dart': 'class AuthService {\n  void signIn() {}\n}\n',
     };
-    final both = _run(
+    final both = await _run(
       await _project(
         _record(code: ['$_fr:app/lib/auth.dart:AuthService.signIn']),
         extra: files,
       ),
     );
     expect(_spots(both), isEmpty);
-    final one = _run(
+    final one = await _run(
       await _project(
         _record(code: ['$_fr:app/lib/auth.dart:AuthService.signOut']),
         extra: files,
@@ -411,7 +415,7 @@ void main() {
   });
 
   test('f04/us02/fr01/e06, f04/us02/fr01/e07: a whole word only, found in any text, comments included', () async {
-    final part = _run(
+    final part = await _run(
       await _project(
         _record(code: [point]),
         extra: {
@@ -422,7 +426,7 @@ void main() {
     expect(_spots(part), [
       '$_recordPath:${_codeLine(1, 0)}: implements_symbol_unresolved',
     ]);
-    final comment = _run(
+    final comment = await _run(
       await _project(
         _record(code: [point]),
         extra: {
@@ -435,7 +439,7 @@ void main() {
 
   test('an untyped doc, and a story or FR that still writes implements, get no '
       'pointer rule', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(code: [point]),
         extra: {
@@ -471,7 +475,7 @@ void main() {
       Process.runSync('chmod', ['000', path]);
       addTearDown(() => Process.runSync('chmod', ['644', path]));
 
-      final report = _run(project);
+      final report = await _run(project);
 
       expect(_spots(report), [
         '$_recordPath:${_codeLine(1, 1)}: implements_symbol_unresolved',
@@ -486,12 +490,12 @@ void main() {
   test('f04/us02/s16, f04/us02/fr01/e12: a planned entry names a file not written yet, and resolves once implemented', () async {
     const planned = '$_fr:planned';
     const code = '$_fr:app/lib/toast.dart:showToast';
-    final before = _run(
+    final before = await _run(
       await _project(_record(statuses: [planned], code: [code])),
     );
     expect(_spots(before), isEmpty);
 
-    final after = _run(
+    final after = await _run(
       await _project(_record(statuses: [_implemented], code: [code])),
     );
     expect(_spots(after), [
@@ -521,7 +525,7 @@ void main() {
   test(
     'an implemented and a deprecated entry both resolve in every run',
     () async {
-      final report = _run(
+      final report = await _run(
         await _project(
           _record(
             statuses: ['$_story:implemented', '$_fr:deprecated'],
@@ -540,7 +544,9 @@ void main() {
   test('an item with no statuses line reads planned, and resolves once a line '
       'gives implemented', () async {
     const code = '$_fr:app/lib/toast.dart:showToast';
-    final bare = _run(await _project(_record(statuses: [], code: [code])));
+    final bare = await _run(
+      await _project(_record(statuses: [], code: [code])),
+    );
     expect(_spots(bare), isEmpty);
 
     final session = openSession(
@@ -553,14 +559,14 @@ void main() {
     expect(checkImplements(context, session.index.at(_recordPath)!), isEmpty);
     expect(context.codeFilesRead, 0);
 
-    final written = _run(
+    final written = await _run(
       await _project(_record(statuses: [_implemented], code: [code])),
     );
     expect(_spots(written), hasLength(1));
   });
 
   test('a line check_record_entries reports is not resolved here', () async {
-    final report = _run(
+    final report = await _run(
       await _project(
         _record(
           statuses: ['$_story:skipped:no web', '$_fr:implemented'],

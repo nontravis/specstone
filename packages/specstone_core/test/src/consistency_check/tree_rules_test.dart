@@ -45,7 +45,7 @@ List<Finding> _missingOf(CheckReport report) => [
 void main() {
   test('f04/us01/s5, f04/us01/fr06/e01, f04/us01/fr06/e02: a file in a checked folder no pattern matches is '
       'untyped; a file outside them gets no check', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/notes/2026-10-27-ideas.md':
@@ -62,7 +62,7 @@ void main() {
 
   test('f04/us01/fr06/e05, f04/us01/fr06/e06: a project path pattern adds its folder; two matching patterns are '
       'doc_type_ambiguous, and its warning is not printed', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/runbook.yaml': 'id: runbook\ndescription: Run steps.\npath: ops/{slug}/runbook.md\n',
@@ -87,7 +87,7 @@ void main() {
   test('f04/us01/fr07/e01, f04/us01/fr07/e02: two stories numbered us01 under one feature are reported on each; '
       'an fr01 and an nf01 are no siblings', () async {
     const reset = 'prds/features/f01_login/us01_reset_password/USER_STORY.md';
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: {'docs/$reset': '# Reset\n'}),
     );
     expect(spots(report, FindingKind.orderNumberDuplicate), [
@@ -112,7 +112,7 @@ void main() {
     const video = 'prds/features/control/f01_video_player/FEATURE.md';
 
     test('an f01 in each of two groups is no order_number_duplicate', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             ...groupedFeature,
@@ -126,7 +126,7 @@ void main() {
     });
 
     test('two f01 in one group are reported on each, siblings naming only the same-group doc', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             ...groupedFeature,
@@ -157,7 +157,7 @@ void main() {
 
   test('f04/us01/s7, f04/us01/fr07/e03, f04/us04/fr01/e09, cc-s03/inv13: a requirement whose story is gone has no '
       'parent and no trace or suspect finding', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(without: {'docs/$loginStory'}),
     );
     expect(
@@ -177,7 +177,7 @@ void main() {
   });
 
   test('a spec doc whose feature does not exist is parent_missing', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/specs/f03_billing/API.md':
@@ -190,7 +190,7 @@ void main() {
   });
 
   test('two features named login make their children parent_ambiguous, warning not printed', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           'docs/prds/features/f02_login/FEATURE.md':
@@ -215,7 +215,7 @@ void main() {
       ..writeAsBytesSync(
         latin1.encode('---\nstatus: planned\n---\n\n# Reset at the café\n'),
       );
-    final report = checkOf(project);
+    final report = await checkOf(project);
     expect(spots(report, FindingKind.fileNotUtf8), ['$reset:1: file_not_utf8']);
     expect(report.warnings, isEmpty);
   });
@@ -228,7 +228,7 @@ void main() {
       final path = '${project.path}/docs/$loginNf';
       Process.runSync('chmod', ['000', path]);
       addTearDown(() => Process.runSync('chmod', ['644', path]));
-      final report = checkOf(project);
+      final report = await checkOf(project);
       expect(spots(report, FindingKind.fileUnreadable), [
         '$loginNf:1: file_unreadable',
       ]);
@@ -239,7 +239,7 @@ void main() {
         isNull,
       );
       expect(report.warnings, isEmpty);
-      final targeted = checkOf(project, target: 'login');
+      final targeted = await checkOf(project, target: 'login');
       expect(spots(targeted, FindingKind.fileUnreadable), [
         '$loginNf:1: file_unreadable',
       ]);
@@ -250,7 +250,7 @@ void main() {
   test(
     'a doc of an extending type with a cleared parent gets no parent_missing',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/edge_api_root.yaml': 'id: edge_api_root\nextends: api\npath: specs/EDGE_API_ROOT.md\nparent:\n',
@@ -308,7 +308,7 @@ void main() {
   });
 
   test('a doc type with no parent is never parent_missing', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/runbook.yaml': 'id: runbook\ndescription: Run steps.\npath: ops/{slug}/runbook.md\n',
@@ -332,12 +332,15 @@ void main() {
         homeDirectory: null,
       );
       addTearDown(session.close);
-      expect(spots(runCheck(session), FindingKind.visionQuoteMissing), isEmpty);
+      expect(
+        spots(await runCheck(session), FindingKind.visionQuoteMissing),
+        isEmpty,
+      );
     },
   );
   group('nested features', () {
     test('f04/us01/fr07/e11, sf-c11: cart with no shop FEATURE.md is parent_missing', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeNestedProject(without: {'docs/$shopFeature'}),
       );
       final found = spots(report, FindingKind.parentMissing);
@@ -363,9 +366,9 @@ void main() {
 
     test('nested siblings cart/pay and add_item/drop_item give no order_number_duplicate; a second f01_x beside cart gives one', () async {
       const kind = FindingKind.orderNumberDuplicate;
-      expect(spots(checkOf(await writeNestedProject()), kind), isEmpty);
+      expect(spots(await checkOf(await writeNestedProject()), kind), isEmpty);
       const twin = 'prds/features/f02_shop/f01_x/FEATURE.md';
-      final report = checkOf(
+      final report = await checkOf(
         await writeNestedProject(
           extra: {'docs/$twin': nestedFiles()['docs/$cartFeature']!},
         ),
@@ -382,7 +385,7 @@ void main() {
 
   test('a FEATURE.md past max_depth is nesting_over_limit, not untyped_doc, and a note in its folder reports no untyped_doc and no link finding', () async {
     const folder = 'prds/features/f02_shop/f01_cart/f01_a/f01_b/f01_c';
-    final report = checkOf(
+    final report = await checkOf(
       await writeNestedProject(
         extra: {
           'docs/$folder/FEATURE.md': nestedFiles()['docs/$cartFeature']!,
@@ -439,7 +442,7 @@ void main() {
   group('f04/us01/fr07 singular_doc_missing', () {
     test('f04/us01/fr07/e13: a goal doc type and no prds/GOAL.md is one '
         'finding at line 1 with the type key and no name', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(without: {'docs/$_goalDoc'}),
       );
       final missing = _missingOf(report);
@@ -456,7 +459,7 @@ void main() {
 
     test('f04/us01/fr07/e14: no project doc is one finding at its path, '
         'type project', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(without: {'docs/$projectDoc'}),
       );
       expect(spots(report, FindingKind.singularDocMissing), [
@@ -468,7 +471,7 @@ void main() {
 
     test('f04/us01/fr07/e15: a project-layer type at prds/STYLE.md with no '
         'file is one finding', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'.specstone/templates/style.yaml': _styleLayer},
         ),
@@ -482,7 +485,7 @@ void main() {
 
     test('f04/us01/fr07/e15: a per_target type is one finding per target that '
         'lacks it, each with its target key', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeTwinProject(
           extra: {
             '.specstone/templates/style.yaml':
@@ -503,7 +506,7 @@ void main() {
 
     test('f04/us01/fr07/e21: a project on the shipped pins with no glossary '
         'doc is one finding at its path, type glossary', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(without: {'docs/$_glossaryDoc'}),
       );
       expect(spots(report, FindingKind.singularDocMissing), [
@@ -541,14 +544,14 @@ void main() {
       addTearDown(session.close);
 
       expect(
-        _missingOf(runCheck(session)).map((f) => f.keys['type']),
+        _missingOf(await runCheck(session)).map((f) => f.keys['type']),
         isNot(contains('glossary')),
       );
     });
 
     test('f04/us01/fr07/e16: one code target and no tech stack doc is one '
         'finding with no target key', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(without: {'docs/$techStack'}),
       );
       expect(spots(report, FindingKind.singularDocMissing), [
@@ -561,7 +564,7 @@ void main() {
 
     test('f04/us01/fr07/e17: flutter and jaspr with no jaspr tech stack is '
         'one finding for jaspr, its message ending --target jaspr', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeTwinProject(without: {'docs/specs/jaspr/TECH_STACK.md'}),
       );
       final missing = _missingOf(report);
@@ -576,7 +579,7 @@ void main() {
 
     test('f04/us01/fr07/e18: a project spec doc type with no doc is no '
         'finding', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(without: {'docs/$loginArchitecture'}),
       );
       expect([
@@ -603,7 +606,7 @@ void main() {
       expect([
         for (final type in session.index.set.docTypes) type.id,
       ], isNot(contains('goal')));
-      final report = runCheck(session);
+      final report = await runCheck(session);
       expect(_missingOf(report).map((f) => f.keys['type']), ['project']);
     });
 
@@ -645,7 +648,7 @@ void main() {
     );
 
     test('an empty goal file is present', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'docs/$_goalDoc': ''},
           unstamped: {'docs/$_goalDoc'},
@@ -655,7 +658,7 @@ void main() {
     });
 
     test('an empty glossary file is present', () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {'docs/$_glossaryDoc': ''},
           unstamped: {'docs/$_glossaryDoc'},

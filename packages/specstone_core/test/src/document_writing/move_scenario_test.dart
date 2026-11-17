@@ -206,8 +206,11 @@ Future<Directory> _citedProject() => _project(
 );
 
 /// The `suspect` findings `check` reports on [docPath], as their JSON.
-List<Map<String, Object>> _suspects(Directory root, String docPath) => [
-  for (final finding in checkOf(root, docPath: docPath).findings)
+Future<List<Map<String, Object>>> _suspects(
+  Directory root,
+  String docPath,
+) async => [
+  for (final finding in (await checkOf(root, docPath: docPath)).findings)
     if (finding.kind == FindingKind.suspect) finding.toJson(),
 ];
 
@@ -390,7 +393,7 @@ void main() {
     );
     expect(answer.text, startsWith('moved $cartAdd#S2 to $cartDrop#S7\n'));
     expect([
-      for (final finding in checkOf(root, docPath: cartDrop).findings)
+      for (final finding in (await checkOf(root, docPath: cartDrop)).findings)
         finding.kind,
     ], contains(FindingKind.subsectionsOverLimit));
   });
@@ -592,7 +595,7 @@ void main() {
       },
     );
     _move(root, ['$_addItem#S4']);
-    final findings = checkOf(root, docPath: frPath).findings;
+    final findings = (await checkOf(root, docPath: frPath)).findings;
     expect([
       for (final finding in findings)
         if (finding.kind == FindingKind.suspect) finding.toJson(),
@@ -641,11 +644,19 @@ void main() {
       final root = await _citedProject();
       final traced = [cartAddFr, _dropFr, _payFr, _journey];
       for (final docPath in traced) {
-        expect(_suspects(root, docPath), isEmpty, reason: 'before: $docPath');
+        expect(
+          await _suspects(root, docPath),
+          isEmpty,
+          reason: 'before: $docPath',
+        );
       }
       _move(root, ['$_addItem#S2']);
       for (final docPath in traced) {
-        expect(_suspects(root, docPath), isEmpty, reason: 'after: $docPath');
+        expect(
+          await _suspects(root, docPath),
+          isEmpty,
+          reason: 'after: $docPath',
+        );
       }
     });
 
@@ -661,7 +672,7 @@ void main() {
             ),
           },
         );
-        expect(_suspects(root, cartAddFr), hasLength(1));
+        expect(await _suspects(root, cartAddFr), hasLength(1));
         _move(root, ['$_addItem#S2']);
         expect(
           readDoc(root, cartAddFr),
@@ -669,7 +680,7 @@ void main() {
             _list('confirmed', ['S1 $_fp1', 'shop/cart/drop_item#S3 $_stale']),
           ),
         );
-        final suspects = _suspects(root, cartAddFr);
+        final suspects = await _suspects(root, cartAddFr);
         expect(suspects, hasLength(1));
         expect(suspects.single['link'], 'shop/cart/drop_item#S3');
         expect(suspects.single['recorded'], _stale);
@@ -700,7 +711,10 @@ void main() {
       );
       expect(
         [
-          for (final finding in checkOf(root, docPath: cartAddFr).findings)
+          for (final finding in (await checkOf(
+            root,
+            docPath: cartAddFr,
+          )).findings)
             if (finding.keys['link'] == 'S3') finding.kind,
         ],
         isEmpty,
@@ -720,7 +734,7 @@ void main() {
           ]),
         ),
       );
-      expect(_suspects(root, cartAddFr), isEmpty);
+      expect(await _suspects(root, cartAddFr), isEmpty);
     });
 
     test('check and move end a scenario at one line: a ###x line stays inside, a bare ### line and a quoted ### line end it', () async {
@@ -741,7 +755,11 @@ void main() {
             ),
           },
         );
-        expect(_suspects(root, cartAddFr), isEmpty, reason: 'before: $line');
+        expect(
+          await _suspects(root, cartAddFr),
+          isEmpty,
+          reason: 'before: $line',
+        );
         _move(root, ['$_addItem#S2']);
         expect(
           _bodyOf(root, cartDrop),
@@ -760,7 +778,11 @@ void main() {
           ]),
           reason: line,
         );
-        expect(_suspects(root, cartAddFr), isEmpty, reason: 'after: $line');
+        expect(
+          await _suspects(root, cartAddFr),
+          isEmpty,
+          reason: 'after: $line',
+        );
       }
     });
 
@@ -990,7 +1012,10 @@ void main() {
           expect(approved, isNot(before[docPath]), reason: docPath);
           expect(
             [
-              for (final finding in checkOf(root, docPath: docPath).findings)
+              for (final finding in (await checkOf(
+                root,
+                docPath: docPath,
+              )).findings)
                 finding.kind,
             ],
             isNot(contains(FindingKind.approvalStale)),

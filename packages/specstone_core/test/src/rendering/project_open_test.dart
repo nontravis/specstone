@@ -147,7 +147,7 @@ void main() {
       Link('${project.path}/.specstone').createSync('../x');
       final before = _snapshot(base);
 
-      expect(() => runInit(_init(project)), _refusesSpecstone());
+      await expectLater(() => runInit(_init(project)), _refusesSpecstone());
 
       expect(_snapshot(base), before);
     }, skip: _linksUnavailable);
@@ -156,7 +156,7 @@ void main() {
       final base = await writeTree({'proj/.specstone': 'not a folder\n'});
       final before = _snapshot(base);
 
-      expect(
+      await expectLater(
         () => runInit(_init(Directory('${base.path}/proj'))),
         _refusesSpecstone(),
       );
@@ -167,7 +167,7 @@ void main() {
     test('init still scaffolds a folder with no .specstone', () async {
       final base = await writeTree({'proj/keep.txt': 'mine\n'});
 
-      expect(runInit(_init(Directory('${base.path}/proj'))), 0);
+      expect(await runInit(_init(Directory('${base.path}/proj'))), 0);
 
       expect(
         File('${base.path}/proj/.specstone/config.yaml').existsSync(),

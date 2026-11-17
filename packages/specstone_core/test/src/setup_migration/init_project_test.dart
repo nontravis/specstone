@@ -38,17 +38,17 @@ const _draftPaths = [
 ];
 
 /// Runs `init` on [root] and returns its status with the printed lines.
-(int, List<String>) _run(
+Future<(int, List<String>)> _run(
   Directory root, {
   OwnerConfirmation confirmation = OwnerConfirmation.missing,
   List<String?> answers = const [],
   RunGit runGit = _noGit,
   String? planHash,
   List<String>? warnings,
-}) {
+}) async {
   final out = StringBuffer();
   var call = 0;
-  final status = runInit(
+  final status = await runInit(
     InitRequest(
       workingDirectory: root,
       homeDirectory: testHome(),
@@ -117,7 +117,7 @@ void main() {
       'then the config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(lines, [
@@ -141,10 +141,10 @@ void main() {
   test('a rerun that finds every agent file as written still stamps the '
       'config', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
-    _run(root);
+    await _run(root);
     File('${root.path}/.specstone/config.yaml').deleteSync();
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(lines.where((line) => line.startsWith('created .')), [
@@ -158,7 +158,7 @@ void main() {
     () async {
       final root = await writeTree({'CLAUDE.md': _importingClaude});
 
-      final (status, _) = _run(root);
+      final (status, _) = await _run(root);
 
       expect(status, 0);
       expect(_read(root, '.specstone/config.yaml'), _stampedConfig());
@@ -168,10 +168,10 @@ void main() {
   test('init then check reports no format_drift on the six drafts', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
-    final (status, _) = _run(root);
+    final (status, _) = await _run(root);
 
     expect(status, 0);
-    expect(spots(checkOf(root), FindingKind.formatDrift), isEmpty);
+    expect(spots(await checkOf(root), FindingKind.formatDrift), isEmpty);
   });
 
   test(
@@ -179,7 +179,7 @@ void main() {
     () async {
       final root = await writeTree({'docs/prds/PROJECT.md': '# Mine\n'});
 
-      final (status, lines) = _run(root);
+      final (status, lines) = await _run(root);
 
       expect(status, 0);
       expect(lines, [
@@ -202,7 +202,7 @@ void main() {
       'the next init', () async {
     // A full run supplies the two drafts a crash after them leaves.
     final whole = await writeTree({'keep.txt': 'x\n'});
-    _run(whole);
+    await _run(whole);
     final project = _read(whole, _draftPaths[0]);
     final features = _read(whole, _draftPaths[3]);
     final root = await writeTree({
@@ -210,7 +210,7 @@ void main() {
       _draftPaths[3]: features,
     });
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(lines, [
@@ -232,7 +232,7 @@ void main() {
   test('rerun keeps project and goal and creates glossary and the rest in '
       'order', () async {
     final whole = await writeTree({'keep.txt': 'x\n'});
-    _run(whole);
+    await _run(whole);
     final project = _read(whole, _draftPaths[0]);
     final goal = _read(whole, _draftPaths[1]);
     final root = await writeTree({
@@ -240,7 +240,7 @@ void main() {
       _draftPaths[1]: goal,
     });
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(lines.take(6), [
@@ -260,7 +260,7 @@ void main() {
     () async {
       final root = await writeTree({'keep.txt': 'x\n'});
 
-      _run(root);
+      await _run(root);
 
       expect(
         _read(root, 'docs/prds/GLOSSARY.md'),
@@ -276,7 +276,7 @@ void main() {
   test('init writes GOAL with its three headers', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
-    _run(root);
+    await _run(root);
 
     expect(
       _read(root, 'docs/prds/GOAL.md'),
@@ -302,7 +302,7 @@ void main() {
       '.cursor/keep': 'x',
     });
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(lines.sublist(lines.length - 12), [
@@ -341,7 +341,7 @@ void main() {
       });
       final before = _bytesUnder(root);
 
-      final (status, lines) = _run(root);
+      final (status, lines) = await _run(root);
 
       expect(status, 0);
       final rendered = renderHostFiles();
@@ -365,7 +365,7 @@ void main() {
       'and no Cursor rules file, though .cursor/agents is written', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(File('${root.path}/AGENTS.md').existsSync(), isTrue);
@@ -388,7 +388,7 @@ void main() {
       final warnings = <String>[];
       final before = _bytesUnder(Directory('${base.path}/outside'));
 
-      final (status, lines) = _run(project, warnings: warnings);
+      final (status, lines) = await _run(project, warnings: warnings);
 
       expect(status, 0);
       expect(warnings, [
@@ -406,7 +406,7 @@ void main() {
     final root = await writeTree({'.cursor': 'mine\n'});
     final warnings = <String>[];
 
-    final (status, lines) = _run(root, warnings: warnings);
+    final (status, lines) = await _run(root, warnings: warnings);
 
     expect(status, 0);
     expect(warnings, ['.cursor is not a folder; left as it is']);
@@ -419,11 +419,11 @@ void main() {
   test('a rerun after a stop before the config writes no skill or agent file '
       'and prints no count line', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
-    _run(root);
+    await _run(root);
     File('${root.path}/.specstone/config.yaml').deleteSync();
     final before = _bytesUnder(root)..remove('.specstone/config.yaml');
 
-    final (status, lines) = _run(root);
+    final (status, lines) = await _run(root);
 
     expect(status, 0);
     expect(lines, isNot(contains(matches(RegExp(r'^created .*: \d+ files$')))));
@@ -433,10 +433,10 @@ void main() {
   test('a rerun after a stop writes no Cursor rules file when the root had no '
       '.cursor folder before the first run', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
-    _run(root);
+    await _run(root);
     File('${root.path}/.specstone/config.yaml').deleteSync();
 
-    _run(root);
+    await _run(root);
 
     expect(
       File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
@@ -447,7 +447,7 @@ void main() {
   test('a root that holds .cursor/keep gets the Cursor rules file on the first '
       'run, and a rerun leaves it', () async {
     final root = await writeTree({'.cursor/keep': 'x'});
-    _run(root);
+    await _run(root);
     expect(
       File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
       isTrue,
@@ -455,7 +455,7 @@ void main() {
     File('${root.path}/.specstone/config.yaml').deleteSync();
     final before = _bytesUnder(root)..remove('.specstone/config.yaml');
 
-    _run(root);
+    await _run(root);
 
     expect(_bytesUnder(root)..remove('.specstone/config.yaml'), before);
   });
@@ -465,7 +465,7 @@ void main() {
     () async {
       final root = await writeTree({'.cursor/agents/my-agent.md': 'mine\n'});
 
-      final (_, lines) = _run(root);
+      final (_, lines) = await _run(root);
 
       expect(
         File('${root.path}/.cursor/rules/specstone.mdc').existsSync(),
@@ -483,7 +483,7 @@ void main() {
     });
     final before = _bytesUnder(root);
 
-    expect(
+    await expectLater(
       () => _run(root),
       throwsA(
         isA<MigrateFault>()
@@ -501,11 +501,11 @@ void main() {
     'after a stop before the config changes 0 bytes of the agent files',
     () async {
       final root = await writeTree({'CLAUDE.md': "Owner's rules\n"});
-      _run(root);
+      await _run(root);
       File.fromUri(root.uri.resolve('.specstone/config.yaml')).deleteSync();
       final before = _bytesUnder(root)..remove('.specstone/config.yaml');
 
-      final (status, lines) = _run(root);
+      final (status, lines) = await _run(root);
 
       expect(status, 0);
       expect(lines.where((line) => line.contains('AGENT')), isEmpty);
@@ -524,7 +524,7 @@ void main() {
       return;
     }
 
-    final (status, _) = _run(root);
+    final (status, _) = await _run(root);
 
     expect(status, 0);
     expect(
@@ -546,7 +546,7 @@ void main() {
     });
     final project = Directory('${base.path}/project');
 
-    final (status, lines) = _run(project);
+    final (status, lines) = await _run(project);
 
     expect(status, 0);
     final topLine = lines.indexOf('updated other/AGENTS.md');
@@ -574,7 +574,7 @@ void main() {
     final project = Directory('${base.path}/project');
     final warnings = <String>[];
 
-    final (status, lines) = _run(project, warnings: warnings);
+    final (status, lines) = await _run(project, warnings: warnings);
 
     expect(status, 0);
     expect(warnings, [
@@ -605,7 +605,7 @@ void main() {
           .createSync('../../victim.txt');
       final warnings = <String>[];
 
-      final (status, lines) = _run(
+      final (status, lines) = await _run(
         Directory('${base.path}/proj'),
         warnings: warnings,
       );
@@ -627,7 +627,7 @@ void main() {
       Link('${base.path}/proj/CLAUDE.md').createSync('.git/config');
       final warnings = <String>[];
 
-      final (status, lines) = _run(
+      final (status, lines) = await _run(
         Directory('${base.path}/proj'),
         warnings: warnings,
       );
@@ -646,7 +646,7 @@ void main() {
       final base = await writeTree({'proj/keep.txt': ''});
       Link('${base.path}/proj/AGENTS.md').createSync('missing.md');
 
-      expect(
+      await expectLater(
         () => _run(Directory('${base.path}/proj')),
         throwsA(
           isA<RenderFault>()
@@ -667,7 +667,7 @@ void main() {
       });
       Link('${base.path}/proj/docs/prds').createSync('../../outside');
 
-      expect(
+      await expectLater(
         () => _run(Directory('${base.path}/proj')),
         throwsA(
           isA<RenderFault>()
@@ -695,7 +695,7 @@ void main() {
     });
     final project = Directory('${base.path}/project');
 
-    final (status, _) = _run(project);
+    final (status, _) = await _run(project);
 
     expect(status, 0);
     expect(File('${base.path}/project/other#1/AGENTS.md').existsSync(), isTrue);
@@ -715,7 +715,7 @@ void main() {
         return;
       }
 
-      final (status, lines) = _run(root);
+      final (status, lines) = await _run(root);
 
       expect(status, 0);
       expect(
@@ -734,7 +734,7 @@ void main() {
       'no templates folder', () async {
     final root = await writeTree({'keep.txt': 'x\n'});
 
-    final (status, _) = _run(root);
+    final (status, _) = await _run(root);
 
     expect(status, 0);
     expect(File('${root.path}/.specstone/.gitignore').existsSync(), isFalse);
@@ -752,7 +752,7 @@ void main() {
       homeDirectory: testHome(),
     );
 
-    _run(root);
+    await _run(root);
 
     for (final docType in set.docTypes) {
       final path = 'docs/${docType.path}';
@@ -765,7 +765,7 @@ void main() {
     final root = await gitFixture({'keep.txt': 'x\n'});
     final headBefore = git(root, ['rev-parse', 'HEAD']).stdout as String;
 
-    final (status, _) = _run(root);
+    final (status, _) = await _run(root);
 
     expect(status, 0);
     expect(git(root, ['rev-parse', 'HEAD']).stdout as String, headBefore);
@@ -784,7 +784,7 @@ void main() {
       });
       final before = _bytesUnder(root);
 
-      expect(
+      await expectLater(
         () => _run(root),
         throwsA(
           isA<MigrateFault>()
@@ -807,7 +807,7 @@ void main() {
       'run at its git checks', () async {
     final root = await gitFixture(acmeLegacy);
 
-    final (status, lines) = _run(
+    final (status, lines) = await _run(
       root,
       confirmation: OwnerConfirmation.prompt,
       answers: ['y'],
@@ -828,7 +828,7 @@ void main() {
       'created draft', () async {
     final root = await gitFixture(acmeLegacy);
 
-    final (status, _) = _run(
+    final (status, _) = await _run(
       root,
       confirmation: OwnerConfirmation.prompt,
       answers: ['y'],
@@ -850,7 +850,7 @@ void main() {
       'legacy tree writes the agent files in commit 2', () async {
     final root = await gitFixture({...acmeLegacy, 'CLAUDE.md': '# Acme\n'});
 
-    final (status, lines) = _run(
+    final (status, lines) = await _run(
       root,
       confirmation: OwnerConfirmation.prompt,
       answers: ['y'],
@@ -880,7 +880,7 @@ void main() {
       'applies the migrate run with no prompt', () async {
     final root = await gitFixture(acmeLegacy);
     final dryRun = StringBuffer();
-    runMigrate(
+    await runMigrate(
       MigrateRequest(
         workingDirectory: root,
         homeDirectory: testHome(),
@@ -894,7 +894,7 @@ void main() {
     final dryLines = dryRun.toString().split('\n');
     final hash = dryLines[dryLines.length - 3].substring('plan '.length);
 
-    final (status, lines) = _run(
+    final (status, lines) = await _run(
       root,
       confirmation: OwnerConfirmation.given,
       runGit: runRealGit,
@@ -915,7 +915,7 @@ void main() {
     final root = await gitFixture(acmeLegacy);
     final legacy = _bytesUnder(root);
 
-    expect(
+    await expectLater(
       () => _run(
         root,
         confirmation: OwnerConfirmation.given,
@@ -939,7 +939,7 @@ void main() {
     final legacy = _bytesUnder(root);
 
     final out = StringBuffer();
-    expect(
+    await expectLater(
       () => runInit(
         InitRequest(
           workingDirectory: root,
@@ -985,7 +985,7 @@ void main() {
       homeDirectory: testHome(),
     ).record();
 
-    expect(
+    await expectLater(
       () => runInit(
         InitRequest(
           workingDirectory: Directory('${tree.path}/ws/code'),
@@ -1032,7 +1032,7 @@ void main() {
     final initOut = StringBuffer();
     final migrateOut = StringBuffer();
 
-    expect(
+    await expectLater(
       () => runInit(
         InitRequest(
           workingDirectory: code,
@@ -1047,7 +1047,7 @@ void main() {
       throwsA(isA<WriteFault>()),
     );
     expect(
-      runMigrate(
+      await runMigrate(
         MigrateRequest(
           workingDirectory: code,
           homeDirectory: testHome(),
@@ -1078,7 +1078,7 @@ void main() {
     if (!linkCodeDocs(tree)) return;
     final calls = <List<String>>[];
 
-    expect(
+    await expectLater(
       () => _run(
         Directory('${tree.path}/ws/code'),
         confirmation: OwnerConfirmation.prompt,
@@ -1105,7 +1105,7 @@ void main() {
     File('${root.path}/notes.txt').writeAsStringSync('x\n');
     final out = StringBuffer();
 
-    expect(
+    await expectLater(
       () => runInit(
         InitRequest(
           workingDirectory: root,
@@ -1138,7 +1138,7 @@ void main() {
     for (final root in [outside, unborn]) {
       final out = StringBuffer();
 
-      expect(
+      await expectLater(
         () => runInit(
           InitRequest(
             workingDirectory: root,
@@ -1167,7 +1167,7 @@ void main() {
       'exit 75, and the journal stays', () async {
     final root = await gitFixture(acmeLegacy);
 
-    expect(
+    await expectLater(
       () => _run(
         root,
         confirmation: OwnerConfirmation.prompt,
@@ -1190,7 +1190,7 @@ void main() {
       'git_work_tree_required', () async {
     final root = await writeTree(acmeLegacy);
 
-    expect(
+    await expectLater(
       () => _run(
         root,
         confirmation: OwnerConfirmation.prompt,
@@ -1213,7 +1213,7 @@ void main() {
     expect(Process.runSync('chmod', ['555', root.path]).exitCode, 0);
     addTearDown(() => Process.runSync('chmod', ['755', root.path]));
 
-    expect(
+    await expectLater(
       () => _run(root),
       throwsA(
         isA<RenderFault>()
@@ -1236,7 +1236,7 @@ void main() {
     });
     final inner = Directory.fromUri(outer.uri.resolve('app'));
 
-    final (status, lines) = _run(inner);
+    final (status, lines) = await _run(inner);
 
     expect(status, 0);
     expect(lines.last, _configLine());
@@ -1266,7 +1266,7 @@ void main() {
     final code = Directory('${tree.path}/repo/code');
     locateSetupTrust(code, homeDirectory: testHome()).record();
 
-    final (status, lines) = _run(code);
+    final (status, lines) = await _run(code);
 
     expect(status, 0);
     expect(lines.last, _configLine());

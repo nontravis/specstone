@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
-import 'package:specstone_core/src/doc_model/doc.dart' show Doc, fenceScan;
+import 'package:specstone_core/src/doc_model/doc.dart'
+    show Doc, fenceScan, mermaidInfoWord;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 
 /// A doc-name mention: a code span whose whole text, less an optional
@@ -10,14 +11,11 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 /// of `text` in its line, after the opening backticks.
 typedef NameMention = ({int line, int column, String text, DocAddress address});
 
-/// The info word that marks a fenced block as a Mermaid diagram.
-const _mermaidInfo = 'mermaid';
-
 /// The doc-name mentions of [lf], a doc body or a markdown file, read from its
 /// code spans outside fenced code and from the tokens of its `mermaid` blocks,
 /// each line alone.
 List<NameMention> nameMentionsInMarkdown(String lf) {
-  if (!lf.contains('`') && !lf.contains(_mermaidInfo)) return const [];
+  if (!lf.contains('`') && !lf.contains(mermaidInfoWord)) return const [];
   return _readLines(
     lf.split('\n'),
     1,
@@ -105,7 +103,7 @@ List<_Diagram> _mermaidLines(
   for (var i = 0; i < fenced.length; i++) {
     final opened = opens[i];
     if (opened != null) {
-      inMermaid = opened == _mermaidInfo;
+      inMermaid = opened == mermaidInfoWord;
       head = _BlockHead.start;
       kind = _Diagram.flow;
     }
@@ -219,7 +217,7 @@ List<NameMention> nameMentionsInFile(
   String extension, {
   bool withMermaid = false,
 }) {
-  final holdsTokens = withMermaid && lf.contains(_mermaidInfo);
+  final holdsTokens = withMermaid && lf.contains(mermaidInfoWord);
   if (!lf.contains('`') && !lf.contains(markdownExtension) && !holdsTokens) {
     return const [];
   }

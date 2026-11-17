@@ -24,7 +24,7 @@ Future<List<Finding>> _found(
 }) async {
   _project = await writeCheckProject(extra: extra);
   return [
-    for (final f in checkOf(_project, docPath: docPath).findings)
+    for (final f in (await checkOf(_project, docPath: docPath)).findings)
       if (_readabilityKinds.contains(f.kind)) f,
   ];
 }

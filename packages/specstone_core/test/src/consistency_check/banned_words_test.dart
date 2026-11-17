@@ -10,7 +10,7 @@ import '../../helpers/index_fixture.dart';
 
 void main() {
   test('f04/us01/s4, f04/us01/fr05/e01: fast counts in the Statement only, not in the Rationale', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(loginFr, [
           (
@@ -37,7 +37,7 @@ void main() {
   test(
     'a doc-level word and a section word in one section are both reported',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [simply]\n',
@@ -58,7 +58,7 @@ void main() {
   );
 
   test('a gnfr section bans the word on its Statement lines only', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: edit(gnfrDoc, [
           (
@@ -78,7 +78,7 @@ void main() {
   test(
     'allowed_words free a word everywhere, or in their section only',
     () async {
-      final everywhere = checkOf(
+      final everywhere = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/fr.yaml': 'lint:\n  allowed_words: [safe]\n',
@@ -90,7 +90,7 @@ void main() {
         ),
       );
       expect(spots(everywhere, FindingKind.bannedWord), isEmpty);
-      final oneSection = checkOf(
+      final oneSection = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/fr.yaml': 'lint:\n  banned_words: [safe]\nsections:\n  - id: statement\n    lint:\n      allowed_words: [safe]\n',
@@ -121,7 +121,7 @@ void main() {
   });
 
   test('a software-tech spec doc type bans no word at either level', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: doc(
           loginApi,
@@ -136,7 +136,7 @@ void main() {
   test(
     'a banned-word finding names the template section id, not the header slug',
     () async {
-      final report = checkOf(
+      final report = await checkOf(
         await writeCheckProject(
           extra: {
             '.specstone/templates/user_story.yaml':
@@ -160,7 +160,7 @@ void main() {
   );
 
   test('a phrase and its last word are both reported on one line', () async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(
         extra: {
           '.specstone/templates/fr.yaml':
@@ -181,7 +181,7 @@ void main() {
   });
 
   Future<List<Finding>> bannedIn(String statement) async {
-    final report = checkOf(
+    final report = await checkOf(
       await writeCheckProject(extra: fr(checkPasswordStatement, statement)),
     );
     return report.findings
