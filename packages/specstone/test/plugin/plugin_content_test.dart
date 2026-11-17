@@ -3937,8 +3937,8 @@ const _dependentsSearchPoints = [
   'Run `specstone check <feature> --repeats` for the repeat groups that hold',
   'the owner item.',
   'Each doc found that restates the rule instead of citing its owner gets a',
-  "row: its change links the owner's item that holds the rule, or rewrites",
-  "the doc when it owns a rule that reads the decision's rule.",
+  "Docs to change row: its change links the owner's item that holds the rule,",
+  "or rewrites the doc when it owns a rule that reads the decision's rule.",
   'With no cited-by line on the owner item, as in a tree that still cites by',
   'number labels, the repeat groups and the text search carry the decision.',
   'Record the searched terms either way, so the audit sees them.',
@@ -3974,7 +3974,7 @@ const _writtenFormPoints = [
   "Search the saved files' text for the decision's terms and for the wording",
   'it supersedes, each in every written form: with and without a',
   'trailing `/`, in backticks or not, singular and plural, and a short form.',
-  'Search every section of each doc in a row.',
+  'Search every section of each doc in a Docs to change row.',
 ];
 
 /// Each point of `write_design_document` E28 as step 4 of design.md words it,

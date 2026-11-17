@@ -1,4 +1,4 @@
-The runner follows this at its write step, with the Owner's answers in hand.
+The runner follows this at its write step.
 
 ## 1. Check the inputs
 
@@ -59,9 +59,9 @@ Before the Docs to change table closes, find each decision's dependents in your 
 - Run `specstone check <feature> --repeats` for the repeat groups that hold the owner item.
 - Search the saved files' text for the decision's terms and for the wording it supersedes, each in every written form:
   with and without a trailing `/`, in backticks or not, singular and plural, and a short form. Search every section
-  of each doc in a row.
-- Each doc found that restates the rule instead of citing its owner gets a row: its change links the owner's item that
-  holds the rule, or rewrites the doc when it owns a rule that reads the decision's rule.
+  of each doc in a Docs to change row.
+- Each doc found that restates the rule instead of citing its owner gets a Docs to change row: its change links the
+  owner's item that holds the rule, or rewrites the doc when it owns a rule that reads the decision's rule.
 - With no cited-by line on the owner item, as in a tree that still cites by number labels, the repeat groups and the
   text search carry the decision. Record the searched terms either way, so the audit sees them.
 - An amend for a decision that adds or changes behavior runs these steps on its terms and adds its rows and searched
