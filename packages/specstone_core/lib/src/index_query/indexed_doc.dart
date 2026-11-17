@@ -44,6 +44,7 @@ int tokenSizeOf(String text) => text.runes.length ~/ 4;
 final _outsideKey = RegExp(r'[^\p{L}\p{M}\p{N} _-]', unicode: true);
 final _keySeparators = RegExp('[ _-]+');
 final _keyEdges = RegExp(r'^_+|_+$');
+final _lineBreak = RegExp(r'\s*\n\s*');
 
 /// The key of the lead: the text before a doc's first `##` header.
 ///
@@ -201,6 +202,15 @@ final class IndexedDoc {
     final String value => value,
     _ => null,
   };
+
+  /// Returns the `summary` string on one line, or null when it holds no text.
+  ///
+  /// A non-string reads as null as in [stringValueOf]; each line break, with
+  /// the space around it, becomes one space, so a block scalar reads whole.
+  String? get oneLineSummary {
+    final line = stringValueOf('summary')?.trim().replaceAll(_lineBreak, ' ');
+    return line == null || line.isEmpty ? null : line;
+  }
 
   /// Returns the values of [key]: a scalar as one string, each scalar item of
   /// a list, else none.

@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/index_query/doc_index.dart';
+import 'package:specstone_core/src/index_query/feature_catalog.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/list_docs.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
@@ -43,17 +44,6 @@ void main() {
       expect(lines.first, contains(' · '));
     });
 
-    test(
-      'list keeps the structure line of a feature with no summary',
-      () async {
-        final answer = answerList(index, 'feature', const ListFilters());
-        expect(
-          answer.text.split('\n').first,
-          docLine(index, index.at('prds/features/f01_login/FEATURE.md')!),
-        );
-      },
-    );
-
     test('structure prints no summary', () async {
       final withSummary = await withSummaries('Grounds a task in one call.');
       final doc = withSummary.at('prds/features/f01_login/FEATURE.md')!;
@@ -73,6 +63,38 @@ void main() {
       );
       expect(docs.last.containsKey('summary'), isFalse);
     });
+
+    for (final (label, value, one) in [
+      ('a block scalar', '|\n  Grounds a task.\n  In one call.', true),
+      ('a blank', '""', false),
+      ('a whitespace-only value', r'"  \n "', false),
+    ]) {
+      test('$label reads as one line in list, json, and the catalog', () async {
+        final feature = await withSummaries(value);
+        final answer = answerList(feature, 'feature', const ListFilters());
+        final lines = answer.text.trimRight().split('\n');
+        expect(lines, hasLength(2), reason: 'one line per feature');
+        final json = (answer.json['docs']! as List)
+            .cast<Map<String, Object?>>()
+            .first;
+        final cell = featureCatalogText(
+          feature,
+          'prds/FEATURES.md',
+        ).split('\n').firstWhere((l) => l.startsWith('| [Login]'));
+        if (one) {
+          expect(lines.first, endsWith(' — Grounds a task. In one call.'));
+          expect(json['summary'], 'Grounds a task. In one call.');
+          expect(cell, contains('| Grounds a task. In one call. |'));
+        } else {
+          expect(
+            lines.first,
+            docLine(feature, feature.at('prds/features/f01_login/FEATURE.md')!),
+          );
+          expect(json.containsKey('summary'), isFalse);
+          expect(cell, contains('| — |'));
+        }
+      });
+    }
 
     test('a number summary adds no suffix and no json key', () async {
       final numbered = await withSummaries('42');

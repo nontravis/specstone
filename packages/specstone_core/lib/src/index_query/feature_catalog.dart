@@ -120,7 +120,7 @@ String _statusCounts(
 String _row(DocIndex index, IndexedDoc feature, String featuresDocPath) {
   final cells = [
     _featureLink(feature, featuresDocPath),
-    _cell(feature.stringValueOf('summary') ?? ''),
+    _cell(feature.oneLineSummary ?? ''),
     statusPartOf(index, feature, null) ?? _noValue,
     _byTarget(index, (target) => _storiesOf(index, feature, target).cell),
     _cell(

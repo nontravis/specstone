@@ -4,8 +4,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/templates/template_fault.dart';
 
-const _summaryKey = 'summary';
-
 /// The filters `specstone list` applies; a doc must pass every one given.
 final class ListFilters {
   const new({
@@ -84,7 +82,7 @@ ReadAnswer answerList(DocIndex index, String docTypeId, ListFilters filters) {
 /// Returns [doc]'s `structure` line, ` — <summary>` and a line end after it.
 String _listLine(DocIndex index, IndexedDoc doc, String? codeTarget) {
   final line = docLineWithStatus(doc, statusPartOf(index, doc, codeTarget));
-  final summary = doc.stringValueOf(_summaryKey);
+  final summary = doc.oneLineSummary;
   return summary == null ? '$line\n' : '$line — $summary\n';
 }
 
@@ -95,7 +93,7 @@ Map<String, Object> _listJson(
   String? codeTarget,
 ) => {
   ...docJsonWithStatuses(index, doc, codeTarget),
-  'summary': ?doc.stringValueOf(_summaryKey),
+  'summary': ?doc.oneLineSummary,
 };
 
 /// Throws `argument_missing` when a per-target filter would judge two or
