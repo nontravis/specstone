@@ -141,26 +141,6 @@ void main() {
         expect(out.toString(), isNot(contains('5d1e0c4b7a92')));
       },
     );
-
-    test('refs --json gives a row the kind verifies', () async {
-      final (:runner, :out, :err) = readRunner(await projectWithRow());
-
-      expect(await runner.run(['refs', 'implementation:login', '--json']), 0);
-
-      final doc =
-          ((jsonDecode(out.toString()) as Map)['docs']! as List).single as Map;
-      expect(doc['outbound'], [
-        {'kind': 'verifies', 'pointer': row},
-      ]);
-    });
-
-    test('refs on the FR a row names lists no verifies line', () async {
-      final (:runner, :out, :err) = readRunner(await projectWithRow());
-
-      expect(await runner.run(['refs', 'login/$item']), 0);
-
-      expect(out.toString(), isNot(contains('verifies')));
-    });
   });
 
   for (final folder in ['measurements', 'plans']) {

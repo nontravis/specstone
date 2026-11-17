@@ -998,22 +998,33 @@ void main() {
       expect(text, answerRefs(bare, 'implementation:login').text);
     });
 
-    test('keeps a backtick of the test name inside its code span', () async {
-      final recorded = await recordWith(
-        '## Verification matrix\n\n'
-        '- $item E02: `` refuses `x` `` 5d1e0c4b7a92\n',
-      );
+    test(
+      'prints a code span as written, whatever its fence and padding',
+      () async {
+        const spans = [
+          '`` refuses `x` ``',
+          '``refuses a wrong password``',
+          '`  padded  `',
+        ];
+        final recorded = await recordWith(
+          '## Verification matrix\n\n'
+          '- $item E02: ${spans[0]} 5d1e0c4b7a92\n'
+          '- $item E03: ${spans[1]} 5d1e0c4b7a92\n'
+          '- $item E04: ${spans[2]}\n',
+        );
 
-      expect(
-        recordOf(recorded)['outbound'],
-        contains(
-          equals({
-            'kind': 'verifies',
-            'pointer': '$item E02: `` refuses `x` ``',
-          }),
-        ),
-      );
-    });
+        final verifies = [
+          for (final ref in recordOf(recorded)['outbound']! as List)
+            if ((ref as Map)['kind'] == 'verifies') ref['pointer'],
+        ];
+
+        expect(verifies, [
+          '$item E02: ${spans[0]}',
+          '$item E03: ${spans[1]}',
+          '$item E04: ${spans[2]}',
+        ]);
+      },
+    );
 
     test('lists no line for a malformed matrix line', () async {
       final recorded = await recordWith(

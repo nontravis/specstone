@@ -23,6 +23,7 @@ sealed class MatrixLine {
         literal: json['literal']! as String,
         fingerprint: json['fingerprint'] as String?,
         line: line,
+        written: json['written']! as String,
       ),
       'skip' => SkipRow(
         item: json['item']! as String,
@@ -30,6 +31,7 @@ sealed class MatrixLine {
         reason: json['reason']! as String,
         fingerprint: json['fingerprint'] as String?,
         line: line,
+        written: json['written']! as String,
       ),
       'malformed' => MalformedRow(line: line, text: json['text']! as String),
       final kind => throw FormatException('no matrix line of kind $kind'),
@@ -77,6 +79,7 @@ sealed class MatrixRow extends MatrixLine {
     required this.item,
     required this.edgeCase,
     required super.line,
+    required this.written,
     this.fingerprint,
   });
 
@@ -88,6 +91,14 @@ sealed class MatrixRow extends MatrixLine {
 
   /// The 12 lowercase hex characters that end the row; null with none.
   final String? fingerprint;
+
+  /// The row as the file writes it: its text less the leading `- `, and less
+  /// its fingerprint with the spaces before it. A row built with no value takes
+  /// the form with one space and one backtick around [TestRow.literal].
+  ///
+  /// Two rows with the same facts are equal whatever form the file gave them,
+  /// so `==` leaves this out.
+  final String written;
 
   /// The row's link label: the item, `#`, and the edge case.
   String get label => '$item#$edgeCase';
@@ -101,7 +112,8 @@ final class TestRow extends MatrixRow {
     required this.literal,
     required super.line,
     super.fingerprint,
-  });
+    String? written,
+  }) : super(written: written ?? '$item $edgeCase: `$literal`');
 
   /// The content of the row's code span, as the test file writes the name.
   final String literal;
@@ -127,13 +139,14 @@ final class TestRow extends MatrixRow {
     'edgeCase': edgeCase,
     'literal': literal,
     'fingerprint': fingerprint,
+    'written': written,
     'line': line,
   };
 
   @override
   String toString() =>
       'TestRow(item: $item, edgeCase: $edgeCase, literal: $literal, '
-      'fingerprint: $fingerprint, line: $line)';
+      'fingerprint: $fingerprint, written: $written, line: $line)';
 }
 
 /// A row that gives the reason no test proves its edge case.
@@ -144,7 +157,8 @@ final class SkipRow extends MatrixRow {
     required this.reason,
     required super.line,
     super.fingerprint,
-  });
+    String? written,
+  }) : super(written: written ?? '$item $edgeCase skipped: $reason');
 
   /// The text after `skipped: `, its fingerprint left off.
   final String reason;
@@ -170,13 +184,14 @@ final class SkipRow extends MatrixRow {
     'edgeCase': edgeCase,
     'reason': reason,
     'fingerprint': fingerprint,
+    'written': written,
     'line': line,
   };
 
   @override
   String toString() =>
       'SkipRow(item: $item, edgeCase: $edgeCase, reason: $reason, '
-      'fingerprint: $fingerprint, line: $line)';
+      'fingerprint: $fingerprint, written: $written, line: $line)';
 }
 
 const _skipMark = ' skipped: ';
@@ -245,6 +260,7 @@ TestRow? _testRowOf(String text, int line) {
     literal: _spanContentOf(rest.substring(span.ticks, span.end - span.ticks)),
     fingerprint: fingerprint,
     line: line,
+    written: _writtenOf(text, fingerprint),
   );
 }
 
@@ -279,7 +295,17 @@ SkipRow? _skipRowOf(String text, int line) {
     reason: reason,
     fingerprint: fingerprint,
     line: line,
+    written: _writtenOf(text, fingerprint),
   );
+}
+
+/// Returns the row [text] less its leading `- `, its trailing whitespace, and
+/// [fingerprint] with the spaces before it.
+String _writtenOf(String text, String? fingerprint) {
+  final body = text.trimRight().substring(2);
+  return fingerprint == null
+      ? body
+      : body.substring(0, body.length - fingerprint.length).trimRight();
 }
 
 // The one finder of the matrix section: the rows, the size counts, and the

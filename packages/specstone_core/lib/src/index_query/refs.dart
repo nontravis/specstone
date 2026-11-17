@@ -1,5 +1,3 @@
-import 'dart:math' show max;
-
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart';
@@ -17,7 +15,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 const _frType = 'fr';
 const _tracedFromKey = 'traced_from';
 const _verifiesKind = 'verifies';
-final _backtickRun = RegExp('`+');
 
 /// The inbound story maps of each index, built on first use: an index is
 /// one read snapshot, so a delete unit's [referrersOf] calls share them.
@@ -57,8 +54,8 @@ final class _Ref {
 ///
 /// Outbound holds each `doc_ref` field value that resolves, each doc the doc
 /// links to, each story a journey step or an `fr`'s `traced_from` entry names,
-/// and its `output_ref` pointers without a fingerprint: a record's code paths,
-/// test paths, and matrix rows, and `covers`.
+/// its `output_ref` pointers without a fingerprint (a record's code paths and
+/// test paths, `covers`), then a record's matrix rows as written.
 /// Inbound holds the docs whose `doc_ref` value reaches the doc, then those
 /// linking to it, then the journeys with a step naming it, then the `fr` docs
 /// tracing it, each group in tree order of the referring docs. Mentions holds
@@ -135,8 +132,8 @@ ReadAnswer answerRefs(DocIndex index, String address, {String? codeTarget}) {
 
 /// Returns the outbound references of [doc]: its `doc_ref` fields in field
 /// order, the docs it links to, the stories its steps and `traced_from` entries
-/// name, then its `output_ref` pointers. A value naming [doc] itself is left
-/// out.
+/// name, then its `output_ref` pointers and matrix rows. A value naming [doc]
+/// itself is left out.
 List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
   final refs = <_Ref>[];
   for (final field in _docRefFields(index, doc)) {
@@ -157,14 +154,13 @@ List<_Ref> _outbound(DocIndex index, IndexedDoc doc) {
 }
 
 /// Returns the `output_ref` pointers of [doc], one field after another in
-/// field order, each without a code fingerprint, then the rows of its
-/// Verification matrix.
+/// field order, each without a code fingerprint, then each row of its
+/// Verification matrix as [MatrixRow.written], in file order.
 ///
 /// An `item_exact` field belongs to a record: it gives each line's code path
 /// with the item left off, in line order, as [recordCodeLinesOf] reads them.
 /// An `item_test` field gives each line's test path alone, as
-/// [recordTestLinesOf] reads it. A matrix row is listed as it is written,
-/// without its leading `- `, in file order; a malformed line is no row.
+/// [recordTestLinesOf] reads it. A malformed matrix line is no row.
 List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
   final type = index.typeOf(doc);
   if (type == null) return const [];
@@ -184,37 +180,8 @@ List<_Ref> _pointers(DocIndex index, IndexedDoc doc) {
               isCodeLinkField(field) ? CodeLinkEntry(value).pointer : value,
             ),
     for (final row in doc.matrixLines.whereType<MatrixRow>())
-      _Ref.toPointer(_verifiesKind, _rowText(row)),
+      _Ref.toPointer(_verifiesKind, row.written),
   ];
-}
-
-/// Returns [row] as the matrix section writes it, less the leading `- ` and
-/// the fingerprint.
-String _rowText(MatrixRow row) => switch (row) {
-  TestRow(:final literal) =>
-    '${row.item} ${row.edgeCase}: ${_codeSpanOf(literal)}',
-  SkipRow(:final reason) => '${row.item} ${row.edgeCase} skipped: $reason',
-};
-
-/// Returns [content] in a code span that CommonMark reads back as [content].
-///
-/// The fence is one backtick longer than the longest run in [content]; a
-/// space pads each end when [content] starts or ends with a backtick, or with
-/// a space at both ends.
-String _codeSpanOf(String content) {
-  final longestRun = _backtickRun
-      .allMatches(content)
-      .map((run) => run.end - run.start)
-      .fold(0, max);
-  final fence = '`' * (longestRun + 1);
-  final needsPad =
-      content.startsWith('`') ||
-      content.endsWith('`') ||
-      (content.length > 1 &&
-          content.startsWith(' ') &&
-          content.endsWith(' ') &&
-          content.trim().isNotEmpty);
-  return needsPad ? '$fence $content $fence' : '$fence$content$fence';
 }
 
 /// Returns each doc's inbound `doc_ref` references, in tree order of the
