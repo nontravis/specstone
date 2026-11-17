@@ -1,15 +1,20 @@
 import 'dart:convert';
 
+import 'package:specstone_core/src/consistency_check/finding.dart'
+    show FindingKind;
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/cite_candidates.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show itemIdPrefixesOf;
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
 import 'package:test/test.dart';
+
+import '../../helpers/check_fixture.dart'
+    show checkOf, loginRecord, spots, writeCheckProject;
+import '../../helpers/record_doc_type.dart';
 
 /// The item ID prefixes of the shipped packs.
 final Set<String> _idPrefixes = itemIdPrefixesOf(
@@ -34,28 +39,9 @@ String _doc(String body) => '---\nstatus: planned\n---\n\n# T\n$body';
 const _recordPath = 'specs/f01_feedback/IMPLEMENTATION.md';
 
 /// A record doc type with no matrix section.
-const MergedDocType _plainRecordType = MergedDocType(
-  id: 'implementation',
-  path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
-  isPerTarget: false,
-  fields: [
-    MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
-  ],
-  sections: [],
-  lint: MergedLint(),
-  files: [],
-);
+final MergedDocType _plainRecordType = recordDocType(sections: const []);
 
-/// [_plainRecordType] with the matrix section a record doc type may carry.
-final MergedDocType _matrixRecordType = _plainRecordType.copyWith(
-  sections: const [
-    MergedSection(
-      id: verificationMatrixKey,
-      header: 'Verification matrix',
-      isOutputRef: true,
-    ),
-  ],
-);
+final MergedDocType _matrixRecordType = recordDocType();
 
 /// A record text whose matrix section holds [rows], the first on file line 5.
 String _matrixRecord(String rows) =>
@@ -303,5 +289,28 @@ void main() {
       ];
       expect(read, [(5, 'domain:login')]);
     });
+
+    test(
+      'check reports no cite_unlinked for the literal of a test row that '
+      'resolves to one doc, and one for the same span outside the matrix',
+      () async {
+        const record =
+            "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+            '# Login implementation\n\n'
+            '## Verification matrix\n\n'
+            '- email_login/check_password E01: `login/email_login`\n\n'
+            '## Notes\n\n'
+            'See `login/email_login`.\n';
+        final report = await checkOf(
+          await writeCheckProject(extra: {loginRecord: record}),
+        );
+
+        // The fixture's approval stamp adds one frontmatter line, so the span
+        // outside the matrix sits on line 15.
+        expect(spots(report, FindingKind.citeUnlinked), [
+          '$loginRecord:15: cite_unlinked',
+        ]);
+      },
+    );
   });
 }

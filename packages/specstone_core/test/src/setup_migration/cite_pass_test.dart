@@ -8,7 +8,6 @@ import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
     show parseOverrides, singularLayoutPathsOf;
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
@@ -17,6 +16,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart' show checkOf, writeCheckProject;
 import '../../helpers/index_fixture.dart';
+import '../../helpers/record_doc_type.dart';
 
 const _feature = 'prds/features/f01_login/FEATURE.md';
 const _domain = 'specs/f01_login/DOMAIN.md';
@@ -25,23 +25,7 @@ const _citing = 'specs/f02_signup/ARCHITECTURE.md';
 const _record = 'specs/f03_feedback/IMPLEMENTATION.md';
 
 /// A record doc type that carries the matrix section.
-const MergedDocType _matrixRecordType = MergedDocType(
-  id: 'implementation',
-  path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
-  isPerTarget: false,
-  fields: [
-    MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
-  ],
-  sections: [
-    MergedSection(
-      id: verificationMatrixKey,
-      header: 'Verification matrix',
-      isOutputRef: true,
-    ),
-  ],
-  lint: MergedLint(),
-  files: [],
-);
+final MergedDocType _matrixRecordType = recordDocType();
 
 /// The docs every case resolves against: the login feature, its domain doc
 /// holding INV-6 and INV-7, and a topic holding RULE-14 and RULE-19.

@@ -11,14 +11,15 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
+import '../../helpers/record_doc_type.dart';
+
 /// The record doc type `domain:template_packs` INV-31 gives: found by its
 /// `record_status` field, per-target.
-const _recordType = MergedDocType(
-  id: 'implementation',
-  path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
+final MergedDocType _recordType = recordDocType(
+  sections: const [],
   isPerTarget: true,
-  fields: [
-    MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
+  fields: const [
+    statusesField,
     MergedField(
       id: 'implements',
       type: FieldType.outputRef,
@@ -32,20 +33,11 @@ const _recordType = MergedDocType(
       pointer: PointerKind.itemTest,
     ),
   ],
-  sections: [],
-  lint: MergedLint(),
-  files: [],
 );
 
 /// [_recordType] with the matrix section the record doc type may carry.
 final MergedDocType _matrixRecordType = _recordType.copyWith(
-  sections: const [
-    MergedSection(
-      id: verificationMatrixKey,
-      header: 'Verification matrix',
-      isOutputRef: true,
-    ),
-  ],
+  sections: const [matrixSection],
 );
 
 const _matrixPath = 'specs/jaspr/f02_feedback/IMPLEMENTATION.md';
@@ -65,20 +57,17 @@ String _matrixRecord(
 
 /// Parses the record at [path] with [text] under a two-target project whose
 /// record doc type is [type].
-IndexedDoc _record(
-  String path,
-  String text, {
-  MergedDocType type = _recordType,
-}) => parseIndexedDoc(
-  docPath: path,
-  bytes: utf8.encode(text),
-  match: DocTypeMatcher(
-    MergedSet(docTypes: [type]),
-    targetNames: const ['flutter', 'jaspr'],
-  ).match(path),
-  statusesOutside: true,
-  codeTarget: 'jaspr',
-).doc;
+IndexedDoc _record(String path, String text, {MergedDocType? type}) =>
+    parseIndexedDoc(
+      docPath: path,
+      bytes: utf8.encode(text),
+      match: DocTypeMatcher(
+        MergedSet(docTypes: [type ?? _recordType]),
+        targetNames: const ['flutter', 'jaspr'],
+      ).match(path),
+      statusesOutside: true,
+      codeTarget: 'jaspr',
+    ).doc;
 
 void main() {
   test('domain:index_query RecordEntry: a record indexes its entries, the '

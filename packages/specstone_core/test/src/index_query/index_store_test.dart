@@ -11,8 +11,6 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart'
-    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
@@ -23,6 +21,7 @@ import 'package:test/test.dart';
 
 import '../../helpers/index_fixture.dart';
 import '../../helpers/posix_modes.dart';
+import '../../helpers/record_doc_type.dart';
 import '../../helpers/software_tech.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -535,22 +534,7 @@ void main() {
     });
     test('a record loads back, after a reopen, with the matrix lines it was '
         'written with, a CRLF record included', () async {
-      const recordType = MergedDocType(
-        id: 'implementation',
-        path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
-        fields: [
-          MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
-        ],
-        sections: [
-          MergedSection(
-            id: verificationMatrixKey,
-            header: 'Verification matrix',
-            isOutputRef: true,
-          ),
-        ],
-        lint: MergedLint(),
-        files: [],
-      );
+      final recordType = recordDocType();
       const text =
           '---\nstatuses:\n  - show_toast:implemented\n---\n\n# T\n\n'
           '## Verification matrix\n\n'

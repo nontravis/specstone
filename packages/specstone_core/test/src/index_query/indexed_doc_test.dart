@@ -5,12 +5,12 @@ import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/link_places.dart';
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/plain_items.dart';
+import '../../helpers/record_doc_type.dart';
 import '../../helpers/software_tech.dart';
 
 MergedDocType nestedType(
@@ -622,23 +622,10 @@ void main() {
   group("a record's size counts", () {
     const recordPath = 'specs/f02_feedback/IMPLEMENTATION.md';
     const notes = MergedSection(id: 'notes', header: 'Notes');
-    const matrix = MergedSection(
-      id: verificationMatrixKey,
-      header: 'Verification matrix',
-      isOutputRef: true,
-    );
     const questions = MergedSection(id: 'questions', header: 'Questions');
-    MergedDocType recordType(List<MergedSection> sections) => MergedDocType(
-      id: 'implementation',
-      path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
-      fields: const [
-        MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
-      ],
-      sections: sections,
-      lint: const MergedLint(),
-      files: const [],
+    final withMatrix = recordDocType(
+      sections: [notes, matrixSection, questions],
     );
-    final withMatrix = recordType([notes, matrix, questions]);
 
     ParsedDoc parseRecord(
       String text, {
@@ -744,7 +731,7 @@ void main() {
     test(
       'count a section of that name in a doc type with no matrix section',
       () {
-        final plain = recordType([notes, questions]);
+        final plain = recordDocType(sections: [notes, questions]);
         const text = '$head$notesBody$matrixBody$questionsBody';
         final facts = parseRecord(text, type: plain).content.lineFacts;
         expect(facts.charCount, text.runes.length);
