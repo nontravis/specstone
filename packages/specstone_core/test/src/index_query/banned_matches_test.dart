@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 import 'package:test/test.dart';
@@ -63,11 +66,76 @@ void main() {
   test('f04/us01/fr08, f04/nfr-p03: the refresh keeps each banned match with '
       'its section, line, entry, and text', () {
     expect(_parsed(_text, MatchedDocType(_type)).bannedMatches, [
-      (section: 0, line: 4, entry: 0, match: 'fast'),
-      (section: 0, line: 4, entry: 2, match: 'docs/fast'),
-      (section: 0, line: 8, entry: 3, match: 'x'),
-      (section: 1, line: 11, entry: 0, match: 'fastly'),
+      const BannedMatch(section: 0, line: 4, entry: 0, match: 'fast'),
+      const BannedMatch(section: 0, line: 4, entry: 2, match: 'docs/fast'),
+      const BannedMatch(section: 0, line: 8, entry: 3, match: 'x'),
+      const BannedMatch(section: 1, line: 11, entry: 0, match: 'fastly'),
     ]);
+  });
+
+  group('a prose field value', () {
+    final proseType = MergedDocType(
+      id: 'note',
+      fields: const [
+        MergedField(
+          id: 'summary',
+          type: FieldType.string,
+          lint: FieldCaps(maxSentences: 1),
+        ),
+        MergedField(id: 'plain', type: FieldType.string),
+      ],
+      sections: const [],
+      lint: MergedLint(
+        bannedPatterns: [
+          PatternEntry(id: 'fast', pattern: r'fast\w*', message: 'm'),
+        ],
+      ),
+      generators: const ['feature_catalog'],
+      files: const [],
+    );
+    final open = generatedOpenMarker('feature_catalog');
+
+    List<BannedMatch> matchesOf(String text) =>
+        _parsed(text, MatchedDocType(proseType)).bannedMatches;
+
+    test('stores its doc-level hit under its field, on the key line', () {
+      expect(
+        matchesOf('---\nstatus: draft\nsummary: A fast tool.\n---\n\n# T\n'),
+        [const BannedMatch(field: 'summary', line: 3, entry: 0, match: 'fast')],
+      );
+    });
+
+    test('stores no hit for a field that sets no lint', () {
+      expect(matchesOf('---\nplain: A fast tool.\n---\n\n# T\n'), isEmpty);
+    });
+
+    test('stores no hit for a value that is not a string', () {
+      expect(matchesOf('---\nsummary: [fast, faster]\n---\n\n# T\n'), isEmpty);
+      expect(matchesOf('---\nsummary: 42\n---\n\n# T\n'), isEmpty);
+    });
+
+    test('stores a hit on a plain section line and none between the '
+        'markers of a generated block', () {
+      final text =
+          '# T\n\n## Notes\nfast one\n$open\nfast two\n$generatedEndMarker\n'
+          'fast three\n';
+
+      expect(matchesOf(text).map((m) => (m.line, m.match)), [
+        (4, 'fast'),
+        (8, 'fast'),
+      ]);
+    });
+
+    test('round-trips its field through the match JSON', () {
+      final matches = matchesOf('---\nsummary: A fast tool.\n---\n\n# T\n');
+
+      expect(
+        bannedMatchesFromJson(
+          jsonDecode(jsonEncode(bannedMatchesToJson(matches))) as List<Object?>,
+        ),
+        matches,
+      );
+    });
   });
 
   test('f04/us01/fr08, f04/nfr-p03: an untyped doc keeps no banned match', () {

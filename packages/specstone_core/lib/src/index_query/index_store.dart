@@ -70,8 +70,9 @@ const _notWritableMessage =
 /// `mermaid` block to each line's name mentions, so an older index is rebuilt.
 /// Layout 26 stores each typed doc's `mermaid` blocks in its line facts and
 /// adds the `diagram_parses` table, so an index of layout 25, which holds
-/// neither, is rebuilt.
-const indexLayoutVersion = 26;
+/// neither, is rebuilt. Layout 27 stores each prose field's readability facts
+/// and pattern matches, so an index of layout 26, which holds none, is rebuilt.
+const indexLayoutVersion = 27;
 
 const _schema = '''
 CREATE TABLE meta (

@@ -22,26 +22,31 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
   final held = content.sections;
   final matchesBySection = <int, List<BannedMatch>>{};
   for (final match in content.bannedMatches) {
-    (matchesBySection[match.section] ??= []).add(match);
+    if (match.section case final section?) {
+      (matchesBySection[section] ??= []).add(match);
+    }
   }
   for (var i = 0; i < held.length; i++) {
     final template = context.templateSectionAt(doc, i);
     final sectionKey = template?.id ?? held[i].key;
     final entries = bannedEntriesOf(type, template);
-    for (final (:line, :entry, :match, section: _)
-        in matchesBySection[i] ?? const <BannedMatch>[]) {
-      final banned = entries[entry];
+    for (final found in matchesBySection[i] ?? const <BannedMatch>[]) {
+      final banned = entries[found.entry];
       if (banned.scope == PatternScope.code &&
-          (_namesFolders(context, match) ||
-              _inReferenceSpan(context, doc, line, match))) {
+          (_namesFolders(context, found.match) ||
+              _inReferenceSpan(context, doc, found.line, found.match))) {
         continue;
       }
       yield context.finding(
         doc,
         FindingKind.patternBanned,
-        line: line,
-        message: '${banned.message}: $match',
-        keys: {'pattern': banned.id, 'section': sectionKey, 'match': match},
+        line: found.line,
+        message: '${banned.message}: ${found.match}',
+        keys: {
+          'pattern': banned.id,
+          'section': sectionKey,
+          'match': found.match,
+        },
       );
     }
     final required = template?.requiredPatterns ?? const <PatternEntry>[];
