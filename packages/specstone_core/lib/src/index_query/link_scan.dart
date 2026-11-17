@@ -6,9 +6,11 @@ import 'package:markdown/markdown.dart'
         AutolinkSyntax,
         EmailAutolinkSyntax,
         InlineHtmlSyntax;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DestinationKind;
 import 'package:specstone_core/src/index_query/link_blocks.dart';
+import 'package:specstone_core/src/index_query/models/written_destination.dart';
 
 /// A source of an `a` or `img` element markdown makes: the body offsets of its
 /// first character and after its last, its file line, and, for an inline or
@@ -64,9 +66,6 @@ List<LinkSource> linkSourcesOf(String lfBody, {required int firstLine}) {
   return _sourcesOf(lfBody, reader, firstLine);
 }
 
-/// A body range, start included, end excluded.
-typedef BodyRange = ({int start, int end});
-
 /// A link destination as written: its body range, angle brackets left out,
 /// the index in the scan's sources of the link written with it, null for a
 /// definition's and for one in an image description, which drops its link,
@@ -105,12 +104,12 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
     recordsAtoms: true,
   )..readAll(leaf.leaves);
   final prose = Uint16List.fromList(leaf.text.codeUnits);
-  for (final (:start, :end) in reader.atoms) {
+  for (final TextRange(:start, :end) in reader.atoms) {
     for (var i = start; i < end; i++) {
       if (prose[i] != _lineFeed) prose[i] = _space;
     }
   }
-  for (final (:start, :end) in leaf.definitionLabels) {
+  for (final TextRange(:start, :end) in leaf.definitionLabels) {
     for (var i = start; i < end; i++) {
       prose[i] = lfBody.codeUnitAt(i);
     }
@@ -132,7 +131,7 @@ LinkScan linkScanOf(String lfBody, {required int firstLine}) {
           link: linkAt[start],
           kind: angle ? DestinationKind.angleInline : DestinationKind.inline,
         ),
-      for (final (:start, :end) in leaf.definitionDestinations)
+      for (final TextRange(:start, :end) in leaf.definitionDestinations)
         (start: start, end: end, link: null, kind: DestinationKind.definition),
     ],
   );
@@ -171,7 +170,7 @@ typedef _Found = ({
   String? shown,
   bool angle,
   int? textEnd,
-  BodyRange? destination,
+  TextRange? destination,
 });
 
 /// Where a `]` ends the link it closes, and the link's destination: whether
@@ -186,7 +185,7 @@ typedef _Close = ({
   String? shown,
   bool angle,
   bool inline,
-  BodyRange? destination,
+  TextRange? destination,
   bool footnote,
 });
 
@@ -236,7 +235,7 @@ final class _Reader {
 
   /// The ranges no prose holds: each code span, autolink, bare URL or email,
   /// raw HTML run, and inline link's parens.
-  final atoms = <BodyRange>[];
+  final atoms = <TextRange>[];
 
   /// The range of each inline link's destination as written, and whether
   /// angle brackets enclose it.
@@ -257,8 +256,8 @@ final class _Reader {
   bool _emailRunDead = true;
 
   /// Reads each of [leaves] in turn.
-  void readAll(List<BodyRange> leaves) {
-    for (final (:start, :end) in leaves) {
+  void readAll(List<TextRange> leaves) {
+    for (final TextRange(:start, :end) in leaves) {
       read(start, end);
     }
   }
@@ -266,7 +265,9 @@ final class _Reader {
   /// Keeps [start] to [end] as an atom when [recordsAtoms] holds and returns
   /// [end].
   int _atom(int start, int end) {
-    if (recordsAtoms && end > start) atoms.add((start: start, end: end));
+    if (recordsAtoms && end > start) {
+      atoms.add(TextRange(start: start, end: end));
+    }
     return end;
   }
 
@@ -668,7 +669,7 @@ final class _Reader {
       shown: text.substring(open + 1, close),
       angle: true,
       inline: true,
-      destination: (start: open + 1, end: close),
+      destination: TextRange(start: open + 1, end: close),
       footnote: false,
     );
   }
@@ -690,7 +691,7 @@ final class _Reader {
         shown: text.substring(start, match),
         angle: false,
         inline: true,
-        destination: (start: start, end: match),
+        destination: TextRange(start: start, end: match),
         footnote: false,
       );
     }
@@ -710,7 +711,9 @@ final class _Reader {
           shown: shown.toString(),
           angle: false,
           inline: true,
-          destination: pieceStart == start ? (start: start, end: pos) : null,
+          destination: pieceStart == start
+              ? TextRange(start: start, end: pos)
+              : null,
           footnote: false,
         );
       }

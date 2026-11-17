@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax, parseMarkdownTreeByBlock;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/link_blocks.dart'
     show leafTextOf;
@@ -35,7 +36,7 @@ final class HiddenText {
     );
     final ranges = [
       for (final source in sources) ..._markupOf(lfBody, source),
-      for (final (:start, :end) in leafTextOf(lfBody).definitionSpans)
+      for (final TextRange(:start, :end) in leafTextOf(lfBody).definitionSpans)
         _Range(start, end),
     ];
     return HiddenText._(

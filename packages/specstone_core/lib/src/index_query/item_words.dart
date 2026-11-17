@@ -4,6 +4,7 @@ import 'package:specstone_core/src/doc_model/doc_items.dart'
     show SectionItem, SectionItemKind;
 import 'package:specstone_core/src/doc_model/markdown_body.dart'
     show holdsLinkSyntax;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show ItemId, itemIdsInProse, readItemId;
 import 'package:specstone_core/src/index_query/link_blocks.dart'
@@ -135,7 +136,7 @@ String definitionLinesOf(String body) {
   if (!body.contains(']:')) return '';
   final leaf = leafTextOf(body);
   return [
-    for (final (:start, :end) in leaf.definitionLabels)
+    for (final TextRange(:start, :end) in leaf.definitionLabels)
       if (leaf.definitions[linkLabel(body.substring(start, end))]
           case final destination?)
         '[${body.substring(start, end)}]: <${destination.shown}>',
