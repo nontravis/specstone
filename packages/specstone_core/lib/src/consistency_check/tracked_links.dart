@@ -455,28 +455,21 @@ Iterable<Finding> _checkRowLinks(
   for (final link in _rowLinksOf(context, record)) {
     final row = link.row;
     final recorded = row.fingerprint;
-    final upstream = link.fr.docPath;
-    final waitsFor = link.waitsFor;
-    final isOwner = waitsFor == WaitsFor.owner;
-    final text = _blockText(link.source);
-    final read =
-        'read ${row.edgeCase} of $upstream below, then record ${row.label} '
-        'with the fingerprint after it';
-    final waits = "it waits for the Owner's approve of $upstream";
+    final isOwner = link.waitsFor == WaitsFor.owner;
     if (recorded == null) {
       yield context.finding(
         record,
         FindingKind.unconfirmed,
         line: row.line,
         message: isOwner
-            ? "${row.label} waits for the Owner's approve of $upstream"
-            : '${row.label} records no fingerprint; $read',
-        waitsFor: waitsFor,
+            ? '${row.label} ${_rowWaitsMessage(link)}'
+            : '${row.label} records no fingerprint; ${_rowReadMessage(link)}',
+        waitsFor: link.waitsFor,
         keys: {
           'link': row.label,
-          'upstream': upstream,
+          'upstream': link.fr.docPath,
           'block': row.edgeCase,
-          if (!isOwner) 'text': text,
+          if (!isOwner) 'text': _blockText(link.source),
           'fingerprint': link.fingerprint,
         },
       );
@@ -487,20 +480,29 @@ Iterable<Finding> _checkRowLinks(
         line: row.line,
         message:
             '${row.label} changed after it was confirmed, recorded $recorded; '
-            '${isOwner ? waits : read}',
-        waitsFor: waitsFor,
+            '${isOwner ? _rowOwnerSuspectTail(link) : _rowReadMessage(link)}',
+        waitsFor: link.waitsFor,
         keys: {
           'link': row.label,
           'recorded': recorded,
-          'upstream': upstream,
+          'upstream': link.fr.docPath,
           'block': row.edgeCase,
-          'text': text,
+          'text': _blockText(link.source),
           'fingerprint': link.fingerprint,
         },
       );
     }
   }
 }
+
+String _rowReadMessage(_RowLink link) =>
+    'read ${link.row.edgeCase} of ${link.fr.docPath} below, then record '
+    '${link.row.label} with the fingerprint after it';
+
+String _rowOwnerSuspectTail(_RowLink link) => 'it ${_rowWaitsMessage(link)}';
+
+String _rowWaitsMessage(_RowLink link) =>
+    "waits for the Owner's approve of ${link.fr.docPath}";
 
 // The block as `format` lays it out, with the one line break that ends it
 // dropped, so each of its lines prints once and a trailing space the layout

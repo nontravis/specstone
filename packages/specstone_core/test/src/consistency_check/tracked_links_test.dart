@@ -1704,6 +1704,24 @@ void main() {
       expect(await findingsOf(text), isEmpty);
     });
 
+    test('a row of a story takes no state', () async {
+      final text = record([
+        '- email_login E01: `refuses a long one` $older',
+        '- email_login E01: `refuses a short one`',
+      ]);
+
+      expect(await findingsOf(text), isEmpty);
+    });
+
+    test('a row of an item that names no doc takes no state', () async {
+      final text = record([
+        '- email_login/no_such_fr E01: `refuses a long one` $older',
+        '- email_login/no_such_fr E01: `refuses a short one`',
+      ]);
+
+      expect(await findingsOf(text), isEmpty);
+    });
+
     test('the row of a draft requirement goes to the Owner', () async {
       final text = record([
         testRow(older, 'refuses a stale one'),
