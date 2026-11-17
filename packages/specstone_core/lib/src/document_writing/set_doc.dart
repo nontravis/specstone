@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isOutsideApproval;
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
+import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/replace_passage.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -260,14 +261,13 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 ///
 /// [lfText] is the doc's text with LF line ends as read under the write lock,
 /// [sections] its sections, and [base] the hash of the part the caller read.
-/// `lfText` of the result is the spliced text and `marksDraft` tells whether
-/// the write marks the doc a draft: false only for a field outside the
-/// approval hash by the rule [statusesOutside] names ([isOutsideApproval]).
+/// The result's `marksDraft` is false only for a field outside the approval
+/// hash by the rule [statusesOutside] names ([isOutsideApproval]).
 /// Touches no disk and takes no lock. Runs [checkPartText] first, except for
 /// a [ReplaceTarget], which reads its stdin itself, then throws
 /// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
 /// part's current text included.
-({String lfText, bool marksDraft}) splicePart({
+SplicedDoc splicePart({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -452,7 +452,7 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
       LeadTarget() => namingLine(doc, sectionKey: leadKey, base: base),
     };
 
-({String lfText, bool marksDraft}) _spliceField({
+SplicedDoc _spliceField({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -488,7 +488,7 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
     fieldId,
     value == null ? null : _fieldBlockOf(fieldId, field, value, held),
   );
-  return (
+  return SplicedDoc(
     lfText: spliced,
     marksDraft:
         field == null ||
@@ -571,7 +571,7 @@ String _blockOf(String fieldId, String stdin) {
   return buffer.toString();
 }
 
-({String lfText, bool marksDraft}) _spliceTitle(
+SplicedDoc _spliceTitle(
   IndexedDoc doc,
   String lfText,
   String base,
@@ -589,7 +589,10 @@ String _blockOf(String fieldId, String stdin) {
       currentBase: currentBase,
     );
   }
-  return (lfText: withTitle(lfText, _titleOf(stdin)), marksDraft: true);
+  return SplicedDoc(
+    lfText: withTitle(lfText, _titleOf(stdin)),
+    marksDraft: true,
+  );
 }
 
 /// Returns the one-line title [lf] holds; throws [IndexFault]
@@ -633,7 +636,7 @@ String? _fieldValueOf(String lf) {
   return (refused: refused, openFence: scan.openFence);
 }
 
-({String lfText, bool marksDraft}) _spliceLead(
+SplicedDoc _spliceLead(
   IndexedDoc doc,
   MergedDocType docType,
   String lfText,
@@ -652,7 +655,10 @@ String? _fieldValueOf(String lf) {
       currentBase: currentBase,
     );
   }
-  return (lfText: withLead(lfText, _pipedBodyOf(stdin)), marksDraft: true);
+  return SplicedDoc(
+    lfText: withLead(lfText, _pipedBodyOf(stdin)),
+    marksDraft: true,
+  );
 }
 
 void _checkLeadText(String lf) {
@@ -689,7 +695,7 @@ void _checkLeadText(String lf) {
   return (text: (lines..removeAt(first)).join('\n'), dropped: true);
 }
 
-({String lfText, bool marksDraft}) _spliceSection({
+SplicedDoc _spliceSection({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -727,7 +733,7 @@ void _checkLeadText(String lf) {
   } else {
     spliced = _withTemplateSection(lfText, docType, key, sections, body);
   }
-  return (lfText: spliced, marksDraft: true);
+  return SplicedDoc(lfText: spliced, marksDraft: true);
 }
 
 /// Returns the index in [sections] of the section keyed [key], or -1 for a
@@ -790,7 +796,7 @@ void _requireSectionBase(
 /// The stdin is read first, then the base is checked before the match, so a
 /// stale base wins over a missing passage. [_spliceSection] checks the base
 /// again on the new body; it is the same hash and cannot differ.
-({String lfText, bool marksDraft}) _spliceReplace({
+SplicedDoc _spliceReplace({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,

@@ -10,6 +10,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
+import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -49,31 +50,28 @@ String fieldBase(Directory root, String target, String id) =>
 
 /// Runs [splicePart] for [request] against the doc as it stands on disk, with
 /// the arguments `answerSet` gives it under the lock.
-({String lfText, bool marksDraft}) spliceIn(
-  Directory root,
-  SetRequest request,
-  String text,
-) => writeIn(root, (s) {
-  final doc = s.target(request.address);
-  final docType = s.index.typeOf(doc)!;
-  final statusesOutside = s.project.statusesOutsideApproval;
-  final read = parseIndexedDoc(
-    docPath: doc.docPath,
-    bytes: s.readDocBytes(doc.docPath)!,
-    match: MatchedDocType(docType),
-    statusesOutside: statusesOutside,
-  );
-  return splicePart(
-    doc: doc,
-    docType: docType,
-    lfText: toLf(read.content.text),
-    sections: read.content.sections,
-    target: request.target,
-    base: request.base,
-    text: text,
-    statusesOutside: statusesOutside,
-  );
-});
+SplicedDoc spliceIn(Directory root, SetRequest request, String text) =>
+    writeIn(root, (s) {
+      final doc = s.target(request.address);
+      final docType = s.index.typeOf(doc)!;
+      final statusesOutside = s.project.statusesOutsideApproval;
+      final read = parseIndexedDoc(
+        docPath: doc.docPath,
+        bytes: s.readDocBytes(doc.docPath)!,
+        match: MatchedDocType(docType),
+        statusesOutside: statusesOutside,
+      );
+      return splicePart(
+        doc: doc,
+        docType: docType,
+        lfText: toLf(read.content.text),
+        sections: read.content.sections,
+        target: request.target,
+        base: request.base,
+        text: text,
+        statusesOutside: statusesOutside,
+      );
+    });
 
 /// Runs [checkFieldWrite] for [fieldId] of [address] with [value] and [held].
 void checkFieldIn(

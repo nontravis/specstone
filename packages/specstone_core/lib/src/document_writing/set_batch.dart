@@ -8,6 +8,7 @@ import 'package:specstone_core/src/document_writing/approval.dart'
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
 import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
+import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -411,20 +412,19 @@ bool _isUneditedPart(_Planned block, LockedDoc disk) {
       printed.text == block.block.text;
 }
 
-({String lfText, bool marksDraft}) _splice(_Planned block, LockedDoc disk) =>
-    switch (block.target) {
-      null => _spliceWholeDoc(block, disk),
-      final target => splicePart(
-        doc: block.doc,
-        docType: block.docType,
-        lfText: disk.lfText,
-        sections: disk.sections,
-        target: target,
-        base: block.base,
-        text: block.block.text,
-        statusesOutside: block.statusesOutside,
-      ),
-    };
+SplicedDoc _splice(_Planned block, LockedDoc disk) => switch (block.target) {
+  null => _spliceWholeDoc(block, disk),
+  final target => splicePart(
+    doc: block.doc,
+    docType: block.docType,
+    lfText: disk.lfText,
+    sections: disk.sections,
+    target: target,
+    base: block.base,
+    text: block.block.text,
+    statusesOutside: block.statusesOutside,
+  ),
+};
 
 // MARK: - Whole-doc block
 
@@ -433,10 +433,7 @@ bool _isUneditedPart(_Planned block, LockedDoc disk) {
 /// The block's base is `bases.doc`, the hash of the doc's LF text. Each field
 /// block it adds, changes, or removes takes [checkFieldWrite]; each section it
 /// removes takes the removal of a single `set`, which refuses a required one.
-({String lfText, bool marksDraft}) _spliceWholeDoc(
-  _Planned block,
-  LockedDoc disk,
-) {
+SplicedDoc _spliceWholeDoc(_Planned block, LockedDoc disk) {
   final currentBase = baseHashOf(disk.lfText);
   if (currentBase != block.base) {
     throw _staleDoc(block.doc, block.base, currentBase, disk.lfText);
@@ -447,7 +444,7 @@ bool _isUneditedPart(_Planned block, LockedDoc disk) {
   _checkTitleAndLead(block, held, proposed);
   final changedFields = _checkFields(block, held, proposed);
   _checkRemovedSections(block, disk, lfText);
-  return (
+  return SplicedDoc(
     lfText: lfText,
     marksDraft: _marksDraft(block, disk.lfText, lfText, changedFields),
   );
