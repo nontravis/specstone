@@ -50,6 +50,7 @@ enum FindingKind {
   sentenceCharsOverLimit('sentence_chars_over_limit'),
   traceNoteNotLast('trace_note_not_last'),
   itemFieldMissing('item_field_missing'),
+  itemFieldUnneeded('item_field_unneeded'),
   sectionUnneeded('section_unneeded'),
   systemUnresolved('system_unresolved'),
   operationUnmatched('operation_unmatched'),

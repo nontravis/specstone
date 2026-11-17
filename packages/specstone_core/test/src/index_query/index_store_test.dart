@@ -1114,6 +1114,19 @@ void main() {
     expect(store.readStamp(), isNull);
   });
 
+  test('an index of layout 20, its cite candidates read by the earlier '
+      'item-ID rule, has no stamp, so it is rebuilt', () async {
+    final r = await root();
+    final store = IndexStore.open(r);
+    addTearDown(store.close);
+    const stamp = IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x');
+    store.write(() => store.reset(stamp));
+    final raw = sqlite3.open(file(r, indexFilePath).path);
+    addTearDown(raw.close);
+    raw.execute('UPDATE meta SET layout = 20');
+    expect(store.readStamp(), isNull);
+  });
+
   group('IndexStore rule item words', () {
     const frPath =
         'prds/features/f01_login/us01_email_login/'

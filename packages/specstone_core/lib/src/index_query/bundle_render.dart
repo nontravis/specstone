@@ -157,6 +157,7 @@ ContextAnswer answerContext(
         bundle.mode,
         summary: inSummary(doc),
         citedBy: citedBy,
+        isTarget: bundle.targetPaths.contains(doc.docPath),
       ),
   ];
   final docBlocks = [for (final print in docPrints) print.text];
@@ -281,7 +282,8 @@ ContextAnswer answerContext(
 /// one read snapshot, so a feature or spec doc that many bundles of one run
 /// print renders once. It holds a block for each doc, summary, and mode a run
 /// asks for and is never trimmed; a `check` run ends with its index.
-final _readFirstBlocksOf = Expando<Map<(String, BundleMode, bool), String>>();
+final _readFirstBlocksOf =
+    Expando<Map<(String, BundleMode, bool, bool), String>>();
 
 /// Returns the est. tokens of the read-first file `answerContext` gives
 /// [bundle] when split, which [ContextAnswer.readFirst] gives as `tokens`.
@@ -307,13 +309,20 @@ int readFirstTokensOf(DocIndex index, Bundle bundle) {
       printOf: (doc) {
         final picked = ordered[doc];
         final summary = summaryOnly.contains(picked.docPath);
-        final block = blocks[(picked.docPath, bundle.mode, summary)] ??=
-            _docBlock(
+        final isTarget = bundle.targetPaths.contains(picked.docPath);
+        final block =
+            blocks[(
+              picked.docPath,
+              bundle.mode,
+              summary,
+              isTarget,
+            )] ??= _docBlock(
               index,
               picked,
               bundle.mode,
               summary: summary,
               citedBy: null,
+              isTarget: isTarget,
             ).text;
         return DocPrint(text: block, cited: const [], sections: const []);
       },
@@ -648,12 +657,15 @@ ContextAnswer _overBudget(
 /// joined by one blank line, with the lines [citedBy] holds for the whole doc
 /// printed after the naming line and for its places printed after them, and
 /// the line each kept section starts on in the block.
+///
+/// In `query` only a [isTarget] doc prints its head and every kept section.
 DocPrint _docBlock(
   DocIndex index,
   IndexedDoc doc,
   BundleMode mode, {
   required bool summary,
   required CitedByIndex? citedBy,
+  required bool isTarget,
 }) {
   final content = index.contentOf(doc);
   final docType = index.typeOf(doc);
@@ -670,8 +682,12 @@ DocPrint _docBlock(
   if (mode != BundleMode.query) {
     final frontmatter = content.frontmatterText;
     if (frontmatter != null) parts.add(frontmatter.trimRight());
+  }
+  if (mode != BundleMode.query || isTarget) {
     final head = removeHtmlComments(content.head);
-    if (head.trim().isNotEmpty) parts.add(head.trimRight());
+    if (head.trim().isNotEmpty) {
+      parts.add(mode == BundleMode.query ? head.trim() : head.trimRight());
+    }
   }
   final docEntry = citedBy == null ? null : citedDocIn(citedBy, doc);
   final docLines = citedLinesAfter(citedBy, [?docEntry])[0] ?? const [];
@@ -680,7 +696,12 @@ DocPrint _docBlock(
   final held = citedSectionsOf(content, docType);
   // The naming line is the block's line 0.
   var line = 1 + docLines.length + lineAfterBlocks(parts);
-  for (final section in keptSectionsOf(content, docType, mode)) {
+  for (final section in keptSectionsOf(
+    content,
+    docType,
+    mode,
+    isTarget: isTarget,
+  )) {
     final print = sectionPrintOf(doc, content, held, section, citedBy);
     cited.addAll(print.cited);
     sections.add(SectionLine(key: section.key, line: line));

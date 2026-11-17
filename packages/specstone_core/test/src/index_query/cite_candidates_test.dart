@@ -26,8 +26,8 @@ String _doc(String body) => '---\nstatus: planned\n---\n\n# T\n$body';
 
 void main() {
   group('citeCandidatesOf', () {
-    test('a name, a bare one-slug name, and a '
-        'path each give one candidate at its file line', () {
+    test('a prefixed address and a path are candidates, a lone-word span is '
+        'not', () {
       final read = _readAll(
         _doc(
           '`domain:login`\n'
@@ -38,7 +38,6 @@ void main() {
       );
       expect(read, [
         (6, 'domain:login', null, ''),
-        (7, 'login', null, ''),
         (8, '../f01_login/DOMAIN.md', null, ''),
         (9, '../f01_login/DOMAIN.md', null, ''),
       ]);
@@ -68,8 +67,21 @@ void main() {
       expect(read, [(6, '../f01_login/ERROR.md', 'error_envelope', '')]);
     });
 
-    test('the item IDs after a candidate on its '
-        'line are its own, up to the next citation', () {
+    test('a name and an ID farther along the line after other text make a '
+        'doc cite with no item ID', () {
+      final read = _readAll(
+        _doc(
+          'a feature status is the computed one '
+          '(`index_query/view_docs_tree/compute_status`); with two or more '
+          'targets it needs `--target` (E10)\n',
+        ),
+      );
+      expect(read, [
+        (6, 'index_query/view_docs_tree/compute_status', null, ''),
+      ]);
+    });
+
+    test('the item IDs right after a candidate are its own run', () {
       final read = _readAll(
         _doc(
           '`domain:login` INV-6 and INV-7, then `topic:doc_model` RULE-12.\n'
@@ -88,8 +100,7 @@ void main() {
       ]);
     });
 
-    test('a file link, an image, and a web address '
-        'end no citation, but a link to a doc does', () {
+    test('a link or any other text after a run ends it', () {
       final read = _readAll(
         _doc(
           '`domain:login` INV-6, see ![d](d.png) INV-7 [f](f.dart) INV-8 '
@@ -98,15 +109,46 @@ void main() {
         ),
       );
       expect(read, [
-        (6, 'domain:login', null, 'INV-6 INV-7 INV-8 INV-9'),
+        (6, 'domain:login', null, 'INV-6'),
         (7, 'a/b', null, 'INV-1'),
       ]);
     });
 
-    test('a token of no section prefix, such '
-        'as UTF-8, SHA256, or Base64, makes no item ID', () {
-      expect(_readAll(_doc('`gnfr` UTF-8, SHA256, Base64 and NFR-P01\n')), [
-        (6, 'gnfr', null, 'NFR-P01'),
+    test(
+      'a token of no prefix right after a candidate gives it no item ID',
+      () {
+        expect(
+          _readAll(_doc('`gnfr:gnfr` UTF-8, SHA256, Base64 and NFR-P01\n')),
+          [(6, 'gnfr:gnfr', null, '')],
+        );
+      },
+    );
+
+    test('a #key or a header span after a path, then IDs, gives the run after '
+        'the key', () {
+      final read = _readAll(
+        _doc(
+          '`../f01_login/DOMAIN.md#invariants` INV-6 and INV-7\n'
+          '`../f01_login/ERROR.md` `## Error envelope` E3, E4\n',
+        ),
+      );
+      expect(read, [
+        (6, '../f01_login/DOMAIN.md', 'invariants', 'INV-6 INV-7'),
+        (7, '../f01_login/ERROR.md', 'error_envelope', 'E3 E4'),
+      ]);
+    });
+
+    test('an ID at the start of the next line of the same paragraph gives the '
+        'candidate no item ID', () {
+      expect(_readAll(_doc('`domain:login`\nINV-6 follows\n')), [
+        (6, 'domain:login', null, ''),
+      ]);
+    });
+
+    test('a lone-word span ends the run, so the ID after it is no item of '
+        'the cite', () {
+      expect(_readAll(_doc('`domain:login` INV-6 and `goal` INV-3.\n')), [
+        (6, 'domain:login', null, 'INV-6'),
       ]);
     });
 

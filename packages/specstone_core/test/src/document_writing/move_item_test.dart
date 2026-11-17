@@ -745,6 +745,41 @@ void main() {
       );
     });
 
+    test('a one-slug span naming a moved item is no stale mention, a prefixed '
+        'one is', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+        extra: {
+          'docs/specs/f03_ledger/DOMAIN.md': _domain([_inv(1), _inv(2)]),
+          'app/lib/note.dart': '// `ledger#INV-2` and `domain:ledger#INV-2`\n',
+        },
+      );
+      final json = move(root, ['domain:ledger#INV-2']).json;
+      expect(json['mentions'], [
+        {
+          'path': 'app/lib/note.dart',
+          'line': 1,
+          'mention': 'domain:ledger#INV-2',
+        },
+      ]);
+    });
+
+    test('an ID right after an address is a mention of the moved item, one outside every run is not', () async {
+      final root = await _project(
+        shop: [_inv(1), _inv(2), _inv(3)],
+        cart: [for (var n = 1; n <= 12; n++) _inv(n)],
+        pay: [
+          _inv(1),
+          '- **INV-2** Pay holds `domain:shop` and then see INV-3.',
+          '- **INV-4** Pay holds `domain:shop` INV-3 here.',
+        ],
+      );
+      final json = move(root, ['domain:shop#INV-3']).json;
+      final mentions = json['mentions']! as List<Object?>;
+      expect([for (final m in mentions) (m! as Map)['line']], [11]);
+    });
+
     test('--json holds moved, renumbered, rewritten, and mentions', () async {
       final root = await _project(
         shop: [_inv(1), _inv(2), _inv(3)],

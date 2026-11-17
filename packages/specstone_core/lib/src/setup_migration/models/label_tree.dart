@@ -1,6 +1,8 @@
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/item_words.dart'
+    show itemIdPrefixesOf;
 import 'package:specstone_core/src/index_query/parents.dart'
     show resolveParents;
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart'
@@ -93,7 +95,10 @@ final class LabelTree {
     Iterable<LabelDoc> docs, {
     required MergedSet set,
     required Map<String, MergedDocType> docTypes,
-  }) : this._fromIndex(_readIndex(docs, set, docTypes));
+  }) : this._fromIndex(
+         _readIndex(docs, set, docTypes),
+         itemIdPrefixesOf(set.docTypes),
+       );
 
   /// Reads the docs of a legacy tree at the final path the move list gives
   /// each, as [LabelTree.of] reads them.
@@ -108,7 +113,8 @@ final class LabelTree {
     Iterable<LegacyLabelDoc> docs, {
     Map<String, MergedDocType> docTypes = const {},
     Map<String, String> featurePaths = const {},
-  }) : _docs = [
+  }) : itemPrefixes = itemIdPrefixesOf(docTypes.values),
+       _docs = [
          for (final LegacyLabelDoc(:docPath, :legacyPath, :lf) in docs)
            ?_TreeDoc.parseLegacy(
              docPath,
@@ -119,7 +125,13 @@ final class LabelTree {
        _placeOf = ((path) =>
            _legacyPlaceOf(_atFeaturePath(path, featurePaths)));
 
-  new _fromIndex(_Index index) : _docs = index.docs, _placeOf = index.placeOf;
+  new _fromIndex(_Index index, this.itemPrefixes)
+    : _docs = index.docs,
+      _placeOf = index.placeOf;
+
+  /// The item ID prefixes of the doc types the tree reads, which the labels
+  /// of its docs read their item IDs by.
+  final Set<String> itemPrefixes;
 
   final List<_TreeDoc> _docs;
   final _Place? Function(String docPath) _placeOf;

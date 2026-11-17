@@ -1511,6 +1511,43 @@ lint: {title_no_number: true}
       }
     });
 
+    test('an item_fields entry keeps its when under an upper layer that adds '
+        'another field', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: P, when: {field: K, value: v}}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: {add: [{field: Q}]}}}]',
+      );
+      final fields = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!;
+      expect(fields.map((f) => f.field), ['P', 'Q']);
+      expect(fields.first.when?.field, 'K');
+      expect(fields.first.when?.value, 'v');
+    });
+
+    test('an item_fields add of the same field replaces the lower entry and '
+        'its when', () {
+      final lowerLayer = project(
+        shipped(),
+        'sections: [{id: goal, lint: {item_fields: '
+        '[{field: P, when: {field: K, value: v}}]}}]',
+      );
+      final merged = project(
+        lowerLayer,
+        'sections: [{id: goal, lint: {item_fields: {add: [{field: P}]}}}]',
+      );
+      final fields = merged.sections
+          .firstWhere((s) => s.id == 'goal')
+          .itemFields!;
+      expect(fields.single.field, 'P');
+      expect(fields.single.when, isNull);
+    });
+
     test('a new section carries its guide-rule keys', () {
       final merged = project(
         base(),

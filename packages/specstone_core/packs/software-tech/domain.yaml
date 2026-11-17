@@ -58,8 +58,8 @@ sections:
     description: |-
       Write each invariant as `- **INV-<N>** <one sentence>`, never a numbered item; IDs are append-only, never reused.
       Nest `- **Enforcer:** <aggregate root>` and `- **Consistency:** immediate` (or `eventual`) under it.
-      Write numbers and checkable conditions; keep a bound, such as `timeout 10 s`, in the invariant it bounds.
-      Leave mechanics to the feature's ARCHITECTURE and a case the system does not handle to `known_limits`.
+      Under an eventual invariant, nest `- **Corrective policy:** <how the system restores the rule>` too.
+      Keep a bound (`timeout 10 s`) in the invariant it bounds; mechanics to ARCHITECTURE, unhandled cases to `known_limits`.
       Write no trace tag, since the `reference` field holds the trace; a cite or ownership note may close an invariant.
     lint:
       max_sentences:
@@ -68,6 +68,10 @@ sections:
         - field: Enforcer
         - field: Consistency
           values: [immediate, eventual]
+        - field: Corrective policy
+          when:
+            field: Consistency
+            value: eventual
       banned_patterns:
         - id: numbered_invariant
           pattern: '^\d+[.)] '
@@ -92,15 +96,6 @@ sections:
     header: Commands and events
     description: |-
       Write one table with the columns Command, Aggregate, Event emitted.
-  - id: corrective_policies
-    header: Corrective policies
-    description: |-
-      Write this section only when an invariant is eventual.
-    lint:
-      required_when:
-        section: invariants
-        field: Consistency
-        value: eventual
   - id: terms
     header: Terms
     description: |-

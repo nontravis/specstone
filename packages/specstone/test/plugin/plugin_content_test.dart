@@ -1345,6 +1345,28 @@ void _handOffTests() {
     );
   });
 
+  test('the audit reports a dropped or departed decision once and names the '
+      'citer commands', () {
+    final compare = _oneLine(
+      _sectionOf(
+        _pluginText('specstone-brainstorming-sdd/references/audit.md'),
+        '2. Compare',
+      ),
+    );
+    String bullet(String label) {
+      final start = compare.indexOf('- **$label:**');
+      expect(start, isNonNegative, reason: label);
+      final next = compare.indexOf(' - **', start + 1);
+      return compare.substring(start, next < 0 ? compare.length : next);
+    }
+
+    expect(compare, isNot(contains('Draft and decision')));
+    expect(compare, isNot(contains('draft-and-decision')));
+    expect(bullet('Decision dropped'), contains('departs'));
+    expect(bullet('Repoint'), contains('specstone refs'));
+    expect(bullet('Repoint'), contains('specstone list --cites'));
+  });
+
   test('audit reference reads for example and clause order', () {
     final compare = _oneLine(
       _sectionOf(
@@ -2591,11 +2613,86 @@ void _agentTests() {
       expect(
         skill(),
         contains(
-          'dispatch `specstone-sdd-engineer` as '
-          '`../specstone-expert-sdd/references/dispatch.md` gives, with '
-          '`mode: sync`, `report:` '
-          '`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the feature '
-          'name when the Owner gave one. Send no list of paths or doc text',
+          'dispatch `specstone-sdd-engineer` for each group in turn, one at a '
+          'time, as `../specstone-expert-sdd/references/dispatch.md` gives, '
+          'with `mode: sync`, `report:` '
+          "`<folder>/reports/sdd-engineer.sync.<XXXXXX>.md`, and the group's "
+          'input',
+        ),
+      );
+      expect(skill(), contains('Send no list of paths or doc text'));
+    });
+
+    test('the sync skill sorts the work list into groups by scope', () {
+      final text = skill();
+      expect(text, contains('With a feature named, it is one group.'));
+      expect(
+        text,
+        contains(
+          'goes to the group of the top-level feature whose doc holds its '
+          "code link, a sub-feature's finding to its top-level feature",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'a finding on a doc under no feature, such as a topic, goes to '
+          "that doc's own group",
+        ),
+      );
+      expect(
+        text,
+        contains('a `code_uncovered` finding goes to one `uncovered` group'),
+      );
+      expect(
+        text,
+        contains(
+          'A finding with no code link, such as a `tests_unresolved` line, '
+          'goes by the doc that holds the finding',
+        ),
+      );
+    });
+
+    test('the sync skill dispatches one engineer per group in turn, with '
+        'scope: and never feature:', () {
+      final text = skill();
+      expect(
+        text,
+        contains(
+          '`scope: feature:<name>`, `scope: <type>:<name>`, or '
+          '`scope: uncovered`',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'pass `feature: <name>` only for a feature the Owner named, as its '
+          'one group, with no `scope:`',
+        ),
+      );
+      expect(
+        text,
+        contains(
+          "Show each report's `Report:` line and relay block before the next "
+          'dispatch.',
+        ),
+      );
+    });
+
+    test("the sync skill splits the runner's own procedure run by case", () {
+      final text = skill();
+      expect(
+        text,
+        contains(
+          'With no subagent on the host, follow the procedure yourself once '
+          "per group, in the same order, taking only that group's findings.",
+        ),
+      );
+      expect(
+        text,
+        contains(
+          'After a dispatch that fails, follow it for that group alone, then '
+          'dispatch the next group again.',
         ),
       );
     });
@@ -2857,6 +2954,31 @@ void _agentTests() {
       );
     });
 
+    test("the sync skill gathers every group's picks and asks them after the "
+        'last report', () {
+      final after = _oneLine(
+        _sectionOf(
+          _pluginText('specstone-sync-sdd/SKILL.md'),
+          '3. After the report',
+        ),
+      );
+      expect(
+        after,
+        contains(
+          'Run item 1 for each group as its report comes in, and items 2 and '
+          "3 once, after the last group's report, over the picks of every "
+          'group.',
+        ),
+      );
+      expect(
+        after,
+        contains(
+          'A group you followed yourself stands in for item 1 by its own '
+          'changes.',
+        ),
+      );
+    });
+
     test("the sync skill asks the Owner's pick on each mismatch and routes a "
         'fix that lands in a spec doc to an agent, one that lands in a PRD '
         'doc to the brainstorm', () {
@@ -2865,11 +2987,20 @@ void _agentTests() {
         contains(
           'Ask the Owner, per point under `Mismatches:`, fix the code or fix '
           'the spec. Fix the code writes nothing: the next `check` lists the '
-          'link again. Send a fix-the-spec pick to the same agent while it is '
-          'live, else to a new one with the answers, when the fix lands in a '
-          'spec doc.',
+          'link again.',
         ),
       );
+      expect(
+        skill(),
+        contains(
+          'When a fix lands in a spec doc, send the picks to a new '
+          '`specstone-sdd-engineer` per group that holds picks, one at a '
+          "time, each with `mode: sync`, `picks`, and that group's `scope:` "
+          '(`scope: uncovered` for an `Uncovered:` file), never `feature:` '
+          'unless the Owner named the feature.',
+        ),
+      );
+      expect(skill(), isNot(contains('the same agent while it is live')));
       expect(
         skill(),
         contains(
@@ -2944,8 +3075,9 @@ void _agentTests() {
       expect(
         input,
         contains(
-          '- **`feature`** (sync, optional): the feature name the Owner gave; '
-          'absent, your gate `check` gives the work list.',
+          '- **`feature`** (sync, optional): the feature name the Owner gave, '
+          'never sent with `scope`; absent, your gate `check` gives the work '
+          'list.',
         ),
       );
       expect(
@@ -2962,6 +3094,40 @@ void _agentTests() {
       }
     });
 
+    test('sdd-engineer takes a scope input in sync mode in each of its three '
+        'forms, apart from feature', () {
+      final input = _oneLine(
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Input Contract'),
+      );
+      expect(input, contains('- **`scope`** (sync, optional):'));
+      for (final form in [
+        '`feature:<name>`',
+        '`<type>:<name>`',
+        '`uncovered`',
+      ]) {
+        expect(input, contains(form), reason: form);
+      }
+    });
+
+    test('sdd-engineer runs its gate check on its scope, bare for uncovered, '
+        'and draws its work list from it', () {
+      final workflow = _oneLine(
+        _sectionOf(_pluginText('specstone-sdd-engineer.md'), 'Workflow'),
+      );
+      expect(workflow, contains('`specstone check <scope>`'));
+      expect(
+        workflow,
+        contains(
+          'bare `specstone check` for `scope: uncovered`, keeping its '
+          '`code_uncovered` findings',
+        ),
+      );
+      expect(
+        workflow,
+        contains("on your gate `check`'s work list, scoped by `scope`,"),
+      );
+    });
+
     test('sdd-engineer syncs on its gate check work list or a named feature '
         "and writes each pick by the procedure's step 5", () {
       expect(
@@ -2970,8 +3136,9 @@ void _agentTests() {
         ),
         contains(
           '2. **Sync**: follow the On-Demand procedure from its step 2, on '
-          "your gate `check`'s work list, or on every code link of `feature`; "
-          'write each of `picks` by its step 5. Then Workflow step 5.',
+          "your gate `check`'s work list, scoped by `scope`, or on every code "
+          'link of `feature`; write each of `picks` by its step 5. Then '
+          'Workflow step 5.',
         ),
       );
     });
@@ -4712,6 +4879,29 @@ void _goalMoveTests() {
     );
     expect(_oneLine(_pluginText(file)), contains(_specCodeTarget));
   });
+
+  test("goal-move.md repoints PROJECT's own goal links in its drop write", () {
+    final drop = _oneLine(
+      _sectionOf(
+        _pluginText(_goalMove),
+        '3. Drop the moved blocks, then repoint',
+      ),
+    );
+    const own =
+        'point each `#pg-…` link PROJECT keeps to a moved goal at '
+        '`GOAL.md#pg-…`';
+    const section =
+        'once the goals section drops, each link PROJECT keeps to it at '
+        '`GOAL.md`';
+    final at = drop.indexOf(own);
+    expect(at, isNonNegative);
+    expect(drop.indexOf(section, at), isNonNegative);
+    expect(drop, contains('`refs` lists no link of PROJECT to itself'));
+    expect(at, lessThan(drop.indexOf('run `specstone set --batch')));
+    final refs = drop.substring(drop.indexOf('Run `specstone refs project`'));
+    expect(refs, isNot(contains('in-file')));
+    expect(refs, contains('A link to a kept goal keeps its target.'));
+  });
 }
 
 /// The glossary-move reference of bootstrap-prd, under the plugin folder.
@@ -4872,6 +5062,30 @@ void _glossaryMoveTests() {
       ),
     );
   });
+
+  test(
+    "glossary-move.md points a carried entry's link to a goal the batch's "
+    'goal move moved, or to the goals section it dropped, at the goal doc',
+    () {
+      final move = _oneLine(
+        _sectionOf(_pluginText(_glossaryMove), '2. Move each entry'),
+      );
+      const moved =
+          "one to a goal the batch's goal move moved (`#pg-…`) links to "
+          '`GOAL.md#pg-…`, its anchor unchanged';
+      const dropped =
+          'one to the goals section that move dropped links to `GOAL.md` with '
+          'no anchor';
+      final at = move.indexOf(moved);
+      expect(at, isNonNegative);
+      expect(move.indexOf(dropped, at), isNonNegative);
+      expect(
+        move,
+        contains('gains `PROJECT.md` as its path, its anchor unchanged'),
+      );
+      expect(move, contains('A link with a path keeps it.'));
+    },
+  );
 }
 
 const _runPlanSkill = 'agent_plugin/plan_approved_stories/run_plan_skill';
@@ -6627,8 +6841,8 @@ void _docLevelPointTests() {
       _pluginText('specstone-brainstorming-sdd/references/audit.md'),
     );
 
-    expect(text, contains('departs from the decision it carries out'));
-    expect(text, contains('a decision the design gives an owner item'));
+    expect(text, contains('a draft that departs from its decision'));
+    expect(text, contains("naming the draft (or the design's owner doc)"));
     expect(text, contains('a citer a size-fix move repointed or kept'));
     expect(text, contains('name the citer and the item it should link'));
   });

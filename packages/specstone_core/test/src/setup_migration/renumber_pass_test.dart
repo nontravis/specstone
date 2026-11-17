@@ -79,11 +79,14 @@ const _frCitations = '''
 `doc_model` RULE-7a
 `topic:doc_model` RULE-7a
 `doc_model` RULE-12 and RULE-7a
+`topic:doc_model` RULE-12 and RULE-7a
 `RULE-7a` in a code span
 RULE-7a on a line that cites no doc
 `other_topic` RULE-7a
 `doc_model` see `other_topic` RULE-7a
 [rules](../topics/doc_model.md) RULE-7a
+`topic:doc_model`; see RULE-7a
+`topic:doc_model` and then see RULE-12 and RULE-7a
 ''';
 
 const _fenced = '```text\n`doc_model` RULE-7a\n```\n';
@@ -251,9 +254,10 @@ void main() {
     );
   });
 
-  test('$_fr E18: a line of another doc rewrites the token its nearest '
-      'citation names the renumbered doc for, outside code spans and '
-      'fences', () {
+  test('$_fr E18: a line of another doc rewrites the token in the run of a '
+      'citation of the renumbered doc, outside code spans and fences; a '
+      'lone-word span is no citation, and an ID after other text is in no '
+      'run', () {
     final applied = _applied({
       _topicPath: _topic,
       _otherTopicPath: _otherTopic,
@@ -263,14 +267,17 @@ void main() {
     expect(
       applied,
       contains('''
-`doc_model` RULE-31
+`doc_model` RULE-7a
 `topic:doc_model` RULE-31
-`doc_model` RULE-12 and RULE-31
+`doc_model` RULE-12 and RULE-7a
+`topic:doc_model` RULE-12 and RULE-31
 `RULE-7a` in a code span
 RULE-7a on a line that cites no doc
 `other_topic` RULE-7a
 `doc_model` see `other_topic` RULE-7a
 [rules](../topics/doc_model.md) RULE-7a
+`topic:doc_model`; see RULE-7a
+`topic:doc_model` and then see RULE-12 and RULE-7a
 '''),
     );
     expect(applied, contains(_fenced));
@@ -685,7 +692,7 @@ confirmed:
   test('$_fr E18: a gnfr Statement the pass rewrites leaves the nf entry as '
       'written', () {
     const statement =
-        '- **Statement:** The tool shall keep `doc_model` RULE-7a.';
+        '- **Statement:** The tool shall keep `topic:doc_model` RULE-7a.';
     const gnfr =
         '# GNFR\n\n## Performance\n\n### NFR-P01 — First\n$statement\n';
     String nf(String fingerprint) =>
@@ -698,7 +705,7 @@ confirmed:
       _nfPath: nf(fingerprintOf(statement)),
     });
 
-    expect(applied[_gnfrPath], contains('`doc_model` RULE-31.\n'));
+    expect(applied[_gnfrPath], contains('`topic:doc_model` RULE-31.\n'));
     expect(applied[_nfPath], nf(fingerprintOf(statement)));
   });
 
@@ -914,7 +921,7 @@ confirmed:
     const target = '../../prds/features/f01_a/us01_b/USER_STORY.md';
     const architecture =
         '# A\n\n## Concerns\n\n'
-        '- Errors — `doc_model` RULE-7a, see $target#$anchor\n'
+        '- Errors — `topic:doc_model` RULE-7a, see $target#$anchor\n'
         '- Auth — [it]($target#$anchor), see $target#$anchor\n';
 
     final applied = _applied({
@@ -926,7 +933,7 @@ confirmed:
     expect(
       applied,
       '# A\n\n## Concerns\n\n'
-      '- Errors — `doc_model` RULE-31, see $target#$moved\n'
+      '- Errors — `topic:doc_model` RULE-31, see $target#$moved\n'
       '- Auth — [it]($target#$moved), see $target#$moved\n',
     );
   });
@@ -937,7 +944,7 @@ confirmed:
     const notes =
         '---\nfront: matter\n---\n# Notes\n\n'
         '[it](features/f01_a/us01_b/USER_STORY.md#scenario-6a--edge-lettered)'
-        ' and `doc_model` RULE-7a.\n';
+        ' and `topic:doc_model` RULE-7a.\n';
 
     final pass = RenumberPass.plan([
       (docPath: notesPath, lf: notes, type: null),
@@ -1029,6 +1036,78 @@ RULE-7a` here.
     final two = _applied({_storyPath: twice, _frPath: tracing('0' * 12)});
 
     expect(two[_frPath], tracing('0' * 12));
+  });
+
+  test('$_fr E24, E47: a short scenario ref beyond the run of a story cite '
+      'goes to the story the doc belongs to', () {
+    const story =
+        '# E\n\n## Acceptance Criteria\n\n### Scenario 1 — [happy] one\n\n'
+        '- **Given** g\n';
+    const fr = '# C\n\n## Statement\n\n`a/e` see S6a\n`a/e` S1, then S6a\n';
+
+    final applied = _applied({
+      _storyPath: _story,
+      _siblingPath: story,
+      _frPath: fr,
+    });
+
+    expect(
+      applied[_frPath],
+      '# C\n\n## Statement\n\n`a/e` see S9\n`a/e` S1, then S9\n',
+    );
+  });
+
+  test('$_fr E57: a short scenario ref in the run of a cite of a story the '
+      'doc traces renumbers, one beyond the run does not', () {
+    const fr =
+        '---\ntraced_from:\n  - a/b#S1\n---\n# F\n\n## Statement\n\n'
+        '`a/b` S6a, then S6a\n';
+
+    final applied = _applied({_storyPath: _story, _siblingFrPath: fr});
+
+    expect(
+      applied[_siblingFrPath],
+      fr.replaceFirst('`a/b` S6a, then S6a', '`a/b` S9, then S6a'),
+    );
+  });
+
+  test('$_fr E47: a token inside the text of a doc link in another doc '
+      'renumbers with the doc of that link', () {
+    const domain =
+        '# A\n\n## Invariants\n\n'
+        '`other_topic` see [RULE-7a and more](../topics/doc_model.md) here\n';
+
+    final applied = _applied({_topicPath: _topic, _domainPath: domain});
+
+    expect(
+      applied[_domainPath],
+      domain.replaceFirst('[RULE-7a and', '[RULE-31 and'),
+    );
+  });
+
+  test('$_fr E47: a token at the start of the line after a citation of the '
+      'renumbered doc, in the same paragraph, stays as written', () {
+    const domain =
+        '# A\n\n## Invariants\n\n`topic:doc_model`\nRULE-7a follows\n';
+
+    final applied = _applied({_topicPath: _topic, _domainPath: domain});
+
+    expect(applied[_domainPath], domain);
+  });
+
+  test('$_fr E47: a path span followed by a section header span holds the run '
+      'after the header span', () {
+    const domain =
+        '# A\n\n## Invariants\n\n'
+        '`../topics/doc_model.md` `## Rules` RULE-7a\n'
+        '`../topics/doc_model.md` `## Rules` then RULE-7a\n';
+
+    final applied = _applied({_topicPath: _topic, _domainPath: domain});
+
+    expect(
+      applied[_domainPath],
+      domain.replaceFirst('`## Rules` RULE-7a', '`## Rules` RULE-31'),
+    );
   });
 }
 

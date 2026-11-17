@@ -14,7 +14,8 @@ String frPath(int n, [String slug = '']) => 'fr${_pad(n)}$slug';
 String _pad(int n) => n.toString().padLeft(2, '0');
 
 List<String> writtenIn(String line) => [
-  for (final label in numberLabelsIn(line)) label.written,
+  for (final label in numberLabelsIn(line, itemPrefixes: const {}))
+    label.written,
 ];
 
 const _applyName = 'setup_migration/upgrade_pack_pins/apply_steps_and_pins';
@@ -23,7 +24,7 @@ void main() {
   group('numberLabelsIn, the shapes of $_applyName E26', () {
     test('a full label of three parts', () {
       final run = '${f(12)} ${us(3)} ${fr(4)}';
-      final labels = numberLabelsIn('Cite $run here.');
+      final labels = numberLabelsIn('Cite $run here.', itemPrefixes: const {});
       expect(labels, hasLength(1));
       final label = labels.single;
       expect(label.written, run);
@@ -36,38 +37,47 @@ void main() {
     });
 
     test('a full label of two parts', () {
-      final label = numberLabelsIn('${f(1)} ${us(2)}').single;
+      final label = numberLabelsIn(
+        '${f(1)} ${us(2)}',
+        itemPrefixes: const {},
+      ).single;
       expect(label.shape, LabelShape.full);
       expect((label.feature, label.story, label.fr), (1, 2, null));
     });
 
     test('a full label of one part', () {
-      final label = numberLabelsIn(f(7)).single;
+      final label = numberLabelsIn(f(7), itemPrefixes: const {}).single;
       expect(label.shape, LabelShape.full);
       expect((label.feature, label.story, label.fr), (7, null, null));
     });
 
     test('a partial label of a story and an FR', () {
-      final label = numberLabelsIn('${us(2)} ${fr(5)}').single;
+      final label = numberLabelsIn(
+        '${us(2)} ${fr(5)}',
+        itemPrefixes: const {},
+      ).single;
       expect(label.shape, LabelShape.partial);
       expect((label.feature, label.story, label.fr), (null, 2, 5));
     });
 
     test('a partial label of a story alone', () {
-      final label = numberLabelsIn(us(9)).single;
+      final label = numberLabelsIn(us(9), itemPrefixes: const {}).single;
       expect(label.shape, LabelShape.partial);
       expect((label.feature, label.story, label.fr), (null, 9, null));
     });
 
     test('a partial label of an FR alone', () {
-      final label = numberLabelsIn(fr(10)).single;
+      final label = numberLabelsIn(fr(10), itemPrefixes: const {}).single;
       expect(label.shape, LabelShape.partial);
       expect((label.feature, label.story, label.fr), (null, null, 10));
     });
 
     test('a folder path of three bare folders', () {
       final path = '${fPath(1)}/${usPath(2)}/${frPath(3)}';
-      final label = numberLabelsIn('see `$path`').single;
+      final label = numberLabelsIn(
+        'see `$path`',
+        itemPrefixes: const {},
+      ).single;
       expect(label.written, path);
       expect(label.shape, LabelShape.folderPath);
       expect((label.feature, label.story, label.fr), (1, 2, 3));
@@ -76,7 +86,10 @@ void main() {
 
     test('a folder path whose last folder carries a slug', () {
       final path = '${usPath(2)}/${frPath(3, '_check_password')}';
-      final label = numberLabelsIn('| `$path` |').single;
+      final label = numberLabelsIn(
+        '| `$path` |',
+        itemPrefixes: const {},
+      ).single;
       expect(label.written, path);
       expect(label.shape, LabelShape.folderPath);
       expect((label.feature, label.story, label.fr), (null, 2, 3));
@@ -166,7 +179,10 @@ void main() {
     });
 
     test('a list of partial labels gives one label per run', () {
-      final labels = numberLabelsIn('(${us(1)} ${fr(2)}, ${fr(3)})');
+      final labels = numberLabelsIn(
+        '(${us(1)} ${fr(2)}, ${fr(3)})',
+        itemPrefixes: const {},
+      );
       expect(labels.map((l) => l.written), ['${us(1)} ${fr(2)}', fr(3)]);
     });
 
@@ -175,42 +191,73 @@ void main() {
     });
 
     test('a number too long for an int still gives a label', () {
-      final label = numberLabelsIn('F-${'9' * 30}').single;
+      final label = numberLabelsIn(
+        'F-${'9' * 30}',
+        itemPrefixes: const {},
+      ).single;
       expect(label.written, 'F-${'9' * 30}');
       expect(label.feature, isNotNull);
     });
   });
 
   group('numberLabelsIn, the item ID after a label', () {
+    const prefixes = {'INV-', 'S', 'E', 'NFR-P'};
+
+    List<NumberLabel> read(String line) =>
+        numberLabelsIn(line, itemPrefixes: prefixes);
+
     test('a plain item ID follows', () {
-      final label = numberLabelsIn('${f(2)} INV-6 holds').single;
+      final label = read('${f(2)} INV-6 holds').single;
       expect(label.written, f(2));
       expect(label.itemId, 'INV-6');
       expect(label.end, f(2).length);
     });
 
     test('a scenario and an edge case ID follow', () {
-      expect(numberLabelsIn('${f(1)} S3').single.itemId, 'S3');
-      expect(numberLabelsIn('${us(1)} ${fr(2)} E09').single.itemId, 'E09');
+      expect(read('${f(1)} S3').single.itemId, 'S3');
+      expect(read('${us(1)} ${fr(2)} E09').single.itemId, 'E09');
     });
 
     test('a letter-led NFR ID follows', () {
-      expect(numberLabelsIn('${f(1)} NFR-P03').single.itemId, 'NFR-P03');
+      expect(read('${f(1)} NFR-P03').single.itemId, 'NFR-P03');
     });
 
     test('a label that is not ascending is a label, not an item ID', () {
-      final labels = numberLabelsIn('${fr(1)} ${fr(2)}');
+      final labels = read('${fr(1)} ${fr(2)}');
       expect(labels.map((l) => l.written), [fr(1), fr(2)]);
       expect(labels.first.itemId, isNull);
     });
 
     test('a lower-case word is no item ID', () {
-      expect(numberLabelsIn('${f(1)} and').single.itemId, isNull);
+      expect(read('${f(1)} and').single.itemId, isNull);
     });
 
     test('an item ID after a folder path', () {
-      final label = numberLabelsIn('${usPath(1)}/${frPath(2)} E04').single;
+      final label = read('${usPath(1)}/${frPath(2)} E04').single;
       expect(label.itemId, 'E04');
+    });
+
+    test('a token of no item ID prefix is no item ID', () {
+      expect(read('${f(1)} UTF-8').single.itemId, isNull);
+    });
+
+    test('several spaces before the item ID still read it', () {
+      expect(read('${f(1)}  INV-5').single.itemId, 'INV-5');
+    });
+
+    test('a code span between the label and the ID ends the run', () {
+      final label = numberLabelsInMarkdown(
+        '${f(1)} `x` INV-5\n',
+        itemPrefixes: prefixes,
+      ).single;
+      expect(label.itemId, isNull);
+    });
+
+    test('with no prefixes given, no label holds an item ID', () {
+      expect(
+        numberLabelsIn('${f(2)} INV-6', itemPrefixes: const {}).single.itemId,
+        isNull,
+      );
     });
   });
 
@@ -218,7 +265,7 @@ void main() {
     test('a label on a later line has its offsets in the whole text', () {
       const prefix = 'first line\nsecond ';
       final text = '$prefix${f(4)}\nthird\n';
-      final label = numberLabelsInMarkdown(text).single;
+      final label = numberLabelsInMarkdown(text, itemPrefixes: const {}).single;
       expect(label.start, prefix.length);
       expect(label.end, prefix.length + f(4).length);
       expect(text.substring(label.start, label.end), f(4));
@@ -226,30 +273,38 @@ void main() {
 
     test('a label in prose is read', () {
       expect(
-        numberLabelsInMarkdown('Cite ${f(1)} ${us(2)}.\n')
-            .map((l) => l.written),
+        numberLabelsInMarkdown(
+          'Cite ${f(1)} ${us(2)}.\n',
+          itemPrefixes: const {},
+        ).map((l) => l.written),
         ['${f(1)} ${us(2)}'],
       );
     });
 
     test('a label in a dart fence is skipped', () {
       final text = '```dart\nvar a = "${f(1)}";\n```\n${us(2)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [us(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [us(2)],
+      );
     });
 
     test('a label in a tilde fence is skipped', () {
       final text = '~~~\n${f(1)}\n~~~\n';
-      expect(numberLabelsInMarkdown(text), isEmpty);
+      expect(numberLabelsInMarkdown(text, itemPrefixes: const {}), isEmpty);
     });
 
     test('a label in a fence with no language is skipped', () {
       final text = '```\n${f(1)}\n```\n';
-      expect(numberLabelsInMarkdown(text), isEmpty);
+      expect(numberLabelsInMarkdown(text, itemPrefixes: const {}), isEmpty);
     });
 
     test('a label in a mermaid fence is read', () {
       final text = '```mermaid\nA[get, ${f(1)} CLI entry]\n```\n';
-      final labels = numberLabelsInMarkdown(text);
+      final labels = numberLabelsInMarkdown(text, itemPrefixes: const {});
       expect(labels.map((l) => l.written), [f(1)]);
       expect(text.substring(labels.single.start, labels.single.end), f(1));
     });
@@ -258,43 +313,73 @@ void main() {
       final text =
           '```dart\n${f(1)}\n```\n```mermaid\n${f(2)}\n```\n'
           '```sh\n${f(3)}\n```\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(2)],
+      );
     });
 
     test('a mermaid fence in a block quote is read', () {
       final text = '> ```mermaid\n> ${f(1)}\n> ```\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(1)],
+      );
     });
 
     test('a longer fence is not closed by a shorter run', () {
       final text = '````mermaid\n```\n${f(1)}\n````\n${f(2)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1), f(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(1), f(2)],
+      );
     });
 
     test('an unclosed fence reads to the end of the text', () {
-      expect(numberLabelsInMarkdown('```dart\n${f(1)}\n'), isEmpty);
+      expect(
+        numberLabelsInMarkdown('```dart\n${f(1)}\n', itemPrefixes: const {}),
+        isEmpty,
+      );
     });
 
     test('a label in an inline code span is skipped', () {
       final path = '${usPath(1)}/${frPath(2, '_slug')}';
-      expect(numberLabelsInMarkdown('| `$path` |\n'), isEmpty);
+      expect(
+        numberLabelsInMarkdown('| `$path` |\n', itemPrefixes: const {}),
+        isEmpty,
+      );
     });
 
     test('a dash run in an inline code span is skipped', () {
       final text = 'Cite `${f(1)} ${us(2)}` and `${f(3)}` here.\n';
-      expect(numberLabelsInMarkdown(text), isEmpty);
+      expect(numberLabelsInMarkdown(text, itemPrefixes: const {}), isEmpty);
     });
 
     test('a label after a closed code span is read', () {
       final text = 'See `x` then ${f(1)}.\n';
-      final labels = numberLabelsInMarkdown(text);
+      final labels = numberLabelsInMarkdown(text, itemPrefixes: const {});
       expect(labels.map((l) => l.written), [f(1)]);
       expect(labels.single.start, 'See `x` then '.length);
     });
 
     test('a label between backticks in a mermaid fence is still read', () {
       final text = '```mermaid\nA[`${f(1)}`] B[${us(2)}]\n```\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1), us(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(1), us(2)],
+      );
     });
 
     test('a backtick escaped by a backslash opens no span, its label read', () {
@@ -303,49 +388,91 @@ void main() {
           '${f(1)}'
           r' there. Or \`x\` '
           '${us(2)}.\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1), us(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(1), us(2)],
+      );
     });
 
     test('a label in a link destination is skipped', () {
       final text = '[${us(1)} ${fr(2)}](../${usPath(1)}/${frPath(2)}.md)\n';
-      final labels = numberLabelsInMarkdown(text);
+      final labels = numberLabelsInMarkdown(text, itemPrefixes: const {});
       expect(labels.map((l) => l.written), ['${us(1)} ${fr(2)}']);
     });
 
     test('a label in a pointy-bracket link destination is skipped', () {
       final text = '[x](<../${usPath(1)}/${frPath(2)}.md>) ${f(3)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(3)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(3)],
+      );
     });
 
     test('a link destination with balanced parentheses is skipped', () {
       final text = '[x](a_(${usPath(1)}/${frPath(2)})) ${f(3)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(3)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(3)],
+      );
     });
 
     test('a reference definition destination is skipped', () {
       final text = '[x]: ../${usPath(1)}/${frPath(2)}.md\n${f(3)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(3)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(3)],
+      );
     });
 
     test('a mermaid fence holding an indented fence-like line and an empty '
         'line still reads its label', () {
       final text = '```mermaid\n\n    ```\nA[${f(1)}]\n```\n${us(2)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [f(1), us(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [f(1), us(2)],
+      );
     });
 
     test('a dart fence holding an indented fence-like line and an empty '
         'line reads none inside', () {
       final text = '```dart\n\n    ```\n${f(1)}\n```\n${us(2)}\n';
-      expect(numberLabelsInMarkdown(text).map((l) => l.written), [us(2)]);
+      expect(
+        numberLabelsInMarkdown(
+          text,
+          itemPrefixes: const {},
+        ).map((l) => l.written),
+        [us(2)],
+      );
     });
 
     test('a stray backtick line opens no fence', () {
-      expect(numberLabelsInMarkdown('`\n${f(1)}\n'), hasLength(1));
+      expect(
+        numberLabelsInMarkdown('`\n${f(1)}\n', itemPrefixes: const {}),
+        hasLength(1),
+      );
     });
 
     test('text with no label gives none', () {
-      expect(numberLabelsInMarkdown('Nothing here.\n'), isEmpty);
-      expect(numberLabelsInMarkdown(''), isEmpty);
+      expect(
+        numberLabelsInMarkdown('Nothing here.\n', itemPrefixes: const {}),
+        isEmpty,
+      );
+      expect(numberLabelsInMarkdown('', itemPrefixes: const {}), isEmpty);
     });
   });
 
@@ -354,7 +481,10 @@ void main() {
 
     test('a legacy ID reads only from its story folder unless the caller '
         'asks for it', () {
-      final label = numberLabelsInMarkdown('See $legacyId.\n').single;
+      final label = numberLabelsInMarkdown(
+        'See $legacyId.\n',
+        itemPrefixes: const {},
+      ).single;
 
       expect(label.written, 'us13/fr01');
     });
@@ -363,6 +493,7 @@ void main() {
       final label = numberLabelsInMarkdown(
         'See $legacyId.\n',
         legacyIds: true,
+        itemPrefixes: const {},
       ).single;
 
       expect(label.written, legacyId);
@@ -375,6 +506,7 @@ void main() {
         numberLabelsInMarkdown(
           'ai02_chat/us13_pay/fr01_charge.md\n',
           legacyIds: true,
+          itemPrefixes: const {},
         ),
         isEmpty,
       );
@@ -384,6 +516,7 @@ void main() {
       final label = numberLabelsInMarkdown(
         'See $legacyId.\n',
         legacyIds: true,
+        itemPrefixes: const {},
       ).single;
 
       expect(label.prefix, 'ai');
@@ -395,6 +528,7 @@ void main() {
         final labels = numberLabelsInMarkdown(
           'f03/us02/fr04/e09 and f06/us01/s1\n',
           legacyIds: legacy,
+          itemPrefixes: const {},
         );
 
         expect(labels.map((l) => l.written), ['f03/us02/fr04', 'f06/us01']);
@@ -407,8 +541,12 @@ void main() {
       final legacy = numberLabelsInMarkdown(
         'ai01/us01/nf01\n',
         legacyIds: true,
+        itemPrefixes: const {},
       ).single;
-      final upgrade = numberLabelsInMarkdown('us01/fr01/nf02\n').single;
+      final upgrade = numberLabelsInMarkdown(
+        'us01/fr01/nf02\n',
+        itemPrefixes: const {},
+      ).single;
 
       expect((legacy.written, legacy.isPartOfPath), ('ai01/us01', true));
       expect((upgrade.written, upgrade.isPartOfPath), ('us01/fr01', true));
@@ -418,6 +556,7 @@ void main() {
       final label = numberLabelsInMarkdown(
         'us13/fr01\n',
         legacyIds: true,
+        itemPrefixes: const {},
       ).single;
 
       expect((label.feature, label.story, label.fr), (null, 13, 1));

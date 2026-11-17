@@ -1,4 +1,6 @@
+import 'package:specstone_core/src/doc_model/doc_link.dart' show docsFolderName;
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
+import 'package:specstone_core/src/doc_model/path_pattern.dart';
 import 'package:specstone_core/src/release_version.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -181,10 +183,34 @@ MapEntry<String, String>? gnfrOverride(
 /// by DocPath.
 List<MergedDocType> singularDocTypes(MergedSet set) {
   final singular = [
-    for (final docType in set.docTypes)
-      if (_isSingular(docType.path) && !set.isProjectSpecType(docType)) docType,
+    for (final docType in _onePathTypes(set))
+      if (!set.isProjectSpecType(docType)) docType,
   ];
   return singular..sort(_byDraftOrder);
+}
+
+/// Returns the DocPath of each doc type of [set] with one doc per project,
+/// project spec types included, one per name in [twinNames] in place of the
+/// shared path for a per-target type.
+Set<String> singularLayoutPathsOf(
+  MergedSet set, {
+  required List<String> twinNames,
+}) => {
+  for (final type in _onePathTypes(set))
+    if (type.path case final path?)
+      if (type.isPerTarget && twinNames.isNotEmpty)
+        for (final name in twinNames) PathPattern(path).forTarget(name).source
+      else
+        path,
+};
+
+/// Whether [path] is one of [layoutPaths], or one of them under the docs
+/// folder.
+bool isSingularLayoutPath(String path, Set<String> layoutPaths) {
+  const prefix = '$docsFolderName/';
+  return layoutPaths.contains(path) ||
+      (path.startsWith(prefix) &&
+          layoutPaths.contains(path.substring(prefix.length)));
 }
 
 /// Parses the doc-type files among [files] as project-layer doc types.
@@ -239,6 +265,10 @@ String _stringScalar(String text) {
   }
   return _quoted(text);
 }
+
+/// Returns the doc types of [set] whose path holds no `{nn}` and no `{slug}`.
+Iterable<MergedDocType> _onePathTypes(MergedSet set) =>
+    set.docTypes.where((docType) => _isSingular(docType.path));
 
 bool _isSingular(String? path) =>
     path != null && !path.contains('{nn}') && !path.contains('{slug}');

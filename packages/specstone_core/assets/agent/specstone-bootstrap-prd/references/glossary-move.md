@@ -26,7 +26,9 @@ ignored. An item with no leading bold span has no term and always moves.
   as the procedure's size row says.
 - **Its in-file links** (`#<anchor>`, no path): one to a heading PROJECT keeps, the glossary section while an entry
   stays in it included, gains `PROJECT.md` as its path, its anchor unchanged; one to the glossary section the move drops
-  links to `GLOSSARY.md` with no anchor. A link with a path keeps it.
+  links to `GLOSSARY.md` with no anchor; one to a goal the batch's goal move moved (`#pg-…`) links to `GOAL.md#pg-…`,
+  its anchor unchanged; one to the goals section that move dropped links to `GOAL.md` with no anchor. A link with a path
+  keeps it.
 
 ## 3. Drop the moved entries, then repoint
 

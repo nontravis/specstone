@@ -2,8 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
-import 'package:specstone_core/src/doc_model/sentences.dart'
-    show heldTextOf, sentencesOf;
+import 'package:specstone_core/src/doc_model/sentences.dart' show sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
@@ -327,22 +326,13 @@ String? _answer(String? Function() readLine, StringSink out) {
 }
 
 /// What a run reads once, before its first view: the approved copy of each
-/// shown draft, the two texts a sentence is looked for in, and which approved
-/// sentences the tree holds, found in one pass over it for the whole run.
+/// shown draft and the sentences of every doc of the tree.
 ///
 /// A re-shown draft reads its new bytes, and nothing else is read again.
 final class _RunReads {
-  new _(this._lookups, this._approved, this._treeHeld)
-    : _tree = joinHeldTexts(_treeHeld.values),
-      _runCopies = heldTextsOf(_approved.values),
-      _approvedSentences = {
-        for (final MapEntry(:key, :value) in _approved.entries)
-          key: sentencesOf(value),
-      } {
-    _treeHolds = heldSentencesIn([
-      for (final sentences in _approvedSentences.values) ...sentences,
-    ], _tree);
-  }
+  new _(this._lookups, this._approved, this._treeSentences)
+    : _tree = _unionOf(_treeSentences.values),
+      _runCopies = sentenceSetOf(_approved.values);
 
   /// Reads the approved copy of each of [drafts] through [history], then the
   /// text of every doc the index lists, typed or not, as on disk.
@@ -371,7 +361,7 @@ final class _RunReads {
     }
     return _RunReads._(lookups, approved, {
       for (final doc in session.index.docs)
-        doc.docPath: heldTextOf(_textOnDisk(session, doc.docPath)),
+        doc.docPath: sentencesOf(_textOnDisk(session, doc.docPath)).toSet(),
     });
   }
 
@@ -380,17 +370,14 @@ final class _RunReads {
   /// The laid-out approved copy of each draft whose lookup found one.
   final Map<String, String> _approved;
 
-  /// The held text of each doc of the tree, by DocPath.
-  final Map<String, String> _treeHeld;
+  /// The sentences of each doc of the tree, by DocPath.
+  final Map<String, Set<String>> _treeSentences;
 
-  final String _tree;
-  final String _runCopies;
+  /// The sentences of every doc of the tree.
+  final Set<String> _tree;
 
-  /// The sentences of each approved copy, by DocPath.
-  final Map<String, List<String>> _approvedSentences;
-
-  /// The approved sentences of every draft of the run that [_tree] holds.
-  late final Set<String> _treeHolds;
+  /// The sentences of the approved copy of each draft the run shows.
+  final Set<String> _runCopies;
 
   /// Returns what git said about the approved copy of [doc].
   ApprovalLookup lookupOf(IndexedDoc doc) => _lookups[doc.docPath]!;
@@ -398,24 +385,28 @@ final class _RunReads {
   /// Returns the sentences [doc] dropped and added, [text] being its draft as
   /// shown now.
   SentenceChanges changesOf(IndexedDoc doc, String text, MergedDocType? type) {
-    final held = heldTextOf(toLf(text));
-    final draft = comparableTextOf(text, type);
-    if (held != _treeHeld[doc.docPath]) {
-      return sentenceChangesOf(
-        draft: draft,
-        approved: _approved[doc.docPath],
-        tree: joinHeldTexts({..._treeHeld, doc.docPath: held}.values),
-        runCopies: _runCopies,
-      );
-    }
-    return sentenceChangesGiven(
-      draft: draft,
-      approvedSentences: _approvedSentences[doc.docPath] ?? const [],
-      treeHeld: _treeHolds,
+    final shown = sentencesOf(toLf(text)).toSet();
+    return sentenceChangesOf(
+      draft: comparableTextOf(text, type),
+      approved: _approved[doc.docPath],
+      tree: _isSameSet(shown, _treeSentences[doc.docPath])
+          ? _tree
+          : _unionOf([
+              for (final MapEntry(:key, :value) in _treeSentences.entries)
+                if (key != doc.docPath) value,
+              shown,
+            ]),
       runCopies: _runCopies,
     );
   }
 }
+
+Set<String> _unionOf(Iterable<Set<String>> sets) => {
+  for (final set in sets) ...set,
+};
+
+bool _isSameSet(Set<String> a, Set<String>? b) =>
+    b != null && a.length == b.length && a.containsAll(b);
 
 /// Returns the LF text of [docPath] as it is on disk, or `''` for a file gone;
 /// invalid UTF-8 reads as replacement characters, since this doc is only looked

@@ -55,6 +55,10 @@ final class Bundle {
   /// The docs the chain rule picks, by DocPath.
   final Set<String> docPaths = {};
 
+  /// The docs the call names, by DocPath; filled in `query` alone, where each
+  /// prints whole.
+  final Set<String> targetPaths = {};
+
   /// The docs a design bundle prints in summary, by DocPath.
   final Set<String> summaryPaths = {};
 
@@ -126,6 +130,15 @@ final class Bundle {
       case BundleMode.implement:
         _addImplement(index, effective, top);
     }
+  }
+
+  /// Records [doc], a doc the call names, as a target that prints whole.
+  ///
+  /// Only a `query` bundle holds targets, and a code path names none.
+  void nameTarget(IndexedDoc doc) {
+    if (mode != BundleMode.query || !keepsTarget(doc)) return;
+    docPaths.add(doc.docPath);
+    targetPaths.add(doc.docPath);
   }
 
   /// Adds every typed doc whose doc type's `bundle:` list holds the mode,
@@ -349,7 +362,9 @@ Bundle pickBundle(
   }
   final bundle = Bundle(mode, summary: summary, codeTarget: codeTarget);
   for (final doc in picked) {
-    bundle.addTarget(index, doc);
+    bundle
+      ..addTarget(index, doc)
+      ..nameTarget(doc);
     if (doc.docTypeId case final typeId?) bundle.targetTypeIds.add(typeId);
   }
   bundle.join(index, noProject: noProject);

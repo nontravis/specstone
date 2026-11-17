@@ -811,6 +811,68 @@ lint:
       );
     });
 
+    test('an item_fields entry reads a when of a field and a value', () {
+      final entry =
+          (lintOf(
+                    '{item_fields: [{field: Corrective policy, '
+                    'when: {field: Consistency, value: eventual}}]}',
+                  ).itemFields!
+                  as PlainList<ItemFieldLint>)
+              .items
+              .single;
+      expect(entry.when!.field, 'Consistency');
+      expect(entry.when!.value, 'eventual');
+      expect(entry.values, isNull);
+    });
+
+    test('an item_fields entry reads when and values together', () {
+      final entry =
+          (lintOf(
+                    '{item_fields: [{field: P, values: [a], '
+                    'when: {field: K, value: v}}]}',
+                  ).itemFields!
+                  as PlainList<ItemFieldLint>)
+              .items
+              .single;
+      expect(entry.values, ['a']);
+      expect((entry.when!.field, entry.when!.value), ('K', 'v'));
+    });
+
+    test('a when key other than field and value is unknown_key', () {
+      expectSectionFault(
+        '{item_fields: [{field: P, when: {field: K, value: v, extra: x}}]}',
+        FaultCode.unknownKey,
+        'item_fields[0].when.extra',
+      );
+    });
+
+    test('a when without field or value is missing_key', () {
+      expectSectionFault(
+        '{item_fields: [{field: P, when: {value: v}}]}',
+        FaultCode.missingKey,
+        'item_fields[0].when.field',
+      );
+      expectSectionFault(
+        '{item_fields: [{field: P, when: {field: K}}]}',
+        FaultCode.missingKey,
+        'item_fields[0].when.value',
+      );
+    });
+
+    test('a when that is no mapping, or whose field or value is no string, '
+        'is unknown_value', () {
+      expectSectionFault(
+        '{item_fields: [{field: P, when: eventual}]}',
+        FaultCode.unknownValue,
+        'item_fields[0].when',
+      );
+      expectSectionFault(
+        '{item_fields: [{field: P, when: {field: K, value: [v]}}]}',
+        FaultCode.unknownValue,
+        'item_fields[0].when.value',
+      );
+    });
+
     test('required_when reads section, field, and value', () {
       final rule = lintOf(
         '{required_when: {section: scope, field: Kind, value: api}}',

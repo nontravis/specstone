@@ -212,6 +212,64 @@ List<({int at, ItemId id})> itemIdsInProse(
   return found..sort((a, b) => a.at - b.at);
 }
 
+/// An ID of an item-ID run and its 0-based column on the line.
+final class RunItem {
+  const new({required this.at, required this.id});
+
+  final int at;
+
+  /// An [ItemId] or a [LetteredId]; an [UnreadableId] ends a run.
+  final IdRead id;
+}
+
+/// The text that may stand between two IDs of a run, longest first so `, and `
+/// is not read as `, `.
+const _runJoiners = [', and ', ' and ', ' or ', ', ', ' to '];
+
+/// Reads the item IDs of [prefixes] that run right after column [from] of
+/// [line], the end of a citation.
+///
+/// The first ID follows zero or more spaces and each next one a joiner; the
+/// first other text ends the run. [line] is read as written, so a code span
+/// ends the run. A lettered ID joins the run; an unreadable one ends it.
+List<RunItem> itemIdRunAt(
+  String line,
+  int from, {
+  required Set<String> prefixes,
+}) {
+  final longestFirst = prefixes.toList()..sort((a, b) => b.length - a.length);
+  final items = <RunItem>[];
+  var at = from;
+  while (at < line.length && line.codeUnitAt(at) == _spaceUnit) {
+    at++;
+  }
+  while (true) {
+    final id = _runIdAt(line, at, longestFirst);
+    if (id == null) break;
+    items.add(RunItem(at: at, id: id));
+    final end = at + id.written.length;
+    final joiner = _runJoiners.where((it) => line.startsWith(it, end));
+    if (joiner.isEmpty) break;
+    at = end + joiner.first.length;
+  }
+  return items;
+}
+
+/// Reads the item or lettered ID of one of [longestFirst] at [at]; null when
+/// none starts there, or the form is unreadable.
+IdRead? _runIdAt(String line, int at, List<String> longestFirst) {
+  if (at >= line.length) return null;
+  if (at > 0 && _endsWord(line, at)) return null;
+  for (final prefix in longestFirst) {
+    final id = readItemIdAt(line, at, prefix);
+    if (id == null) continue;
+    return id is UnreadableId ? null : id;
+  }
+  return null;
+}
+
+const _spaceUnit = 0x20;
+
 /// Whether the character before [at] in [text] is a letter or digit.
 bool _endsWord(String text, int at) {
   final unit = text.codeUnitAt(at - 1);

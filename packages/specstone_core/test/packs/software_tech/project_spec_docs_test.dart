@@ -324,6 +324,28 @@ void main() {
     }
   });
 
+  test('project_domain invariants ask the corrective policy of an eventual '
+      'invariant', () {
+    final domain = prdCoreDocType(set, 'domain');
+    final projectDomain = prdCoreDocType(set, 'project_domain');
+    expectSectionsSay(projectDomain, const {
+      'invariants': [
+        '- **Corrective policy:** <how the system restores the rule>',
+        'eventual',
+      ],
+    });
+    List<Map<String, Object>> fieldsOf(MergedDocType type) => [
+      for (final f
+          in type.sections.singleWhere((s) => s.id == 'invariants').itemFields!)
+        f.toJson(),
+    ];
+    expect(fieldsOf(projectDomain), fieldsOf(domain));
+    expect(
+      projectDomain.sections.map((s) => s.id),
+      isNot(contains('corrective_policies')),
+    );
+  });
+
   test('each project spec doc type guide extends the cite rule to project and '
       'ancestor rules', () {
     for (final id in _projectTypes.keys) {

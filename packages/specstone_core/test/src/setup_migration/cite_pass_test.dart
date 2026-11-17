@@ -7,7 +7,7 @@ import 'package:specstone_core/src/index_query/item_words.dart'
 import 'package:specstone_core/src/setup_migration/cite_pass.dart';
 import 'package:specstone_core/src/setup_migration/migration_chain.dart';
 import 'package:specstone_core/src/setup_migration/project_files.dart'
-    show parseOverrides;
+    show parseOverrides, singularLayoutPathsOf;
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pack_version.dart';
 import 'package:specstone_core/src/templates/template_resolver.dart';
@@ -32,27 +32,45 @@ const Map<String, String> _baseDocs = {
   _topic: '# Doc model\n\n## Rules\n\n- **RULE-14** One.\n- **RULE-19** Two.\n',
 };
 
+/// A sub-feature `login/sso` whose feature doc and domain doc share its Name;
+/// the domain holds INV-6.
+const Map<String, String> _subFeatureDocs = {
+  'prds/features/f01_login/f01_sso/FEATURE.md': '# Single sign-on\n',
+  'specs/f01_login/f01_sso/DOMAIN.md':
+      '# SSO domain\n\n## Invariants\n\n- **INV-6** One email.\n',
+};
+
 final MergedSet _set = TemplateResolver().resolveCarried(
   packNames: const ['prd-core', 'software-tech'],
   homeDirectory: null,
 );
 
 /// The cite pass over [docs], each typed by its shipped doc type.
-CitePass _passOf(Map<String, String> docs) => CitePass.plan([
-  for (final MapEntry(key: docPath, value: lf) in docs.entries)
-    (
-      docPath: docPath,
-      lf: lf,
-      type: switch (DocTypeMatcher(
-        _set,
-        targetNames: const [],
-      ).match(docPath)) {
-        MatchedDocType(:final docType) => docType,
-        _ => null,
-      },
-      target: null,
-    ),
-], idPrefixes: _idPrefixes);
+CitePass _passOf(Map<String, String> docs) => CitePass.plan(
+  [
+    for (final MapEntry(key: docPath, value: lf) in docs.entries)
+      (
+        docPath: docPath,
+        lf: lf,
+        type: switch (DocTypeMatcher(
+          _set,
+          targetNames: const [],
+        ).match(docPath)) {
+          MatchedDocType(:final docType) => docType,
+          _ => null,
+        },
+        target: null,
+      ),
+  ],
+  idPrefixes: _idPrefixes,
+  layoutPaths: _layoutPaths,
+);
+
+/// The layout paths of the singular doc types of [_set].
+final Set<String> _layoutPaths = singularLayoutPathsOf(
+  _set,
+  twinNames: const [],
+);
 
 /// The item ID prefixes of [_set].
 final Set<String> _idPrefixes = itemIdPrefixesOf(_set.docTypes);
@@ -87,6 +105,51 @@ void main() {
       expect(
         _converted('`domain:login` INV-6 and INV-7\n'),
         '[INV-6](../f01_login/DOMAIN.md#invariants) and [INV-7](../f01_login/DOMAIN.md#invariants)\n',
+      );
+    });
+
+    test('a name with an ID farther along the line becomes its doc link and '
+        'the ID stays as written', () {
+      expect(
+        _converted(
+          'It is the one (`domain:login`); with two targets it needs it '
+          '(INV-6) |\n',
+        ),
+        'It is the one ([domain:login](../f01_login/DOMAIN.md)); with two '
+        'targets it needs it (INV-6) |\n',
+      );
+    });
+
+    test('a lone name that resolves to one doc becomes its link where it '
+        'stood', () {
+      expect(
+        _converted('Before `domain:login` after.\n'),
+        'Before [domain:login](../f01_login/DOMAIN.md) after.\n',
+      );
+    });
+
+    test('an item cite drops its name only up to its run and links each ID, '
+        'a later ID staying as written', () {
+      expect(
+        _converted('`domain:login`  INV-6 and INV-7, then see INV-7 too\n'),
+        '[INV-6](../f01_login/DOMAIN.md#invariants) and '
+        '[INV-7](../f01_login/DOMAIN.md#invariants), then see INV-7 too\n',
+      );
+    });
+
+    test('a lettered ID that opens the run stays as written, with its name '
+        'dropped only up to it', () {
+      expect(
+        _converted('`topic:doc_model` RULE-7a, RULE-14\n'),
+        'RULE-7a, [RULE-14](../topics/doc_model.md#rules)\n',
+      );
+    });
+
+    test('a lone-word span ends the run, so the ID after it is no item of the '
+        'cite', () {
+      expect(
+        _converted('`domain:login` INV-6 and `goal` INV-3.\n'),
+        '[INV-6](../f01_login/DOMAIN.md#invariants) and `goal` INV-3.\n',
       );
     });
 
@@ -125,34 +188,56 @@ void main() {
     test('a shared name with no ID, and an ID its one doc lacks, stay and '
         'count as left', () {
       const body =
-          'See `login` here.\n'
+          'See `login/sso` here.\n'
           'And `domain:login` INV-99.\n'
           'And `domain:login` INV-6.\n';
       const text = '# Sign-up architecture\n\n## Components\n\n$body';
-      final pass = _passOf({..._baseDocs, _citing: text});
+      final pass = _passOf({..._baseDocs, ..._subFeatureDocs, _citing: text});
 
       expect(
         pass.apply(_citing, text),
         endsWith(
-          'See `login` here.\nAnd `domain:login` INV-99.\n'
+          'See `login/sso` here.\nAnd `domain:login` INV-99.\n'
           'And [INV-6](../f01_login/DOMAIN.md#invariants).\n',
         ),
       );
       expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 2');
       expect(pass.paths, [_citing]);
       expect(pass.leftOn(const {}), [
-        '$_citing:5 login',
+        '$_citing:5 login/sso',
         '$_citing:6 domain:login',
       ]);
     });
 
+    test("a singular type's layout path stays as written; the same doc by a "
+        'folder-relative path becomes its link', () {
+      const text =
+          '# Sign-up architecture\n\n## Components\n\n'
+          'See `prds/GOAL.md`, docs/prds/GOAL.md, and `../../GOAL.md`.\n';
+      final pass = _passOf({
+        ..._baseDocs,
+        'prds/GOAL.md': '# Project goals\n',
+        'prds/features/f01_login/us01_x/fr01_y.md': text,
+      });
+      const citing = 'prds/features/f01_login/us01_x/fr01_y.md';
+
+      expect(
+        pass.apply(citing, text),
+        endsWith(
+          'See `prds/GOAL.md`, docs/prds/GOAL.md, and '
+          '[goal:goal](../../../GOAL.md).\n',
+        ),
+      );
+      expect(pass.planLine, 'cites: 1 rewrites in 1 docs; left: 0');
+    });
+
     test('a left cite is cited at its line in the text the run writes', () {
-      const body = 'See `login` here.\n';
+      const body = 'See `login/sso` here.\n';
       const text = '# Sign-up architecture\n\n## Components\n\n$body';
-      final pass = _passOf({..._baseDocs, _citing: text});
+      final pass = _passOf({..._baseDocs, ..._subFeatureDocs, _citing: text});
       const written = '---\napproved: "0123456789ab"\n---\n\n$text';
 
-      expect(pass.leftOn({_citing: written}), ['$_citing:9 login']);
+      expect(pass.leftOn({_citing: written}), ['$_citing:9 login/sso']);
     });
 
     test('a cite form written inside a longer code span is no cite, neither '
@@ -194,24 +279,28 @@ void main() {
           '.specstone/templates/architecture.yaml': override,
         }),
       );
-      final pass = CitePass.plan([
-        for (final MapEntry(key: docPath, value: lf) in {
-          ..._baseDocs,
-          architecture: text,
-        }.entries)
-          (
-            docPath: docPath,
-            lf: lf,
-            type: switch (DocTypeMatcher(
-              set,
-              targetNames: const [],
-            ).match(docPath)) {
-              MatchedDocType(:final docType) => docType,
-              _ => null,
-            },
-            target: null,
-          ),
-      ], idPrefixes: itemIdPrefixesOf(set.docTypes));
+      final pass = CitePass.plan(
+        [
+          for (final MapEntry(key: docPath, value: lf) in {
+            ..._baseDocs,
+            architecture: text,
+          }.entries)
+            (
+              docPath: docPath,
+              lf: lf,
+              type: switch (DocTypeMatcher(
+                set,
+                targetNames: const [],
+              ).match(docPath)) {
+                MatchedDocType(:final docType) => docType,
+                _ => null,
+              },
+              target: null,
+            ),
+        ],
+        idPrefixes: itemIdPrefixesOf(set.docTypes),
+        layoutPaths: singularLayoutPathsOf(set, twinNames: const []),
+      );
       final report = checkOf(
         await writeCheckProject(
           extra: {
@@ -246,24 +335,28 @@ void main() {
               'path: $built\nparent:\n',
         }),
       );
-      final pass = CitePass.plan([
-        for (final MapEntry(key: docPath, value: lf) in {
-          ..._baseDocs,
-          built: text,
-        }.entries)
-          (
-            docPath: docPath,
-            lf: lf,
-            type: switch (DocTypeMatcher(
-              set,
-              targetNames: const [],
-            ).match(docPath)) {
-              MatchedDocType(:final docType) => docType,
-              _ => null,
-            },
-            target: null,
-          ),
-      ], idPrefixes: itemIdPrefixesOf(set.docTypes));
+      final pass = CitePass.plan(
+        [
+          for (final MapEntry(key: docPath, value: lf) in {
+            ..._baseDocs,
+            built: text,
+          }.entries)
+            (
+              docPath: docPath,
+              lf: lf,
+              type: switch (DocTypeMatcher(
+                set,
+                targetNames: const [],
+              ).match(docPath)) {
+                MatchedDocType(:final docType) => docType,
+                _ => null,
+              },
+              target: null,
+            ),
+        ],
+        idPrefixes: itemIdPrefixesOf(set.docTypes),
+        layoutPaths: singularLayoutPathsOf(set, twinNames: const []),
+      );
 
       expect(pass.planLine, isNull);
       expect(pass.apply(built, text), text);
@@ -299,13 +392,14 @@ void main() {
           for (final MapEntry(:key, :value) in loginProject.entries)
             if (key.startsWith('docs/') && key.endsWith('.md'))
               key.substring('docs/'.length): value,
-          _domain:
-              '# Login domain\n\n## Invariants\n\n- **INV-6** One email.\n',
+          ..._subFeatureDocs,
         };
         const citing = 'specs/f02_signup/ARCHITECTURE.md';
-        final text = '${docs[citing]}\nSee `login` INV-6 and `login`.\n';
+        final text =
+            '${docs[citing]}\nSee `login/sso` INV-6 and `login/sso`.\n';
         final index = await indexWith({
-          'docs/$_domain': docs[_domain]!,
+          for (final MapEntry(:key, :value) in _subFeatureDocs.entries)
+            'docs/$key': value,
           'docs/$citing': text,
         });
         final candidates = citeCandidatesOf(text, idPrefixes: _idPrefixes);
@@ -319,10 +413,10 @@ void main() {
         expect(checked.first, isA<CiteLink>());
         expect(checked.last, isA<CiteAmbiguous>());
         final link = citeLinkMarkdown(citing, checked.first as CiteLink).single;
-        expect(link, '[INV-6](../f01_login/DOMAIN.md#invariants)');
+        expect(link, '[INV-6](../f01_login/f01_sso/DOMAIN.md#invariants)');
         expect(
           pass.apply(citing, text),
-          endsWith('\nSee $link and `login`.\n'),
+          endsWith('\nSee $link and `login/sso`.\n'),
         );
         expect(pass.leftOn(const {}), hasLength(1));
       },

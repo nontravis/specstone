@@ -45,8 +45,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.10.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.10.0');
+  test('the shipped software-tech pack is 1.11.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.11.0');
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
@@ -423,13 +423,21 @@ void main() {
       expect(sentences('domain', 'invariants'), [(1, null)]);
       expect(sentences('topic', 'rules'), [(1, null)]);
       final fields = section('domain', 'invariants').itemFields!;
-      expect([for (final f in fields) f.field], ['Enforcer', 'Consistency']);
-      expect(fields.first.values, isNull);
-      expect(fields.last.values, ['immediate', 'eventual']);
-      final rule = section('domain', 'corrective_policies').requiredWhen!;
       expect(
-        (rule.section, rule.field, rule.value),
-        ('invariants', 'Consistency', 'eventual'),
+        [for (final f in fields) f.field],
+        ['Enforcer', 'Consistency', 'Corrective policy'],
+      );
+      expect(fields.first.values, isNull);
+      expect(fields[1].values, ['immediate', 'eventual']);
+      expect(fields.last.values, isNull);
+      expect(fields.last.when!.field, 'Consistency');
+      expect(fields.last.when!.value, 'eventual');
+      expect(
+        set.docTypes
+            .where((t) => t.pack == 'software-tech')
+            .expand((t) => t.sections)
+            .where((s) => s.requiredWhen != null),
+        isEmpty,
       );
       expect(section('error', 'error_catalog').catalog!.column, 'Code');
     });
@@ -452,13 +460,11 @@ void main() {
         'architecture.component_diagram',
         'architecture.components',
         'domain.invariants',
-        'domain.corrective_policies',
         'topic.rules',
         'error.error_catalog',
         'project_architecture.component_diagram',
         'project_architecture.components',
         'project_domain.invariants',
-        'project_domain.corrective_policies',
         'project_error.error_catalog',
         'project_api.conventions',
       });

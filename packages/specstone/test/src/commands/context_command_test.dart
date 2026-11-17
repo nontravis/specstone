@@ -971,6 +971,35 @@ void main() {
       );
     });
 
+    test('a query on an FR saves its text in one file and appends no cited part', () async {
+      final project = await writeReadProject(
+        extra: {
+          'docs/prds/references/password_rules/REFERENCE.md':
+              '# Password rules\n\n## Summary\nTwelve characters at least.\n',
+          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
+              '# Validate credentials\n\n## Statement\nThe system shall check the password by the '
+              '[password rules](../../../references/password_rules/REFERENCE.md).\n',
+        },
+      );
+      const fr = 'login/email_login/validate_credentials';
+      final stdout = await saved(project, [fr, '--for', 'query', '--out']);
+      final headers = [
+        for (final line in stdout.split('\n')) ?header.firstMatch(line),
+      ];
+      expect(headers, hasLength(1));
+      final text = File(headers.single.group(4)!).readAsStringSync();
+      expect(
+        text,
+        contains(
+          '# Validate credentials\n\n## Statement\nThe system shall check the password',
+        ),
+      );
+      expect(text, isNot(contains(' · cited <==')));
+      expect(text, isNot(contains('Twelve characters at least.')));
+      final implement = await printed(project, [fr, '--for', 'implement']);
+      expect(implement, contains(' · cited <=='));
+    });
+
     test('a bare --for query --out from a subfolder writes under the root and prints the same absolute path, text and --json', () async {
       final project = await writeReadProject(extra: {'app/lib/.keep': ''});
       final nested = Directory('${project.path}/app/lib');
@@ -1256,6 +1285,73 @@ void main() {
           plain.out.toString(),
         );
       }
+    });
+
+    test(
+      'a bare --out from a long code path writes a name of 250 bytes or fewer',
+      () async {
+        final segments = ['\u3042' * 45, '\u3044' * 45];
+        final code = 'app/lib/${segments.join('/')}.dart';
+        final project = await writeReadProject(extra: {code: ''});
+
+        final run = readRunner(project);
+        expect(
+          await run.runner.run([
+            'context',
+            '--code',
+            code,
+            '--for',
+            'implement',
+            '--out',
+          ]),
+          0,
+        );
+
+        final paths = [
+          for (final line in run.out.toString().split('\n'))
+            ?header.firstMatch(line)?.group(4),
+        ];
+        expect(paths, hasLength(2));
+        final names = [
+          for (final path in paths) path.split(RegExp(r'[/\\]')).last,
+        ];
+        expect(utf8.encode(names.first).length, lessThanOrEqualTo(250));
+        expect(utf8.encode(names.last).length, lessThanOrEqualTo(255));
+        expect(names.last, endsWith('.implement.refs.txt'));
+        expect(File(paths.first).existsSync(), isTrue);
+        expect(File(paths.last).existsSync(), isTrue);
+      },
+    );
+
+    test('a bare --out of a 250-byte ASCII name writes both files', () async {
+      final code = 'app/lib/${'a' * 218}.dart';
+      final project = await writeReadProject(extra: {code: ''});
+      final run = readRunner(project);
+
+      expect(
+        await run.runner.run([
+          'context',
+          '--code',
+          code,
+          '--for',
+          'implement',
+          '--out',
+        ]),
+        0,
+        reason: run.err.toString(),
+      );
+
+      final names = [
+        for (final file in Directory(
+          '${project.path}/.specstone/bundles',
+        ).listSync())
+          file.uri.pathSegments.last,
+      ];
+      expect(names, hasLength(2));
+      expect(names.map((name) => utf8.encode(name).length).toList()..sort(), [
+        250,
+        255,
+      ]);
     });
 
     test(

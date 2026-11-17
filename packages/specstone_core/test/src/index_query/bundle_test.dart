@@ -342,6 +342,49 @@ void main() {
     expect(b.mapTops, {'$f/FEATURE.md'});
     expect(b.joinedPaths, {'prds/PROJECT.md'});
   });
+  test('a query on an FR records the FR as its one target', () {
+    final b = pickBundle(
+      index,
+      'login/email_login/validate_credentials',
+      BundleMode.query,
+      noProject: false,
+    );
+    expect(b.targetPaths, {'$f/us01_email_login/fr01_validate_credentials.md'});
+  });
+  test('a query on a spec doc adds that doc and records it as the target', () {
+    final b = pickBundle(
+      index,
+      'architecture:login',
+      BundleMode.query,
+      noProject: false,
+    );
+    expect(b.docPaths, containsAll(['$f/FEATURE.md', '$s/ARCHITECTURE.md']));
+    expect(b.targetPaths, {'$s/ARCHITECTURE.md'});
+    expect(b.mapTops, {'$f/FEATURE.md'});
+  });
+  test(
+    'a query on a shared name with no chain doc records each doc as a target',
+    () {
+      final b = pickBundle(index, 'buyer', BundleMode.query, noProject: false);
+      expect(b.targetPaths, {
+        'prds/personas/buyer/PERSONA.md',
+        'prds/personas/buyer/ANTI_PERSONA.md',
+      });
+    },
+  );
+  test('no mode but query records a target', () {
+    for (final mode in [BundleMode.implement, BundleMode.design]) {
+      expect(
+        pickBundle(
+          index,
+          'login/email_login',
+          mode,
+          noProject: false,
+        ).targetPaths,
+        isEmpty,
+      );
+    }
+  });
   test('f01/us05/s8, f01/us05/fr01/e13: --no-project drops joined docs, never a chain doc', () async {
     expect(
       pickBundle(

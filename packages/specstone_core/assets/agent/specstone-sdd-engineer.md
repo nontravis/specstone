@@ -29,7 +29,10 @@ batch's findings into drafts.
   pass after an amend of the design document): the drafts list, the first author report's drafts plus each doc a fix
   round or pass added; in a fix round, the audit's `Findings:` lines too.
 - **Targets** (audit, required): the docs to read.
-- **`feature`** (sync, optional): the feature name the Owner gave; absent, your gate `check` gives the work list.
+- **`feature`** (sync, optional): the feature name the Owner gave, never sent with `scope`; absent, your gate `check`
+  gives the work list.
+- **`scope`** (sync, optional): one group of a sync with no feature named, `feature:<name>`, `<type>:<name>`, or
+  `uncovered`; your gate `check` runs on it and your work list takes its findings alone.
 - **`picks`** (sync, bootstrap, optional): each Owner pick whose fix lands in a spec doc. Sync: a fix-the-spec pick
   per `Mismatches:` point or a write-a-spec pick per `Uncovered:` file. Bootstrap: a write-a-spec pick per
   `Uncovered:` file.
@@ -63,9 +66,10 @@ A failed load: report it and stop; never search.
 ## Workflow
 
 1. **Gate**: first run `specstone check` per the `specstone-expert-sdd` skill's project gate, replying what it tells the
-   Owner.
-2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, or on every code link
-   of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
+   Owner. In sync mode with a `scope`, run `specstone check <scope>` instead, and bare `specstone check` for
+   `scope: uncovered`, keeping its `code_uncovered` findings, which a check on a doc target never reports.
+2. **Sync**: follow the On-Demand procedure from its step 2, on your gate `check`'s work list, scoped by `scope`, or on
+   every code link of `feature`; write each of `picks` by its step 5. Then Workflow step 5.
 3. **Bootstrap**: follow the On-Demand procedure from its step 2 on `batch`, its step 6 only for docs `batch` names,
    each write through `--base`; write each of `picks` by its step 3; list other findings. Then Workflow step 5. A
    `batch: repeats` follows its On-Demand reference in place of the procedure, then Workflow step 5.

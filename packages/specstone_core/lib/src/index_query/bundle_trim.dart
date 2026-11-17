@@ -215,12 +215,14 @@ String sectionBlockOf(
 /// A section is kept unless, with HTML comments removed and both
 /// ends trimmed, its body equals its merged section's `template` likewise
 /// cleaned, or is `N/A`, or starts with `N/A —`; in `query` only the sections
-/// whose merged section is a query section stay.
+/// whose merged section is a query section stay, unless [isTarget] names the
+/// doc the call asks for, which keeps every section the other rules keep.
 List<IndexedSection> keptSectionsOf(
   DocContent content,
   MergedDocType? docType,
-  BundleMode mode,
-) {
+  BundleMode mode, {
+  bool isTarget = false,
+}) {
   final merged = {
     for (final section in docType?.sections ?? const <MergedSection>[])
       section.id: section,
@@ -228,7 +230,7 @@ List<IndexedSection> keptSectionsOf(
   final kept = <IndexedSection>[];
   final undefined = <IndexedSection>[];
   for (final section in content.sections) {
-    if (_kept(section, merged[section.key], mode)) {
+    if (_kept(section, merged[section.key], mode, isTarget: isTarget)) {
       (merged.containsKey(section.key) ? kept : undefined).add(section);
     }
   }
@@ -240,8 +242,15 @@ List<IndexedSection> keptSectionsOf(
   return [...inTemplateOrder, ...undefined];
 }
 
-bool _kept(IndexedSection section, MergedSection? merged, BundleMode mode) {
-  if (mode == BundleMode.query && merged?.query != true) return false;
+bool _kept(
+  IndexedSection section,
+  MergedSection? merged,
+  BundleMode mode, {
+  required bool isTarget,
+}) {
+  if (mode == BundleMode.query && !isTarget && merged?.query != true) {
+    return false;
+  }
   if (merged == null) return _naChecked(section.body);
   final body = _cleaned(section.body);
   final template = merged.template;
