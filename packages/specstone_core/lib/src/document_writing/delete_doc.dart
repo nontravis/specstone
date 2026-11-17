@@ -26,7 +26,12 @@ typedef _UnitFiles = Map<String, List<int>>;
 
 /// What one delete removes and rewrites: the files of the unit, and each
 /// record outside it that loses entries, sorted by DocPath.
-typedef _DeletePlan = ({_UnitFiles files, List<RecordEdit> records});
+final class _DeletePlan {
+  const new({required this.files, required this.records});
+
+  final _UnitFiles files;
+  final List<RecordEdit> records;
+}
 
 /// Moves the docs [targets] name, with everything each owns, to the trash.
 ///
@@ -223,10 +228,22 @@ List<StaleMention> _mentionsOf(WriteSession session, _DeletePlan plan) =>
 String _mentionLinesOf(List<StaleMention> mentions) =>
     mentions.map(mentionLineOf).join();
 
+/// A delete target as given, the DocPath it resolves to, and the roots of its
+/// unit.
+final class _DeleteTarget {
+  const new({
+    required this.address,
+    required this.docPath,
+    required this.roots,
+  });
+
+  final String address;
+  final String docPath;
+  final List<String> roots;
+}
+
 /// The resolved targets of a delete call, in the order given.
-class _DeleteSet(
-  final List<({String address, String docPath, List<String> roots})> targets,
-) {
+class _DeleteSet(final List<_DeleteTarget> targets) {
   /// The roots of every target, each once, in the order given.
   List<String> get roots =>
       {for (final target in targets) ...target.roots}.toList();
@@ -249,7 +266,7 @@ _DeleteSet _resolveTargets(
   return _DeleteSet([
     for (final address in targets)
       switch (_untypedDocAt(session, address, codeTarget)) {
-        final untyped? => (
+        final untyped? => _DeleteTarget(
           address: address,
           docPath: untyped.docPath,
           roots: [untyped.docPath],
@@ -259,13 +276,13 @@ _DeleteSet _resolveTargets(
   ]);
 }
 
-({String address, String docPath, List<String> roots}) _typedTarget(
+_DeleteTarget _typedTarget(
   WriteSession session,
   String address,
   String? codeTarget,
 ) {
   final doc = session.target(address, codeTarget: codeTarget);
-  return (
+  return _DeleteTarget(
     address: address,
     docPath: doc.docPath,
     roots: _unitRootsOf(session, doc),
@@ -468,7 +485,10 @@ Iterable<String> _foldersUnder(WriteSession session, String root) sync* {
 /// Reads the files of the unit and the records that lose entries with it.
 _DeletePlan _planOf(WriteSession session, List<String> roots) {
   final files = _readUnit(session, roots);
-  return (files: files, records: recordEditsOf(session, files.keys.toSet()));
+  return _DeletePlan(
+    files: files,
+    records: recordEditsOf(session, files.keys.toSet()),
+  );
 }
 
 /// Reads every file of the unit; the keys are sorted by code point.
