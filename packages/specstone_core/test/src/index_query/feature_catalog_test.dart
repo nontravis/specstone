@@ -195,19 +195,19 @@ void main() {
       expect(_cells(rows[1])[4], _dash);
     });
 
-    for (final (label, text) in [
+    for (final (label, source) in [
       ('no title line', '## Problem\nNeed it.\n'),
       ('a title line with no text', '# \n\n## Problem\nNeed it.\n'),
     ]) {
       test('a top feature with $label gets its row linked by its '
           'name', () async {
-        final index = await _open(_feature('f04_pay', '', text: text));
+        final index = await _open(_feature('f04_pay', '', text: source));
 
-        final text0 = _text(index);
+        final catalog = _text(index);
 
-        expect(text0.split('\n').first, startsWith('1 features'));
+        expect(catalog.split('\n').first, startsWith('1 features'));
         expect(
-          _cells(_rows(text0).single)[0],
+          _cells(_rows(catalog).single)[0],
           '[pay](features/f04_pay/FEATURE.md)',
         );
       });
