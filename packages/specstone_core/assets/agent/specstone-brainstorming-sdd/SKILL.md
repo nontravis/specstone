@@ -60,8 +60,8 @@ Dispatch nothing to write it.
 Before the approval ask, dispatch the design check as step 4 dispatches: a fresh `mode: audit` with `stage: design`
 and the document's path. Dispatch it again with `amend: <N>` after each amend that adds or changes behavior, before
 that amend's author pass; an append that only words or records a decision takes none. Fix each finding it reports in
-the document by `references/design.md`, with no second check. Then ask for the approval, or, once the Owner has
-approved, go on to the amend's author pass with no ask.
+the document by `references/design.md`, with no second check. Then ask for the approval, or, once an author pass has
+run, go on to the amend's author pass with no ask.
 
 Route each later Owner answer or change per `references/rounds.md`.
 

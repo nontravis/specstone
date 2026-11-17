@@ -12,7 +12,8 @@ rule. Every other decision only words or records one.
 - **Adds or changes behavior**, or needs more PRD or spec grounding: ground a doc newly reached by its own
   `specstone context <doc> --for design --out`, never `get`, then amend the same file yourself. `design.md` finds the
   decision's dependents before the author writes it. When the amend adds or changes behavior, dispatch the design
-  check with `amend: <N>`, `<N>` its number, per the skill's step 3; your fix of its findings takes no second check.
+  check with `amend: <N>`, `<N>` its number, per the skill's step 3; your fix of its findings, an Owner answer to one
+  included, takes no second check.
 - **Before the author**: after an append, or an amend and its check, ask for the approval again. When the design
   document holds open questions, gather the Owner's answers, append each that only words or records one, send the
   rest to one amend and its check, and ask for the approval only after it.
