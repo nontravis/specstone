@@ -34,7 +34,10 @@ import 'package:specstone_core/src/index_query/case_folding.g.dart';
 /// blanked to a space, line ends and length kept; `leaves` are the inline text
 /// ranges in source order; `definitions` maps `linkLabel(label)` to the
 /// destination as written, the first definition of a label winning;
-/// `footnoteLabels` holds each footnote definition's label, lowercased.
+/// `footnoteLabels` holds each footnote definition's label, lowercased;
+/// `definitionSpans` holds the body range of each definition read, from its
+/// label's `[` to the end of its last line, the line feed after it included
+/// when one follows.
 typedef LeafText = ({
   String text,
   List<({int start, int end})> leaves,
@@ -42,6 +45,7 @@ typedef LeafText = ({
   Set<String> footnoteLabels,
   List<({int start, int end})> definitionLabels,
   List<({int start, int end})> definitionDestinations,
+  List<({int start, int end})> definitionSpans,
 });
 
 /// A link destination as written, angle brackets dropped, and whether angle
@@ -174,6 +178,10 @@ LeafText leafTextOf(String lfBody) {
     footnoteLabels: sink.footnoteLabels,
     definitionLabels: sink.definitionLabels,
     definitionDestinations: sink.definitionDestinations,
+    definitionSpans: [
+      for (final (:start, :end) in sink.definitionSpans)
+        (start: start, end: end < body.length ? end + 1 : end),
+    ],
   );
 }
 
@@ -232,6 +240,10 @@ final class _Sink {
   /// its destination as written, angle brackets left out.
   final definitionLabels = <({int start, int end})>[];
   final definitionDestinations = <({int start, int end})>[];
+
+  /// The body range of each definition, from its label's `[` to the end of its
+  /// last line, the line feed after it left out.
+  final definitionSpans = <({int start, int end})>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
   /// reads the rest. A leaf that spans lines holds them, so they are blanked
@@ -818,6 +830,7 @@ final class _BlockPass {
     final cursor = _Cursor(_lines, _endsBlockAt, first)
       ..skipBlanks(lineFeeds: true);
     if (cursor.unit != _openBracket || !cursor.hasUnitAfter) return null;
+    final opener = cursor.mark;
     cursor.advance();
     final labelStart = cursor.mark;
     var budget = 999;
@@ -919,6 +932,9 @@ final class _BlockPass {
     _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
     _sink.definitionDestinations.add(
       _rangeOf(destinationStart, destinationEnd),
+    );
+    _sink.definitionSpans.add(
+      _rangeOf(opener, (next - 1, _lines[next - 1].length)),
     );
     return next;
   }

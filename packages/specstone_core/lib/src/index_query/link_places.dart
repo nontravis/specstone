@@ -133,6 +133,26 @@ List<_Located> _placedByUse(
   List<_PlacedHref> placed,
   List<LinkSource> sources,
 ) {
+  final uses = _usesByHref([for (final p in placed) p.href], sources);
+  return [
+    for (final (i, (:href, :target, :anchor, index: _, kind: _))
+        in placed.indexed)
+      (
+        place: (
+          target: target,
+          line: uses[i]?.line ?? 1,
+          shown: uses[i]?.shown ?? href,
+          anchor: anchor,
+        ),
+        source: uses[i],
+      ),
+  ];
+}
+
+/// Returns the source each of [hrefs] takes, the nth occurrence of an href
+/// taking the nth source whose destination, normalized, is that href, or null
+/// when it has no nth use.
+List<LinkSource?> _usesByHref(List<String> hrefs, List<LinkSource> sources) {
   final usesOf = <String, List<LinkSource>>{};
   for (final source in sources) {
     final shown = source.shown;
@@ -140,24 +160,38 @@ List<_Located> _placedByUse(
       usesOf.putIfAbsent(_normalize(shown), () => []).add(source);
     }
   }
-  final places = <_Located>[];
   final taken = <String, int>{};
-  for (final (:href, :target, :anchor, index: _, kind: _) in placed) {
+  final uses = <LinkSource?>[];
+  for (final href in hrefs) {
     final sameHref = usesOf[href] ?? const <LinkSource>[];
     final nth = taken[href] ?? 0;
     taken[href] = nth + 1;
-    final use = nth < sameHref.length ? sameHref[nth] : null;
-    places.add((
-      place: (
-        target: target,
-        line: use?.line ?? 1,
-        shown: use?.shown ?? href,
-        anchor: anchor,
-      ),
-      source: use,
-    ));
+    uses.add(nth < sameHref.length ? sameHref[nth] : null);
   }
-  return places;
+  return uses;
+}
+
+/// Returns the [sources] `markdown` reads as a link or an image, given [tree],
+/// its parse of the body [sources] come from.
+///
+/// When the scan and `markdown` agree (see [readersAgree]) the nth source is
+/// the nth link, a null href, a link in a footnote definition `markdown`
+/// drops, leaving it out. Otherwise each href takes its nth use, as
+/// [linkPlacesOf] places it, and a link the scan lists that no href takes is
+/// left out.
+List<LinkSource> parserReadSourcesOf(
+  List<LinkSource> sources,
+  MarkdownTree tree,
+) {
+  final hrefs = _hrefsIn(tree.inSourceOrder);
+  if (readersAgree(sources, hrefs)) {
+    return [
+      for (final (i, source) in sources.indexed)
+        if (hrefs[i] != null) source,
+    ];
+  }
+  final read = [for (final href in hrefs) ?href];
+  return [for (final use in _usesByHref(read, sources)) ?use];
 }
 
 /// The text of a link whose text holds no whitespace and a digit.
