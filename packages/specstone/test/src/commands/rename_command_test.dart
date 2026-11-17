@@ -272,7 +272,7 @@ void main() {
             without: {'docs/specs/f01_login/ARCHITECTURE.md'},
           );
 
-      test('E22: rename sets the item of each matrix row in each target '
+      test('rename sets the item of each matrix row in each target '
           'record and keeps the rest of the row', () async {
         final root = await matrixTwins();
         final (:runner, :out, :err) = writeRunner(root);
