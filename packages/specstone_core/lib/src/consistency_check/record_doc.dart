@@ -38,7 +38,13 @@ RecordDoc? recordDocIn(
 /// One `statuses` line of a record: its text, its file line, and what it
 /// reads as.
 final class StatusLine {
-  const new({required this.text, required this.line, required this.parsed});
+  const new({
+    required this.text,
+    required this.line,
+    this.item,
+    this.status,
+    this.reason,
+  });
 
   /// The line as written.
   final String text;
@@ -46,18 +52,31 @@ final class StatusLine {
   /// The 1-based file line.
   final int line;
 
-  /// The item, status, and reason the line reads as; null when it names no
-  /// item.
-  final ({String item, RecordStatus? status, String? reason})? parsed;
+  /// The item the line names; null when it names none.
+  final String? item;
 
-  /// The item the line names, or null.
-  String? get item => parsed?.item;
+  /// The status the line gives; null with none or one that names no
+  /// RecordStatus.
+  final RecordStatus? status;
+
+  /// The reason of a `skipped` line, as written.
+  final String? reason;
 }
 
 /// Returns each string entry of the [statusFieldId] list of [lines], in file
 /// order, repeated items included.
 List<StatusLine> statusLinesOf(DocLines lines, String statusFieldId) => [
   for (final (:value, :line, text: _) in lines.entriesOf(statusFieldId))
-    if (value is String)
-      StatusLine(text: value, line: line, parsed: recordStatusLineOf(value)),
+    if (value is String) _statusLineOf(value, line),
 ];
+
+StatusLine _statusLineOf(String text, int line) {
+  final parsed = recordStatusLineOf(text);
+  return StatusLine(
+    text: text,
+    line: line,
+    item: parsed?.item,
+    status: parsed?.status,
+    reason: parsed?.reason,
+  );
+}

@@ -76,11 +76,10 @@ final class _RecordWalk {
     final fieldId = _statusFieldId;
     if (fieldId == null) return;
     final seen = <String>{};
-    for (final status in statusLinesOf(_lines, fieldId)) {
-      final line = status.line;
-      final parsed = status.parsed;
-      final item = status.item ?? status.text;
-      if (parsed == null || !_docs.containsKey(item)) {
+    for (final entry in statusLinesOf(_lines, fieldId)) {
+      final line = entry.line;
+      final item = entry.item ?? entry.text;
+      if (entry.item == null || !_docs.containsKey(item)) {
         yield _unresolved(item, line);
       } else if (!seen.add(item)) {
         yield _finding(
@@ -89,8 +88,8 @@ final class _RecordWalk {
           '${_nameOf(item)} has a second statuses line',
           {'entry': _nameOf(item)},
         );
-      } else if (parsed.status == RecordStatus.skipped) {
-        if ((parsed.reason ?? '').trim().isEmpty) {
+      } else if (entry.status == RecordStatus.skipped) {
+        if ((entry.reason ?? '').trim().isEmpty) {
           yield _finding(
             FindingKind.skipReasonMissing,
             line,
