@@ -124,6 +124,19 @@ void main() {
   });
 
   test(
+    "f08/us06/fr02/e06, f08/us06/s3: another doc's findings stay out",
+    () async {
+      final original = checkProjectFiles()['docs/$loginFr']!;
+      final root = await writeCheckProject(
+        extra: {'docs/$loginFr': '$original\nSee $_brokenLink.\n'},
+      );
+      final result = await postEdit(root, abs(root, loginStory));
+      expect(result.status, 0);
+      expect(result.out, isEmpty);
+    },
+  );
+
+  test(
     'api:agent_plugin: a design document under docs/designs gets no check',
     () async {
       final root = await writeCheckProject(
