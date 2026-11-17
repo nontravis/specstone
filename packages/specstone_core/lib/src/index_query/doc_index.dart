@@ -173,14 +173,16 @@ final class DocIndex {
         : doc.docPath;
   }
 
-  /// Splits [address] into the text that names docs and its `#<section key>`.
+  /// Splits [address] into a [DocAddress]: the text that names docs and its
+  /// `#<section key>`.
   ///
   /// The whole text is read as a path first, as [resolve] reads it: one that
   /// names a doc has no section key, even when it holds `#`.
-  ({String docPart, String? sectionKey}) splitAddress(String address) {
-    if (_atPath(address) != null) return (docPart: address, sectionKey: null);
-    final read = readDocAddress(address);
-    return (docPart: read.docPart, sectionKey: read.sectionKey);
+  DocAddress splitAddress(String address) {
+    if (_atPath(address) != null) {
+      return DocAddress(body: address, sectionKey: null);
+    }
+    return readDocAddress(address);
   }
 
   /// The text of [address] before its `#<section key>` or `@<hash>`; null

@@ -90,7 +90,7 @@ List<ItemLanding> planItemMove(
 }
 
 ItemTarget _targetOf(WriteSession session, String address, String? codeTarget) {
-  final (:docPart, :sectionKey) = session.index.splitAddress(address);
+  final DocAddress(:docPart, :sectionKey) = session.index.splitAddress(address);
   if (sectionKey == null || sectionKey.isEmpty) {
     throw IndexFault(
       IndexFaultCode.argumentInvalid,

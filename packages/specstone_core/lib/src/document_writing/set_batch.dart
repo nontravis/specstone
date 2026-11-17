@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
@@ -185,7 +186,9 @@ _Planned? _resolveBlock(
   List<_Refusal> refusals,
 ) {
   final naming = block.naming;
-  final (:docPart, :sectionKey) = session.index.splitAddress(naming.path);
+  final DocAddress(:docPart, :sectionKey) = session.index.splitAddress(
+    naming.path,
+  );
   final partKey = sectionKey == null || sectionKey.isEmpty ? null : sectionKey;
   try {
     final doc = session.target(docPart);

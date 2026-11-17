@@ -105,8 +105,8 @@ final class SetRequest {
     bool replace = false,
   }) {
     final (target: written, base: checkedBase) = requireShape(target, base);
-    final (:docPart, sectionKey: key) = index == null
-        ? _splitAsWritten(written)
+    final DocAddress(:docPart, sectionKey: key) = index == null
+        ? readDocAddress(written)
         : index.splitAddress(written);
     final sectionKey = key == null || key.isEmpty ? null : key;
     if (replace &&
@@ -160,11 +160,6 @@ final class SetRequest {
     }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
     return (target: target, base: base);
-  }
-
-  static ({String docPart, String? sectionKey}) _splitAsWritten(String text) {
-    final read = readDocAddress(text);
-    return (docPart: read.docPart, sectionKey: read.sectionKey);
   }
 
   /// The doc as `<type>:<name>`.
