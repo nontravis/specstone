@@ -6,7 +6,7 @@ import 'package:specstone_core/src/templates/template_fault.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('consistency_check: 122 snake_case kinds, no error code', () {
+  test('consistency_check: 123 snake_case kinds, no error code', () {
     expect(FindingKind.values.map((k) => k.wire), [
       'frontmatter_invalid',
       'required_field_missing',
@@ -113,6 +113,7 @@ void main() {
       'diagram_title_missing',
       'diagram_edge_unlabeled',
       'diagram_label_unquoted',
+      'diagram_parse_failed',
       'suspect',
       'unconfirmed',
       'confirmed_entry_malformed',
@@ -200,6 +201,12 @@ void main() {
     ]) {
       expect(kind.waitsFor, WaitsFor.agent, reason: kind.wire);
     }
+  });
+
+  test('diagram_parse_failed waits for the Agent', () {
+    expect(FindingKind.diagramParseFailed.wire, 'diagram_parse_failed');
+    expect(FindingKind.diagramParseFailed.waitsFor, WaitsFor.agent);
+    expect(FindingKind.diagramParseFailed.isProjectLevel, isFalse);
   });
 
   test('a finding '
