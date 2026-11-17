@@ -46,15 +46,19 @@ MergedDocType builtIn(String id) => MergedDocType(
 );
 
 /// [checkMergedSet] over [docTypes], loading [layers] in map order.
-void check(List<MergedDocType> docTypes, Map<String, DocTypeLayers> layers) =>
-    checkMergedSet(
-      docTypes,
-      layers,
-      loadIndex: loadIndexOf([
-        for (final list in layers.values)
-          for (final entry in list) entry.layer,
-      ]),
-    );
+void check(
+  List<MergedDocType> docTypes,
+  Map<String, DocTypeLayers> layers, {
+  bool verificationCoverage = false,
+}) => checkMergedSet(
+  docTypes,
+  layers,
+  loadIndex: loadIndexOf([
+    for (final list in layers.values)
+      for (final entry in list) entry.layer,
+  ]),
+  verificationCoverage: verificationCoverage,
+);
 
 void main() {
   group('checkMergedSet', () {
@@ -769,6 +773,124 @@ void main() {
         ),
         isNull,
       );
+    });
+  });
+
+  group('checkMergedSet verification coverage', () {
+    const recordKeys =
+        'per_target: true\n'
+        'fields:\n'
+        '  - id: entries\n'
+        '    type: record_status\n';
+    const matrixOn =
+        '$recordKeys'
+        'sections:\n'
+        '  - {id: verification_matrix, header: Matrix, output_ref: true}\n';
+    const personalFile = '~/.specstone/packs/runbook.yaml';
+
+    MergedDocType record({List<MergedSection> sections = const []}) =>
+        builtIn('runbook').copyWith(
+          isPerTarget: true,
+          fields: [
+            const MergedField(id: 'entries', type: FieldType.recordStatus),
+          ],
+          sections: sections,
+        );
+
+    const enabledMatrix = MergedSection(
+      id: 'verification_matrix',
+      header: 'Matrix',
+      isOutputRef: true,
+    );
+
+    TypeMatcher<TemplateFault> refusedInConfig(String messagePart) =>
+        isA<TemplateFault>()
+            .having((f) => f.code, 'code', FaultCode.unknownValue)
+            .having((f) => f.file, 'file', '.specstone/config.yaml')
+            .having((f) => f.key, 'key', 'verification_coverage')
+            .having((f) => f.message, 'message', contains(messagePart));
+
+    test('coverage on with an enabled matrix section is accepted', () {
+      expect(
+        () => check(
+          [
+            record(sections: [enabledMatrix]),
+          ],
+          {
+            'runbook': [layerOf('runbook', matrixOn)],
+          },
+          verificationCoverage: true,
+        ),
+        returnsNormally,
+      );
+    });
+
+    test('coverage on without an enabled matrix section is refused naming the '
+        'pack version', () {
+      // A project layer disables the section a pack ships.
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [
+              layerOf('runbook', matrixOn, file: _epicFile),
+              layerOf(
+                'runbook',
+                'sections:\n  - {id: verification_matrix, disabled: true}\n',
+              ),
+            ],
+          },
+          verificationCoverage: true,
+        ),
+        throwsA(refusedInConfig('software-tech 1.13.0')),
+      );
+      // A record doc type from a personal pack that has no matrix section.
+      expect(
+        () => check(
+          [record()],
+          {
+            'runbook': [layerOf('runbook', recordKeys, file: personalFile)],
+          },
+          verificationCoverage: true,
+        ),
+        throwsA(refusedInConfig('software-tech 1.13.0')),
+      );
+    });
+
+    test('coverage on with no record doc type is refused', () {
+      expect(
+        () => check(
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+          verificationCoverage: true,
+        ),
+        throwsA(refusedInConfig('record')),
+      );
+    });
+
+    test('coverage off is accepted with no record doc type or no matrix', () {
+      for (final (docTypes, layers) in [
+        (
+          [builtIn('feature').copyWith(path: 'prds/features/F.md')],
+          {
+            'feature': [layerOf('feature', 'path: prds/features/F.md\n')],
+          },
+        ),
+        (
+          [record()],
+          {
+            'runbook': [layerOf('runbook', recordKeys)],
+          },
+        ),
+      ]) {
+        expect(() => check(docTypes, layers), returnsNormally);
+        expect(
+          () => check(docTypes, layers, verificationCoverage: false),
+          returnsNormally,
+        );
+      }
     });
   });
 
