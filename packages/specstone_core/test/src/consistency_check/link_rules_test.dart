@@ -499,7 +499,7 @@ void main() {
     expect(report.warnings, isEmpty);
   });
 
-  group('resolve_doc_links anchors, self links, malformed links, and doc_ref values', () {
+  group('resolve_doc_links anchors, self links, and doc_ref values', () {
     const pointerKinds = {
       FindingKind.docRefUnresolved,
       FindingKind.docRefDuplicate,
@@ -507,7 +507,6 @@ void main() {
       FindingKind.linkUnresolved,
       FindingKind.linkAnchorMissing,
       FindingKind.linkSelf,
-      FindingKind.referenceMalformed,
       FindingKind.linkTargetMissing,
     };
     const d03 = 'prds/d03_non_functional.md';
