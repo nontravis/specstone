@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/models/new_record.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
@@ -269,7 +270,7 @@ String? _parentName(String name) {
 /// targets, as the doc type matcher reads it. Throws [IndexFault]
 /// `argument_invalid` when the record doc type has no path of its own for the
 /// feature, as `new` does, so the lines never leave the old record unplaced.
-({String docPath, String text}) _newRecordFor(
+NewRecord _newRecordFor(
   WriteSession session,
   MergedDocType recordType,
   _Arrival arrival,
@@ -304,7 +305,7 @@ String? _parentName(String name) {
 ///
 /// The one builder of a new record, for a move or rename and for a migration.
 /// [target] reads the path in that code target's folder.
-({String docPath, String text})? newRecordOf(
+NewRecord? newRecordOf(
   MergedSet set,
   MergedDocType recordType, {
   required MergedDocType featureType,
@@ -326,5 +327,8 @@ String? _parentName(String name) {
   if (values == null || shape == null || !isSpecDocShape(shape)) return null;
   final skeleton = skeletonOf(recordType, featureName.split('/').last);
   final text = addRecordLines(skeleton, recordType, lines) ?? skeleton;
-  return (docPath: shape.build(values), text: layOutDoc(text, recordType));
+  return NewRecord(
+    docPath: shape.build(values),
+    text: layOutDoc(text, recordType),
+  );
 }

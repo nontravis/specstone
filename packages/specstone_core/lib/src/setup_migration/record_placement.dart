@@ -1,6 +1,7 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart' show withKeyBlock;
 import 'package:specstone_core/src/doc_model/records_root.dart';
+import 'package:specstone_core/src/document_writing/models/new_record.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
@@ -35,9 +36,6 @@ typedef PlacementDoc = ({
   String? target,
   String lf,
 });
-
-/// A record the pass creates, as a draft: its DocPath and its laid-out text.
-typedef NewRecord = ({String docPath, String text});
 
 /// Where the values a `move_to_record` step took land: the `value_unplaced`
 /// faults when any value has no place, else the new text of each existing
@@ -184,7 +182,7 @@ final class RecordMoves {
       unplaced.addAll(landed.unplaced);
       switch (landed.record) {
         case (:final docPath, :final text, isNew: true):
-          creates.add((docPath: docPath, text: text));
+          creates.add(NewRecord(docPath: docPath, text: text));
         case (:final docPath, :final text, isNew: false):
           edits[docPath] = text;
         case null:
@@ -544,10 +542,7 @@ final class _Tree {
 
   /// Returns the new record of [feature] holding [lines]; null when the
   /// record doc type has no path in the feature's spec folder.
-  ({String docPath, String text})? newRecordOf(
-    IndexedDoc feature,
-    RecordLines lines,
-  ) {
+  NewRecord? newRecordOf(IndexedDoc feature, RecordLines lines) {
     final featureType = _set.lookup(feature.docTypeId!);
     if (featureType == null) return null;
     return rewrite_records.newRecordOf(
