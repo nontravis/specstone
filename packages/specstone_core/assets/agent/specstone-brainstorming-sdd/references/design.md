@@ -46,10 +46,10 @@ Sections, in this order:
    form, a refusal, or a doc type target) also gets an input table: one row per input or state, the result it gives,
    and each command or skill that reads it. A refusal's row quotes its message literal.
 6. **Docs to change**: a table, one row per doc: its `<type>:<name>` (a new doc: its type and parent), the sections
-   it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. Each feature the change reaches with
-   an `architecture` doc gets a row for its `design_references` section, a link to this document, kept or dropped as
-   the `Design references` section of `specstone guide architecture` says. With two or more `targets:`, a
-   per-target spec doc's row also names its code target, a row with none an open question.
+   it changes, and the decision IDs it carries. Every decision has a row, or a line saying why no doc takes it. Each
+   feature the change reaches with an `architecture` doc gets a row for its `design_references` section, a link to this
+   document, kept or dropped as the `Design references` section of `specstone guide architecture` says. With two or
+   more `targets:`, a per-target spec doc's row also names its code target, a row with none an open question.
 7. **Open questions**: each gap that neither the Owner's answers nor the saved files bear on.
 
 Before the Docs to change table closes, find each decision's dependents in your saved files:
@@ -59,9 +59,9 @@ Before the Docs to change table closes, find each decision's dependents in your 
 - Run `specstone check <feature> --repeats` for the repeat groups that hold the owner item.
 - Search the saved files' text for the decision's terms and for the wording it supersedes, each in every written form:
   with and without a trailing `/`, in backticks or not, singular and plural, and a short form. Search every section
-  of each doc in a Docs to change row.
-- Each doc found that restates the rule gets a Docs to change row: its change links the owner's item that holds the
-  rule, or rewrites the doc when it owns a rule that reads the decision's rule.
+  of each doc in a row.
+- Each doc found that restates the rule instead of citing its owner gets a row: its change links the owner's item that
+  holds the rule, or rewrites the doc when it owns a rule that reads the decision's rule.
 - With no cited-by line on the owner item, as in a tree that still cites by number labels, the repeat groups and the
   text search carry the decision. Record the searched terms either way, so the audit sees them.
 - An amend for a decision that adds or changes behavior runs these steps on its terms and adds its rows and searched
