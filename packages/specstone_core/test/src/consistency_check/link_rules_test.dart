@@ -790,6 +790,44 @@ void main() {
       );
     });
 
+    Map<String, String> featureWithMermaid(String lines) => doc(
+      loginFeature,
+      'Users forget passwords.',
+      'Users forget passwords.\n\n```mermaid\nflowchart LR\n$lines\n```',
+    );
+
+    test('a stale mermaid name under a top-level feature is doc_name_unresolved at its line', () async {
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: featureWithMermaid('  N[login/email_login/check_pasword E06]'),
+        ),
+      );
+      expect(
+        [for (final f in findings) f.textLine],
+        [
+          '$loginFeature:17: doc_name_unresolved: doc name login/email_login/check_pasword names no doc',
+        ],
+      );
+      expect(
+        [for (final f in findings) f.keys],
+        [
+          {'name': 'login/email_login/check_pasword'},
+        ],
+      );
+    });
+
+    test('a mermaid token under no top-level feature is left alone', () async {
+      final findings = mentionsOf(
+        await writeCheckProject(
+          extra: featureWithMermaid(
+            '  N[origin/develop]\n  M[https://example.com/a/b]\n'
+            '  K[login/email_login/check_password]',
+          ),
+        ),
+      );
+      expect(findings, isEmpty);
+    });
+
     test('E26: a '
         'name whose first slug names no top-level feature, a git ref, and a '
         'skill name raise nothing', () async {
@@ -989,6 +1027,52 @@ void main() {
         findings.single.message,
         'architecture:login names a per-target doc of flutter, jaspr',
       );
+    });
+
+    test("a shared doc's mermaid node naming a per-target doc is per_target_reference", () async {
+      final project = await writeTwinProject(
+        extra: shared(
+          'See below.\n\n```mermaid\nflowchart LR\n  N[architecture:login]\n```',
+        ),
+      );
+
+      final findings = found(project, FindingKind.perTargetReference);
+
+      expect(
+        [for (final f in findings) '${f.path}:${f.line}'],
+        ['$loginNf:${lineOf(project, loginNf, 'architecture:login')}'],
+      );
+      expect(findings.single.keys, {
+        'reference': 'architecture:login',
+        'target': 'flutter, jaspr',
+      });
+    });
+
+    test("a per-target doc's mermaid node naming only another target's doc is doc_name_unresolved", () async {
+      final mention = twin(
+        'See below.\n\n```mermaid\nflowchart LR\n'
+        '  N[implementation:login]\n```',
+      );
+      Future<Directory> project({bool jasprHoldsOne = false}) =>
+          writeTwinProject(
+            extra: {
+              'docs/$flutterArchitecture': mention,
+              'docs/$jasprArchitecture': mention,
+              flutterRecord: record,
+              if (jasprHoldsOne) jasprRecord: record,
+            },
+          );
+
+      final lone = await project();
+      final both = await project(jasprHoldsOne: true);
+
+      final findings = found(lone, FindingKind.docNameUnresolved);
+      expect([for (final f in findings) f.path], [jasprArchitecture]);
+      expect(
+        findings.single.line,
+        lineOf(lone, jasprArchitecture, 'implementation:login'),
+      );
+      expect(found(both, FindingKind.docNameUnresolved), isEmpty);
     });
 
     test('E30: a '

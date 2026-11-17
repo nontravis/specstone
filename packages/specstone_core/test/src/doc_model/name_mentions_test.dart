@@ -62,6 +62,153 @@ void main() {
         isEmpty,
       );
     });
+
+    test('a mermaid token is read at its line and column', () {
+      const lf =
+          '```mermaid\n'
+          'flowchart LR\n'
+          '  N[shop/cart/add_item E06] --> M[fr:shop/cart/add_item/check_stock]\n'
+          '```\n';
+      final mentions = nameMentionsInMarkdown(lf);
+      final line = lf.split('\n')[2];
+      expect(
+        [for (final m in mentions) (m.line, m.column, m.text)],
+        [
+          (3, line.indexOf('shop/cart/add_item'), 'shop/cart/add_item'),
+          (
+            3,
+            line.indexOf('fr:shop/cart'),
+            'fr:shop/cart/add_item/check_stock',
+          ),
+        ],
+      );
+      expect(mentions.last.address.typeId, 'fr');
+      expect(mentions.last.address.body, 'shop/cart/add_item/check_stock');
+    });
+
+    test('a mermaid token is bounded by a bracket, a space, or a capital '
+        'letter', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid\n'
+        'flowchart LR\n'
+        '  A[shop/cart/add_item] B(shop/pay/card) C shop/cart/drop_item '
+        'Dshop/pay/refundE\n'
+        '```\n',
+      );
+      expect(
+        [for (final m in mentions) m.text],
+        [
+          'shop/cart/add_item',
+          'shop/pay/card',
+          'shop/cart/drop_item',
+          'shop/pay/refund',
+        ],
+      );
+    });
+
+    test("another language's fence yields nothing", () {
+      expect(
+        nameMentionsInMarkdown(
+          '```text\nN[shop/cart/add_item E06]\n```\n\n'
+          '~~~yaml\nN[shop/cart/add_item E06]\n~~~\n',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('the fence lines of a mermaid block yield nothing', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid shop/cart/add_item\n'
+        '  N[shop/cart/add_item]\n'
+        '```\n',
+      );
+      expect([for (final m in mentions) m.line], [2]);
+    });
+
+    test('a mermaid block holds tokens only between its fences, and prose '
+        'after it reads as prose', () {
+      final mentions = nameMentionsInMarkdown(
+        'shop/cart/add_item\n\n```mermaid\nN[shop/pay/card]\n```\n\n'
+        'shop/cart/add_item `shop/pay/refund`\n',
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text)],
+        [(4, 'shop/pay/card'), (7, 'shop/pay/refund')],
+      );
+    });
+
+    test('a title line and an edge word yield nothing, and a name in an edge '
+        'label is read', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid\n'
+        '---\n'
+        'title: Cart flow\n'
+        '---\n'
+        'flowchart LR\n'
+        '  A -->|yes| B\n'
+        '  B -->|shop/cart| C\n'
+        '```\n',
+      );
+      expect([for (final m in mentions) (m.line, m.text)], [(7, 'shop/cart')]);
+    });
+
+    test('a web address in a label gives no token that starts at its '
+        'scheme', () {
+      final mentions = nameMentionsInMarkdown(
+        '```mermaid\nflowchart LR\n  N[https://example.com/a/b]\n```\n',
+      );
+      expect([
+        for (final m in mentions) m.text,
+      ], everyElement(isNot(startsWith('https'))));
+    });
+
+    test(
+      'a mermaid fence inside a list item still yields its token column',
+      () {
+        const lf =
+            '- item\n\n'
+            '  ```mermaid\n'
+            '  flowchart LR\n'
+            '    N[shop/cart/add_item]\n'
+            '  ```\n';
+        final mention = nameMentionsInMarkdown(lf).single;
+        final line = lf.split('\n')[mention.line - 1];
+        expect(mention.line, 5);
+        expect(
+          line.substring(mention.column, mention.column + mention.text.length),
+          'shop/cart/add_item',
+        );
+      },
+    );
+
+    test('a tilde mermaid fence is read as a backtick one is', () {
+      expect(
+        [
+          for (final m in nameMentionsInMarkdown(
+            '~~~mermaid\nN[shop/cart/add_item]\n~~~\n',
+          ))
+            m.text,
+        ],
+        ['shop/cart/add_item'],
+      );
+    });
+  });
+
+  group('noLookupTokensIn', () {
+    test('each run of slug characters, slash, and colon that reads as a '
+        'no-lookup address is a token at its 0-based column', () {
+      const text = 'N[shop/cart/add_item E06] --> fr:shop/cart/x, login';
+      final tokens = noLookupTokensIn(text);
+      expect(
+        [for (final t in tokens) (t.column, t.text)],
+        [(2, 'shop/cart/add_item'), (text.indexOf('fr:'), 'fr:shop/cart/x')],
+      );
+      expect(tokens.last.address.typeId, 'fr');
+    });
+
+    test('a one-slug word, an edge word, and a lone prefix are no token', () {
+      expect(noLookupTokensIn('A -->|yes| B title: x login'), isEmpty);
+    });
   });
 
   group('isCommentLine', () {
@@ -213,6 +360,39 @@ void main() {
         isEmpty,
       );
     });
+
+    test(
+      'mermaid tokens are read after the frontmatter at their file line',
+      () {
+        const lf =
+            '---\nk: shop/cart/add_item\n---\n\n'
+            'Text.\n\n```mermaid\nN[shop/cart/add_item]\n```\n';
+        final mentions = nameMentionsInFile(lf, '.md', withMermaid: true);
+        expect(
+          [for (final m in mentions) (m.line, m.text)],
+          [(8, 'shop/cart/add_item')],
+        );
+      },
+    );
+
+    test('mermaid tokens are not read unless asked for, nor in a file of '
+        'another extension', () {
+      const lf = '```mermaid\nN[shop/cart/add_item]\n```\n';
+      expect(nameMentionsInFile(lf, '.md'), isEmpty);
+      expect(nameMentionsInFile(lf, '.dart', withMermaid: true), isEmpty);
+    });
+
+    test('a span and a mermaid token come in line order', () {
+      final mentions = nameMentionsInFile(
+        'See `shop/cart/add_item`.\n\n```mermaid\nN[shop/pay/card]\n```\n',
+        '.md',
+        withMermaid: true,
+      );
+      expect(
+        [for (final m in mentions) (m.line, m.text)],
+        [(1, 'shop/cart/add_item'), (4, 'shop/pay/card')],
+      );
+    });
   });
 
   group('longerSpanMentionsInMarkdown', () {
@@ -246,6 +426,15 @@ void main() {
         '---\nk: v\n---\n\nx `a/b c`\n',
       );
       expect([for (final m in mentions) m.line], [5]);
+    });
+
+    test('a mermaid block yields no longer span', () {
+      expect(
+        longerSpanMentionsInMarkdown(
+          '```mermaid\nN[shop/cart/add_item E06]\n```\n',
+        ),
+        isEmpty,
+      );
     });
   });
 }

@@ -160,16 +160,20 @@ String? _pathOf(String token) {
 /// `<doc type>:` prefix and `#<section key>` stay as written; a bare name
 /// takes the rename only when every renamed doc called so agrees on one new
 /// name. Mentions are read as [nameMentionsInFile] reads them from the text
-/// with `\r\n` as `\n`, and every byte outside a changed Name, line ends
-/// included, stays.
+/// with `\r\n` as `\n`, a markdown file's `mermaid` tokens included, and every
+/// byte outside a changed Name, line ends included, stays.
 String? rewriteNameMentions(
   String text,
   String extension,
   Map<(String, String), String> renamed,
 ) {
-  if (renamed.isEmpty || !text.contains('`')) return null;
+  if (renamed.isEmpty) return null;
   final edits = <({int line, int column, int length, String text})>[];
-  for (final mention in nameMentionsInFile(toLf(text), extension)) {
+  for (final mention in nameMentionsInFile(
+    toLf(text),
+    extension,
+    withMermaid: true,
+  )) {
     final name = renamedNameOf(mention.address, renamed);
     if (name == null) continue;
     final address = mention.address;

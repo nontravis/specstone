@@ -516,6 +516,34 @@ void main() {
       {'path': 'prds/personas/buyer/PERSONA.md', 'line': 4},
     ]);
   });
+  test('a mermaid node naming the doc is listed at its line, and a fenced '
+      'block of another language is not', () async {
+    final mentions = await indexWith({
+      'docs/prds/personas/buyer/PERSONA.md':
+          '# Buyer\n\n## Profile\n```mermaid\nflowchart LR\n'
+          '  N[login/email_login E06]\n```\n\n'
+          '```text\nN[login/email_login E06]\n```\n',
+    });
+    final answer = answerRefs(mentions, 'login/email_login');
+    expect(
+      answer.text,
+      contains('Mentions\n- prds/personas/buyer/PERSONA.md:6\n'),
+    );
+    final json = answer.json['docs']! as List;
+    expect((json.single as Map)['mentions'], [
+      {'path': 'prds/personas/buyer/PERSONA.md', 'line': 6},
+    ]);
+  });
+  test('a longer code span naming the doc is left out', () async {
+    final mentions = await indexWith({
+      'docs/prds/personas/buyer/PERSONA.md':
+          '# Buyer\n\n## Profile\nUses `login/email_login E06` daily.\n',
+    });
+    expect(
+      answerRefs(mentions, 'login/email_login').text,
+      contains('Mentions\n- none\n'),
+    );
+  });
   test(
     'refs user_story:shop/cart/add_item lists the API that links it',
     () async {

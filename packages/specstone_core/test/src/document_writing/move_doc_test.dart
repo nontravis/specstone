@@ -2853,6 +2853,126 @@ void main() {
       );
     });
 
+    /// A doc whose `mermaid` block holds [block] and whose `text` block holds
+    /// [text], with a plain mention between them.
+    String mermaidNotes(String block, {String? text}) =>
+        '# Notes\n\nPlain shop/cart/add_item stays.\n\n'
+        '```mermaid\nflowchart LR\n$block\n```\n\n'
+        '```text\n${text ?? block}\n```\n';
+
+    ReadAnswer moveUnder(Directory root, String address, String under) =>
+        writeIn(root, (s) => answerMove(s, [address], under: under));
+
+    test(
+      'a node naming a moved fr in a mermaid block follows the move',
+      () async {
+        const before =
+            '  N[shop/cart/add_item/check_stock E06]\n'
+            '  M[fr:shop/cart/add_item/check_stock]';
+        final root = await writeNestedProject(
+          extra: {'docs/notes.md': mermaidNotes(before)},
+        );
+        final answer = moveUnder(
+          root,
+          'fr:shop/cart/add_item/check_stock',
+          'shop/cart/drop_item',
+        );
+        expect(
+          readDoc(root, 'notes.md'),
+          mermaidNotes(
+            '  N[shop/cart/drop_item/check_stock E06]\n'
+            '  M[fr:shop/cart/drop_item/check_stock]',
+            text: before,
+          ),
+        );
+        expect(answer.json['rewritten'], contains('notes.md'));
+      },
+    );
+
+    test('a story move rewrites a mermaid node naming the story', () async {
+      const before =
+          '  N[shop/cart/add_item E06]\n'
+          '  M[fr:shop/cart/add_item/check_stock]';
+      final root = await writeNestedProject(
+        extra: {'docs/notes.md': mermaidNotes(before)},
+      );
+      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        readDoc(root, 'notes.md'),
+        mermaidNotes(
+          '  N[shop/pay/add_item E06]\n'
+          '  M[fr:shop/pay/add_item/check_stock]',
+          text: before,
+        ),
+      );
+    });
+
+    test(
+      'a mermaid node naming a doc under a moved feature follows the move',
+      () async {
+        const before = '  N[shop/cart/add_item E06]';
+        final root = await writeNestedProject(
+          extra: {
+            'docs/prds/features/f03_other/FEATURE.md': '# Other\n',
+            'docs/notes.md': mermaidNotes(before),
+          },
+        );
+        moveUnder(root, 'feature:shop/cart', 'other');
+        expect(
+          readDoc(root, 'notes.md'),
+          mermaidNotes('  N[other/cart/add_item E06]', text: before),
+        );
+      },
+    );
+
+    test('a mermaid node naming a moved nf follows the move', () async {
+      const before = '  N[shop/cart/add_item/load_fast]';
+      final root = await writeNestedProject(
+        extra: {
+          'docs/prds/features/f02_shop/f01_cart/us01_add_item/nf01_load_fast.md':
+              '# Load fast\n',
+          'docs/notes.md': mermaidNotes(before),
+        },
+      );
+      moveUnder(root, 'nf:shop/cart/add_item/load_fast', 'shop/cart/drop_item');
+      expect(
+        readDoc(root, 'notes.md'),
+        mermaidNotes('  N[shop/cart/drop_item/load_fast]', text: before),
+      );
+    });
+
+    test('two names on one mermaid line both follow, the arrow and brackets unchanged', () async {
+      const before =
+          '  A[shop/cart/add_item] --> B[fr:shop/cart/add_item/check_stock]';
+      final root = await writeNestedProject(
+        extra: {'docs/notes.md': mermaidNotes(before)},
+      );
+      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        readDoc(root, 'notes.md'),
+        mermaidNotes(
+          '  A[shop/pay/add_item] --> B[fr:shop/pay/add_item/check_stock]',
+          text: before,
+        ),
+      );
+    });
+
+    test('a crlf doc keeps its line ends through a mermaid rewrite', () async {
+      final root = await writeNestedProject(
+        extra: {
+          'docs/notes.md':
+              '# Notes\r\n\r\n```mermaid\r\nflowchart LR\r\n'
+              '  N[shop/cart/add_item E06]\r\n```\r\n',
+        },
+      );
+      moveUnder(root, 'user_story:shop/cart/add_item', 'shop/pay');
+      expect(
+        utf8.decode(docFile(root, 'notes.md').readAsBytesSync()),
+        '# Notes\r\n\r\n```mermaid\r\nflowchart LR\r\n'
+        '  N[shop/pay/add_item E06]\r\n```\r\n',
+      );
+    });
+
     test('a rename lists the mentions in the code root when no tech stack code entry narrows it', () async {
       final root = await writeCheckProject(
         extra: {

@@ -63,6 +63,13 @@ void main() {
     expect(finding.message, contains('[INV-6]($_fromFeature#invariants)'));
   });
 
+  test('a resolving mermaid token raises no cite_unlinked', () async {
+    final findings = await _citesInFeature(
+      'Users forget.\n\n```mermaid\nflowchart LR\n  N[domain:login INV-6]\n```',
+    );
+    expect(findings, isEmpty);
+  });
+
   test('a token shaped like an ID but of no doc type prefix, such as SHA256 '
       'or UTF-8, is no item ID', () async {
     final findings = await _citesInFeature(

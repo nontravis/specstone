@@ -1252,6 +1252,19 @@ void main() {
       );
     });
 
+    test("a rename rewrites a mermaid node's name alone, and a fenced block of another language stays", () {
+      expect(
+        rewriteNameMentions(
+          '```mermaid\nflowchart LR\n  N[login/email_login E06]\n```\n\n'
+              '```text\nN[login/email_login E06]\n```\n',
+          '.md',
+          renamed,
+        ),
+        '```mermaid\nflowchart LR\n  N[signin/email_login E06]\n```\n\n'
+        '```text\nN[login/email_login E06]\n```\n',
+      );
+    });
+
     test('E03: a typed mention of another type, a one-slug bare name, and plain text stay', () {
       expect(
         rewriteNameMentions(

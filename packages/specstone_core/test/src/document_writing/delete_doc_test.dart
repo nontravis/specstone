@@ -1585,6 +1585,33 @@ void main() {
       },
     );
 
+    test('a mermaid node naming a doc of the unit warns once and the delete '
+        'goes ahead', () async {
+      final root = await mentioning({
+        project:
+            '# Project context\n\n```mermaid\nflowchart LR\n'
+            '  N[login/reset_password E02]\n  M[login/reset_password]\n```\n',
+      });
+
+      final answer = delLogin(root);
+
+      expect(answer.json['removed'], contains(story3));
+      expect(answer.warnings, [
+        '$project mentions $story3; the mention will dangle',
+      ]);
+      expect(hasDoc(root, project), isTrue);
+    });
+
+    test("another language's fence or a longer code span gives no warning", () async {
+      final root = await mentioning({
+        project:
+            '# Project context\n\n```text\nN[login/reset_password E02]\n```\n\n'
+            'See `login/reset_password E02`.\n',
+      });
+
+      expect(delLogin(root).warnings, isEmpty);
+    });
+
     test('E13: a doc-name '
         'mention of the feature warns as a path mention does, the delete '
         'going on', () async {
