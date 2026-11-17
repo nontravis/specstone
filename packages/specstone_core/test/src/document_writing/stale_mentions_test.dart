@@ -3,6 +3,8 @@
 
 import 'dart:io';
 
+import 'package:specstone_core/src/document_writing/move_journal.dart'
+    show WriteStep;
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
     show planRewrites;
@@ -221,10 +223,39 @@ void main() {
       expect(spansAfter(root), [at('docs/$note', 7, 'login/email_login E05')]);
     });
 
-    test('a span that is a doc-name mention is left to the rewrite', () async {
-      final root = await withNote('# Ideas\n\nA span `login/email_login`.\n');
+    test(
+      'a span that is a whole doc-name mention is not listed as a longer span',
+      () async {
+        final root = await withNote('# Ideas\n\nA span `login/email_login`.\n');
+        const unrewritten = '# Ideas\n\nA span `login/email_login`.\n';
 
-      expect(spansAfter(root), isEmpty);
+        final stale = writeIn(
+          root,
+          (session) => staleMentions(
+            session,
+            renameLogin,
+            namesChange: true,
+            docWrites: [const WriteStep('docs/$note', unrewritten, before: '')],
+          ),
+        );
+
+        expect(stale, isEmpty);
+      },
+    );
+
+    test('spans on one line keep their column order in a long list', () async {
+      const lines = 40;
+      final root = await withNote(
+        '# Ideas\n\n'
+        '${[for (var i = 0; i < lines; i++) 'One `login/email_login A$i` and `login/email_login B$i`.'].join('\n')}\n',
+      );
+
+      expect(spansAfter(root), [
+        for (var i = 0; i < lines; i++) ...[
+          at('docs/$note', 3 + i, 'login/email_login A$i'),
+          at('docs/$note', 3 + i, 'login/email_login B$i'),
+        ],
+      ]);
     });
 
     test('a span naming no renamed doc is not listed', () async {

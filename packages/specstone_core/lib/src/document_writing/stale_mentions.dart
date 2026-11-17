@@ -219,12 +219,22 @@ List<StaleMention> _docSpanMentions(
       );
     }
   }
-  return stale..sort(_byPathThenLine);
+  return _byPathThenLine(stale);
 }
 
-int _byPathThenLine(StaleMention a, StaleMention b) {
-  final byPath = compareCodePoints(a.path, b.path);
-  return byPath != 0 ? byPath : a.line.compareTo(b.line);
+/// Returns [mentions] by path, then line; mentions on one line keep their scan
+/// order, which `List.sort` alone does not for more than 32 elements.
+List<StaleMention> _byPathThenLine(List<StaleMention> mentions) {
+  final scanned = [for (final (index, m) in mentions.indexed) (index, m)]
+    ..sort((a, b) {
+      final (aIndex, aMention) = a;
+      final (bIndex, bMention) = b;
+      final byPath = compareCodePoints(aMention.path, bMention.path);
+      if (byPath != 0) return byPath;
+      final byLine = aMention.line.compareTo(bMention.line);
+      return byLine != 0 ? byLine : aIndex.compareTo(bIndex);
+    });
+  return [for (final (_, mention) in scanned) mention];
 }
 
 /// Returns the text line that lists [mention]:
