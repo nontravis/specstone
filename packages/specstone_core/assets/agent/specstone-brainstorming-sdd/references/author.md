@@ -51,11 +51,11 @@ doc; list any other under `Findings:`.
 
 ## 4. Check
 
-Run a bare `specstone check` before your first write and again after your last, long output saved by `--out`, never
-a redirect. Before the second, walk each item you wrote against your saved guide's description lines (doc part, held
-sections, `Fields:`), not banned-word, section-status, or template lines; list a line you cannot meet under
-`Findings:`. Then run `specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating
-another doc's item links it instead.
+Run a bare `specstone check` before your first write and again after your last. Before the second, walk each item
+you wrote against your saved guide's description lines (doc part, held sections, `Fields:`), not banned-word,
+section-status, or template lines; list a line you cannot meet under `Findings:`. Then run
+`specstone check <feature> --repeats` per feature of your drafts: a draft's new text repeating another doc's item
+links it instead. Save each `check` by `--out`, never a redirect.
 
 Fix each second-run finding, even one the first run had, in a section your writes touched. List each in an untouched
 section, such as a doc you only confirmed again, under `Findings:`, unfixed. Two kinds differ:
