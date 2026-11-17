@@ -10,7 +10,11 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
+import 'package:specstone_core/src/document_writing/batch_file.dart'
+    show parseBatchFile;
 import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
+import 'package:specstone_core/src/document_writing/set_batch.dart'
+    show answerSetBatch;
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -4084,19 +4088,21 @@ void main() {
     const address = 'implementation:login';
     const matrix = '$address#verification_matrix';
     const notes = '$address#notes';
-    const head =
-        "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
-        '# Login implementation\n\n';
     const row = '- email_login/check_password E01: `a wrong password`\n';
-    const heldMatrix = '## Verification matrix\n\n$row';
 
-    Future<Directory> recordProject({required bool isDraft}) {
-      final text = isDraft
-          ? head.replaceFirst('---\n', '---\ndraft: true\n')
-          : head;
+    Future<Directory> recordProject({
+      required bool isDraft,
+      bool hasMatrix = true,
+    }) {
+      final frontmatter =
+          "---\n${isDraft ? 'draft: true\n' : ''}"
+          "statuses:\n  - 'email_login:implemented'\n---\n\n";
+      final matrixSection = hasMatrix ? '## Verification matrix\n\n$row\n' : '';
       return writeCheckProject(
         extra: {
-          loginRecord: '$text$heldMatrix\n## Notes\n\nSee the rows.\n',
+          loginRecord:
+              '$frontmatter# Login implementation\n\n$matrixSection'
+              '## Notes\n\nSee the rows.\n',
           '.specstone/templates/implementation.yaml':
               'sections:\n  - id: notes\n    header: Notes\n',
         },
@@ -4181,6 +4187,61 @@ void main() {
 
         expect(answer.json['draft'], isTrue);
         expect(readDoc(root, loginRecord), contains('draft: true\n'));
+      },
+    );
+
+    test(
+      'empty text for a matrix section the record lacks leaves it approved',
+      () async {
+        final root = await recordProject(isDraft: false, hasMatrix: false);
+        final before = readDoc(root, loginRecord);
+
+        final answer = writeIn(
+          root,
+          (s) => answerSet(s, req(matrix, emptyBaseHash), ''),
+        );
+
+        expect(readDoc(root, loginRecord), before);
+        expect(answer.json['draft'], isFalse);
+      },
+    );
+
+    test('empty text for a held matrix section removes it and leaves the record approved', () async {
+      final root = await recordProject(isDraft: false);
+      final before = readDoc(root, loginRecord);
+
+      final answer = writeIn(
+        root,
+        (s) => answerSet(s, req(matrix, sectionBase(root, matrix)), ''),
+      );
+
+      expect(
+        readDoc(root, loginRecord),
+        before.replaceFirst('## Verification matrix\n\n$row\n', ''),
+      );
+      expect(answer.json['draft'], isFalse);
+    });
+
+    test(
+      'a batch writing the matrix and another section marks the record draft',
+      () async {
+        final root = await recordProject(isDraft: false);
+        final text =
+            writeIn(root, (s) => answerGet(s.index, [matrix, notes]).text)
+                .replaceFirst('a wrong password', 'a wrong email')
+                .replaceFirst('See the rows.', 'See the table.');
+
+        final answer = writeIn(
+          root,
+          (s) => answerSetBatch(s, parseBatchFile('batch.md', text)),
+        );
+
+        expect(readDoc(root, loginRecord), contains('draft: true\n'));
+        expect(answer.json['blocks'], hasLength(2));
+        expect(
+          answer.json['blocks'],
+          everyElement(containsPair('draft', true)),
+        );
       },
     );
   });
