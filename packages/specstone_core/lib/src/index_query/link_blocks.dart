@@ -242,7 +242,8 @@ final class _Sink {
   final definitionDestinations = <({int start, int end})>[];
 
   /// The body range of each definition, from its label's `[` to the end of its
-  /// last line, the line feed after it left out.
+  /// last line. The line feed after it is not held here; `leafTextOf` adds it
+  /// to the ranges it returns.
   final definitionSpans = <({int start, int end})>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
