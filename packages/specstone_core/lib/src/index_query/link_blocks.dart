@@ -26,6 +26,7 @@ import 'package:specstone_core/src/doc_model/markdown_lines.dart'
         tableCellRanges,
         tableColumnCount,
         tableHeadCells;
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/index_query/case_folding.g.dart';
 import 'package:specstone_core/src/index_query/models/written_destination.dart';
 
@@ -38,11 +39,11 @@ import 'package:specstone_core/src/index_query/models/written_destination.dart';
 /// `footnoteLabels` holds each footnote definition's label, lowercased.
 typedef LeafText = ({
   String text,
-  List<({int start, int end})> leaves,
+  List<TextRange> leaves,
   Map<String, WrittenDestination> definitions,
   Set<String> footnoteLabels,
-  List<({int start, int end})> definitionLabels,
-  List<({int start, int end})> definitionDestinations,
+  List<TextRange> definitionLabels,
+  List<TextRange> definitionDestinations,
 });
 
 // The patterns are the ones `markdown` matches its block syntaxes by, so an
@@ -156,12 +157,12 @@ LeafText leafTextOf(String lfBody) {
   _BlockPass(lines, starts, sink).run();
   final units = Uint16List.fromList(body.codeUnits);
   var kept = 0;
-  for (final (:start, :end) in sink.leaves) {
+  for (final TextRange(:start, :end) in sink.leaves) {
     _blank(units, kept, start);
     kept = end;
   }
   _blank(units, kept, units.length);
-  for (final (:start, :end) in sink.prefixes) {
+  for (final TextRange(:start, :end) in sink.prefixes) {
     _blank(units, start, end);
   }
   return (
@@ -219,7 +220,7 @@ enum _Stop {
 
 /// What the block passes of one body produce together.
 final class _Sink {
-  final leaves = <({int start, int end})>[];
+  final leaves = <TextRange>[];
   final definitions = <String, WrittenDestination>{};
 
   /// The label of each footnote definition, lowercased.
@@ -227,13 +228,13 @@ final class _Sink {
 
   /// The body ranges of each definition's label, brackets left out, and of
   /// its destination as written, angle brackets left out.
-  final definitionLabels = <({int start, int end})>[];
-  final definitionDestinations = <({int start, int end})>[];
+  final definitionLabels = <TextRange>[];
+  final definitionDestinations = <TextRange>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
   /// reads the rest. A leaf that spans lines holds them, so they are blanked
   /// after the leaves are cut.
-  final prefixes = <({int start, int end})>[];
+  final prefixes = <TextRange>[];
 }
 
 /// A line a container hands to its child pass: the text and the body offset of
@@ -279,7 +280,7 @@ final class _BlockPass {
   /// Per line, whether it ends a block; null until asked.
   final List<bool?> _endsBlock;
 
-  final List<({int start, int end})> leaves;
+  final List<TextRange> leaves;
   final Map<String, WrittenDestination> definitions;
 
   /// The first line of the open paragraph, or -1.
@@ -319,16 +320,20 @@ final class _BlockPass {
 
   void _addLeaf(int line, int from, int to) {
     if (from < to) {
-      leaves.add((start: _starts[line] + from, end: _starts[line] + to));
+      leaves.add(
+        TextRange(start: _starts[line] + from, end: _starts[line] + to),
+      );
     }
   }
 
   void _closeParagraph(int end) {
     final last = end - 1;
-    leaves.add((
-      start: _starts[_paragraph],
-      end: _starts[last] + _lines[last].length,
-    ));
+    leaves.add(
+      TextRange(
+        start: _starts[_paragraph],
+        end: _starts[last] + _lines[last].length,
+      ),
+    );
     _paragraph = -1;
   }
 
@@ -427,7 +432,7 @@ final class _BlockPass {
   /// to be blanked.
   void _cut(List<_ChildLine> into, int i, int at) {
     final start = _starts[i];
-    _sink.prefixes.add((start: start, end: start + at));
+    _sink.prefixes.add(TextRange(start: start, end: start + at));
     into.add((text: _lines[i].substring(at), start: start + at));
   }
 
@@ -603,7 +608,7 @@ final class _BlockPass {
     final match = _checkbox.firstMatch(text);
     if (match == null) return;
     final end = match[0]!.length;
-    _sink.prefixes.add((start: start, end: start + end));
+    _sink.prefixes.add(TextRange(start: start, end: start + end));
     item[item.length - 1] = (text: text.substring(end), start: start + end);
   }
 
@@ -921,8 +926,10 @@ final class _BlockPass {
   }
 
   /// The body range from the cursor mark [start] to the mark [end].
-  ({int start, int end}) _rangeOf((int, int) start, (int, int) end) =>
-      (start: _starts[start.$1] + start.$2, end: _starts[end.$1] + end.$2);
+  TextRange _rangeOf((int, int) start, (int, int) end) => TextRange(
+    start: _starts[start.$1] + start.$2,
+    end: _starts[end.$1] + end.$2,
+  );
 
   /// Skips the title at the cursor and returns whether there is one
   /// (`LinkParser._parseTitle`).
