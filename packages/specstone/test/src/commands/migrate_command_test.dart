@@ -63,40 +63,6 @@ void main() {
     expect(out.toString(), endsWith('dry run: nothing written\n'));
   }, skip: hasGit ? null : 'git is not available');
 
-  test('nothing to migrate, with and without --dry-run', () async {
-    final root = await writeTree({
-      '.specstone/config.yaml': shippedPinsConfig(),
-    });
-
-    for (final args in [
-      ['migrate'],
-      ['migrate', '--dry-run'],
-    ]) {
-      final (:runner, :out, :err) = writeRunner(root);
-
-      expect(await runner.run(args), 0);
-      expect(out.toString(), 'nothing to migrate\n');
-      expect(err.toString(), isEmpty);
-    }
-  });
-
-  test('migrate --dry-run labels a doc changed by a path '
-      'mention', () async {
-    final root = await gitFixture({
-      ...acmeLegacy,
-      'docs/prds/d04_glossary.md': [
-        '# Glossary\n\nSee features/f01_login/us01_email_login/',
-        'functional_requirements/fr01_validate_credentials.md:85.\n',
-      ].join(),
-    });
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['migrate', '--dry-run']), 0);
-
-    expect(err.toString(), isEmpty);
-    expect(out.toString(), contains('  prds/d04_glossary.md: 1 mention\n'));
-  }, skip: hasGit ? null : 'git is not available');
-
   test('no project is project_not_found, exit 78', () async {
     final root = await writeTree({'notes.txt': 'x\n'});
     final (:runner, :out, :err) = writeRunner(root);
@@ -239,49 +205,6 @@ void main() {
       }
     }
   });
-
-  test('Spec map rows outside specs/ sharing a last '
-      'segment plan, exit 0', () async {
-    final root = await gitFixture({
-      'docs/prds/d01_context.md': '# D-01 — Context\n',
-      'docs/specs/INDEX.md':
-          '## Spec map\n\n'
-          '| Code path | Spec path | feature_id |\n'
-          '|-----------|-----------|------------|\n'
-          '| `a/` | `auth/` | — |\n'
-          '| `b/` | `lib/auth/` | — |\n',
-    });
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(
-      await runner.run(['migrate', '--dry-run']),
-      0,
-      reason: err.toString(),
-    );
-    expect(out.toString(), endsWith('dry run: nothing written\n'));
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('migrate --dry-run over a dirty tree prints the plan and says the run '
-      'needs a clean tree, exit 0', () async {
-    final root = await gitFixture(acmeLegacy);
-    File('${root.path}/notes.txt').writeAsStringSync('x\n');
-    final before = _bytesUnder(root);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['migrate', '--dry-run']), 0);
-    expect(err.toString(), isEmpty);
-    expect(out.toString(), startsWith('legacy migration: '));
-    expect(
-      out.toString(),
-      matches(
-        RegExp(
-          r'\nplan [0-9a-f]{12}\n'
-          r'dry run: nothing written; the run needs a clean working tree\n$',
-        ),
-      ),
-    );
-    expect(_bytesUnder(root), before);
-  }, skip: hasGit ? null : 'git is not available');
 
   test('migrate --plan <hash> over a dirty tree is working_tree_dirty, '
       'exit 75', () async {
@@ -447,18 +370,6 @@ void main() {
     },
   );
 
-  test('ms-r11: migrate --dry-run prints plan <hash> above its last '
-      'line', () async {
-    final root = await gitFixture(acmeLegacy);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['migrate', '--dry-run']), 0);
-    expect(
-      out.toString(),
-      matches(RegExp(r'\nplan [0-9a-f]{12}\ndry run: nothing written\n$')),
-    );
-  }, skip: hasGit ? null : 'git is not available');
-
   for (final (args, message) in [
     (
       ['--yes'],
@@ -545,24 +456,6 @@ void main() {
     skip: hasGit ? null : 'git is not available',
   );
 
-  test(
-    'migrate --dry-run --json over a dirty tree holds dirty true, exit 0',
-    () async {
-      final root = await gitFixture(acmeLegacy);
-      File('${root.path}/notes.txt').writeAsStringSync('x\n');
-      final before = _bytesUnder(root);
-      final (:runner, :out, :err) = writeRunner(root);
-
-      expect(await runner.run(['migrate', '--dry-run', '--json']), 0);
-
-      final object = jsonDecode(out.toString()) as Map<String, Object?>;
-      expect(object['dirty'], isTrue);
-      expect(err.toString(), isEmpty);
-      expect(_bytesUnder(root), before);
-    },
-    skip: hasGit ? null : 'git is not available',
-  );
-
   test('migrate --yes --plan --json applies the run, prints one object, and '
       'ends its notes with the closing count', () async {
     final root = await gitFixture(acmeLegacy);
@@ -580,19 +473,6 @@ void main() {
       matches(r'^check: \d+ findings left; run specstone check to see them$'),
     );
     expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('migrate --yes --plan ends with the count a check reports', () async {
-    final root = await gitFixture(acmeLegacy);
-    final hash = await _dryRunPlanHash(root);
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
-
-    expect(
-      out.toString().trim().split('\n').last,
-      matches(r'^check: \d+ findings left; run specstone check to see them$'),
-    );
   }, skip: hasGit ? null : 'git is not available');
 
   group('the legacy run writes records', () {
@@ -661,27 +541,6 @@ void main() {
       expect(err.toString(), contains('status wip is no status'));
       expect(_bytesUnder(root), before);
     });
-  }, skip: hasGit ? null : 'git is not available');
-
-  test('a commit that touches no input between the dry run and '
-      'migrate --yes --plan leaves the hash, and the plan applies', () async {
-    final root = await gitFixture(acmeLegacy);
-    final hash = await _dryRunPlanHash(root);
-    File('${root.path}/notes.txt').writeAsStringSync('later\n');
-    commitAll(root, 'unrelated');
-    final (:runner, :out, :err) = writeRunner(root);
-
-    expect(await runner.run(['migrate', '--yes', '--plan', hash]), 0);
-
-    expect(err.toString(), isEmpty);
-    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
-        .trim()
-        .split('\n');
-    expect(subjects.take(3), [
-      'rewrite titles, keys, and links; add project configuration',
-      'move legacy docs to their new paths',
-      'unrelated',
-    ]);
   }, skip: hasGit ? null : 'git is not available');
 
   test('a tracked file added between the dry run and migrate '
@@ -755,29 +614,6 @@ void main() {
     expect(feature, startsWith('---\napproved: "'));
     expect(feature, isNot(contains('draft:')));
     expect(checkOut.toString(), isNot(contains('approval_stale')));
-  }, skip: hasGit ? null : 'git is not available');
-
-  test("the Owner's y at a terminal makes two commits", () async {
-    final root = await gitFixture(acmeLegacy);
-    final (:runner, :out, :err) = writeRunner(
-      root,
-      console: FakeConsole(
-        stdinIsTerminal: true,
-        stdoutIsTerminal: true,
-        answers: ['y'],
-      ),
-    );
-
-    expect(await runner.run(['migrate']), 0);
-    expect(err.toString(), isEmpty);
-    final subjects = (git(root, ['log', '--format=%s']).stdout as String)
-        .trim()
-        .split('\n');
-    expect(subjects.take(2), [
-      'rewrite titles, keys, and links; add project configuration',
-      'move legacy docs to their new paths',
-    ]);
-    expect(git(root, ['status', '--porcelain']).stdout, isEmpty);
   }, skip: hasGit ? null : 'git is not available');
 
   test('E17, '

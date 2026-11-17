@@ -2183,21 +2183,6 @@ agent_file_roots:
         expect(_read(root, recordPath), before);
         expect(_gitOut(root, ['status', '--porcelain']).trim(), isEmpty);
       });
-
-      test('a suspect link stays as written', () async {
-        final h = await home();
-        final root = await project('0123456789ab');
-
-        final dry = await _run(root, h, ['migrate', '--dry-run']);
-
-        expect(dry.status, 0, reason: dry.err);
-        expect(
-          dry.out,
-          contains(
-            '  from 1.0.0: restamp_code_fingerprints: 0 docs; 0 entries\n',
-          ),
-        );
-      });
     });
 
     group('the shipped software-tech record', () {

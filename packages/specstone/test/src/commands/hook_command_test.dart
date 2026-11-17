@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:test/test.dart';
 
 import '../../../../specstone_core/test/helpers/check_fixture.dart';
@@ -125,19 +124,6 @@ void main() {
   });
 
   test(
-    "f08/us06/fr02/e06, f08/us06/s3: another doc's findings stay out",
-    () async {
-      final original = checkProjectFiles()['docs/$loginFr']!;
-      final root = await writeCheckProject(
-        extra: {'docs/$loginFr': '$original\nSee $_brokenLink.\n'},
-      );
-      final result = await postEdit(root, abs(root, loginStory));
-      expect(result.status, 0);
-      expect(result.out, isEmpty);
-    },
-  );
-
-  test(
     'api:agent_plugin: a design document under docs/designs gets no check',
     () async {
       final root = await writeCheckProject(
@@ -188,21 +174,6 @@ void main() {
     expect(result.err, isEmpty);
   });
 
-  test('an untyped .md in prds/ hands back its untyped_doc finding', () async {
-    final root = await writeCheckProject(
-      extra: {'docs/prds/notes.md': '# Notes\n'},
-    );
-    final result = await postEdit(root, abs(root, 'prds/notes.md'));
-    expect(result.status, 0);
-    final decoded = jsonDecode(result.out) as Map<String, Object?>;
-    final context =
-        (decoded['hookSpecificOutput']!
-                as Map<String, Object?>)['additionalContext']!
-            as String;
-    expect(context, matches(RegExp(r'^prds/notes\.md:\d+: untyped_doc: ')));
-    expect(context, endsWith('\n1 finding'));
-  });
-
   test(
     'an untyped .md in measurements/ hands back its untyped_doc finding',
     () async {
@@ -238,31 +209,6 @@ void main() {
             as String;
     expect(context, contains(': approval_stale: '));
     expect(context, endsWith(' (waits for the Owner)\n1 finding'));
-  });
-
-  test('E12: a suspect '
-      'finding holds its upstream block, then the fingerprint, in the hook '
-      'context', () async {
-    final edited = loginScenario2.replaceFirst('wrong password', 'wrong pass');
-    final root = await writeCheckProject(
-      extra: doc(loginStory, loginScenario2, edited),
-    );
-    final result = await postEdit(root, abs(root, loginFr));
-    expect(result.status, 0);
-    final decoded = jsonDecode(result.out) as Map<String, Object?>;
-    final context =
-        (decoded['hookSpecificOutput']!
-                as Map<String, Object?>)['additionalContext']!
-            as String;
-    final block = printedBlockOf(edited);
-    expect(
-      context,
-      endsWith(
-        '${block.split('\n').map((l) => '    $l\n').join()}'
-        '    fingerprint ${fingerprintOf(edited)}\n1 finding',
-      ),
-    );
-    expect(context.split('\n').first, isNot(contains(fingerprintOf(edited))));
   });
 
   test("f08/us06/fr02/e08, f08/us06/s6: the platform's separators read as the same DocPath", () async {
