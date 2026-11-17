@@ -127,15 +127,12 @@ List<List<String>> _contextCalls(String markdown) {
 }
 
 /// Each inline code span of [markdown] outside its fenced blocks, a span
-/// wrapped over lines read whole, with its offset in [markdown].
-List<({int offset, String code})> _inlineSpans(String markdown) {
+/// wrapped over lines read whole.
+List<String> _inlineSpans(String markdown) {
   final blanked = markdown
       .replaceAllMapped(_fencedBlock, (block) => ' ' * block[0]!.length)
       .replaceAll('\n', ' ');
-  return [
-    for (final span in _codeSpan.allMatches(blanked))
-      (offset: span.start, code: span.group(1)!),
-  ];
+  return [for (final span in _codeSpan.allMatches(blanked)) span.group(1)!];
 }
 
 /// The text of plugin [file] with `\n` line ends, as a Windows checkout's
@@ -515,14 +512,14 @@ void _referencesResolveTests() {
     final files = _skillAndAgentFiles();
     expect(files, isNotEmpty);
     for (final file in files) {
-      for (final span in _inlineSpans(_pluginText(file))) {
-        if (!span.code.contains('reports/')) continue;
-        if (_agentFileSpan.hasMatch(span.code)) {
+      for (final code in _inlineSpans(_pluginText(file))) {
+        if (!code.contains('reports/')) continue;
+        if (_agentFileSpan.hasMatch(code)) {
           named
               .putIfAbsent(file, () => [])
-              .add(span.code.substring(_reportsFolder.length));
+              .add(code.substring(_reportsFolder.length));
         } else {
-          problems.add('$file: ${span.code}');
+          problems.add('$file: $code');
         }
       }
     }
@@ -1131,7 +1128,7 @@ void _runsOnEveryHostTests() {
       final codes = [
         for (final block in _fencedBlock.allMatches(text))
           ...block.group(1)!.split('\n'),
-        for (final span in _inlineSpans(text)) span.code,
+        ..._inlineSpans(text),
       ];
       for (final code in codes) {
         if (!_shellLine.hasMatch(code)) continue;
