@@ -101,15 +101,12 @@ List<SiblingEntry> siblingsOnDisk(
 }
 
 /// Returns the spec folder moves that follow [docType]'s doc from
-/// [oldValues] to [newValues], each folder paired with the one the same child
-/// doc type holds after the move, sorted by old folder; a folder that does
-/// not change is left out.
+/// [oldValues] to [newValues], each folder paired with the one its child type
+/// holds after the move, sorted by old folder; an unchanged one is left out.
 ///
-/// - [depth]: the nesting depth of the doc before the move.
-/// - [newDepth]: its nesting depth after the move; null keeps [depth].
+/// A per-target child's folder moves once per name of [targetNames].
 ///
-/// A per-target child's folder moves once per name of [targetNames], as
-/// [specFoldersOf] reads it.
+/// - [depth], [newDepth]: nesting depths before and after; null keeps [depth].
 List<PathMove> specFolderMovesOf(
   MergedSet set,
   MergedDocType docType,

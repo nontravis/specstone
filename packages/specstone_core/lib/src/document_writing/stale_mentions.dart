@@ -108,20 +108,12 @@ final class MentionScope {
       : projectPath;
 }
 
-/// Returns the mentions in code files and agent files that the change
-/// described by [moves] stops resolving, by file path, then line.
+/// Returns stale mentions in code files, agent files, and doc code spans.
 ///
-/// A mention counts only once it stops resolving: it names a doc now and
-/// names none after the moves. A Name mention counts when [namesChange] holds
-/// and no doc carries the Name after the moves; a path mention, read from the
-/// docs root or the project root, counts when no doc sits at the path after
-/// the moves. A move to [removedPath] removes the doc. Files are the ones the
-/// `code:` roots list and the agent files of the walk; none is written.
-///
-/// [docWrites], the doc writes the change plans, adds after those each code
-/// span in a doc whose longer text holds a Name that stops resolving, by the
-/// doc's path after the moves, then line in the doc as written; no doc is
-/// written here.
+/// A mention is stale when it names a doc now and none after [moves]: a Name
+/// when [namesChange] holds, a path from the docs or project root; a move to
+/// [removedPath] removes its doc. None is written. Files list by path, then
+/// line; doc spans, of [docWrites] alone, follow by the doc's path after moves.
 List<StaleMention> staleMentions(
   WriteSession session,
   List<PathMove> moves, {
