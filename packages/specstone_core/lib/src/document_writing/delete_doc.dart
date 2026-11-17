@@ -56,10 +56,10 @@ final class _DeletePlan {
 /// mention of a removed doc in a code file or an agent file is listed after the
 /// removed paths, and no such file is written.
 ///
-/// Each record, in every code target, outside the unit that holds an entry of
-/// a story or FR of it loses that entry and becomes a draft, through the same
-/// journal as the file moves; no record's approval guards the delete. A
-/// feature's own records leave with its spec folder.
+/// Each record, in every code target, outside the unit that holds an entry or a
+/// matrix row of a story or FR of it loses that entry and row and becomes a
+/// draft, through the same journal as the file moves; no record's approval
+/// guards the delete. A feature's own records leave with its spec folder.
 ///
 /// [codeTarget] keeps a name to that code target's docs and the shared docs.
 ///

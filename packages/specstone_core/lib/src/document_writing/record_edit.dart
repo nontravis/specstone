@@ -12,12 +12,12 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// Returns an edit for each record outside [inUnit], the DocPaths of the
-/// unit's files, that holds an entry of a story or FR of the unit, sorted by
-/// DocPath.
+/// unit's files, that holds an entry or a matrix row of a story or FR of the
+/// unit, sorted by DocPath.
 ///
-/// A record's entries name the stories and FRs of its feature relative to it,
-/// as [recordItemsOf] gives them; the records of a feature in the unit are in
-/// the unit and leave with it.
+/// A record's entries and rows name the stories and FRs of its feature
+/// relative to it, as [recordItemsOf] gives them; the records of a feature in
+/// the unit are in the unit and leave with it.
 List<RecordEdit> recordEditsOf(WriteSession session, Set<String> inUnit) {
   final index = session.index;
   final recordType = index.set.recordDocType;
@@ -52,7 +52,8 @@ List<RecordEdit> recordEditsOf(WriteSession session, Set<String> inUnit) {
 /// [rewriteRecordItems] reads it, or null when the file is gone or no line
 /// changes.
 ///
-/// `entries` lists each item [rewrite] drops or renames. Throws a
+/// `entries` lists each item [rewrite] drops or renames, whether in an entry
+/// line or a matrix row. Throws a
 /// `RenderFault` `output_not_writable` for a record that is read-only or
 /// whose field block is not valid YAML, so a dry run refuses it as the run
 /// does.
