@@ -3,11 +3,22 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/consistency_check/finding.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
 
 const _frLayer = '.specstone/templates/fr.yaml';
+
+late Directory _project;
+
+// The file line of the first line of [docPath] holding [needle], in the
+// project the last fieldFindings call wrote.
+int _lineOf(String docPath, String needle) =>
+    File('${_project.path}/docs/$docPath')
+        .readAsLinesSync()
+        .indexWhere((line) => line.contains(needle)) +
+    1;
 
 String _banned(String entries) =>
     'lint:\n  banned_patterns:\n    add:\n$entries';
@@ -438,6 +449,99 @@ sections:
         kind: FindingKind.patternMissing,
       );
       expect(found, isEmpty);
+    });
+  });
+
+  group('on a prose field value', () {
+    const featureLayer = '.specstone/templates/feature.yaml';
+    const summaryLine = 'summary: Lets an agent sign in.';
+
+    Future<List<Finding>> fieldFindings(
+      String summary, {
+      String layer = '',
+    }) async {
+      _project = await writeCheckProject(
+        extra: {
+          if (layer.isNotEmpty) featureLayer: layer,
+          ...doc(loginFeature, summaryLine, 'summary: $summary'),
+        },
+      );
+      final report = await checkOf(_project);
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.patternBanned) f,
+      ];
+    }
+
+    String codeEntry(String pattern) => _banned(
+      '      - id: code-name\n'
+      "        pattern: '$pattern'\n"
+      '        message: Name it\n'
+      '        in: code\n',
+    );
+
+    test('a doc-level pattern reports on the key line under field', () async {
+      final found = await fieldFindings('Applies the ruling to sign in.');
+      expect(found, hasLength(1));
+      expect(found.single.path, loginFeature);
+      expect(found.single.line, _lineOf(loginFeature, 'summary:'));
+      expect(
+        found.single.toJson(),
+        allOf(
+          containsPair('pattern', 'doc_citation'),
+          containsPair('field', 'summary'),
+          containsPair('match', 'ruling'),
+          isNot(contains('section')),
+        ),
+      );
+    });
+
+    test('a code span the grammar reads as an address is no hit', () async {
+      final found = await fieldFindings(
+        'Uses `index_query/read_doc` today.',
+        layer: codeEntry('[a-z_]+/[a-z_]+'),
+      );
+      expect(found, isEmpty);
+    });
+
+    test('a code span of another form still reports', () async {
+      final found = await fieldFindings(
+        'Uses `parseDoc()` today.',
+        layer: codeEntry(r'\w+\(\)'),
+      );
+      expect(
+        found.map((f) => f.toJson()['pattern']),
+        containsAll(['code-name', 'code_identifier']),
+      );
+    });
+  });
+
+  group('in a closed generated block', () {
+    final open = generatedOpenMarker('feature_catalog');
+    const features = 'prds/FEATURES.md';
+
+    Future<List<Finding>> citationsIn(String body) async {
+      final report = await checkOf(
+        await writeCheckProject(extra: doc(features, 'One feature.', body)),
+      );
+      return [
+        for (final f in report.findings)
+          if (f.kind == FindingKind.patternBanned) f,
+      ];
+    }
+
+    test('a banned pattern match is not reported', () async {
+      expect(
+        await citationsIn('$open\n- Applies the ruling.\n$generatedEndMarker'),
+        isEmpty,
+      );
+    });
+
+    test('the same text beside the block is reported', () async {
+      final found = await citationsIn(
+        '$open\n- A login.\n$generatedEndMarker\n\nApplies the ruling.',
+      );
+      expect(found.map((f) => f.toJson()['pattern']), ['doc_citation']);
     });
   });
 }

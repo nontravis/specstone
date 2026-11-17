@@ -76,6 +76,45 @@ void main() {
     expect(err.toString(), isEmpty);
   });
 
+  test('a feature summary over its word cap prints words_over_limit at the summary line and exits 1', () async {
+    final project = await writeCheckProject(
+      extra: doc(
+        loginFeature,
+        'summary: Lets an agent sign in.',
+        'summary: ${List.filled(18, 'word').join(' ')}.',
+      ),
+    );
+    final line =
+        File('${project.path}/docs/$loginFeature')
+            .readAsLinesSync()
+            .indexWhere((text) => text.startsWith('summary:')) +
+        1;
+    final result = await Process.run(binary, [
+      'check',
+      '--json',
+    ], workingDirectory: project.path);
+    expect(result.exitCode, 1, reason: '${result.stdout}\n${result.stderr}');
+    final findings =
+        (jsonDecode(result.stdout as String)
+                as Map<String, Object?>)['findings']!
+            as List<Object?>;
+    expect(
+      findings.cast<Map<String, Object?>>().where(
+        (finding) => finding['kind'] == 'words_over_limit',
+      ),
+      [
+        allOf(
+          containsPair('docPath', loginFeature),
+          containsPair('line', line),
+          containsPair('field', 'summary'),
+          containsPair('language', 'default'),
+          containsPair('limit', 15),
+          containsPair('actual', 18),
+        ),
+      ],
+    );
+  });
+
   test('each finding prints on its own line before the count, and the check exits 1', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(extra: frWith('verify_method: maybe')),

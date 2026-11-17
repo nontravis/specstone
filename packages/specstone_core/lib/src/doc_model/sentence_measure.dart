@@ -23,8 +23,9 @@ final _spanMark = String.fromCharCode(0xFDD0);
 /// Code points below this one belong to no script `measureSentence` votes on.
 const _firstVotedCodePoint = 0x0370;
 
-/// The runs of other scripts and code spans each count the cap over this.
-const _runWeightDivisor = 25;
+/// The runs of other scripts and code spans each count the cap over this,
+/// unless the caller names its own divisor.
+const defaultRunWeightDivisor = 25;
 
 /// The Thai and Lao AM vowels, which add no character.
 final _amVowels = String.fromCharCodes(const [0x0E33, 0x0EB3]);
@@ -138,11 +139,13 @@ SentenceMeasure measureSentence(String markdownSentence) {
 
 /// Returns the character total of [measure] under the character [cap].
 ///
-/// Each run of another script or code span weighs the cap over 25, and the
-/// total rounds up to a whole number.
-int weightedChars(SentenceMeasure measure, int cap) =>
-    measure.chars +
-    (measure.runs * cap + _runWeightDivisor - 1) ~/ _runWeightDivisor;
+/// Each run of another script or code span weighs the cap over [divisor], and
+/// the total rounds up to a whole number.
+int weightedChars(
+  SentenceMeasure measure,
+  int cap, {
+  int divisor = defaultRunWeightDivisor,
+}) => measure.chars + (measure.runs * cap + divisor - 1) ~/ divisor;
 
 /// Returns [markdown] with each code span as one mark, each link as its text,
 /// and the emphasis marks dropped.

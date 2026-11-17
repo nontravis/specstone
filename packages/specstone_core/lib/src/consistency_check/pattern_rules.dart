@@ -5,13 +5,16 @@ import 'package:specstone_core/src/doc_model/doc_items.dart'
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/banned_matches.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
 
 /// Returns the pattern findings of a typed [doc]; an untyped doc has none.
 ///
 /// A `banned_patterns` entry holds one finding per match the refresh stored
 /// for a line of a held section, fenced code excluded; the doc-level entries
-/// apply on every line, a section's own on its `linePrefix` lines. A
+/// apply on every line, a section's own on its `linePrefix` lines. A prose
+/// field's value takes the doc-level entries alone, its finding on the key's
+/// line under the key `field`. A
 /// `required_patterns` entry with no matching line in its held section holds
 /// one finding at the header; with `per_subsection`, one finding at each `###`
 /// heading whose subsection has no matching line.
@@ -21,11 +24,15 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
   final content = context.contentOf(doc);
   final held = content.sections;
   final matchesBySection = <int, List<BannedMatch>>{};
+  final fieldMatches = <BannedMatch>[];
   for (final match in content.bannedMatches) {
     if (match.section case final section?) {
       (matchesBySection[section] ??= []).add(match);
+    } else {
+      fieldMatches.add(match);
     }
   }
+  yield* _fieldFindings(context, doc, type, fieldMatches);
   for (var i = 0; i < held.length; i++) {
     final template = context.templateSectionAt(doc, i);
     final sectionKey = template?.id ?? held[i].key;
@@ -34,7 +41,9 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
       final banned = entries[found.entry];
       if (banned.scope == PatternScope.code &&
           (_namesFolders(context, found.match) ||
-              _inReferenceSpan(context, doc, found.line, found.match))) {
+              _inReferenceSpan(found.match, [
+                context.linesOf(doc).lines[found.line - 1],
+              ]))) {
         continue;
       }
       yield context.finding(
@@ -74,6 +83,37 @@ Iterable<Finding> checkPatterns(CheckContext context, IndexedDoc doc) sync* {
               lines,
             );
     }
+  }
+}
+
+/// Returns one finding per stored match on a prose field value, the doc-level
+/// entry it names read as a section's.
+Iterable<Finding> _fieldFindings(
+  CheckContext context,
+  IndexedDoc doc,
+  MergedDocType type,
+  List<BannedMatch> matches,
+) sync* {
+  final entries = type.lint.bannedPatterns ?? const <PatternEntry>[];
+  final docLines = context.linesOf(doc);
+  for (final found in matches) {
+    final banned = entries[found.entry];
+    final field = found.field!;
+    if (banned.scope == PatternScope.code &&
+        (_namesFolders(context, found.match) ||
+            _inReferenceSpan(
+              found.match,
+              docLines.writtenValueOf(field)?.split('\n') ?? const [],
+            ))) {
+      continue;
+    }
+    yield context.finding(
+      doc,
+      FindingKind.patternBanned,
+      line: found.line,
+      message: '${banned.message}: ${found.match}',
+      keys: {'pattern': banned.id, 'field': field, 'match': found.match},
+    );
   }
 }
 
@@ -138,21 +178,16 @@ List<({int line, String text})> _subsectionHeadings(List<SectionItem> items) =>
 bool _namesFolders(CheckContext context, String matched) =>
     matched.split('/').every(context.folderNames.contains);
 
-/// Whether every code span of the 1-based [line] that holds [matched] is one
-/// the reference grammar reads as a doc address with no lookup.
+/// Whether every code span of [lines] that holds [matched] is one the
+/// reference grammar reads as a doc address with no lookup.
 ///
 /// A stored match names no span, so a match two spans hold stays a hit unless
 /// both are references.
-bool _inReferenceSpan(
-  CheckContext context,
-  IndexedDoc doc,
-  int line,
-  String matched,
-) {
-  final holding = SearchLine(
-    context.linesOf(doc).lines[line - 1],
-    line,
-  ).code.where((span) => span.contains(matched));
+bool _inReferenceSpan(String matched, Iterable<String> lines) {
+  final holding = [
+    for (final line in lines)
+      ...SearchLine(line, 0).code.where((span) => span.contains(matched)),
+  ];
   return holding.isNotEmpty &&
       holding.every((span) => readDocAddress(span).isReferenceWithoutLookup);
 }
