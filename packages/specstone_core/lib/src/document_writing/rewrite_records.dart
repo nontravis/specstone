@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
@@ -59,10 +60,7 @@ final class _Arrival {
 /// Throws [RenderFault] `output_not_writable` before the journal for a record
 /// whose field block is not valid YAML, and for a file at a record path the
 /// index lacks that is no UTF-8 record, so no line is dropped.
-RecordPlan planRecordRewrites(
-  WriteSession session,
-  Map<(String, String), String> renamed,
-) {
+RecordPlan planRecordRewrites(WriteSession session, RenamedNames renamed) {
   final recordType = session.index.set.recordDocType;
   if (recordType == null || renamed.isEmpty) {
     return (edits: const {}, creates: const []);
@@ -76,7 +74,7 @@ final class _Planner {
 
   final WriteSession session;
   final MergedDocType recordType;
-  final Map<(String, String), String> renamed;
+  final RenamedNames renamed;
   final _edits = <String, TextEdit>{};
   final _arrivals = <(String, String?), _Arrival>{};
 
@@ -213,7 +211,7 @@ T readRecord<T>(String docPath, T Function() read) {
 ({Map<String, String> inPlace, Map<String, _Landing> leaving}) _itemMovesOf(
   DocIndex index,
   IndexedDoc feature,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   final inPlace = <String, String>{};
   final leaving = <String, _Landing>{};
@@ -233,8 +231,8 @@ T readRecord<T>(String docPath, T Function() read) {
   return (inPlace: inPlace, leaving: leaving);
 }
 
-String _nameAfter(IndexedDoc doc, Map<(String, String), String> renamed) =>
-    renamed[(doc.docTypeId, doc.name)] ?? doc.name;
+String _nameAfter(IndexedDoc doc, RenamedNames renamed) =>
+    renamed.newNameOf(doc.docTypeId, doc.name) ?? doc.name;
 
 /// Returns where [item], a story or an FR, lands: the feature its new name
 /// puts it in and its name relative to that feature; null when that feature
@@ -242,11 +240,7 @@ String _nameAfter(IndexedDoc doc, Map<(String, String), String> renamed) =>
 ///
 /// An FR's story is its new name less the last segment, so an FR moved to
 /// another story lands where that story is.
-_Landing? _landingOf(
-  DocIndex index,
-  IndexedDoc item,
-  Map<(String, String), String> renamed,
-) {
+_Landing? _landingOf(DocIndex index, IndexedDoc item, RenamedNames renamed) {
   final featureName = _featureNameOf(item, renamed);
   if (featureName == null) return null;
   final feature = index.ofTypeNamed(featureType, featureName).firstOrNull;
@@ -257,7 +251,7 @@ _Landing? _landingOf(
 
 /// Returns the name of the feature [item]'s new name puts it in; null when the
 /// name has no feature segment.
-String? _featureNameOf(IndexedDoc item, Map<(String, String), String> renamed) {
+String? _featureNameOf(IndexedDoc item, RenamedNames renamed) {
   final name = _nameAfter(item, renamed);
   final storyName = item.docTypeId == storyType ? name : _parentName(name);
   return storyName == null ? null : _parentName(storyName);

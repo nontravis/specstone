@@ -2,9 +2,8 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show nameMentionsInFile;
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DocAddress;
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
@@ -166,7 +165,7 @@ String? _pathOf(String token) {
 String? rewriteNameMentions(
   String text,
   String extension,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   if (renamed.isEmpty) return null;
   final edits = <({int line, int column, int length, String text})>[];
@@ -175,7 +174,7 @@ String? rewriteNameMentions(
     extension,
     withMermaid: true,
   )) {
-    final name = renamedNameOf(mention.address, renamed);
+    final name = renamed.newNameFor(mention.address);
     if (name == null) continue;
     final address = mention.address;
     final prefix = address.typeId == null ? '' : '${address.typeId}:';
@@ -197,19 +196,4 @@ String? rewriteNameMentions(
         line.substring(edit.column + edit.length);
   }
   return lines.join('\n');
-}
-
-/// Returns the new name of the doc [address] names, or null when it names no
-/// renamed doc or, bare, names renamed docs that disagree.
-String? renamedNameOf(
-  DocAddress address,
-  Map<(String, String), String> renamed,
-) {
-  final typeId = address.typeId;
-  if (typeId != null) return renamed[(typeId, address.body)];
-  final names = {
-    for (final MapEntry(:key, :value) in renamed.entries)
-      if (key.$2 == address.body) value,
-  };
-  return names.length == 1 ? names.single : null;
 }

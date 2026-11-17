@@ -14,6 +14,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -83,7 +84,7 @@ String? rewriteDocLinks(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
-  Map<(String, String), String> renamed = const {},
+  RenamedNames renamed = const RenamedNames({}),
   RenamedDocs renamedDocs = const {},
 }) => rewriteDocLinksCounted(
   lfText,
@@ -99,7 +100,7 @@ String? rewriteDocLinks(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
-  Map<(String, String), String> renamed = const {},
+  RenamedNames renamed = const RenamedNames({}),
   RenamedDocs renamedDocs = const {},
 }) {
   final body = Doc.parse(lfText).afterFrontmatter;
@@ -198,7 +199,7 @@ List<_TextEdit> _linkTextEdits(
   String body,
   List<LinkSource> sources,
   String docPath,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
   RenamedDocs renamedDocs,
 ) {
   if (renamed.isEmpty) return const [];
@@ -232,7 +233,7 @@ TypedName? _reachedDoc(String? href, String docPath, RenamedDocs renamedDocs) {
 _TextEdit? _namedLinkText(
   String body,
   LinkSource source,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
   TypedName? Function() reached,
 ) {
   final textEnd = source.textEnd;
@@ -246,11 +247,11 @@ _TextEdit? _namedLinkText(
   final typeId = address.typeId;
   final String? name;
   if (typeId != null) {
-    name = renamedNameOf(address, renamed);
+    name = renamed.newNameFor(address);
   } else {
     final key = reached();
     name = key != null && key.name == address.body
-        ? renamed[(key.typeId, key.name)]
+        ? renamed.newNameOf(key.typeId, key.name)
         : null;
   }
   if (name == null) return null;
@@ -359,7 +360,7 @@ String _closersEscaped(String text, int opened) {
 String? rewriteDocRefs(
   String lfText, {
   required List<MergedField> fields,
-  required Map<(String, String), String> renamed,
+  required RenamedNames renamed,
 }) {
   final blocks = Doc.parse(lfText).frontmatter;
   if (blocks == null || renamed.isEmpty) return null;
@@ -391,7 +392,7 @@ String? rewriteDocRefs(
 List<WriteStep> planRewrites(
   WriteSession session,
   List<PathMove> moves, {
-  Map<(String, String), String> renamed = const {},
+  RenamedNames renamed = const RenamedNames({}),
   Map<String, TextEdit> docEdits = const {},
 }) {
   final index = session.index;
@@ -440,12 +441,12 @@ List<WriteStep> planRewrites(
 RenamedDocs _renamedDocsOf(
   DocIndex index,
   List<PathMove> moves,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) => {
   for (final doc in index.docs)
     if (doc.docTypeId case final typeId?)
       if (movedPath(doc.docPath, moves) != doc.docPath &&
-          renamed.containsKey((typeId, doc.name)))
+          renamed.newNameOf(typeId, doc.name) != null)
         doc.docPath: TypedName(typeId: typeId, name: doc.name),
 };
 
@@ -480,13 +481,13 @@ bool _textsRenamedDoc(
   DocIndex index,
   IndexedDoc doc,
   List<PathMove> moves,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
   RenamedDocs renamedDocs,
 ) {
   if (renamed.isEmpty) return false;
   final text = toLf(index.contentOf(doc).text);
   // A link text names an old Name, so a doc without one needs no parse.
-  if (!renamed.keys.any((key) => text.contains(key.$2))) return false;
+  if (!renamed.anyOldNameIn(text)) return false;
   return rewriteDocLinks(
         text,
         docPath: doc.docPath,
@@ -545,7 +546,7 @@ WriteStep? _stepFor(
   WriteSession session,
   IndexedDoc doc,
   List<PathMove> moves,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
   RenamedDocs renamedDocs,
   TextEdit? docEdit,
 ) {
@@ -625,11 +626,11 @@ bool _wasApproved(
 String? _newParentName(
   WriteSession session,
   IndexedDoc doc,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   final parent = session.index.parentOf(doc);
   if (parent == null) return null;
-  return renamed[(parent.docTypeId, parent.name)] ?? parent.name;
+  return renamed.newNameOf(parent.docTypeId, parent.name) ?? parent.name;
 }
 
 /// Whether [doc], of a type that [carriesLinkLabels], holds a step identity,
@@ -641,7 +642,7 @@ String? _newParentName(
 bool _namesRenamedLabel(
   WriteSession session,
   IndexedDoc doc,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   if (renamed.isEmpty || !carriesLinkLabels(session.docTypeAt(doc.docPath))) {
     return false;
@@ -669,21 +670,17 @@ bool _namesRenamedLabel(
 bool _mentionsRenamedDoc(
   DocIndex index,
   IndexedDoc doc,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) =>
     renamed.isNotEmpty &&
     index
         .contentOf(doc)
         .lineFacts
         .nameMentions
-        .any((m) => renamedNameOf(m.address, renamed) != null);
+        .any((m) => renamed.newNameFor(m.address) != null);
 
 /// Whether [doc] carries a `doc_ref` value that [renamed] renames.
-bool _namesRenamedDoc(
-  DocIndex index,
-  IndexedDoc doc,
-  Map<(String, String), String> renamed,
-) {
+bool _namesRenamedDoc(DocIndex index, IndexedDoc doc, RenamedNames renamed) {
   if (renamed.isEmpty) return false;
   for (final field in index.typeOf(doc)?.fields ?? const <MergedField>[]) {
     if (field.type != FieldType.docRef) continue;
@@ -700,20 +697,14 @@ bool _namesRenamedDoc(
 ///
 /// A field with no `docTypes` takes the rename only when every renamed doc
 /// called [value] agrees on the new name; two different names leave it.
-String? _newName(
-  MergedField field,
-  String value,
-  Map<(String, String), String> renamed,
-) {
+String? _newName(MergedField field, String value, RenamedNames renamed) {
   final types = field.docTypes;
-  if (types == null) {
-    final names = {
-      for (final e in renamed.entries)
-        if (e.key.$2 == value) e.value,
-    };
-    return names.length == 1 ? names.single : null;
-  }
-  return types.map((type) => renamed[(type, value)]).nonNulls.firstOrNull;
+  return types == null
+      ? renamed.agreedNewNameOf(value)
+      : types
+            .map((type) => renamed.newNameOf(type, value))
+            .nonNulls
+            .firstOrNull;
 }
 
 /// Returns the path part of [href] after [moves], encoded, or null when the
@@ -745,7 +736,7 @@ String _renameInBlock(
   String text,
   String key,
   MergedField field,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   return renameKeyBlockValues(
     text,

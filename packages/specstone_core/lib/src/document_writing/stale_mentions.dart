@@ -11,6 +11,7 @@ import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show DocAddress;
 import 'package:specstone_core/src/document_writing/agent_file_walk.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart'
     show WriteStep;
@@ -256,19 +257,14 @@ List<Map<String, Object>> mentionsJsonOf(List<StaleMention> mentions) => [
 /// A per-target doc sits in its target's folder only with two or more targets,
 /// and its name drops that folder, so the twins of the targets share it. A doc
 /// moved to [removedPath] gets no new name.
-Map<(String, String), String> renamedNamesOf(
-  WriteSession session,
-  List<PathMove> moves,
-) => renamedNamesIn(MentionScope.of(session), moves);
+RenamedNames renamedNamesOf(WriteSession session, List<PathMove> moves) =>
+    renamedNamesIn(MentionScope.of(session), moves);
 
 /// Returns the names that change under [moves] in the project [scope]
 /// describes, as [renamedNamesOf] does.
-Map<(String, String), String> renamedNamesIn(
-  MentionScope scope,
-  List<PathMove> moves,
-) {
+RenamedNames renamedNamesIn(MentionScope scope, List<PathMove> moves) {
   final inTargetFolder = scope.hasTwins;
-  final renamed = <(String, String), String>{};
+  final names = <TypedName, String>{};
   for (final doc in scope.docs) {
     final typeId = doc.docTypeId;
     final docType = typeId == null ? null : scope.set.lookup(typeId);
@@ -276,13 +272,13 @@ Map<(String, String), String> renamedNamesIn(
     if (docType == null || newPath == doc.docPath || newPath == removedPath) {
       continue;
     }
-    renamed[(docType.id, doc.name)] = docNameOf(
+    names[TypedName(typeId: docType.id, name: doc.name)] = docNameOf(
       newPath,
       docType,
       target: inTargetFolder ? doc.target : null,
     );
   }
-  return renamed;
+  return RenamedNames(names);
 }
 
 /// Returns the test that says whether a mention names a doc now and no doc
@@ -304,7 +300,7 @@ bool Function(NameMention mention) _stopsResolvingTest(
     if (typeId == null) continue;
     namesBefore.add(typeId, doc.name);
     if (newPath != removedPath) {
-      namesAfter.add(typeId, renamed[(typeId, doc.name)] ?? doc.name);
+      namesAfter.add(typeId, renamed.newNameOf(typeId, doc.name) ?? doc.name);
     }
   }
 

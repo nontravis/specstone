@@ -8,6 +8,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart'
     show FindingKind;
 import 'package:specstone_core/src/document_writing/approval.dart'
     show withApprovalHash;
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
+import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
@@ -4385,9 +4387,13 @@ void main() {
           },
         );
         final plan = writeIn(root, (s) {
-          final moved = planRecordRewrites(s, {
-            (storyType, 'shop/pay/card'): 'shop/card',
-          });
+          final moved = planRecordRewrites(
+            s,
+            RenamedNames({
+              const TypedName(typeId: storyType, name: 'shop/pay/card'):
+                  'shop/card',
+            }),
+          );
           return (
             payJaspr: moved.edits[payJaspr]?.call(readDoc(root, payJaspr)),
             creates: moved.creates,

@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -49,7 +50,7 @@ void main() {
 
   List<WriteStep> plan(
     List<PathMove> moves, {
-    Map<(String, String), String> renamed = const {},
+    RenamedNames renamed = const RenamedNames({}),
   }) => writeIn(root, (s) => planRewrites(s, moves, renamed: renamed));
 
   test('movedPath and relativeHref', () {
@@ -111,10 +112,11 @@ void main() {
         to: 'prds/features/f01_signin/',
       ),
     ];
-    const renamed = <(String, String), String>{
-      ('feature', 'login'): 'signin',
-      ('user_story', 'login/email_login'): 'signin/email_login',
-    };
+    final renamed = RenamedNames({
+      const TypedName(typeId: 'feature', name: 'login'): 'signin',
+      const TypedName(typeId: 'user_story', name: 'login/email_login'):
+          'signin/email_login',
+    });
     const renamedDocs = <String, TypedName>{
       'prds/features/f01_login/FEATURE.md': TypedName(
         typeId: 'feature',
@@ -130,12 +132,12 @@ void main() {
     String? rewrite(
       String text, {
       List<PathMove> moves = renameMoves,
-      Map<(String, String), String> names = renamed,
+      RenamedNames? names,
     }) => rewriteDocLinks(
       text,
       docPath: docPath,
       moves: moves,
-      renamed: names,
+      renamed: names ?? renamed,
       renamedDocs: renamedDocs,
     );
 
@@ -237,10 +239,10 @@ void main() {
     });
 
     test('a bare text that two renamed docs call alike takes the new Name of the doc its link reaches', () {
-      const twins = <(String, String), String>{
-        ('feature', 'login'): 'signin',
-        ('persona', 'login'): 'access',
-      };
+      final twins = RenamedNames({
+        const TypedName(typeId: 'feature', name: 'login'): 'signin',
+        const TypedName(typeId: 'persona', name: 'login'): 'access',
+      });
       const twinDocs = <String, TypedName>{
         'prds/features/f01_login/FEATURE.md': TypedName(
           typeId: 'feature',
@@ -303,9 +305,10 @@ void main() {
                 to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
               ),
             ],
-            renamed: const {
-              ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
-            },
+            renamed: RenamedNames({
+              const TypedName(typeId: 'user_story', name: 'shop/cart/add_item'):
+                  'shop/pay/add_item',
+            }),
           ),
           '[user_story:shop/pay/add_item](us03_add_item/USER_STORY.md#acceptance_criteria) '
           '[AC-1](us03_add_item/USER_STORY.md#acceptance_criteria)\n',
@@ -325,9 +328,10 @@ void main() {
               to: 'prds/features/f02_shop/f02_pay/us03_add_item/',
             ),
           ],
-          renamed: const {
-            ('user_story', 'shop/cart/add_item'): 'shop/pay/add_item',
-          },
+          renamed: RenamedNames({
+            const TypedName(typeId: 'user_story', name: 'shop/cart/add_item'):
+                'shop/pay/add_item',
+          }),
           renamedDocs: const {
             'prds/features/f02_shop/f01_cart/us01_add_item/USER_STORY.md':
                 TypedName(typeId: 'user_story', name: 'shop/cart/add_item'),
@@ -722,7 +726,9 @@ void main() {
       rewriteDocRefs(
         '---\npersona:\n  - buyer\n  - seller\n---\n\n# S\n\nThe buyer pays.\n',
         fields: [persona],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       '---\npersona:\n  - shopper\n  - seller\n---\n\n# S\n\nThe buyer pays.\n',
     );
@@ -730,7 +736,9 @@ void main() {
       rewriteDocRefs(
         '---\npersona: [buyer, seller]\n---\n',
         fields: [persona],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       '---\npersona: [shopper, seller]\n---\n',
     );
@@ -738,7 +746,9 @@ void main() {
       rewriteDocRefs(
         '---\npersona:\n  - buyer\n---\n',
         fields: [persona],
-        renamed: {('feature', 'buyer'): 'x'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'feature', name: 'buyer'): 'x',
+        }),
       ),
       isNull,
     );
@@ -751,7 +761,9 @@ void main() {
       rewriteDocRefs(
         '---\nreference: "buyer" # who\nnote: buyer\n---\n',
         fields: [anyType, other],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       '---\nreference: "shopper" # who\nnote: buyer\n---\n',
     );
@@ -759,7 +771,9 @@ void main() {
       rewriteDocRefs(
         "---\nreference:\n  # buyer\n  - 'buyer'\n  - buyers\n---\n",
         fields: [anyType],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       "---\nreference:\n  # buyer\n  - 'shopper'\n  - buyers\n---\n",
     );
@@ -767,7 +781,9 @@ void main() {
       rewriteDocRefs(
         '# No frontmatter\n',
         fields: [anyType],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       isNull,
     );
@@ -779,7 +795,9 @@ void main() {
       rewriteDocRefs(
         '---\n"reference": "buyer" # who\nnote: buyer\n---\n',
         fields: [anyType],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       '---\n"reference": "shopper" # who\nnote: buyer\n---\n',
     );
@@ -787,7 +805,9 @@ void main() {
       rewriteDocRefs(
         "---\n'reference':\n  - buyer\n---\n",
         fields: [anyType],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       "---\n'reference':\n  - shopper\n---\n",
     );
@@ -795,7 +815,9 @@ void main() {
 
   test('dw-s03/inv6, f02/us06/fr02: of two blocks with one name only the first counts, whatever the spelling', () {
     const anyType = MergedField(id: 'reference', type: FieldType.docRef);
-    const renamed = {('persona', 'buyer'): 'shopper'};
+    final renamed = RenamedNames({
+      const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+    });
     expect(
       rewriteDocRefs(
         '---\nreference: keep\n"reference": buyer\n---\n',
@@ -880,7 +902,9 @@ void main() {
       rewriteDocRefs(
         '---\nreference: [a, buyer] # see [x]\n---\n',
         fields: [reference],
-        renamed: {('persona', 'buyer'): 'shopper'},
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+        }),
       ),
       '---\nreference: [a, shopper] # see [x]\n---\n',
     );
@@ -893,10 +917,10 @@ void main() {
       rewriteDocRefs(
         text,
         fields: [reference],
-        renamed: {
-          ('persona', 'buyer'): 'shopper',
-          ('actor', 'buyer'): 'customer',
-        },
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+          const TypedName(typeId: 'actor', name: 'buyer'): 'customer',
+        }),
       ),
       isNull,
     );
@@ -904,10 +928,10 @@ void main() {
       rewriteDocRefs(
         text,
         fields: [reference],
-        renamed: {
-          ('persona', 'buyer'): 'shopper',
-          ('actor', 'buyer'): 'shopper',
-        },
+        renamed: RenamedNames({
+          const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+          const TypedName(typeId: 'actor', name: 'buyer'): 'shopper',
+        }),
       ),
       '---\nreference: shopper\n---\n',
     );
@@ -1057,7 +1081,10 @@ void main() {
           to: 'prds/features/f01_signin/',
         ),
       ],
-      renamed: {('user_story', 'login/email_login'): 'signin/email_login'},
+      renamed: RenamedNames({
+        const TypedName(typeId: 'user_story', name: 'login/email_login'):
+            'signin/email_login',
+      }),
     );
     final persona = steps.singleWhere(
       (step) => step.path == 'docs/prds/personas/buyer/PERSONA.md',
@@ -1243,7 +1270,9 @@ void main() {
           (s) => planRewrites(
             s,
             const [],
-            renamed: {('persona', 'buyer'): 'shopper'},
+            renamed: RenamedNames({
+              const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+            }),
           ),
         ),
         story1,
@@ -1277,11 +1306,12 @@ void main() {
     );
   });
   group('rewriteNameMentions', () {
-    const renamed = {
-      ('feature', 'login'): 'signin',
-      ('user_story', 'login/email_login'): 'signin/email_login',
-      ('persona', 'buyer'): 'shopper',
-    };
+    final renamed = RenamedNames({
+      const TypedName(typeId: 'feature', name: 'login'): 'signin',
+      const TypedName(typeId: 'user_story', name: 'login/email_login'):
+          'signin/email_login',
+      const TypedName(typeId: 'persona', name: 'buyer'): 'shopper',
+    });
 
     test('E03: the Name changes, the type prefix and section key stay', () {
       expect(
@@ -1314,7 +1344,9 @@ void main() {
         rewriteNameMentions(
           '```mermaid\nflowchart LR\n  N[https://my.app/x/y]\n```\n',
           '.md',
-          {('user_story', 'app/x/y'): 'app/z/y'},
+          RenamedNames({
+            const TypedName(typeId: 'user_story', name: 'app/x/y'): 'app/z/y',
+          }),
         ),
         isNull,
       );
@@ -1327,7 +1359,10 @@ void main() {
               'A["login/email_login: x"]\n```\n\n'
               '```mermaid\nsequenceDiagram\na->>+b:login/email_login\n```\n',
           '.md',
-          {('user_story', 'login/email_login'): 'signin/email_login'},
+          RenamedNames({
+            const TypedName(typeId: 'user_story', name: 'login/email_login'):
+                'signin/email_login',
+          }),
         ),
         '```mermaid\nA[/user_story:signin/email_login/]\nA["signin/email_login: x"]\n```\n\n'
         '```mermaid\nsequenceDiagram\na->>+b:signin/email_login\n```\n',
@@ -1339,7 +1374,10 @@ void main() {
         rewriteNameMentions(
           '```mermaid\nA -->|GET /login/email_login| B\n```\n',
           '.md',
-          {('user_story', 'login/email_login'): 'signin/email_login'},
+          RenamedNames({
+            const TypedName(typeId: 'user_story', name: 'login/email_login'):
+                'signin/email_login',
+          }),
         ),
         isNull,
       );
@@ -1358,10 +1396,16 @@ void main() {
 
     test('E03: a bare name two renamed docs call differently stays', () {
       expect(
-        rewriteNameMentions('`shop/cart`\n', '.md', {
-          ('feature', 'shop/cart'): 'shop/basket',
-          ('user_story', 'shop/cart'): 'shop/trolley',
-        }),
+        rewriteNameMentions(
+          '`shop/cart`\n',
+          '.md',
+          RenamedNames({
+            const TypedName(typeId: 'feature', name: 'shop/cart'):
+                'shop/basket',
+            const TypedName(typeId: 'user_story', name: 'shop/cart'):
+                'shop/trolley',
+          }),
+        ),
         isNull,
       );
     });
@@ -1396,13 +1440,23 @@ void main() {
     );
 
     test('no rename changes nothing', () {
-      expect(rewriteNameMentions('`login/email_login`\n', '.md', {}), isNull);
+      expect(
+        rewriteNameMentions(
+          '`login/email_login`\n',
+          '.md',
+          const RenamedNames({}),
+        ),
+        isNull,
+      );
     });
   });
 
   group('planRewrites code files', () {
     const entry = 'app/lib/doc.dart';
-    const rename = {('user_story', 'login/email_login'): 'signin/email_login'};
+    final rename = RenamedNames({
+      const TypedName(typeId: 'user_story', name: 'login/email_login'):
+          'signin/email_login',
+    });
     const noMoves = <PathMove>[];
 
     Future<Directory> withCode(String text) => writeWriteProject(
