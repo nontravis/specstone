@@ -19,6 +19,7 @@ import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
 import 'package:specstone_core/src/index_query/section_counts.dart';
 import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:yaml/yaml.dart';
@@ -328,13 +329,12 @@ ParsedDoc parseIndexedDoc({
     for (final section in doc.sections) _sectionOf(section, templates),
   ];
   final laid = docType == null || !isUtf8 ? null : formatDoc(doc, docType);
-  final laidText = switch (laid) {
-    Formatted(:final text) => text,
-    _ => lfText,
-  };
   final lineFacts = LineFacts.of(
     lfText: lfText,
-    countedText: laidText,
+    countedText: _withoutMatrixSection(
+      laid is Formatted ? laid.doc : doc,
+      docType,
+    ),
     docPath: docPath,
     doc: doc,
     sectionCounts: _countsOf(sections, laid, templates),
@@ -402,6 +402,35 @@ ParsedDoc parseIndexedDoc({
         : matrixLinesOfDoc(doc, lfText, docType),
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
+}
+
+/// Returns the text of [doc] as the size counts read it: without the
+/// Verification matrix section when [recordType] has one and [doc] holds it.
+///
+/// The cut runs from the section's header line to the next section's header
+/// line. A section that ends the doc takes the blank lines before it too, so
+/// the text equals that of the same doc without the section.
+String _withoutMatrixSection(Doc doc, MergedDocType? recordType) {
+  if (recordType == null || verificationMatrixOf(recordType) == null) {
+    return doc.text;
+  }
+  final at = sectionIndexOf(doc, recordType, verificationMatrixKey);
+  if (at == null) return doc.text;
+  final lines = doc.text.split('\n');
+  final bodyStart = linesBeforeBodyOf(doc, doc.text);
+  var start = bodyStart + doc.sectionLineIndexes[at];
+  final isLast = at + 1 == doc.sectionLineIndexes.length;
+  if (!isLast) {
+    return [
+      ...lines.take(start),
+      ...lines.skip(bodyStart + doc.sectionLineIndexes[at + 1]),
+    ].join('\n');
+  }
+  while (start > 0 && lines[start - 1].trim().isEmpty) {
+    start--;
+  }
+  final holdsFinalBreak = lines.last.isEmpty;
+  return [...lines.take(start), if (holdsFinalBreak) ''].join('\n');
 }
 
 /// Returns the content of [lfText], a doc of [docType], as far as a reader of
