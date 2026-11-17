@@ -6,6 +6,9 @@ description: |-
   Avoid the listed words and other -ly and -ize words.
   State what the product does, never how: leave mechanics to the spec docs, and never assign a task to a person.
   Write one Edge cases item per case; a case the system does not handle goes there too, with what happens then.
+  Exercise each Statement clause and each Input or Output row with an edge case, or with a scenario the FR traces.
+  A row that links the FR owning its behavior counts as exercised by that FR's edge cases.
+  So does a Statement clause whose output is such a row.
   Keep the trace in `traced_from` alone, never in the Statement or an edge case.
   Keep one behavior in each requirement; split joined behaviors into separate requirements.
   An FR never records results: the verification matrix points to the evidence.
