@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
+import 'package:specstone_core/src/document_writing/models/changed_unit.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
 
 /// Returns the line diff of [oldText] and [newText] as unified hunks.
@@ -54,42 +55,6 @@ final class LineDiff {
     return out.toString();
   }
 }
-
-/// The part of a doc a [ChangedUnit] names.
-enum UnitKind {
-  /// The frontmatter lines no key owns.
-  frontmatter,
-
-  /// One frontmatter key, by name.
-  field,
-
-  /// The title line.
-  title,
-
-  /// The head without its title line.
-  lead,
-
-  /// One `##` section, by header text.
-  section,
-}
-
-/// Which of the two texts hold a [ChangedUnit].
-enum UnitSide {
-  /// Both texts hold the unit, each with other content.
-  both,
-
-  /// Only the new text holds the unit.
-  added,
-
-  /// Only the old text holds the unit.
-  removed,
-}
-
-/// A unit that differs between two texts.
-///
-/// `name` is the key of a [UnitKind.field] or the header text of a
-/// [UnitKind.section], as written, and empty for the other kinds.
-typedef ChangedUnit = ({UnitKind kind, String name, UnitSide side});
 
 /// Returns each unit that differs in [oldText] and [newText].
 ///
@@ -308,13 +273,21 @@ String _range(int start, int count) {
 ///
 /// `name` is as [ChangedUnit] gives it. `present` is false for a unit that is
 /// always listed but may hold no text, the lead.
-typedef _Unit = ({
-  String id,
-  UnitKind kind,
-  String name,
-  String content,
-  bool present,
-});
+final class _Unit {
+  const new({
+    required this.id,
+    required this.kind,
+    required this.name,
+    required this.content,
+    required this.present,
+  });
+
+  final String id;
+  final UnitKind kind;
+  final String name;
+  final String content;
+  final bool present;
+}
 
 List<_Unit> _unitsOf(String text) {
   final doc = Doc.parse(_withFinalNewline(text));
@@ -335,7 +308,7 @@ List<_Unit> _unitsOf(String text) {
   return [
     for (final block in doc.frontmatter ?? const <KeyBlock>[])
       if (block.key.isEmpty)
-        (
+        _Unit(
           id: 'frontmatter#0',
           kind: .frontmatter,
           name: '',
@@ -343,7 +316,7 @@ List<_Unit> _unitsOf(String text) {
           present: true,
         )
       else
-        (
+        _Unit(
           id: idOf('field:${block.name}'),
           kind: .field,
           name: block.name,
@@ -351,8 +324,14 @@ List<_Unit> _unitsOf(String text) {
           present: true,
         ),
     if (title != null)
-      (id: 'title#0', kind: .title, name: '', content: title, present: true),
-    (
+      _Unit(
+        id: 'title#0',
+        kind: .title,
+        name: '',
+        content: title,
+        present: true,
+      ),
+    _Unit(
       id: 'lead#0',
       kind: .lead,
       name: '',
@@ -360,7 +339,7 @@ List<_Unit> _unitsOf(String text) {
       present: lead.trim().isNotEmpty,
     ),
     for (var s = 0; s < doc.sections.length; s++)
-      (
+      _Unit(
         id: idOf('section:${doc.sections[s].headerText}'),
         kind: .section,
         name: doc.sections[s].headerText,
@@ -381,7 +360,7 @@ List<_Unit> _unitsOf(String text) {
 /// else null.
 ChangedUnit? _changeOf(_Unit unit, _Unit? before, _Unit? after) {
   ChangedUnit withSide(UnitSide side) =>
-      (kind: unit.kind, name: unit.name, side: side);
+      ChangedUnit(kind: unit.kind, name: unit.name, side: side);
 
   final had = before != null && before.present;
   final has = after != null && after.present;
