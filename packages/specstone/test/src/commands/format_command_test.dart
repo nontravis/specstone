@@ -636,6 +636,7 @@ sections:
       expect(second, contains('Lets a shopper buy goods.'));
       expect(second, isNot(contains('edited by hand')));
       expect(second, contains(approvedStamp));
+      expect(second, isNot(contains('draft: true')));
     });
   });
 }

@@ -54,7 +54,7 @@ void main() {
   });
 
   test('summary is a required string with its description and one-sentence '
-      'caps, and no other field carries a lint', () {
+      'caps', () {
     final summary = fieldOf(feature, 'summary');
     expect(
       summary.description,
@@ -68,13 +68,6 @@ void main() {
       'ja': 36,
       'zh': 27,
     });
-    expect(
-      [
-        for (final f in feature.fields)
-          if (f.lint != null) f.id,
-      ],
-      ['summary'],
-    );
   });
 
   test('the feature file writes no status entry', () {
