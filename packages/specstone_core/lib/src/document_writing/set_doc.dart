@@ -894,7 +894,8 @@ void _refuseHeaderLine(String body) {
 /// when [lf] is blank.
 String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
 
-/// Reads [doc] from disk as it is now, not as the session's index saw it.
+/// Reads [doc] from disk into a [LockedDoc], as it is now, not as the session's
+/// index saw it.
 ///
 /// Call it under the write lock. Throws [IndexFault] `doc_not_found` when the
 /// file is gone, and `RenderFault` `output_not_writable` for one that cannot be

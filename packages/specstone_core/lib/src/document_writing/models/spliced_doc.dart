@@ -1,4 +1,4 @@
-/// A doc's LF text with one part spliced in.
+/// A doc's LF text as a write would leave it.
 final class SplicedDoc {
   const new({required this.lfText, required this.marksDraft});
 
