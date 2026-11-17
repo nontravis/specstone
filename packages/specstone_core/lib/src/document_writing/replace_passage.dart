@@ -1,3 +1,4 @@
+import 'package:specstone_core/src/document_writing/models/replace_stdin.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/line_ending.dart';
@@ -13,7 +14,7 @@ const _newMarker = '==> new <==';
 /// marker lines with its last line end dropped.
 /// Throws [IndexFault] `argument_invalid` for a first line that is not the old
 /// marker, a missing or repeated marker line, and an empty old passage.
-({String oldPassage, String newPassage}) parseReplaceStdin(String stdin) {
+ReplaceStdin parseReplaceStdin(String stdin) {
   final lines = toLf(stdin).split('\n');
   if (lines.first != _oldMarker) {
     throw _invalid('the first line must be exactly "$_oldMarker"');
@@ -32,7 +33,7 @@ const _newMarker = '==> new <==';
   final oldPassage = lines.sublist(1, newAt).join('\n');
   if (oldPassage.isEmpty) throw _invalid('the old passage is empty');
   final newText = lines.sublist(newAt + 1).join('\n');
-  return (
+  return ReplaceStdin(
     oldPassage: oldPassage,
     newPassage: newText.endsWith('\n')
         ? newText.substring(0, newText.length - 1)

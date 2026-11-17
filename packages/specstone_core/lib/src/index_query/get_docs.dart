@@ -1,5 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/fault.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -109,7 +110,9 @@ List<_GetBlock> _printedOnce(List<List<_GetBlock>> reads) {
 
 /// Returns the blocks one [address] reads, one per doc it holds a part of.
 List<_GetBlock> _readName(DocIndex index, String address, String? codeTarget) {
-  final (docPart: name, sectionKey: key) = index.splitAddress(address);
+  final DocAddress(docPart: name, sectionKey: key) = index.splitAddress(
+    address,
+  );
 
   final blocks = <_GetBlock>[];
   for (final doc in index.resolve(name, codeTarget: codeTarget)) {

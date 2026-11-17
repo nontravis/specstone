@@ -3,10 +3,13 @@ import 'dart:convert';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
+import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show approvalHashOf, isOutsideApproval;
 import 'package:specstone_core/src/document_writing/batch_fault.dart';
 import 'package:specstone_core/src/document_writing/batch_file.dart';
+import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
+import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/set_doc.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
@@ -18,7 +21,6 @@ import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/read_answer.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
-import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// The `key` a whole-doc block carries in its result and its fault line.
@@ -40,7 +42,8 @@ const _titleKey = 'title';
 /// `draft`, and `written` per block.
 ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
   final refusals = <_Refusal>[
-    for (final entry in parsed.lineFaults) (line: entry.line!, entry: entry),
+    for (final entry in parsed.lineFaults)
+      _Refusal(line: entry.line!, entry: entry),
   ];
   final planned = _planBlocks(session, parsed.blocks, refusals);
   if (planned.isEmpty) throw _refused(refusals);
@@ -58,7 +61,12 @@ ReadAnswer answerSetBatch(WriteSession session, ParsedBatch parsed) {
 // MARK: - Planning
 
 /// A refused block or line and the line of the batch file it stands on.
-typedef _Refusal = ({int line, BatchEntry entry});
+final class _Refusal {
+  const new({required this.line, required this.entry});
+
+  final int line;
+  final BatchEntry entry;
+}
 
 /// One block resolved to the doc and the part it writes.
 final class _Planned {
@@ -121,14 +129,16 @@ void _refuse(
   SpecstoneFault fault, {
   required String file,
   required String key,
-}) => refusals.add((
-  line: block.line,
-  entry: BatchEntry.fromFault(
-    fault,
-    file: file,
-    key: fault is WriteFault ? fault.key ?? key : key,
+}) => refusals.add(
+  _Refusal(
+    line: block.line,
+    entry: BatchEntry.fromFault(
+      fault,
+      file: file,
+      key: fault is WriteFault ? fault.key ?? key : key,
+    ),
   ),
-));
+);
 
 /// Resolves each block of [blocks] and checks its text and its overlap with
 /// the other blocks, as far as the text and the doc type decide, without the
@@ -184,7 +194,9 @@ _Planned? _resolveBlock(
   List<_Refusal> refusals,
 ) {
   final naming = block.naming;
-  final (:docPart, :sectionKey) = session.index.splitAddress(naming.path);
+  final DocAddress(:docPart, :sectionKey) = session.index.splitAddress(
+    naming.path,
+  );
   final partKey = sectionKey == null || sectionKey.isEmpty ? null : sectionKey;
   try {
     final doc = session.target(docPart);
@@ -285,29 +297,21 @@ void _refuseOverlaps(List<_Planned> resolved, List<_Refusal> refusals) {
 
 // MARK: - Checking
 
-/// A doc as it stands on disk under the lock.
-final class _Disk {
-  new(this.bytes, this.parsed) : lfText = toLf(parsed.content.text);
-
-  final List<int> bytes;
-  final ParsedDoc parsed;
-
-  /// The doc's text with LF line ends and no BOM.
-  final String lfText;
-
-  List<IndexedSection> get sections => parsed.content.sections;
-}
-
 /// What one block's check found: its doc as spliced and laid out, whether it
 /// marks the doc a draft, and whether that differs from the doc on disk.
-typedef _Checked = ({String lfText, bool marksDraft, bool isChanged});
+final class _Checked {
+  const new(this.spliced, {required this.isChanged});
+
+  final SplicedDoc spliced;
+  final bool isChanged;
+}
 
 /// One doc's blocks, its text on disk, and each block's check.
 final class _DocCheck {
   const new(this.blocks, this.disk, this.results);
 
   final List<_Planned> blocks;
-  final _Disk disk;
+  final LockedDoc disk;
   final Map<_Planned, _Checked> results;
 
   IndexedDoc get doc => blocks.first.doc;
@@ -342,7 +346,7 @@ Map<String, _DocCheck> _checkDocs(
 
 /// Reads the doc of [blocks] as it is now; null, with a refusal per block,
 /// when its file is gone.
-_Disk? _readDisk(
+LockedDoc? _readDisk(
   WriteSession session,
   List<_Planned> blocks,
   List<_Refusal> refusals,
@@ -350,8 +354,7 @@ _Disk? _readDisk(
   final first = blocks.first;
   final IndexFault gone;
   try {
-    final read = readLocked(session, first.doc, MatchedDocType(first.docType));
-    return _Disk(read.bytes, read.parsed);
+    return readLocked(session, first.doc, MatchedDocType(first.docType));
   } on IndexFault catch (fault) {
     if (fault.code != IndexFaultCode.docNotFound) rethrow;
     gone = fault;
@@ -371,7 +374,7 @@ _Disk? _readDisk(
 Map<_Planned, _Checked> _checkBlocks(
   WriteSession session,
   List<_Planned> blocks,
-  _Disk disk,
+  LockedDoc disk,
   List<_Refusal> refusals,
 ) {
   final docType = session.docTypeAt(blocks.first.doc.docPath);
@@ -381,18 +384,16 @@ Map<_Planned, _Checked> _checkBlocks(
     // Unedited means what `get` prints now, decided before any check of the
     // part: an absent section's empty block is unchanged even when required.
     if (_isUneditedPart(block, disk)) {
-      results[block] = (
-        lfText: disk.lfText,
-        marksDraft: false,
+      results[block] = _Checked(
+        SplicedDoc(lfText: disk.lfText, marksDraft: false),
         isChanged: false,
       );
       continue;
     }
     try {
       final spliced = _splice(block, disk);
-      results[block] = (
-        lfText: spliced.lfText,
-        marksDraft: spliced.marksDraft,
+      results[block] = _Checked(
+        spliced,
         isChanged: layOutDoc(spliced.lfText, docType) != onDisk,
       );
     } on SpecstoneFault catch (fault) {
@@ -410,7 +411,7 @@ Map<_Planned, _Checked> _checkBlocks(
 
 /// Whether [block] names a section or the lead with the base and the text
 /// `get` prints for it now.
-bool _isUneditedPart(_Planned block, _Disk disk) {
+bool _isUneditedPart(_Planned block, LockedDoc disk) {
   if (block.target is! SectionTarget && block.target is! LeadTarget) {
     return false;
   }
@@ -425,20 +426,19 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
       printed.text == block.block.text;
 }
 
-({String lfText, bool marksDraft}) _splice(_Planned block, _Disk disk) =>
-    switch (block.target) {
-      null => _spliceWholeDoc(block, disk),
-      final target => splicePart(
-        doc: block.doc,
-        docType: block.docType,
-        lfText: disk.lfText,
-        sections: disk.sections,
-        target: target,
-        base: block.base,
-        text: block.block.text,
-        statusesOutside: block.statusesOutside,
-      ),
-    };
+SplicedDoc _splice(_Planned block, LockedDoc disk) => switch (block.target) {
+  null => _spliceWholeDoc(block, disk),
+  final target => splicePart(
+    doc: block.doc,
+    docType: block.docType,
+    lfText: disk.lfText,
+    sections: disk.sections,
+    target: target,
+    base: block.base,
+    text: block.block.text,
+    statusesOutside: block.statusesOutside,
+  ),
+};
 
 // MARK: - Whole-doc block
 
@@ -447,7 +447,7 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
 /// The block's base is `bases.doc`, the hash of the doc's LF text. Each field
 /// block it adds, changes, or removes takes [checkFieldWrite]; each section it
 /// removes takes the removal of a single `set`, which refuses a required one.
-({String lfText, bool marksDraft}) _spliceWholeDoc(_Planned block, _Disk disk) {
+SplicedDoc _spliceWholeDoc(_Planned block, LockedDoc disk) {
   final currentBase = baseHashOf(disk.lfText);
   if (currentBase != block.base) {
     throw _staleDoc(block.doc, block.base, currentBase, disk.lfText);
@@ -458,7 +458,7 @@ bool _isUneditedPart(_Planned block, _Disk disk) {
   _checkTitleAndLead(block, held, proposed);
   final changedFields = _checkFields(block, held, proposed);
   _checkRemovedSections(block, disk, lfText);
-  return (
+  return SplicedDoc(
     lfText: lfText,
     marksDraft: _marksDraft(block, disk.lfText, lfText, changedFields),
   );
@@ -543,7 +543,7 @@ Map<String, KeyBlock> _fieldBlocks(Doc doc) {
 
 /// Runs the removal of each section of [disk] that [lfText] lacks through
 /// [splicePart], which refuses a required one as a single `set` does.
-void _checkRemovedSections(_Planned block, _Disk disk, String lfText) {
+void _checkRemovedSections(_Planned block, LockedDoc disk, String lfText) {
   final kept = {for (final s in _sectionsOf(block, lfText)) s.key};
   final removed = <String>{};
   for (final section in disk.sections) {
@@ -595,7 +595,12 @@ bool _marksDraft(
 // MARK: - Writing
 
 /// A doc's step and the text it writes.
-typedef _Write = ({WriteStep step, String lfText});
+final class _Write {
+  const new({required this.step, required this.lfText});
+
+  final WriteStep step;
+  final String lfText;
+}
 
 /// Returns the write of each doc a changed block reaches, by DocPath.
 ///
@@ -620,8 +625,8 @@ Map<String, _Write> _writesOf(
 _Write _writeOf(WriteSession session, _DocCheck check) {
   final [first, ...rest] = check.changed;
   final firstResult = check.results[first]!;
-  var lfText = firstResult.lfText;
-  var marksDraft = firstResult.marksDraft;
+  var lfText = firstResult.spliced.lfText;
+  var marksDraft = firstResult.spliced.marksDraft;
   for (final next in rest) {
     // The base of a block is its part's, which no other block of the doc
     // changes, so each block checks against the text spliced so far.
@@ -644,7 +649,7 @@ _Write _writeOf(WriteSession session, _DocCheck check) {
     marksDraft ? markDraft(lfText, check.docType) : lfText,
     session.docTypeAt(docPath),
   );
-  return (
+  return _Write(
     step: session.docWriteStep(docPath, laidOut, check.disk.bytes),
     lfText: laidOut,
   );

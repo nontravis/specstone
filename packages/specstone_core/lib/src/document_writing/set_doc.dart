@@ -9,6 +9,9 @@ import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/approval.dart'
     show isOutsideApproval;
+import 'package:specstone_core/src/document_writing/models/locked_doc.dart';
+import 'package:specstone_core/src/document_writing/models/replace_stdin.dart';
+import 'package:specstone_core/src/document_writing/models/spliced_doc.dart';
 import 'package:specstone_core/src/document_writing/replace_passage.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -102,9 +105,10 @@ final class SetRequest {
     String? codeTarget,
     bool replace = false,
   }) {
-    final (target: written, base: checkedBase) = requireShape(target, base);
-    final (:docPart, sectionKey: key) = index == null
-        ? _splitAsWritten(written)
+    requireShape(target, base);
+    final written = target!;
+    final DocAddress(:docPart, sectionKey: key) = index == null
+        ? readDocAddress(written)
         : index.splitAddress(written);
     final sectionKey = key == null || key.isEmpty ? null : key;
     if (replace &&
@@ -140,29 +144,20 @@ final class SetRequest {
     return SetRequest(
       address: docPart,
       target: chosen,
-      base: checkedBase,
+      base: base!,
       codeTarget: codeTarget,
     );
   }
 
-  /// Returns [target] and [base] when both are given; throws [IndexFault]
-  /// `argument_missing` otherwise.
+  /// Throws [IndexFault] `argument_missing` unless [target] and [base] are both
+  /// given.
   ///
   /// Needs no index, so a command calls it before it reads stdin.
-  static ({String target, String base}) requireShape(
-    String? target,
-    String? base,
-  ) {
+  static void requireShape(String? target, String? base) {
     if (target == null) {
       throw missingArgument('set', 'a target', _targetExample);
     }
     if (base == null) throw missingArgument('set', '--base', _targetExample);
-    return (target: target, base: base);
-  }
-
-  static ({String docPart, String? sectionKey}) _splitAsWritten(String text) {
-    final read = readDocAddress(text);
-    return (docPart: read.docPart, sectionKey: read.sectionKey);
   }
 
   /// The doc as `<type>:<name>`.
@@ -217,12 +212,12 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 
   final statusesOutside = session.project.statusesOutsideApproval;
   return session.locked(() {
-    final read = readLocked(session, doc, match).parsed;
+    final locked = readLocked(session, doc, match);
     final part = splicePart(
       doc: doc,
       docType: docType,
-      lfText: toLf(read.content.text),
-      sections: read.content.sections,
+      lfText: locked.lfText,
+      sections: locked.sections,
       target: request.target,
       base: request.base,
       text: text,
@@ -231,7 +226,7 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
     final written = session.writeDoc(
       doc.docPath,
       part.marksDraft ? markDraft(part.lfText, docType) : part.lfText,
-      LineEnding.of(read.content.text),
+      LineEnding.of(locked.parsed.content.text),
     );
 
     final after = parseIndexedDoc(
@@ -259,14 +254,13 @@ ReadAnswer answerSet(WriteSession session, SetRequest request, String text) {
 ///
 /// [lfText] is the doc's text with LF line ends as read under the write lock,
 /// [sections] its sections, and [base] the hash of the part the caller read.
-/// `lfText` of the result is the spliced text and `marksDraft` tells whether
-/// the write marks the doc a draft: false only for a field outside the
-/// approval hash by the rule [statusesOutside] names ([isOutsideApproval]).
+/// The result's `marksDraft` is false only for a field outside the approval
+/// hash by the rule [statusesOutside] names ([isOutsideApproval]).
 /// Touches no disk and takes no lock. Runs [checkPartText] first, except for
 /// a [ReplaceTarget], which reads its stdin itself, then throws
 /// what [answerSet] throws for the part, [WriteFault] `base_mismatch` with the
 /// part's current text included.
-({String lfText, bool marksDraft}) splicePart({
+SplicedDoc splicePart({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -451,7 +445,7 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
       LeadTarget() => namingLine(doc, sectionKey: leadKey, base: base),
     };
 
-({String lfText, bool marksDraft}) _spliceField({
+SplicedDoc _spliceField({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -487,7 +481,7 @@ String _namingLineOf(IndexedDoc doc, SetTarget target, String base) =>
     fieldId,
     value == null ? null : _fieldBlockOf(fieldId, field, value, held),
   );
-  return (
+  return SplicedDoc(
     lfText: spliced,
     marksDraft:
         field == null ||
@@ -570,7 +564,7 @@ String _blockOf(String fieldId, String stdin) {
   return buffer.toString();
 }
 
-({String lfText, bool marksDraft}) _spliceTitle(
+SplicedDoc _spliceTitle(
   IndexedDoc doc,
   String lfText,
   String base,
@@ -588,7 +582,10 @@ String _blockOf(String fieldId, String stdin) {
       currentBase: currentBase,
     );
   }
-  return (lfText: withTitle(lfText, _titleOf(stdin)), marksDraft: true);
+  return SplicedDoc(
+    lfText: withTitle(lfText, _titleOf(stdin)),
+    marksDraft: true,
+  );
 }
 
 /// Returns the one-line title [lf] holds; throws [IndexFault]
@@ -612,14 +609,19 @@ String? _fieldValueOf(String lf) {
   return stripped.trim().isEmpty ? null : stripped;
 }
 
+/// What `_scanStdin` reads of a text outside any fence.
+final class _StdinScan {
+  const new({required this.refused, required this.openFence});
+
+  /// The first line outside fenced code the check refuses; null when none.
+  final String? refused;
+
+  /// The delimiter of a fence the text leaves open.
+  final String? openFence;
+}
+
 /// Reads [lf] as [Doc.parse] would, from outside any fence.
-///
-/// `refused` is the first line outside fenced code that [isRefused] accepts.
-/// `openFence` is the delimiter of a fence the text leaves open.
-({String? refused, String? openFence}) _scanStdin(
-  String lf,
-  bool Function(String line) isRefused,
-) {
+_StdinScan _scanStdin(String lf, bool Function(String line) isRefused) {
   final lines = lf.split('\n');
   final scan = blockScan(lines);
   String? refused;
@@ -629,10 +631,10 @@ String? _fieldValueOf(String lf) {
       break;
     }
   }
-  return (refused: refused, openFence: scan.openFence);
+  return _StdinScan(refused: refused, openFence: scan.openFence);
 }
 
-({String lfText, bool marksDraft}) _spliceLead(
+SplicedDoc _spliceLead(
   IndexedDoc doc,
   MergedDocType docType,
   String lfText,
@@ -651,7 +653,10 @@ String? _fieldValueOf(String lf) {
       currentBase: currentBase,
     );
   }
-  return (lfText: withLead(lfText, _pipedBodyOf(stdin)), marksDraft: true);
+  return SplicedDoc(
+    lfText: withLead(lfText, _pipedBodyOf(stdin)),
+    marksDraft: true,
+  );
 }
 
 void _checkLeadText(String lf) {
@@ -674,21 +679,29 @@ void _checkLeadText(String lf) {
   refuseNamingLine(lf, 'the lead');
 }
 
+/// A stdin less the section's own header.
+final class _Unwrapped {
+  const new({required this.text, required this.dropped});
+
+  final String text;
+
+  /// Whether that header was there, so a header-only stdin is told from empty
+  /// stdin.
+  final bool dropped;
+}
+
 /// Returns [lf] less its first line after leading blank lines when that line
 /// is [headerLine], the section's own header.
-///
-/// `dropped` tells whether that line was there, so a header-only stdin is told
-/// from empty stdin.
-({String text, bool dropped}) _withoutOwnHeader(String lf, String headerLine) {
+_Unwrapped _withoutOwnHeader(String lf, String headerLine) {
   final lines = lf.split('\n');
   final first = lines.indexWhere((line) => line.trim().isNotEmpty);
   if (first < 0 || lines[first] != headerLine) {
-    return (text: lf, dropped: false);
+    return _Unwrapped(text: lf, dropped: false);
   }
-  return (text: (lines..removeAt(first)).join('\n'), dropped: true);
+  return _Unwrapped(text: (lines..removeAt(first)).join('\n'), dropped: true);
 }
 
-({String lfText, bool marksDraft}) _spliceSection({
+SplicedDoc _spliceSection({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -726,7 +739,7 @@ void _checkLeadText(String lf) {
   } else {
     spliced = _withTemplateSection(lfText, docType, key, sections, body);
   }
-  return (lfText: spliced, marksDraft: true);
+  return SplicedDoc(lfText: spliced, marksDraft: true);
 }
 
 /// Returns the index in [sections] of the section keyed [key], or -1 for a
@@ -789,7 +802,7 @@ void _requireSectionBase(
 /// The stdin is read first, then the base is checked before the match, so a
 /// stale base wins over a missing passage. [_spliceSection] checks the base
 /// again on the new body; it is the same hash and cannot differ.
-({String lfText, bool marksDraft}) _spliceReplace({
+SplicedDoc _spliceReplace({
   required IndexedDoc doc,
   required MergedDocType docType,
   required String lfText,
@@ -798,7 +811,7 @@ void _requireSectionBase(
   required String base,
   required String stdin,
 }) {
-  final (:oldPassage, :newPassage) = parseReplaceStdin(stdin);
+  final ReplaceStdin(:oldPassage, :newPassage) = parseReplaceStdin(stdin);
   final held = _heldSectionIndex(doc, docType, sections, key);
   _requireSectionBase(doc, docType, sections, held, key, base);
   final currentBase = _sectionBaseOnDisk(docType, sections, held);
@@ -881,17 +894,13 @@ void _refuseHeaderLine(String body) {
 /// when [lf] is blank.
 String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
 
-/// Reads [doc] from disk as it is now, not as the session's index saw it, and
-/// returns its bytes and what they parse to.
+/// Reads [doc] from disk into a [LockedDoc], as it is now, not as the session's
+/// index saw it.
 ///
 /// Call it under the write lock. Throws [IndexFault] `doc_not_found` when the
 /// file is gone, and `RenderFault` `output_not_writable` for one that cannot be
 /// read or is not UTF-8.
-({List<int> bytes, ParsedDoc parsed}) readLocked(
-  WriteSession session,
-  IndexedDoc doc,
-  DocTypeMatch match,
-) {
+LockedDoc readLocked(WriteSession session, IndexedDoc doc, DocTypeMatch match) {
   final bytes = session.readDocBytes(doc.docPath);
   if (bytes == null) {
     throw IndexFault(
@@ -905,7 +914,7 @@ String _pipedBodyOf(String lf) => lf.trim().isEmpty ? '' : sectionBodyOf(lf);
     match: match,
     statusesOutside: session.project.statusesOutsideApproval,
   );
-  return (bytes: bytes, parsed: parsed);
+  return LockedDoc(bytes: bytes, parsed: parsed);
 }
 
 /// Returns [lfText] with the template section [key] added before the first
