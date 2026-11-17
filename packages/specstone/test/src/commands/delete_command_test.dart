@@ -353,7 +353,7 @@ void main() {
       ];
     }
 
-    test('delete --json lists an item whose rows leave', () async {
+    test('delete --dry-run --json lists an item whose rows leave', () async {
       final root = await projectWithRows();
       final (:runner, :out, :err) = writeRunner(root);
 
