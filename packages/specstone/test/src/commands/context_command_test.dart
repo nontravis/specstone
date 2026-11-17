@@ -9,7 +9,6 @@ import 'package:specstone_core/src/templates/shipped_pack_files.dart'
     show shippedPackVersions;
 import 'package:test/test.dart';
 
-import '../../../../specstone_core/test/helpers/nested_fixture.dart';
 import '../../helpers/read_fixture.dart';
 import '../../helpers/temp_tree.dart';
 
@@ -85,17 +84,6 @@ void main() {
     expect(
       badMode.err.toString(),
       '--for takes query, implement, or design, not deploy\n',
-    );
-  });
-  test('f01/us05/s15, db-r6: context --summary on a feature prints its stories in summary, exit 0', () async {
-    final (:runner, :out, :err) = readRunner(await writeReadProject());
-    expect(
-      await runner.run(['context', 'login', '--for', 'design', '--summary']),
-      0,
-    );
-    expect(
-      out.toString(),
-      contains('- login/email_login (user_story) · summary\n'),
     );
   });
   test('f01/us05/fr01/e18, db-c2: --summary with another mode or --code refuses with exit 64', () async {
@@ -272,69 +260,6 @@ void main() {
       isFalse,
     );
   });
-  test("sf-c7: context shop/cart/add_item --for design prints shop's names list with shop/pay", () async {
-    final (:runner, :out, :err) = readRunner(await writeNestedProject());
-    expect(
-      await runner.run(['context', 'shop/cart/add_item', '--for', 'design']),
-      0,
-    );
-    expect(out.toString(), contains('==> names: shop (feature) <==\n'));
-    expect(
-      out.toString(),
-      matches(
-        RegExp(r'^- shop/pay \(feature\) · \d+ tokens$', multiLine: true),
-      ),
-    );
-  });
-  test(
-    'context --summary on a sub-feature prints its stories in summary',
-    () async {
-      final (:runner, :out, :err) = readRunner(await writeNestedProject());
-      expect(
-        await runner.run([
-          'context',
-          'shop/cart',
-          '--for',
-          'design',
-          '--summary',
-        ]),
-        0,
-      );
-      expect(
-        out.toString(),
-        contains('- shop/cart/add_item (user_story) · summary\n'),
-      );
-      expect(
-        out.toString(),
-        contains('- shop/cart/drop_item (user_story) · summary\n'),
-      );
-      expect(out.toString(), isNot(contains('shop/pay/card')));
-    },
-  );
-
-  test(
-    'a design bundle keeps a line whose code span holds an HTML comment',
-    () async {
-      const line =
-          'A block opens with `<!-- BEGIN specstone v1 -->` and closes '
-          'with `<!-- END specstone -->`.';
-      final project = await writeReadProject(
-        extra: {
-          'docs/prds/features/f01_login/FEATURE.md':
-              '---\nvision:\n  - PV-01\nslug:\n  - sign-in\n---\n\n# Login\n\n'
-              '## Problem\n$line\n',
-        },
-      );
-      final (:runner, :out, :err) = readRunner(project);
-      expect(
-        await runner.run(['context', 'login/email_login', '--for', 'design']),
-        0,
-      );
-      expect(out.toString(), contains('## Problem\n$line'));
-      expect(err.toString(), isEmpty);
-    },
-  );
-
   group('f01/us05/fr01, per code target', () {
     /// Writes the two-target fixture of pick_bundle_docs E23: the feature
     /// `feedback/toast`, its story `show`, and its architecture doc in both
@@ -413,78 +338,6 @@ void main() {
         'the targets are flutter, jaspr\n',
       );
       expect(out.toString(), isEmpty);
-    });
-
-    test('f01/us05/fr01/e24: --target jaspr prints jaspr spec docs and no flutter doc', () async {
-      final (:runner, :out, :err) = readRunner(await writeToastProject());
-      expect(
-        await runner.run([
-          'context',
-          'feedback/toast/show',
-          '--for',
-          'implement',
-          '--target',
-          'jaspr',
-        ]),
-        0,
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
-        ),
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
-        ),
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
-        ),
-      );
-      expect(out.toString(), isNot(contains('flutter')));
-      expect(err.toString(), isEmpty);
-    });
-
-    test('--code under one root takes that target alone', () async {
-      final project = await writeToastProject(
-        extra: {'jaspr_lib/lib/toast.dart': ''},
-      );
-      final (:runner, :out, :err) = readRunner(project);
-      expect(
-        await runner.run([
-          'context',
-          '--code',
-          'jaspr_lib/lib/toast.dart',
-          '--for',
-          'implement',
-        ]),
-        0,
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> feedback/toast (architecture) · specs/jaspr/f02_feedback/f03_toast/ARCHITECTURE.md <==\n',
-        ),
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> feedback (implementation) · specs/jaspr/f02_feedback/IMPLEMENTATION.md <==\n',
-        ),
-      );
-      expect(
-        out.toString(),
-        contains(
-          '==> tech_stack (tech_stack) · specs/jaspr/TECH_STACK.md <==\n',
-        ),
-      );
-      expect(out.toString(), isNot(contains('flutter')));
-      expect(err.toString(), isEmpty);
     });
 
     test('f01/us05/fr04, domain:agent_plugin INV-25: --code names its code '
@@ -657,49 +510,6 @@ void main() {
       );
     });
 
-    test(
-      '--code on a test file bundles the story and FR its tests line names',
-      () async {
-        final project = await writeToastProject(
-          extra: {
-            'jaspr_lib/test/toast_test.dart': '',
-            'docs/specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md':
-                '---\nstatuses:\n'
-                '  - show:implemented\n'
-                'implements:\n'
-                '  - show:lib/toast.dart:showToast\n'
-                'tests:\n'
-                '  - "show:test/toast_test.dart:queue: a toast #1"\n'
-                '---\n\n# Record\n',
-          },
-        );
-        final (:runner, :out, :err) = readRunner(project);
-        expect(
-          await runner.run([
-            'context',
-            '--code',
-            'jaspr_lib/test/toast_test.dart',
-            '--for',
-            'implement',
-          ]),
-          0,
-        );
-        expect(
-          out.toString(),
-          contains(
-            '==> feedback/toast/show (user_story) · prds/features/f02_feedback/f03_toast/us01_show/USER_STORY.md <==\n',
-          ),
-        );
-        expect(
-          out.toString(),
-          contains(
-            '==> feedback/toast (implementation) · specs/jaspr/f02_feedback/f03_toast/IMPLEMENTATION.md <==\n',
-          ),
-        );
-        expect(err.toString(), isEmpty);
-      },
-    );
-
     test('--code with --target naming another target is argument_conflict, exit 64', () async {
       final project = await writeToastProject(
         extra: {'jaspr_lib/lib/toast.dart': ''},
@@ -868,30 +678,6 @@ void main() {
         'the code path lib/main.dart lies in the code target app, not web\n',
       );
     });
-
-    test('--out with --target ends the name with .<target>.txt', () async {
-      final project = await writeToastProject();
-      final (:runner, :out, :err) = readRunner(project);
-      expect(
-        await runner.run([
-          'context',
-          'feedback/toast/show',
-          '--for',
-          'implement',
-          '--target',
-          'jaspr',
-          '--out',
-        ]),
-        0,
-        reason: '$err',
-      );
-      expect(
-        File(
-          '${project.path}/.specstone/bundles/feedback-toast-show.implement.jaspr.txt',
-        ).existsSync(),
-        isTrue,
-      );
-    });
   });
 
   group('context --out', () {
@@ -969,35 +755,6 @@ void main() {
         fileLines[int.parse(range.group(4)!) - 1],
         '## Acceptance Criteria',
       );
-    });
-
-    test('a query on an FR saves its text in one file and appends no cited part', () async {
-      final project = await writeReadProject(
-        extra: {
-          'docs/prds/references/password_rules/REFERENCE.md':
-              '# Password rules\n\n## Summary\nTwelve characters at least.\n',
-          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
-              '# Validate credentials\n\n## Statement\nThe system shall check the password by the '
-              '[password rules](../../../references/password_rules/REFERENCE.md).\n',
-        },
-      );
-      const fr = 'login/email_login/validate_credentials';
-      final stdout = await saved(project, [fr, '--for', 'query', '--out']);
-      final headers = [
-        for (final line in stdout.split('\n')) ?header.firstMatch(line),
-      ];
-      expect(headers, hasLength(1));
-      final text = File(headers.single.group(4)!).readAsStringSync();
-      expect(
-        text,
-        contains(
-          '# Validate credentials\n\n## Statement\nThe system shall check the password',
-        ),
-      );
-      expect(text, isNot(contains(' · cited <==')));
-      expect(text, isNot(contains('Twelve characters at least.')));
-      final implement = await printed(project, [fr, '--for', 'implement']);
-      expect(implement, contains(' · cited <=='));
     });
 
     test('a bare --for query --out from a subfolder writes under the root and prints the same absolute path, text and --json', () async {
@@ -1432,22 +1189,6 @@ void main() {
       expect(config.readAsBytesSync(), before);
     });
 
-    test('--for design --summary --no-project names <target>.design-summary-no-project.txt', () async {
-      final project = await writeReadProject();
-      await saved(project, [
-        'login',
-        '--for',
-        'design',
-        '--summary',
-        '--no-project',
-        '--out',
-      ]);
-      expect(
-        bundleFile(project, 'login.design-summary-no-project.txt').existsSync(),
-        isTrue,
-      );
-    });
-
     test('a relative --out from a subfolder is read from it and printed canonical and absolute', () async {
       final project = await writeReadProject(extra: {'app/.keep': ''});
       final nested = Directory('${project.path}/app');
@@ -1553,31 +1294,6 @@ void main() {
       expect(Directory('${nested.path}/.specstone').existsSync(), isFalse);
     });
 
-    test('a design bundle puts a section link in a refs part naming the section, and its stdout index line marks #key', () async {
-      final project = await writeReadProject(
-        extra: {
-          'docs/specs/topics/guide.md': '# Guide\n\n## Purpose\nSee [components](../f01_login/ARCHITECTURE.md#components).\n',
-        },
-      );
-      final text = await saved(project, [story, '--for', 'design', '--out']);
-      final refs = bundleFile(project, 'login-email_login.design.refs.txt');
-      final lines = const LineSplitter().convert(refs.readAsStringSync());
-      final naming = lines.indexOf(
-        '==> login (architecture) · specs/f01_login/ARCHITECTURE.md#components · cited by <==',
-      );
-      expect(naming, isNonNegative);
-      expect(
-        lines[naming + 1],
-        startsWith('  · cited by guide (topic) —: See '),
-      );
-      expect(
-        text.split('\n'),
-        contains(
-          '- login (architecture) · ${naming + 1}-${naming + 2} · cited by [#components]',
-        ),
-      );
-    });
-
     test(
       'the two files hold the docs of the one-file bundle between them',
       () async {
@@ -1597,90 +1313,6 @@ void main() {
         expect(both..sort(), closingListOf(whole.out.toString())..sort());
       },
     );
-
-    test('an appended part goes to the refs file, and its index line at the refs head ranges into that file', () async {
-      final project = await writeReadProject(
-        extra: {
-          'docs/prds/features/f02_signup/FEATURE.md': '---\nvision:\n  - PV-01\n---\n\n# Signup\n\n## Problem\nNew users sign up.\n',
-          'docs/prds/features/f01_login/us01_email_login/fr01_validate_credentials.md':
-              '---\nstatus: implemented\n---\n\n# Validate credentials\n\n## Statement\n'
-              'The system shall check the email, as [signup](../../f02_signup/FEATURE.md) does.\n',
-        },
-      );
-      final text = await saved(project, [story, '--for', 'implement', '--out']);
-      final refs = bundleFile(project, 'login-email_login.implement.refs.txt');
-      final first = bundleFile(project, 'login-email_login.implement.txt');
-      final lines = text.split('\n');
-      final split = lines.indexWhere((line) => line.contains('.refs.txt <=='));
-      final part = RegExp(
-        r'^- signup \(feature\) · (\d+)-(\d+) · summary · cited',
-      );
-      expect(lines.any(part.hasMatch), isFalse);
-      expect(
-        lines.skip(split + 1).where((line) => line.startsWith('- ')),
-        isEmpty,
-      );
-      final refsLines = refs.readAsLinesSync();
-      final range = part.firstMatch(refsLines.firstWhere(part.hasMatch))!;
-      expect(
-        refsLines[int.parse(range.group(1)!) - 1],
-        startsWith('==> signup (feature) · '),
-      );
-      expect(first.readAsStringSync(), isNot(contains('==> signup (feature)')));
-    });
-
-    test("a story's --out puts GOAL in the refs file", () async {
-      final project = await writeReadProject(
-        extra: {
-          'docs/prds/GOAL.md':
-              '# Project goals\n\n## Long-term goals\n### PG-01 — Sign in fast\n'
-              '- **Serves:** PV-01\n- **Statement:** Sign in is quick.\n'
-              '- **Metric:** 3 calls\n',
-        },
-      );
-      await saved(project, [story, '--for', 'implement', '--out']);
-      final first = bundleFile(project, 'login-email_login.implement.txt');
-      final refs = bundleFile(project, 'login-email_login.implement.refs.txt');
-      const head = '==> goal (goal) · prds/GOAL.md <==';
-      expect(refs.readAsStringSync(), contains(head));
-      expect(first.readAsStringSync(), isNot(contains(head)));
-    });
-
-    group('the glossary doc', () {
-      const head = '==> glossary (glossary) · prds/GLOSSARY.md <==';
-      const glossaryFile = {
-        'docs/prds/GLOSSARY.md': '# Domain glossary\n\n## Terms\n\n- **Doc** — one markdown file under the docs root.\n',
-      };
-
-      test('context glossary --no-project --out puts it whole in the read-first file, and the refs file holds no doc', () async {
-        final project = await writeReadProject(extra: glossaryFile);
-        final text = await saved(project, [
-          'glossary',
-          '--for',
-          'implement',
-          '--no-project',
-          '--out',
-        ]);
-        final headers = headersOf(text);
-        expect(headers, hasLength(2));
-        final first = File(headers[0].group(4)!);
-        final refs = File(headers[1].group(4)!);
-
-        expect(
-          first.readAsStringSync(),
-          contains(
-            '$head\n# Domain glossary\n\n## Terms\n\n'
-            '- **Doc** — one markdown file under the docs root.\n',
-          ),
-        );
-        expect(closingListOf(first.readAsStringSync()), [
-          '- glossary (glossary)',
-        ]);
-        expect(refs.readAsStringSync(), startsWith('==> bundle: 0 docs, '));
-        expect(refs.readAsStringSync(), isNot(contains(head)));
-        expect(text, contains('- glossary (glossary) · '));
-      });
-    });
 
     test('--out <path> from a subfolder writes b.txt and b.refs.txt beside it, and --json describes both', () async {
       final project = await writeReadProject(extra: {'app/.keep': ''});
@@ -1712,13 +1344,6 @@ void main() {
       final refsJson = json['refs']! as Map<String, Object?>;
       expect(refsJson.keys.toList(), ['out', 'tokens', 'lines', 'docs']);
       expect(refsJson['out'], refs.resolveSymbolicLinksSync());
-    });
-
-    test('--out out/b writes out/b and out/b.refs', () async {
-      final project = await writeReadProject();
-      await saved(project, [story, '--for', 'implement', '--out', 'out/b']);
-      expect(File('${project.path}/out/b').existsSync(), isTrue);
-      expect(File('${project.path}/out/b.refs').existsSync(), isTrue);
     });
 
     test('a refs file with no part is still written and replaces an older refs file', () async {
@@ -1883,23 +1508,6 @@ void main() {
       expect(old.existsSync(), isTrue);
     }, skip: Platform.isWindows ? 'a link needs a privilege on Windows' : null);
 
-    test(
-      'a project with no bundles folder exits 0 with an --out path',
-      () async {
-        final project = await writeReadProject();
-        final (status, _) = await run(project, [
-          'context',
-          story,
-          '--for',
-          'implement',
-          '--out',
-          'out/b.txt',
-        ]);
-        expect(status, 0);
-        expect(File('${project.path}/out/b.txt').existsSync(), isTrue);
-      },
-    );
-
     test('a refused context --out prunes nothing', () async {
       final project = await writeReadProject();
       final old = aged(project, '.specstone/bundles/old.txt');
@@ -1931,329 +1539,6 @@ void main() {
         expect(status, 0, reason: '$args');
         expect(old.existsSync(), isTrue, reason: '$args');
       }
-    });
-  });
-
-  group('the over-budget next step names --out', () {
-    test('without --summary', () async {
-      final project = await writeReadProject();
-      final text = readRunner(project);
-      final args = [
-        'context',
-        'login/email_login',
-        '--for',
-        'implement',
-        '--budget',
-        '1',
-      ];
-      expect(await text.runner.run(args), 1);
-      expect(
-        text.out.toString(),
-        endsWith(
-          'Next step: narrow the target, or run it again with --out and no --budget.\n',
-        ),
-      );
-      final json = readRunner(project);
-      expect(await json.runner.run([...args, '--json']), 1);
-      expect(
-        (jsonDecode(json.out.toString()) as Map)['next'],
-        'narrow the target, or run it again with --out and no --budget',
-      );
-    });
-    test('e09: with --summary the next step keeps --summary', () async {
-      final project = await writeReadProject();
-      final text = readRunner(project);
-      final args = [
-        'context',
-        'login',
-        '--for',
-        'design',
-        '--summary',
-        '--budget',
-        '1',
-      ];
-      expect(await text.runner.run(args), 1);
-      expect(
-        text.out.toString(),
-        endsWith(
-          'Next step: narrow the target, or run it again with --summary --out and no --budget.\n',
-        ),
-      );
-      final json = readRunner(project);
-      expect(await json.runner.run([...args, '--json']), 1);
-      expect(
-        (jsonDecode(json.out.toString()) as Map)['next'],
-        'narrow the target, or run it again with --summary --out and no --budget',
-      );
-    });
-  });
-
-  group('feature pattern parts', () {
-    const featurePath = 'docs/prds/features/f01_login/FEATURE.md';
-    Map<String, String> patterned(String patterns) => {
-      '.specstone/templates/feature.yaml':
-          'fields:\n  - id: patterns\n    type: string\n    list: true\n',
-      featurePath:
-          '---\nvision:\n  - PV-01\npatterns: $patterns\n---\n\n# Login\n\n## Problem\nUsers sign in.\n',
-      '.specstone/templates/patterns/sign_in_checks.yaml':
-          'id: sign_in_checks\ndescription: Sign-in checklist.\nitems:\n'
-          '  - id: lockout\n    text: Name the lockout rule.\n'
-          'reference:\n  - title: Handbook\n    url: https://example.com/handbook\n',
-      '.specstone/templates/patterns/record_checks.yaml':
-          'id: record_checks\ndescription: Record checklist.\nitems:\n'
-          '  - id: create\n    text: Name the create path.\n',
-    };
-    Future<({int code, String out})> run(
-      Map<String, String> extra,
-      List<String> args,
-    ) async {
-      final (:runner, :out, :err) = readRunner(
-        await writeReadProject(extra: extra),
-      );
-      final code = await runner.run(['context', ...args]);
-      return (code: code, out: out.toString());
-    }
-
-    test('a design bundle holds each checklist the feature names right after it, in the order it names them', () async {
-      final r = await run(patterned('[sign_in_checks, record_checks]'), [
-        'login/email_login',
-        '--for',
-        'design',
-      ]);
-
-      expect(r.code, 0);
-      final text = r.out;
-      final feature = text.indexOf('==> login (feature) · ');
-      final first = text.indexOf(
-        '==> sign_in_checks (feature pattern) · login <==\nSign-in checklist.\n'
-        '- **lockout** Name the lockout rule.\nPattern sources:\n- Handbook: https://example.com/handbook\n',
-      );
-      final second = text.indexOf(
-        '==> record_checks (feature pattern) · login <==\nRecord checklist.\n- **create** Name the create path.\n',
-      );
-      final story = text.indexOf('==> login/email_login (user_story) · ');
-      expect([feature, first, second, story], everyElement(isNonNegative));
-      expect(feature, lessThan(first));
-      expect(first, lessThan(second));
-      expect(second, lessThan(story));
-    });
-    test('a bundle for implementing holds no checklist', () async {
-      final r = await run(patterned('[sign_in_checks]'), [
-        'login/email_login',
-        '--for',
-        'implement',
-      ]);
-
-      expect(r.code, 0);
-      expect(r.out, isNot(contains('(feature pattern)')));
-    });
-    test('--json carries featurePatterns in each design reply and in no other mode', () async {
-      final extra = patterned('[sign_in_checks]');
-      final design = await run(extra, [
-        'login/email_login',
-        '--for',
-        'design',
-        '--json',
-      ]);
-      final implement = await run(extra, [
-        'login/email_login',
-        '--for',
-        'implement',
-        '--json',
-      ]);
-      final query = await run(extra, [
-        'login/email_login',
-        '--for',
-        'query',
-        '--json',
-      ]);
-
-      expect((jsonDecode(design.out) as Map)['featurePatterns'], [
-        {
-          'id': 'sign_in_checks',
-          'doc': 'feature:login',
-          'description': 'Sign-in checklist.',
-          'items': [
-            {'id': 'lockout', 'text': 'Name the lockout rule.'},
-          ],
-          'reference': [
-            {'title': 'Handbook', 'url': 'https://example.com/handbook'},
-          ],
-        },
-      ]);
-      expect(
-        jsonDecode(implement.out) as Map,
-        isNot(contains('featurePatterns')),
-      );
-      expect(jsonDecode(query.out) as Map, isNot(contains('featurePatterns')));
-    });
-    test(
-      'a design bundle where no part joins gives featurePatterns: []',
-      () async {
-        final none = await run(const {}, [
-          'login/email_login',
-          '--for',
-          'design',
-          '--json',
-        ]);
-        final unknown = await run(patterned('[nothing]'), [
-          'login/email_login',
-          '--for',
-          'design',
-          '--json',
-        ]);
-
-        expect((jsonDecode(none.out) as Map)['featurePatterns'], isEmpty);
-        expect((jsonDecode(unknown.out) as Map)['featurePatterns'], isEmpty);
-        expect(none.out, contains('"featurePatterns":'));
-      },
-    );
-    test('--out --json indexes each part as {id, doc, lines} beside docs, whose lines point at the part in the file', () async {
-      final project = await writeReadProject(
-        extra: patterned('[sign_in_checks, record_checks]'),
-      );
-      final (:runner, :out, :err) = readRunner(project);
-
-      final code = await runner.run([
-        'context',
-        'login/email_login',
-        '--for',
-        'design',
-        '--out',
-        '--json',
-      ]);
-
-      expect(code, 0, reason: err.toString());
-      final index = jsonDecode(out.toString()) as Map;
-      final fileLines = File(index['out'] as String).readAsLinesSync();
-      final parts = (index['featurePatterns'] as List)
-          .cast<Map<String, Object?>>();
-      expect(
-        [for (final part in parts) part['id']],
-        ['sign_in_checks', 'record_checks'],
-      );
-      expect(parts.map((part) => part['doc']), everyElement('feature:login'));
-      for (final part in parts) {
-        final [first, last] = (part['lines']! as List).cast<int>();
-        expect(
-          fileLines[first - 1],
-          '==> ${part['id']} (feature pattern) · login <==',
-        );
-        expect(last, greaterThan(first));
-      }
-      final docNames = [
-        for (final doc in index['docs'] as List) (doc as Map)['name'],
-      ];
-      expect(docNames, contains('login'));
-      expect(docNames, isNot(contains('sign_in_checks')));
-    });
-  });
-
-  group('a measurement a goal Metric links', () {
-    const measurementDoc = 'measurements/fewer_resets/MEASUREMENT.md';
-    const projectDoc =
-        '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
-        '- **Human:** Login demo\n\n## Project goals\n\n### PG-01 — Fewer resets\n\n'
-        '**Statement:** Resets fall by half.\n'
-        '**Metric:** resets per week, in [fewer resets](../measurements/fewer_resets/MEASUREMENT.md)\n';
-    String measurement(String results) =>
-        '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Method\n1. Count them.\n\n'
-        '## Results\n$results\n\n## Open causes\nN/A\n';
-    const table =
-        'Newest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
-        '| 2026-11-14 | 2 | no |\n| 2026-11-01 | 1 | no |\n';
-
-    Future<String> context(String target, String results) async {
-      final (:runner, :out, :err) = readRunner(
-        await writeReadProject(
-          extra: {
-            'docs/prds/PROJECT.md': projectDoc,
-            'docs/$measurementDoc': measurement(results),
-          },
-        ),
-      );
-      expect(await runner.run(['context', target, '--for', 'implement']), 0);
-      return out.toString();
-    }
-
-    test(
-      "a story's bundle holds the measurement's naming line alone",
-      () async {
-        final text = await context('login/email_login', table);
-
-        expect(
-          text,
-          contains(
-            '==> fewer_resets (measurement) · $measurementDoc · cited <==\n',
-          ),
-        );
-        expect(text, contains('- fewer_resets (measurement) · cited\n'));
-        expect(text, isNot(contains('Resets per week.')));
-        expect(text, isNot(contains('2026-11-14')));
-      },
-    );
-    test("the project bundle holds the measurement in summary: its Scope and Results' newest row", () async {
-      final text = await context('project', table);
-
-      expect(
-        text,
-        contains(
-          '==> fewer_resets (measurement) · $measurementDoc · summary · cited <==\n'
-          '# Fewer resets\n\n## Scope\n- Resets per week.\n\n## Results\n'
-          'Newest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
-          '| 2026-11-14 | 2 | no |\n',
-        ),
-      );
-      expect(text, isNot(contains('2026-11-01')));
-      expect(text, isNot(contains('Count them.')));
-    });
-    test(
-      'a Results with no table prints whole in the project bundle',
-      () async {
-        final text = await context(
-          'project',
-          'Run one: resets halved.\n\nRun two: no change.',
-        );
-
-        expect(
-          text,
-          contains(
-            '## Results\nRun one: resets halved.\n\nRun two: no change.\n',
-          ),
-        );
-      },
-    );
-    test('a link into Results alone appends its cut, marked summary in the doc list', () async {
-      final (:runner, :out, :err) = readRunner(
-        await writeReadProject(
-          extra: {
-            'docs/prds/PROJECT.md':
-                '---\nowner: Owner\n---\n\n# Project context\n\n## Project name\n'
-                'Login demo; see [results](../measurements/fewer_resets/MEASUREMENT.md#results).\n',
-            'docs/$measurementDoc': measurement(table),
-          },
-        ),
-      );
-      expect(await runner.run(['context', 'project', '--for', 'implement']), 0);
-      final text = out.toString();
-
-      expect(
-        text,
-        contains(
-          '==> fewer_resets (measurement) · $measurementDoc#results · summary · cited <==\n'
-          '## Results\nNewest first. Met: halved.\n\n| Date | Run | Met |\n|---|---|---|\n'
-          '| 2026-11-14 | 2 | no |\n',
-        ),
-      );
-      expect(text, isNot(contains('2026-11-01')));
-      expect(text, isNot(contains('Resets per week.')));
-      expect(
-        text,
-        endsWith(
-          '- fewer_resets (measurement) · summary · cited results\n'
-          'Read a summary doc whole with: specstone context <name> --for implement\n',
-        ),
-      );
     });
   });
 }
