@@ -442,8 +442,8 @@ final class MergedSection {
 
   /// Returns the JSON object of this section with only the keys set.
   ///
-  /// `required` prints only when true; `lint` is absent when no lint key is
-  /// set, and holds each guide-rule key a layer sets.
+  /// `required` and `outputRef` print only when true; `lint` is absent when no
+  /// lint key is set, and holds each guide-rule key a layer sets.
   Map<String, Object> toJson() {
     final lint = {
       ...MergedLint(
@@ -476,6 +476,7 @@ final class MergedSection {
       'query': ?query,
       'summary': ?summary,
       'summaryRows': ?summaryRows?.toJson(),
+      if (isOutputRef) 'outputRef': true,
       if (whenField case (:final field, :final values))
         'whenField': {'field': field, 'values': values},
     };
