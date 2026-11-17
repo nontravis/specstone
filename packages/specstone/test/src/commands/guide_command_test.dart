@@ -150,6 +150,7 @@ void main() {
         'A feature groups the stories that serve one goal.\n\n'
         'Second paragraph.\n\n'
         '## Feature goal\n\n'
+        'Optional section.\n'
         'Why, problem, and audience, one sentence each.\n',
       );
       expect(err.toString(), isEmpty);
@@ -504,6 +505,7 @@ void main() {
         'A feature groups the stories that serve one goal.\n\n'
         'Second paragraph.\n\n'
         '## Feature goal\n\n'
+        'Optional section.\n'
         'Why, problem, and audience, one sentence each.\n'
         '==> fr <==\n'
         'One requirement.\n',
@@ -682,6 +684,61 @@ void main() {
       expect(json['id'], 'fr');
       expect(out.toString(), startsWith('{\n  "id": "fr",\n'));
       expect(err.toString(), isEmpty);
+    });
+
+    group('in the built CLI', () {
+      late String binary;
+
+      setUpAll(() async => binary = await buildSpecstone());
+
+      Future<String> guideOut(Directory project, List<String> args) async {
+        final result = await Process.run(binary, [
+          'guide',
+          ...args,
+        ], workingDirectory: project.path);
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        return result.stdout as String;
+      }
+
+      test('the text guide lists every declared field and marks every '
+          'section as --json gives', () async {
+        final project = await writeTree({_configPath: shippedPinsConfig()});
+        final ids = const LineSplitter().convert(await guideOut(project, []));
+        final builtIn = builtInFields.map((field) => field.id).toSet();
+        expect(ids, isNotEmpty);
+
+        for (final id in ids) {
+          final text = await guideOut(project, [id]);
+          final json = jsonDecode(
+            await guideOut(project, [id, '--json']),
+          ) as Map<String, Object?>;
+
+          for (final field
+              in (json['fields']! as List<Object?>)
+                  .cast<Map<String, Object?>>()) {
+            final fieldId = field['id']! as String;
+            final line = '\n- `$fieldId` (';
+            if (builtIn.contains(fieldId)) {
+              expect(text, isNot(contains(line)), reason: '$id.$fieldId');
+              continue;
+            }
+            final flag = field['required'] == true ? 'required' : 'optional';
+            expect(text, contains('$line$flag, '), reason: '$id.$fieldId');
+          }
+          for (final section
+              in (json['sections']! as List<Object?>)
+                  .cast<Map<String, Object?>>()) {
+            final mark = section['required'] == true
+                ? 'Required section.'
+                : 'Optional section.';
+            expect(
+              text,
+              contains('## ${section['header']}\n\n$mark\n'),
+              reason: '$id.${section['id']}',
+            );
+          }
+        }
+      });
     });
   });
 
