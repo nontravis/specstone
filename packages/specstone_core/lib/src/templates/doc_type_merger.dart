@@ -295,6 +295,7 @@ final class DocTypeMerger {
             docTypes: _frozen(entry.docTypes),
             pointer: _pointerOf(entry, type, layer),
             description: entry.description,
+            lint: entry.lint,
           ),
         );
         continue;
@@ -314,10 +315,15 @@ final class DocTypeMerger {
         docTypes: _frozen(entry.docTypes),
         pointer: _pointerOf(entry, entry.type ?? current.type, layer),
         description: entry.description,
+        lint: _mergedCaps(current.lint, entry.lint),
       );
     }
     return fields;
   }
+
+  /// Returns [lower] with each key [upper] writes replacing the same key.
+  FieldCaps? _mergedCaps(FieldCaps? lower, FieldCaps? upper) =>
+      upper == null ? null : (lower?.mergedWith(upper) ?? upper);
 
   /// Returns the kind [entry] writes, read only when [type] is `output_ref`.
   ///

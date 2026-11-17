@@ -1060,6 +1060,58 @@ items:
     });
   });
 
+  group('specstone guide in the built CLI with a field lint', () {
+    late String binary;
+
+    setUpAll(() async => binary = await buildSpecstone());
+
+    Future<ProcessResult> guideFeature(String fieldLint) async {
+      final project = await writeTree({
+        _configPath: shippedPinsConfig(),
+        '.specstone/templates/feature.yaml':
+            'fields:\n  - id: tagline\n    type: string\n'
+            '    lint: $fieldLint\n',
+      });
+      return Process.run(binary, [
+        'guide',
+        'feature',
+        '--json',
+      ], workingDirectory: project.path);
+    }
+
+    test('--json prints the merged field lint of a valid layer', () async {
+      final result = await guideFeature(
+        '{max_sentences: 1, max_sentence_words: {default: 20}, '
+        'max_sentence_chars: {default: 80}}',
+      );
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final json = jsonDecode(result.stdout as String) as Map<String, Object?>;
+      final fields = (json['fields']! as List<Object?>)
+          .cast<Map<String, Object?>>();
+      final tagline = fields.singleWhere((f) => f['id'] == 'tagline');
+      expect(tagline['lint'], {
+        'maxSentences': 1,
+        'maxSentenceWords': {'default': 20},
+        'maxSentenceChars': {'default': 80},
+      });
+    });
+
+    test('a field lint with one map and no partner exits 78 naming the '
+        'absent key', () async {
+      final result = await guideFeature('{max_sentence_words: {default: 20}}');
+
+      expect(result.exitCode, 78);
+      final error =
+          (jsonDecode(result.stderr as String)
+                  as Map<String, Object?>)['error']!
+              as Map<String, Object?>;
+      expect(error['code'], 'missing_key');
+      expect(error['file'], '.specstone/templates/feature.yaml');
+      expect(error['key'], 'fields.tagline.lint.max_sentence_chars');
+    });
+  });
+
   group('specstone guide --pattern in the built CLI', () {
     late String binary;
 
