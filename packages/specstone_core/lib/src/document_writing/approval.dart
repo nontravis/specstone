@@ -75,7 +75,7 @@ String approvalHashOf(
     lfText,
     docType?.listedGenerators.toSet() ?? const {},
   );
-  final (:text, :doc) = _withoutKeys(stripped, {
+  final _Stripped(:text, :doc) = _withoutKeys(stripped, {
     _approvedKey,
     'draft',
     for (final field in docType?.fields ?? const <MergedField>[])
@@ -109,12 +109,12 @@ String _withoutGeneratedBlocks(String text, Set<String> kinds) {
 /// A frontmatter left empty, or absent, is dropped with the blank lines at
 /// the top of the body: a doc with no frontmatter gains `---\n---\n` and a
 /// blank line from [withApprovalHash], and both leave the hash.
-({String text, Doc? doc}) _withoutKeys(String text, Set<String> keys) {
+_Stripped _withoutKeys(String text, Set<String> keys) {
   final doc = Doc.parse(text);
   final blocks = doc.frontmatter;
   if (blocks == null) {
     final body = text.replaceFirst(_leadingBlankLines, '');
-    return (text: body, doc: body == text ? doc : null);
+    return _Stripped(text: body, doc: body == text ? doc : null);
   }
   final dropped = <String>{};
   final kept = [
@@ -122,18 +122,18 @@ String _withoutGeneratedBlocks(String text, Set<String> kinds) {
       if (!keys.contains(block.name) || !dropped.add(block.name)) block,
   ];
   if (!kept.any((block) => block.text.trim().isNotEmpty)) {
-    return (
+    return _Stripped(
       text: doc.afterFrontmatter.replaceFirst(_leadingBlankLines, ''),
       doc: null,
     );
   }
-  if (dropped.isEmpty) return (text: text, doc: doc);
+  if (dropped.isEmpty) return _Stripped(text: text, doc: doc);
   final start = text.indexOf('\n') + 1;
   var end = start;
   for (final block in blocks) {
     end += block.text.length;
   }
-  return (
+  return _Stripped(
     text:
         text.substring(0, start) +
         kept.map((block) => block.text).join() +
@@ -143,6 +143,14 @@ String _withoutGeneratedBlocks(String text, Set<String> kinds) {
 }
 
 final _leadingBlankLines = RegExp(r'^\n+');
+
+/// A text less some frontmatter keys, and its parse when the text is unchanged.
+final class _Stripped {
+  const new({required this.text, required this.doc});
+
+  final String text;
+  final Doc? doc;
+}
 
 /// Returns [lfText] with `approved: "<approvalHashOf>"` in place of any
 /// `approved:` value, at its slot in the field order of [docType].
@@ -327,7 +335,7 @@ final class ApprovalHistory {
           commits = _commitsFollowing(projectRoot, ':(top)$before');
         }
       }
-      for (final (sha, path) in commits) {
+      for (final _Commit(:sha, :path) in commits) {
         final copy = _git(projectRoot, ['show', '$sha:$path']);
         if (countsAsApprovedCopy(toLf(copy), docType)) {
           return ApprovedCopy(
@@ -351,19 +359,18 @@ final class ApprovalHistory {
     }
   }
 
-  List<(String, String)> _commitsFollowing(Directory root, String path) =>
-      _commitsOf(
-        _git(root, [
-          'log',
-          '--follow',
-          '--diff-filter=d',
-          '-z',
-          '--format=%H',
-          '--name-only',
-          '--',
-          path,
-        ]),
-      ).toList();
+  List<_Commit> _commitsFollowing(Directory root, String path) => _commitsOf(
+    _git(root, [
+      'log',
+      '--follow',
+      '--diff-filter=d',
+      '-z',
+      '--format=%H',
+      '--name-only',
+      '--',
+      path,
+    ]),
+  ).toList();
 
   /// Returns the top-level path [projectPath] held in `HEAD` before an
   /// uncommitted move, or null when git pairs it with no deleted path.
@@ -487,19 +494,30 @@ String _belowPrefix(String topLevelPath, String prefix) =>
 
 final _sha = RegExp(r'^(?:[0-9a-f]{40}|[0-9a-f]{64})$');
 
+/// A commit of a followed path's log, and the path the file had in it.
+final class _Commit {
+  const new({required this.sha, required this.path});
+
+  final String sha;
+  final String path;
+}
+
 /// Pairs each commit of a `-z --format=%H --name-only` log with its listed
 /// path.
 ///
 /// A hash is 40 or 64 hex, git's SHA-1 or SHA-256 object format. `-z`
 /// ends each field with NUL and leaves a path unquoted whatever its bytes; git
 /// puts a newline between a commit's hash and its path.
-Iterable<(String, String)> _commitsOf(String log) sync* {
+Iterable<_Commit> _commitsOf(String log) sync* {
   String? sha;
   for (final field in log.split('\x00')) {
     if (_sha.hasMatch(field)) {
       sha = field;
     } else if (field.isNotEmpty && sha != null) {
-      yield (sha, field.startsWith('\n') ? field.substring(1) : field);
+      yield _Commit(
+        sha: sha,
+        path: field.startsWith('\n') ? field.substring(1) : field,
+      );
       sha = null;
     }
   }
