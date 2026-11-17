@@ -101,6 +101,16 @@ const _cases = {
     diagram: 'pie',
     line: 2,
   ),
+  'a parser line past the block': _Case(
+    'flowchart LR\nA-->',
+    parses: false,
+    diagram: 'flowchart-v2',
+  ),
+  'a line named in an error the preprocess throws': _Case(
+    '---\ntitle: [line 2\n---\nsequenceDiagram\nA->>B: ok',
+    parses: false,
+    diagram: 'sequence',
+  ),
 };
 
 /// Each whitespace run made one space, and the ends trimmed.
@@ -114,20 +124,30 @@ final class _Run {
   final Duration elapsed;
 }
 
-Future<_Run> _parse(List<String> blocks) async {
+/// Runs the parse script on [blocks].
+///
+/// - [trailer]: text written after the JSON line, such as a closing newline.
+Future<_Run> _parse(List<String> blocks, {String trailer = ''}) async {
   final watch = Stopwatch()..start();
   final process = await Process.start('node', ['-e', mermaidParseScript]);
   final stdoutText = process.stdout.transform(utf8.decoder).join();
   final stderrText = process.stderr.transform(utf8.decoder).join();
-  process.stdin
-    ..write(patchedMermaidBundle())
-    ..write('\n')
-    ..write(
-      jsonEncode([
-        for (final (index, text) in blocks.indexed) {'i': index, 'text': text},
-      ]),
-    );
-  await process.stdin.close();
+  try {
+    process.stdin
+      ..write(patchedMermaidBundle())
+      ..write('\n')
+      ..write(
+        jsonEncode([
+          for (final (index, text) in blocks.indexed)
+            {'i': index, 'text': text},
+        ]),
+      )
+      ..write(trailer);
+    await process.stdin.close();
+  } on IOException {
+    // Node exited before reading all of stdin; the exit code check below
+    // reports its stderr.
+  }
   final exitCode = await process.exitCode;
   watch.stop();
   final out = await stdoutText;
@@ -169,6 +189,15 @@ void main() {
       }
     });
   }
+
+  test('a newline after the JSON line still gives every result', () async {
+    final trailed = await _parse(const [
+      'sequenceDiagram\n  A->>B: ok',
+      'sequenceDiagram\nA->>B',
+    ], trailer: '\n');
+
+    expect(trailed.lines.map((line) => line['parses']), [true, false]);
+  });
 
   test('an empty block list prints nothing', () async {
     final empty = await _parse(const []);

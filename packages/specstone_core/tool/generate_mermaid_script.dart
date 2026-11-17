@@ -8,13 +8,11 @@ import 'package:crypto/crypto.dart';
 /// The longest parse script `node -e` takes within the Windows command line.
 const int maxParseScriptChars = 30000;
 
-/// Renders the Dart source of the mermaid constants and the parser hash.
+/// Renders each input as a base64 constant, plus a sha256 of all but [license].
 ///
-/// Embeds [script], [license], [parseScript], and [patches] as base64, and
-/// `mermaidParserSha256` over [script], [parseScript], and [patches]. Throws
-/// [StateError] when [script] holds a script tag the html inlining breaks
-/// on, when a patch's `find` is not in [script] exactly once, or when
-/// [parseScript] passes [maxParseScriptChars].
+/// Throws [StateError] when [script] holds a script tag, when a patch's
+/// `find` is not in [script] exactly once, or when [parseScript] passes
+/// [maxParseScriptChars].
 ///
 /// - [patches]: a JSON list of `{"find", "replace"}` pairs, applied in order.
 String renderMermaidScript(

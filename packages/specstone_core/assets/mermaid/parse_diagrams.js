@@ -83,7 +83,7 @@ async function parseBlock(block) {
 async function main() {
   const chunks = [];
   for await (const chunk of process.stdin) chunks.push(chunk);
-  const input = Buffer.concat(chunks).toString('utf8');
+  const input = Buffer.concat(chunks).toString('utf8').trimEnd();
   const split = input.lastIndexOf('\n');
   (0, eval)(input.slice(0, split));
   for (const block of JSON.parse(input.slice(split + 1))) {
