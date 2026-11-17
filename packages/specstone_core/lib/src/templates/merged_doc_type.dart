@@ -492,9 +492,7 @@ const verificationMatrixKey = 'verification_matrix';
 /// doc type has a matrix. Finds the section by [verificationMatrixKey], never
 /// by [MergedSection.isOutputRef].
 MergedSection? verificationMatrixOf(MergedDocType recordType) {
-  if (!recordType.fields.any((f) => f.type == FieldType.recordStatus)) {
-    return null;
-  }
+  if (!recordType.isRecordType) return null;
   for (final section in recordType.sections) {
     if (section.id == verificationMatrixKey) return section;
   }
@@ -767,6 +765,10 @@ final class MergedDocType {
 
   /// The enabled fields, built-ins first.
   final List<MergedField> fields;
+
+  /// Whether this is the record doc type, the one holding a `record_status`
+  /// field; every rule on records finds it by that field alone.
+  bool get isRecordType => fields.any((f) => f.type == FieldType.recordStatus);
 
   /// The enabled sections in merged order.
   final List<MergedSection> sections;

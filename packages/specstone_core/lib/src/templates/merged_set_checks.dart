@@ -225,10 +225,7 @@ void _checkRecordPaths(
   for (final docType in docTypes) {
     final path = docType.path;
     if (path == null || !path.startsWith(_specstoneFolder)) continue;
-    final isRecord = docType.fields.any(
-      (f) => f.type == FieldType.recordStatus,
-    );
-    if (isRecord && isRecordsDocPath(path)) continue;
+    if (docType.isRecordType && isRecordsDocPath(path)) continue;
     throw TemplateFault(
       FaultCode.unknownValue,
       'the path $path of ${docType.id} lies under $_specstoneFolder; only the '
@@ -451,7 +448,7 @@ void _checkRecords(
 ) {
   final holders = [
     for (final docType in docTypes)
-      if (_holdsRecordField(docType)) docType,
+      if (docType.isRecordType) docType,
   ];
   _checkOutputRefSections(docTypes, layerLists);
   if (holders.length > 1) {
@@ -482,9 +479,6 @@ void _checkRecords(
   }
 }
 
-bool _holdsRecordField(MergedDocType docType) =>
-    docType.fields.any((f) => f.type == FieldType.recordStatus);
-
 /// Throws `unknown_value` for a layer section of any doc type that sets
 /// `output_ref: true` and is not the record doc type's matrix section.
 ///
@@ -494,7 +488,7 @@ void _checkOutputRefSections(
   Map<String, DocTypeLayers> layerLists,
 ) {
   for (final docType in docTypes) {
-    final isRecord = _holdsRecordField(docType);
+    final isRecord = docType.isRecordType;
     final layers = layerLists[docType.id];
     if (layers == null) continue;
     for (final (:layer, pack: _) in layers) {

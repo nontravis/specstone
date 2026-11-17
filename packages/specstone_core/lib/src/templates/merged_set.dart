@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:specstone_core/src/templates/code_point_order.dart';
-import 'package:specstone_core/src/templates/doc_type_layer.dart';
 import 'package:specstone_core/src/templates/feature_pattern.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/nested_paths.dart';
@@ -32,9 +31,7 @@ final class MergedSet {
   /// null when none does.
   MergedDocType? get recordDocType {
     for (final docType in docTypes) {
-      if (docType.fields.any((f) => f.type == FieldType.recordStatus)) {
-        return docType;
-      }
+      if (docType.isRecordType) return docType;
     }
     return null;
   }
