@@ -179,7 +179,7 @@ Iterable<Finding> _itemFindings(
   int limit,
 ) sync* {
   for (final item in items) {
-    if (item.chars <= limit) continue;
+    if (item.visibleChars <= limit) continue;
     final name = switch (item.id) {
       final id? => 'item $id',
       null => 'the item at line ${item.line}',
@@ -189,13 +189,13 @@ Iterable<Finding> _itemFindings(
       FindingKind.itemOverLimit,
       line: item.line,
       message:
-          '$name of section $sectionKey has ${item.chars} characters; the '
-          'limit is $limit',
+          '$name of section $sectionKey has ${item.visibleChars} characters; '
+          'the limit is $limit',
       keys: {
         'section': sectionKey,
         'id': ?item.id,
         'limit': limit,
-        'actual': item.chars,
+        'actual': item.visibleChars,
       },
     );
   }

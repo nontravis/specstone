@@ -157,7 +157,41 @@ LeafText leafTextOf(String lfBody) {
     footnoteLabels: sink.footnoteLabels,
     definitionLabels: sink.definitionLabels,
     definitionDestinations: sink.definitionDestinations,
+    definitionSpans: _cutAround(sink.prefixes, [
+      for (final TextRange(:start, :end) in sink.definitionSpans)
+        TextRange(start: start, end: end < body.length ? end + 1 : end),
+    ]),
   );
+}
+
+/// Returns [spans] with the [cuts] that fall inside them taken out, so a span
+/// holds no container marker or indent.
+///
+/// The cuts are disjoint, so sorted by start they are sorted by end too.
+List<TextRange> _cutAround(List<TextRange> cuts, List<TextRange> spans) {
+  final sorted = [...cuts]..sort((a, b) => a.start - b.start);
+  final pieces = <TextRange>[];
+  for (final TextRange(:start, :end) in spans) {
+    var from = start;
+    var low = 0;
+    var high = sorted.length;
+    while (low < high) {
+      final middle = (low + high) ~/ 2;
+      if (sorted[middle].end > start) {
+        high = middle;
+      } else {
+        low = middle + 1;
+      }
+    }
+    for (var i = low; i < sorted.length && sorted[i].start < end; i++) {
+      if (sorted[i].start > from) {
+        pieces.add(TextRange(start: from, end: sorted[i].start));
+      }
+      from = sorted[i].end;
+    }
+    if (from < end) pieces.add(TextRange(start: from, end: end));
+  }
+  return pieces;
 }
 
 /// Blanks [units] from [from] to [to], line ends kept.
@@ -215,6 +249,11 @@ final class _Sink {
   /// its destination as written, angle brackets left out.
   final definitionLabels = <TextRange>[];
   final definitionDestinations = <TextRange>[];
+
+  /// The body range of each definition, from its label's `[` to the end of its
+  /// last line. The line feed after it is not held here; `leafTextOf` adds it
+  /// to the ranges it returns.
+  final definitionSpans = <TextRange>[];
 
   /// The container markers and indents `markdown` cuts from a line before it
   /// reads the rest. A leaf that spans lines holds them, so they are blanked
@@ -834,6 +873,7 @@ final class _BlockPass {
     final cursor = _Cursor(_lines, _endsBlockAt, first)
       ..skipBlanks(lineFeeds: true);
     if (cursor.unit != _openBracket || !cursor.hasUnitAfter) return null;
+    final opener = cursor.mark;
     cursor.advance();
     final labelStart = cursor.mark;
     var budget = 999;
@@ -935,6 +975,9 @@ final class _BlockPass {
     _sink.definitionLabels.add(_rangeOf(labelStart, labelEnd));
     _sink.definitionDestinations.add(
       _rangeOf(destinationStart, destinationEnd),
+    );
+    _sink.definitionSpans.add(
+      _rangeOf(opener, _Mark(line: next - 1, col: _lines[next - 1].length)),
     );
     return next;
   }

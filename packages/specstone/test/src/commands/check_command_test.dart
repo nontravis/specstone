@@ -56,6 +56,36 @@ void main() {
     );
   });
 
+  test(
+    'check gives no item finding for an item long only through link targets',
+    () async {
+      final links = [
+        for (var i = 0; i < 8; i++) '[link](${'a' * 17}.md)',
+        '[link](${'b' * 7}.md)',
+      ];
+      final head = '1. E01 — ${links.join(' ')} ';
+      final item = '$head${'x' * (625 - head.length)}';
+      final project = await writeCheckProject(
+        extra: fr('1. E01 — An empty password → refused.\n', '$item\n'),
+      );
+      final run = await Process.run(binary, [
+        'check',
+        '--json',
+      ], workingDirectory: project.path);
+
+      expect(item.length, 625);
+      expect(
+        [
+          for (final finding
+              in (jsonDecode(run.stdout as String) as Map)['findings']! as List)
+            (finding as Map)['kind'],
+        ],
+        isNot(contains('item_over_limit')),
+        reason: '${run.stdout}\n${run.stderr}',
+      );
+    },
+  );
+
   test('check architecture:login prints the finding of ARCHITECTURE.md only, not API.md beside it', () async {
     final (:runner, :out, :err) = readRunner(
       await writeCheckProject(

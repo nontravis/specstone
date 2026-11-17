@@ -152,7 +152,9 @@ void _writeTree(
     );
     for (final item in section.items) {
       final label = item.id ?? 'line ${item.line}';
-      text.writeln('${_indent * (depth + 2)}$label · ${item.chars} chars');
+      text.writeln(
+        '${_indent * (depth + 2)}$label · ${item.visibleChars} chars',
+      );
     }
   }
   for (final child in _childrenShown(index, doc, codeTarget)) {
@@ -175,7 +177,7 @@ Map<String, Object> _treeJson(
           'chars': section.chars,
           'items': [
             for (final item in section.items)
-              {'id': ?item.id, 'line': item.line, 'chars': item.chars},
+              {'id': ?item.id, 'line': item.line, 'chars': item.visibleChars},
           ],
         },
     ],

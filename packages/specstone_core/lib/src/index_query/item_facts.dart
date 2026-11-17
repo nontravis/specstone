@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/item_words.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
 import 'package:specstone_core/src/index_query/section_counts.dart'
     show SectionCounts;
+import 'package:specstone_core/src/index_query/visible_text.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show Formatted;
 import 'package:specstone_core/src/rendering/generated_blocks.dart'
     show generatedBlockLines;
@@ -46,14 +47,15 @@ typedef ReadabilityFacts = ({
 const ReadabilityFacts _noReadability = (cells: [], notes: []);
 
 /// One item of a doc: the key `check` holds it by when it reads one, its
-/// first line, its code points, and its readability facts.
+/// first line, its visible code points, and its readability facts.
 ///
-/// `line`, `chars`, and `readability` are those of the text the doc's counts
-/// cover.
+/// `line`, `visibleChars`, and `readability` are those of the text the doc's
+/// counts cover; `visibleChars` leaves out what a link or a link reference
+/// definition hides, as [HiddenText] reads it.
 typedef ItemFact = ({
   String? id,
   int line,
-  int chars,
+  int visibleChars,
   ReadabilityFacts readability,
 });
 
@@ -92,7 +94,7 @@ final class ItemFacts {
   final List<List<ItemFact>> sectionItems;
 
   /// Returns the facts as JSON values, each item one
-  /// `[id, line, chars, cells, notes]` array.
+  /// `[id, line, visibleChars, cells, notes]` array.
   Object toJson() => {
     'lead': switch (lead) {
       final counts? => [counts.lines, counts.chars],
@@ -123,7 +125,14 @@ ItemFacts itemFactsOf({
   final lines = countedText == lfText
       ? lineFacts
       : LineFacts.structureOf(lfText: countedText, doc: counted);
-  final reads = _Reads(isTyped: type != null, idPrefixes: idPrefixes);
+  final reads = _Reads(
+    isTyped: type != null,
+    idPrefixes: idPrefixes,
+    hidden: HiddenText.of(
+      counted.afterFrontmatter,
+      firstLine: linesBeforeBodyOf(counted, countedText) + 1,
+    ),
+  );
   final held = indexedSectionsOf(counted, type);
   final templates = heldTemplatesOf(held, type);
   final isGenerated = generatedLineTest(
@@ -306,15 +315,21 @@ List<BodyLine> leadBodyLinesOf(
   );
 }
 
-/// What an item's readability facts are read against.
+/// What an item's visible count and readability facts are read against.
 ///
-/// A doc with no doc type holds none; a typed doc's trace notes read item
-/// references of [idPrefixes].
+/// A doc with no doc type holds no readability facts; a typed doc's trace notes
+/// read item references of [idPrefixes]. [hidden] is what the counted text's
+/// links and definitions hide.
 final class _Reads {
-  const new({required this.isTyped, required this.idPrefixes});
+  const new({
+    required this.isTyped,
+    required this.idPrefixes,
+    required this.hidden,
+  });
 
   final bool isTyped;
   final Set<String> idPrefixes;
+  final HiddenText hidden;
 }
 
 List<ItemFact> _itemFactsIn(
@@ -329,11 +344,17 @@ List<ItemFact> _itemFactsIn(
 ItemFact _itemFactOf(SectionItem item, _ItemIdRead? read, _Reads reads) => (
   id: read == null ? null : itemKeyOf(read.id, isScenario: read.isScenario),
   line: item.line,
-  chars: _codePointsOf(item.text),
+  visibleChars: _visibleCharsOf(item, reads.hidden),
   readability: reads.isTyped
       ? _readabilityOf(item, read, reads.idPrefixes)
       : _noReadability,
 );
+
+/// Returns the code points of [item] less those [hidden] hides on its lines.
+int _visibleCharsOf(SectionItem item, HiddenText hidden) {
+  final lastLine = item.line + '\n'.allMatches(item.text).length;
+  return _codePointsOf(item.text) - hidden.codePointsOn(item.line, lastLine);
+}
 
 /// Returns the sentences and trace notes of [item].
 ///
@@ -473,7 +494,7 @@ List<List<Object?>> _itemsToJson(List<ItemFact> items) => [
     [
       item.id,
       item.line,
-      item.chars,
+      item.visibleChars,
       [
         for (final cell in item.readability.cells)
           [
@@ -499,7 +520,7 @@ List<ItemFact> _itemsOfJson(Object? json) => [
     (
       id: item[0] as String?,
       line: item[1]! as int,
-      chars: item[2]! as int,
+      visibleChars: item[2]! as int,
       readability: (
         cells: [
           for (final cell in (item[3]! as List<Object?>).cast<List<Object?>>())

@@ -62,8 +62,9 @@ const _notWritableMessage =
 /// is rebuilt. Layout 21 changes which item IDs a stored cite candidate keeps,
 /// so an index of layout 20 is rebuilt. Layout 22 adds each item's readability
 /// facts to the item facts, so an index of layout 21, whose items hold none, is
-/// rebuilt.
-const indexLayoutVersion = 22;
+/// rebuilt. Layout 23 stores each item's visible count in place of its raw
+/// count, so an index of layout 22 is rebuilt.
+const indexLayoutVersion = 23;
 
 const _schema = '''
 CREATE TABLE meta (

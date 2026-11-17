@@ -7,7 +7,11 @@ import 'package:specstone_core/src/index_query/models/written_destination.dart';
 /// blanked to a space, line ends and length kept; `leaves` are the inline text
 /// ranges in source order; `definitions` maps `linkLabel(label)` to the
 /// destination as written, the first definition of a label winning;
-/// `footnoteLabels` holds each footnote definition's label, lowercased.
+/// `footnoteLabels` holds each footnote definition's label, lowercased;
+/// `definitionSpans` holds the body range of each definition read, from its
+/// label's `[` to the end of its last line, the line feed after it included
+/// when one follows, cut around the container markers and indents of its
+/// continuation lines, so a definition may hold several ranges.
 final class LeafText {
   const new({
     required this.text,
@@ -16,6 +20,7 @@ final class LeafText {
     required this.footnoteLabels,
     required this.definitionLabels,
     required this.definitionDestinations,
+    required this.definitionSpans,
   });
 
   final String text;
@@ -24,4 +29,5 @@ final class LeafText {
   final Set<String> footnoteLabels;
   final List<TextRange> definitionLabels;
   final List<TextRange> definitionDestinations;
+  final List<TextRange> definitionSpans;
 }
