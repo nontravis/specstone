@@ -1106,6 +1106,100 @@ void main() {
       expect(await runner.run(['check', loginFr]), 0, reason: out.toString());
       expect(out.toString(), '0 findings\n');
     });
+
+    group('a row tracked against its edge case', () {
+      const edgeCase = '1. E01 — An empty password → refused.';
+      const older = '3f9a1c0b7e2d';
+      const draftFr = (
+        'verify_method: test',
+        'verify_method: test\ndraft: true',
+      );
+      final current = fingerprintFor(edgeCase);
+
+      Future<Directory> stampedProject({
+        String fingerprint = ' $older',
+        Map<String, String> extra = const {},
+      }) => writeCheckProject(
+        extra: {
+          loginRecord:
+              "---\nstatuses:\n  - '$item:implemented'\ntests:\n  - '$item:$testFile'\n---\n\n"
+              '# Login implementation\n\n## Verification matrix\n\n'
+              '- $item E01: `refuses an empty password`$fingerprint\n',
+          testFile:
+              "void main() {\n  test('refuses an empty password', () {});\n}\n",
+          ...extra,
+        },
+        unstamped: {loginRecord},
+      );
+
+      // The record's suspect and unconfirmed lines, each with the block lines
+      // that follow it.
+      List<String> suspectLines(String out) {
+        final lines = <String>[];
+        var isRecordFinding = false;
+        for (final line in out.split('\n')) {
+          if (!line.startsWith('    ')) {
+            isRecordFinding =
+                line.startsWith('$loginRecord:') &&
+                (line.contains(': suspect: ') ||
+                    line.contains(': unconfirmed: '));
+          }
+          if (isRecordFinding) lines.add(line);
+        }
+        return lines;
+      }
+
+      test('a suspect row prints its block before its fingerprint', () async {
+        final (:runner, :out, :err) = readRunner(await stampedProject());
+
+        expect(await runner.run(['check']), 1, reason: out.toString());
+
+        const message =
+            '$item#E01 changed after it was confirmed, recorded $older; '
+            'read E01 of $loginFr below, then record $item#E01 with the fingerprint after it';
+        expect(suspectLines(out.toString()), [
+          '$loginRecord:12: suspect: $message',
+          '    $edgeCase',
+          '    fingerprint $current',
+        ]);
+        expect(suspectLines(out.toString()).first, isNot(endsWith('Owner)')));
+      });
+
+      test('a row of a draft FR ends with the Owner tag', () async {
+        final (:runner, :out, :err) = readRunner(
+          await stampedProject(extra: fr(draftFr.$1, draftFr.$2)),
+        );
+
+        expect(await runner.run(['check']), 1, reason: out.toString());
+
+        const message =
+            '$item#E01 changed after it was confirmed, recorded $older; '
+            "it waits for the Owner's approve of $loginFr (waits for the Owner)";
+        expect(suspectLines(out.toString()), [
+          '$loginRecord:12: suspect: $message',
+          '    $edgeCase',
+          '    fingerprint $current',
+        ]);
+      });
+
+      test('an unstamped row of a draft FR ends with the Owner tag and prints '
+          'no block', () async {
+        final (:runner, :out, :err) = readRunner(
+          await stampedProject(
+            fingerprint: '',
+            extra: fr(draftFr.$1, draftFr.$2),
+          ),
+        );
+
+        expect(await runner.run(['check']), 1, reason: out.toString());
+
+        const message =
+            "$item#E01 waits for the Owner's approve of $loginFr (waits for the Owner)";
+        expect(suspectLines(out.toString()), [
+          '$loginRecord:12: unconfirmed: $message',
+        ]);
+      });
+    });
   });
 
   group('mermaid parse through the built binary', () {

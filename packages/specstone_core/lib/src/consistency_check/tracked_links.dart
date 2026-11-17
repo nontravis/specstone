@@ -1,14 +1,19 @@
 import 'package:specstone_core/src/consistency_check/check_context.dart';
 import 'package:specstone_core/src/consistency_check/doc_lines.dart';
+import 'package:specstone_core/src/consistency_check/edge_case_blocks.dart';
 import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/consistency_check/override_lines.dart';
+import 'package:specstone_core/src/consistency_check/record_doc.dart';
 import 'package:specstone_core/src/consistency_check/scenario_blocks.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart'
     show isFingerprint;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart';
+import 'package:specstone_core/src/index_query/record_entries.dart'
+    show recordItemsOf;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
 import 'package:specstone_core/src/journeys/step_scenarios.dart';
 
@@ -293,8 +298,67 @@ LinkState _stateOf(IndexedDoc doc, TrackedLink link, _Entry? entry) {
       : LinkState.suspect;
 }
 
+/// One matrix row of a record read against the edge case it names.
+final class _RowLink {
+  const new({
+    required this.row,
+    required this.fr,
+    required this.source,
+    required this.fingerprint,
+  });
+
+  final MatrixRow row;
+
+  /// The requirement that holds the edge case.
+  final IndexedDoc fr;
+
+  /// The edge case's block as the requirement holds it, before layout.
+  final String source;
+
+  /// The Fingerprint of the edge case's block now.
+  final String fingerprint;
+
+  bool get isSuspect {
+    final recorded = row.fingerprint;
+    return recorded != null && recorded != fingerprint;
+  }
+
+  // The Agent's stamp clears a row, but no Agent stamps a row against text the
+  // Owner has not approved.
+  WaitsFor get waitsFor => fr.isDraft ? WaitsFor.owner : WaitsFor.agent;
+}
+
+// The rows of [record] whose edge case exists: a row naming a story, a
+// missing item, or a missing edge case takes no state.
+Iterable<_RowLink> _rowLinksOf(CheckContext context, IndexedDoc record) sync* {
+  final read = recordDocOf(context, record);
+  if (read == null || record.matrixLines.isEmpty) return;
+  final items = recordItemsOf(read.feature, context.index.childrenOf);
+  final blocksOf = <String, Map<String, String>>{};
+  for (final row in record.matrixLines.whereType<MatrixRow>()) {
+    final fr = items[row.item];
+    if (fr == null || fr.docTypeId != _frType) continue;
+    final blocks = blocksOf.putIfAbsent(
+      fr.docPath,
+      () => edgeCaseBlocksOf(context, fr),
+    );
+    final source = blocks[row.edgeCase];
+    if (source == null) continue;
+    yield _RowLink(
+      row: row,
+      fr: fr,
+      source: source,
+      fingerprint: fingerprintOf(source),
+    );
+  }
+}
+
 /// Whether any link [doc] tracks is `suspect`.
+///
+/// A record holds a `suspect` link when a row's fingerprint differs from its
+/// edge case's.
 bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
+  if (_rowLinksOf(context, doc).any((link) => link.isSuspect)) return true;
   if (_entryKeysOf(context, doc).isEmpty) return false;
   final lines = context.linesOf(doc);
   return trackedLinksOf(context, doc).any(
@@ -309,11 +373,13 @@ bool hasSuspectLink(CheckContext context, IndexedDoc doc) {
 /// A link whose upstream block is missing takes no state; the broken-pointer
 /// check reports it.
 /// Only a doc type that defines `confirmed` or carries override lines is
-/// read.
+/// read, and a record's matrix rows, each against its edge case whatever the
+/// record's draft flag.
 Iterable<Finding> checkTrackedLinks(
   CheckContext context,
   IndexedDoc doc,
 ) sync* {
+  yield* _checkRowLinks(context, doc);
   if (_entryKeysOf(context, doc).isEmpty) return;
   final lines = context.linesOf(doc);
   for (final link in trackedLinksOf(context, doc)) {
@@ -378,6 +444,60 @@ Iterable<Finding> checkTrackedLinks(
             'fingerprint': current,
           },
         );
+    }
+  }
+}
+
+Iterable<Finding> _checkRowLinks(
+  CheckContext context,
+  IndexedDoc record,
+) sync* {
+  for (final link in _rowLinksOf(context, record)) {
+    final row = link.row;
+    final recorded = row.fingerprint;
+    final upstream = link.fr.docPath;
+    final waitsFor = link.waitsFor;
+    final isOwner = waitsFor == WaitsFor.owner;
+    final text = _blockText(link.source);
+    final read =
+        'read ${row.edgeCase} of $upstream below, then record ${row.label} '
+        'with the fingerprint after it';
+    final waits = "it waits for the Owner's approve of $upstream";
+    if (recorded == null) {
+      yield context.finding(
+        record,
+        FindingKind.unconfirmed,
+        line: row.line,
+        message: isOwner
+            ? "${row.label} waits for the Owner's approve of $upstream"
+            : '${row.label} records no fingerprint; $read',
+        waitsFor: waitsFor,
+        keys: {
+          'link': row.label,
+          'upstream': upstream,
+          'block': row.edgeCase,
+          if (!isOwner) 'text': text,
+          'fingerprint': link.fingerprint,
+        },
+      );
+    } else if (link.isSuspect) {
+      yield context.finding(
+        record,
+        FindingKind.suspect,
+        line: row.line,
+        message:
+            '${row.label} changed after it was confirmed, recorded $recorded; '
+            '${isOwner ? waits : read}',
+        waitsFor: waitsFor,
+        keys: {
+          'link': row.label,
+          'recorded': recorded,
+          'upstream': upstream,
+          'block': row.edgeCase,
+          'text': text,
+          'fingerprint': link.fingerprint,
+        },
+      );
     }
   }
 }

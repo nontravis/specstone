@@ -12,6 +12,7 @@ import '../../helpers/check_fixture.dart';
 import '../../helpers/index_fixture.dart';
 import '../../helpers/nested_fixture.dart';
 import '../../helpers/override_link_fixture.dart';
+import '../../helpers/record_fixture.dart' show recordText;
 
 void main() {
   const fp = fingerprintOf;
@@ -1536,5 +1537,254 @@ void main() {
         ]);
       },
     );
+  });
+
+  group('matrix row links', () {
+    const item = 'email_login/check_password';
+    const label = '$item#E01';
+    const edgeCase = '1. E01 — An empty password → refused.';
+    final current = fp(edgeCase);
+    const older = '3f9a1c0b7e2d';
+    const draftFr = (
+      'verify_method: test\n',
+      'verify_method: test\ndraft: true\n',
+    );
+
+    String testRow([
+      String? fingerprint,
+      String name = 'refuses an empty one',
+    ]) => '- $item E01: `$name`${fingerprint == null ? '' : ' $fingerprint'}';
+
+    String record(List<String> rows, {String front = ''}) =>
+        '${recordText(front: front, statuses: const ['$item:implemented'])}'
+        '\n## Verification matrix\n\n${rows.join('\n')}\n';
+
+    int rowLine(String record, int i) =>
+        record.split('\n').indexOf('## Verification matrix') + 3 + i;
+
+    Future<List<Finding>> findingsOf(
+      String record, {
+      Map<String, String> extra = const {},
+    }) async {
+      final project = await writeCheckProject(
+        extra: {loginRecord: record, ...extra},
+        // A stamp would add an `approved:` line and move every line below it.
+        unstamped: {loginRecord},
+      );
+      return [
+        for (final f in (await checkOf(project)).findings)
+          if (f.path == loginRecord &&
+              (f.kind == FindingKind.suspect ||
+                  f.kind == FindingKind.unconfirmed))
+            f,
+      ];
+    }
+
+    test("a row stamped with the edge case's fingerprint is clean", () async {
+      expect(await findingsOf(record([testRow(current)])), isEmpty);
+    });
+
+    test('a changed edge case makes its row suspect', () async {
+      const changed = '1. E01 — An empty password → refused at once.';
+      final text = record([testRow(current)]);
+
+      final finding = (await findingsOf(
+        text,
+        extra: fr(edgeCase, changed),
+      )).single;
+
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.line, rowLine(text, 0));
+      expect(finding.waitsFor, WaitsFor.agent);
+      expect(
+        finding.message,
+        '$label changed after it was confirmed, recorded $current; read E01 '
+        'of $loginFr below, then record $label with the fingerprint after it',
+      );
+      expect(finding.keys, {
+        'link': label,
+        'recorded': current,
+        'upstream': loginFr,
+        'block': 'E01',
+        'text': changed,
+        'fingerprint': fp(changed),
+      });
+      expect(finding.keys.keys, [
+        'link',
+        'recorded',
+        'upstream',
+        'block',
+        'text',
+        'fingerprint',
+      ]);
+      expect(finding.textLines, [
+        finding.textLine,
+        '    $changed',
+        '    fingerprint ${fp(changed)}',
+      ]);
+    });
+
+    test('a draft record changes no row state', () async {
+      const changed = '1. E01 — An empty password → refused at once.';
+      final rows = [
+        testRow(current, 'refuses a clean one'),
+        testRow(older, 'refuses a stale one'),
+        testRow(null, 'refuses an unstamped one'),
+      ];
+      final approved = record(rows);
+      final draft = record(rows, front: 'draft: true\n');
+
+      for (final text in [approved, draft]) {
+        final findings = await findingsOf(text, extra: fr(edgeCase, changed));
+        expect(
+          [
+            for (final f in findings)
+              (f.kind, f.line - rowLine(text, 0), f.waitsFor),
+          ],
+          [
+            (FindingKind.suspect, 0, WaitsFor.agent),
+            (FindingKind.suspect, 1, WaitsFor.agent),
+            (FindingKind.unconfirmed, 2, WaitsFor.agent),
+          ],
+        );
+      }
+      final clean = await findingsOf(
+        record(rows.take(1).toList(), front: 'draft: true\n'),
+      );
+      expect(clean, isEmpty);
+    });
+
+    test(
+      "a change below the edge case's first line makes the row suspect",
+      () async {
+        const changed = '$edgeCase\n   - A form of spaces';
+
+        final finding = (await findingsOf(
+          record([testRow(current)]),
+          extra: fr(edgeCase, changed),
+        )).single;
+
+        expect(finding.kind, FindingKind.suspect);
+        expect(finding.keys['text'], changed);
+        expect(finding.keys['fingerprint'], fp(changed));
+      },
+    );
+
+    test('a split edge case makes the old rows suspect', () async {
+      const split =
+          '1. E01 — An empty password, with no spaces → refused.\n'
+          '2. E02 — A password of spaces → refused.\n'
+          '3. E03 — A blank password → refused.';
+      final text = record([testRow(current)]);
+
+      final findings = await findingsOf(text, extra: fr(edgeCase, split));
+
+      expect(
+        [for (final f in findings) (f.kind, f.line)],
+        [(FindingKind.suspect, rowLine(text, 0))],
+      );
+    });
+
+    test('two rows of one edge case are judged one by one', () async {
+      final text = record([
+        testRow(current, 'refuses a current one'),
+        testRow(older, 'refuses an older one'),
+      ]);
+
+      final finding = (await findingsOf(text)).single;
+
+      expect(finding.kind, FindingKind.suspect);
+      expect(finding.line, rowLine(text, 1));
+      expect(finding.keys['recorded'], older);
+    });
+
+    test('a row of a missing edge case takes no state', () async {
+      final text = record(['- $item E99: `refuses a long one` $older']);
+
+      expect(await findingsOf(text), isEmpty);
+    });
+
+    test('the row of a draft requirement goes to the Owner', () async {
+      final text = record([
+        testRow(older, 'refuses a stale one'),
+        testRow(null, 'refuses an unstamped one'),
+        testRow(current, 'refuses a clean one'),
+      ]);
+
+      final findings = await findingsOf(text, extra: edit(loginFr, [draftFr]));
+
+      expect(
+        [for (final f in findings) (f.kind, f.line, f.waitsFor)],
+        [
+          (FindingKind.suspect, rowLine(text, 0), WaitsFor.owner),
+          (FindingKind.unconfirmed, rowLine(text, 1), WaitsFor.owner),
+        ],
+      );
+      final [suspect, unconfirmed] = findings;
+      expect(
+        suspect.message,
+        '$label changed after it was confirmed, recorded $older; it waits '
+        "for the Owner's approve of $loginFr",
+      );
+      expect(suspect.keys, {
+        'link': label,
+        'recorded': older,
+        'upstream': loginFr,
+        'block': 'E01',
+        'text': edgeCase,
+        'fingerprint': current,
+      });
+      expect(suspect.textLines, [
+        '${suspect.textLine} (waits for the Owner)',
+        '    $edgeCase',
+        '    fingerprint $current',
+      ]);
+      expect(
+        unconfirmed.message,
+        "$label waits for the Owner's approve of $loginFr",
+      );
+      expect(unconfirmed.keys.keys, [
+        'link',
+        'upstream',
+        'block',
+        'fingerprint',
+      ]);
+      expect(unconfirmed.textLines, [
+        '${unconfirmed.textLine} (waits for the Owner)',
+      ]);
+      for (final f in findings) {
+        expect(f.message, isNot(contains(current)));
+      }
+    });
+
+    test('a row with no fingerprint goes to the agent', () async {
+      for (final row in [testRow(), '- $item E01 skipped: no clock on CI']) {
+        final text = record([row]);
+
+        final finding = (await findingsOf(text)).single;
+
+        expect(finding.kind, FindingKind.unconfirmed);
+        expect(finding.line, rowLine(text, 0));
+        expect(finding.waitsFor, WaitsFor.agent);
+        expect(
+          finding.message,
+          '$label records no fingerprint; read E01 of $loginFr below, then '
+          'record $label with the fingerprint after it',
+        );
+        expect(finding.keys.keys, [
+          'link',
+          'upstream',
+          'block',
+          'text',
+          'fingerprint',
+        ]);
+        expect(finding.keys['text'], edgeCase);
+        expect(finding.textLines, [
+          finding.textLine,
+          '    $edgeCase',
+          '    fingerprint $current',
+        ]);
+      }
+    });
   });
 }
