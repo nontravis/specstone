@@ -9,6 +9,8 @@ import 'package:specstone_core/src/consistency_check/finding.dart';
 import 'package:specstone_core/src/index_query/structure.dart';
 import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/rendering/generated_blocks.dart';
+import 'package:specstone_core/src/templates/merged_doc_type.dart'
+    show defaultMaxItemChars;
 import 'package:test/test.dart';
 
 import '../../helpers/check_fixture.dart';
@@ -193,7 +195,6 @@ void main() {
     const head =
         "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
         '# Login implementation\n\n';
-    const itemCap = 600;
     String row(int number, {int nameLength = 76}) {
       final name = '${'n' * (nameLength - 6)}${'$number'.padLeft(6, '0')}';
       return '- email_login/check_password E01: `$name`';
@@ -248,6 +249,32 @@ void main() {
       );
     });
 
+    test('over its own character limit still gives its finding', () async {
+      final record = recordOf([for (var i = 0; i < 6; i++) row(i)]);
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            loginRecord: record,
+            '.specstone/templates/implementation.yaml':
+                'sections:\n  - id: verification_matrix\n    lint:\n'
+                '      max_chars: 300\n',
+          },
+          unstamped: {loginRecord},
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.charsOverLimit,
+      );
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('section', 'verification_matrix'),
+          containsPair('limit', 300),
+          containsPair('actual', greaterThan(300)),
+        ),
+      );
+    });
+
     test('with a row over the item cap still gives its finding', () async {
       final long = row(1, nameLength: 640);
       final record = recordOf([row(0), long]);
@@ -266,8 +293,8 @@ void main() {
         finding.toJson(),
         allOf(
           containsPair('section', 'verification_matrix'),
-          containsPair('limit', itemCap),
-          containsPair('actual', greaterThan(itemCap)),
+          containsPair('limit', defaultMaxItemChars),
+          containsPair('actual', greaterThan(defaultMaxItemChars)),
         ),
       );
     });

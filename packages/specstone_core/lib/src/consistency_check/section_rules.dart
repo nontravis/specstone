@@ -100,9 +100,14 @@ Iterable<Finding> checkSections(CheckContext context, IndexedDoc doc) sync* {
         keys: {'section': sectionKey},
       );
     }
-    final isMatrix = matrixId != null && template?.id == matrixId;
-    final maxLines = template?.maxLines ?? (isMatrix ? null : docMaxLines);
-    final maxChars = template?.maxChars ?? (isMatrix ? null : docMaxChars);
+    final (
+      fallbackLines,
+      fallbackChars,
+    ) = matrixId != null && template?.id == matrixId
+        ? (null, null)
+        : (docMaxLines, docMaxChars);
+    final maxLines = template?.maxLines ?? fallbackLines;
+    final maxChars = template?.maxChars ?? fallbackChars;
     final (lines: actualLines, chars: actualChars) = lines.sectionCounts[i];
     if (maxLines != null && actualLines > maxLines) {
       yield context.finding(
