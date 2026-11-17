@@ -1,9 +1,11 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_link.dart';
+import 'package:specstone_core/src/doc_model/models/text_range.dart';
 import 'package:specstone_core/src/doc_model/name_mentions.dart'
     show nameMentionsInFile;
-import 'package:specstone_core/src/doc_model/reference_grammar.dart'
-    show DocAddress;
+import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
 import 'package:specstone_core/src/index_query/doc_mentions.dart'
     show pathBreak;
@@ -37,7 +39,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
 /// Only the text after the frontmatter is read. Fenced code and link
 /// destinations keep every byte, since the link rewrite owns the
 /// destinations; link text is prose.
-({String lfText, int count})? rewritePathMentions(
+CountedRewrite? rewritePathMentions(
   String lfText, {
   required String docPath,
   required List<PathMove> moves,
@@ -54,7 +56,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
   var lineStart = 0;
   for (final (i, line) in lines.indexed) {
     if (!fenced[i]) {
-      for (final (:start, :end) in _tokensOf(line)) {
+      for (final TextRange(:start, :end) in _tokensOf(line)) {
         final edit = _editFor(
           line.substring(start, end),
           docPath,
@@ -75,7 +77,7 @@ final _lineSuffix = RegExp(r'(?::\d+)+$');
   for (final edit in edits.reversed) {
     result = result.replaceRange(edit.start, edit.end, edit.text);
   }
-  return (
+  return CountedRewrite(
     lfText: lfText.substring(0, lfText.length - body.length) + result,
     count: edits.length,
   );
@@ -96,7 +98,7 @@ List<bool> _destinationMask(String body) {
 }
 
 /// Returns the runs of [line] that no path-break character splits.
-Iterable<({int start, int end})> _tokensOf(String line) sync* {
+Iterable<TextRange> _tokensOf(String line) sync* {
   var i = 0;
   while (i < line.length) {
     if (pathBreak.hasMatch(line[i])) {
@@ -107,13 +109,21 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
     while (i < line.length && !pathBreak.hasMatch(line[i])) {
       i++;
     }
-    yield (start: start, end: i);
+    yield TextRange(start: start, end: i);
   }
+}
+
+/// A path mention as written and the text that replaces it.
+final class _PathEdit {
+  const new({required this.path, required this.text});
+
+  final String path;
+  final String text;
 }
 
 /// Returns the written path of [token] and the text that replaces it, or
 /// null when [token] is no mention that changes.
-({String path, String text})? _editFor(
+_PathEdit? _editFor(
   String token,
   String docPath,
   List<PathMove> moves,
@@ -130,7 +140,7 @@ Iterable<({int start, int end})> _tokensOf(String line) sync* {
     return null;
   }
   final text = path.endsWith('/') ? '$after/' : after;
-  return text == path ? null : (path: path, text: text);
+  return text == path ? null : _PathEdit(path: path, text: text);
 }
 
 /// Returns the path part of [token], or null when it holds none a prose
@@ -165,7 +175,7 @@ String? _pathOf(String token) {
 String? rewriteNameMentions(
   String text,
   String extension,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   if (renamed.isEmpty) return null;
   final edits = <({int line, int column, int length, String text})>[];
@@ -174,7 +184,7 @@ String? rewriteNameMentions(
     extension,
     withMermaid: true,
   )) {
-    final name = renamedNameOf(mention.address, renamed);
+    final name = renamed.newNameFor(mention.address);
     if (name == null) continue;
     final address = mention.address;
     final prefix = address.typeId == null ? '' : '${address.typeId}:';
@@ -196,19 +206,4 @@ String? rewriteNameMentions(
         line.substring(edit.column + edit.length);
   }
   return lines.join('\n');
-}
-
-/// Returns the new name of the doc [address] names, or null when it names no
-/// renamed doc or, bare, names renamed docs that disagree.
-String? renamedNameOf(
-  DocAddress address,
-  Map<(String, String), String> renamed,
-) {
-  final typeId = address.typeId;
-  if (typeId != null) return renamed[(typeId, address.body)];
-  final names = {
-    for (final MapEntry(:key, :value) in renamed.entries)
-      if (key.$2 == address.body) value,
-  };
-  return names.length == 1 ? names.single : null;
 }

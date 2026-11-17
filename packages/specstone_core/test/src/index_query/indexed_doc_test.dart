@@ -276,7 +276,6 @@ void main() {
         docLinks: <LinkPlace>[],
         fileLinks: <LinkPlace>[],
         selfLinks: <LinkPlace>[],
-        unreadableLinks: <LinkPlace>[],
         texts: <LinkText>[],
         readersAgree: true,
       );
@@ -284,7 +283,6 @@ void main() {
         docLinks: agreeing.docLinks,
         fileLinks: agreeing.fileLinks,
         selfLinks: agreeing.selfLinks,
-        unreadableLinks: agreeing.unreadableLinks,
         texts: agreeing.texts,
         readersAgree: false,
       );

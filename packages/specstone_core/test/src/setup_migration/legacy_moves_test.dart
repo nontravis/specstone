@@ -1,5 +1,4 @@
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/setup_migration/legacy_moves.dart';
 import 'package:specstone_core/src/setup_migration/legacy_tree.dart';
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
@@ -76,12 +75,12 @@ Map<String, String> _specTree(Map<String, String> rows, List<String> files) => {
 /// the bridge shares a source with `d` to `c` and a target with `b` to `a`;
 /// the cycle finder takes any moves.
 const _twoCyclesAndABridge = <PathMove>[
-  (from: 'a', to: 'b'),
-  (from: 'b', to: 'a'),
-  (from: 'e', to: 'a'),
-  (from: 'c', to: 'd'),
-  (from: 'd', to: 'c'),
-  (from: 'd', to: 'e'),
+  PathMove(from: 'a', to: 'b'),
+  PathMove(from: 'b', to: 'a'),
+  PathMove(from: 'e', to: 'a'),
+  PathMove(from: 'c', to: 'd'),
+  PathMove(from: 'd', to: 'c'),
+  PathMove(from: 'd', to: 'e'),
 ];
 
 String _specIndex(List<String> rows) =>
@@ -100,10 +99,10 @@ void main() {
       final plan = _plan(acmeLegacy);
 
       expect(plan.moves, [
-        (from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
-        (from: 'prds/d02_features.md', to: 'prds/FEATURES.md'),
-        (from: 'prds/d03_non_functional.md', to: 'prds/GNFR.md'),
-        (
+        const PathMove(from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
+        const PathMove(from: 'prds/d02_features.md', to: 'prds/FEATURES.md'),
+        const PathMove(from: 'prds/d03_non_functional.md', to: 'prds/GNFR.md'),
+        const PathMove(
           from:
               'prds/features/f01_login/us01_email_login/'
               'functional_requirements/fr01_validate_credentials.md',
@@ -111,19 +110,19 @@ void main() {
               'prds/features/f01_login/us01_email_login/'
               'fr01_validate_credentials.md',
         ),
-        (
+        const PathMove(
           from: 'specs/api/auth/s01_architecture.md',
           to: 'specs/f01_login/ARCHITECTURE.md',
         ),
-        (
+        const PathMove(
           from: 'specs/api/auth/s02_api_login.md',
           to: 'specs/f01_login/s02_api_login.md',
         ),
-        (
+        const PathMove(
           from: 'specs/api/auth/s02_api_session.md',
           to: 'specs/f01_login/s02_api_session.md',
         ),
-        (
+        const PathMove(
           from: 'specs/shared/s01_architecture.md',
           to: 'specs/topics/shared/s01_architecture.md',
         ),
@@ -172,7 +171,7 @@ void main() {
       final plan = _plan(tree);
 
       expect(plan.moves, [
-        (
+        const PathMove(
           from:
               'prds/features/f01_login/us01_a/non_functional_requirements/'
               'nf02_speed.md',
@@ -550,13 +549,13 @@ void main() {
         );
 
         expect(plan.moves, [
-          (
+          const PathMove(
             from: 'specs/client/ai05_chat_generation/s01_architecture.md',
             to:
                 'specs/f01_alpha/client/ai05_chat_generation/'
                 's01_architecture.md',
           ),
-          (
+          const PathMove(
             from: 'specs/server/ai05_chat_generation/s01_architecture.md',
             to:
                 'specs/f01_alpha/server/ai05_chat_generation/'
@@ -828,15 +827,15 @@ void main() {
         final plan = _plan(tree);
 
         expect(plan.moves, [
-          (
+          const PathMove(
             from: 'specs/a/shared/s01_architecture.md',
             to: 'specs/topics/a/shared/s01_architecture.md',
           ),
-          (
+          const PathMove(
             from: 'specs/b/shared/s01_architecture.md',
             to: 'specs/topics/b/shared/s01_architecture.md',
           ),
-          (
+          const PathMove(
             from: 'specs/c/solo/s01_architecture.md',
             to: 'specs/topics/solo/s01_architecture.md',
           ),
@@ -857,8 +856,14 @@ void main() {
         });
 
         expect(plan.moves, [
-          (from: 'specs/a/Auth/x.md', to: 'specs/topics/a/Auth/x.md'),
-          (from: 'specs/b/auth/x.md', to: 'specs/topics/b/auth/x.md'),
+          const PathMove(
+            from: 'specs/a/Auth/x.md',
+            to: 'specs/topics/a/Auth/x.md',
+          ),
+          const PathMove(
+            from: 'specs/b/auth/x.md',
+            to: 'specs/topics/b/auth/x.md',
+          ),
         ]);
       });
 
@@ -878,7 +883,7 @@ void main() {
           final plan = _plan(tree);
 
           expect(plan.moves, [
-            (from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
+            const PathMove(from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
           ]);
           _expectNoDrop(tree, plan);
         }
@@ -911,7 +916,10 @@ void main() {
         final plan = _plan(tree);
 
         expect(plan.moves, [
-          (from: 'specs/s01_notes.md', to: 'specs/topics/specs/s01_notes.md'),
+          const PathMove(
+            from: 'specs/s01_notes.md',
+            to: 'specs/topics/specs/s01_notes.md',
+          ),
         ]);
         expect(plan.left, ['specs/INDEX.md']);
         _expectNoDrop(tree, plan);
@@ -928,7 +936,10 @@ void main() {
         });
 
         expect(plan.moves, [
-          (from: 'specs/ui/auth/x.md', to: 'specs/topics/auth/x.md'),
+          const PathMove(
+            from: 'specs/ui/auth/x.md',
+            to: 'specs/topics/auth/x.md',
+          ),
         ]);
       });
     });
@@ -1005,12 +1016,12 @@ void main() {
         final plan = _plan(tree);
 
         expect(plan.moves, [
-          (from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
-          (
+          const PathMove(from: 'prds/d01_context.md', to: 'prds/PROJECT.md'),
+          const PathMove(
             from: 'specs/topics/shared/s01_architecture.md',
             to: 'specs/f01_alpha/ARCHITECTURE.md',
           ),
-          (
+          const PathMove(
             from: 'specs/shared/s01_architecture.md',
             to: 'specs/topics/shared/s01_architecture.md',
           ),
@@ -1093,10 +1104,10 @@ void main() {
       test('moves that lead from one cycle to another lie '
           'on no cycle', () {
         expect(movesOnCycles(_twoCyclesAndABridge), [
-          (from: 'a', to: 'b'),
-          (from: 'b', to: 'a'),
-          (from: 'c', to: 'd'),
-          (from: 'd', to: 'c'),
+          const PathMove(from: 'a', to: 'b'),
+          const PathMove(from: 'b', to: 'a'),
+          const PathMove(from: 'c', to: 'd'),
+          const PathMove(from: 'd', to: 'c'),
         ]);
       });
 
@@ -1251,7 +1262,10 @@ void main() {
         final plan = _plan(tree);
 
         expect(plan.moves, [
-          (from: 'specs/Topics/auth/x.md', to: 'specs/topics/auth/x.md'),
+          const PathMove(
+            from: 'specs/Topics/auth/x.md',
+            to: 'specs/topics/auth/x.md',
+          ),
         ]);
         _expectNoDrop(tree, plan);
       });

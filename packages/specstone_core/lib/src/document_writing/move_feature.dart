@@ -1,9 +1,8 @@
 import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show PathMove;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -170,7 +169,7 @@ List<PathMove> _landingMoves(
     ];
     final newDocPath = landedShape.build(newValues);
     final featureMoves = [
-      (
+      PathMove(
         from: shape.ownPathOf(feature.docPath),
         to: landedShape.ownPathOf(newDocPath),
       ),

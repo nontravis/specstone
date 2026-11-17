@@ -11,9 +11,9 @@ import 'package:specstone_core/src/rendering/html_page.dart' show escapeText;
 /// doc's anchor set, else to the doc's anchor (an empty fragment included). A
 /// bare `#fragment` is the same link to the doc itself, except that a page
 /// anchor stays. The renderer's own footnote reference and back link point at
-/// the prefixed footnote ids. Any other link, and a target the grammar cannot
-/// read, becomes an `outside-link` span that keeps the link text and shows the
-/// path or the target as written in `code`.
+/// the prefixed footnote ids. Any other link becomes an `outside-link` span
+/// that keeps the link text and shows the path or the target as written in
+/// `code`.
 ///
 /// - [docPath]: the path of the doc holding [nodes], relative to the docs root.
 /// - [anchors]: the section anchor of each doc in the build, by docPath. A bare
@@ -75,7 +75,7 @@ Node _rewriteLink(
           ? '#$sectionAnchor-$rawAnchor'
           : '#$sectionAnchor';
       return link;
-    case OutsideTarget(:final shown) || UnreadableTarget(:final shown):
+    case OutsideTarget(:final shown):
       return _outsideSpan(link, shown);
   }
 }

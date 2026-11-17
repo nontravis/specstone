@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/own_segment.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
@@ -25,11 +26,11 @@ void main() {
   test('dw-s03/inv7, H22: spec folder moves pair each folder with the one its child doc type holds after the move', () {
     final feature = set.lookup('feature')!;
     expect(specFolderMovesOf(set, feature, ['01', 'login'], ['02', 'login']), [
-      (
+      const PathMove(
         from: '.specstone/records/f01_login/',
         to: '.specstone/records/f02_login/',
       ),
-      (from: 'specs/f01_login/', to: 'specs/f02_login/'),
+      const PathMove(from: 'specs/f01_login/', to: 'specs/f02_login/'),
     ]);
     expect(
       specFolderMovesOf(set, feature, ['01', 'login'], ['01', 'login']),
@@ -54,8 +55,8 @@ void main() {
       'specs/f01_b_a/',
     ]);
     expect(specFolderMovesOf(custom, feature, ['01', 'z'], ['01', 'a']), [
-      (from: 'specs/f01_b_z/', to: 'specs/f01_b_a/'),
-      (from: 'specs/f01_z_a/', to: 'specs/f01_a_a/'),
+      const PathMove(from: 'specs/f01_b_z/', to: 'specs/f01_b_a/'),
+      const PathMove(from: 'specs/f01_z_a/', to: 'specs/f01_a_a/'),
     ]);
   });
 

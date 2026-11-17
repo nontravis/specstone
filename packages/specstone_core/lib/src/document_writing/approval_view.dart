@@ -2,6 +2,7 @@ import 'package:specstone_core/src/doc_model/doc.dart' show Doc;
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
+import 'package:specstone_core/src/document_writing/models/changed_unit.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart'
     show sectionKeyOf;

@@ -152,7 +152,7 @@ _Removal? _removalIn(
     final block = blocks[fieldId];
     final items = block == null ? null : listEntriesOf(block);
     if (block == null || items == null) continue;
-    final (:kept, :gone) = _split(items, named);
+    final _SplitEntries(:kept, :gone) = _split(items, named);
     if (gone.isEmpty) continue;
     removed.addAll(gone);
     tasks.addAll([for (final entry in gone) TaskRef.parse(entry)!.task]);
@@ -175,11 +175,16 @@ _Removal? _removalIn(
   );
 }
 
+/// The list items that stay, and the task entries that go.
+final class _SplitEntries {
+  const new({required this.kept, required this.gone});
+
+  final List<Object?> kept;
+  final List<String> gone;
+}
+
 /// Splits [items] into those that stay and the entries of a task in [named].
-({List<Object?> kept, List<String> gone}) _split(
-  List<Object?> items,
-  Set<String> named,
-) {
+_SplitEntries _split(List<Object?> items, Set<String> named) {
   final kept = <Object?>[];
   final gone = <String>[];
   for (final item in items) {
@@ -190,7 +195,7 @@ _Removal? _removalIn(
       kept.add(item);
     }
   }
-  return (kept: kept, gone: gone);
+  return _SplitEntries(kept: kept, gone: gone);
 }
 
 // MARK: - Writing

@@ -39,10 +39,20 @@ GeneratedBlock _block(
 }) =>
     GeneratedBlock(kind: kind, sectionId: sectionId, place: place, text: text);
 
+GeneratorRegistry<int> _given(List<GeneratedBlock> blocks) =>
+    GeneratorRegistry<int>({
+      'note_toc': (doc, docPath, docType, resolver) => blocks,
+      'note_end': (doc, docPath, docType, resolver) => const [],
+    });
+
+String _fill(String text, MergedDocType type, List<GeneratedBlock> blocks) =>
+    fillGeneratedBlocks(text, type, _given(blocks), 0, docPath: 'notes/a.md');
+
+/// Fills [text] after checking it holds no open block, which would leave it
+/// unchanged and pass an unchanged-text expectation vacuously.
 String _write(String text, MergedDocType type, List<GeneratedBlock> blocks) {
-  final result = writeGeneratedBlocks(text, type, blocks);
-  expect(result, isA<BlocksWritten>());
-  return (result as BlocksWritten).lfText;
+  expect(openBlockOf(Doc.parse(text), type.listedGenerators.toSet()), isNull);
+  return _fill(text, type, blocks);
 }
 
 void main() {
@@ -129,15 +139,15 @@ void main() {
       final next = generatedOpenMarker('note_end');
       final disk = '## Contents\n$_toc\nA\n$next\nB\n$_end\n';
 
-      final result = writeGeneratedBlocks(disk, type, [_block('A')]);
+      final kinds = {'note_toc', 'note_end'};
+      final open = openBlockOf(Doc.parse(disk), kinds);
 
-      expect(result, isA<OpenBlock>());
-      expect((result as OpenBlock).kind, 'note_toc');
-      expect(result.marker, generatedOpenMarker('note_toc'));
-      expect(
-        writeGeneratedBlocks('## Contents\n$_toc\nA\n', type, const []),
-        isA<OpenBlock>(),
-      );
+      expect(_fill(disk, type, [_block('A')]), disk);
+      expect(open!.kind, 'note_toc');
+      expect(open.marker, generatedOpenMarker('note_toc'));
+      final noEnd = '## Contents\n$_toc\nA\n';
+      expect(_fill(noEnd, type, [_block('A')]), noEnd);
+      expect(openBlockOf(Doc.parse(noEnd), kinds), isNotNull);
     });
 
     test('a marker line in a code fence or in the '
@@ -146,14 +156,12 @@ void main() {
       final fenced = '## Contents\n```\n$_toc\nA\n```\n';
       final frontmatter = '---\nnote: |\n  x\n$_toc\n---\n\n## Contents\n';
 
-      expect(
-        writeGeneratedBlocks(fenced, type, const []),
-        isA<BlocksWritten>(),
-      );
-      expect(
-        writeGeneratedBlocks(frontmatter, type, const []),
-        isA<BlocksWritten>(),
-      );
+      final kinds = {'note_toc', 'note_end'};
+
+      for (final text in [fenced, frontmatter]) {
+        expect(openBlockOf(Doc.parse(text), kinds), isNull);
+        expect(_write(text, type, [_block('A')]), contains('$_toc\nA\n$_end'));
+      }
     });
 
     test('writing blocks leaves the frontmatter bytes, '

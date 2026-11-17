@@ -152,23 +152,12 @@ List<GeneratedBlock> runGenerators<R>(
     ...?registry[kind]?.call(doc, docPath, docType, resolver),
 ];
 
-/// Writes [blocks] into [lfText].
-///
-/// A block rewrites the pair of its kind at its place, or inserts one when
-/// none is there; an inserted pair also writes the layout whitespace around
-/// itself as layout does. Every other byte, a pair outside every block's
-/// place and a pair of a kind [docType] does not list included, stays as
-/// written. Returns [OpenBlock] when an opening marker of a listed kind has
-/// no end marker.
-BlockWrite writeGeneratedBlocks(
-  String lfText,
-  MergedDocType docType,
-  List<GeneratedBlock> blocks,
-) => _writeBlocks(lfText, Doc.parse(lfText), docType, blocks);
-
 /// Returns [lfText], the doc at [docPath], with the blocks of [docType]'s
 /// listed generators written.
 ///
+/// A block rewrites the pair of its kind at its place, or inserts one that
+/// writes its own layout whitespace. Every other byte stays as written, a pair
+/// outside every block's place and a pair of an unlisted kind included.
 /// [lfText] comes back unchanged when [docType] lists no generator and when
 /// it holds an opening marker with no end marker.
 String fillGeneratedBlocks<R>(

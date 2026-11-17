@@ -9,6 +9,7 @@ import 'package:specstone_core/src/doc_model/number_label.dart';
 import 'package:specstone_core/src/doc_model/records_root.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart'
     show readDocAddress;
+import 'package:specstone_core/src/document_writing/models/new_record.dart';
 import 'package:specstone_core/src/document_writing/rewrite_records.dart'
     as rewrite_records;
 import 'package:specstone_core/src/git_process.dart' show RunGit, runRealGit;
@@ -24,8 +25,6 @@ import 'package:specstone_core/src/rendering/formatter.dart' show layOutDoc;
 import 'package:specstone_core/src/setup_migration/legacy_rewrites.dart'
     show DocText, readDocText, writtenText;
 import 'package:specstone_core/src/setup_migration/migrate_fault.dart';
-import 'package:specstone_core/src/setup_migration/record_placement.dart'
-    show NewRecord;
 import 'package:specstone_core/src/setup_migration/run_plan.dart'
     show PlannedCreate, PlannedRewrite, draftNote;
 import 'package:specstone_core/src/templates/code_point_order.dart';
@@ -130,7 +129,7 @@ final class TestNamePass {
     final tree = _ItemTree(set, recordType, docs, [
       for (final create in pendingCreates)
         if (docPathOfProjectPath(create.path) case final docPath?)
-          (docPath: docPath, text: create.text),
+          NewRecord(docPath: docPath, text: create.text),
     ], isTaken);
     final names = _scan(
       root: root,
@@ -755,10 +754,7 @@ final class _ItemTree {
 
   /// Returns the new record of [feature] in [target]; null when the record
   /// doc type has no path for it.
-  ({String docPath, String text})? newRecordOf(
-    IndexedDoc feature,
-    String? target,
-  ) {
+  NewRecord? newRecordOf(IndexedDoc feature, String? target) {
     final featureType = _set.lookup(feature.docTypeId!);
     if (featureType == null) return null;
     return rewrite_records.newRecordOf(
@@ -812,7 +808,7 @@ final class _RecordWriter {
   /// The new records, in DocPath order.
   List<NewRecord> get creates => [
     for (final path in _created.toList()..sort(compareCodePoints))
-      (docPath: path, text: edits[path]!),
+      NewRecord(docPath: path, text: edits[path]!),
   ];
 
   bool isBlocked(_Name name) => _blocked.contains(name);

@@ -333,14 +333,6 @@ void main() {
         (target: 'x.md', line: 2, shown: '#rules', anchor: 'rules'),
         (target: 'x.md', line: 3, shown: 'x.md', anchor: null),
       ]);
-      expect(places.unreadableLinks, [
-        (
-          target: 'http://h:abc/x.md',
-          line: 4,
-          shown: 'http://h:abc/x.md',
-          anchor: null,
-        ),
-      ]);
       expect(places.fileLinks, [
         (target: 'img.png', line: 5, shown: 'img.png', anchor: null),
       ]);

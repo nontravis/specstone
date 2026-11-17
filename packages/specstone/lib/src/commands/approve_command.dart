@@ -146,6 +146,6 @@ class ApproveCommand extends WriteCommand {
         'docs[0].bases.doc of specstone get <name> --json; got $arg.',
       );
     }
-    return (name: match[1]!, hash: match[2]!);
+    return SeenDraft(name: match[1]!, hash: match[2]!);
   }
 }

@@ -189,18 +189,6 @@ bool isCommentLine(String line, String extension) {
   return mark != null && line.trimLeft().startsWith(mark);
 }
 
-/// The doc-name mentions in the comment lines of [lf], a file of [extension]
-/// that is not markdown, each line alone.
-List<NameMention> nameMentionsInComments(String lf, String extension) {
-  if (!lf.contains('`')) return const [];
-  final lines = lf.split('\n');
-  return [
-    for (var i = 0; i < lines.length; i++)
-      if (isCommentLine(lines[i], extension))
-        ..._mentionsOnLine(lines[i], i + 1),
-  ];
-}
-
 /// The doc-name mentions of [lf], a file of [extension] under the `code:`
 /// roots or a doc, and the doc paths it writes, each at its line of the file.
 ///

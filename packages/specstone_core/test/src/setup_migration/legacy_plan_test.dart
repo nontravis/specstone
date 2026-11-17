@@ -4,6 +4,7 @@ import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_type_matcher.dart';
 import 'package:specstone_core/src/document_writing/approval.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
@@ -513,10 +514,12 @@ name: Login API
 
     expect(
       plan.moves,
-      contains((
-        from: 'prds/features/ai_module/ai05_chat/FEATURE.md',
-        to: 'prds/features/ai_module/f05_chat/FEATURE.md',
-      )),
+      contains(
+        const PathMove(
+          from: 'prds/features/ai_module/ai05_chat/FEATURE.md',
+          to: 'prds/features/ai_module/f05_chat/FEATURE.md',
+        ),
+      ),
     );
     expect(
       plan.moves.map((m) => m.from),
@@ -577,10 +580,12 @@ name: Login API
 
     expect(
       plan.moves,
-      contains((
-        from: 'specs/shared/logo.png',
-        to: 'specs/topics/shared/logo.png',
-      )),
+      contains(
+        const PathMove(
+          from: 'specs/shared/logo.png',
+          to: 'specs/topics/shared/logo.png',
+        ),
+      ),
     );
     expect(plan.rewrites.where((r) => r.path.endsWith('.png')), isEmpty);
   });
@@ -610,10 +615,12 @@ name: Login API
 
       expect(
         plan.moves,
-        contains((
-          from: 'specs/shared/notes.md',
-          to: 'specs/topics/shared/notes.md',
-        )),
+        contains(
+          const PathMove(
+            from: 'specs/shared/notes.md',
+            to: 'specs/topics/shared/notes.md',
+          ),
+        ),
       );
       expect(
         plan.toText(),

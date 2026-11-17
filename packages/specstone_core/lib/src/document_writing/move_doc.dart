@@ -2,6 +2,8 @@ import 'dart:math';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/item_mentions.dart';
+import 'package:specstone_core/src/document_writing/models/path_move.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_feature.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
@@ -631,7 +633,7 @@ List<PathMove> _landingMoves(
         slug: slug,
       ),
     ]);
-    final move = (
+    final move = PathMove(
       from: shape.ownPathOf(target.docPath),
       to: landedShape.ownPathOf(newDocPath),
     );
@@ -718,7 +720,10 @@ List<PathMove> _renameMoves(
       shape.valuesOf(newDocPath) ??
       (throw StateError('$newDocPath does not match its doc type'));
   final moves = [
-    (from: shape.ownPathOf(target.docPath), to: shape.ownPathOf(newDocPath)),
+    PathMove(
+      from: shape.ownPathOf(target.docPath),
+      to: shape.ownPathOf(newDocPath),
+    ),
   ];
   for (final move in specFolderMovesOf(
     set,
@@ -804,7 +809,7 @@ List<PathMove> _movesFor(
     final from = shape.ownPathOf(oldPath);
     final to = shape.ownPathOf(shape.build(newValues));
     if (from == to) continue;
-    moves.add((from: from, to: to));
+    moves.add(PathMove(from: from, to: to));
     for (final move in specFolderMovesOf(
       set,
       docType,

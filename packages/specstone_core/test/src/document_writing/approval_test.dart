@@ -261,17 +261,22 @@ void main() {
     });
 
     test('mark_doc_approved E09: a block a format run inserts keeps it', () {
-      final inserted = switch (writeGeneratedBlocks(body, _docType, [
-        const GeneratedBlock(
-          kind: 'scenario_copy',
-          sectionId: 'statement',
-          place: SectionTop(),
-          text: 'Copied text.\n',
-        ),
-      ])) {
-        BlocksWritten(:final lfText) => lfText,
-        OpenBlock() => fail('the body holds no open block'),
-      };
+      final inserted = fillGeneratedBlocks(
+        body,
+        _docType,
+        GeneratorRegistry<int>({
+          'scenario_copy': (_, _, _, _) => [
+            const GeneratedBlock(
+              kind: 'scenario_copy',
+              sectionId: 'statement',
+              place: SectionTop(),
+              text: 'Copied text.\n',
+            ),
+          ],
+        }),
+        0,
+        docPath: 'prds/x.md',
+      );
       expect(inserted, isNot(body));
       expect(hash(inserted), hash(body));
     });

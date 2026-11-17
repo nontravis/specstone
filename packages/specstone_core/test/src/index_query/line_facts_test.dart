@@ -380,23 +380,15 @@ void main() {
       expect(back.fileLinks, facts.fileLinks);
     });
 
-    test('f04/us02/fr04, PS-R3, P11: the JSON round-trips the self links, the '
-        'unreadable links, and the anchor set', () {
+    test('f04/us02/fr04, PS-R3, P11: the JSON round-trips the self links and '
+        'the anchor set', () {
       final facts = _factsOf(
-        '# T\n\n[a](b.md#x) [s](#rules) [u](http://h:abc/x.md)\n'
+        '# T\n\n[a](b.md#x) [s](#rules)\n'
         '## Rules\n',
         docPath: 'doc.md',
       );
       expect(facts.selfLinks, [
         (target: 'doc.md', line: 3, shown: '#rules', anchor: 'rules'),
-      ]);
-      expect(facts.unreadableLinks, [
-        (
-          target: 'http://h:abc/x.md',
-          line: 3,
-          shown: 'http://h:abc/x.md',
-          anchor: null,
-        ),
       ]);
       expect(facts.anchors, isNotNull);
       expect(facts.anchors!.holds('t'), isTrue);
@@ -406,25 +398,19 @@ void main() {
         sectionCounts: facts.sectionCounts,
       );
       expect(back.selfLinks, facts.selfLinks);
-      expect(back.unreadableLinks, facts.unreadableLinks);
       expect(back.anchors!.toJson(), facts.anchors!.toJson());
     });
 
-    test('resolve_doc_links E21: an unreadable autolink is an unreadable link '
-        'whatever else the body holds, so one link reads one way', () {
-      const autolink = (
-        target: 'http://h:99999/',
-        line: 3,
-        shown: 'http://h:99999/',
-        anchor: null,
-      );
-      for (final body in [
-        'Autolink only <http://h:99999/> here.',
-        'Both <http://h:99999/> and [x](y.md).',
+    test('a malformed autolink is in no link class, whatever else the body '
+        'holds', () {
+      for (final (body, shown) in [
+        ('Autolink only <http://h:99999/> here.', <String>[]),
+        ('Both <http://h:99999/> and [x](y.md).', ['y.md']),
       ]) {
-        expect(_factsOf('# T\n\n$body\n').unreadableLinks, [
-          autolink,
-        ], reason: body);
+        final facts = _factsOf('# T\n\n$body\n');
+        expect([for (final l in facts.links) l.shown], shown, reason: body);
+        expect(facts.fileLinks, isEmpty, reason: body);
+        expect(facts.selfLinks, isEmpty, reason: body);
       }
     });
 
@@ -436,7 +422,6 @@ void main() {
         expect(facts.links, isEmpty);
         expect(facts.fileLinks, isEmpty);
         expect(facts.selfLinks, isEmpty);
-        expect(facts.unreadableLinks, isEmpty);
         expect(facts.anchors, isNull);
       },
     );

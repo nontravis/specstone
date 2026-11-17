@@ -3,8 +3,7 @@ import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/document_writing/key_block_values.dart';
-import 'package:specstone_core/src/document_writing/rewrite_mentions.dart'
-    show renamedNameOf;
+import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
 import 'package:specstone_core/src/index_query/override_chain.dart'
     show carriesOverrides;
 import 'package:specstone_core/src/journeys/journey_steps.dart';
@@ -51,7 +50,7 @@ String? rewriteLinkLabels(
   required MergedDocType? docType,
   required String? featureName,
   String? newFeatureName,
-  required Map<(String, String), String> renamed,
+  required RenamedNames renamed,
 }) {
   if (!carriesLinkLabels(docType) || renamed.isEmpty) return null;
   final newLabel = switch (docType!.id) {
@@ -358,12 +357,8 @@ void _rewriteSteps(
 
 /// Returns the step value [value] with [target]'s story set to its new name,
 /// or null when [renamed] holds none for it.
-String? _renamedStep(
-  String value,
-  StepTarget target,
-  Map<(String, String), String> renamed,
-) {
-  final name = renamed[(_storyType, target.identity)];
+String? _renamedStep(String value, StepTarget target, RenamedNames renamed) {
+  final name = renamed.newNameOf(_storyType, target.identity);
   return name == null ? null : value.replaceFirst(target.identity, name);
 }
 
@@ -403,10 +398,10 @@ String? _frCell(
   String cell,
   String? featureName,
   String? newFeatureName,
-  Map<(String, String), String> renamed,
+  RenamedNames renamed,
 ) {
   if (featureName == null || newFeatureName == null) return null;
-  final name = renamed[(_frType, '$featureName/$cell')];
+  final name = renamed.newNameOf(_frType, '$featureName/$cell');
   final prefix = '$newFeatureName/';
   if (name == null || !name.startsWith(prefix)) return null;
   final renamedCell = name.substring(prefix.length);
@@ -415,13 +410,10 @@ String? _frCell(
 
 /// Returns the `<story Name>#S<N>` label [label] becomes when its story is
 /// renamed, or null.
-String? _scenarioEntryLabel(
-  String label,
-  Map<(String, String), String> renamed,
-) {
+String? _scenarioEntryLabel(String label, RenamedNames renamed) {
   if (readLinkLabel(label) case ScenarioLabel(:final ref)) {
     final story = ref.storyName;
-    final name = story == null ? null : renamed[(_storyType, story)];
+    final name = story == null ? null : renamed.newNameOf(_storyType, story);
     return name == null ? null : '$name#${ref.number.written}';
   }
   return null;
@@ -429,12 +421,9 @@ String? _scenarioEntryLabel(
 
 /// Returns the `<doc type>:<name>#<item ID>` label [label] becomes when the
 /// doc it names is renamed, or null.
-String? _overrideEntryLabel(
-  String label,
-  Map<(String, String), String> renamed,
-) {
+String? _overrideEntryLabel(String label, RenamedNames renamed) {
   if (readLinkLabel(label) case OverrideLabel(:final address, :final itemId)) {
-    final name = renamedNameOf(address, renamed);
+    final name = renamed.newNameFor(address);
     return name == null ? null : '${address.typeId}:$name#$itemId';
   }
   return null;

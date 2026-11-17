@@ -1,4 +1,5 @@
 import 'package:specstone_core/src/document_writing/approval_diff.dart';
+import 'package:specstone_core/src/document_writing/models/changed_unit.dart';
 import 'package:test/test.dart';
 
 const _old =
@@ -9,14 +10,14 @@ const _new =
     '## Statement\nA.\n\n## Rationale\nR2.\n';
 
 ChangedUnit _field(String key, [UnitSide side = .both]) =>
-    (kind: .field, name: key, side: side);
+    ChangedUnit(kind: .field, name: key, side: side);
 
 ChangedUnit _section(String header, [UnitSide side = .both]) =>
-    (kind: .section, name: header, side: side);
+    ChangedUnit(kind: .section, name: header, side: side);
 
 /// A changed unit of a [kind] that has no key or header text.
 ChangedUnit _bare(UnitKind kind, [UnitSide side = .both]) =>
-    (kind: kind, name: '', side: side);
+    ChangedUnit(kind: kind, name: '', side: side);
 
 void main() {
   group('Show what changed since the last approval '

@@ -3,11 +3,10 @@ import 'package:specstone_core/src/doc_model/doc_items.dart';
 import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/list_block_writer.dart';
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_item.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart'
     show rebasedHref;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show TextEdit;
 import 'package:specstone_core/src/document_writing/scenario_items.dart'
     show landedScenarioHeading;
 import 'package:specstone_core/src/document_writing/set_doc.dart'
