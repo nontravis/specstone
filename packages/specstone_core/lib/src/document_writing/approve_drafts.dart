@@ -5,6 +5,7 @@ import 'package:specstone_core/src/doc_model/doc_splice.dart';
 import 'package:specstone_core/src/doc_model/sentences.dart' show sentencesOf;
 import 'package:specstone_core/src/document_writing/approval.dart';
 import 'package:specstone_core/src/document_writing/approval_view.dart';
+import 'package:specstone_core/src/document_writing/models/seen_draft.dart';
 import 'package:specstone_core/src/document_writing/sentence_changes.dart';
 import 'package:specstone_core/src/document_writing/write_fault.dart';
 import 'package:specstone_core/src/document_writing/write_session.dart';
@@ -55,7 +56,7 @@ void approveDrafts(
   }
   _requireTrusted(session, drafts);
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
-  for (final (at, (:doc, bytes: _)) in drafts.indexed) {
+  for (final (at, _ShownDraft(:doc)) in drafts.indexed) {
     String viewOf(List<int> bytes) => _viewOf(
       session,
       doc,
@@ -93,7 +94,7 @@ ReadAnswer approveDryRun(
   String? codeTarget,
   String? approveModeVariable,
 }) {
-  final (:mode, :warnings) = _approveModeOf(approveModeVariable);
+  final _ApproveMode(:mode, :warnings) = _approveModeOf(approveModeVariable);
   final drafts = _shownDraftsUnder(session, names, codeTarget);
   if (drafts.isEmpty) {
     return ReadAnswer(
@@ -105,7 +106,7 @@ ReadAnswer approveDryRun(
   _requireTrusted(session, drafts);
   final reads = _RunReads.read(session, drafts, history ?? ApprovalHistory());
   final views = [
-    for (final (:doc, :bytes) in drafts)
+    for (final _ShownDraft(:doc, :bytes) in drafts)
       _draftViewOf(session, doc, bytes, reads, codeTarget),
   ];
   return ReadAnswer(
@@ -130,23 +131,27 @@ ReadAnswer approveDryRun(
 
 const _approveModeVariableName = 'SPECSTONE_APPROVE_MODE';
 
-({String mode, List<String> warnings}) _approveModeOf(String? value) {
+/// The approve mode a variable sets, and the warnings reading it raised.
+final class _ApproveMode {
+  const new({required this.mode, required this.warnings});
+
+  final String mode;
+  final List<String> warnings;
+}
+
+_ApproveMode _approveModeOf(String? value) {
   switch (value) {
     case null || '' || 'ask':
-      return (mode: 'ask', warnings: const []);
+      return const _ApproveMode(mode: 'ask', warnings: []);
     case 'auto':
-      return (mode: 'auto', warnings: const []);
+      return const _ApproveMode(mode: 'auto', warnings: []);
     default:
       final warning =
           '$_approveModeVariableName=$value is neither ask nor auto; '
           'ask is used';
-      return (mode: 'ask', warnings: [warning]);
+      return _ApproveMode(mode: 'ask', warnings: [warning]);
   }
 }
-
-/// A draft's `<doc type>:<name>` and the `bases.doc` hash the call carries for
-/// it, taken from `approve --dry-run` or `get --json`.
-typedef SeenDraft = ({String name, String hash});
 
 /// Approves each draft in [seen] with no prompt, as `y` does.
 ///
@@ -271,7 +276,12 @@ void _requireTrusted(WriteSession session, List<_ShownDraft> drafts) => session
     .requireTrusted(session.projectPathOf(drafts.first.doc.docPath));
 
 /// A draft and the bytes of its file at selection.
-typedef _ShownDraft = ({IndexedDoc doc, List<int> bytes});
+final class _ShownDraft {
+  const new({required this.doc, required this.bytes});
+
+  final IndexedDoc doc;
+  final List<int> bytes;
+}
 
 /// Returns [_draftsUnder] with the bytes of each, less the drafts whose file
 /// is gone, so the numbers `Draft n/m` count only drafts the Owner can see.
@@ -283,7 +293,7 @@ List<_ShownDraft> _shownDraftsUnder(
   final shown = <_ShownDraft>[];
   for (final doc in _draftsUnder(session, names, codeTarget)) {
     final bytes = session.readDocBytes(doc.docPath);
-    if (bytes != null) shown.add((doc: doc, bytes: bytes));
+    if (bytes != null) shown.add(_ShownDraft(doc: doc, bytes: bytes));
   }
   return shown;
 }
@@ -345,7 +355,7 @@ final class _RunReads {
   ) {
     final lookups = <String, ApprovalLookup>{};
     final approved = <String, String>{};
-    for (final (:doc, bytes: _) in drafts) {
+    for (final _ShownDraft(:doc) in drafts) {
       final lookup = history.lastApproved(
         session.project.projectRoot,
         session.projectPathOf(doc.docPath),
