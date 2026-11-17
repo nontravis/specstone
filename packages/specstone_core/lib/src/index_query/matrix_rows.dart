@@ -1,7 +1,8 @@
+import 'package:specstone_core/src/consistency_check/fingerprint.dart';
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
-import 'package:specstone_core/src/rendering/formatter.dart';
+import 'package:specstone_core/src/rendering/generated_blocks.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One non-blank line of a record's Verification matrix section: a row, or a
@@ -178,7 +179,6 @@ final class SkipRow extends MatrixRow {
 }
 
 const _skipMark = ' skipped: ';
-final _fingerprint = RegExp(r'^[0-9a-f]{12}$');
 
 /// Returns the line [text], file line [line] of a record, as a row, or as a
 /// [MalformedRow] when it is neither shape.
@@ -236,7 +236,7 @@ TestRow? _testRowOf(String text, int line) {
   final tail = rest.substring(span.end);
   if (tail.isNotEmpty && !tail.startsWith(' ')) return null;
   final fingerprint = tail.isEmpty ? null : tail.substring(1);
-  if (fingerprint != null && !_fingerprint.hasMatch(fingerprint)) return null;
+  if (fingerprint != null && !isFingerprint(fingerprint)) return null;
   return TestRow(
     item: head.item,
     edgeCase: head.edgeCase,
@@ -260,16 +260,22 @@ String _spanContentOf(String content) {
 SkipRow? _skipRowOf(String text, int line) {
   final head = _headOf(text);
   if (head == null || !head.rest.startsWith(_skipMark)) return null;
-  final written = head.rest.substring(_skipMark.length);
-  if (written.isEmpty || written.startsWith(' ')) return null;
+  final written = head.rest.substring(_skipMark.length).trimRight();
+  if (written.startsWith(' ')) return null;
   final split = written.lastIndexOf(' ');
-  final hasFingerprint =
-      split > 0 && _fingerprint.hasMatch(written.substring(split + 1));
+  final tail = written.substring(split + 1);
+  final fingerprint = isFingerprint(tail) ? tail : null;
+  final reason = switch ((fingerprint, split)) {
+    (null, _) => written,
+    (_, < 0) => '',
+    _ => written.substring(0, split).trimRight(),
+  };
+  if (reason.isEmpty) return null;
   return SkipRow(
     item: head.item,
     edgeCase: head.edgeCase,
-    reason: hasFingerprint ? written.substring(0, split) : written,
-    fingerprint: hasFingerprint ? written.substring(split + 1) : null,
+    reason: reason,
+    fingerprint: fingerprint,
     line: line,
   );
 }
@@ -290,13 +296,9 @@ List<MatrixLine> matrixLinesOfDoc(
   String lfText,
   MergedDocType recordType,
 ) {
-  final matrix = verificationMatrixOf(recordType);
-  if (matrix == null) return const [];
-  final header = headerKey(matrix.header);
-  final at = doc.sections.indexWhere(
-    (section) => headerKey(section.headerText) == header,
-  );
-  if (at < 0) return const [];
+  if (verificationMatrixOf(recordType) == null) return const [];
+  final at = sectionIndexOf(doc, recordType, verificationMatrixKey);
+  if (at == null) return const [];
   final headerLine =
       linesBeforeBodyOf(doc, lfText) + doc.sectionLineIndexes[at] + 1;
   final bodyLines = doc.sections[at].body.split('\n');

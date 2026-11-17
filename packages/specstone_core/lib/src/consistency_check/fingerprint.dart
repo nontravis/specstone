@@ -28,6 +28,11 @@ String _withoutTrailingBlanks(String lf) {
 /// recipe.
 String fingerprintOf(String block) => baseHashOf(upstreamText(block));
 
+final _fingerprintShape = RegExp(r'^[0-9a-f]{12}$');
+
+/// Whether [text] has the shape of a fingerprint: 12 lowercase hex characters.
+bool isFingerprint(String text) => _fingerprintShape.hasMatch(text);
+
 /// Returns the 1.1.0 fingerprint of [block], taken before layout.
 ///
 /// Only the upgrade's stamp pass may call it, to match an entry stamped

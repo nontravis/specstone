@@ -51,13 +51,16 @@ final MergedDocType _matrixRecordType = _recordType.copyWith(
 const _matrixPath = 'specs/jaspr/f02_feedback/IMPLEMENTATION.md';
 
 /// A record text whose matrix section holds [rows], the first on file line 10.
-String _matrixRecord(List<String> rows) =>
+String _matrixRecord(
+  List<String> rows, {
+  String header = 'Verification matrix',
+}) =>
     '---\n'
     'statuses:\n'
     '  - show_toast/queue_toasts:implemented\n'
     '---\n\n'
     '# Feedback implementation\n\n'
-    '## Verification matrix\n\n'
+    '## $header\n\n'
     '${rows.join('\n')}\n';
 
 /// Parses the record at [path] with [text] under a two-target project whose
@@ -375,15 +378,108 @@ void main() {
       ]);
     });
 
-    test('a skip row whose only token is hex keeps it as the reason', () {
-      expect(linesOf(['- show_toast E04 skipped: 9a1c03be55d2']), const [
-        SkipRow(
+    test('a skip row left with no reason after its fingerprint is '
+        'malformed', () {
+      const row = '- show_toast E04 skipped: 9a1c03be55d2';
+
+      expect(linesOf([row]), const [
+        MalformedRow(line: firstRowLine, text: row),
+      ]);
+    });
+
+    test('a skip row keeps no space after its reason', () {
+      expect(
+        linesOf([
+          '- show_toast E04 skipped: needs root on CI  9a1c03be55d2',
+          '- show_toast E05 skipped: needs root on CI ',
+        ]),
+        const [
+          SkipRow(
+            item: 'show_toast',
+            edgeCase: 'E04',
+            reason: 'needs root on CI',
+            fingerprint: '9a1c03be55d2',
+            line: firstRowLine,
+          ),
+          SkipRow(
+            item: 'show_toast',
+            edgeCase: 'E05',
+            reason: 'needs root on CI',
+            line: firstRowLine + 1,
+          ),
+        ],
+      );
+    });
+
+    for (final tail in const ['9a1c03be55d', '9a1c03be55d29']) {
+      test('a ${tail.length}-hex tail is no fingerprint', () {
+        const head = '- show_toast E01';
+        final testRow = '$head: `queues a toast` $tail';
+
+        expect(linesOf([testRow, '$head skipped: needs root $tail']), [
+          MalformedRow(line: firstRowLine, text: testRow),
+          SkipRow(
+            item: 'show_toast',
+            edgeCase: 'E01',
+            reason: 'needs root $tail',
+            line: firstRowLine + 1,
+          ),
+        ]);
+      });
+    }
+
+    test('the section is found by the key of the record type, whatever its '
+        'header or output_ref flag', () {
+      const row = '- show_toast E01: `queues a toast`';
+      const expected = [
+        TestRow(
           item: 'show_toast',
-          edgeCase: 'E04',
-          reason: '9a1c03be55d2',
+          edgeCase: 'E01',
+          literal: 'queues a toast',
           line: firstRowLine,
         ),
-      ]);
+      ];
+      MergedDocType typeWith(MergedSection section) =>
+          _recordType.copyWith(sections: [section]);
+
+      expect(
+        matrixLinesIn(
+          _matrixRecord([row], header: 'Test evidence'),
+          typeWith(
+            const MergedSection(
+              id: verificationMatrixKey,
+              header: 'Test evidence',
+              isOutputRef: true,
+            ),
+          ),
+        ),
+        expected,
+      );
+      expect(
+        matrixLinesIn(
+          _matrixRecord([row]),
+          typeWith(
+            const MergedSection(
+              id: verificationMatrixKey,
+              header: 'Verification matrix',
+            ),
+          ),
+        ),
+        expected,
+      );
+      expect(
+        matrixLinesIn(
+          _matrixRecord([row]),
+          typeWith(
+            const MergedSection(
+              id: 'other_section',
+              header: 'Verification matrix',
+              isOutputRef: true,
+            ),
+          ),
+        ),
+        isEmpty,
+      );
     });
 
     for (final (written, literal) in const [
