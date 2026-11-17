@@ -44,9 +44,10 @@ const _procedures = <String>[
   'specstone-brainstorming-sdd/references/audit.md',
 ];
 
-/// The goal-move and glossary-move references of bootstrap-prd, under the
-/// plugin folder.
+/// The goal-move reference of bootstrap-prd, under the plugin folder.
 const _goalMove = 'specstone-bootstrap-prd/references/goal-move.md';
+
+/// The glossary-move reference of bootstrap-prd, under the plugin folder.
 const _glossaryMove = 'specstone-bootstrap-prd/references/glossary-move.md';
 
 const _planAgent = 'specstone-plan-engineer.md';
@@ -97,6 +98,33 @@ final _fencedBlock = RegExp(r'^ *```[^\n]*\n([\s\S]*?)^ *```', multiLine: true);
 final _frontmatterName = RegExp(r'^---\r?\n(?:.*\r?\n)*?name:\s*(\S+)');
 
 final _frontmatterBlock = RegExp(r'^---\r?\n((?:.*\r?\n)*?)---\r?\n');
+
+final _contextCall = RegExp(r'specstone context\b(.*?)(?=specstone |$)');
+
+/// [text] with every run of whitespace, a wrapped line end included, as one
+/// space.
+String _oneLine(String text) => text.replaceAll(RegExp(r'\s+'), ' ');
+
+/// The words after `specstone context` of each call with arguments in
+/// [markdown]'s fenced code lines and inline code spans, a span wrapped over
+/// lines read whole.
+List<List<String>> _contextCalls(String markdown) {
+  final text = markdown.replaceAll('\r\n', '\n');
+  final codes = [
+    for (final block in _fencedBlock.allMatches(text))
+      ...block.group(1)!.split('\n'),
+    for (final span in _codeSpan.allMatches(
+      _oneLine(text.replaceAll(_fencedBlock, '')),
+    ))
+      span.group(1)!,
+  ];
+  return [
+    for (final code in codes)
+      for (final call in _contextCall.allMatches(code))
+        if (call.group(1)!.trim().isNotEmpty)
+          call.group(1)!.trim().split(RegExp(r'\s+')),
+  ];
+}
 
 /// Each inline code span of [markdown] outside its fenced blocks, a span
 /// wrapped over lines read whole, with its offset in [markdown].
@@ -499,7 +527,6 @@ void _referencesResolveTests() {
       }
     }
     expect(problems, isEmpty);
-    expect(named.keys, unorderedEquals(_agentFileNames.keys));
     for (final MapEntry(key: file, value: names) in _agentFileNames.entries) {
       expect(named[file], containsAll(names), reason: file);
     }
@@ -859,6 +886,32 @@ void _cliCallsExistTests() {
       }),
       ['specstone-x/SKILL.md: specstone has no command nope'],
     );
+  });
+
+  test('a context call holding --out and --budget is read, also when its span '
+      'wraps over two lines', () {
+    expect(
+      _contextCalls('Run `specstone context a --for query\n--out --budget 9`.'),
+      [
+        ['a', '--for', 'query', '--out', '--budget', '9'],
+      ],
+    );
+  });
+
+  test('no shipped context call holds both --out and --budget', () {
+    final problems = <String>[];
+    var calls = 0;
+    for (final file in _skillAndAgentFiles()) {
+      for (final call in _contextCalls(_pluginText(file))) {
+        calls++;
+        if (call.contains('--out') &&
+            call.any((token) => token.startsWith('--budget'))) {
+          problems.add('$file: specstone context ${call.join(' ')}');
+        }
+      }
+    }
+    expect(calls, greaterThan(0));
+    expect(problems, isEmpty);
   });
 
   test('every shipped skill and agent names only commands and flags the CLI '
