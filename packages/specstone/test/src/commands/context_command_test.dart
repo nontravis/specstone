@@ -1224,6 +1224,22 @@ void main() {
       expect(config.readAsBytesSync(), before);
     });
 
+    test('--for design --summary --no-project names <target>.design-summary-no-project.txt', () async {
+      final project = await writeReadProject();
+      await saved(project, [
+        'login',
+        '--for',
+        'design',
+        '--summary',
+        '--no-project',
+        '--out',
+      ]);
+      expect(
+        bundleFile(project, 'login.design-summary-no-project.txt').existsSync(),
+        isTrue,
+      );
+    });
+
     test('a relative --out from a subfolder is read from it and printed canonical and absolute', () async {
       final project = await writeReadProject(extra: {'app/.keep': ''});
       final nested = Directory('${project.path}/app');

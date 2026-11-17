@@ -375,7 +375,6 @@ void main() {
   });
 
   group('consistency_check/find_template_breaks/check_target, --target', () {
-    const jasprArch = jasprArchitecture;
     // The shared API doc stays out, so only the feature and the twins speak.
     Future<Directory> twinProject() =>
         writeTwinProject(without: {'docs/$loginApi'});
@@ -390,7 +389,7 @@ void main() {
                 as List;
         expect(
           {for (final f in findings) (f as Map<String, Object?>)['docPath']},
-          {loginFeature, jasprArch},
+          {loginFeature, jasprArchitecture},
         );
         expect(err.toString(), isEmpty);
       },
