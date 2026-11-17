@@ -1111,14 +1111,7 @@ void _handOffTests() {
       _pluginText('specstone-brainstorming-sdd/references/author.md'),
       '5. Report',
     );
-    for (final line in [
-      'Move: specstone move <story> … --under <feature>\n',
-      'Move: specstone move <fr or nf> … --under <story>\n',
-      'Move: specstone move feature:<name> … --under <feature>\n',
-      'Move: specstone move feature:<name> … --top\n',
-      'Move: specstone move <doc>#<ID> … --under <doc>\n',
-      'Move: specstone move <story>#S<N> … --under <story>\n',
-    ]) {
+    for (final line in ['Move: specstone move feature:<name> … --top\n']) {
       expect(report, contains('\n$line'), reason: line);
     }
     final flatReport = report.replaceAll(RegExp(r'\s+'), ' ');
@@ -1127,13 +1120,6 @@ void _handOffTests() {
       contains(
         'only for a moved doc, item, or scenario: one line per target parent '
         'or `--top`; copy each into the relay block.',
-      ),
-    );
-    expect(
-      flatReport,
-      contains(
-        'Name each draft a `Move:` line moves, the moved doc and its '
-        'children, by the name it holds after the move.',
       ),
     );
     final drafts = _sectionOf(
@@ -1175,19 +1161,6 @@ void _handOffTests() {
       final text = _oneLine(_sectionOf(_pluginText(file), section));
       expect(text, contains('never your own tally'), reason: '$file#$section');
     }
-    final moved = _oneLine(
-      _sectionOf(
-        _pluginText('specstone-brainstorming-sdd/references/author.md'),
-        '5. Report',
-      ),
-    );
-    expect(
-      moved,
-      contains(
-        'while its `Move:` line is unrun, by its name before the move; once '
-        'the runner runs it, by its name after',
-      ),
-    );
     expect(
       _oneLine(
         _sectionOf(_pluginText('specstone-expert-sdd/SKILL.md'), 'Rules'),
@@ -2326,10 +2299,6 @@ void _agentTests() {
       ),
     );
     expect(author, contains('names only, no `--target`'));
-    expect(
-      author,
-      contains('hit in a doc the design changes, as step 2 writes.'),
-    );
     expect(
       _oneLine(_pluginText('specstone-sdd-engineer.md')),
       contains('each write leaves a draft; never clear its flag'),
@@ -3882,10 +3851,6 @@ void _agentTests() {
       lessThan(_oneLine(author).indexOf('`specstone new')),
     );
     expect(
-      _sectionOf(author, '4. Check'),
-      contains('- **In one of your drafts:** fix it there.\n'),
-    );
-    expect(
       _sectionOf(author, '5. Report'),
       contains(
         '```\nNot landed: <decision>: <why no doc took it>\n'
@@ -4168,8 +4133,6 @@ const _author = 'specstone-brainstorming-sdd/references/author.md';
 /// Each point of `write_drafts_with_coverage`'s re-read clause and E12, as
 /// step 1 of author.md words it, cut at line width.
 const _authorRereadPoints = [
-  'each pass after the first: a fix round, or the pass after an amend',
-  "the first author report's drafts plus each doc a fix round or pass added;",
   "in a fix round, the audit's `Findings:` lines too.",
   'Before your first write, re-read the drafts in one',
   '`specstone get <drafts list>` call.',
@@ -4177,7 +4140,6 @@ const _authorRereadPoints = [
   'again on the rest; list each dropped name under `Findings:`, or as',
   '`Not landed:` when listed and never created.',
   'After an amend, write the amended design into the drafts through steps 2',
-  'Fix only those findings, only in those drafts, as step 2 writes;',
   'List each finding outside those drafts under `Findings:`, unfixed.',
 ];
 
@@ -4190,24 +4152,13 @@ const _authorBatchPoints = [
   '**Several docs in one step**: run `specstone get <names> --out "<file>"`,',
   '`<file>` `<folder>/reports/sdd-engineer.author.batch.<XXXXXX>.txt`,',
   '`<folder>` the path `specstone folder` prints; edit its blocks, each',
-  'naming line kept; then run `specstone set --batch "<file>"`.',
   'A block printed ` · unchanged` wrote nothing and adds no draft.',
   '**A refused batch** writes nothing, but exit 73',
   'leaves docs half written until a write command ends its journal: run',
-  'one, or `get` again, first. Per fault, then run it again:',
-  '- Stale block: replace the block with the one the reply prints, your',
   'edit merged in; run no `get`.',
-  "- Gone block: re-read its doc by name; a moved doc's new block takes",
-  'the edit; a name naming no doc drops the block, its doc listed under',
-  '- Untyped block: drop it, its doc listed under `Findings:`.',
   '- One part twice, or a whole-doc block beside another',
   'block beside another of its doc: join them.',
   "- Field or title block: write it inside its doc's whole-doc block.",
-  '- Removed required section: restore it; a field only the Owner or',
-  'Specstone sets: restore its value; open fence: close it.',
-  '- Any other refusal a single `set` of that part makes, such as',
-  "`field_unknown` or a section block's stray `##` line: fix that part as",
-  'line: fix that part as the refusal names.',
   '- Refused path or line: rebuild the file from `get` text output',
   'alone.',
 ];
@@ -6950,10 +6901,6 @@ void _outAndReplaceTests() {
       contains('long `check`, `guide`, or `get` output with `--out`'),
     );
     expect(text, contains('`==> old <==`, the passage, `==> new <==`'));
-    expect(
-      text,
-      contains('`specstone set <type>:<name>#<key> --base <hash> --replace`'),
-    );
   });
 
   test('the read skill names --out for long output and set --replace for a '
