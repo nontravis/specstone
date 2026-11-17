@@ -105,6 +105,49 @@ void main() {
       );
     });
 
+    test('stores a hit on the second line of a block scalar on the key '
+        'line', () {
+      expect(
+        matchesOf(
+          '---\nstatus: draft\nsummary: |\n  A tool.\n  Very fast too.\n'
+          '---\n\n# T\n',
+        ),
+        [const BannedMatch(field: 'summary', line: 3, entry: 0, match: 'fast')],
+      );
+    });
+
+    test('applies no section-level entry to a field value', () {
+      final sectionOnly = MergedDocType(
+        id: 'note',
+        fields: const [
+          MergedField(
+            id: 'summary',
+            type: FieldType.string,
+            lint: FieldCaps(maxSentences: 1),
+          ),
+        ],
+        sections: [
+          MergedSection(
+            id: 'goal',
+            header: 'Goal',
+            bannedPatterns: [
+              PatternEntry(id: 'slow', pattern: r'slow\w*', message: 'm'),
+            ],
+          ),
+        ],
+        lint: const MergedLint(),
+        files: const [],
+      );
+
+      expect(
+        _parsed(
+          '---\nsummary: A slow tool.\n---\n\n# T\n\n## Goal\nslow here\n',
+          MatchedDocType(sectionOnly),
+        ).bannedMatches.map((m) => (m.section, m.field)),
+        [(0, null)],
+      );
+    });
+
     test('stores no hit for a field that sets no lint', () {
       expect(matchesOf('---\nplain: A fast tool.\n---\n\n# T\n'), isEmpty);
     });

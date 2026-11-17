@@ -842,6 +842,16 @@ void main() {
       expect(facts.sectionItems, isEmpty);
     });
 
+    test('a two-line block scalar is one value whose sentence spans both '
+        'lines', () {
+      final facts = noteFacts(
+        '---\nsummary: |\n  One two\n  three four.\n---\n\n# T\n',
+      );
+
+      final cells = facts.fieldItems['summary']!.readability.cells;
+      expect(cells.single.map((s) => s.words), [4]);
+    });
+
     test('a field that sets no lint gets no facts', () {
       expect(
         noteFacts('---\nplain: One two.\n---\n\n# T\n').fieldItems,

@@ -70,9 +70,9 @@ List<BannedMatch> bannedMatchesOf(
   List<IndexedSection> sections,
   LineFacts facts,
   MergedDocType? type, {
-  Map<String, Object?> frontmatter = const {},
-  Map<String, int> keyLines = const {},
-  bool Function(int line)? isGenerated,
+  required Map<String, Object?> frontmatter,
+  required Map<String, int> keyLines,
+  required bool Function(int line) isGenerated,
 }) {
   if (type == null) return const [];
   final templates = heldTemplatesOf(sections, type);
@@ -83,7 +83,7 @@ List<BannedMatch> bannedMatchesOf(
     if (entries.isEmpty) continue;
     final prefix = templates[i]?.linePrefix;
     for (final searched in searchLinesOf(sections, facts, i)) {
-      if (isGenerated != null && isGenerated(searched.line)) continue;
+      if (isGenerated(searched.line)) continue;
       final onPrefix = prefix == null || searched.raw.startsWith(prefix);
       final searchedCount = onPrefix ? entries.length : docCount;
       for (var k = 0; k < searchedCount; k++) {
