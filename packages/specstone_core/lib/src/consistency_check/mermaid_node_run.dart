@@ -13,7 +13,7 @@ const _unreadableOutputReason = 'node wrote output that is not a parse result';
 final class PendingBlock {
   const new({required this.hash, required this.text});
 
-  /// The content hash of [text]; unique among the blocks of one run.
+  /// The content hash of [text].
   final String hash;
 
   /// The block's text, without its fences.
@@ -42,11 +42,13 @@ final class MermaidNodeRun {
   final Future<Process> Function(List<String> arguments) _start;
   final Duration _timeout;
 
-  /// Parses [blocks] in one child process; never throws for a Node failure.
+  /// Parses [pending] in one child process; never throws for a Node failure.
   ///
-  /// A timeout keeps the results read before the kill; any other failure
-  /// answers no block.
-  Future<NodeParseOutcome> parse(List<PendingBlock> blocks) async {
+  /// Blocks sharing a hash go in once. A timeout keeps the results read before
+  /// the kill; any other failure answers no block. No block starts no process.
+  Future<NodeParseOutcome> parse(List<PendingBlock> pending) async {
+    final blocks = _distinctByHash(pending);
+    if (blocks.isEmpty) return const NodeParseOutcome(answered: {});
     final Process process;
     try {
       process = await _start(['-e', mermaidParseScript]);
@@ -128,6 +130,15 @@ final class _ChildRun {
   final String stderrLine;
   final int exitCode;
   final bool timedOut;
+}
+
+/// Keeps the first block of each hash, in order.
+List<PendingBlock> _distinctByHash(List<PendingBlock> blocks) {
+  final seen = <String>{};
+  return [
+    for (final block in blocks)
+      if (seen.add(block.hash)) block,
+  ];
 }
 
 Future<Process> _startNode(List<String> arguments) =>

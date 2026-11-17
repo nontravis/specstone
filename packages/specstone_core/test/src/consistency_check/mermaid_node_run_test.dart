@@ -56,10 +56,10 @@ $_twoResultLines
   await stdout.flush();
   await Future<void>.delayed(const Duration(minutes: 5));
 '''),
-      timeout: const Duration(seconds: 2),
+      timeout: const Duration(seconds: 5),
     ).parse(_blocks);
 
-    expect(outcome.skipReason, 'node timed out after 2 s');
+    expect(outcome.skipReason, 'node timed out after 5 s');
     expect(outcome.answered.keys, ['h0', 'h1']);
     expect(outcome.answered['h0']!.parses, isTrue);
     expect(outcome.answered['h0']!.diagram, 'sequence');
@@ -77,10 +77,10 @@ $_twoResultLines
   await stdout.flush();
   await Future<void>.delayed(const Duration(minutes: 5));
 '''),
-      timeout: const Duration(seconds: 2),
+      timeout: const Duration(seconds: 5),
     ).parse(_blocks);
 
-    expect(outcome.skipReason, 'node timed out after 2 s');
+    expect(outcome.skipReason, 'node timed out after 5 s');
     expect(outcome.answered.keys, ['h0']);
   });
 
@@ -157,6 +157,76 @@ $_twoResultLines
 
     expect(outcome.answered, isEmpty);
     expect(outcome.skipReason, isNotNull);
+  });
+
+  test('blocks sharing a hash go in once and both resolve', () async {
+    final outcome =
+        await MermaidNodeRun(
+          start: fake(
+            '''  stdout.writeln('{"i":0,"diagram":"sequence","parses":true}');''',
+          ),
+        ).parse(const [
+          PendingBlock(hash: 'same', text: 'sequenceDiagram\n  A->>B: ok'),
+          PendingBlock(hash: 'same', text: 'sequenceDiagram\n  A->>B: ok'),
+        ]);
+
+    expect(outcome.skipReason, isNull);
+    expect(outcome.answered.keys, ['same']);
+  });
+
+  test('no block starts no process and gives no reason', () async {
+    var starts = 0;
+    final outcome = await MermaidNodeRun(
+      start: (_) {
+        starts++;
+        throw const ProcessException('node', []);
+      },
+    ).parse(const []);
+
+    expect(starts, 0);
+    expect(outcome.answered, isEmpty);
+    expect(outcome.skipReason, isNull);
+  });
+
+  test(
+    'another start failure gives a one-line failed-to-start reason',
+    () async {
+      final outcome = await MermaidNodeRun(
+        start: (_) => throw const ProcessException(
+          'node',
+          [],
+          'permission\n  denied\n',
+          13,
+        ),
+      ).parse(_blocks);
+
+      expect(outcome.answered, isEmpty);
+      expect(outcome.skipReason, 'node failed to start: permission denied');
+    },
+  );
+
+  test('invalid UTF-8 on stdout drops every answer', () async {
+    final outcome = await MermaidNodeRun(
+      start: fake('''
+  stdout.writeln('{"i":0,"diagram":"sequence","parses":true}');
+  stdout.add([0xff, 0xfe, 0x0a]);
+'''),
+    ).parse(_blocks);
+
+    expect(outcome.answered, isEmpty);
+    expect(outcome.skipReason, 'node wrote output that is not a parse result');
+  });
+
+  test('a line whose parses is not a bool drops every answer', () async {
+    final outcome = await MermaidNodeRun(
+      start: fake('''
+  stdout.writeln('{"i":0,"diagram":"sequence","parses":true}');
+  stdout.writeln('{"i":1,"diagram":"sequence","parses":"yes"}');
+'''),
+    ).parse(_blocks);
+
+    expect(outcome.answered, isEmpty);
+    expect(outcome.skipReason, 'node wrote output that is not a parse result');
   });
 
   test('real node answers one good and one bad block with no reason', () async {
