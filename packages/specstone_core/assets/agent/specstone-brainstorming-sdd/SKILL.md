@@ -75,8 +75,8 @@ Write no brief and run no `context` call again on a target already grounded befo
 do not ground is an open question of the document.
 
 1. After approval, dispatch `mode: author` with the document's path. Pass no doc or design text.
-2. Run the author's `Move:` commands, if any. Dispatch a fresh `mode: audit` with the document's path and the drafts
-   list as its targets.
+2. Run the author's `Move:` commands, if any, then the amend compare of `references/rounds.md` section 2. Dispatch a
+   fresh `mode: audit` with the document's path and the drafts list as its targets.
 3. Run fix rounds on its `Findings:` lines per `references/rounds.md`.
 4. Show each author reply and the last audit's relay block; approve the drafts through the
    `specstone-expert-sdd` skill's Owner confirmation, testing both under `auto`.
