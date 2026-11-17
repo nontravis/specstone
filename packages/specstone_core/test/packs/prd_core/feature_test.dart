@@ -7,6 +7,7 @@ import '../../helpers/nested_fixture.dart';
 import '../../helpers/prd_core.dart';
 
 const _ownFields = <FieldSpec>[
+  FieldSpec('summary', FieldType.string, required: true),
   FieldSpec('vision', FieldType.string, list: true),
   FieldSpec('goals', FieldType.string, list: true),
   FieldSpec('persona', FieldType.docRef, list: true, docTypes: ['persona']),
@@ -50,6 +51,30 @@ void main() {
       SectionSpec('open_questions', 'Open questions'),
       SectionSpec('faq', 'FAQ'),
     ]);
+  });
+
+  test('summary is a required string with its description and one-sentence '
+      'caps, and no other field carries a lint', () {
+    final summary = fieldOf(feature, 'summary');
+    expect(
+      summary.description,
+      'States in one sentence what the feature does for its persona.',
+    );
+    expect(summary.lint?.maxSentences, 1);
+    expect(summary.lint?.maxSentenceWords, {'default': 15, 'ko': 10});
+    expect(summary.lint?.maxSentenceChars, {
+      'default': 60,
+      'th': 60,
+      'ja': 36,
+      'zh': 27,
+    });
+    expect(
+      [
+        for (final f in feature.fields)
+          if (f.lint != null) f.id,
+      ],
+      ['summary'],
+    );
   });
 
   test('the feature file writes no status entry', () {

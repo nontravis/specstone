@@ -40,7 +40,7 @@ void main() {
     final report = await checkOf(project);
     expect(
       report.findings.single.textLine,
-      '$loginFeature:13: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
+      '$loginFeature:14: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
     );
   });
 
@@ -56,7 +56,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:13: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
+      '$loginFeature:14: link_unresolved: link target us02_reset_password/USER_STORY.md is no doc',
     );
   });
 
@@ -110,8 +110,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$loginFeature:7: doc_ref_self',
-      '$loginFeature:7: field_value_mismatch',
+      '$loginFeature:8: doc_ref_self',
+      '$loginFeature:8: field_value_mismatch',
     ]);
   });
 
@@ -126,7 +126,7 @@ void main() {
         ),
       ),
     );
-    expect(spots(report), ['$loginFeature:8: doc_ref_unresolved']);
+    expect(spots(report), ['$loginFeature:9: doc_ref_unresolved']);
   });
 
   test(
@@ -140,9 +140,9 @@ void main() {
       );
       final report = await checkOf(await writeCheckProject(extra: dependsOn));
       expect(spots(report), [
-        '$loginFeature:8: doc_ref_unresolved',
         '$loginFeature:9: doc_ref_unresolved',
-        '$loginFeature:10: doc_ref_self',
+        '$loginFeature:10: doc_ref_unresolved',
+        '$loginFeature:11: doc_ref_self',
       ]);
       expect(
         report.findings.first.message,
@@ -161,7 +161,7 @@ void main() {
         ),
       );
       expect(spots(withCheckout, FindingKind.docRefUnresolved), [
-        '$loginFeature:9: doc_ref_unresolved',
+        '$loginFeature:10: doc_ref_unresolved',
       ]);
     },
   );
@@ -183,7 +183,7 @@ void main() {
       ),
     );
     // One doc carries USER_STORY.md, so the prose path is an old cite form.
-    expect(spots(report), ['$loginFeature:13: cite_unlinked']);
+    expect(spots(report), ['$loginFeature:14: cite_unlinked']);
   });
 
   group('link_target_missing', () {
@@ -231,7 +231,7 @@ void main() {
         extra: linking('![flow](flow.png)'),
       );
       expect(await missingOf(project), [
-        '$loginFeature:13: link_target_missing: link target flow.png is missing at docs/prds/features/f01_login/flow.png',
+        '$loginFeature:14: link_target_missing: link target flow.png is missing at docs/prds/features/f01_login/flow.png',
       ]);
     });
 
@@ -270,7 +270,7 @@ void main() {
         extra: linking('![flow](flow%20chart.png#top)'),
       );
       expect(await missingOf(missing), [
-        '$loginFeature:13: link_target_missing: link target flow%20chart.png#top is missing at docs/prds/features/f01_login/flow chart.png',
+        '$loginFeature:14: link_target_missing: link target flow%20chart.png#top is missing at docs/prds/features/f01_login/flow chart.png',
       ]);
       final present = await writeCheckProject(
         extra: {...linking('![flow](flow%20chart.png#top)'), picture: 'png'},
@@ -283,7 +283,7 @@ void main() {
         extra: linking('![a](a.png?raw=1)'),
       );
       expect(await missingOf(missing), [
-        '$loginFeature:13: link_target_missing: link target a.png?raw=1 is missing at docs/prds/features/f01_login/a.png',
+        '$loginFeature:14: link_target_missing: link target a.png?raw=1 is missing at docs/prds/features/f01_login/a.png',
       ]);
       final present = await writeCheckProject(
         extra: {
@@ -329,7 +329,7 @@ void main() {
       final project = await writeCheckProject(extra: linking('[g](gone.md)'));
       expect(await missingOf(project), isEmpty);
       expect(spots(await checkOf(project), FindingKind.linkUnresolved), [
-        '$loginFeature:13: link_unresolved',
+        '$loginFeature:14: link_unresolved',
       ]);
     });
   });
@@ -361,8 +361,8 @@ void main() {
       ),
     );
     expect(spots(report), [
-      '$loginFeature:13: link_unresolved',
       '$loginFeature:14: link_unresolved',
+      '$loginFeature:15: link_unresolved',
     ]);
   });
 
@@ -378,7 +378,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:13: link_unresolved: link target ../../../notes/gone.md is no doc',
+      '$loginFeature:14: link_unresolved: link target ../../../notes/gone.md is no doc',
     );
   });
 
@@ -396,7 +396,7 @@ void main() {
       );
       expect(
         report.findings.single.textLine,
-        '$loginFeature:13: link_unresolved: link target gone one.md is no doc',
+        '$loginFeature:14: link_unresolved: link target gone one.md is no doc',
       );
     },
   );
@@ -413,7 +413,7 @@ void main() {
     );
     expect(
       report.findings.single.textLine,
-      '$loginFeature:14: link_unresolved: link target ไทย.md is no doc',
+      '$loginFeature:15: link_unresolved: link target ไทย.md is no doc',
     );
   });
 
@@ -432,8 +432,8 @@ void main() {
       expect(
         [for (final f in report.findings) f.textLine],
         [
-          '$loginFeature:13: link_unresolved: link target y.md is no doc',
-          '$loginFeature:14: link_unresolved: link target x.md is no doc',
+          '$loginFeature:14: link_unresolved: link target y.md is no doc',
+          '$loginFeature:15: link_unresolved: link target x.md is no doc',
         ],
       );
     },
@@ -452,8 +452,8 @@ void main() {
     expect(
       [for (final f in report.findings) f.textLine],
       [
-        '$loginFeature:13: link_unresolved: link target gone-a.md is no doc',
-        '$loginFeature:16: link_unresolved: link target gone-b.md is no doc',
+        '$loginFeature:14: link_unresolved: link target gone-a.md is no doc',
+        '$loginFeature:17: link_unresolved: link target gone-b.md is no doc',
       ],
     );
   });
@@ -473,8 +473,8 @@ void main() {
       expect(
         [for (final f in report.findings) f.textLine],
         [
-          '$loginFeature:13: link_unresolved: link target x(1).md is no doc',
-          '$loginFeature:14: link_unresolved: link target gone.md is no doc',
+          '$loginFeature:14: link_unresolved: link target x(1).md is no doc',
+          '$loginFeature:15: link_unresolved: link target gone.md is no doc',
         ],
       );
     },
@@ -562,8 +562,8 @@ void main() {
         ),
       );
       expect(textOf(findings), [
-        '$loginFeature:13: link_anchor_missing: link target ../../d03_non_functional.md#performance names anchor performance, which $d03 does not hold',
-        '$loginFeature:13: link_unresolved: link target gone.md#performance is no doc',
+        '$loginFeature:14: link_anchor_missing: link target ../../d03_non_functional.md#performance names anchor performance, which $d03 does not hold',
+        '$loginFeature:14: link_unresolved: link target gone.md#performance is no doc',
       ]);
       expect(keysOf(findings), [
         {
@@ -666,7 +666,7 @@ void main() {
           if (f.kind == FindingKind.docRefDuplicate) f,
       ];
       expect(textOf(repeats), [
-        '$checkout:9: doc_ref_duplicate: depends_on holds login a second time',
+        '$checkout:10: doc_ref_duplicate: depends_on holds login a second time',
       ]);
       expect(keysOf(repeats), [
         {'field': 'depends_on', 'value': 'login'},
@@ -688,7 +688,7 @@ void main() {
         ),
       );
       expect(textOf(findings), [
-        '$loginFeature:8: doc_ref_self: depends_on value login names the doc that holds it',
+        '$loginFeature:9: doc_ref_self: depends_on value login names the doc that holds it',
       ]);
       expect(keysOf(findings), [
         {'field': 'depends_on', 'value': 'login'},
@@ -703,8 +703,8 @@ void main() {
         ),
       );
       expect(textOf(findings), [
-        '$loginFeature:13: link_unresolved: link target a%zz.md is no doc',
-        '$loginFeature:13: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL parser fails on it',
+        '$loginFeature:14: link_unresolved: link target a%zz.md is no doc',
+        '$loginFeature:14: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL parser fails on it',
       ]);
       expect(keysOf(findings), [
         {'target': 'a%zz.md'},
@@ -782,7 +782,7 @@ void main() {
       expect(
         [for (final f in findings) f.textLine],
         [
-          '$loginFeature:13: doc_name_unresolved: doc name fr:login/email_login/check_pasword#statement names no doc',
+          '$loginFeature:14: doc_name_unresolved: doc name fr:login/email_login/check_pasword#statement names no doc',
         ],
       );
       expect(
@@ -808,7 +808,7 @@ void main() {
       expect(
         [for (final f in findings) f.textLine],
         [
-          '$loginFeature:17: doc_name_unresolved: doc name login/email_login/check_pasword names no doc',
+          '$loginFeature:18: doc_name_unresolved: doc name login/email_login/check_pasword names no doc',
         ],
       );
       expect(
@@ -1382,7 +1382,7 @@ void main() {
         ),
       );
       expect([for (final f in findings) f.kind], [FindingKind.linkItemMissing]);
-      expect(findings.single.line, 13);
+      expect(findings.single.line, 14);
       expect(findings.single.waitsFor, WaitsFor.agent);
       expect(findings.single.keys, {
         'target': gnfrPerformance,
@@ -1502,7 +1502,7 @@ void main() {
           {'target': gnfrPerformance, 'item': 'NFR-P09'},
         ],
       );
-      expect(findings.single.line, 15);
+      expect(findings.single.line, 16);
     });
 
     test(

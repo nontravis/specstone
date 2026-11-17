@@ -3592,7 +3592,7 @@ void main() {
     test('f02/us01/fr03/e13: empty stdin removes a written feature status under --target and the check reports none', () async {
       final root = await writeTwinProject(
         extra: check.edit(check.loginFeature, [
-          ('---\nvision:', '---\nstatus: implemented\nvision:'),
+          ('---\nsummary:', '---\nstatus: implemented\nsummary:'),
         ]),
       );
       const address = 'feature:login';

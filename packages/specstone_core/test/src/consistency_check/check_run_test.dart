@@ -62,7 +62,8 @@ void main() {
           'verify_method: test\n',
           '',
         ),
-        'docs/prds/features/f02_signup/FEATURE.md': '# Sign up\n',
+        'docs/prds/features/f02_signup/FEATURE.md':
+            '---\nsummary: Lets a visitor sign up.\n---\n\n# Sign up\n',
         'docs/prds/features/f02_signup/us01_create/fr01_store.md':
             '---\ntraced_from:\n  - S1\n---\n\n# Store\n',
       },

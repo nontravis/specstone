@@ -301,13 +301,13 @@ void main() {
     expect(await text.runner.run(['check']), 1);
     expect(
       text.out.toString(),
-      '$loginFeature:8: doc_ref_self: depends_on value login names the doc that holds it\n'
-      '$loginFeature:9: doc_ref_duplicate: depends_on holds login a second time\n'
       '$loginFeature:9: doc_ref_self: depends_on value login names the doc that holds it\n'
-      '$loginFeature:16: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
+      '$loginFeature:10: doc_ref_duplicate: depends_on holds login a second time\n'
+      '$loginFeature:10: doc_ref_self: depends_on value login names the doc that holds it\n'
+      '$loginFeature:17: link_anchor_missing: link target ../../GNFR.md#speed names anchor speed, which '
       '$gnfrDoc does not hold\n'
-      '$loginFeature:16: link_self: link target FEATURE.md names the doc that holds it\n'
-      '$loginFeature:16: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
+      '$loginFeature:17: link_self: link target FEATURE.md names the doc that holds it\n'
+      '$loginFeature:17: reference_malformed: link target http://h:abc/x.md cannot be read: the WHATWG URL '
       'parser fails on it\n'
       '6 findings\n',
     );

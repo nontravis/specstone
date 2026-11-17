@@ -117,13 +117,13 @@ Map<String, String> checkProjectFiles() => {
       '| Date | Version | Run | Resets | Met |\n|---|---|---|---|---|\n\n'
       '## Open causes\n\nN/A\n',
   'docs/$goalDoc': '# Project goals\n\n## Long-term goals\n\n### PG-01 — Fewer resets\n\n**Serves:** PV-01\nHalve the password resets.\n',
-  'docs/prds/FEATURES.md': '# Features\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
+  'docs/prds/FEATURES.md': '# Features\n\n## Features\n\nOne feature.\n\n## System interaction diagram\n\nOne system.\n\n## Systems\n\n- Login\n',
   'docs/$gnfrDoc':
       '# Project-wide requirements\n\n## Performance\n\n### NFR-P01 — Sign-in time\n\n'
       '$loginNfrStatement\n- **Rationale:** Users wait.\n\n'
       '${const ['Security', 'Reliability', 'Maintainability', 'Interface', 'Environment', 'Safety', 'Operability', 'Design standards'].map((h) => '## $h\n\nN/A — none applies.\n').join('\n')}',
   'docs/$loginFeature':
-      '---\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n\n# Login\n\n'
+      '---\nsummary: Lets an agent sign in.\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n\n# Login\n\n'
       '## Problem\n\nUsers forget passwords.\n\n## Benefit hypothesis\n\nFewer resets.\n\n'
       '## Success measures\n\nResets per week.\n\n## Current alternatives\n\nEmail links.\n\n'
       '## Feature flow\n\nSign in, then work.\n\n## Out-of-scope\n\n- Social sign-in — not planned\n',

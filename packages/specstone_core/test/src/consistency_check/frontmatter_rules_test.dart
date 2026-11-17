@@ -104,8 +104,8 @@ void main() {
         extra: {
           'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
               .replaceFirst(
-                '---\nvision:',
-                '---\nstatus: implemented\nvision:',
+                '---\nsummary:',
+                '---\nstatus: implemented\nsummary:',
               ),
         },
       ),
@@ -187,8 +187,8 @@ void main() {
               ...recordProject(''),
               'docs/$loginFeature': checkProjectFiles()['docs/$loginFeature']!
                   .replaceFirst(
-                    '---\nvision:',
-                    '---\nstatus: implemented\nvision:',
+                    '---\nsummary:',
+                    '---\nstatus: implemented\nsummary:',
                   ),
             },
           ),
@@ -443,8 +443,8 @@ void main() {
     const groups = 'lint:\n  required_field_groups:\n    - [vision, goals]\n';
     final feature = checkProjectFiles()['docs/$loginFeature']!;
     final noKeys = feature.replaceFirst(
-      '---\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n',
-      '---\n---\n',
+      '---\nsummary: Lets an agent sign in.\nvision:\n  - PV-01\ngoals:\n  - PG-01\n---\n',
+      '---\nsummary: Lets an agent sign in.\n---\n',
     );
 
     test(
@@ -509,8 +509,8 @@ void main() {
         await writeCheckProject(
           extra: {
             'docs/$loginFeature': feature.replaceFirst(
-              '---\nvision:',
-              '---\nsystem: Watch app\nvision:',
+              '---\nsummary:',
+              '---\nsystem: Watch app\nsummary:',
             ),
           },
         ),
