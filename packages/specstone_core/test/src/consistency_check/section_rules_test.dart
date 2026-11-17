@@ -189,6 +189,90 @@ void main() {
     expect(spots(report, FindingKind.linesOverLimit), isEmpty);
   });
 
+  group('a record with a matrix section', () {
+    const head =
+        "---\nstatuses:\n  - 'email_login:implemented'\n---\n\n"
+        '# Login implementation\n\n';
+    const itemCap = 600;
+    String row(int number, {int nameLength = 76}) {
+      final name = '${'n' * (nameLength - 6)}${'$number'.padLeft(6, '0')}';
+      return '- email_login/check_password E01: `$name`';
+    }
+
+    String recordOf(Iterable<String> rows) =>
+        '$head${'x\n' * 40}\n## Verification matrix\n\n${rows.join('\n')}\n';
+
+    test(
+      'over the doc caps only by its matrix gives no size finding',
+      () async {
+        final record = recordOf([for (var i = 0; i < 700; i++) row(i)]);
+        expect(
+          record.length,
+          greaterThan(60000),
+          reason: 'the rows alone pass the character cap',
+        );
+        final report = await checkOf(
+          await writeCheckProject(
+            extra: {loginRecord: record},
+            unstamped: {loginRecord},
+          ),
+        );
+        expect(spots(report, FindingKind.linesOverLimit), isEmpty);
+        expect(spots(report, FindingKind.charsOverLimit), isEmpty);
+      },
+    );
+
+    test('over its own limit still gives its finding', () async {
+      final record = recordOf([for (var i = 0; i < 6; i++) row(i)]);
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {
+            loginRecord: record,
+            '.specstone/templates/implementation.yaml':
+                'sections:\n  - id: verification_matrix\n    lint:\n'
+                '      max_lines: 5\n',
+          },
+          unstamped: {loginRecord},
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.linesOverLimit,
+      );
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('section', 'verification_matrix'),
+          containsPair('limit', 5),
+          containsPair('actual', 7),
+        ),
+      );
+    });
+
+    test('with a row over the item cap still gives its finding', () async {
+      final long = row(1, nameLength: 640);
+      final record = recordOf([row(0), long]);
+      final report = await checkOf(
+        await writeCheckProject(
+          extra: {loginRecord: record},
+          unstamped: {loginRecord},
+        ),
+      );
+      final finding = report.findings.singleWhere(
+        (f) => f.kind == FindingKind.itemOverLimit,
+      );
+      expect(finding.path, loginRecord);
+      expect(finding.line, record.split('\n').indexOf(long) + 1);
+      expect(
+        finding.toJson(),
+        allOf(
+          containsPair('section', 'verification_matrix'),
+          containsPair('limit', itemCap),
+          containsPair('actual', greaterThan(itemCap)),
+        ),
+      );
+    });
+  });
+
   test('a section over its own limit is reported at its header, the doc limit aside', () async {
     final report = await checkOf(
       await writeCheckProject(
