@@ -14,6 +14,7 @@ import 'package:specstone_core/src/index_query/item_facts.dart';
 import 'package:specstone_core/src/index_query/item_words.dart'
     show RuleItemWords;
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/mermaid_blocks.dart'
     show mermaidSourcesOf;
 import 'package:specstone_core/src/index_query/section_counts.dart';
@@ -121,6 +122,7 @@ final class IndexedDoc {
     this.approvalHash,
     this.order = 0,
     this.warnings = const [],
+    this.matrixLines = const [],
   });
 
   /// The path of the doc relative to the docs root.
@@ -172,6 +174,10 @@ final class IndexedDoc {
 
   /// What went wrong while reading the doc, one sentence each.
   final List<String> warnings;
+
+  /// The lines of the doc's Verification matrix section, in file order; empty
+  /// for a doc that is no record, or whose record holds no such section.
+  final List<MatrixLine> matrixLines;
 
   /// Whether exactly one doc type matches [docPath].
   bool get isTyped => docTypeId != null;
@@ -391,6 +397,9 @@ ParsedDoc parseIndexedDoc({
             statusesOutside: statusesOutside,
           ),
     warnings: warnings,
+    matrixLines: docType == null
+        ? const []
+        : matrixLinesOfDoc(doc, lfText, docType),
   );
   return ParsedDoc(indexed, content, contentHashOf(bytes));
 }

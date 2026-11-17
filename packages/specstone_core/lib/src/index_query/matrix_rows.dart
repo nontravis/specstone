@@ -1,7 +1,7 @@
 import 'package:specstone_core/src/doc_model/code_spans.dart';
 import 'package:specstone_core/src/doc_model/doc.dart';
-import 'package:specstone_core/src/index_query/indexed_doc.dart';
 import 'package:specstone_core/src/index_query/line_facts.dart';
+import 'package:specstone_core/src/rendering/formatter.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 /// One non-blank line of a record's Verification matrix section: a row, or a
@@ -9,8 +9,36 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 sealed class MatrixLine {
   const new({required this.line});
 
+  /// Reads the line [toJson] wrote.
+  ///
+  /// Throws a [FormatException] for a `kind` that names no line.
+  factory fromJson(Map<String, Object?> json) {
+    final line = json['line']! as int;
+    return switch (json['kind']) {
+      'test' => TestRow(
+        item: json['item']! as String,
+        edgeCase: json['edgeCase']! as String,
+        literal: json['literal']! as String,
+        fingerprint: json['fingerprint'] as String?,
+        line: line,
+      ),
+      'skip' => SkipRow(
+        item: json['item']! as String,
+        edgeCase: json['edgeCase']! as String,
+        reason: json['reason']! as String,
+        fingerprint: json['fingerprint'] as String?,
+        line: line,
+      ),
+      'malformed' => MalformedRow(line: line, text: json['text']! as String),
+      final kind => throw FormatException('no matrix line of kind $kind'),
+    };
+  }
+
   /// The 1-based file line.
   final int line;
+
+  /// The line as the index stores it.
+  Map<String, Object?> toJson();
 }
 
 /// A section line that is neither a test row nor a skip row.
@@ -28,6 +56,13 @@ final class MalformedRow extends MatrixLine {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
   int get hashCode => Object.hash(line, text);
+
+  @override
+  Map<String, Object?> toJson() => {
+    'kind': 'malformed',
+    'line': line,
+    'text': text,
+  };
 
   @override
   String toString() => 'MalformedRow(line: $line, text: $text)';
@@ -84,6 +119,16 @@ final class TestRow extends MatrixRow {
   int get hashCode => Object.hash(item, edgeCase, literal, fingerprint, line);
 
   @override
+  Map<String, Object?> toJson() => {
+    'kind': 'test',
+    'item': item,
+    'edgeCase': edgeCase,
+    'literal': literal,
+    'fingerprint': fingerprint,
+    'line': line,
+  };
+
+  @override
   String toString() =>
       'TestRow(item: $item, edgeCase: $edgeCase, literal: $literal, '
       'fingerprint: $fingerprint, line: $line)';
@@ -115,6 +160,16 @@ final class SkipRow extends MatrixRow {
   @override
   // ignore: avoid_equals_and_hash_code_on_mutable_classes // all fields final
   int get hashCode => Object.hash(item, edgeCase, reason, fingerprint, line);
+
+  @override
+  Map<String, Object?> toJson() => {
+    'kind': 'skip',
+    'item': item,
+    'edgeCase': edgeCase,
+    'reason': reason,
+    'fingerprint': fingerprint,
+    'line': line,
+  };
 
   @override
   String toString() =>
@@ -222,16 +277,25 @@ SkipRow? _skipRowOf(String text, int line) {
 /// Returns each non-blank line of the Verification matrix section of
 /// [lfText], a doc of [recordType], through [parseMatrixLine], in file order.
 ///
-/// The section is found by [verificationMatrixKey] on [recordType], a header
-/// that names it by its template. Empty when [recordType] has no enabled
-/// matrix section or [lfText] holds none.
-List<MatrixLine> matrixLinesIn(String lfText, MergedDocType recordType) {
-  if (verificationMatrixOf(recordType) == null) return const [];
-  final doc = Doc.parse(lfText);
-  final at = indexedSectionsOf(
-    doc,
-    recordType,
-  ).indexWhere((section) => section.key == verificationMatrixKey);
+/// The section is the one whose header is the header of the matrix section of
+/// [recordType] ([verificationMatrixOf]). Empty when [recordType] has no
+/// enabled matrix section or [lfText] holds none.
+List<MatrixLine> matrixLinesIn(String lfText, MergedDocType recordType) =>
+    matrixLinesOfDoc(Doc.parse(lfText), lfText, recordType);
+
+/// Returns the lines [matrixLinesIn] gives for [lfText], already parsed as
+/// [doc], so a caller that holds the parse reads it once.
+List<MatrixLine> matrixLinesOfDoc(
+  Doc doc,
+  String lfText,
+  MergedDocType recordType,
+) {
+  final matrix = verificationMatrixOf(recordType);
+  if (matrix == null) return const [];
+  final header = headerKey(matrix.header);
+  final at = doc.sections.indexWhere(
+    (section) => headerKey(section.headerText) == header,
+  );
   if (at < 0) return const [];
   final headerLine =
       linesBeforeBodyOf(doc, lfText) + doc.sectionLineIndexes[at] + 1;

@@ -41,8 +41,7 @@ final class RecordEntry {
   final List<String> testPaths;
 
   /// The item's rows of the record's Verification matrix, in file order; a
-  /// malformed line names no item, so it holds none. Empty when the record's
-  /// text was not given to [recordEntriesOf].
+  /// malformed line names no item, so it holds none.
   final List<MatrixRow> matrixRows;
 
   @override
@@ -80,17 +79,13 @@ final class RecordEntry {
 /// the `record_status` field's lines give each item, its status,
 /// and, for `skipped`, its reason; the `item_exact` `output_ref` field's lines
 /// give each item's code paths; the `tests` field's lines give each item's
-/// test paths, their path part alone. [lfText], the record's text in LF, gives
-/// each item's matrix rows ([matrixLinesIn]); without it no entry holds rows.
+/// test paths, their path part alone; the record's matrix rows
+/// ([IndexedDoc.matrixLines]) give each item's rows.
 ///
 /// An entry appears for every item any field or row names, in the `statuses`
 /// order; a line that names no item yields none. Invalid YAML frontmatter
-/// holds no values, so it holds no entries.
-List<RecordEntry> recordEntriesOf(
-  IndexedDoc record,
-  MergedDocType recordType, {
-  String? lfText,
-}) {
+/// holds no values, so it holds no field entries.
+List<RecordEntry> recordEntriesOf(IndexedDoc record, MergedDocType recordType) {
   final statusField = recordStatusFieldOf(recordType);
   final codeField = recordCodeFieldOf(recordType);
   final testField = recordTestFieldOf(recordType);
@@ -134,19 +129,17 @@ List<RecordEntry> recordEntriesOf(
       );
     }
   }
-  if (lfText != null) {
-    for (final row in matrixLinesIn(lfText, recordType)) {
-      if (row is! MatrixRow) continue;
-      final current = baseOf(row.item);
-      byItem[row.item] = RecordEntry(
-        item: row.item,
-        status: current.status,
-        reason: current.reason,
-        codePaths: current.codePaths,
-        testPaths: current.testPaths,
-        matrixRows: [...current.matrixRows, row],
-      );
-    }
+  for (final row in record.matrixLines) {
+    if (row is! MatrixRow) continue;
+    final current = baseOf(row.item);
+    byItem[row.item] = RecordEntry(
+      item: row.item,
+      status: current.status,
+      reason: current.reason,
+      codePaths: current.codePaths,
+      testPaths: current.testPaths,
+      matrixRows: [...current.matrixRows, row],
+    );
   }
   return [for (final entry in byItem.values) entry];
 }

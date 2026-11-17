@@ -60,12 +60,17 @@ String _matrixRecord(List<String> rows) =>
     '## Verification matrix\n\n'
     '${rows.join('\n')}\n';
 
-/// Parses the record at [path] with [text] under a two-target project.
-IndexedDoc _record(String path, String text) => parseIndexedDoc(
+/// Parses the record at [path] with [text] under a two-target project whose
+/// record doc type is [type].
+IndexedDoc _record(
+  String path,
+  String text, {
+  MergedDocType type = _recordType,
+}) => parseIndexedDoc(
   docPath: path,
   bytes: utf8.encode(text),
   match: DocTypeMatcher(
-    MergedSet(docTypes: [_recordType]),
+    MergedSet(docTypes: [type]),
     targetNames: const ['flutter', 'jaspr'],
   ).match(path),
   statusesOutside: true,
@@ -475,9 +480,9 @@ void main() {
         'stray',
         '- show_toast/queue_toasts E03: `drops a toast`',
       ]);
-      final doc = _record(_matrixPath, text);
+      final doc = _record(_matrixPath, text, type: _matrixRecordType);
 
-      expect(recordEntriesOf(doc, _matrixRecordType, lfText: text), const [
+      expect(recordEntriesOf(doc, _matrixRecordType), const [
         RecordEntry(
           item: 'show_toast/queue_toasts',
           status: RecordStatus.implemented,
@@ -508,9 +513,9 @@ void main() {
 
     test('an item that only rows name gets an entry', () {
       final text = _matrixRecord(['- show_toast/pin_toast E01: `pins`']);
-      final doc = _record(_matrixPath, text);
+      final doc = _record(_matrixPath, text, type: _matrixRecordType);
 
-      expect(recordEntriesOf(doc, _matrixRecordType, lfText: text), const [
+      expect(recordEntriesOf(doc, _matrixRecordType), const [
         RecordEntry(
           item: 'show_toast/queue_toasts',
           status: RecordStatus.implemented,
@@ -529,18 +534,30 @@ void main() {
       ]);
     });
 
-    test('an entry holds no rows when no text is given', () {
+    test('a record of a type without the section holds no matrix lines', () {
       final doc = _record(
         _matrixPath,
         _matrixRecord(['- show_toast/queue_toasts E01: `queues`']),
       );
 
-      expect(recordEntriesOf(doc, _matrixRecordType), const [
+      expect(doc.matrixLines, isEmpty);
+      expect(recordEntriesOf(doc, _recordType), const [
         RecordEntry(
           item: 'show_toast/queue_toasts',
           status: RecordStatus.implemented,
         ),
       ]);
+    });
+
+    test('an indexed CRLF record holds the lines of its LF twin, malformed '
+        'lines included', () {
+      final rows = ['- show_toast E01: `queues a toast` 3f9a1c0b7e2d', 'stray'];
+      final crlf = _matrixRecord(rows).replaceAll('\n', '\r\n');
+
+      expect(
+        _record(_matrixPath, crlf, type: _matrixRecordType).matrixLines,
+        linesOf(rows),
+      );
     });
 
     test('entries with rows that differ in any field are not equal', () {

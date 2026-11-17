@@ -8,8 +8,11 @@ import 'package:specstone_core/src/index_query/diagram_parse.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
 import 'package:specstone_core/src/index_query/index_store.dart';
 import 'package:specstone_core/src/index_query/indexed_doc.dart';
+import 'package:specstone_core/src/index_query/matrix_rows.dart';
 import 'package:specstone_core/src/index_query/refresh.dart';
 import 'package:specstone_core/src/rendering/docs_project.dart';
+import 'package:specstone_core/src/templates/doc_type_layer.dart'
+    show FieldType;
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
 import 'package:specstone_core/src/templates/pattern_entry.dart';
@@ -529,6 +532,71 @@ void main() {
         jsonEncode(facts.toJson()),
         jsonEncode(written.content.itemFacts.toJson()),
       );
+    });
+    test('a record loads back, after a reopen, with the matrix lines it was '
+        'written with, a CRLF record included', () async {
+      const recordType = MergedDocType(
+        id: 'implementation',
+        path: 'specs/f{nn}_{slug}/IMPLEMENTATION.md',
+        fields: [
+          MergedField(id: 'statuses', type: FieldType.recordStatus, list: true),
+        ],
+        sections: [
+          MergedSection(
+            id: verificationMatrixKey,
+            header: 'Verification matrix',
+            isOutputRef: true,
+          ),
+        ],
+        lint: MergedLint(),
+        files: [],
+      );
+      const text =
+          '---\nstatuses:\n  - show_toast:implemented\n---\n\n# T\n\n'
+          '## Verification matrix\n\n'
+          '- show_toast E01: `` a`b\$c\\d `` 3f9a1c0b7e2d\n'
+          '- show_toast E02 skipped: no clock on CI\n'
+          'stray\n';
+      ParsedDoc record(String path, String body) => parseIndexedDoc(
+        docPath: path,
+        bytes: utf8.encode(body),
+        match: DocTypeMatcher(
+          MergedSet(docTypes: [recordType]),
+          targetNames: const [],
+        ).match(path),
+        statusesOutside: true,
+      );
+      final r = await root();
+      final first = IndexStore.open(r);
+      final lf = record('specs/f01_a/IMPLEMENTATION.md', text);
+      final crlf = record(
+        'specs/f02_b/IMPLEMENTATION.md',
+        text.replaceAll('\n', '\r\n'),
+      );
+      first.write(() {
+        first
+          ..reset(
+            const IndexStamp(binaryVersion: specstoneVersion, docTypes: 'x'),
+          )
+          ..putDoc(lf)
+          ..putDoc(crlf);
+      });
+      first.close();
+
+      final store = IndexStore.open(r);
+      addTearDown(store.close);
+      final loaded = {
+        for (final doc in store.loadDocs()) doc.docPath: doc.matrixLines,
+      };
+
+      expect(lf.doc.matrixLines, [
+        isA<TestRow>().having((row) => row.literal, 'literal', r'a`b$c\d'),
+        isA<SkipRow>(),
+        isA<MalformedRow>(),
+      ]);
+      expect(loaded['specs/f01_a/IMPLEMENTATION.md'], lf.doc.matrixLines);
+      expect(loaded['specs/f02_b/IMPLEMENTATION.md'], crlf.doc.matrixLines);
+      expect(loaded['specs/f02_b/IMPLEMENTATION.md'], lf.doc.matrixLines);
     });
     test('readability facts round-trip through json', () async {
       final doc = (await resolveSoftwareTech()).lookup('feature')!;
