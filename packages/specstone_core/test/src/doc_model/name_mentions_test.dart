@@ -380,39 +380,6 @@ void main() {
     });
   });
 
-  group('nameMentionsInComments', () {
-    test('doc_model RULE-11: only a comment line is read, each line alone', () {
-      final mentions = nameMentionsInComments(
-        '/// Lays out `login/email_login`.\n'
-            'final a = `login/email_login`;\n'
-            '  // see `feature:login#goal`\n'
-            'x(); // `login/email_login`\n'
-            '// `login/\n'
-            '// email_login`\n',
-        '.dart',
-      );
-      expect(
-        [for (final m in mentions) (m.line, m.column, m.text)],
-        [(1, 14, 'login/email_login'), (3, 10, 'feature:login#goal')],
-      );
-    });
-
-    test('doc_model RULE-11: a bare one-slug span in a comment is no '
-        'mention', () {
-      expect(nameMentionsInComments('// say `login`\n', '.dart'), isEmpty);
-    });
-
-    test(
-      'doc_model RULE-11: a file of an extension with no mark holds none',
-      () {
-        expect(
-          nameMentionsInComments('// `login/email_login`\n', '.c'),
-          isEmpty,
-        );
-      },
-    );
-  });
-
   group('nameMentionsInFile', () {
     test('doc_model RULE-11: markdown is read after its frontmatter, outside '
         'fenced code, at the lines of the file', () {
@@ -430,6 +397,10 @@ void main() {
         '.sh',
       );
       expect([for (final m in mentions) m.line], [1]);
+    });
+
+    test('a file of an extension with no comment mark holds none', () {
+      expect(nameMentionsInFile('// `login/email_login`\n', '.c'), isEmpty);
     });
 
     test('a comment line holds a doc path, plain or in a code span, with its '
