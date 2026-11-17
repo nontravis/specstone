@@ -808,6 +808,7 @@ void main() {
     TypeMatcher<TemplateFault> refusedInConfig(String messagePart) =>
         isA<TemplateFault>()
             .having((f) => f.code, 'code', FaultCode.unknownValue)
+            .having((f) => f.code.exitStatus, 'exitStatus', 78)
             .having((f) => f.file, 'file', '.specstone/config.yaml')
             .having((f) => f.key, 'key', 'verification_coverage')
             .having((f) => f.message, 'message', contains(messagePart));
@@ -827,34 +828,45 @@ void main() {
       );
     });
 
-    test('coverage on without an enabled matrix section is refused naming the '
-        'pack version', () {
-      // A project layer disables the section a pack ships.
-      expect(
-        () => check(
-          [record()],
-          {
-            'runbook': [
-              layerOf('runbook', matrixOn, file: _epicFile),
-              layerOf(
-                'runbook',
-                'sections:\n  - {id: verification_matrix, disabled: true}\n',
-              ),
-            ],
-          },
-          verificationCoverage: true,
+    /// The runbook merged over [layers], as the resolver folds them.
+    MergedDocType mergedRunbook(DocTypeLayers layers) {
+      var type = const DocTypeMerger().builtInBase('runbook');
+      for (final entry in layers) {
+        type = const DocTypeMerger().apply(type, entry.layer);
+      }
+      return type;
+    }
+
+    test('coverage on after a layer disables the matrix section is refused '
+        'naming the pack version', () {
+      final shipped = [layerOf('runbook', matrixOn, file: _epicFile)];
+      final layers = [
+        ...shipped,
+        layerOf(
+          'runbook',
+          'sections:\n  - {id: verification_matrix, disabled: true}\n',
         ),
+      ];
+      // The section was there and the project layer took it away.
+      expect(verificationMatrixOf(mergedRunbook(shipped)), isNotNull);
+      final disabled = mergedRunbook(layers);
+      expect(verificationMatrixOf(disabled), isNull);
+
+      expect(
+        () =>
+            check([disabled], {'runbook': layers}, verificationCoverage: true),
         throwsA(refusedInConfig('software-tech 1.13.0')),
       );
-      // A record doc type from a personal pack that has no matrix section.
+    });
+
+    test('coverage on with a record doc type that never had the matrix '
+        'section is refused naming the pack version', () {
+      final layers = [layerOf('runbook', recordKeys, file: personalFile)];
+      final lacking = mergedRunbook(layers);
+      expect(lacking.sections, isEmpty);
+
       expect(
-        () => check(
-          [record()],
-          {
-            'runbook': [layerOf('runbook', recordKeys, file: personalFile)],
-          },
-          verificationCoverage: true,
-        ),
+        () => check([lacking], {'runbook': layers}, verificationCoverage: true),
         throwsA(refusedInConfig('software-tech 1.13.0')),
       );
     });
@@ -868,7 +880,12 @@ void main() {
           },
           verificationCoverage: true,
         ),
-        throwsA(refusedInConfig('record')),
+        throwsA(
+          refusedInConfig(
+            'verification coverage reads a record, and this merged set holds '
+            'no record doc type',
+          ),
+        ),
       );
     });
 
