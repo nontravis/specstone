@@ -2887,7 +2887,7 @@ const Map<String, String> shippedPackFilesBase64 = {
       'djEuMC4yL2Nsb3VkZXZlbnRzL3NwZWMubWQKICAgIGxvY2F0b3I6IFJFUVVJUkVE'
       'IEF0dHJpYnV0ZXMgKGlkLCBzb3VyY2UsIHR5cGUpCg==',
   'software-tech/pack.yaml':
-      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjExLjAKZXh0ZW5kczogcHJk'
+      'bmFtZTogc29mdHdhcmUtdGVjaAp2ZXJzaW9uOiAxLjEyLjAKZXh0ZW5kczogcHJk'
       'LWNvcmUKbWlncmF0aW9uczoKICAtIGZyb206IDEuNC4wCiAgICBzdGVwczoKICAg'
       'ICAgLSBtb3ZlX3RvX3JlY29yZDoKICAgICAgICAgIGRvY190eXBlczogW3VzZXJf'
       'c3RvcnksIGZyXQogICAgICAgICAgZmllbGRzOiBbc3RhdHVzLCBpbXBsZW1lbnRz'

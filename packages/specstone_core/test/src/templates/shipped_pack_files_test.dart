@@ -45,8 +45,8 @@ void main() {
     },
   );
 
-  test('the shipped software-tech pack is 1.11.0', () {
-    expect(shippedPackVersions()['software-tech'], '1.11.0');
+  test('the shipped software-tech pack is 1.12.0', () {
+    expect(shippedPackVersions()['software-tech'], '1.12.0');
   });
 
   group('template_packs/write_spec_docs_from_software_tech/'
