@@ -18,6 +18,13 @@ YamlMap _job(YamlMap workflow, String name) => _jobs(workflow)[name] as YamlMap;
 List<YamlMap> _steps(YamlMap job) =>
     (job['steps'] as YamlList).cast<YamlMap>().toList();
 
+List<YamlMap> _matrix(YamlMap workflow) =>
+    (((_job(workflow, 'build')['strategy'] as YamlMap)['matrix']
+                as YamlMap)['include']
+            as YamlList)
+        .cast<YamlMap>()
+        .toList();
+
 void main() {
   late YamlMap release;
   late YamlMap ci;
@@ -48,6 +55,52 @@ void main() {
     final call = _job(release, 'test');
     expect(call['uses'], './.github/workflows/ci.yaml');
     expect(call.containsKey('with'), isFalse);
+  });
+
+  test('build waits for test and publish waits for build', () {
+    expect(_job(release, 'build')['needs'], contains('test'));
+    expect(_job(release, 'publish')['needs'], contains('build'));
+  });
+
+  test('every build upload name matches the publish download pattern', () {
+    bool isUpload(YamlMap s) => '${s['uses']}'.startsWith('actions/upload-');
+    bool isDownload(YamlMap s) =>
+        '${s['uses']}'.startsWith('actions/download-');
+    final upload = _steps(_job(release, 'build')).firstWhere(isUpload);
+    final download = _steps(_job(release, 'publish')).firstWhere(isDownload);
+    final name = (upload['with'] as YamlMap)['name'] as String;
+    final pattern = (download['with'] as YamlMap)['pattern'] as String;
+    final glob = RegExp('^${RegExp.escape(pattern).replaceAll(r'\*', '.*')}\$');
+    for (final entry in _matrix(release)) {
+      final target = entry['target'] as String;
+      final uploaded = name.replaceAll(r'${{ matrix.target }}', target);
+      expect(glob.hasMatch(uploaded), isTrue, reason: target);
+    }
+  });
+
+  test('each build target and extension is the one its installer fetches', () {
+    for (final entry in _matrix(release)) {
+      final target = entry['target'] as String;
+      final ext = entry['ext'] as String;
+      final installer = ext == 'zip' ? 'install.ps1' : 'install.sh';
+      final text = File('${repoRoot().path}/$installer').readAsStringSync();
+      expect(text, contains("'$target'"), reason: '$installer $target');
+      expect(text, contains('specstone-\$target.$ext'), reason: installer);
+    }
+  });
+
+  test('build steps name their shell and platform consistently', () {
+    for (final step in _steps(_job(release, 'build'))) {
+      final run = '${step['run'] ?? ''}';
+      if (step['shell'] == 'pwsh') {
+        expect(step['if'], "runner.os == 'Windows'", reason: run);
+        expect(run, isNot(contains(r'$RUNNER_TEMP')), reason: run);
+      } else if (run.contains('tar -czf') ||
+          run.contains('install.sh') ||
+          run.contains('uninstall.sh')) {
+        expect(step['if'], "runner.os != 'Windows'", reason: run);
+      }
+    }
   });
 
   group('the version job script', () {
