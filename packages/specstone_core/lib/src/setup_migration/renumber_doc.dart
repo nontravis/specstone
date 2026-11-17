@@ -23,9 +23,6 @@ const _scenarioRefPrefix = 'S';
 /// One lettered ID of a doc and the number the renumber pass gives it.
 typedef LetteredItem = ({String docPath, IdAt item, String from, String to});
 
-/// A renumbering a reference names: the renumbered doc and its ID's change.
-typedef Renumbering = ({String docPath, String from, String to});
-
 /// Returns the `S<N>` ref of the scenario ID [id], `Scenario <N>`; any other
 /// ID as it is.
 String scenarioRefOf(String id) {

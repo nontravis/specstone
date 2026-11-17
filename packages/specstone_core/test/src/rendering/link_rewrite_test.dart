@@ -351,17 +351,11 @@ void main() {
       expect(ids, [for (final slug in slugs) 'doc-1-$slug']);
     });
 
-    test('resolve_links E12: a target the grammar cannot read shows as text '
-        'as written', () {
+    test('a malformed http target stays a web link', () {
       final html = body('[x](http://h:abc/x.md)');
 
-      expect(
-        html,
-        contains(
-          '<span class="outside-link">x (<code>http://h:abc/x.md</code>)</span>',
-        ),
-      );
-      expect(html, isNot(contains('<a href=')));
+      expect(html, contains('<a href="http://h:abc/x.md">'));
+      expect(html, isNot(contains('outside-link')));
     });
 
     test('resolve_links E11, P2: a title line inside a raw html block makes no '

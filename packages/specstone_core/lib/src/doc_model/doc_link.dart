@@ -23,15 +23,6 @@ final class DocTarget extends DocLinkTarget {
   final String? rawAnchor;
 }
 
-/// A target the grammar cannot read; [shown] is the href as
-/// written.
-final class UnreadableTarget extends DocLinkTarget {
-  new(this.shown);
-
-  /// The href as written.
-  final String shown;
-}
-
 /// Anything else: another scheme, a rooted path, or a path above the docs root.
 final class OutsideTarget extends DocLinkTarget {
   new(this.shown);
@@ -47,8 +38,6 @@ final class OutsideTarget extends DocLinkTarget {
 /// any other path.
 DocLinkTarget resolveDocLink(String href, String docPath) {
   switch (readLinkTarget(href)) {
-    case UnreadableLink():
-      return UnreadableTarget(href);
     case SchemeLink(:final scheme):
       return scheme == 'http' || scheme == 'https'
           ? WebTarget()

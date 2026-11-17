@@ -1,7 +1,6 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
     show headingItemTextOf;
 import 'package:specstone_core/src/doc_model/percent_decode.dart';
-import 'package:specstone_core/src/doc_model/whatwg_url.dart';
 
 /// A doc reference split into its parts; DocIndex
 /// resolves it.
@@ -440,10 +439,6 @@ bool _isHighSurrogate(int unit) => unit >= 0xD800 && unit <= 0xDBFF;
 /// A markdown link target read through the grammar.
 sealed class LinkTargetForm;
 
-/// A target the WHATWG URL parser fails on, the linking doc's file URL as
-/// its base: the only unreadable class.
-final class UnreadableLink extends LinkTargetForm;
-
 /// A target opening with a scheme, any scheme.
 final class SchemeLink extends LinkTargetForm {
   new(this.scheme);
@@ -483,10 +478,8 @@ final class RelativeLink extends LinkTargetForm {
   final int pathEnd;
 }
 
-/// Reads [href] as a link target form: only a target the WHATWG
-/// URL parser fails on with a `file:` base is unreadable.
+/// Reads [href] as a link target form; every target reads as one of them.
 LinkTargetForm readLinkTarget(String href) {
-  if (whatwgParseFails(href)) return UnreadableLink();
   final fragmentAt = href.indexOf('#');
   final beforeFragment = fragmentAt < 0 ? href : href.substring(0, fragmentAt);
   final rawAnchor = fragmentAt < 0 ? null : href.substring(fragmentAt + 1);
