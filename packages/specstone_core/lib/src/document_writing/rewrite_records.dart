@@ -2,12 +2,12 @@ import 'dart:convert';
 
 import 'package:specstone_core/src/doc_model/doc_path_shape.dart';
 import 'package:specstone_core/src/document_writing/models/new_record.dart';
+import 'package:specstone_core/src/document_writing/models/record_plan.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/new_doc.dart'
     show skeletonOf;
-import 'package:specstone_core/src/document_writing/rewrite_refs.dart'
-    show TextEdit;
 import 'package:specstone_core/src/document_writing/write_session.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/index_fault.dart';
@@ -18,12 +18,6 @@ import 'package:specstone_core/src/rendering/line_ending.dart';
 import 'package:specstone_core/src/rendering/render_fault.dart';
 import 'package:specstone_core/src/templates/merged_doc_type.dart';
 import 'package:specstone_core/src/templates/merged_set.dart';
-
-/// What a rename or a move does to the record entries of every code target:
-/// the edit of each record that renames or loses entries or gains some, by
-/// its DocPath before the moves, and the record it creates, as a draft, for
-/// entries that land where no record is.
-typedef RecordPlan = ({Map<String, TextEdit> edits, List<CreateStep> creates});
 
 /// Where a story or FR entry goes: the feature whose record takes it, and its
 /// name relative to that feature.
@@ -64,7 +58,7 @@ final class _Arrival {
 RecordPlan planRecordRewrites(WriteSession session, RenamedNames renamed) {
   final recordType = session.index.set.recordDocType;
   if (recordType == null || renamed.isEmpty) {
-    return (edits: const {}, creates: const []);
+    return const RecordPlan(edits: {}, creates: []);
   }
   return _Planner(session, recordType, renamed).plan();
 }
@@ -91,7 +85,7 @@ final class _Planner {
     for (final arrival in _arrivals.values) {
       if (_land(arrival) case final step?) creates.add(step);
     }
-    return (edits: _edits, creates: creates);
+    return RecordPlan(edits: _edits, creates: creates);
   }
 
   /// Plans the in-place renames and the departures of [record], the record of

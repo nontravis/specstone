@@ -16,6 +16,7 @@ import 'package:specstone_core/src/document_writing/key_block_values.dart';
 import 'package:specstone_core/src/document_writing/models/counted_rewrite.dart';
 import 'package:specstone_core/src/document_writing/models/path_move.dart';
 import 'package:specstone_core/src/document_writing/models/renamed_names.dart';
+import 'package:specstone_core/src/document_writing/models/text_edit.dart';
 import 'package:specstone_core/src/document_writing/models/typed_name.dart';
 import 'package:specstone_core/src/document_writing/move_journal.dart';
 import 'package:specstone_core/src/document_writing/moved_paths.dart';
@@ -37,9 +38,6 @@ import 'package:specstone_core/src/templates/merged_doc_type.dart';
 
 export 'package:specstone_core/src/document_writing/moved_paths.dart'
     show movedPath, relativeHref;
-
-/// Rewrites the LF text of a doc; null when nothing changes.
-typedef TextEdit = String? Function(String lfText);
 
 /// The [TypedName] of each doc whose Name changes, by the DocPath the doc has
 /// before the moves.
