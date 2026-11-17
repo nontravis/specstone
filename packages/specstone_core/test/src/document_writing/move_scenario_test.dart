@@ -683,6 +683,46 @@ void main() {
       expect(_docs(root), before);
     });
 
+    test('a quoted scenario heading is the scenario check keys and move locates, and it lands renumbered with its entry re-stamped', () async {
+      String quoted(int number) =>
+          '> ### Scenario $number — [edge] Case 3\n\n'
+          '- **Given** a cart in case 3';
+      final root = await _project(
+        add: [_scenario(1), _scenario(2), quoted(3)],
+        drop: _scenarios(3),
+        extra: {
+          'docs/$cartAddFr': _fr(
+            'check the stock',
+            ['S3'],
+            ['S3 ${fingerprintFor(quoted(3))}'],
+          ),
+        },
+      );
+      expect(
+        [
+          for (final finding in checkOf(root, docPath: cartAddFr).findings)
+            if (finding.keys['link'] == 'S3') finding.kind,
+        ],
+        isEmpty,
+        reason: 'check reads the quoted block as S3 and finds it clean',
+      );
+      final answer = _move(root, ['$_addItem#S3']);
+      expect(answer.text, startsWith('moved $cartAdd#S3 to $cartDrop#S4\n'));
+      expect(
+        _bodyOf(root, cartDrop),
+        _storyBody('Agent drops an item', [..._scenarios(3), quoted(4)]),
+      );
+      expect(
+        readDoc(root, cartAddFr),
+        contains(
+          _list('confirmed', [
+            'shop/cart/drop_item#S4 ${fingerprintFor(quoted(4))}',
+          ]),
+        ),
+      );
+      expect(_suspects(root, cartAddFr), isEmpty);
+    });
+
     test('check and move end a scenario at one line: a ###x line stays inside, a bare ### line and a quoted ### line end it', () async {
       for (final (line, ends) in [
         ('###x is no heading', false),

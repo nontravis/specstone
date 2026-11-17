@@ -14,8 +14,6 @@ import 'package:specstone_core/src/index_query/item_links.dart'
 /// The prefix of a scenario's ID in an address: `S2` names Scenario 2.
 const _refPrefix = 'S';
 
-const _scenarioHeadingOpen = '### $scenarioIdPrefix';
-
 const _travelHint = 'move both in one call';
 
 /// Whether [id] names a scenario: `S` and digits, as `S2`.
@@ -77,7 +75,7 @@ List<IdRead> scenarioIdsIn(DocIndex index, IndexedDoc story) {
 
 /// Reads the number of the scenario heading whose text after `### ` is
 /// [head] as an `S` ID by its value; null for any other heading.
-IdRead? _refOf(String head) => switch (readItemId(head, scenarioIdPrefix)) {
+IdRead? _refOf(String head) => switch (readScenarioHead(head)) {
   ItemId(:final number) => ItemId(prefix: _refPrefix, digits: '$number'),
   LetteredId(:final digits, :final letters) => LetteredId(
     prefix: _refPrefix,
@@ -100,10 +98,13 @@ String landedScenarioHeading(
   ItemLanding landing,
   Map<String, String> renamed,
 ) {
-  final number =
-      readScenarioHeading(raw) ??
-      (throw StateError('$raw is no scenario heading'));
-  const at = _scenarioHeadingOpen.length;
+  final head = headingItemTextOf(raw);
+  final number = head == null ? null : readScenarioHead(head);
+  if (head == null || number == null) {
+    throw StateError('$raw is no scenario heading');
+  }
+  // The head is the tail of [raw], after any `>` marks and the `### `.
+  final at = raw.length - head.length + scenarioIdPrefix.length;
   final numbered = landing.newId == landing.from.id
       ? raw
       : raw.replaceRange(

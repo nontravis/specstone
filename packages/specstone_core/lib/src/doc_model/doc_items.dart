@@ -44,8 +44,16 @@ List<DocItem> itemsOf(List<BodyLine> body) => [
 /// any `>` marks, a `### ` heading or a bare `###`.
 ///
 /// The one line that ends a heading item's `###` block, for every reader.
-bool opensHeadingItem(String line) =>
-    _Line.of((text: line, line: 0, fenced: false)).kind == _Kind.heading;
+bool opensHeadingItem(String line) => headingItemTextOf(line) != null;
+
+/// Returns the text of the heading item [line], unfenced, opens, as [itemsOf]
+/// reads it after any `>` marks and the `### `; null when it opens none.
+///
+/// The one reader every caller names a heading item from.
+String? headingItemTextOf(String line) {
+  final read = _Line.of((text: line, line: 0, fenced: false));
+  return read.kind == _Kind.heading ? read.itemText : null;
+}
 
 /// What a [SectionItem] is.
 enum SectionItemKind { listItem, tableRow, paragraph, heading }

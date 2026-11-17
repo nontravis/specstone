@@ -1,7 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc.dart';
 import 'package:specstone_core/src/doc_model/doc_items.dart';
-import 'package:specstone_core/src/doc_model/markdown_lines.dart'
-    show itemHeadingMarker;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/doc_model/text_scan.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -291,7 +289,7 @@ String? itemKeyOfHead(
   required bool isAcceptanceCriteria,
 }) {
   if (isHeading && isAcceptanceCriteria) {
-    final scenario = readScenarioHeading('$itemHeadingMarker$head');
+    final scenario = readScenarioHead(head);
     if (scenario is ItemId) return itemKeyOf(scenario, isScenario: true);
   }
   if (prefixId == null) return null;

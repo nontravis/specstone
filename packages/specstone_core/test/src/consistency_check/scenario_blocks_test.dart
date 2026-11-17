@@ -66,6 +66,18 @@ void main() {
       });
     });
 
+    test('a quoted scenario heading keys its block as the item reader names '
+        'it, and an unquoted one is unchanged', () {
+      final blocks = scenarioBlocksIn(
+        _body('### Scenario 1 — one\n- a\n> ### Scenario 3 — three\n- b'),
+      );
+
+      expect(blocks, {
+        'S1': '### Scenario 1 — one\n- a',
+        'S3': '> ### Scenario 3 — three\n- b',
+      });
+    });
+
     test('Scenario 1 does not match Scenario 10', () {
       final blocks = scenarioBlocksIn(
         _body('### Scenario 10 — ten\n- a\n### Scenario 1 — one\n- b'),

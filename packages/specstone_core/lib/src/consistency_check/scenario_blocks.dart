@@ -1,5 +1,5 @@
 import 'package:specstone_core/src/doc_model/doc_items.dart'
-    show opensHeadingItem;
+    show headingItemTextOf, opensHeadingItem;
 import 'package:specstone_core/src/doc_model/reference_grammar.dart';
 import 'package:specstone_core/src/index_query/doc_index.dart';
 import 'package:specstone_core/src/index_query/held_sections.dart';
@@ -11,7 +11,6 @@ export 'package:specstone_core/src/doc_model/reference_grammar.dart'
 export 'package:specstone_core/src/index_query/held_sections.dart'
     show BodyLine;
 
-const _itemHeadingMarker = '### ';
 const _statementPrefix = '- **Statement:**';
 const _goalIdPrefix = 'PG-';
 
@@ -34,17 +33,13 @@ int? heldSectionIndexIn(List<MergedSection?> templates, String sectionId) {
 
 // MARK: - Blocks
 
-/// Returns the text after the `### ` of [line], or null for any other line.
-String? itemHeadingTextOf(String line) => line.startsWith(_itemHeadingMarker)
-    ? line.substring(_itemHeadingMarker.length)
-    : null;
-
-/// Returns the ID of [prefix] a `###` [heading] opens with; null for any
-/// other heading, a lettered ID, and an unreadable ID.
+/// Returns the ID of [prefix] a `###` [heading] opens with, read from its
+/// [headingItemTextOf] text; null for any other heading, a lettered ID, and
+/// an unreadable ID.
 ///
 /// A null [prefix] reads the ID the grammar finds by its written prefix.
 String? itemHeadingKeyOf(String heading, String? prefix) {
-  final text = itemHeadingTextOf(heading);
+  final text = headingItemTextOf(heading);
   if (text == null) return null;
   final id = prefix == null
       ? readItemIdOfWrittenPrefix(text)
