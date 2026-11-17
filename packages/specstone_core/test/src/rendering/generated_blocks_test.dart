@@ -45,8 +45,15 @@ GeneratorRegistry<int> _given(List<GeneratedBlock> blocks) =>
       'note_end': (doc, docPath, docType, resolver) => const [],
     });
 
-String _write(String text, MergedDocType type, List<GeneratedBlock> blocks) =>
+String _fill(String text, MergedDocType type, List<GeneratedBlock> blocks) =>
     fillGeneratedBlocks(text, type, _given(blocks), 0, docPath: 'notes/a.md');
+
+/// Fills [text] after checking it holds no open block, which would leave it
+/// unchanged and pass an unchanged-text expectation vacuously.
+String _write(String text, MergedDocType type, List<GeneratedBlock> blocks) {
+  expect(openBlockOf(Doc.parse(text), type.listedGenerators.toSet()), isNull);
+  return _fill(text, type, blocks);
+}
 
 void main() {
   group('generated blocks', () {
@@ -135,11 +142,11 @@ void main() {
       final kinds = {'note_toc', 'note_end'};
       final open = openBlockOf(Doc.parse(disk), kinds);
 
-      expect(_write(disk, type, [_block('A')]), disk);
+      expect(_fill(disk, type, [_block('A')]), disk);
       expect(open!.kind, 'note_toc');
       expect(open.marker, generatedOpenMarker('note_toc'));
       final noEnd = '## Contents\n$_toc\nA\n';
-      expect(_write(noEnd, type, [_block('A')]), noEnd);
+      expect(_fill(noEnd, type, [_block('A')]), noEnd);
       expect(openBlockOf(Doc.parse(noEnd), kinds), isNotNull);
     });
 

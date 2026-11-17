@@ -155,6 +155,9 @@ List<GeneratedBlock> runGenerators<R>(
 /// Returns [lfText], the doc at [docPath], with the blocks of [docType]'s
 /// listed generators written.
 ///
+/// A block rewrites the pair of its kind at its place, or inserts one that
+/// writes its own layout whitespace. Every other byte stays as written, a pair
+/// outside every block's place and a pair of an unlisted kind included.
 /// [lfText] comes back unchanged when [docType] lists no generator and when
 /// it holds an opening marker with no end marker.
 String fillGeneratedBlocks<R>(
